@@ -94,7 +94,6 @@ func AgentRunWake() <-chan struct{} {
 	return runWake
 }
 
-// notifyAgentRuns 有新任务入队：唤醒本实例与其他实例上空闲的 worker
 // ReleaseRun 实例退出前放弃尚未完成的任务：立即重新排队并退回这次领取计入的尝试次数，其他实例可以马上接着执行，不必等租约到期。
 // 已执行过的写操作不会重复：同一次运行对同一目标只发一条评论、写操作总数受限，这两项计数都在共享状态中
 func (s *AIAgentService) ReleaseRun(runID uint) {
@@ -113,6 +112,7 @@ func (s *AIAgentService) ReleaseRun(runID uint) {
 	}
 }
 
+// notifyAgentRuns 有新任务入队：唤醒本实例与其他实例上空闲的 worker
 func notifyAgentRuns() {
 	wakeLocalRunners()
 	sharedstate.Notify(agentRunsChannel, "new")
@@ -454,7 +454,8 @@ func (s *AIAgentService) AgentChat(ctx context.Context, runID uint, payload map[
 	}
 	callCtx, cancel := context.WithTimeout(ctx, agentLLMTimeout)
 	defer cancel()
-	resp, err := postChatCompletions(callCtx, tools.AIConfig{BaseURL: aiCfg.BaseURL, APIKey: aiCfg.APIKey, Model: modelName}, body)
+	// 消息带图片时：模型拒收则去掉图片重试一次（经 ctx 上的回调告知 worker 记入运行步骤）
+	resp, err := postChatCompletionsVision(callCtx, tools.AIConfig{BaseURL: aiCfg.BaseURL, APIKey: aiCfg.APIKey, Model: modelName}, body)
 	if err != nil {
 		finish(llmUsage{}, err)
 	}
@@ -613,6 +614,12 @@ func (s *AIAgentService) buildLeaseRun(run *model.AgentRun, agent *model.AIAgent
 	}
 	if agent.Tier == constant.AIAgentTierExpert {
 		leased.MaxSteps = agentExpertMaxSteps
+	}
+	// 识图：开启后读文章时附带正文图片；该 AI 用户所用模型最近拒收过图片时按纯文本阅读（worker 记入运行步骤）
+	if tools.GetAIVisionEnabled() {
+		aiCfg := tools.GetAIConfig()
+		leased.Vision = aiVisionUsable(aiCfg.BaseURL, agentModel(agent, profile, cfg, aiCfg))
+		leased.VisionUnsupported = !leased.Vision
 	}
 	// 自己最近说过的话：提示词要求不重复开头、句式和观点，避免每条评论一个腔调
 	if recent, err := repo.AIAgent.RecentUserComments(agent.UserID, agentRecentComments); err == nil {

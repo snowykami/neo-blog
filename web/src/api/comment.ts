@@ -13,7 +13,7 @@ export async function createComment({
   mentionUserIds = [],
   replyId = null,
   isPrivate = false,
-  showClientInfo = true,
+  showClientInfo = false,
 }: {
   targetType: TargetType
   targetId: number
@@ -43,7 +43,7 @@ export async function updateComment({
   attachmentIds,
   mentionUserIds,
   isPrivate = false,
-  showClientInfo = true,
+  showClientInfo = false,
 }: {
   id: number
   content: string

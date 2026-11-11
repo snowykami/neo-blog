@@ -41,7 +41,7 @@ export function Archive({ groups, filter }: { groups: ArchiveGroup[], filter: { 
         {filterText && (
           <div className="mb-2 flex items-center gap-3 px-2 text-sm">
             <Badge variant="secondary">{filterText}</Badge>
-            <Link href={mainPath.archive} className="text-foreground/50 transition-colors hover:text-primary">
+            <Link href={mainPath.archive} className="text-muted-foreground transition-colors hover:text-primary">
               {t('clear_filter')}
             </Link>
           </div>
@@ -56,7 +56,7 @@ export function Archive({ groups, filter }: { groups: ArchiveGroup[], filter: { 
               <div className="w-[15%] md:w-[10%]">
                 <div className="relative z-10 mx-auto size-3 rounded-full outline-3 -outline-offset-2 outline-primary" />
               </div>
-              <div className="w-[70%] text-left text-foreground/50 md:w-[80%]">
+              <div className="w-[70%] text-left text-muted-foreground md:w-[80%]">
                 {t('posts_count', { count: group.posts.length })}
               </div>
             </div>
@@ -70,7 +70,7 @@ export function Archive({ groups, filter }: { groups: ArchiveGroup[], filter: { 
               >
                 <div className="flex h-full flex-row items-center justify-start">
                   {/* 日期 */}
-                  <div className="w-[15%] text-right text-sm text-foreground/50 md:w-[10%]">
+                  <div className="w-[15%] text-right text-sm text-muted-foreground md:w-[10%]">
                     {post.date}
                   </div>
                   {/* 圆点与虚线时间轴，圆点外描边与背景同色以遮住虚线 */}
@@ -82,7 +82,7 @@ export function Archive({ groups, filter }: { groups: ArchiveGroup[], filter: { 
                     {post.title}
                   </div>
                   {/* 标签 */}
-                  <div className="hidden truncate text-left text-sm text-foreground/30 md:block md:w-[15%]">
+                  <div className="hidden truncate text-left text-sm text-muted-foreground md:block md:w-[15%]">
                     {post.labels.map(label => `#${label}`).join(' ')}
                   </div>
                 </div>
@@ -91,7 +91,7 @@ export function Archive({ groups, filter }: { groups: ArchiveGroup[], filter: { 
           </div>
         ))}
         {groups.length === 0 && (
-          <p className="py-10 text-center text-foreground/50">{t('empty')}</p>
+          <p className="py-10 text-center text-muted-foreground">{t('empty')}</p>
         )}
       </div>
     </SiteShell>

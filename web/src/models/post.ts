@@ -102,6 +102,7 @@ export interface AISummaryBatchResult {
 export interface AISummaryStatus {
   status: AISummaryJobStatus
   error?: string
+  visionFallback?: boolean // 开启了识图但模型拒收图片，本次按纯文本生成
   description?: string
   stale: boolean
   generatedAt?: string | null

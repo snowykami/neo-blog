@@ -640,26 +640,11 @@ export function getCurrentLyricIndex(lines: MusicLyricLine[], currentTimeMs: num
   return Math.max(0, Math.min(right, lines.length - 1))
 }
 
-export function getCurrentWordIndex(line: MusicLyricLine | undefined, currentTimeMs: number): number | null {
-  if (!line || line.items.length === 0)
-    return null
-
-  const index = line.items.findIndex(item => currentTimeMs < item.startTime + item.duration)
-  if (index >= 0)
-    return index
-
-  return line.items.length - 1
-}
-
 export function getWordProgress(item: MusicLyricItem, currentTimeMs: number): number {
   if (item.duration <= 0)
     return currentTimeMs >= item.startTime ? 1 : 0
 
   return Math.max(0, Math.min(1, (currentTimeMs - item.startTime) / item.duration))
-}
-
-export function getExtraLyricText(lines: MusicLyricLine[], lineStartTime: number): string {
-  return getExtraLyricLine(lines, lineStartTime)?.originalText ?? ''
 }
 
 /**

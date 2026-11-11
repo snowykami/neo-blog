@@ -45,7 +45,7 @@ export function RandomPost() {
           <p className="text-lg font-medium text-foreground/90">
             {post ? t('coming_soon') : t('jumping_to_post')}
           </p>
-          {!post && <p className="mt-1 text-sm text-foreground/50">{t('selecting_post')}</p>}
+          {!post && <p className="mt-1 text-sm text-muted-foreground">{t('selecting_post')}</p>}
         </div>
 
         {post ? <RandomPostPreview post={post} /> : <RandomPostPreviewSkeleton />}
@@ -65,7 +65,7 @@ function RandomPostPreview({ post }: { post: Post }) {
       )}
       <div className="grid gap-2">
         <h2 className="text-2xl font-bold text-foreground/90">{post.title}</h2>
-        <p className="text-sm text-foreground/50 tabular-nums">
+        <p className="text-sm text-muted-foreground tabular-nums">
           {format.dateTime(new Date(post.createdAt), { year: 'numeric', month: '2-digit', day: '2-digit' })}
         </p>
         {post.description && <p className="text-foreground/75">{post.description}</p>}

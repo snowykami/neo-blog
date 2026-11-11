@@ -212,12 +212,24 @@ func (user *userRepo) GetAIWritingHabit(userID uint) (string, error) {
 	return habit, err
 }
 
+// userPrivateColumns 不会出现在前台页面上的用户列：只改这些列时不必让前台的用户页缓存失效
+var userPrivateColumns = map[string]bool{
+	"password":           true,
+	"notification_prefs": true,
+	"ai_writing_habit":   true,
+}
+
 // UpdateUserColumns 按列更新用户，map 形式允许把字段更新为零值（如清空昵称、启用用户）
 func (user *userRepo) UpdateUserColumns(userID uint, columns map[string]any) error {
 	if err := GetDB().Model(&model.User{}).Where("id = ?", userID).Updates(columns).Error; err != nil {
 		return err
 	}
-	TouchCacheTags(CacheTagUsers)
+	for column := range columns {
+		if !userPrivateColumns[column] {
+			TouchCacheTags(CacheTagUsers)
+			break
+		}
+	}
 	return nil
 }
 

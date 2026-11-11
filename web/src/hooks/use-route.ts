@@ -1,7 +1,7 @@
 import type { Post } from '@/models/post'
 import { usePathname, useRouter } from '@/i18n/navigation'
 import { splitLocalePrefix } from '@/i18n/routing'
-import { consolePath, getPostViewUrl, getUserUrl } from '@/utils/common/route'
+import { getPostViewUrl, getUserUrl } from '@/utils/common/route'
 
 /**
  * 用于跳转到登录页并自动带上 redirect_back 参数
@@ -41,12 +41,5 @@ export function useToPost() {
   const router = useRouter()
   return ({ post }: { post: Post }) => {
     router.push(getPostViewUrl(post))
-  }
-}
-
-export function useToEditPost() {
-  const router = useRouter()
-  return ({ post }: { post: Post }) => {
-    router.push(`${consolePath.post}/edit/${post.id}`)
   }
 }

@@ -28,6 +28,14 @@ describe('内置主题数据', () => {
       expect(theme.icons?.like, theme.id).toBeTruthy()
   })
 
+  it('点赞、评论、浏览三个并排显示的统计图标互不相同', () => {
+    for (const theme of BUILTIN_THEMES) {
+      const { like, comment, view } = theme.icons ?? {}
+      const names = [like, comment, view].filter(Boolean)
+      expect(new Set(names).size, theme.id).toBe(names.length)
+    }
+  })
+
   it('id 唯一', () => {
     const ids = BUILTIN_THEMES.map(t => t.id)
     expect(new Set(ids).size).toBe(ids.length)

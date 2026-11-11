@@ -77,11 +77,6 @@ export async function getLoginUser(): Promise<BaseResponse<User>> {
   return res.data
 }
 
-export async function getUserById(id: number): Promise<BaseResponse<User>> {
-  const res = await axiosClient.get(`/user/u/${id}`)
-  return res.data
-}
-
 export async function getUserByUsername(username: string): Promise<BaseResponse<User>> {
   const res = await axiosClient.get(`/user/username/${username}`)
   return res.data

@@ -231,7 +231,14 @@
     "back_to_top": "回到頂部",
     "ai_summary": "AI 摘要",
     "more_info": "更多說明",
-    "page_info": "頁面資訊"
+    "page_info": "頁面資訊",
+    "close": "關閉",
+    "loading": "載入中…",
+    "sidebar": "側邊欄",
+    "sidebar_description": "側邊欄導覽",
+    "toggle_sidebar": "展開或收合側邊欄",
+    "empty_content": "這篇文章還沒有內文",
+    "untitled": "無標題"
   },
   "Components": {
     "image_cropper": {
@@ -598,6 +605,9 @@
       "title": "評論管理",
       "comment": "評論",
       "target": "目標",
+      "target_post": "文章",
+      "target_page": "頁面",
+      "target_deleted": "所在內容已刪除",
       "user": "使用者",
       "status": "狀態",
       "time": "時間",
@@ -1117,6 +1127,8 @@
       "ai_api_base_url_desc": "OpenAI 相容介面的基礎位址，通常以 /v1 結尾",
       "ai_api_key": "API 金鑰",
       "ai_api_key_desc": "僅儲存於伺服器端，不會公開給訪客",
+      "ai_vision_enabled": "啟用圖片辨識",
+      "ai_vision_enabled_desc": "開啟後，AI 摘要與 AI 使用者閱讀文章時會把內文中靠前的圖片（最多 6 張，單張不超過 4 MB，支援 JPEG / PNG / WebP / GIF）一併傳給模型。必須使用支援圖片輸入（視覺）的模型；模型拒收圖片時會自動改用純文字，並在一段時間內不再傳送圖片。會明顯增加 token 用量",
       "ai_model": "模型",
       "ai_model_desc": "介面支援的模型名稱",
       "show_secret": "顯示",
@@ -1272,7 +1284,12 @@
       "ai_agents_run_retention_days": "執行紀錄保留天數",
       "ai_agents_run_retention_days_desc": "超過天數的執行紀錄會被自動清除",
       "site_language": "站點語言",
-      "site_language_desc": "文章主要使用的語言。沒有設定語言、瀏覽器也沒有傳送語言偏好的訪客（包括搜尋引擎爬蟲）按它顯示介面，RSS 訂閱源也使用它",
+      "site_language_desc": "文章主要使用的語言，用於 RSS 訂閱源的語言標記，以及驗證碼郵件（含測試郵件）的語言。不影響介面語言：介面語言由網址中的語言前綴決定（如 /en），通知郵件按收件人自己設定的語言傳送",
+      "site_language_zh-cn": "簡體中文",
+      "site_language_zh-tw": "繁體中文",
+      "site_language_en-us": "英語",
+      "site_language_ja-jp": "日語",
+      "site_language_ko-kr": "韓語",
       "refresh": "重新整理"
     },
     "labels": {
@@ -1676,6 +1693,7 @@
       "running": "AI 摘要產生中",
       "failed_badge": "摘要產生失敗",
       "click_to_retry": "點擊重試",
+      "vision_fallback": "模型不支援圖片輸入，本次已改用純文字產生",
       "stale": "內文已更新，建議重新產生摘要",
       "ai_marker": "AI",
       "ai_marker_title": "此描述由 AI 產生",
@@ -3150,7 +3168,7 @@
   },
   "NotificationSettings": {
     "title": "通知設定",
-    "description": "站內通知與郵件通知的開關都在這裡管理，變更即時生效",
+    "description": "站內通知與郵件通知的開關都在這裡管理，儲存後立即生效",
     "token_expired": "此連結已過期，請登入後繼續",
     "login_required": "登入後即可管理你的通知偏好",
     "login": "登入",
@@ -3194,6 +3212,7 @@
     "loading_more": "正在載入…",
     "new_notification": "有了新的互動",
     "unread": "未讀",
+    "account_with_unread": "{name}（有未讀通知）",
     "actor_separator": "、",
     "and_others": "和另外 {count} 人",
     "deleted_subject": "（內容已刪除）",
@@ -3222,6 +3241,7 @@
   "Login": {
     "captcha_error": "驗證碼錯誤，請重試。",
     "continue": "繼續",
+    "logout": "登出",
     "currently_logged_in": "目前登入為",
     "fetch_captcha_config_failed": "取得驗證碼設定失敗",
     "fetch_oidc_configs_failed": "取得 OIDC 設定失敗",
@@ -3864,7 +3884,17 @@
   },
   "ColorScheme": {
     "title": "顏色主題",
-    "update_failed": "更新顏色主題失敗"
+    "update_failed": "更新顏色主題失敗",
+    "names": {
+      "blue": "藍色",
+      "green": "綠色",
+      "orange": "橙色",
+      "red": "紅色",
+      "pink": "粉紅色",
+      "rose": "玫瑰紅",
+      "violet": "紫羅蘭",
+      "yellow": "黃色"
+    }
   },
   "ThemePack": {
     "title": "節日主題",

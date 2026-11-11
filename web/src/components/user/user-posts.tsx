@@ -59,7 +59,7 @@ export function UserPosts({ userId }: { userId: number }) {
     <section className="grid gap-4">
       <SectionTitle className="mx-4 text-xl md:mx-2 md:text-2xl">
         {t('posts')}
-        {total > 0 && <span className="ml-2 text-base font-medium text-foreground/50 tabular-nums">{total}</span>}
+        {total > 0 && <span className="ml-2 text-base font-medium text-muted-foreground tabular-nums">{total}</span>}
       </SectionTitle>
       <PostList
         posts={posts}
@@ -71,6 +71,7 @@ export function UserPosts({ userId }: { userId: number }) {
       />
       {total > 0 && (
         <PaginationController
+          hideOnSinglePage
           className="flex justify-center pt-2"
           pageSize={pageSize}
           initialPage={page}

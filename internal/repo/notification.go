@@ -310,11 +310,11 @@ func (r *notificationRepo) hydrate(rows []notificationGroupRow, filter *Notifica
 
 // likeGroupActorNames 点赞组里最新的两个昵称（同一人只算一次）
 func (r *notificationRepo) likeGroupActorNames(notification *model.Notification, filter *NotificationFilter) ([]string, error) {
-	start, end := notificationDayRange(notification.CreatedAt, filter.TimeZone)
 	var rows []model.Notification
-	if err := GetDB().Preload("Actor").
-		Where("user_id = ? AND type = ? AND target_type = ? AND target_id = ? AND created_at >= ? AND created_at < ?",
-			filter.UserID, notification.Type, notification.TargetType, notification.TargetID, start, end).
+	if err := notificationDayScope(GetDB(), notification.CreatedAt, filter.TimeZone).
+		Preload("Actor", func(db *gorm.DB) *gorm.DB { return db.Select("id, username, nickname") }).
+		Where("user_id = ? AND type = ? AND target_type = ? AND target_id = ?",
+			filter.UserID, notification.Type, notification.TargetType, notification.TargetID).
 		Order("created_at DESC, id DESC").Limit(20).Find(&rows).Error; err != nil {
 		return nil, err
 	}
@@ -372,9 +372,8 @@ func (r *notificationRepo) MarkRead(userID, id uint, timeZone string) (int64, er
 			// 折叠行本身就是一组
 			return query.Where("id = ?", notification.ID)
 		case isLikeGroupType(notification.Type):
-			start, end := notificationDayRange(notification.CreatedAt, timeZone)
-			return query.Where("type = ? AND target_type = ? AND target_id = ? AND created_at >= ? AND created_at < ?",
-				notification.Type, notification.TargetType, notification.TargetID, start, end)
+			return notificationDayScope(query, notification.CreatedAt, timeZone).
+				Where("type = ? AND target_type = ? AND target_id = ?", notification.Type, notification.TargetType, notification.TargetID)
 		default:
 			return query.Where("id = ?", notification.ID)
 		}
@@ -424,12 +423,13 @@ func (r *notificationRepo) GetByIDAndUser(userID, id uint) (*model.Notification,
 }
 
 // notificationGroupKeyExpr 分组键：点赞类按「类型 + 目标 + 自然日」归并，其余按自身 id 一行一组。
-// 分天在 SQL 里按收件人时区的固定偏移折算，两种方言写法不同（见 3.4）
+// 分天在 SQL 里按收件人时区的固定偏移折算，两种方言写法不同（见 3.4）；整组已读、展开成员用的 notificationDayRange 与这里同一个偏移。
+// Postgres 先换算成 UTC 再加偏移，结果与会话时区无关；SQLite 的 datetime() 本身就按 UTC 计算
 func notificationGroupKeyExpr(db *gorm.DB, timeZone string) string {
 	minutes := notificationZoneOffsetMinutes(timeZone)
 	var day string
 	if db.Dialector.Name() == "postgres" {
-		day = fmt.Sprintf("to_char(created_at + make_interval(mins => %d), 'YYYYMMDD')", minutes)
+		day = fmt.Sprintf("to_char((created_at AT TIME ZONE 'UTC') + make_interval(mins => %d), 'YYYYMMDD')", minutes)
 	} else {
 		day = "strftime('%Y%m%d', datetime(created_at, '" + fmt.Sprintf("%+d minutes", minutes) + "'))"
 	}
@@ -450,17 +450,24 @@ func notificationZoneOffsetMinutes(timeZone string) int {
 	return offset / 60
 }
 
-// notificationDayRange 收件人时区下该时刻所在自然日的起止（右开区间）
+// notificationDayRange 收件人时区下该时刻所在自然日的起止（右开区间，UTC）。
+// 与分组键（notificationGroupKeyExpr）按同一个固定偏移分天，两边对「哪一天」的判断始终一致，
+// 夏令时切换前后的行也不会出现分组里有、整组已读却漏掉的情况
 func notificationDayRange(at time.Time, timeZone string) (time.Time, time.Time) {
-	location := time.Local
-	if timeZone != "" {
-		if loaded, err := time.LoadLocation(timeZone); err == nil {
-			location = loaded
-		}
+	offset := time.Duration(notificationZoneOffsetMinutes(timeZone)) * time.Minute
+	shifted := at.UTC().Add(offset)
+	start := time.Date(shifted.Year(), shifted.Month(), shifted.Day(), 0, 0, 0, 0, time.UTC).Add(-offset)
+	return start, start.Add(24 * time.Hour)
+}
+
+// notificationDayScope 只保留与该时刻同属收件人时区同一自然日的行。
+// SQLite 按写入时的时区把时间存成文本，直接比较是字符串比较，用 julianday 统一折算成 UTC 再比
+func notificationDayScope(db *gorm.DB, at time.Time, timeZone string) *gorm.DB {
+	start, end := notificationDayRange(at, timeZone)
+	if db.Dialector.Name() == "postgres" {
+		return db.Where("created_at >= ? AND created_at < ?", start, end)
 	}
-	local := at.In(location)
-	start := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, location)
-	return start, start.AddDate(0, 0, 1)
+	return db.Where("julianday(created_at) >= julianday(?) AND julianday(created_at) < julianday(?)", start, end)
 }
 
 // notificationActorName 聚合行里的昵称：优先昵称，其次用户名，超长截断
@@ -728,11 +735,10 @@ func (r *notificationRepo) ListGroupMembers(userID, id uint, timeZone string, li
 	if notification.AggregateCount > 0 || !isLikeGroupType(notification.Type) {
 		return []model.Notification{notification}, nil
 	}
-	start, end := notificationDayRange(notification.CreatedAt, timeZone)
 	var rows []model.Notification
-	err := GetDB().Preload("Actor").
-		Where("user_id = ? AND type = ? AND target_type = ? AND target_id = ? AND created_at >= ? AND created_at < ?",
-			userID, notification.Type, notification.TargetType, notification.TargetID, start, end).
+	err := notificationDayScope(GetDB(), notification.CreatedAt, timeZone).Preload("Actor").
+		Where("user_id = ? AND type = ? AND target_type = ? AND target_id = ?",
+			userID, notification.Type, notification.TargetType, notification.TargetID).
 		Order("created_at DESC, id DESC").Limit(limit).Find(&rows).Error
 	return rows, err
 }

@@ -2,7 +2,7 @@
 import type { FileModel } from '@/models/file'
 import { DropdownMenuGroup } from '@radix-ui/react-dropdown-menu'
 import { ArrowRightLeft, Ellipsis, LinkIcon } from 'lucide-react'
-import { useTranslations } from 'next-intl'
+import { useFormatter, useTranslations } from 'next-intl'
 import {
   parseAsBoolean,
   parseAsInteger,
@@ -369,6 +369,7 @@ function FileItem({
   onSelect: (selected: boolean) => void
 }) {
   const commonT = useTranslations('Common')
+  const format = useFormatter()
   const operationT = useOperationT()
   if (layout === ArrangementMode.Grid) {
     return (
@@ -467,7 +468,7 @@ function FileItem({
               <span className="text-xs text-muted-foreground">
                 {commonT('created_at')}
                 :
-                {new Date(file.createdAt).toLocaleString()}
+                {format.dateTime(new Date(file.createdAt), { dateStyle: 'medium', timeStyle: 'short' })}
               </span>
             </div>
           </div>

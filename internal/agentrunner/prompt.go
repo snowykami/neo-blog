@@ -86,6 +86,9 @@ func materialPrompt(run *dto.AgentLeaseRun, post *readPost, comments string) str
 	if post != nil {
 		fmt.Fprintf(&b, "<post target=\"post:%d\" title=%q author=%q labels=%q you_liked=\"%t\" you_commented=\"%t\">\n%s\n</post>\n",
 			post.ref.ID, post.ref.Title, post.ref.Author, strings.Join(post.ref.Labels, ","), post.ref.Liked, post.ref.Commented, post.body)
+		if len(post.images) > 0 {
+			b.WriteString("<post_images>正文中标 [图N] 的图片已按编号附在本条消息末尾（只附了靠前的几张）</post_images>\n")
+		}
 	}
 	if comments != "" {
 		fmt.Fprintf(&b, "<comments>\n%s\n</comments>\n", comments)

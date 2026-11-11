@@ -62,7 +62,7 @@ export function BlogSidebarAbout() {
         <div className="mb-1 text-xl font-bold text-foreground/90">{name}</div>
         <div aria-hidden className="mx-auto mb-2 h-1 w-5 rounded-full bg-primary" />
         {owner?.motto && <p className="mb-1 text-foreground/75">{owner.motto}</p>}
-        {owner?.description && <p className="text-sm text-foreground/50">{owner.description}</p>}
+        {owner?.description && <p className="text-sm text-muted-foreground">{owner.description}</p>}
       </div>
     </SidebarCard>
   )
@@ -105,7 +105,7 @@ export function BlogSidebarHotPosts({ posts: initialPosts, orderType = OrderBy.H
               </span>
               <div className="min-w-0 flex-1">
                 <div className="line-clamp-2 text-sm font-medium text-foreground/75 transition-colors duration-150 group-hover:text-primary">{post.title}</div>
-                <div className="mt-1 flex items-center gap-3 text-xs text-foreground/30 tabular-nums">
+                <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground tabular-nums">
                   <span className="flex items-center gap-1">
                     <Eye aria-hidden className="size-3" />
                     <span className="sr-only">{metricsT('view_count')}</span>
@@ -195,7 +195,7 @@ export function BlogSidebarLabels({
         <Button
           variant="ghost"
           size="sm"
-          className="mt-2 w-full text-foreground/50 hover:text-primary"
+          className="mt-2 w-full text-muted-foreground hover:text-primary"
           aria-expanded={expanded}
           onClick={() => setExpanded(v => !v)}
         >

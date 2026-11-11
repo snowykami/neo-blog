@@ -11,6 +11,7 @@ import { batchAIAgents, getAIAgentStats, listAIAgentGroups, listAIAgents, pauseA
 import { UserAvatar } from '@/components/common/avatar'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
+import { STICKY_ACTIONS_CLASS } from '@/components/console/common/sticky-actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -333,7 +334,7 @@ export function AIAgentsPage() {
                   <TableHead>{t('list.col_today')}</TableHead>
                   <TableHead>{t('list.col_month_tokens')}</TableHead>
                   <TableHead>{t('list.col_last_active')}</TableHead>
-                  <TableHead className="text-right">{t('list.col_actions')}</TableHead>
+                  <TableHead className={`text-right ${STICKY_ACTIONS_CLASS}`}>{t('list.col_actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -408,7 +409,7 @@ export function AIAgentsPage() {
                           )
                         : t('list.never_active')}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className={STICKY_ACTIONS_CLASS}>
                       <div className="flex items-center justify-end gap-1">
                         <Button size="sm" variant="ghost" asChild>
                           <Link href={`${consolePath.aiAgent}/${agent.id}`}>

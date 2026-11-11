@@ -5,6 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useDevice } from '@/contexts/device-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
+import { useColorSchemeName } from '@/hooks/use-color-scheme-name'
 import { fallbackSiteInfo } from '@/utils/common/siteinfo'
 
 export function ColorScheme({
@@ -18,6 +19,7 @@ export function ColorScheme({
   selectedColor: string
   setSelectedColor: (color: string) => void
 }) {
+  const schemeName = useColorSchemeName()
   return (
     <div
       className={`w-full rounded-lg border p-3 shadow-sm box-border ${className ?? ''} ${selectedColor === color ? 'border-primary bg-primary/10' : 'border-border'} cursor-pointer hover:border-primary transition-colors`}
@@ -32,7 +34,7 @@ export function ColorScheme({
           }}
           className="pointer-events-none"
         />
-        <div className="font-bold text-primary">{color.toUpperCase()}</div>
+        <div className="font-bold text-primary">{schemeName(color)}</div>
       </div>
 
       <div className="mt-3 space-y-2">

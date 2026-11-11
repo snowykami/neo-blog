@@ -109,6 +109,20 @@ func TestCommentVisibility(t *testing.T) {
 	if _, _, svcerr := NewCommentService().ListCommentsAdmin(admin, &dto.PaginationParams{Page: 1, Size: 10, OrderBy: constant.OrderByCreatedAt, Desc: true}, "admin"); svcerr != nil {
 		t.Fatalf("admin comment search: %v", svcerr)
 	}
+
+	// 后台评论列表附带所属文章的标题，供「目标」列直接显示
+	adminComments, _, svcerr := NewCommentService().ListCommentsAdmin(admin, &dto.PaginationParams{Page: 1, Size: 10, OrderBy: constant.OrderByCreatedAt, Desc: true}, "")
+	if svcerr != nil {
+		t.Fatalf("admin comment list: %v", svcerr)
+	}
+	if len(adminComments) == 0 {
+		t.Fatal("admin comment list is empty")
+	}
+	for _, comment := range adminComments {
+		if comment.Target.ID != comment.TargetID || comment.Target.Type != comment.TargetType || comment.Target.Title == "" {
+			t.Fatalf("admin comment %d target = %+v", comment.ID, comment.Target)
+		}
+	}
 }
 
 func TestToggleLikeCount(t *testing.T) {

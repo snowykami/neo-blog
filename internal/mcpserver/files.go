@@ -28,7 +28,7 @@ type uploadImageInput struct {
 
 type uploadImageOutput struct {
 	ID       uint   `json:"id"`
-	URL      string `json:"url"`
+	URL      string `json:"url" jsonschema:"site-relative URL (/api/v1/file/f/<id>); use it as-is in post content or as a cover so it keeps working if the site changes domain"`
 	Markdown string `json:"markdown" jsonschema:"ready-to-insert Markdown image syntax"`
 }
 

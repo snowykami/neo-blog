@@ -4,7 +4,7 @@ import type { SubmitHandler } from 'react-hook-form'
 import type { Category } from '@/models/category'
 import type { Label } from '@/models/label'
 import type { Post } from '@/models/post'
-import { useTranslations } from 'next-intl'
+import { useFormatter, useTranslations } from 'next-intl'
 import { useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
@@ -58,6 +58,7 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
   const errorDetailsT = useResponseErrorDetailsT()
   const commonT = useCommonT()
   const t = useTranslations('Console.post_edit')
+  const format = useFormatter()
   const router = useRouter()
   const form = useForm<PostMetaForm>({
     defaultValues: toFormValues(post),
@@ -155,12 +156,12 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
               <div className="font-mono text-sm">
                 {commonT('created_at')}
                 :
-                {new Date(post.createdAt).toLocaleString()}
+                {format.dateTime(new Date(post.createdAt), { dateStyle: 'medium', timeStyle: 'short' })}
               </div>
               <div className="font-mono text-sm">
                 {commonT('updated_at')}
                 :
-                {new Date(post.updatedAt).toLocaleString()}
+                {format.dateTime(new Date(post.updatedAt), { dateStyle: 'medium', timeStyle: 'short' })}
               </div>
             </div>
           )}

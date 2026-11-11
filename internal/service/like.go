@@ -36,13 +36,16 @@ func (ls *LikeService) ToggleLike(ctx context.Context, targetID uint, targetType
 		if err != nil || (post.IsPrivate && !(ctxutils.IsOwnerOfTarget(ctx, post.UserID) || ctxutils.IsAdmin(ctx))) {
 			return false, errs.NewNotFound("operation_target_not_found")
 		}
-		full, err := repo.Post.GetPostByID(targetID)
-		if err != nil {
-			return false, errs.NewNotFound("operation_target_not_found")
-		}
 		ownerID = post.UserID
-		subjectType, subjectID = constant.TargetTypePost, full.ID
-		subjectTitle, subjectSlug = full.Title, derefString(full.Slug)
+		subjectType, subjectID = constant.TargetTypePost, post.ID
+		// 通知快照只要标题与 slug，不读整篇文章（正文、草稿与关联）
+		briefs, err := repo.Comment.ListTargetBriefs(constant.TargetTypePost, []uint{post.ID})
+		if err != nil {
+			return false, errs.Internal("failed_to_get_target", err).WithResource("post")
+		}
+		if brief, ok := briefs[post.ID]; ok {
+			subjectTitle, subjectSlug = brief.Title, derefString(brief.Slug)
+		}
 	case constant.TargetTypeComment:
 		comment, svcerr := NewCommentService().GetComment(ctx, targetID)
 		if svcerr != nil {

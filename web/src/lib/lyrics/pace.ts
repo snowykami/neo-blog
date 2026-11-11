@@ -16,9 +16,6 @@ export const FIXED_LYRIC_PACES: readonly FixedLyricPace[] = ['slow', 'medium', '
 /** 全曲没有指定节奏时跟随节拍 */
 export const DEFAULT_LYRIC_PACE: LyricPace = 'beat'
 
-/** 跟随节拍不可用时的回退 */
-export const FALLBACK_LYRIC_PACE: FixedLyricPace = 'medium'
-
 export const PACE = {
   // 固定档的基准脉冲周期 T_b（毫秒）：心跳的拍长，其余动效的时长按 T_b 换算（见 rhythm/effects.ts）
   basePeriod: { slow: 1000, medium: 750, fast: 520 },

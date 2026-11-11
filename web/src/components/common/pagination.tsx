@@ -288,20 +288,17 @@ const PAGE_SIZE_OPTIONS = [10, 15, 20, 30, 50, 100]
 
 export function PageSizeSelector({
   size,
-  initialSize,
   onSizeChange,
   options = PAGE_SIZE_OPTIONS,
 }: {
   /** 受控每页条数（推荐），通常来自 URL 状态 */
   size?: number
-  /** @deprecated 仅在未传入 size 时作为非受控初始值，保留以兼容旧调用 */
-  initialSize?: number
   onSizeChange: (size: number) => void
   /** 可选的每页条数列表 */
   options?: number[]
 }) {
   const t = useTranslations('Components.pagination')
-  const [innerSize, setInnerSize] = useState(initialSize || 10)
+  const [innerSize, setInnerSize] = useState(10)
   const current = size ?? innerSize
   // 当前值不在候选列表中时（如移动端默认值）也要能正常显示
   const sizeList = options.includes(current)

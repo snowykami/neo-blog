@@ -19,7 +19,7 @@ export function PostMetaItem({
         <Icon className="size-4" />
       </span>
       <span className="sr-only">{label}</span>
-      <div className="min-w-0 text-sm font-medium text-foreground/50">{children}</div>
+      <div className="min-w-0 text-sm font-medium text-muted-foreground">{children}</div>
     </div>
   )
 }

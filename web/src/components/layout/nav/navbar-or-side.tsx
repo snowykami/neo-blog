@@ -341,7 +341,7 @@ function SidebarMenu({ items }: { items: NavMenuItem[] }) {
                 : item.children
                   ? (
                       <div key={item.title} className="mt-2 grid gap-1">
-                        <div className="px-3 py-1 text-sm font-medium text-foreground/50">{item.label ?? routeT(item.title)}</div>
+                        <div className="px-3 py-1 text-sm font-medium text-muted-foreground">{item.label ?? routeT(item.title)}</div>
                         {item.children.map(child => (
                           <NavItemLink
                             key={child.title}

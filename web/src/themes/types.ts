@@ -71,6 +71,8 @@ export const THEME_ICON_NAMES = [
   'magpie',
   'moon',
   'leaf',
+  'shopping-bag',
+  'code',
 ] as const
 export type ThemeIconName = (typeof THEME_ICON_NAMES)[number]
 

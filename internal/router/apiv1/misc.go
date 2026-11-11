@@ -26,7 +26,6 @@ func registerMiscRoutes(group *route.RouterGroup) {
 		miscGroup.GET("/weather/reverse", controller.Weather.Reverse)
 		miscGroup.GET("/weather/locate", controller.Weather.Locate)
 
-		miscGroupWithAdmin.PUT("/public-config", miscController.SetPublicConfig)
 		miscGroupWithAdmin.GET("/metrics", miscController.GetMetrics) // 仅管理员可见
 	}
 }

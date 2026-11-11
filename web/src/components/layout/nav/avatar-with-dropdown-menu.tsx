@@ -47,7 +47,10 @@ export function AvatarWithDropdownMenu({ className }: { className?: string }) {
         <button
           type="button"
           className={className}
-          aria-label={user ? formatDisplayName(user) : operationT('login')}
+          // 未读小圆点只是视觉提示，读屏通过按钮名称得知有未读通知
+          aria-label={user
+            ? (unreadCount > 0 ? notificationsT('account_with_unread', { name: formatDisplayName(user) }) : formatDisplayName(user))
+            : operationT('login')}
           title={user ? formatDisplayName(user) : operationT('login')}
           // 登录状态在浏览器里确认（服务端外壳对所有人一致），确认前显示与头像同尺寸的占位，避免先出现登录菜单
           disabled={loading}

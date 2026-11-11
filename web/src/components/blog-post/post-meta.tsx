@@ -46,7 +46,7 @@ function PostAuthorAvatarItem({ user }: { user: Post['user'] }) {
       <span className="block max-w-[16ch] truncate">{name}</span>
     </>
   )
-  const itemClass = 'flex min-w-0 items-center text-sm font-medium text-foreground/50'
+  const itemClass = 'flex min-w-0 items-center text-sm font-medium text-muted-foreground'
 
   return user?.username
     ? <Link href={getUserUrl(user, 'posts')} className={cn(metaLinkClass, itemClass)}>{content}</Link>
@@ -147,7 +147,7 @@ export function PostStats({
     ...(comments === undefined ? [] : [{ key: 'comments', icon: CommentIcon, text: comments }]),
   ]
   return (
-    <div className={cn('flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-foreground/30 tabular-nums', withIcons && 'gap-x-5', className)}>
+    <div className={cn('flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground tabular-nums', withIcons && 'gap-x-5', className)}>
       {items.map(item => (
         <div key={item.key} className="flex items-center">
           {withIcons && (

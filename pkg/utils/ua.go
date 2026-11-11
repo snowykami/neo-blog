@@ -19,6 +19,8 @@ type UAResult struct {
 	Browser    string
 	BrowserVer string
 	DeviceType string // desktop / mobile / tablet / bot
+
+	osVersionFrozen bool // OSVersion 是浏览器固定报的值，不代表真实系统版本（见 osVersionFrozen）
 }
 
 var (
@@ -85,5 +87,63 @@ func ParseUA(ua string) UAResult {
 	if botPattern.MatchString(ua) {
 		r.DeviceType = DeviceBot
 	}
+	r.osVersionFrozen = osVersionFrozen(r, ua)
 	return r
+}
+
+// windowsReleases Windows NT 内核版本对应的发行名；NT 10.0 同时对应 Windows 10 与 11，无法区分，不在表中
+var windowsReleases = map[string]string{
+	"6.3": "8.1",
+	"6.2": "8",
+	"6.1": "7",
+	"6.0": "Vista",
+	"5.2": "XP",
+	"5.1": "XP",
+}
+
+// osVersionFrozen UA 里的系统版本是否被浏览器固定成某个值、不代表真实版本
+//   - macOS：Safari、Chrome、Firefox 都把 10.15 之后的系统固定报成 10.15(.7)
+//   - Windows：NT 10.0 同时对应 Windows 10 与 11
+//   - Android：Chrome 精简 UA 固定报 "Android 10; K"
+//   - iOS / iPadOS：iOS 26 起 Safari 与 WebView 把系统版本固定报成 18.6
+func osVersionFrozen(r UAResult, ua string) bool {
+	switch r.OS {
+	case "macOS":
+		return strings.HasPrefix(r.OSVersion, "10.15")
+	case "Windows":
+		return r.OSVersion == "10.0"
+	case "Android":
+		return strings.Contains(ua, "Android 10; K)")
+	case "iOS", "iPadOS":
+		return r.OSVersion == "18.6"
+	}
+	return false
+}
+
+// PublicOS 对外展示的系统名与版本：版本被 UA 固定、无法反映真实系统时只给系统名，Windows 换成发行名
+func (r UAResult) PublicOS() string {
+	if r.OS == "" || r.OSVersion == "" || r.osVersionFrozen {
+		return r.OS
+	}
+	version := r.OSVersion
+	if r.OS == "Windows" {
+		release, ok := windowsReleases[version]
+		if !ok {
+			return r.OS
+		}
+		version = release
+	}
+	return r.OS + " " + version
+}
+
+// PublicBrowser 对外展示的浏览器名与版本：去掉末尾的 .0（Chrome 精简 UA 只保留主版本，其余各段固定为 0）
+func (r UAResult) PublicBrowser() string {
+	if r.Browser == "" || r.BrowserVer == "" {
+		return r.Browser
+	}
+	version := r.BrowserVer
+	for strings.HasSuffix(version, ".0") {
+		version = strings.TrimSuffix(version, ".0")
+	}
+	return r.Browser + " " + version
 }

@@ -109,8 +109,9 @@ export default async function RootLayout({
                     <LoginDialogProvider>
                       <MusicProvider>
                         <NavProvider>
-                          <FloatingWidgets />
                           {children}
+                          {/* 悬浮按钮放在页面内容之后：Tab 顺序先到「跳到正文」与页面本身，最后才是播放器 / 回到顶部 */}
+                          <FloatingWidgets />
                         </NavProvider>
                       </MusicProvider>
                     </LoginDialogProvider>

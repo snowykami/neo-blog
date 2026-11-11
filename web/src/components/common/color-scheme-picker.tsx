@@ -11,6 +11,7 @@ import { Switch } from '@/components/ui/switch'
 import { useAuth } from '@/contexts/auth-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { useTheme } from '@/contexts/theme-context'
+import { useColorSchemeName } from '@/hooks/use-color-scheme-name'
 import { cn } from '@/lib/utils'
 import {
   applyColorScheme,
@@ -94,6 +95,7 @@ export function ColorSchemeCircles({
   onSelect: (scheme: string) => void
   className?: string
 }) {
+  const schemeName = useColorSchemeName()
   return (
     <div className={cn('flex flex-wrap items-center gap-2', className)}>
       {colorSchemes.map(scheme => (
@@ -102,9 +104,9 @@ export function ColorSchemeCircles({
           type="button"
           data-user-color={scheme}
           onClick={() => onSelect(scheme)}
-          aria-label={scheme}
+          aria-label={schemeName(scheme)}
           aria-pressed={color === scheme}
-          title={scheme}
+          title={schemeName(scheme)}
           className={cn(
             'inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground ring-2 ring-transparent transition-[transform,box-shadow] duration-150 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-ring',
             color === scheme && 'ring-foreground/40',

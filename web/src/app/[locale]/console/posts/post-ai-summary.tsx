@@ -75,7 +75,8 @@ export function useAISummary({ post, onPostUpdate, canConfigure }: { post: Post,
               aiSummaryError: undefined,
             },
           })
-          toast.success(tRef.current('success'))
+          // 开启了识图但模型拒收图片：已按纯文本生成，提示站长换用支持图片输入的模型
+          toast.success(tRef.current('success'), status.visionFallback ? { description: tRef.current('vision_fallback') } : undefined)
         }
         else if (status.status === 'failed') {
           onPostUpdate({ post: { id: postId, aiSummaryStatus: 'failed', aiSummaryError: status.error } })

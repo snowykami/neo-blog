@@ -231,7 +231,14 @@
     "back_to_top": "トップへ戻る",
     "ai_summary": "AI 要約",
     "more_info": "詳細",
-    "page_info": "ページ情報"
+    "page_info": "ページ情報",
+    "close": "閉じる",
+    "loading": "読み込み中…",
+    "sidebar": "サイドバー",
+    "sidebar_description": "サイドバーのナビゲーション",
+    "toggle_sidebar": "サイドバーの表示を切り替え",
+    "empty_content": "この記事にはまだ本文がありません",
+    "untitled": "無題"
   },
   "Components": {
     "image_cropper": {
@@ -598,6 +605,9 @@
       "title": "コメント管理",
       "comment": "コメント",
       "target": "対象",
+      "target_post": "投稿",
+      "target_page": "ページ",
+      "target_deleted": "元のコンテンツは削除されました",
       "user": "ユーザー",
       "status": "状態",
       "time": "日時",
@@ -1117,6 +1127,8 @@
       "ai_api_base_url_desc": "OpenAI 互換 API のベース URL（通常は /v1 で終わります）",
       "ai_api_key": "API キー",
       "ai_api_key_desc": "サーバーにのみ保存され、訪問者には公開されません",
+      "ai_vision_enabled": "画像認識を有効にする",
+      "ai_vision_enabled_desc": "オンにすると、AI 要約と AI ユーザーが記事を読むときに本文の先頭付近の画像（最大 6 枚、1 枚 4 MB まで、JPEG / PNG / WebP / GIF）もモデルに送ります。画像入力（ビジョン）に対応したモデルが必要です。モデルが画像を受け付けない場合は自動的にテキストのみで再試行し、しばらく画像を送りません。トークン消費が大きく増えます",
       "ai_model": "モデル",
       "ai_model_desc": "API が対応しているモデル名",
       "show_secret": "表示",
@@ -1272,7 +1284,12 @@
       "ai_agents_run_retention_days": "実行記録の保持日数",
       "ai_agents_run_retention_days_desc": "この日数を過ぎた実行記録は自動的に削除されます",
       "site_language": "サイトの言語",
-      "site_language_desc": "記事の主な言語です。言語を設定しておらず、ブラウザも言語の希望を送らない訪問者（検索エンジンのクローラーを含む）にはこの言語で表示します。RSS フィードもこの言語を使います",
+      "site_language_desc": "記事の主な言語です。RSS フィードの言語と、認証コードメール（テストメールを含む）の言語に使います。画面の言語には影響しません。画面の言語は URL の言語プレフィックス（例：/en）で決まり、通知メールは受信者が設定した言語で送られます",
+      "site_language_zh-cn": "中国語（簡体字）",
+      "site_language_zh-tw": "中国語（繁体字）",
+      "site_language_en-us": "英語",
+      "site_language_ja-jp": "日本語",
+      "site_language_ko-kr": "韓国語",
       "refresh": "更新"
     },
     "labels": {
@@ -1676,6 +1693,7 @@
       "running": "AI 要約を生成中",
       "failed_badge": "要約の生成に失敗",
       "click_to_retry": "クリックして再試行",
+      "vision_fallback": "モデルが画像入力に対応していないため、今回はテキストのみで生成しました",
       "stale": "本文が更新されました。要約の再生成をおすすめします",
       "ai_marker": "AI",
       "ai_marker_title": "この説明は AI によって生成されました",
@@ -3150,7 +3168,7 @@
   },
   "NotificationSettings": {
     "title": "通知設定",
-    "description": "アプリ内通知とメール通知の設定はここで管理します。変更はすぐに反映されます",
+    "description": "アプリ内通知とメール通知の設定はここで管理します。保存するとすぐに反映されます",
     "token_expired": "このリンクの有効期限が切れました。ログインして続行してください",
     "login_required": "ログインすると通知の設定を管理できます",
     "login": "ログイン",
@@ -3194,6 +3212,7 @@
     "loading_more": "読み込み中…",
     "new_notification": "新しい動きがあります",
     "unread": "未読",
+    "account_with_unread": "{name}（未読の通知があります）",
     "actor_separator": "、",
     "and_others": "ほか {count} 人",
     "deleted_subject": "（削除済み）",
@@ -3205,7 +3224,7 @@
     "types": {
       "comment_created": "{actors} が記事「{subject}」にコメントしました：{excerpt}",
       "comment_created_page": "{actors} がページ「{subject}」にコメントしました：{excerpt}",
-      "comment_replied": "{actors} が「{subject}」のあなたのコメントに返信しました：{excerpt}",
+      "comment_replied": "{actors} が「{subject}」のあなたのコメント「{quoted}」に返信しました：{excerpt}",
       "comment_replied_without_quote": "{actors} があなたのコメントに返信しました：{excerpt}",
       "post_liked": "{actors} が記事「{subject}」にいいねしました",
       "comment_liked": "{actors} があなたのコメント「{quoted}」にいいねしました",
@@ -3222,6 +3241,7 @@
   "Login": {
     "captcha_error": "CAPTCHA 認証に失敗しました。もう一度お試しください。",
     "continue": "続行",
+    "logout": "ログアウト",
     "currently_logged_in": "現在ログイン中:",
     "fetch_captcha_config_failed": "CAPTCHA の設定を取得できませんでした",
     "fetch_oidc_configs_failed": "OIDC 設定の取得に失敗しました",
@@ -3864,7 +3884,17 @@
   },
   "ColorScheme": {
     "title": "カラーテーマ",
-    "update_failed": "カラーテーマの更新に失敗しました"
+    "update_failed": "カラーテーマの更新に失敗しました",
+    "names": {
+      "blue": "ブルー",
+      "green": "グリーン",
+      "orange": "オレンジ",
+      "red": "レッド",
+      "pink": "ピンク",
+      "rose": "ローズ",
+      "violet": "バイオレット",
+      "yellow": "イエロー"
+    }
   },
   "ThemePack": {
     "title": "季節テーマ",

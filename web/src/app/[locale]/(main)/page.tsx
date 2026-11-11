@@ -14,7 +14,7 @@ import { localeAlternates } from '@/i18n/alternates'
 import { localizePath } from '@/i18n/routing'
 import { CacheTag, skipBackendAtBuild } from '@/lib/cache-tags'
 import { OrderBy } from '@/models/common'
-import { safeMetadataBase } from '@/utils/common/siteinfo'
+import { absoluteSiteUrl, safeMetadataBase } from '@/utils/common/siteinfo'
 import BlogHome from './blog-home'
 import { blogHomeQueryKey } from './blog-home-query'
 
@@ -33,13 +33,13 @@ export async function generateMetadata(): Promise<Metadata> {
       title: `${routeT('homepage')} - ${siteInfo.metadata.name}`,
       description: siteInfo.metadata.description,
       url: localizePath('/', locale),
-      siteName: siteInfo?.metadata.name || 'Site Name',
+      siteName: siteInfo.metadata.name || undefined,
       images: [
         {
           url: siteInfo?.metadata.icon || '',
           width: 800,
           height: 600,
-          alt: siteInfo?.metadata.name || 'Site Name',
+          alt: siteInfo.metadata.name,
         },
       ],
       // Open Graph 的 locale 写法为 language_TERRITORY，如 zh_TW
@@ -120,7 +120,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<Hom
       'name': siteInfo.metadata.name,
       'logo': {
         '@type': 'ImageObject',
-        'url': siteInfo.metadata.icon,
+        // 站点图标存的是站内相对路径，结构化数据要求绝对地址
+        'url': absoluteSiteUrl(siteInfo.metadata.icon, siteInfo.baseUrl),
       },
     },
     'potentialAction': {

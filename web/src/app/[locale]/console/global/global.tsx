@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { createKV, deleteKV, listKV, setKV } from '@/api/admin'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
+import { STICKY_ACTIONS_CLASS } from '@/components/console/common/sticky-actions'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -151,7 +152,7 @@ export default function GlobalPage() {
             <TableRow>
               <TableHead>{t('key')}</TableHead>
               <TableHead>{t('value')}</TableHead>
-              <TableHead className="text-right">{t('actions')}</TableHead>
+              <TableHead className={`text-right ${STICKY_ACTIONS_CLASS}`}>{t('actions')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -171,7 +172,7 @@ export default function GlobalPage() {
                 <TableCell className="max-w-[28rem] truncate font-mono text-xs text-muted-foreground">
                   {JSON.stringify(item.value)}
                 </TableCell>
-                <TableCell className="text-right">
+                <TableCell className={`text-right ${STICKY_ACTIONS_CLASS}`}>
                   <div className="flex justify-end gap-2">
                     <Button size="sm" variant="outline" onClick={() => setSelectedKey(item.key)}>{operationT('edit')}</Button>
                     {/* 全局配置影响全站运行，删除使用 AlertDialog 确认 */}

@@ -47,7 +47,7 @@ export default async function PostPreviewPage({ params }: Props) {
     notFound()
   return (
     <MainShell reportVisits={false}>
-      <div className="flex flex-col h-100vh">
+      <div className="flex flex-col">
         <BlogPost post={post} isDraft />
       </div>
     </MainShell>

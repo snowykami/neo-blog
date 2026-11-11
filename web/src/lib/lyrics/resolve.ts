@@ -15,8 +15,6 @@ import { EMPTY_LYRICS } from './types'
 
 export type LyricSourceKind = 'ttml' | 'ncm' | 'qq' | 'kugou'
 
-export const LYRIC_SOURCE_KINDS: LyricSourceKind[] = ['ttml', 'ncm', 'qq', 'kugou']
-
 export interface LyricCandidate {
   kind: LyricSourceKind
   lyrics: ResolvedLyrics

@@ -24,23 +24,6 @@ export function useDebouncedValue<T>(value: T, delay = 400) {
   return debounced
 }
 
-/** 防抖回调：返回一个稳定函数，调用时会在 delay 后真正触发 cb（后触发覆盖先触发）。 */
-export function useDebouncedCallback<T extends (...args: unknown[]) => unknown>(
-  cb: T,
-  delay = 400,
-) {
-  const cbRef = useRef(cb)
-  const timerRef = useRef<number | null>(null)
-  cbRef.current = cb
-  return (...args: Parameters<T>) => {
-    if (timerRef.current)
-      window.clearTimeout(timerRef.current)
-    timerRef.current = window.setTimeout(() => {
-      cbRef.current(...args)
-    }, delay)
-  }
-}
-
 interface UseDebouncedStateOptions {
   /** 是否在首次 set 时立即更新（默认 false 延迟） */
   immediate?: boolean

@@ -20,6 +20,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/storage"
 	"github.com/snowykami/neo-blog/internal/storage/local"
 	"github.com/snowykami/neo-blog/internal/tasks"
+	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/storageprovider"
 )
@@ -83,6 +84,21 @@ func TestFileLinkMiddleware(t *testing.T) {
 	resp.Body.Close()
 	if want := `{"content":"<img src=\"` + direct + `\">"}`; string(got) != want {
 		t.Fatalf("get = %s", got)
+	}
+
+	// 带本站域名的稳定链接（后台「复制链接」得到的地址）存为相对路径，其他站点的同名路径不动
+	origin := tools.GetBaseUrl()
+	if origin == "" {
+		t.Fatal("base url is empty")
+	}
+	body := `{"icon":"` + origin + stable + `/a.png","other":"https://other.test` + stable + `"}`
+	resp, err = http.Post(base+"/echo", "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if want := `{"icon":"` + stable + `/a.png","other":"https://other.test` + stable + `"}`; stored != want {
+		t.Fatalf("stored = %s, want %s", stored, want)
 	}
 }
 

@@ -47,7 +47,7 @@ function UserCommentItem({ comment }: { comment: UserComment }) {
       <div className="flex items-center gap-3">
         <UserAvatar user={comment.user} size={64} className="size-8 shrink-0" />
         <span className="font-medium text-foreground/90">{comment.user.nickname || comment.user.username}</span>
-        <span className="text-xs text-foreground/50 tabular-nums">
+        <span className="text-xs text-muted-foreground tabular-nums">
           {formatDateTime({
             dateTimeString: comment.createdAt,
             locale,
@@ -77,14 +77,14 @@ function UserCommentItem({ comment }: { comment: UserComment }) {
       {/* 整行都是链接：点标题或右侧提示都能跳到目标页面并定位到这条评论 */}
       <Link
         href={getTargetUrl(comment)}
-        className="group -mx-2 flex min-w-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-foreground/50 transition-colors hover:bg-foreground/[.05] hover:text-foreground/70"
+        className="group -mx-2 flex min-w-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-foreground/[.05] hover:text-foreground"
       >
         <FileTextIcon aria-hidden className="size-3.5 shrink-0" />
         <span className="shrink-0">{t('commented_on')}</span>
         <span className="truncate font-medium text-foreground/75 transition-colors group-hover:text-primary">
           {comment.target.title}
         </span>
-        <span className="ml-auto flex shrink-0 items-center gap-0.5 pl-2 text-xs text-foreground/40 transition-colors group-hover:text-primary">
+        <span className="ml-auto flex shrink-0 items-center gap-0.5 pl-2 text-xs text-muted-foreground transition-colors group-hover:text-primary">
           <span className="hidden sm:inline">{t('view_comment')}</span>
           <ArrowRightIcon aria-hidden className="size-3.5 transition-transform group-hover:translate-x-0.5" />
         </span>
@@ -181,7 +181,7 @@ export function UserComments({ userId }: { userId: number }) {
           <MessageSquareOffIcon className="size-6" />
         </span>
         <p className="text-lg font-medium text-foreground/75">{t('no_comments')}</p>
-        <p className="text-sm text-foreground/50">{t('no_public_comments')}</p>
+        <p className="text-sm text-muted-foreground">{t('no_public_comments')}</p>
       </div>
     )
   }
@@ -202,11 +202,12 @@ export function UserComments({ userId }: { userId: number }) {
     <section className="grid gap-4">
       <SectionTitle className="mx-4 text-xl md:mx-2 md:text-2xl">
         {t('comments')}
-        {total > 0 && <span className="ml-2 text-base font-medium text-foreground/50 tabular-nums">{total}</span>}
+        {total > 0 && <span className="ml-2 text-base font-medium text-muted-foreground tabular-nums">{total}</span>}
       </SectionTitle>
       {content}
       {total > 0 && (
         <PaginationController
+          hideOnSinglePage
           className="flex justify-center pt-2"
           pageSize={PAGE_SIZE}
           initialPage={page}

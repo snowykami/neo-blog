@@ -25,3 +25,34 @@ func TestParseUA(t *testing.T) {
 		}
 	}
 }
+
+func TestPublicOSAndBrowser(t *testing.T) {
+	cases := []struct {
+		ua, os, browser string
+	}{
+		// macOS 版本被固定为 10.15.7，只显示系统名
+		{"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36", "macOS", "Chrome 157"},
+		{"Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:131.0) Gecko/20100101 Firefox/131.0", "macOS", "Firefox 131"},
+		{"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Safari/605.1.15", "macOS 10.14.6", "Safari 14.1.2"},
+		// Windows 10 与 11 都是 NT 10.0；更早的版本换成发行名
+		{"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36", "Windows", "Chrome 141"},
+		{"Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36", "Windows 7", "Chrome 109"},
+		// Chrome 精简 UA 的 Android 固定为 10; K
+		{"Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36", "Android", "Chrome 141"},
+		{"Mozilla/5.0 (Linux; Android 14; 23013RK75C) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36", "Android 14", "Chrome 120"},
+		// iOS 26 起系统版本固定报 18.6
+		{"Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1", "iOS", "Safari 26"},
+		{"Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.50(0x1800322d) NetType/WIFI Language/zh_CN", "iOS 17.5", "WeChat 8.0.50"},
+		{"Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0", "Linux", "Firefox 131"},
+		{"", "", ""},
+	}
+	for _, c := range cases {
+		r := ParseUA(c.ua)
+		if got := r.PublicOS(); got != c.os {
+			t.Errorf("PublicOS(%q) = %q, want %q", c.ua, got, c.os)
+		}
+		if got := r.PublicBrowser(); got != c.browser {
+			t.Errorf("PublicBrowser(%q) = %q, want %q", c.ua, got, c.browser)
+		}
+	}
+}

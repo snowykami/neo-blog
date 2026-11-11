@@ -138,8 +138,3 @@ export function captureBoundaryError(error: Error & { digest?: string }) {
 export function recordNavigation(url: string, navigationType: string) {
   Sentry.addBreadcrumb({ category: 'navigation', data: { to: stripQuery(url), type: navigationType } })
 }
-
-/** 补报上一次页面进程崩溃（crash.ts） */
-export function captureCrash(event: Parameters<typeof Sentry.captureEvent>[0]) {
-  return Sentry.captureEvent(event)
-}

@@ -180,21 +180,6 @@ export async function deleteStorageProvider({ id }: { id: number }): Promise<Bas
   return res.data
 }
 
-export async function setDefaultStorageProvider({
-  id,
-}: {
-  id: number
-}): Promise<BaseResponse<null>> {
-  const res = await axiosClient.put(
-    `/file/provider/${id}/set-default`,
-    {},
-    {
-      withCredentials: true,
-    },
-  )
-  return res.data
-}
-
 // 发起存储迁移：迁移整个存储（sourceProviderId），或只迁移选中的文件（fileIds）
 export async function startStorageMigration(req: {
   targetProviderId: number

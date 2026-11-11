@@ -185,7 +185,9 @@ function CommentsSkeleton() {
 // isDraft：后台预览（/console/posts/preview/[id]）渲染草稿正文，不上报访问、不显示分享；前台文章页不传
 export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?: boolean }) {
   const content = (isDraft ? post.draftContent : post.content) || ''
-  const { html, headings } = await renderContentHtml(content || '<h1>No Content</h1>')
+  // 正文为空时显示一句提示（用段落而不是标题，不进目录）；渲染时照常经过净化
+  const emptyContent = content ? '' : `<p>${(await getTranslations('Common'))('empty_content')}</p>`
+  const { html, headings } = await renderContentHtml(content || emptyContent)
   return (
     <>
       {/* 顶栏灵动岛的阅读进度与迷你目录 */}

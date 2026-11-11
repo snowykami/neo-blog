@@ -96,7 +96,7 @@ export function AssetField({
         {showPreview && (
           <div
             data-has-value={!!url}
-            className={cn('relative grid aspect-video place-items-center overflow-hidden rounded-xl border border-dashed bg-muted/50 text-[13px] text-foreground/30 data-[has-value=true]:border-solid', previewClassName)}
+            className={cn('relative grid aspect-video place-items-center overflow-hidden rounded-xl border border-dashed bg-muted/50 text-[13px] text-muted-foreground data-[has-value=true]:border-solid', previewClassName)}
           >
             {url
               ? <SafeImage src={url} alt="" fill className="object-cover" sizes="420px" />

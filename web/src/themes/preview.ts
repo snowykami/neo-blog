@@ -38,11 +38,6 @@ export function isPreviewableThemeId(id?: string | null): id is string {
   return Boolean(id) && id !== THEME_PREVIEW_AUTO && id !== THEME_PREVIEW_NEVER && BUILTIN_THEME_MAP.has(id as string)
 }
 
-/** 允许写进 cookie 的取值：自动 / 从不使用 / 具体主题 */
-export function isPreviewChoice(value?: string | null): value is string {
-  return value === THEME_PREVIEW_AUTO || value === THEME_PREVIEW_NEVER || isPreviewableThemeId(value)
-}
-
 /** 读取当前浏览器上的预览选择（不判断角色；是否应用见 resolvePreviewThemeClient） */
 export function readPreviewCookie(): string {
   if (typeof document === 'undefined')

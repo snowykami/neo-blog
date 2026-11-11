@@ -102,7 +102,7 @@ export const INTERNATIONAL_THEMES: ThemeDefinition[] = [
     },
     effect: 'stars',
     mode: 'dark',
-    icons: { like: 'heart', comment: 'heart', view: 'star', pin: 'heart', share: 'heart' },
+    icons: { like: 'heart', comment: 'flower', view: 'star', pin: 'heart', share: 'heart' },
     decorLeft: [
       { glyph: 'heart', size: 96, x: 47, y: 22, rotate: -8 },
       { glyph: 'heart', size: 52, x: 38, y: 62, rotate: 10, opacity: 0.8 },
@@ -127,7 +127,7 @@ export const INTERNATIONAL_THEMES: ThemeDefinition[] = [
     },
     effect: 'confetti',
     mode: 'light',
-    icons: { like: 'balloon', comment: 'candy', view: 'balloon', pin: 'gift', share: 'sparkles' },
+    icons: { like: 'balloon', comment: 'candy', view: 'star', pin: 'gift', share: 'sparkles' },
     decorLeft: [
       { glyph: 'balloon', size: 104, x: 48, y: 22, rotate: -4 },
       { glyph: 'candy-corn', size: 46, x: 38, y: 62, rotate: 10, opacity: 0.9 },
@@ -154,7 +154,7 @@ export const INTERNATIONAL_THEMES: ThemeDefinition[] = [
     },
     effect: 'fireworks',
     mode: 'light',
-    icons: { like: 'star', comment: 'firework', view: 'star', pin: 'star', share: 'firework' },
+    icons: { like: 'star', comment: 'firework', view: 'sparkles', pin: 'star', share: 'firework' },
     decorLeft: [
       { glyph: 'firework', size: 104, x: 47, y: 22, rotate: -6 },
       { glyph: 'firework', size: 58, x: 40, y: 64, rotate: 10, opacity: 0.85 },
@@ -178,7 +178,7 @@ export const INTERNATIONAL_THEMES: ThemeDefinition[] = [
       overlayDark: 'radial-gradient(64% 44% at 50% -10%, oklch(0.6 0.13 72 / 0.26), transparent 72%)',
     },
     mode: 'light',
-    icons: { like: 'flower', comment: 'flower', view: 'leaf', pin: 'star', share: 'sparkles' },
+    icons: { like: 'flower', comment: 'bell', view: 'leaf', pin: 'star', share: 'sparkles' },
     decorLeft: [
       { glyph: 'daisy', size: 88, x: 47, y: 28, rotate: -6 },
       { glyph: 'daisy', size: 52, x: 40, y: 68, rotate: 12, opacity: 0.9 },
@@ -202,7 +202,8 @@ export const INTERNATIONAL_THEMES: ThemeDefinition[] = [
       overlayDark: 'radial-gradient(60% 42% at 50% -10%, oklch(0.52 0.19 30 / 0.32), transparent 72%)',
     },
     mode: 'light',
-    icons: { like: 'gift', comment: 'gift', view: 'star', pin: 'gift', share: 'sparkles' },
+    // 点赞是礼物，评论换成购物袋：卡片上点赞、评论、浏览三个数字并排显示，图标必须能区分
+    icons: { like: 'gift', comment: 'shopping-bag', view: 'star', pin: 'gift', share: 'sparkles' },
     decorLeft: [
       { glyph: 'gift', size: 100, x: 47, y: 24, rotate: -8 },
       { glyph: 'gift', size: 58, x: 40, y: 66, rotate: 10, opacity: 0.9 },
@@ -226,7 +227,7 @@ export const INTERNATIONAL_THEMES: ThemeDefinition[] = [
       overlayDark: 'radial-gradient(70% 46% at 50% -10%, oklch(0.52 0.14 155 / 0.28), transparent 72%)',
     },
     mode: 'dark',
-    icons: { like: 'terminal', comment: 'terminal', view: 'star', pin: 'terminal', share: 'sparkles' },
+    icons: { like: 'terminal', comment: 'code', view: 'star', pin: 'terminal', share: 'sparkles' },
     builtin: true,
   },
 ]

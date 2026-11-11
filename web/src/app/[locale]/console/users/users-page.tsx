@@ -17,6 +17,7 @@ import { UserAvatar } from '@/components/common/avatar'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { OrderSelector } from '@/components/common/orderby-selector'
 import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
+import { STICKY_ACTIONS_CLASS } from '@/components/console/common/sticky-actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -253,7 +254,7 @@ export function UserManagePage() {
               <TableHead>{t('role')}</TableHead>
               <TableHead>{t('status')}</TableHead>
               <TableHead>{commonT('created_at')}</TableHead>
-              <TableHead className="text-right">{t('actions')}</TableHead>
+              <TableHead className={`text-right ${STICKY_ACTIONS_CLASS}`}>{t('actions')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -335,7 +336,7 @@ export function UserManagePage() {
                   <TableCell className="whitespace-nowrap text-muted-foreground tabular-nums">
                     {user.createdAt ? format.dateTime(new Date(user.createdAt), { dateStyle: 'medium' }) : '-'}
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className={`text-right ${STICKY_ACTIONS_CLASS}`}>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button size="icon" variant="ghost" className="size-8" aria-label={t('actions')}>
@@ -351,7 +352,8 @@ export function UserManagePage() {
                           <Pencil />
                           {t('edit')}
                         </DropdownMenuItem>
-                        <DropdownMenuItem disabled={isSelf} onSelect={() => setDialog({ kind: 'role', user })}>
+                        {/* AI 用户的权限固定为普通用户（后端拒绝修改），与之保持一致 */}
+                        <DropdownMenuItem disabled={isSelf || user.isAi} onSelect={() => setDialog({ kind: 'role', user })}>
                           <ShieldUser />
                           {t('change_role')}
                         </DropdownMenuItem>

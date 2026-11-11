@@ -44,7 +44,10 @@ export async function fetchSongAudioURL(id: number): Promise<string> {
 
 // 歌单版本（内容指纹）：本地有歌单时只取它（几十字节），一致就不用重新下载整份歌单
 export async function fetchPlaylistVersion(): Promise<string> {
-  const res = await axiosClient.get<BaseResponse<string>>('/music/playlist/version')
+  const res = await axiosClient.get<BaseResponse<string>>('/music/playlist/version', {
+    // 版本由整份歌单算出：后端重启后第一次同样要现拉整份歌单，默认 10 秒会超时，本地歌单就一直不更新
+    timeout: 60000,
+  })
   return res.data.data
 }
 

@@ -231,7 +231,14 @@
     "back_to_top": "맨 위로",
     "ai_summary": "AI 요약",
     "more_info": "자세한 설명",
-    "page_info": "페이지 정보"
+    "page_info": "페이지 정보",
+    "close": "닫기",
+    "loading": "불러오는 중…",
+    "sidebar": "사이드바",
+    "sidebar_description": "사이드바 탐색",
+    "toggle_sidebar": "사이드바 열기/닫기",
+    "empty_content": "이 글에는 아직 본문이 없습니다",
+    "untitled": "제목 없음"
   },
   "Components": {
     "image_cropper": {
@@ -598,6 +605,9 @@
       "title": "댓글",
       "comment": "댓글",
       "target": "대상",
+      "target_post": "게시물",
+      "target_page": "페이지",
+      "target_deleted": "원본 콘텐츠가 삭제되었습니다",
       "user": "사용자",
       "status": "상태",
       "time": "시간",
@@ -1117,6 +1127,8 @@
       "ai_api_base_url_desc": "OpenAI 호환 API의 기본 URL로, 보통 /v1 로 끝납니다",
       "ai_api_key": "API 키",
       "ai_api_key_desc": "서버에만 저장되며 방문자에게 공개되지 않습니다",
+      "ai_vision_enabled": "이미지 인식 사용",
+      "ai_vision_enabled_desc": "켜면 AI 요약과 AI 사용자가 글을 읽을 때 본문 앞부분의 이미지(최대 6장, 장당 4MB 이하, JPEG / PNG / WebP / GIF)도 모델에 보냅니다. 이미지 입력(비전)을 지원하는 모델이 필요합니다. 모델이 이미지를 거부하면 자동으로 텍스트만으로 다시 시도하고 한동안 이미지를 보내지 않습니다. 토큰 사용량이 크게 늘어납니다",
       "ai_model": "모델",
       "ai_model_desc": "API에서 지원하는 모델 이름",
       "show_secret": "표시",
@@ -1272,7 +1284,12 @@
       "ai_agents_run_retention_days": "실행 기록 보관 일수",
       "ai_agents_run_retention_days_desc": "이 일수가 지난 실행 기록은 자동으로 삭제됩니다",
       "site_language": "사이트 언어",
-      "site_language_desc": "글에 주로 쓰는 언어입니다. 언어를 설정하지 않았고 브라우저도 언어 선호를 보내지 않는 방문자(검색 엔진 크롤러 포함)에게 이 언어로 화면을 보여 주며, RSS 피드에도 사용됩니다",
+      "site_language_desc": "글에 주로 쓰는 언어입니다. RSS 피드의 언어와 인증 코드 메일(테스트 메일 포함)의 언어로 사용됩니다. 화면 언어에는 영향을 주지 않습니다. 화면 언어는 URL의 언어 접두사(예: /en)로 정해지고, 알림 메일은 받는 사람이 설정한 언어로 보냅니다",
+      "site_language_zh-cn": "중국어(간체)",
+      "site_language_zh-tw": "중국어(번체)",
+      "site_language_en-us": "영어",
+      "site_language_ja-jp": "일본어",
+      "site_language_ko-kr": "한국어",
       "refresh": "새로 고침"
     },
     "labels": {
@@ -1391,7 +1408,7 @@
       "pin_expiry_result_forever": "직접 해제할 때까지 고정됩니다",
       "pin_limit_title": "이미 {max}개가 고정되어 있습니다. 먼저 하나를 해제하세요",
       "pin_limit_hint": "최대 {max}개까지 고정할 수 있습니다. '고정된 글만'을 켜고 하나를 해제한 뒤 다시 시도하세요",
-      "pin_replaced": "'{title}'의 고정을 해제하고 이 글을 홈에 고정했습니다",
+      "pin_replaced": "‘{title}’의 고정을 해제하고 이 글을 홈에 고정했습니다",
       "pin_success": "홈에 고정했습니다",
       "unpin_success": "고정을 해제했습니다",
       "unpin_action": "고정 해제",
@@ -1676,6 +1693,7 @@
       "running": "AI 요약 생성 중",
       "failed_badge": "요약 생성 실패",
       "click_to_retry": "클릭하여 재시도",
+      "vision_fallback": "모델이 이미지 입력을 지원하지 않아 이번에는 텍스트만으로 생성했습니다",
       "stale": "본문이 수정되었습니다. 요약을 다시 생성하는 것이 좋습니다",
       "ai_marker": "AI",
       "ai_marker_title": "이 설명은 AI가 생성했습니다",
@@ -3150,7 +3168,7 @@
   },
   "NotificationSettings": {
     "title": "알림 설정",
-    "description": "사이트 내 알림과 메일 알림 설정을 여기서 관리합니다. 변경 사항은 즉시 적용됩니다",
+    "description": "사이트 내 알림과 메일 알림 설정을 여기서 관리합니다. 저장하면 바로 적용됩니다",
     "token_expired": "이 링크는 만료되었습니다. 로그인 후 계속하세요",
     "login_required": "로그인하면 알림 설정을 관리할 수 있습니다",
     "login": "로그인",
@@ -3194,6 +3212,7 @@
     "loading_more": "불러오는 중…",
     "new_notification": "새로운 활동이 있습니다",
     "unread": "읽지 않음",
+    "account_with_unread": "{name} (읽지 않은 알림 있음)",
     "actor_separator": ", ",
     "and_others": " 외 {count}명",
     "deleted_subject": "(삭제됨)",
@@ -3205,7 +3224,7 @@
     "types": {
       "comment_created": "{actors} 님이 글 \"{subject}\"에 댓글을 남겼습니다: {excerpt}",
       "comment_created_page": "{actors} 님이 페이지 \"{subject}\"에 댓글을 남겼습니다: {excerpt}",
-      "comment_replied": "{actors} 님이 \"{subject}\"의 내 댓글에 답글을 남겼습니다: {excerpt}",
+      "comment_replied": "{actors} 님이 \"{subject}\"의 내 댓글 \"{quoted}\"에 답글을 남겼습니다: {excerpt}",
       "comment_replied_without_quote": "{actors} 님이 내 댓글에 답글을 남겼습니다: {excerpt}",
       "post_liked": "{actors} 님이 글 \"{subject}\"을 좋아합니다",
       "comment_liked": "{actors} 님이 내 댓글 \"{quoted}\"을 좋아합니다",
@@ -3222,6 +3241,7 @@
   "Login": {
     "captcha_error": "캡차 오류, 다시 시도하세요.",
     "continue": "계속",
+    "logout": "로그아웃",
     "currently_logged_in": "현재 로그인:",
     "fetch_captcha_config_failed": "캡차 설정 가져오기 실패",
     "fetch_oidc_configs_failed": "OIDC 설정 가져오기 실패",
@@ -3309,7 +3329,7 @@
     "delete_description": "삭제는 취소할 수 없으니 신중하게 진행하세요!",
     "fetch_failed": "불러오지 못했습니다",
     "confirm": "확인",
-    "remove_named": "'{name}' 제거",
+    "remove_named": "‘{name}’ 제거",
     "more": "더 많은 작업",
     "operation_failed": "작업에 실패했습니다",
     "delete_confirm_title": "\"{name}\"을(를) 삭제할까요?"
@@ -3864,7 +3884,17 @@
   },
   "ColorScheme": {
     "title": "색상 테마",
-    "update_failed": "색상 테마 업데이트 실패"
+    "update_failed": "색상 테마 업데이트 실패",
+    "names": {
+      "blue": "파랑",
+      "green": "초록",
+      "orange": "주황",
+      "red": "빨강",
+      "pink": "분홍",
+      "rose": "로즈",
+      "violet": "바이올렛",
+      "yellow": "노랑"
+    }
   },
   "ThemePack": {
     "title": "시즌 테마",

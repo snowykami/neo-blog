@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/repo"
@@ -43,14 +44,18 @@ func fileStoragePath(hash string) string {
 
 // ---------- 读取：稳定链接 → 直链 ----------
 
-// fileLoc 文件所在的存储与内容哈希；providerID 为 0 表示文件不存在
+// fileLoc 文件所在的存储与内容哈希；providerID 为 0 表示文件不存在，checkedAt 为当时查询的时间
 type fileLoc struct {
 	providerID uint
 	hash       string
+	checkedAt  time.Time
 }
 
 // fileLocCacheLimit 缓存条目上限，超出时整体清空（文件 ID 与哈希不变，只有迁移会改变所在存储）
 const fileLocCacheLimit = 20000
+
+// fileLocMissingTTL 「文件不存在」的结果只缓存这么久：恢复数据库备份、导入数据后同一 id 可能重新出现
+const fileLocMissingTTL = time.Minute
 
 // fileLinkChangedChannel 迁移完成后通知其他实例清空文件位置缓存
 const fileLinkChangedChannel = "file_links_changed"
@@ -82,8 +87,9 @@ func lookupFileLocs(ids []uint) map[uint]fileLoc {
 	result := make(map[uint]fileLoc, len(ids))
 	var missing []uint
 	fileLocCacheMu.RLock()
+	now := time.Now()
 	for _, id := range ids {
-		if loc, ok := fileLocCache[id]; ok {
+		if loc, ok := fileLocCache[id]; ok && (loc.providerID != 0 || now.Sub(loc.checkedAt) < fileLocMissingTTL) {
 			result[id] = loc
 		} else {
 			missing = append(missing, id)
@@ -99,7 +105,7 @@ func lookupFileLocs(ids []uint) map[uint]fileLoc {
 		return result
 	}
 	for _, id := range missing {
-		result[id] = fileLoc{}
+		result[id] = fileLoc{checkedAt: now}
 	}
 	for _, f := range files {
 		result[f.ID] = fileLoc{providerID: f.ProviderID, hash: f.Hash}
@@ -260,18 +266,42 @@ func normalizeFileLinks(content string, matchers []directLinkMatcher) (string, b
 	return content, changed, nil
 }
 
-// NormalizeFileLinks 把请求内容中的存储直链还原为稳定链接，无需改动时返回 false
+// NormalizeFileLinks 把请求内容中的存储直链还原为稳定链接、带本站域名的稳定链接改为相对路径，无需改动时返回 false
 func NormalizeFileLinks(data []byte) ([]byte, bool) {
+	data, relativized := relativizeOwnFileLinks(data)
 	matchers := currentDirectLinkMatchers()
 	if len(matchers) == 0 {
-		return data, false
+		return data, relativized
 	}
 	content, changed, err := normalizeFileLinks(string(data), matchers)
 	if err != nil {
 		logrus.Warnf("还原文件直链失败: %v", err)
+		return data, relativized
+	}
+	return []byte(content), changed || relativized
+}
+
+// relativizeOwnFileLinks 带本站域名的稳定链接（如后台「复制链接」得到的地址）去掉协议与域名，
+// 粘贴进站点图标、封面、正文后换域名也不会失效；其他站点的同名路径不动
+func relativizeOwnFileLinks(data []byte) ([]byte, bool) {
+	origin := tools.GetBaseUrl()
+	if origin == "" || !bytes.Contains(data, []byte(fileLinkPath)) {
 		return data, false
 	}
-	return []byte(content), changed
+	var out bytes.Buffer
+	last := 0
+	for _, m := range fileLinkPattern.FindAllSubmatchIndex(data, -1) {
+		if m[4] < 0 || !strings.EqualFold(string(data[m[4]:m[5]]), origin) {
+			continue
+		}
+		out.Write(data[last:m[4]])
+		last = m[5]
+	}
+	if last == 0 {
+		return data, false
+	}
+	out.Write(data[last:])
+	return out.Bytes(), true
 }
 
 // normalizeStoredFileLinks 把已保存内容（正文、草稿、封面、头像、历史版本、配置等）中这些存储的直链还原为稳定链接，返回改动的记录数

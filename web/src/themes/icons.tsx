@@ -7,12 +7,14 @@ import {
   BalloonIcon,
   BellIcon,
   CloudRainIcon,
+  CodeIcon,
   Flower2Icon,
   GiftIcon,
   GraduationCapIcon,
   HeartIcon,
   LeafIcon,
   MoonIcon,
+  ShoppingBagIcon,
   SnowflakeIcon,
   SparklesIcon,
   StarIcon,
@@ -257,6 +259,8 @@ export const THEME_ICONS: Record<ThemeIconName, ThemeIconComponent | LucideIcon>
   'magpie': MagpieGlyph,
   'moon': MoonIcon,
   'leaf': LeafIcon,
+  'shopping-bag': ShoppingBagIcon,
+  'code': CodeIcon,
 }
 
 /** 按名字取图标组件，名字非法时返回 undefined 由调用方回落 */

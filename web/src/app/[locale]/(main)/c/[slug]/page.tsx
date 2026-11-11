@@ -61,7 +61,7 @@ export default async function CategoryDetailPage({
             <CategoryTotal slug={slug} searchParams={searchParams} />
           </Suspense>
         </SectionTitle>
-        {category?.description && <p className="pl-4 text-sm text-foreground/50">{category.description}</p>}
+        {category?.description && <p className="pl-4 text-sm text-muted-foreground">{category.description}</p>}
       </div>
       <Suspense fallback={<PostList posts={[]} isLoading />}>
         <CategoryPosts slug={slug} baseUrl={category ? getCategoryUrl(category) : `/c/${encodeURIComponent(slug)}`} searchParams={searchParams} />
@@ -78,7 +78,7 @@ function readPage(pageParam: string | undefined) {
 async function CategoryTotal({ slug, searchParams }: { slug: string, searchParams: Promise<{ page?: string }> }) {
   const { page } = await searchParams
   const { total } = await listCategoryPosts(slug, readPage(page)).catch(() => ({ total: 0 }))
-  return total > 0 ? <span className="ml-2 text-base font-medium text-foreground/50 tabular-nums">{total}</span> : null
+  return total > 0 ? <span className="ml-2 text-base font-medium text-muted-foreground tabular-nums">{total}</span> : null
 }
 
 // 读 ?page= 的部分：按请求渲染，第一页取自取数缓存
@@ -108,7 +108,7 @@ async function CategoryPosts({ slug, baseUrl, searchParams }: { slug: string, ba
               </PaginationItem>
             )}
             <PaginationItem>
-              <span className="px-3 text-sm text-foreground/50 tabular-nums">
+              <span className="px-3 text-sm text-muted-foreground tabular-nums">
                 {page}
                 {' / '}
                 {totalPages}

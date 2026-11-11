@@ -51,7 +51,7 @@ function UserLikeItem({ like }: { like: UserLike }) {
             ? t.rich('liked_comment', { author: authorLink })
             : t.rich('liked_post', { author: authorLink })}
         </p>
-        <span className="shrink-0 text-xs text-foreground/50 tabular-nums">
+        <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
           {formatDateTime({
             dateTimeString: like.createdAt,
             locale,
@@ -70,7 +70,7 @@ function UserLikeItem({ like }: { like: UserLike }) {
           {like.content}
         </p>
       )}
-      <p className="flex min-w-0 items-center gap-1.5 text-sm text-foreground/50">
+      <p className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
         <FileTextIcon aria-hidden className="size-3.5 shrink-0" />
         {isComment && <span className="shrink-0">{t('commented_on')}</span>}
         <Link href={getTargetUrl(like)} className="truncate font-medium text-foreground/75 transition-colors hover:text-primary">
@@ -168,7 +168,7 @@ export function UserLikes({ userId, isPublic }: { userId: number, isPublic: bool
           <HeartOffIcon className="size-6" />
         </span>
         <p className="text-lg font-medium text-foreground/75">{t('no_likes')}</p>
-        <p className="text-sm text-foreground/50">{t('no_likes_hint')}</p>
+        <p className="text-sm text-muted-foreground">{t('no_likes_hint')}</p>
       </div>
     )
   }
@@ -190,7 +190,7 @@ export function UserLikes({ userId, isPublic }: { userId: number, isPublic: bool
       <div className="mx-4 flex items-center gap-3 md:mx-2">
         <SectionTitle className="text-xl md:text-2xl">
           {t('likes')}
-          {total > 0 && <span className="ml-2 text-base font-medium text-foreground/50 tabular-nums">{total}</span>}
+          {total > 0 && <span className="ml-2 text-base font-medium text-muted-foreground tabular-nums">{total}</span>}
         </SectionTitle>
         {!isPublic && (
           <Badge variant="secondary" className="rounded-md">
@@ -202,6 +202,7 @@ export function UserLikes({ userId, isPublic }: { userId: number, isPublic: bool
       {content}
       {total > 0 && (
         <PaginationController
+          hideOnSinglePage
           className="flex justify-center pt-2"
           pageSize={PAGE_SIZE}
           initialPage={page}

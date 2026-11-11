@@ -27,7 +27,7 @@ export default function Footer() {
       {/* 虚线分隔，与正文区隔开 */}
       <div className="mx-auto mb-8 w-full max-w-2xl border-t border-dashed border-foreground/10" />
       {/* 各段之间用间距分隔，不再用「·」拼接 */}
-      <div className="flex flex-col items-center gap-2 text-center text-sm text-foreground/50">
+      <div className="flex flex-col items-center gap-2 text-center text-sm text-muted-foreground">
         <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
           <span>
             ©

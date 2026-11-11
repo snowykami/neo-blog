@@ -186,10 +186,10 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
           </span>
           {/* 全部文章数：普通文章加置顶文章（置顶只在没有筛选时返回） */}
           {totalPosts + pinnedPosts.length > 0 && (
-            <span className="text-base font-medium text-foreground/50 tabular-nums">{totalPosts + pinnedPosts.length}</span>
+            <span className="text-base font-medium text-muted-foreground tabular-nums">{totalPosts + pinnedPosts.length}</span>
           )}
           {filter && (
-            <Button variant="ghost" size="icon-sm" className="text-foreground/50" aria-label={t('clear_filter')} title={t('clear_filter')} onClick={clearFilter}>
+            <Button variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label={t('clear_filter')} title={t('clear_filter')} onClick={clearFilter}>
               <XIcon />
             </Button>
           )}

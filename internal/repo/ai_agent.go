@@ -412,16 +412,6 @@ func (r *aiAgentRepo) AddRunUsage(runID uint, modelName string, prompt, cached, 
 	}).Error
 }
 
-// LastLeaseAt 最近一次被领取的任务时间
-func (r *aiAgentRepo) LastLeaseAt() (*time.Time, error) {
-	var run model.AgentRun
-	err := GetDB().Where("attempts > 0").Order("updated_at DESC").Limit(1).Find(&run).Error
-	if err != nil || run.ID == 0 {
-		return nil, err
-	}
-	return &run.UpdatedAt, nil
-}
-
 // PurgeRuns 删除 before 之前结束的运行记录
 func (r *aiAgentRepo) PurgeRuns(before time.Time) (int64, error) {
 	res := GetDB().Where("created_at < ? AND status IN ?", before,
@@ -712,14 +702,6 @@ func (r *aiAgentRepo) SaveRelation(rel *model.AgentRelation) error {
 	return GetDB().Save(rel).Error
 }
 
-func (r *aiAgentRepo) GetRelationByID(id uint) (*model.AgentRelation, error) {
-	rel := &model.AgentRelation{}
-	if err := GetDB().First(rel, id).Error; err != nil {
-		return nil, err
-	}
-	return rel, nil
-}
-
 func (r *aiAgentRepo) DeleteRelation(id uint) error {
 	return GetDB().Delete(&model.AgentRelation{}, id).Error
 }
@@ -780,10 +762,15 @@ func (r *aiAgentRepo) UsersBrief(ids []uint) (map[uint]model.User, error) {
 
 // ---------- 推荐流 ----------
 
-// FeedPosts 公开文章：since 之后发布的（按时间倒序）
+// feedPostQuery 推荐流与触发事件读文章：只用到标题、摘要、标签、分类、作者与计数，不读正文与草稿（正文由 get_post 工具按需读取）
+func feedPostQuery() *gorm.DB {
+	return GetDB().Omit("content", "draft_content").Preload("Labels").Preload("Category").Preload("User")
+}
+
+// RecentPublicPosts 公开文章：since 之后发布的（按时间倒序）
 func (r *aiAgentRepo) RecentPublicPosts(since time.Time, limit int) ([]model.Post, error) {
 	var posts []model.Post
-	err := GetDB().Preload("Labels").Preload("Category").Preload("User").
+	err := feedPostQuery().
 		Where("is_private = ? AND created_at >= ?", false, since).Order("created_at DESC").Limit(limit).Find(&posts).Error
 	return posts, err
 }
@@ -791,7 +778,7 @@ func (r *aiAgentRepo) RecentPublicPosts(since time.Time, limit int) ([]model.Pos
 // HotPublicPosts 热度最高的公开文章
 func (r *aiAgentRepo) HotPublicPosts(limit int) ([]model.Post, error) {
 	var posts []model.Post
-	err := GetDB().Preload("Labels").Preload("Category").Preload("User").
+	err := feedPostQuery().
 		Where("is_private = ?", false).Order("heat DESC, id DESC").Limit(limit).Find(&posts).Error
 	return posts, err
 }
@@ -799,17 +786,17 @@ func (r *aiAgentRepo) HotPublicPosts(limit int) ([]model.Post, error) {
 // OldPublicPosts before 之前发布的公开文章，随机若干篇（用于挖坟）
 func (r *aiAgentRepo) OldPublicPosts(before time.Time, limit int) ([]model.Post, error) {
 	var posts []model.Post
-	err := GetDB().Preload("Labels").Preload("Category").Preload("User").
+	err := feedPostQuery().
 		Where("is_private = ? AND created_at < ?", false, before).Order("RANDOM()").Limit(limit).Find(&posts).Error
 	return posts, err
 }
 
-// PublicPostsByIDs 按 ID 读取公开文章（保持传入顺序由调用方处理）
+// PostsByIDs 按 ID 读取文章（不含正文与草稿；是否公开、顺序由调用方处理）
 func (r *aiAgentRepo) PostsByIDs(ids []uint) ([]model.Post, error) {
 	var posts []model.Post
 	if len(ids) == 0 {
 		return posts, nil
 	}
-	err := GetDB().Preload("Labels").Preload("Category").Preload("User").Where("id IN ?", ids).Find(&posts).Error
+	err := feedPostQuery().Where("id IN ?", ids).Find(&posts).Error
 	return posts, err
 }

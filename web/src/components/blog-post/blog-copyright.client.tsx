@@ -60,7 +60,7 @@ function CopyrightCard({ post, className }: { post: Pick<Post, 'id' | 'slug' | '
             }}
             size="icon-sm"
             variant="ghost"
-            className="shrink-0 text-foreground/50"
+            className="shrink-0 text-muted-foreground"
             aria-label={operationT('copy_link')}
             title={operationT('copy_link')}
           >
@@ -70,7 +70,7 @@ function CopyrightCard({ post, className }: { post: Pick<Post, 'id' | 'slug' | '
 
         <dl className="mt-2 flex flex-wrap gap-x-6 gap-y-2">
           <div className="min-w-0">
-            <dt className="text-sm text-foreground/30">{copyrightT('author')}</dt>
+            <dt className="text-sm text-muted-foreground">{copyrightT('author')}</dt>
             <dd>
               <Link
                 href={getUserUrl(post.user, 'posts')}
@@ -82,7 +82,7 @@ function CopyrightCard({ post, className }: { post: Pick<Post, 'id' | 'slug' | '
             </dd>
           </div>
           <div>
-            <dt className="text-sm text-foreground/30">{copyrightT('post_at')}</dt>
+            <dt className="text-sm text-muted-foreground">{copyrightT('post_at')}</dt>
             <dd className="whitespace-nowrap text-foreground/75 tabular-nums">
               {post.createdAt
                 ? format.dateTime(new Date(post.createdAt), { year: 'numeric', month: '2-digit', day: '2-digit' })
@@ -90,7 +90,7 @@ function CopyrightCard({ post, className }: { post: Pick<Post, 'id' | 'slug' | '
             </dd>
           </div>
           <div>
-            <dt className="text-sm text-foreground/30">{copyrightT('license')}</dt>
+            <dt className="text-sm text-muted-foreground">{copyrightT('license')}</dt>
             <dd>
               {licenseLink
                 ? (
@@ -108,7 +108,7 @@ function CopyrightCard({ post, className }: { post: Pick<Post, 'id' | 'slug' | '
           </div>
         </dl>
 
-        <p className="mt-3 text-sm text-foreground/50">
+        <p className="mt-3 text-sm text-muted-foreground">
           {copyrightT('default_copyright', { license })}
         </p>
       </div>

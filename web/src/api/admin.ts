@@ -1,6 +1,6 @@
 import type { PaginationParams } from '../models/common'
 import type { AIUsageStats } from '@/models/ai-usage'
-import type { Comment } from '@/models/comment'
+import type { UserComment } from '@/models/comment'
 import type { ConfigSchema } from '@/models/config'
 import type { Dashboard, DashboardDays } from '@/models/dashboard'
 import type { ErrorEvent, ErrorEventSummary, ErrorIssue, ErrorIssueDetail, ErrorKind, ErrorReportStats, ErrorSource, ErrorStatus } from '@/models/error-report'
@@ -100,7 +100,7 @@ export async function deleteUserAdmin(id: number): Promise<BaseResponse<null>> {
   return res.data
 }
 
-export async function listCommentsAdmin(pagination: PaginationParams, query: string): Promise<BaseResponse<{ comments: Comment[], total: number }>> {
+export async function listCommentsAdmin(pagination: PaginationParams, query: string): Promise<BaseResponse<{ comments: UserComment[], total: number }>> {
   const res = await axiosClient.get(
     '/admin/comments',
     { params: { ...pagination, query } },

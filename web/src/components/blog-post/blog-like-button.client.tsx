@@ -78,7 +78,7 @@ export function BlogLikeButton({ post }: { post: Pick<Post, 'id' | 'isLiked' | '
         <LikeIcon className={cn('size-5', liked && 'fill-current')} />
         <span className="tabular-nums">{likeCount}</span>
       </button>
-      <div className="text-sm text-foreground/50">
+      <div className="text-sm text-muted-foreground">
         {operationT('n_users_liked', { n: likeCount })}
       </div>
       {/* 最近点赞的人在前，头像只压住一点点（手机上不重叠、留出间距，避免点错人）；超出的人数用末尾的「+N」表示 */}

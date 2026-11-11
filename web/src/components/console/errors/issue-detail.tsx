@@ -234,6 +234,7 @@ function EventRow({ event, active, onSelect }: { event: ErrorEventSummary, activ
     <button
       type="button"
       onClick={onSelect}
+      aria-current={active || undefined}
       className={cn('grid w-full cursor-pointer gap-0.5 px-4 py-2 text-left text-sm transition-colors hover:bg-accent/50', active && 'bg-accent')}
     >
       <span className="flex items-center gap-2">

@@ -21,7 +21,7 @@ export function PageInfoCard({ page, words }: { page: PageModel, words: number }
         {rows.map(row => (
           <div key={row.label} className="flex items-center gap-2">
             <row.icon aria-hidden className="size-4 shrink-0 text-foreground/40" />
-            <dt className="text-foreground/50">{row.label}</dt>
+            <dt className="text-muted-foreground">{row.label}</dt>
             <dd className="ml-auto min-w-0 truncate text-foreground/80">{row.value}</dd>
           </div>
         ))}

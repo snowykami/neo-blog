@@ -172,6 +172,47 @@ func TestNotificationUnreadGroupsAndMarkRead(t *testing.T) {
 	})
 }
 
+// 收件人时区不是 UTC 时，列表的分组、整组已读与展开成员对「哪一天」的判断一致：
+// 东京时间 11-08 23:00 与 11-09 01:00 的赞分属两组，点开其中一组只标记这一组
+func TestNotificationLikeGroupDayConsistentAcrossTimeZones(t *testing.T) {
+	forEachDialect(t, func(t *testing.T) {
+		if err := migrate(); err != nil {
+			t.Fatalf("migrate: %v", err)
+		}
+		const tz = "Asia/Tokyo"
+		owner := notificationTestUser(t, "owner")
+		lateNight := time.Date(2026, 11, 8, 14, 0, 0, 0, time.UTC) // 东京 11-08 23:00
+		for i, name := range []string{"a1", "a2"} {
+			actor := notificationTestUser(t, name)
+			makeNotification(t, owner.ID, actor.ID, constant.NotificationTypePostLiked, constant.TargetTypePost, 3, lateNight.Add(time.Duration(i)*30*time.Minute))
+		}
+		nextDay := notificationTestUser(t, "a3")
+		makeNotification(t, owner.ID, nextDay.ID, constant.NotificationTypePostLiked, constant.TargetTypePost, 3, lateNight.Add(2*time.Hour)) // 东京 11-09 01:00
+
+		groups, total, err := Notification.List(&NotificationFilter{UserID: owner.ID, Size: 10, TimeZone: tz})
+		if err != nil {
+			t.Fatalf("List: %v", err)
+		}
+		if total != 2 || len(groups) != 2 || groups[0].Count != 1 || groups[1].Count != 2 {
+			t.Fatalf("groups = %d/%d %+v", total, len(groups), groups)
+		}
+		if len(groups[1].ActorNames) != 2 {
+			t.Fatalf("earlier group actor names = %v, want both actors of that day", groups[1].ActorNames)
+		}
+		affected, err := Notification.MarkRead(owner.ID, groups[1].Notification.ID, tz)
+		if err != nil {
+			t.Fatalf("MarkRead: %v", err)
+		}
+		if affected != 2 {
+			t.Fatalf("MarkRead affected = %d, want the 2 likes of that day", affected)
+		}
+		unread, _, err := Notification.UnreadGroupCount(owner.ID, tz)
+		if err != nil || unread != 1 {
+			t.Fatalf("unread groups = %d (%v), want 1", unread, err)
+		}
+	})
+}
+
 // 折叠行 upsert：同一天同一线程同一收件人只留一行，count 累加、actor 最多两个、读过之后重新变未读
 func TestNotificationThreadAggregateUpsert(t *testing.T) {
 	forEachDialect(t, func(t *testing.T) {

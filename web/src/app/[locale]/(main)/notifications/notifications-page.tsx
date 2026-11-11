@@ -328,7 +328,13 @@ function NotificationRow({ item, onOpen }: { item: NotificationItemModel, onOpen
           })}
         </span>
       </div>
-      {!item.isRead && <span className="mt-2 size-2 shrink-0 rounded-full bg-primary" aria-label={t('unread')} />}
+      {/* 普通 span 上的 aria-label 读屏不会读，改为圆点隐藏 + 仅读屏可见的文字 */}
+      {!item.isRead && (
+        <>
+          <span aria-hidden className="mt-2 size-2 shrink-0 rounded-full bg-primary" />
+          <span className="sr-only">{t('unread')}</span>
+        </>
+      )}
     </div>
   )
 
@@ -346,6 +352,7 @@ function NotificationRow({ item, onOpen }: { item: NotificationItemModel, onOpen
             type="button"
             className="text-muted-foreground text-xs underline-offset-4 hover:underline"
             disabled={expanding}
+            aria-expanded={Boolean(members)}
             onClick={() => void toggleMembers()}
           >
             {members ? t('collapse_members') : t('expand_members', { count: item.aggregateCount })}

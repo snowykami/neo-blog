@@ -14,7 +14,6 @@ import (
 	"github.com/go-gormigrate/gormigrate/v2"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo/migrations"
-	"github.com/snowykami/neo-blog/pkg/constant"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -238,8 +237,10 @@ func TestMigrateLegacyDatabase(t *testing.T) {
 		if p := agents[1].ParsedProfile(); p.Tone != "礼貌、具体，先肯定再补充，不说教。再加一句自己的要求" {
 			t.Errorf("customised tone changed: %q", p.Tone)
 		}
-		// 新增的「评论里被 @」触发补进已有触发列表；没有 triggers 字段的档案不动
-		if p := agents[0].ParsedProfile(); !slices.Contains(p.Triggers, constant.AgentTriggerCommentMentioned) || len(p.Triggers) != 4 {
+		// 新增的「评论里被 @」触发补进已有触发列表；没有 triggers 字段的档案不动。
+		// 用字面量断言：2026110901 引用了 constant.AgentTriggerCommentMentioned（已发布，不再修改），
+		// 这个常量的值一旦改动，旧库升级会写入新值，这里会失败，提醒另写迁移处理已写入的旧值
+		if p := agents[0].ParsedProfile(); !slices.Contains(p.Triggers, "comment.mentioned") || len(p.Triggers) != 4 {
 			t.Errorf("mention trigger not appended: %v", p.Triggers)
 		}
 		if p := agents[1].ParsedProfile(); p.Triggers != nil {
@@ -634,6 +635,96 @@ func TestMigrateDropMusicStaticPlaylist(t *testing.T) {
 		db.Model(&model.KV{}).Where("key = ?", "ncm_playlist_id").Count(&count)
 		if count != 1 {
 			t.Errorf("ncm_playlist_id should be kept, count = %d", count)
+		}
+	})
+}
+
+// 站内文件链接改存相对路径：本站地址（BASE_URL、后台站点地址）与本机地址下的 /api/v1/file/f/<id> 去掉域名，
+// 其他站点的同名路径不动；配置（含站点信息的嵌套值与图片列表）、文章正文与封面、头像都处理，文章的正文哈希同步更新
+func TestMigrateRelativeFileLinks(t *testing.T) {
+	forEachDialect(t, func(t *testing.T) {
+		t.Setenv("BASE_URL", "https://env.example.com")
+		seedLegacyDatabase(t)
+		oldContent := `<p><img src="https://blog.example.com/api/v1/file/f/5/a.png"><img src="https://other.site/api/v1/file/f/6"> 正文里的 https://blog.example.com/api/v1/file/f/7</p>`
+		if err := db.Exec("INSERT INTO posts (id, title, content, cover, ai_summary_source_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+			7, "links", oldContent, "https://env.example.com/api/v1/file/f/8", model.HashContent(oldContent), time.Now(), time.Now()).Error; err != nil {
+			t.Fatalf("seed post: %v", err)
+		}
+		if err := db.Exec("UPDATE users SET avatar_url = ? WHERE username = ?", "http://127.0.0.1:8888/api/v1/file/f/9", "legacy").Error; err != nil {
+			t.Fatalf("seed avatar: %v", err)
+		}
+		info := map[string]any{
+			"base_url": "https://blog.example.com",
+			"metadata": map[string]any{"name": "站", "icon": "http://localhost:3000/api/v1/file/f/10/D828%20(2).webp"},
+			"default_cover": []any{
+				"https://blog.example.com/api/v1/file/f/11",
+				"https://other.site/api/v1/file/f/12",
+				"https://cdn.example.com/cover.png",
+			},
+		}
+		for _, kv := range []model.KV{
+			{Key: "site_info", Value: model.JSONMap{"value": info}},
+			{Key: "site_icon", Value: model.JSONMap{"value": "HTTPS://Blog.Example.com/api/v1/file/f/10"}},
+			{Key: "owner_avatar", Value: model.JSONMap{"value": "https://other.site/api/v1/file/f/13"}},
+		} {
+			if err := db.Create(&kv).Error; err != nil {
+				t.Fatalf("seed %s: %v", kv.Key, err)
+			}
+		}
+		if err := migrate(); err != nil {
+			t.Fatalf("migrate: %v", err)
+		}
+
+		var post model.Post
+		if err := db.Unscoped().First(&post, 7).Error; err != nil {
+			t.Fatalf("load post: %v", err)
+		}
+		wantContent := `<p><img src="/api/v1/file/f/5/a.png"><img src="https://other.site/api/v1/file/f/6"> 正文里的 /api/v1/file/f/7</p>`
+		if post.Content != wantContent {
+			t.Errorf("content = %q, want %q", post.Content, wantContent)
+		}
+		if post.Cover != "/api/v1/file/f/8" {
+			t.Errorf("cover = %q", post.Cover)
+		}
+		if post.ContentHash != model.HashContent(wantContent) || post.AISummarySourceHash != post.ContentHash {
+			t.Errorf("hashes not synced: content_hash=%s ai_summary_source_hash=%s", post.ContentHash, post.AISummarySourceHash)
+		}
+		var user model.User
+		if err := db.Where("username = ?", "legacy").First(&user).Error; err != nil {
+			t.Fatalf("load user: %v", err)
+		}
+		if user.AvatarUrl != "/api/v1/file/f/9" {
+			t.Errorf("avatar = %q", user.AvatarUrl)
+		}
+
+		values := map[string]any{}
+		var rows []model.KV
+		if err := db.Where("key IN ?", []string{"site_info", "site_icon", "owner_avatar"}).Find(&rows).Error; err != nil {
+			t.Fatalf("load kvs: %v", err)
+		}
+		for _, row := range rows {
+			values[row.Key] = row.Value["value"]
+		}
+		if values["site_icon"] != "/api/v1/file/f/10" {
+			t.Errorf("site_icon = %v", values["site_icon"])
+		}
+		if values["owner_avatar"] != "https://other.site/api/v1/file/f/13" {
+			t.Errorf("other site link changed: %v", values["owner_avatar"])
+		}
+		got, _ := json.Marshal(values["site_info"])
+		var saved struct {
+			BaseURL      string            `json:"base_url"`
+			Metadata     map[string]string `json:"metadata"`
+			DefaultCover []string          `json:"default_cover"`
+		}
+		if err := json.Unmarshal(got, &saved); err != nil {
+			t.Fatalf("parse site_info %s: %v", got, err)
+		}
+		if saved.BaseURL != "https://blog.example.com" || saved.Metadata["icon"] != "/api/v1/file/f/10/D828%20(2).webp" {
+			t.Errorf("site_info = %s", got)
+		}
+		if want := []string{"/api/v1/file/f/11", "https://other.site/api/v1/file/f/12", "https://cdn.example.com/cover.png"}; !slices.Equal(saved.DefaultCover, want) {
+			t.Errorf("default_cover = %v, want %v", saved.DefaultCover, want)
 		}
 	})
 }

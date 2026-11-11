@@ -17,10 +17,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Spinner } from '@/components/ui/spinner'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { ShareIcon } from '@/contexts/theme-context'
 import { localizePath } from '@/i18n/routing'
 import copyToClipboard from '@/lib/clipboard'
+import { cn } from '@/lib/utils'
 import { getPostShareImageUrl, getPostUrl } from '@/utils/common/route'
 
 /*
@@ -44,6 +47,8 @@ export function BlogShare({ post }: { post: Pick<Post, 'id' | 'slug' | 'title' |
   const base = siteInfo.baseUrl?.replace(/\/+$/, '') ?? ''
   const [absoluteBase, setAbsoluteBase] = useState(base)
   const [canNativeShare, setCanNativeShare] = useState(false)
+  // 分享图由服务端现场生成，首次打开要等一会儿：记下已加载完的地址，地址变了（补上绝对域名）重新显示加载态
+  const [loadedImage, setLoadedImage] = useState<string | null>(null)
 
   useEffect(() => {
     // 站点未配置 baseUrl 时用当前域名兜底；分享链接必须是绝对地址，社交平台不会补全
@@ -56,6 +61,7 @@ export function BlogShare({ post }: { post: Pick<Post, 'id' | 'slug' | 'title' |
   const title = post.title || siteInfo.metadata.name
   const description = post.description || siteInfo.metadata.description
   const encode = encodeURIComponent
+  const imageLoaded = loadedImage === imageUrl
 
   const platforms: SharePlatform[] = [
     {
@@ -109,8 +115,9 @@ export function BlogShare({ post }: { post: Pick<Post, 'id' | 'slug' | 'title' |
           href={imageUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex justify-center overflow-hidden rounded-lg border bg-muted"
+          className="relative flex justify-center overflow-hidden rounded-lg border bg-muted"
           title={t('preview_alt')}
+          aria-busy={!imageLoaded}
         >
           <Image
             src={imageUrl}
@@ -119,8 +126,16 @@ export function BlogShare({ post }: { post: Pick<Post, 'id' | 'slug' | 'title' |
             height={1350}
             unoptimized
             // 竖版卡片（4:5）：按高度上限反推宽度，等比例缩放且加载前后不跳高度
-            className="h-auto w-full max-w-[min(100%,45vh)]"
+            className={cn('h-auto w-full max-w-[min(100%,45vh)] transition-opacity duration-200', !imageLoaded && 'opacity-0')}
+            onLoad={() => setLoadedImage(imageUrl)}
+            // 加载失败时同样收起骨架，露出浏览器的图片占位
+            onError={() => setLoadedImage(imageUrl)}
           />
+          {!imageLoaded && (
+            <Skeleton className="absolute inset-0 grid place-items-center rounded-none">
+              <Spinner className="text-muted-foreground size-6" />
+            </Skeleton>
+          )}
         </a>
         {/* 只放图标：按当前按钮高度排成一行，名称交给 title / aria-label */}
         <div className="flex flex-wrap items-center gap-2">

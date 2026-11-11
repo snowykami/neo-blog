@@ -49,7 +49,6 @@ export interface SiteInfo {
   defaultColorScheme: string
   contentTheme?: string // 站点默认的文章内容主题，文章未单独选择时使用
   baseUrl?: string
-  defaultLanguage?: string // 站点语言（如 zh-cn）：没有语言偏好的访客（含搜索引擎爬虫）看到的界面语言
   metadata: {
     name: string
     icon: string
@@ -160,16 +159,6 @@ export const fallbackSiteInfo: SiteInfo = {
   },
 }
 
-export function getDefaultCoverRandomly(siteInfo: SiteInfo): string {
-  if (Array.isArray(siteInfo.defaultCover)) {
-    if (siteInfo.defaultCover.length === 0)
-      return ''
-    const idx = Math.floor(Math.random() * siteInfo.defaultCover.length)
-    return siteInfo.defaultCover[idx]
-  }
-  return siteInfo.defaultCover
-}
-
 /**
  * 安全地构造 metadataBase：baseUrl 为空或非法时返回 undefined，避免 new URL('') 抛异常导致页面 500
  */
@@ -182,4 +171,25 @@ export function safeMetadataBase(baseUrl?: string): URL | undefined {
   catch {
     return undefined
   }
+}
+
+/**
+ * 站内相对地址（如站点图标、封面的 /api/v1/file/f/1）按站点地址补成绝对地址，用于结构化数据、RSS 等不接受相对地址的地方；
+ * 已是绝对地址、地址为空或站点地址无效时原样返回
+ */
+export function absoluteSiteUrl(url: string | null | undefined, baseUrl?: string): string {
+  if (!url || /^[a-z][a-z\d+.-]*:/i.test(url))
+    return url ?? ''
+  const base = safeMetadataBase(baseUrl)
+  return base ? new URL(url, base).toString() : url
+}
+
+// 正文 HTML 里以 / 开头（不含协议相对的 //）的 src / href / poster 属性
+const ROOT_RELATIVE_ATTR = /(\s(?:src|href|poster)=)(["'])(\/(?!\/)[^"']*)\2/gi
+
+/** 正文 HTML 中站内相对地址补成绝对地址：订阅源等离开本站显示的正文里，相对地址的图片与链接会失效 */
+export function absolutizeHtmlUrls(html: string, baseUrl?: string): string {
+  if (!safeMetadataBase(baseUrl))
+    return html
+  return html.replace(ROOT_RELATIVE_ATTR, (_, prefix: string, quote: string, url: string) => `${prefix}${quote}${absoluteSiteUrl(url, baseUrl)}${quote}`)
 }

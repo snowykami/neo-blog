@@ -231,7 +231,14 @@
     "back_to_top": "回到顶部",
     "ai_summary": "AI 摘要",
     "more_info": "更多说明",
-    "page_info": "页面信息"
+    "page_info": "页面信息",
+    "close": "关闭",
+    "loading": "加载中…",
+    "sidebar": "侧栏",
+    "sidebar_description": "侧栏导航",
+    "toggle_sidebar": "展开或收起侧栏",
+    "empty_content": "这篇文章还没有正文",
+    "untitled": "无标题"
   },
   "Components": {
     "image_cropper": {
@@ -598,6 +605,9 @@
       "title": "评论管理",
       "comment": "评论",
       "target": "目标",
+      "target_post": "文章",
+      "target_page": "页面",
+      "target_deleted": "所在内容已删除",
       "user": "用户",
       "status": "状态",
       "time": "时间",
@@ -1117,6 +1127,8 @@
       "ai_api_base_url_desc": "OpenAI 兼容接口的基础地址，通常以 /v1 结尾",
       "ai_api_key": "API 密钥",
       "ai_api_key_desc": "仅保存在服务端，不会公开给访客",
+      "ai_vision_enabled": "启用识图",
+      "ai_vision_enabled_desc": "开启后，AI 摘要与 AI 用户读文章时会把正文中靠前的图片（最多 6 张，单张不超过 4 MB，支持 JPEG / PNG / WebP / GIF）一并发给模型。必须使用支持图片输入（视觉）的模型；模型拒收图片时自动改用纯文本，并在一段时间内不再发送图片。会明显增加 token 消耗",
       "ai_model": "模型",
       "ai_model_desc": "接口支持的模型名称",
       "show_secret": "显示",
@@ -1272,7 +1284,12 @@
       "ai_agents_run_retention_days": "运行记录保留天数",
       "ai_agents_run_retention_days_desc": "超过天数的运行记录会被自动清理",
       "site_language": "站点语言",
-      "site_language_desc": "文章主要使用的语言。没有设置语言、浏览器也没有发送语言偏好的访客（包括搜索引擎爬虫）按它显示界面，RSS 订阅源也使用它",
+      "site_language_desc": "文章主要使用的语言，用于 RSS 订阅源的语言标记，以及验证码邮件（含测试邮件）的语言。不影响界面语言：界面语言由地址中的语言前缀决定（如 /en），通知邮件按收件人自己设置的语言发送",
+      "site_language_zh-cn": "简体中文",
+      "site_language_zh-tw": "繁体中文",
+      "site_language_en-us": "英语",
+      "site_language_ja-jp": "日语",
+      "site_language_ko-kr": "韩语",
       "refresh": "刷新"
     },
     "labels": {
@@ -1676,6 +1693,7 @@
       "running": "AI 摘要生成中",
       "failed_badge": "摘要生成失败",
       "click_to_retry": "点击重试",
+      "vision_fallback": "模型不支持图片输入，本次已按纯文本生成",
       "stale": "正文已更新，建议重新生成摘要",
       "ai_marker": "AI",
       "ai_marker_title": "该描述由 AI 生成",
@@ -3157,7 +3175,7 @@
   },
   "NotificationSettings": {
     "title": "通知设置",
-    "description": "站内通知与邮件通知的开关都在这里管理，改动即时生效",
+    "description": "站内通知与邮件通知的开关都在这里管理，保存后立即生效",
     "token_expired": "此链接已过期，请登录后继续",
     "login_required": "登录后即可管理你的通知偏好",
     "login": "登录",
@@ -3201,6 +3219,7 @@
     "loading_more": "正在加载…",
     "new_notification": "来了新的互动",
     "unread": "未读",
+    "account_with_unread": "{name}（有未读通知）",
     "actor_separator": "、",
     "and_others": "和另外 {count} 人",
     "deleted_subject": "（内容已删除）",
@@ -3230,6 +3249,7 @@
     "continue_bind_oidc": "继续绑定第三方账号，或退出登录",
     "captcha_error": "验证错误，请重试。",
     "continue": "继续",
+    "logout": "退出登录",
     "currently_logged_in": "当前已登录为",
     "fetch_captcha_config_failed": "获取人机验证配置失败，请稍后重试。",
     "fetch_oidc_configs_failed": "获取第三方身份提供者配置失败。",
@@ -3864,7 +3884,17 @@
   },
   "ColorScheme": {
     "title": "颜色主题",
-    "update_failed": "更新颜色主题失败"
+    "update_failed": "更新颜色主题失败",
+    "names": {
+      "blue": "蓝色",
+      "green": "绿色",
+      "orange": "橙色",
+      "red": "红色",
+      "pink": "粉色",
+      "rose": "玫瑰红",
+      "violet": "紫罗兰",
+      "yellow": "黄色"
+    }
   },
   "ThemePack": {
     "title": "节日主题",

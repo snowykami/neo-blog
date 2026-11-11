@@ -14,6 +14,7 @@ import {
 } from '@/api/admin'
 import { AssetField } from '@/components/common/asset-picker'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
+import { STICKY_ACTIONS_CLASS } from '@/components/console/common/sticky-actions'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -151,7 +152,7 @@ export default function OidcManage() {
             <TableHead>{t('type')}</TableHead>
             <TableHead>Issuer</TableHead>
             <TableHead>{t('status')}</TableHead>
-            <TableHead className="text-right">{t('actions')}</TableHead>
+            <TableHead className={`text-right ${STICKY_ACTIONS_CLASS}`}>{t('actions')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -174,7 +175,7 @@ export default function OidcManage() {
               <TableCell>{config.type || 'oauth2'}</TableCell>
               <TableCell className="max-w-80 truncate">{config.issuer || config.oidcDiscoveryUrl || '-'}</TableCell>
               <TableCell>{config.enabled ? t('enabled') : t('disabled')}</TableCell>
-              <TableCell className="text-right">
+              <TableCell className={`text-right ${STICKY_ACTIONS_CLASS}`}>
                 <div className="flex justify-end gap-2">
                   <Button size="sm" variant="outline" onClick={() => openEditDialog(config)}>{operationT('edit')}</Button>
                   {/* 删除认证源会让已绑定的用户无法再用它登录，使用 AlertDialog 确认 */}

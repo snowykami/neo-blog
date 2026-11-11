@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import type { Level } from './runtime-shared'
 import type { DatabaseMetrics, DependencyMetrics, RedisMetrics } from '@/models/misc'
 import { Check, Database, Layers, TriangleAlert } from 'lucide-react'
-import { useNow, useTranslations } from 'next-intl'
+import { useFormatter, useNow, useTranslations } from 'next-intl'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -252,6 +252,7 @@ function DatabaseCard({ db }: { db: DatabaseMetrics }) {
 
 function RedisCard({ redis }: { redis: RedisMetrics }) {
   const t = useTranslations('Console.dashboard')
+  const format = useFormatter()
   const subtitle = `Redis ${redis.version} · ${redis.location}`
   if (redis.error) {
     return (
@@ -311,7 +312,7 @@ function RedisCard({ redis }: { redis: RedisMetrics }) {
           level={redis.cpuPercent > REDIS_CPU_WARNING ? 'warning' : null}
           tip={<Tip value={`${redis.cpuPercent.toFixed(1)}%`} lines={[t('runtime_tip_redis_cpu')]} />}
         />
-        <Stat label={t('runtime_redis_keys')} value={redis.keys.toLocaleString()} tip={<Tip value={t('runtime_tip_keys_value', { count: redis.keys })} lines={[t('runtime_tip_redis_keys')]} />} />
+        <Stat label={t('runtime_redis_keys')} value={format.number(redis.keys)} tip={<Tip value={t('runtime_tip_keys_value', { count: redis.keys })} lines={[t('runtime_tip_redis_keys')]} />} />
         <Stat label={t('runtime_redis_expired')} value={formatRate(redis.expiredPerSecond)} tip={<Tip value={t('runtime_tip_expired_value', { value: formatRate(redis.expiredPerSecond) })} lines={[t('runtime_tip_redis_expired')]} />} />
         <Stat
           label={t('runtime_redis_evicted')}
@@ -332,7 +333,7 @@ function RedisCard({ redis }: { redis: RedisMetrics }) {
               <div className="h-2">
                 <div className="h-full rounded-r-sm bg-primary" style={{ width: `${Math.max(2, (g.count / topGroup) * 100)}%` }} />
               </div>
-              <span className={cn(jetBrainsMono.className, 'text-right tabular-nums')}>{g.count.toLocaleString()}</span>
+              <span className={cn(jetBrainsMono.className, 'text-right tabular-nums')}>{format.number(g.count)}</span>
             </Hint>
           ))}
         </div>

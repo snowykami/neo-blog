@@ -30,7 +30,7 @@ func TestAISummaryTriggerAllAndConcurrency(t *testing.T) {
 
 	release := make(chan struct{})
 	var inFlight, maxInFlight atomic.Int32
-	s.complete = func(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error) {
+	s.complete = func(ctx context.Context, cfg tools.AIConfig, system, user string, _ []VisionImage) (string, error) {
 		n := inFlight.Add(1)
 		for {
 			m := maxInFlight.Load()
@@ -44,7 +44,7 @@ func TestAISummaryTriggerAllAndConcurrency(t *testing.T) {
 	}
 	s.concurrency = func() int { return 1 }
 	defer func() {
-		s.complete = chatCompletion
+		s.complete = aiSummaryCompletion
 		s.concurrency = tools.GetAISummaryConcurrency
 	}()
 

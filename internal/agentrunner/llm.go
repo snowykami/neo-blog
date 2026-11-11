@@ -30,6 +30,20 @@ type chatMessage struct {
 	Content    *string    `json:"content"`
 	ToolCalls  []toolCall `json:"tool_calls,omitempty"`
 	ToolCallID string     `json:"tool_call_id,omitempty"`
+	// Images 随 user 消息发送的图片（识图）：有图片时 content 编码为文本块加图片块的数组
+	Images []service.VisionImage `json:"-"`
+}
+
+// MarshalJSON 带图片的消息按 OpenAI 兼容的多段内容编码，其余照常
+func (m chatMessage) MarshalJSON() ([]byte, error) {
+	type plain chatMessage
+	if len(m.Images) == 0 || m.Content == nil {
+		return json.Marshal(plain(m))
+	}
+	return json.Marshal(struct {
+		Role    string `json:"role"`
+		Content any    `json:"content"`
+	}{Role: m.Role, Content: service.VisionContentParts(*m.Content, m.Images)})
 }
 
 func textMessage(role, content string) chatMessage {

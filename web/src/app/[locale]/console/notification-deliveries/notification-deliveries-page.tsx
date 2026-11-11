@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { listNotificationDeliveries, retryNotificationDelivery } from '@/api/admin'
+import { STICKY_ACTIONS_CLASS } from '@/components/console/common/sticky-actions'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -127,7 +128,7 @@ export default function NotificationDeliveriesPage() {
                       <TableHead>{t('col_state')}</TableHead>
                       <TableHead>{t('col_attempts')}</TableHead>
                       <TableHead>{t('col_error')}</TableHead>
-                      <TableHead className="text-right">{t('col_actions')}</TableHead>
+                      <TableHead className={`text-right ${STICKY_ACTIONS_CLASS}`}>{t('col_actions')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -141,12 +142,13 @@ export default function NotificationDeliveriesPage() {
                         <TableCell className="text-xs">{t(`state_${row.emailState}`)}</TableCell>
                         <TableCell className="text-xs tabular-nums">{row.attempts}</TableCell>
                         <TableCell className="text-muted-foreground max-w-64 truncate text-xs" title={row.lastError}>{row.lastError || '—'}</TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className={`text-right ${STICKY_ACTIONS_CLASS}`}>
                           <Button
                             type="button"
                             variant="outline"
                             size="sm"
-                            disabled={retrying === row.id || row.emailState === 'sent'}
+                            // 后端只接受失败与超时未结束的发送中（sending 未超时时返回 409），待发 / 已跳过 / 已发送的没有可重试的
+                            disabled={retrying === row.id || !(row.emailState === 'failed' || row.emailState === 'sending')}
                             onClick={() => void retry(row.id)}
                           >
                             {retrying === row.id && <Loader2 className="animate-spin" />}

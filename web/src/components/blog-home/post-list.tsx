@@ -91,7 +91,7 @@ export function PostListItem({ post, showAuthor = true, pinned = false, highligh
         )}
 
         {/* 列表正文已被接口截断，字数 / 阅读时长只在文章页按完整正文展示 */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-foreground/30 tabular-nums">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground tabular-nums">
           <span className="flex items-center gap-1" title={t('Metrics.like_count')}>
             <LikeIcon className="size-3.5" />
             <span className="sr-only">{t('Metrics.like_count')}</span>
@@ -222,7 +222,7 @@ export function PostList({
           <FileSearchIcon className="size-6" />
         </span>
         <p className="text-lg font-medium text-foreground/75">{t('no_posts')}</p>
-        <p className="text-sm text-foreground/50">
+        <p className="text-sm text-muted-foreground">
           {t('no_posts_found')}
         </p>
         {onClearFilter && (

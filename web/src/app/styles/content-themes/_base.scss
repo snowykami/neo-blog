@@ -62,6 +62,15 @@
   :not(pre) > code {
     overflow-wrap: anywhere;
     white-space: pre-wrap;
+    /* 行内代码用浅底色区分，不用 typography 默认在两侧加的反引号（其他主题各自再覆盖） */
+    padding: 0.15em 0.35em;
+    border-radius: 0.375rem;
+    background: color-mix(in oklab, var(--foreground) 7%, transparent);
+
+    &::before,
+    &::after {
+      content: none;
+    }
   }
 
   /* 表格过宽时横向滚动 */

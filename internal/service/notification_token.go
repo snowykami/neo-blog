@@ -17,7 +17,9 @@ import (
 // 密钥从 JWT 签名密钥派生，避免多个用途共用同一个原始密钥
 
 const (
-	notificationTokenTTL     = 72 * time.Hour
+	// notificationTokenTTL 凭据有效期：退订与设置链接要在翻出旧邮件时也能用（反垃圾邮件法规要求发出后至少 30 天内可退订），
+	// 凭据只能改通知偏好，风险很低，取半年；更换 JWT 签名密钥后全部失效
+	notificationTokenTTL     = 180 * 24 * time.Hour
 	notificationTokenPurpose = "notif-prefs"
 )
 

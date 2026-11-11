@@ -278,6 +278,18 @@ func (cr *CommentRepo) GetComment(commentID uint) (*model.Comment, error) {
 	return &comment, nil
 }
 
+// ReplyLink 评论回复的上一级评论，以及作者是否 AI 用户（作者已删除时按非 AI）：沿回复链计算 AI 互动深度用，只读两列
+func (cr *CommentRepo) ReplyLink(commentID uint) (replyID uint, authorIsAI bool, err error) {
+	var row struct {
+		ReplyID uint
+		IsAI    bool
+	}
+	err = GetDB().Model(&model.Comment{}).Select("comments.reply_id, users.is_ai").
+		Joins("LEFT JOIN users ON users.id = comments.user_id AND users.deleted_at IS NULL").
+		Where("comments.id = ?", commentID).Take(&row).Error
+	return row.ReplyID, row.IsAI, err
+}
+
 // ListComments 列出评论；viewAll 为 true 时（管理员或目标作者）可见全部私密评论
 func (cr *CommentRepo) ListComments(currentUserID, targetID, commentID, rootID uint, targetType string, viewAll bool, page, size uint64, orderBy string, desc bool, depth *int) ([]model.Comment, error) {
 	if !slices.Contains(constant.OrderByEnumComment, orderBy) {

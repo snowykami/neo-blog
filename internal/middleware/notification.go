@@ -17,13 +17,29 @@ const NotifyPrefsTokenHeader = "X-Notify-Prefs-Token"
 func UseNotifyPrefsToken() app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
 		if _, ok := ctx.Value("user_id").(uint); !ok {
-			if token := string(c.GetHeader(NotifyPrefsTokenHeader)); token != "" {
-				if userID, err := service.ParseNotificationPrefsToken(token, time.Now()); err == nil {
-					ctx = context.WithValue(ctx, "user_id", userID)
-					ctx = ctxutils.WithUserCache(ctx)
-				}
-			}
+			ctx = withNotifyPrefsToken(ctx, string(c.GetHeader(NotifyPrefsTokenHeader)))
 		}
 		c.Next(ctx)
 	}
+}
+
+// UseNotifyPrefsQueryToken 只挂在邮件头的一键退订接口上（RFC 8058）：邮箱客户端直接 POST，
+// 不带 Cookie 与自定义请求头，凭据在查询参数 token 里；不认登录身份
+func UseNotifyPrefsQueryToken() app.HandlerFunc {
+	return func(ctx context.Context, c *app.RequestContext) {
+		c.Next(withNotifyPrefsToken(ctx, c.Query("token")))
+	}
+}
+
+// withNotifyPrefsToken 凭据有效时写入受限身份
+func withNotifyPrefsToken(ctx context.Context, token string) context.Context {
+	if token == "" {
+		return ctx
+	}
+	userID, err := service.ParseNotificationPrefsToken(token, time.Now())
+	if err != nil {
+		return ctx
+	}
+	ctx = context.WithValue(ctx, "user_id", userID)
+	return ctxutils.WithUserCache(ctx)
 }

@@ -26,20 +26,22 @@ async function loadLabels(): Promise<Label[]> {
 export default async function LabelPage() {
   // 取不到时抛错，不把空列表缓存成页面：错误时 Next 继续提供上一份成功生成的页面（见 api/misc.server.ts）
   skipBackendAtBuild()
-  const labels = await loadLabels()
+  // 没有公开文章的标签点进去是空列表，不显示（与侧栏标签云一致）
+  const labels = (await loadLabels()).filter(label => label.postCount === undefined || label.postCount > 0)
   const t = await getTranslations()
 
   return (
     <SiteShell
-      sidebar={<BlogSidebar />}
+      // 本页就是完整的标签列表，侧栏不再重复一份标签云
+      sidebar={<BlogSidebar exclude={['labels']} />}
     >
       <SectionTitle as="h1" className="mx-4 text-xl md:mx-2 md:text-2xl">
         {t('Route.label')}
-        {labels.length > 0 && <span className="ml-2 text-base font-medium text-foreground/50 tabular-nums">{labels.length}</span>}
+        {labels.length > 0 && <span className="ml-2 text-base font-medium text-muted-foreground tabular-nums">{labels.length}</span>}
       </SectionTitle>
       <div className="rounded-2xl bg-card p-4 md:p-6">
         {labels.length === 0
-          ? <p className="py-10 text-center text-foreground/50">{t('Archive.empty')}</p>
+          ? <p className="py-10 text-center text-muted-foreground">{t('Archive.empty')}</p>
           : (
               <div className="flex flex-wrap gap-2">
                 {labels.map(label => (

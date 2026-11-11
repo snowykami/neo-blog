@@ -42,7 +42,7 @@ export function PostPreviewDialog({
       <DialogContent className="h-[90vh] w-[90vw] !max-w-none overflow-hidden rounded-2xl border-0 p-0">
         <DialogTitle className="sr-only">{operationT('preview')}</DialogTitle>
         {ready
-          ? <iframe src={getPostPreviewUrl(post)} className="size-full" />
+          ? <iframe src={getPostPreviewUrl(post)} title={operationT('preview')} className="size-full" />
           : <Skeleton className="size-full rounded-2xl" />}
       </DialogContent>
     </Dialog>

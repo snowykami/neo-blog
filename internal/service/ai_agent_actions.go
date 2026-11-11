@@ -84,16 +84,17 @@ func recordEffect(runID uint, effect dto.AgentEffectDto) {
 	}
 }
 
-// aiChainDepth 评论所在回复链的 AI 互动深度：从这条评论开始向上，连续的 AI 评论条数（遇到真人即停）
+// aiChainDepth 评论所在回复链的 AI 互动深度：从这条评论开始向上，连续的 AI 评论条数（遇到真人即停）。
+// 每一级只读上一级 id 与作者是否 AI，不加载整条评论
 func aiChainDepth(commentID uint) int {
 	depth := 0
 	for i := 0; i < 12 && commentID != 0; i++ {
-		c, err := repo.Comment.GetComment(commentID)
-		if err != nil || !c.User.IsAI {
+		replyID, isAI, err := repo.Comment.ReplyLink(commentID)
+		if err != nil || !isAI {
 			break
 		}
 		depth++
-		commentID = c.ReplyID
+		commentID = replyID
 	}
 	return depth
 }

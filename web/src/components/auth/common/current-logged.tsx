@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import React from 'react'
 import { UserAvatar } from '@/components/common/avatar'
 import { SectionDivider } from '@/components/common/section-divider'
+import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/auth-context'
 import { readRedirectBack } from '@/hooks/use-route'
 import { useRouter } from '@/i18n/navigation'
@@ -32,18 +33,30 @@ export function CurrentLogged() {
     <div className="mb-4">
       <SectionDivider className="mb-4">{t('currently_logged_in')}</SectionDivider>
       <div className="flex justify-evenly items-center border border-border rounded-md p-2">
-        <div onClick={handleLoggedContinue} className="flex gap-4 items-center cursor-pointer">
-          <div className="flex gap-2 justify-center items-center  ">
-            <UserAvatar user={user} className="size-10" />
-          </div>
-          <div className="grid place-items-center text-sm leading-tight text-center">
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={handleLoggedContinue}
+          title={t('continue')}
+          className="h-auto gap-4 px-2 py-1"
+        >
+          <UserAvatar user={user} className="size-10" />
+          <span className="grid place-items-center text-sm leading-tight text-center">
             <span className="text-primary font-medium">{formatDisplayName(user)}</span>
-            <span className="text-muted-foreground truncate text-xs">{user.email}</span>
-          </div>
-        </div>
-        <div>
-          <LogOut onClick={handleLogOut} className="text-muted-foreground cursor-pointer" />
-        </div>
+            <span className="text-muted-foreground truncate text-xs font-normal">{user.email}</span>
+          </span>
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={handleLogOut}
+          aria-label={t('logout')}
+          title={t('logout')}
+          className="text-muted-foreground"
+        >
+          <LogOut />
+        </Button>
       </div>
     </div>
   )

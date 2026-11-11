@@ -174,7 +174,7 @@ export const CHINESE_FESTIVAL_THEMES: ThemeDefinition[] = [
       overlayDark: 'radial-gradient(90% 60% at 50% -14%, oklch(0.55 0.05 175 / 0.24), transparent 74%)',
     },
     mode: 'light',
-    icons: { like: 'cloud-rain', comment: 'leaf', view: 'cloud-rain', pin: 'leaf', share: 'sparkles' },
+    icons: { like: 'cloud-rain', comment: 'leaf', view: 'flower', pin: 'leaf', share: 'sparkles' },
     builtin: true,
   },
 ]

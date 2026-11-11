@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { deleteAgentMemory, listAgentMemories, updateAgentMemory } from '@/api/ai-agent'
 import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
 import { Popconfirm } from '@/components/common/popconfirm'
+import { STICKY_ACTIONS_CLASS } from '@/components/console/common/sticky-actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -146,7 +147,7 @@ export function AgentMemoriesPanel({ agentId, subject, onSubjectChange }: {
               <TableHead className="w-32">{t('memories.col_subject')}</TableHead>
               <TableHead className="w-24">{t('memories.col_importance')}</TableHead>
               <TableHead className="w-28">{t('memories.col_source')}</TableHead>
-              <TableHead className="w-28 text-right">{t('list.col_actions')}</TableHead>
+              <TableHead className={`w-28 text-right ${STICKY_ACTIONS_CLASS}`}>{t('list.col_actions')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -213,7 +214,7 @@ export function AgentMemoriesPanel({ agentId, subject, onSubjectChange }: {
                 <TableCell className="align-top font-mono text-xs text-muted-foreground">
                   {memory.sourceRunId ? `run #${memory.sourceRunId}` : '-'}
                 </TableCell>
-                <TableCell className="align-top">
+                <TableCell className={`align-top ${STICKY_ACTIONS_CLASS}`}>
                   <div className="flex justify-end gap-1">
                     <Button
                       size="icon"

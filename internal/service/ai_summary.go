@@ -60,6 +60,8 @@ const (
 type aiSummaryJob struct {
 	Status string `json:"status"`
 	Err    string `json:"err,omitempty"`
+	// VisionFallback 开启了识图，但模型拒收图片（或已知不支持），本次按纯文本生成
+	VisionFallback bool `json:"vision_fallback,omitempty"`
 }
 
 // active 排队或生成中
@@ -81,11 +83,12 @@ func aiSummaryPendingKey(postID uint) string {
 
 // aiSummaryTracker 执行任务的实例用它更新状态并定期续期，结束时写入结果
 type aiSummaryTracker struct {
-	postID uint
-	mu     sync.Mutex
-	status string
-	done   bool
-	stop   chan struct{}
+	postID         uint
+	mu             sync.Mutex
+	status         string
+	visionFallback bool
+	done           bool
+	stop           chan struct{}
 }
 
 func startAISummaryTracker(postID uint) *aiSummaryTracker {
@@ -126,6 +129,13 @@ func (t *aiSummaryTracker) setRunning() {
 	}
 }
 
+// setVisionFallback 记下本次图片没有发给模型（已退回纯文本），写进最终结果
+func (t *aiSummaryTracker) setVisionFallback() {
+	t.mu.Lock()
+	t.visionFallback = true
+	t.mu.Unlock()
+}
+
 // finish 先写结果再删除进行中的状态，查询方不会在两者之间看到「空闲」
 func (t *aiSummaryTracker) finish(status, errMsg string) {
 	t.mu.Lock()
@@ -135,7 +145,7 @@ func (t *aiSummaryTracker) finish(status, errMsg string) {
 	}
 	t.done = true
 	close(t.stop)
-	if err := sharedstate.SetJSON(aiSummaryResultKey(t.postID), aiSummaryJob{Status: status, Err: errMsg}, aiSummaryResultTTL); err != nil {
+	if err := sharedstate.SetJSON(aiSummaryResultKey(t.postID), aiSummaryJob{Status: status, Err: errMsg, VisionFallback: t.visionFallback}, aiSummaryResultTTL); err != nil {
 		logrus.Warnf("save ai summary result for post %d: %v", t.postID, err)
 	}
 	if err := sharedstate.Current().Delete(aiSummaryActiveKey(t.postID), aiSummaryPendingKey(t.postID)); err != nil {
@@ -286,15 +296,15 @@ func (l *aiLimiter) broadcastLocked() {
 // AISummaryService 文章 AI 摘要：后台任务生成，同一文章同时只允许一个任务（多实例间也唯一），按配置限制本实例的并发
 type AISummaryService struct {
 	limiter *aiLimiter
-	// complete 调用大模型，测试时可替换
-	complete func(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error)
+	// complete 调用大模型（images 为随正文发送的图片，未开启识图时为空），测试时可替换
+	complete func(ctx context.Context, cfg tools.AIConfig, system, user string, images []VisionImage) (string, error)
 	// concurrency 读取并发上限，测试时可替换
 	concurrency func() int
 }
 
 var aiSummaryService = &AISummaryService{
 	limiter:     aiCallLimiter,
-	complete:    chatCompletion,
+	complete:    aiSummaryCompletion,
 	concurrency: tools.GetAISummaryConcurrency,
 }
 
@@ -320,26 +330,27 @@ func (s *AISummaryService) loadEditablePost(ctx context.Context, postID uint) (*
 // Status 查询生成状态
 func (s *AISummaryService) Status(ctx context.Context, postID uint) (*dto.AISummaryStatusDto, *errs.ServiceError) {
 	// 先取任务状态再读文章：任务在两次读取之间完成时，读到的文章已是最新摘要，不会出现「已完成但摘要为空」
-	status, errMsg := s.jobStatus(postID)
+	job := s.jobStatus(postID)
 	post, svcerr := s.loadEditablePost(ctx, postID)
 	if svcerr != nil {
 		return nil, svcerr
 	}
 	return &dto.AISummaryStatusDto{
-		Status:      status,
-		Error:       errMsg,
-		Description: post.Description,
-		Stale:       post.AISummaryStale(),
-		GeneratedAt: post.AISummaryAt,
-		Configured:  tools.GetAIConfig().Configured(),
+		Status:         job.Status,
+		Error:          job.Err,
+		VisionFallback: job.VisionFallback,
+		Description:    post.Description,
+		Stale:          post.AISummaryStale(),
+		GeneratedAt:    post.AISummaryAt,
+		Configured:     tools.GetAIConfig().Configured(),
 	}, nil
 }
 
-func (s *AISummaryService) jobStatus(postID uint) (string, string) {
+func (s *AISummaryService) jobStatus(postID uint) aiSummaryJob {
 	if job, ok := s.jobStatuses([]uint{postID})[postID]; ok {
-		return job.Status, job.Err
+		return job
 	}
-	return aiSummaryStatusIdle, ""
+	return aiSummaryJob{Status: aiSummaryStatusIdle}
 }
 
 // jobStatuses 批量读取任务状态：排队或生成中的优先；执行的实例已退出、等待其他实例接手的待办视为排队；其次是最近一次的结果。
@@ -393,7 +404,7 @@ func (s *AISummaryService) Trigger(ctx context.Context, postID uint) *errs.Servi
 	if !cfg.Configured() {
 		return errs.NewBadRequest("ai_not_configured")
 	}
-	if strings.TrimSpace(htmlToPlainText(post.Content)) == "" {
+	if !aiSummaryHasContent(post.Content) {
 		return errs.NewBadRequest("ai_summary_empty_content")
 	}
 	if svcerr := checkSiteAIBudget(time.Now()); svcerr != nil {
@@ -433,7 +444,7 @@ func (s *AISummaryService) TriggerAll(ctx context.Context, overwriteManual bool)
 	for i := range posts {
 		post := &posts[i]
 		switch {
-		case strings.TrimSpace(htmlToPlainText(post.Content)) == "":
+		case !aiSummaryHasContent(post.Content):
 			result.SkippedEmpty++
 		case post.AISummary != "" && post.AISummarySourceHash == model.HashContent(post.Content):
 			result.SkippedUpToDate++
@@ -496,7 +507,7 @@ func (s *AISummaryService) ResumePending() {
 			continue
 		}
 		post, err := repo.Post.GetPostByID(postID)
-		if err != nil || strings.TrimSpace(htmlToPlainText(post.Content)) == "" {
+		if err != nil || !aiSummaryHasContent(post.Content) {
 			_ = sharedstate.Current().Delete(key)
 			continue
 		}
@@ -528,11 +539,24 @@ func (s *AISummaryService) run(job *aiSummaryTracker, cfg tools.AIConfig, userID
 	}()
 	ctx, cancel := context.WithTimeout(withLLMPurpose(context.Background(), constant.LLMPurposeSummary, userID), aiSummaryTimeout)
 	defer cancel()
+	// 模型拒收图片、按纯文本重试时记在任务结果里，后台提示「已退回纯文本」
+	ctx = WithVisionFallbackNotice(ctx, func(string) { job.setVisionFallback() })
+
+	// 识图：正文靠前的图片随正文一起发送，只读取一次（空结果重试时复用）
+	prompt, contentImages := buildAISummaryUserPrompt(title, content)
+	var images []VisionImage
+	if len(contentImages) > 0 && tools.GetAIVisionEnabled() {
+		if aiVisionUsable(cfg.BaseURL, cfg.Model) {
+			images = LoadVisionImages(ctx, contentImages, AIVisionMaxImages)
+		} else {
+			job.setVisionFallback() // 该模型最近拒收过图片，本次直接按纯文本生成
+		}
+	}
 
 	// 少数模型偶尔返回空内容（或只有思考过程），空结果时重试一次
 	var summary string
 	for attempt := 0; attempt < 2 && summary == ""; attempt++ {
-		raw, err := s.complete(ctx, cfg, aiSummarySystemPrompt, buildAISummaryUserPrompt(title, content))
+		raw, err := s.complete(ctx, cfg, aiSummarySystemPrompt, prompt, images)
 		if err != nil {
 			logrus.Warnf("ai summary failed for post %d: %v", postID, err)
 			job.finish(aiSummaryStatusFailed, err.Error())
@@ -559,16 +583,25 @@ func (s *AISummaryService) run(job *aiSummaryTracker, cfg tools.AIConfig, userID
 	job.finish(aiSummaryStatusSucceeded, "")
 }
 
-// buildAISummaryUserPrompt 用户消息：标题 + 转成纯文本（保留标题层级与代码块标记）的正文
-func buildAISummaryUserPrompt(title, content string) string {
-	text := htmlToPlainText(content)
+// aiSummaryHasContent 正文有文字，或开启识图时有图片，才能生成摘要
+func aiSummaryHasContent(content string) bool {
+	if strings.TrimSpace(htmlToPlainText(content)) != "" {
+		return true
+	}
+	return tools.GetAIVisionEnabled() && reHTMLImage.MatchString(content)
+}
+
+// buildAISummaryUserPrompt 用户消息：标题 + 转成纯文本（保留标题层级与代码块标记，图片留下 [图N：alt] 占位）的正文，
+// 同时返回正文中的图片（按出现顺序）
+func buildAISummaryUserPrompt(title, content string) (string, []ContentImage) {
+	text, images := articleTextWithImages(content)
 	runes := []rune(text)
 	if len(runes) > aiSummaryMaxInputRunes {
 		head := aiSummaryMaxInputRunes * 3 / 4
 		tail := aiSummaryMaxInputRunes - head
 		text = string(runes[:head]) + "\n\n……（中间部分省略）……\n\n" + string(runes[len(runes)-tail:])
 	}
-	return fmt.Sprintf("<title>%s</title>\n\n<article>\n%s\n</article>", title, text)
+	return fmt.Sprintf("<title>%s</title>\n\n<article>\n%s\n</article>", title, text), images
 }
 
 var (
@@ -667,6 +700,15 @@ func isMostlyLatin(text string) bool {
 	return total > 0 && latin*2 > total
 }
 
+// aiSummaryCompletion 摘要调用模型（温度 0.3），用户消息可附带正文图片
+func aiSummaryCompletion(ctx context.Context, cfg tools.AIConfig, system, user string, images []VisionImage) (string, error) {
+	data, err := chatCompletionRawWithImages(ctx, cfg, system, user, images, 0.3, "")
+	if err != nil {
+		return "", err
+	}
+	return parseChatCompletion(data)
+}
+
 // chatCompletion 调用 OpenAI 兼容的 /chat/completions 接口（温度 0.3，偏稳定）
 func chatCompletion(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error) {
 	return chatCompletionWithTemperature(ctx, cfg, system, user, 0.3)
@@ -694,11 +736,16 @@ func chatCompletionWithReasoning(ctx context.Context, cfg tools.AIConfig, system
 // chatCompletionRaw 同 chatCompletionWithReasoning，返回上游的原始响应体（需要读取 usage 用量时使用）。
 // 调用前按 ctx 上标明的用途检查全站 AI 预算，调用后记一条用量（失败也记）
 func chatCompletionRaw(ctx context.Context, cfg tools.AIConfig, system, user string, temperature float64, effort string) ([]byte, error) {
+	return chatCompletionRawWithImages(ctx, cfg, system, user, nil, temperature, effort)
+}
+
+// chatCompletionRawWithImages 同 chatCompletionRaw，用户消息可附带图片（识图，见 postChatCompletionsVision）
+func chatCompletionRawWithImages(ctx context.Context, cfg tools.AIConfig, system, user string, images []VisionImage, temperature float64, effort string) ([]byte, error) {
 	finish, err := beginLLMCall(ctx, cfg.Model)
 	if err != nil {
 		return nil, err
 	}
-	data, err := chatCompletionRawCall(ctx, cfg, system, user, temperature, effort)
+	data, err := chatCompletionRawCall(ctx, cfg, system, user, images, temperature, effort)
 	var usage llmUsage
 	if err == nil {
 		usage = parseLLMUsageDetail(data)
@@ -707,11 +754,11 @@ func chatCompletionRaw(ctx context.Context, cfg tools.AIConfig, system, user str
 	return data, err
 }
 
-// chatCompletionRawCall 实际发送非流式请求；不支持 reasoning_effort 的接口去掉参数重试一次（只记一次用量）
-func chatCompletionRawCall(ctx context.Context, cfg tools.AIConfig, system, user string, temperature float64, effort string) ([]byte, error) {
+// chatCompletionRawCall 实际发送非流式请求；不支持 reasoning_effort 的接口去掉参数重试一次、拒收图片时去掉图片重试一次（只记一次用量）
+func chatCompletionRawCall(ctx context.Context, cfg tools.AIConfig, system, user string, images []VisionImage, temperature float64, effort string) ([]byte, error) {
 	payload := map[string]any{
 		"model":       cfg.Model,
-		"messages":    chatMessages(system, user),
+		"messages":    chatMessagesWithImages(system, user, images),
 		"temperature": temperature,
 		"stream":      false,
 	}
@@ -719,13 +766,13 @@ func chatCompletionRawCall(ctx context.Context, cfg tools.AIConfig, system, user
 	if _, unsupported := reasoningEffortUnsupported.Load(key); effort != "" && !unsupported {
 		payload["reasoning_effort"] = effort
 	}
-	resp, err := postChatCompletions(ctx, cfg, payload)
+	resp, err := postChatCompletionsVision(ctx, cfg, payload)
 	var statusErr *chatStatusError
 	if _, sent := payload["reasoning_effort"]; sent && errors.As(err, &statusErr) && statusErr.code == http.StatusBadRequest {
 		logrus.Warnf("chat completion rejected reasoning_effort, retrying without it: %v", err)
 		reasoningEffortUnsupported.Store(key, true)
 		delete(payload, "reasoning_effort")
-		resp, err = postChatCompletions(ctx, cfg, payload)
+		resp, err = postChatCompletionsVision(ctx, cfg, payload)
 	}
 	if err != nil {
 		return nil, err
@@ -738,6 +785,14 @@ func chatMessages(system, user string) []map[string]string {
 	return []map[string]string{
 		{"role": "system", "content": system},
 		{"role": "user", "content": user},
+	}
+}
+
+// chatMessagesWithImages 同 chatMessages，用户消息附带图片时 content 为文本块加图片块的数组
+func chatMessagesWithImages(system, user string, images []VisionImage) []map[string]any {
+	return []map[string]any{
+		{"role": "system", "content": system},
+		{"role": "user", "content": VisionContentParts(user, images)},
 	}
 }
 

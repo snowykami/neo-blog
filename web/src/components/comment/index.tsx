@@ -286,7 +286,7 @@ export function CommentSection({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <SectionTitle className="text-xl md:text-2xl">
           {t('comment')}
-          <span className="ml-2 text-base font-medium text-foreground/50 tabular-nums">{totalCommentCount}</span>
+          <span className="ml-2 text-base font-medium text-muted-foreground tabular-nums">{totalCommentCount}</span>
         </SectionTitle>
         <div className="flex">
           <OrderSelector
@@ -330,7 +330,7 @@ export function CommentSection({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-foreground/50"
+                  className="text-muted-foreground"
                   disabled={loadingMore}
                   onClick={handleLoadMore}
                 >
@@ -340,7 +340,7 @@ export function CommentSection({
               </div>
             )
           : (
-              <p className="my-4 text-center text-sm text-foreground/30">{comments.length === 0 ? t('empty') : t('no_more')}</p>
+              <p className="my-4 text-center text-sm text-muted-foreground">{comments.length === 0 ? t('empty') : t('no_more')}</p>
             ))}
       </div>
     </div>

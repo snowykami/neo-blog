@@ -11,7 +11,8 @@ export const TOUCH_AUTO_CLOSE = 10_000
 
 /**
  * 悬停/点击弹窗：鼠标悬停显示、移开关闭（可移入弹窗内）；
- * 触摸设备点一下显示，再点一次、点击其他地方或 10 秒无操作后关闭
+ * 触摸设备点一下显示，再点一次、点击其他地方或 10 秒无操作后关闭；
+ * 键盘可 Tab 聚焦触发元素，聚焦时延迟显示，Enter / 空格切换，Esc 或移走焦点关闭
  */
 export function HoverPopover({
   content,
@@ -31,6 +32,8 @@ export function HoverPopover({
   const autoCloseTimer = useRef<number | undefined>(undefined)
   // 部分移动浏览器的 click 事件不带 pointerType，在 pointerdown 时记录输入方式
   const lastPointerType = useRef('')
+  // 由键盘打开时，焦点离开即关闭；指针打开的仍按悬停 / 点击规则关闭
+  const openedByKeyboard = useRef(false)
 
   useEffect(() => () => {
     window.clearTimeout(openTimer.current)
@@ -64,13 +67,40 @@ export function HoverPopover({
       <PopoverAnchor asChild>
         <span
           ref={triggerRef}
-          className="inline-flex cursor-default"
+          className="inline-flex cursor-default rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          tabIndex={0}
+          role="button"
+          aria-expanded={open}
+          onFocus={(e) => {
+            // 只响应键盘聚焦，鼠标点击产生的聚焦交给悬停处理
+            if (!e.currentTarget.matches(':focus-visible'))
+              return
+            openedByKeyboard.current = true
+            scheduleOpen()
+          }}
+          onBlur={() => {
+            if (!openedByKeyboard.current)
+              return
+            openedByKeyboard.current = false
+            window.clearTimeout(openTimer.current)
+            setOpen(false)
+          }}
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter' && e.key !== ' ')
+              return
+            e.preventDefault()
+            window.clearTimeout(openTimer.current)
+            openedByKeyboard.current = true
+            setOpen(!open)
+          }}
           onPointerDown={(e) => {
             lastPointerType.current = e.pointerType
           }}
           onPointerEnter={(e) => {
-            if (e.pointerType === 'mouse')
+            if (e.pointerType === 'mouse') {
+              openedByKeyboard.current = false
               scheduleOpen()
+            }
           }}
           onPointerLeave={(e) => {
             if (e.pointerType === 'mouse')

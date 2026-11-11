@@ -72,12 +72,6 @@ func (f *FileRepo) DeleteByID(id uint) error {
 	return nil
 }
 
-func (f *FileRepo) CountFilesByProviderID(providerID uint) (int64, error) {
-	var count int64
-	err := GetDB().Model(&model.File{}).Where("provider_id = ?", providerID).Count(&count).Error
-	return count, err
-}
-
 // CountFilesByHash 统计引用同一存储对象的文件记录数
 func (f *FileRepo) CountFilesByHash(hash string, providerID uint) (int64, error) {
 	var count int64
@@ -129,17 +123,6 @@ func (f *FileRepo) ListFiles(userID uint, paginationParams *dto.PaginationParams
 func (f *FileRepo) ListStorageProviders() (providers []model.StorageProviderModelAndDto, err error) {
 	err = GetDB().Find(&providers).Error
 	return
-}
-
-func (f *FileRepo) SetDefaultStorageProvider(id uint) error {
-	return GetDB().Model(&model.StorageProviderModelAndDto{}).Where("id = ?", id).Update("is_default", true).Error
-}
-
-func (f *FileRepo) UnsetDefaultStorageProvider(id uint) *errs.ServiceError {
-	if err := GetDB().Model(&model.StorageProviderModelAndDto{}).Where("id = ?", id).Update("is_default", false).Error; err != nil {
-		return errs.NewInternalServer("failed_to_update_target")
-	}
-	return nil
 }
 
 func (f *FileRepo) CreateStorageProvider(provider *model.StorageProviderModelAndDto) *errs.ServiceError {

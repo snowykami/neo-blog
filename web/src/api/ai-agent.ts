@@ -172,11 +172,6 @@ export async function listAIAgentGroups(): Promise<BaseResponse<{ groups: AIAgen
   return res.data
 }
 
-export async function getAIAgentGroup(id: number): Promise<BaseResponse<AIAgentGroup>> {
-  const res = await axiosClient.get(`/admin/ai-agent-groups/${id}`)
-  return res.data
-}
-
 export interface GenerateAIAgentGroupReq {
   name: string
   count: number

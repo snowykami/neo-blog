@@ -14,7 +14,6 @@ import (
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/storage"
-	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/storageprovider"
@@ -75,7 +74,7 @@ type SaveFileInput struct {
 	Src        io.ReadSeeker
 }
 
-// SavedFile 保存结果；URL 为稳定链接
+// SavedFile 保存结果；URL 为稳定链接（站内相对路径，换域名不失效）
 type SavedFile struct {
 	ID   uint
 	Hash string
@@ -127,6 +126,7 @@ func (f *FileService) SaveFile(ctx context.Context, in *SaveFileInput) (*SavedFi
 		logrus.Error("数据库索引建立失败: ", err)
 		return nil, errs.Internal("failed_to_create_target", err)
 	}
-	// 始终返回稳定链接：内容中只保存稳定链接，文件换存储或存储改地址时无需改动内容；可直连的存储在接口返回时再改写为直链
-	return &SavedFile{ID: fileModel.ID, Hash: hash, URL: tools.GetBaseUrl() + FileLink(fileModel.ID)}, nil
+	// 始终返回稳定链接（相对路径）：内容中只保存稳定链接，文件换存储、存储改地址或站点换域名时都无需改动内容；
+	// 可直连的存储在接口返回时再改写为直链
+	return &SavedFile{ID: fileModel.ID, Hash: hash, URL: FileLink(fileModel.ID)}, nil
 }

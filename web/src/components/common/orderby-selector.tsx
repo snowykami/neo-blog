@@ -20,21 +20,16 @@ interface Order {
 
 export function OrderSelector({
   value,
-  initialOrder,
   onOrderChange,
   orderBys,
 }: {
   /** 受控排序值（推荐），通常来自 URL 状态 */
   value?: Order
-  /** @deprecated 仅在未传入 value 时作为非受控初始值，保留以兼容旧调用 */
-  initialOrder?: Order
   orderBys?: OrderBy[]
   onOrderChange: (order: Order) => void
 }) {
   const orderT = useTranslations('Order')
-  const [innerOrder, setInnerOrder] = useState<Order>(
-    initialOrder ?? { orderBy: OrderBy.CreatedAt, desc: true },
-  )
+  const [innerOrder, setInnerOrder] = useState<Order>({ orderBy: OrderBy.CreatedAt, desc: true })
   const order = value ?? innerOrder
 
   orderBys = orderBys || [

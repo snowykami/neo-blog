@@ -17,6 +17,17 @@ import (
 	"gorm.io/gorm"
 )
 
+// notificationListMaxSize 通知列表与后台投递排查每页最多的条数
+const notificationListMaxSize = 50
+
+// clampNotificationPageSize 未传时用默认值，超过上限按上限
+func clampNotificationPageSize(size, fallback uint64) uint64 {
+	if size == 0 {
+		return fallback
+	}
+	return min(size, notificationListMaxSize)
+}
+
 // ListNotifications 本人的通知列表；分组与排序在仓储里一条查询完成
 func (s *NotificationService) ListNotifications(ctx context.Context, req *dto.ListNotificationsReq) ([]dto.NotificationItemDto, int64, *errs.ServiceError) {
 	currentUser, ok := ctxutils.GetCurrentUser(ctx)
@@ -35,7 +46,7 @@ func (s *NotificationService) ListNotifications(ctx context.Context, req *dto.Li
 		Types:      types,
 		TimeZone:   currentUser.TimeZone,
 		Page:       req.Page,
-		Size:       req.Size,
+		Size:       clampNotificationPageSize(req.Size, 10),
 	})
 	if err != nil {
 		return nil, 0, errs.Internal("failed_to_get_target", err).WithResource("notification")
@@ -215,9 +226,22 @@ func (s *NotificationService) ListNotificationDeliveries(ctx context.Context, re
 	if !ctxutils.IsAdmin(ctx) {
 		return nil, 0, errs.NewForbidden("permission_denied")
 	}
-	rows, total, err := repo.Notification.ListEmailDeliveries(req.State, req.Page, req.Size)
+	rows, total, err := repo.Notification.ListEmailDeliveries(req.State, req.Page, clampNotificationPageSize(req.Size, 20))
 	if err != nil {
 		return nil, 0, errs.Internal("failed_to_get_target", err).WithResource("notification")
+	}
+	// 收件邮箱一次查齐，查不到的用户留空
+	userIDs := make([]uint, 0, len(rows))
+	for i := range rows {
+		if !slices.Contains(userIDs, rows[i].UserID) {
+			userIDs = append(userIDs, rows[i].UserID)
+		}
+	}
+	emails := make(map[uint]string, len(userIDs))
+	if users, err := repo.User.GetUsersByIDs(userIDs); err == nil {
+		for _, user := range users {
+			emails[user.ID] = user.Email
+		}
 	}
 	items := make([]dto.NotificationDeliveryDto, 0, len(rows))
 	for i := range rows {
@@ -232,10 +256,8 @@ func (s *NotificationService) ListNotificationDeliveries(ctx context.Context, re
 			LastError:    rows[i].EmailLastErr,
 			CreatedAt:    rows[i].CreatedAt,
 		}
-		// 只显示收件邮箱，便于确认发给了谁；查不到用户时留空
-		if user, err := repo.User.GetUserByID(rows[i].UserID); err == nil {
-			item.UserEmail = user.Email
-		}
+		// 只显示收件邮箱，便于确认发给了谁
+		item.UserEmail = emails[rows[i].UserID]
 		items = append(items, item)
 	}
 	return items, total, nil

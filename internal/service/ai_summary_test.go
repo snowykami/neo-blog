@@ -38,11 +38,11 @@ func TestAISummaryLifecycle(t *testing.T) {
 	author, _, other, post, _ := setupEditTest(t)
 	s := NewAISummaryService()
 	release := make(chan struct{})
-	s.complete = func(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error) {
+	s.complete = func(ctx context.Context, cfg tools.AIConfig, system, user string, _ []VisionImage) (string, error) {
 		<-release
 		return "  \"<think>思考</think>\n## 标题\n用 **Tiptap** 重写编辑器，并补齐 `slash` 命令。\"  ", nil
 	}
-	defer func() { s.complete = chatCompletion }()
+	defer func() { s.complete = aiSummaryCompletion }()
 
 	// 未配置 AI 时拒绝
 	expectCode(t, s.Trigger(author, post.ID), http.StatusBadRequest, "not configured")
@@ -96,7 +96,7 @@ func TestAISummaryResumePending(t *testing.T) {
 	author, _, _, post, _ := setupEditTest(t)
 	s := NewAISummaryService()
 	var calls atomic.Int32
-	s.complete = func(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error) {
+	s.complete = func(ctx context.Context, cfg tools.AIConfig, system, user string, _ []VisionImage) (string, error) {
 		calls.Add(1)
 		return "接手后生成的摘要", nil
 	}
@@ -133,10 +133,10 @@ func TestAISummaryResumePending(t *testing.T) {
 func TestAISummaryFailureStatus(t *testing.T) {
 	author, _, _, post, _ := setupEditTest(t)
 	s := NewAISummaryService()
-	s.complete = func(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error) {
+	s.complete = func(ctx context.Context, cfg tools.AIConfig, system, user string, _ []VisionImage) (string, error) {
 		return "", errs.NewInternalServer("status 401: invalid api key")
 	}
-	defer func() { s.complete = chatCompletion }()
+	defer func() { s.complete = aiSummaryCompletion }()
 	for k, v := range map[string]string{"ai_api_base_url": "https://example.com/v1", "ai_api_key": "sk-test", "ai_model": "m"} {
 		_ = repo.KV.SetKV(k, v)
 	}

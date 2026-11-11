@@ -3,6 +3,7 @@ import RSS from 'rss'
 import { getRssData } from '@/api/misc'
 import { renderInlineIconsHtml } from '@/lib/inline-icon/icon'
 import { getPostUrl } from '@/utils/common/route'
+import { absoluteSiteUrl, absolutizeHtmlUrls } from '@/utils/common/siteinfo'
 import { formatDisplayName } from '@/utils/common/username'
 import { renderMathHtml } from '@/utils/server/render-math'
 import { sanitizeContentHtml } from '@/utils/server/sanitize-html'
@@ -25,7 +26,8 @@ export async function GET() {
     description: rssData.description,
     site_url: rssData.siteUrl,
     feed_url: rssData.feedUrl,
-    image_url: rssData.imageUrl,
+    // 站内图片存的是相对路径，订阅源里要补成绝对地址
+    image_url: absoluteSiteUrl(rssData.imageUrl, rssData.siteUrl) || undefined,
     copyright: rssData.copyright,
     language: rssData.language,
     // 后台「RSS 作者」配置
@@ -37,7 +39,11 @@ export async function GET() {
 
   // 订阅源同样输出净化后的正文
   // 公式输出为 MathML、行内图标输出为带 1em 宽高的 SVG：阅读器不加载站点样式也能正常显示（不支持 SVG 的阅读器里图标不显示）
-  const descriptions = await Promise.all(rssData.posts.map(post => renderInlineIconsHtml(renderMathHtml(sanitizeContentHtml(post.content), 'mathml'))))
+  // 站内图片与链接存的是相对路径，补成绝对地址
+  const descriptions = await Promise.all(rssData.posts.map(async post => absolutizeHtmlUrls(
+    await renderInlineIconsHtml(renderMathHtml(sanitizeContentHtml(post.content), 'mathml')),
+    rssData.siteUrl,
+  )))
   rssData.posts.forEach((post, index) => {
     rss.item({
       title: post.title,
@@ -47,7 +53,7 @@ export async function GET() {
       date: post.updatedAt,
       author: post.user ? formatDisplayName(post.user) : rssData.author,
       categories: post.category ? [post.category.name] : undefined,
-      enclosure: post.cover ? { url: post.cover } : { url: rssData.postDefaultCover },
+      enclosure: { url: absoluteSiteUrl(post.cover || rssData.postDefaultCover, rssData.siteUrl) },
     })
   })
 

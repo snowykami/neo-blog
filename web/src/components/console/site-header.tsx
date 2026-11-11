@@ -20,9 +20,12 @@ export function SiteHeader({ title }: { title?: string }) {
               href="https://github.com/snowykami/neo-blog"
               rel="noopener noreferrer"
               target="_blank"
+              // 只有图标：给读屏一个名称（品牌名，不需要翻译）
+              aria-label="GitHub"
+              title="GitHub"
               className="dark:text-foreground"
             >
-              <SiGithub className="h-full w-full" />
+              <SiGithub aria-hidden className="h-full w-full" />
             </a>
           </Button>
         </div>

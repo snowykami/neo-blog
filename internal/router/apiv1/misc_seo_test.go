@@ -26,7 +26,7 @@ func getJSON(t *testing.T, url string, out any) {
 	}
 }
 
-// 站点地图列出公开的独立页面（私密页面与链接页面不列）；站点信息带上站点语言，前端据此决定没有语言偏好的访客看到的界面语言
+// 站点地图列出公开的独立页面（私密页面与链接页面不列）；站点语言写进 RSS 订阅源，前台站点信息不带它
 func TestSitemapPagesAndSiteLanguage(t *testing.T) {
 	t.Setenv(constant.EnvKeyDBDriver, "sqlite")
 	t.Setenv(constant.EnvKeyDBURL, "")
@@ -62,24 +62,28 @@ func TestSitemapPagesAndSiteLanguage(t *testing.T) {
 		t.Fatalf("sitemap pages = %v, want only public content and HTML pages", slugs)
 	}
 
-	var info struct {
+	// 站点语言只用于 RSS 订阅源的 <language> 与验证码邮件，不再放进前台站点信息
+	var rss struct {
 		Data struct {
-			DefaultLanguage string `json:"default_language"`
+			Language string `json:"language"`
 		} `json:"data"`
 	}
-	getJSON(t, base+"/misc/site-info", &info)
-	if info.Data.DefaultLanguage != "zh-cn" {
-		t.Fatalf("site-info default_language = %q, want zh-cn", info.Data.DefaultLanguage)
-	}
-	// 已保存过整体站点信息时同样带上（站点语言是独立配置项，不在 site_info 里）
-	if err := repo.KV.SetKV("site_info", map[string]any{"metadata": map[string]any{"name": "Kami"}}); err != nil {
-		t.Fatalf("save site_info: %v", err)
+	getJSON(t, base+"/misc/rss-data", &rss)
+	if rss.Data.Language != "zh-cn" {
+		t.Fatalf("rss-data language = %q, want zh-cn", rss.Data.Language)
 	}
 	if err := repo.KV.SetKV("default_language", "ja-jp"); err != nil {
 		t.Fatalf("save default_language: %v", err)
 	}
+	getJSON(t, base+"/misc/rss-data", &rss)
+	if rss.Data.Language != "ja-jp" {
+		t.Fatalf("rss-data language = %q, want ja-jp", rss.Data.Language)
+	}
+	var info struct {
+		Data map[string]any `json:"data"`
+	}
 	getJSON(t, base+"/misc/site-info", &info)
-	if info.Data.DefaultLanguage != "ja-jp" {
-		t.Fatalf("site-info default_language = %q, want ja-jp", info.Data.DefaultLanguage)
+	if _, ok := info.Data["default_language"]; ok {
+		t.Fatalf("site-info should not carry default_language")
 	}
 }

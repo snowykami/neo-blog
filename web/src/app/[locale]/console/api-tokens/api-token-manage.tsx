@@ -6,6 +6,7 @@ import { useFormatter, useTranslations } from 'next-intl'
 import { useCallback, useEffect, useState } from 'react'
 import { listAPITokens, revokeAPIToken } from '@/api/api-token'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
+import { STICKY_ACTIONS_CLASS } from '@/components/console/common/sticky-actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -76,7 +77,7 @@ export function APITokenManage() {
               <TableHead>{t('last_used_at')}</TableHead>
               <TableHead>{t('expires_at')}</TableHead>
               <TableHead>{t('status')}</TableHead>
-              <TableHead className="text-right">{t('actions')}</TableHead>
+              <TableHead className={`text-right ${STICKY_ACTIONS_CLASS}`}>{t('actions')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -131,7 +132,7 @@ export function APITokenManage() {
                       {t(`status_${status}`)}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className={`text-right ${STICKY_ACTIONS_CLASS}`}>
                     {status !== 'revoked' && (
                       <ConfirmDialog
                         title={t('revoke_title', { name: token.name })}

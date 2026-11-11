@@ -6,11 +6,6 @@ import (
 	"github.com/snowykami/neo-blog/pkg/utils"
 )
 
-func SetTokenCookie(c *app.RequestContext, token string) {
-	maxAge := utils.Jwt.CookieMaxAge(token, utils.Jwt.CurrentDurations().Access)
-	c.SetCookie("token", token, maxAge, "/", "", protocol.CookieSameSiteLaxMode, true, true)
-}
-
 // LoggedInCookie 登录标记：不含任何凭据、脚本可读（非 HttpOnly），有效期与刷新令牌一致。
 // 前端页面对所有人渲染同一份外壳，浏览器据此判断要不要请求 /user/me，访客不必每次都收到一个 401
 const LoggedInCookie = "logged_in"

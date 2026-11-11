@@ -458,6 +458,7 @@ function useCommonColumns<T extends Replica & { core: BackendCoreMetrics | Front
 
 function BackendTable({ instances }: { instances: RuntimeInstance[] }) {
   const t = useTranslations('Console.dashboard')
+  const format = useFormatter()
   const rows = instances.map(i => ({ ...i, id: i.instanceId, label: replicaLabel(instances, i), history: i.requestsHistory }))
   const common = useCommonColumns(rows, 'backend')
   const goroutineScale = scaleOf(rows.map(r => r.core.goroutines), BAR_FLOOR.goroutines)
@@ -469,9 +470,9 @@ function BackendTable({ instances }: { instances: RuntimeInstance[] }) {
       title: 'Goroutine',
       render: r => (
         <BarCell
-          value={r.core.goroutines.toLocaleString()}
+          value={format.number(r.core.goroutines)}
           ratio={r.core.goroutines / goroutineScale}
-          tip={<Tip value={r.core.goroutines.toLocaleString()} lines={[t('runtime_tip_goroutines')]} />}
+          tip={<Tip value={format.number(r.core.goroutines)} lines={[t('runtime_tip_goroutines')]} />}
         />
       ),
     },

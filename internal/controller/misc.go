@@ -41,11 +41,10 @@ func (mc *MiscController) GetCacheTags(ctx context.Context, c *app.RequestContex
 // GetSiteInfo 前台站点信息：后台保存的整体站点信息补上缺少的注册项，从未保存过时全部按配置注册表的生效值与默认值（见 config.SiteInfo）
 func (mc *MiscController) GetSiteInfo(ctx context.Context, c *app.RequestContext) {
 	info := config.SiteInfo()
-	// 设置了环境变量 BASE_URL 时站点地址以它为准；站点语言是独立配置项，一并带上
+	// 设置了环境变量 BASE_URL 时站点地址以它为准
 	if _, fromEnv := config.Lookup("base_url").EnvValue(); fromEnv {
 		info["base_url"] = tools.GetBaseUrl()
 	}
-	info["default_language"] = config.String("default_language")
 	// 评论的字数上限与折叠行数是后台可调的配置，直接给生效值，前台不必再判断缺省
 	info["comment_max_length"] = tools.GetCommentMaxLength()
 	info["comment_collapsed_lines"] = tools.GetCommentCollapsedLines()
@@ -91,23 +90,6 @@ func (mc *MiscController) GetPublicConfig(ctx context.Context, c *app.RequestCon
 		result[key] = value
 	}
 	resps.Ok(c, "", result)
-}
-
-func (mc *MiscController) SetPublicConfig(ctx context.Context, c *app.RequestContext) {
-	data := make(map[string]interface{})
-	err := c.BindAndValidate(&data)
-	if err != nil {
-		resps.BadRequest(c, resps.ErrParamInvalid)
-		return
-	}
-	for key, value := range data {
-		err = repo.KV.SetKV(key, value)
-		if err != nil {
-			resps.InternalError(c, err)
-			return
-		}
-	}
-	resps.Ok(c, "", nil)
 }
 
 func (mc *MiscController) GetSitemapData(ctx context.Context, c *app.RequestContext) {

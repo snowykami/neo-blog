@@ -483,6 +483,9 @@ type AgentLeaseRun struct {
 	RecentComments []string           `json:"recent_comments"` // 自己最近发过的评论（新的在前），提示词要求不重复开头、句式和观点
 	CanSelfEdit    bool               `json:"can_self_edit"`
 	MaxSteps       int                `json:"max_steps"` // 阅读阶段最多调用只读工具的轮数，氛围型为 0
+	// Vision 已开启识图：读文章时把正文图片附给模型；VisionUnsupported 开启了识图但所用模型最近拒收过图片，本次按纯文本阅读
+	Vision            bool `json:"vision"`
+	VisionUnsupported bool `json:"vision_unsupported"`
 }
 
 type AgentLeaseSite struct {

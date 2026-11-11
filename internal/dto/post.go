@@ -67,12 +67,14 @@ type PostStatsDto struct {
 
 // AISummaryStatusDto AI 摘要生成任务状态
 type AISummaryStatusDto struct {
-	Status      string     `json:"status"` // idle / queued / running / succeeded / failed
-	Error       string     `json:"error,omitempty"`
-	Description string     `json:"description,omitempty"`
-	Stale       bool       `json:"stale"`
-	GeneratedAt *time.Time `json:"generated_at,omitempty"`
-	Configured  bool       `json:"configured"` // 是否已在全局配置中配置 AI
+	Status string `json:"status"` // idle / queued / running / succeeded / failed
+	Error  string `json:"error,omitempty"`
+	// VisionFallback 开启了识图但模型拒收图片（或已知不支持），本次按纯文本生成
+	VisionFallback bool       `json:"vision_fallback,omitempty"`
+	Description    string     `json:"description,omitempty"`
+	Stale          bool       `json:"stale"`
+	GeneratedAt    *time.Time `json:"generated_at,omitempty"`
+	Configured     bool       `json:"configured"` // 是否已在全局配置中配置 AI
 }
 
 // BatchAISummaryReq 全站 AI 摘要

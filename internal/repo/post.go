@@ -408,17 +408,6 @@ func (p *postRepo) ListPostCardsByIDs(ids []uint) ([]model.Post, error) {
 	return posts, nil
 }
 
-func (p *postRepo) ToggleLikePost(postID uint, userID uint) (bool, error) {
-	if postID == 0 || userID == 0 {
-		return false, errs.NewBadRequest("id_cannot_be_empty_or_zero")
-	}
-	liked, err := Like.ToggleLike(userID, postID, constant.TargetTypePost, nil)
-	if err != nil {
-		return false, err
-	}
-	return liked, nil
-}
-
 // ListPublicContentsWithComponents 公开文章（不含私密与草稿）中带内容组件的正文，用于找出文章引用的网易云歌曲（见 service/music_whitelist.go）
 func (p *postRepo) ListPublicContentsWithComponents() ([]string, error) {
 	var contents []string

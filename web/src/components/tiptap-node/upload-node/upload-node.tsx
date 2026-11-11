@@ -407,7 +407,20 @@ export const UploadNode: React.FC<NodeViewProps> = (props) => {
   const hasFiles = fileItems.length > 0
 
   return (
-    <NodeViewWrapper className="tiptap-upload my-6" tabIndex={0} onClick={handleClick}>
+    <NodeViewWrapper
+      className="tiptap-upload my-6"
+      tabIndex={0}
+      // 里面还有「从资源库选择」按钮，不能整体作为 button，用带名称的 group，并支持 Enter / 空格打开文件选择
+      role="group"
+      aria-label={editorT(video ? 'upload_dropzone_video' : 'upload_dropzone')}
+      onClick={handleClick}
+      onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
+        if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' '))
+          return
+        e.preventDefault()
+        handleClick()
+      }}
+    >
       {!hasFiles && (
         <UploadDragArea onFile={handleUpload}>
           <DropZoneContent mediaType={mediaType} maxSize={maxSize} limit={limit} />

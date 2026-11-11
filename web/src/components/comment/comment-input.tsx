@@ -1,7 +1,7 @@
 import type { CommentAttachment, CommentMention } from '@/models/comment'
 import { Loader2, Lock, LogIn, Monitor, X } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { useRef, useState, useSyncExternalStore } from 'react'
+import { useId, useRef, useState, useSyncExternalStore } from 'react'
 import { toast } from 'sonner'
 import { useLoginDialog } from '@/components/auth/login-dialog'
 import { OidcProviderButtons, useOidcProviders } from '@/components/auth/oidc-providers'
@@ -21,7 +21,7 @@ import { getUserUrl } from '@/utils/common/route'
 import { CommentAttachmentButton, CommentAttachmentList, useCommentAttachments } from './comment-attachment-input'
 import { CommentLengthRing } from './comment-length-ring'
 import { commentCharCount, useCommentLimits } from './comment-limits'
-import { MentionCandidates } from './mention-candidates'
+import { MentionCandidates, mentionOptionId } from './mention-candidates'
 import { useMention } from './use-mention'
 
 /**
@@ -37,7 +37,7 @@ export function CommentInput({
   initIsPrivate = false,
   placeholder = '',
   isUpdate = false,
-  initShowClientInfo = true,
+  initShowClientInfo = false, // 设备与归属地默认不公开，评论者勾选后才展示
   collapsible = false,
   showAvatar = false,
   autoFocus = false,
@@ -74,6 +74,7 @@ export function CommentInput({
   const attachments = useCommentAttachments(initAttachments)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const mac = useIsMac()
+  const mentionListId = useId()
   const mention = useMention({
     value: commentContent,
     textareaRef,
@@ -184,6 +185,11 @@ export function CommentInput({
           autoFocus={autoFocus}
           placeholder={placeholder || (isPrivate ? t('private_placeholder') : t('placeholder'))}
           aria-label={placeholder || t('placeholder')}
+          // @ 候选列表展开时，读屏通过 activedescendant 得知当前选中的候选（焦点仍留在输入框）
+          aria-autocomplete="list"
+          aria-expanded={mention.open}
+          aria-controls={mention.open ? mentionListId : undefined}
+          aria-activedescendant={mention.open && mention.candidates.length > 0 ? mentionOptionId(mentionListId, mention.activeIndex) : undefined}
           className={cn('resize-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent', expanded ? 'min-h-16' : 'min-h-10')}
           value={commentContent}
           onChange={(e) => {
@@ -216,6 +222,7 @@ export function CommentInput({
         />
         {mention.open && (
           <MentionCandidates
+            id={mentionListId}
             candidates={mention.candidates}
             activeIndex={mention.activeIndex}
             loading={mention.loading}

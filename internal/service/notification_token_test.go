@@ -13,12 +13,12 @@ func TestNotificationPrefsToken(t *testing.T) {
 	if err != nil || userID != 42 {
 		t.Fatalf("parse = %d, %v", userID, err)
 	}
-	// 72 小时内有效
-	if _, err := ParseNotificationPrefsToken(token, now.Add(71*time.Hour)); err != nil {
+	// 半年内有效：翻出几个月前的邮件也能退订
+	if _, err := ParseNotificationPrefsToken(token, now.Add(179*24*time.Hour)); err != nil {
 		t.Fatalf("token should still be valid: %v", err)
 	}
-	if _, err := ParseNotificationPrefsToken(token, now.Add(73*time.Hour)); err == nil {
-		t.Fatal("token should expire after 72 hours")
+	if _, err := ParseNotificationPrefsToken(token, now.Add(181*24*time.Hour)); err == nil {
+		t.Fatal("token should expire after 180 days")
 	}
 	// 篡改负载或签名都无效
 	parts := strings.Split(token, ".")

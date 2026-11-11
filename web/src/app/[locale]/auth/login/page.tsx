@@ -90,9 +90,12 @@ export function LoginForm({ className, ...props }: React.ComponentProps<'div'>) 
                 })
               }}
             />
-            <SectionDivider className="my-2">
-              {t('or_continue_with_local_account')}
-            </SectionDivider>
+            {/* 没有第三方登录时上面什么都没有，不显示「或」分隔线 */}
+            {providers.length > 0 && (
+              <SectionDivider className="my-2">
+                {t('or_continue_with_local_account')}
+              </SectionDivider>
+            )}
             <LocalLoginForm onSuccess={() => router.push(redirectBack)} />
             {/* 注册链接 */}
             <div className="text-center text-sm">

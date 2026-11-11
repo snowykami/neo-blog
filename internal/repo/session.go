@@ -20,18 +20,6 @@ func (s *sessionRepo) CreateSession(session *model.Session) error {
 	return GetDB().Create(session).Error
 }
 
-func (s *sessionRepo) IsSessionValid(sessionID string) (bool, error) {
-	if sessionID == "" {
-		return false, nil
-	}
-	var count int64
-	err := GetDB().Model(&model.Session{}).Where("session_id = ?", sessionID).Count(&count).Error
-	if err != nil {
-		return false, err
-	}
-	return count > 0, nil
-}
-
 func (s *sessionRepo) IsSessionValidForUser(sessionID string, userID uint) (bool, error) {
 	if sessionID == "" || userID == 0 {
 		return false, nil

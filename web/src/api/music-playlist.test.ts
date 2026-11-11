@@ -30,10 +30,10 @@ describe('网易云歌单', () => {
     await expect(fetchNcmPlaylist()).resolves.toEqual({ tracks, version: '' })
   })
 
-  it('歌单版本接口返回字符串版本', async () => {
+  it('歌单版本接口返回字符串版本；与完整歌单一样等后端现拉歌单（60 秒超时）', async () => {
     client.get.mockResolvedValue({ data: { status: 200, message: 'success', data: 'abc123' } })
     await expect(fetchPlaylistVersion()).resolves.toBe('abc123')
-    expect(client.get).toHaveBeenCalledWith('/music/playlist/version')
+    expect(client.get).toHaveBeenCalledWith('/music/playlist/version', { timeout: 60000 })
   })
 
   it('恢复播放只取一首：候选 id 用逗号连起来，没有候选时不带参数', async () => {

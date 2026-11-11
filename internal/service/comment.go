@@ -252,7 +252,7 @@ func (cs *CommentService) GetComment(ctx context.Context, commentID uint) (*dto.
 	if currentUser, ok := ctxutils.GetCurrentUser(ctx); ok {
 		currentUserID = currentUser.ID
 	}
-	commentDtos := cs.toGetCommentDtos([]model.Comment{*comment}, currentUserID)
+	commentDtos := cs.toGetCommentDtos([]model.Comment{*comment}, currentUserID, false)
 	return &commentDtos[0], nil
 }
 
@@ -306,7 +306,7 @@ func (cs *CommentService) GetCommentList(ctx context.Context, req *dto.GetCommen
 	if err != nil {
 		return nil, errs.Internal("failed_to_get_target", err).WithResource("comment")
 	}
-	commentDtos := cs.toGetCommentDtos(comments, currentUserID)
+	commentDtos := cs.toGetCommentDtos(comments, currentUserID, false)
 	// 主评论列表附带回复线程的摘要（可见回复数与最早回复的几位用户），前端折叠时展示
 	if req.RootID == 0 && req.CommentID == 0 && depth != nil && *depth == 0 && len(commentDtos) > 0 {
 		rootIDs := make([]uint, len(commentDtos))
@@ -326,14 +326,38 @@ func (cs *CommentService) GetCommentList(ctx context.Context, req *dto.GetCommen
 	return commentDtos, nil
 }
 
-func (cs *CommentService) ListCommentsAdmin(ctx context.Context, pagination *dto.PaginationParams, query string) ([]dto.CommentDto, int64, *errs.ServiceError) {
+func (cs *CommentService) ListCommentsAdmin(ctx context.Context, pagination *dto.PaginationParams, query string) ([]dto.UserCommentDto, int64, *errs.ServiceError) {
 	currentUserID, _ := ctxutils.GetCurrentUserID(ctx)
 	comments, total, err := repo.Comment.ListCommentsAdmin(pagination.Page, pagination.Size, pagination.OrderBy, pagination.Desc, strings.TrimSpace(query))
 	if err != nil {
 		logrus.Errorf("ListCommentsAdmin: ListCommentsAdmin error: %s", err.Error())
 		return nil, 0, errs.Internal("failed_to_get_target", err).WithResource("comment")
 	}
-	return cs.toGetCommentDtos(comments, currentUserID), total, nil
+	// 后台评论管理只对管理员开放（路由中间件），设备与归属地照常返回
+	commentDtos := cs.toGetCommentDtos(comments, currentUserID, true)
+
+	// 附带所属文章 / 页面的标题，后台直接显示标题并链接（私密目标链接到后台预览）
+	idsByType := map[string][]uint{}
+	for _, comment := range comments {
+		idsByType[comment.TargetType] = append(idsByType[comment.TargetType], comment.TargetID)
+	}
+	infos := map[string]map[uint]repo.TargetInfo{}
+	for targetType, ids := range idsByType {
+		if infos[targetType], err = repo.Visit.GetTargetInfos(targetType, ids); err != nil {
+			logrus.Errorf("ListCommentsAdmin: GetTargetInfos error: %s", err.Error())
+			return nil, 0, errs.Internal("failed_to_get_target", err).WithResource("comment")
+		}
+	}
+	result := make([]dto.UserCommentDto, 0, len(commentDtos))
+	for _, commentDto := range commentDtos {
+		item := dto.UserCommentDto{CommentDto: commentDto, Target: dto.CommentTargetDto{ID: commentDto.TargetID, Type: commentDto.TargetType}}
+		// 目标已被删除时只有类型与 id，标题为空
+		if info, ok := infos[commentDto.TargetType][commentDto.TargetID]; ok {
+			item.Target.Title, item.Target.Slug, item.Target.IsPrivate = info.Title, info.Slug, info.IsPrivate
+		}
+		result = append(result, item)
+	}
+	return result, total, nil
 }
 
 // ListUserComments 用户主页的评论列表：管理员可见全部，本人可见自己的私密评论，其他人只能看到公开目标下的公开评论
@@ -361,7 +385,7 @@ func (cs *CommentService) ListUserComments(ctx context.Context, req *dto.ListUse
 		briefsByType[targetType] = briefs
 	}
 
-	commentDtos := cs.toGetCommentDtos(comments, currentUserID)
+	commentDtos := cs.toGetCommentDtos(comments, currentUserID, false)
 	result := make([]dto.UserCommentDto, 0, len(commentDtos))
 	for _, commentDto := range commentDtos {
 		brief := briefsByType[commentDto.TargetType][commentDto.TargetID]
@@ -379,7 +403,8 @@ func (cs *CommentService) ListUserComments(ctx context.Context, req *dto.ListUse
 }
 
 // toGetCommentDtos 批量转换评论，点赞状态与附件各一次查询完成，避免逐条查询
-func (cs *CommentService) toGetCommentDtos(comments []model.Comment, currentUserID uint) []dto.CommentDto {
+// revealClient 为 true 时无论评论者是否公开都返回设备与归属地，只用于管理员后台
+func (cs *CommentService) toGetCommentDtos(comments []model.Comment, currentUserID uint, revealClient bool) []dto.CommentDto {
 	likedIDs := map[uint]bool{}
 	if currentUserID != 0 && len(comments) > 0 {
 		ids := make([]uint, len(comments))
@@ -395,7 +420,7 @@ func (cs *CommentService) toGetCommentDtos(comments []model.Comment, currentUser
 	mentions := commentMentionUsers(comments)
 	commentDtos := make([]dto.CommentDto, 0, len(comments))
 	for i := range comments {
-		commentDto := cs.toGetCommentDto(&comments[i], likedIDs[comments[i].ID])
+		commentDto := cs.toGetCommentDto(&comments[i], likedIDs[comments[i].ID], revealClient)
 		commentDto.Attachments = toCommentAttachmentDtos(comments[i].AttachmentIDs, files)
 		// 被 @ 的人按 id 取当前用户名：正文里是评论当时的写法，渲染以这份为准
 		for _, id := range comments[i].MentionUserIDs {
@@ -435,14 +460,14 @@ func commentMentionUsers(comments []model.Comment) map[uint]model.User {
 	return result
 }
 
-func (cs *CommentService) toGetCommentDto(comment *model.Comment, isLiked bool) dto.CommentDto {
+// toGetCommentDto 转换单条评论。设备与归属地只在评论者选择公开（ShowClientInfo）或 revealClient（管理员后台）时返回；
+// 系统版本被 UA 固定（如 macOS 10.15.7、Windows NT 10.0）时只给系统名
+func (cs *CommentService) toGetCommentDto(comment *model.Comment, isLiked, revealClient bool) dto.CommentDto {
 	ua := utils.ParseUA(comment.UserAgent)
-	if !comment.ShowClientInfo {
+	osName, browser := ua.PublicOS(), ua.PublicBrowser()
+	if !(comment.ShowClientInfo || revealClient) {
 		comment.CommentLocation = model.CommentLocation{}
-		ua.OS = ""
-		ua.OSVersion = ""
-		ua.Browser = ""
-		ua.BrowserVer = ""
+		osName, browser = "", ""
 	}
 
 	return dto.CommentDto{
@@ -462,8 +487,8 @@ func (cs *CommentService) toGetCommentDto(comment *model.Comment, isLiked bool) 
 		LikeCount:      comment.LikeCount,
 		IsLiked:        isLiked,
 		IsPrivate:      comment.IsPrivate,
-		OS:             ua.OS + " " + ua.OSVersion,
-		Browser:        ua.Browser + " " + ua.BrowserVer,
+		OS:             osName,
+		Browser:        browser,
 		Location: dto.CommentLocationDto{
 			Country:   comment.Country,
 			Province:  comment.Province,

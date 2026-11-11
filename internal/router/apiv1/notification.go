@@ -28,4 +28,6 @@ func registerNotificationRoutes(group *route.RouterGroup) {
 		prefsGroup.PUT("", notificationController.UpdatePreferences)
 		prefsGroup.POST("/unsubscribe-all", notificationController.UnsubscribeAll)
 	}
+	// 邮件头 List-Unsubscribe 的一键退订：邮箱客户端直接 POST，只认查询参数里的凭据，效果同 unsubscribe-all
+	group.POST("/notifications/one-click-unsubscribe", middleware.UseNotifyPrefsQueryToken(), notificationController.UnsubscribeAll)
 }

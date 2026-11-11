@@ -60,7 +60,7 @@ export function UserHeader({ user }: { user: User }) {
             <h1 className="truncate text-2xl font-bold text-foreground/90 md:text-3xl">
               {user.nickname || user.username || t('no_nickname')}
             </h1>
-            <p className="text-foreground/50">
+            <p className="text-muted-foreground">
               @
               {user.username}
             </p>

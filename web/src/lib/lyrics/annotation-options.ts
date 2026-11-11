@@ -1,4 +1,4 @@
-import type { LyricColor, LyricEffect, LyricFont, LyricMood, LyricScene, LyricTextStyle } from './types'
+import type { LyricColor, LyricEffect, LyricFont, LyricMood, LyricScene } from './types'
 import { LYRIC_COLORS } from './colors'
 
 /**
@@ -48,8 +48,6 @@ export const LYRIC_SCENES: LyricScene[] = [
 ]
 
 export const LYRIC_FONTS: LyricFont[] = ['song', 'kai', 'xingkai', 'fangsong', 'round', 'mono', 'script']
-
-export const LYRIC_TEXT_STYLES: LyricTextStyle[] = ['bold', 'italic', 'underline']
 
 export const LYRIC_COLOR_NAMES = Object.keys(LYRIC_COLORS) as LyricColor[]
 

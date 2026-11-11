@@ -1,8 +1,8 @@
 'use client'
 
-import type { Comment } from '@/models/comment'
+import type { UserComment } from '@/models/comment'
 import { Paperclip } from 'lucide-react'
-import { useTranslations } from 'next-intl'
+import { useFormatter, useTranslations } from 'next-intl'
 import {
   parseAsBoolean,
   parseAsInteger,
@@ -18,6 +18,7 @@ import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { OrderSelector } from '@/components/common/orderby-selector'
 import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
 import { Popconfirm } from '@/components/common/popconfirm'
+import { STICKY_ACTIONS_CLASS } from '@/components/console/common/sticky-actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -34,7 +35,10 @@ import { useDevice } from '@/contexts/device-context'
 import { useConsoleQuery } from '@/hooks/use-console-query'
 import { useDebouncedState } from '@/hooks/use-debounce'
 import { useCommonT, useErrorMessageT, useOperationT } from '@/hooks/use-translations'
+import { Link } from '@/i18n/navigation'
 import { OrderBy } from '@/models/common'
+import { formatLocation } from '@/utils/common/location'
+import { getTargetViewUrl } from '@/utils/common/route'
 
 const PAGE_SIZE = 15
 const MOBILE_PAGE_SIZE = 10
@@ -101,7 +105,7 @@ export default function CommentsManage() {
   )
 
   // 删除失败时抛出，由确认组件统一提示并保持打开
-  const handleDelete = async (comment: Comment) => {
+  const handleDelete = async (comment: UserComment) => {
     await deleteComment({ id: comment.id })
     toast.success(operationT('delete_success'))
     // 删除可能连带回复，重新拉取；删光当前页时回退到上一页
@@ -136,7 +140,7 @@ export default function CommentsManage() {
             <TableHead>{t('user')}</TableHead>
             <TableHead>{t('status')}</TableHead>
             <TableHead>{t('time')}</TableHead>
-            <TableHead className="text-right">{t('actions')}</TableHead>
+            <TableHead className={`text-right ${STICKY_ACTIONS_CLASS}`}>{t('actions')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -182,11 +186,16 @@ function CommentRow({
   comment,
   onDelete,
 }: {
-  comment: Comment
-  onDelete: (comment: Comment) => Promise<void>
+  comment: UserComment
+  onDelete: (comment: UserComment) => Promise<void>
 }) {
   const operationT = useOperationT()
   const t = useTranslations('Console.comments')
+  const format = useFormatter()
+  const clientInfo = [comment.browser, comment.os, comment.location && formatLocation({ location: comment.location, short: true })]
+    .map(part => (part || '').trim())
+    .filter(Boolean)
+    .join(' · ')
   return (
     <TableRow>
       <TableCell className="max-w-[28rem] whitespace-normal">
@@ -203,12 +212,16 @@ function CommentRow({
           </div>
         )}
       </TableCell>
-      <TableCell>
-        <div className="font-mono text-xs">{comment.targetType}</div>
-        <div className="text-xs text-muted-foreground">
-          #
-          {comment.targetId}
-        </div>
+      <TableCell className="max-w-56 min-w-32 whitespace-normal">
+        {/* 显示所属文章 / 页面的标题；私密目标前台 404，链到后台预览 */}
+        {comment.target.title
+          ? (
+              <Link href={getTargetViewUrl(comment.target)} target="_blank" prefetch={false} className="line-clamp-2 text-sm break-words hover:text-primary hover:underline">
+                {comment.target.title}
+              </Link>
+            )
+          : <div className="text-sm text-muted-foreground">{t('target_deleted')}</div>}
+        <div className="text-xs text-muted-foreground">{t(comment.targetType === 'page' ? 'target_page' : 'target_post')}</div>
       </TableCell>
       <TableCell>
         <div className="flex items-center gap-2">
@@ -217,6 +230,8 @@ function CommentRow({
             <div className="truncate text-sm">{comment.user?.nickname || comment.user?.username || t('unknown_user')}</div>
             {/* 邮箱仅在后端返回时展示 */}
             {comment.user?.email && <div className="truncate text-xs text-muted-foreground">{comment.user.email}</div>}
+            {/* 设备与归属地：前台只在评论者选择公开时显示，后台管理员始终可见 */}
+            {clientInfo && <div className="truncate text-xs text-muted-foreground" title={clientInfo}>{clientInfo}</div>}
           </div>
         </div>
       </TableCell>
@@ -231,8 +246,8 @@ function CommentRow({
           )}
         </div>
       </TableCell>
-      <TableCell>{new Date(comment.createdAt).toLocaleString()}</TableCell>
-      <TableCell className="text-right">
+      <TableCell>{format.dateTime(new Date(comment.createdAt), { dateStyle: 'medium', timeStyle: 'short' })}</TableCell>
+      <TableCell className={`text-right ${STICKY_ACTIONS_CLASS}`}>
         {/* 有回复时删除会连带整棵回复树，用 AlertDialog 说明后果；否则就地确认 */}
         {comment.replyCount > 0
           ? (

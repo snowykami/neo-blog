@@ -2,7 +2,9 @@ package service
 
 import (
 	"encoding/json"
+	"net/url"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/snowykami/neo-blog/internal/config"
@@ -180,6 +182,20 @@ func filterKnownTypes(types, allowed []string) []string {
 // NotificationSettingsURL 邮件底部的「通知设置」链接；带有限的免登录凭据，见 docs/notification-spec.md N11
 func NotificationSettingsURL(user *model.User, now time.Time) string {
 	return tools.GetBaseUrl() + "/notification-settings?token=" + SignNotificationPrefsToken(user.ID, now)
+}
+
+// NotificationUnsubscribeHeaders 邮件头里的退订入口（RFC 2369 / RFC 8058）：邮箱客户端的「退订」按钮直接 POST 到这个地址，
+// 关掉全部通知邮件（站内通知不受影响）。一键退订要求 HTTPS，站点地址不是 HTTPS 时不加
+func NotificationUnsubscribeHeaders(user *model.User, now time.Time) map[string]string {
+	base := tools.GetBaseUrl()
+	if !strings.HasPrefix(strings.ToLower(base), "https://") {
+		return nil
+	}
+	target := base + constant.ApiPrefix + "/notifications/one-click-unsubscribe?token=" + url.QueryEscape(SignNotificationPrefsToken(user.ID, now))
+	return map[string]string{
+		"List-Unsubscribe":      "<" + target + ">",
+		"List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+	}
 }
 
 // NotificationEmailSendingTimeout 一批邮件领取（sending）后多久仍没有结果就视为发信实例已退出：

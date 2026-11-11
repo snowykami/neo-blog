@@ -30,10 +30,16 @@ function SidebarCardView({ card, label, setLabel }: { card: SidebarCard } & Labe
   }
 }
 
-/** 文章列表页侧边栏：按后台「侧边栏卡片」配置的顺序渲染 */
-export default function BlogSidebar({ label, setLabel }: LabelFilter) {
+/**
+ * 文章列表页侧边栏：按后台「侧边栏卡片」配置的顺序渲染
+ * exclude：本页正文已经展示了同样内容时隐藏对应卡片（如标签页不再显示标签云）
+ */
+export default function BlogSidebar({ label, setLabel, exclude }: LabelFilter & { exclude?: SidebarCard['type'][] }) {
   const { siteInfo } = useSiteInfo()
-  const cards = useMemo(() => getSidebarCards(siteInfo), [siteInfo])
+  const cards = useMemo(
+    () => getSidebarCards(siteInfo).filter(card => !exclude?.includes(card.type)),
+    [siteInfo, exclude],
+  )
   return (
     <div className="grid gap-4">
       {/* 卡片可能因未配置 / 无内容而不渲染，空容器隐藏以免留下多余间距；配置项没有稳定 ID，以类型与位置作为 key */}

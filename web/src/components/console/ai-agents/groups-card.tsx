@@ -6,6 +6,7 @@ import { useFormatter } from 'next-intl'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { listAIAgentGroups, resumeAIAgentGroup, updateAIAgentGroupStatus } from '@/api/ai-agent'
+import { STICKY_ACTIONS_CLASS } from '@/components/console/common/sticky-actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
@@ -104,7 +105,7 @@ export function AIAgentGroupsPanel({ refreshKey, onViewMembers, onChanged }: {
             <TableHead>{t('groups.members')}</TableHead>
             <TableHead className="min-w-48">{t('groups.progress')}</TableHead>
             <TableHead>{t('groups.created_at')}</TableHead>
-            <TableHead className="text-right">{t('list.col_actions')}</TableHead>
+            <TableHead className={`text-right ${STICKY_ACTIONS_CLASS}`}>{t('list.col_actions')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -147,7 +148,7 @@ export function AIAgentGroupsPanel({ refreshKey, onViewMembers, onChanged }: {
                 <TableCell className="whitespace-nowrap text-muted-foreground tabular-nums">
                   {format.dateTime(new Date(group.createdAt), { dateStyle: 'medium' })}
                 </TableCell>
-                <TableCell>
+                <TableCell className={STICKY_ACTIONS_CLASS}>
                   <div className="flex justify-end gap-1">
                     {group.status === 'failed' && (
                       <Button size="sm" variant="ghost" disabled={busyId === group.id} onClick={() => resume(group)}>

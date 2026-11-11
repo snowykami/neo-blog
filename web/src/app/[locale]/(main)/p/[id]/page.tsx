@@ -1,14 +1,14 @@
 import type { Metadata } from 'next'
 import type { Article, WithContext } from 'schema-dts'
 import type { Post } from '@/models/post'
-import { getLocale } from 'next-intl/server'
+import { getLocale, getTranslations } from 'next-intl/server'
 import { getCachedSiteInfo } from '@/api/misc.server'
 import { localeAlternates } from '@/i18n/alternates'
 import { localizePath } from '@/i18n/routing'
 import { BUILD_PLACEHOLDER_PARAM } from '@/lib/cache-tags'
 import { stripInlineMarkdown } from '@/utils/common/inline-markdown'
 import { getPostShareImageUrl, getPostUrl, getUserUrl } from '@/utils/common/route'
-import { safeMetadataBase } from '@/utils/common/siteinfo'
+import { absoluteSiteUrl, safeMetadataBase } from '@/utils/common/siteinfo'
 import { htmlToText } from '@/utils/common/string'
 import { formatDisplayName as formatFullName } from '@/utils/common/username'
 import { BlogPost } from './blog-post'
@@ -38,24 +38,28 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
   // 与页面共用同一次文章读取（post-data.ts 的 React cache）；浏览量由前台访问上报计数，与此无关
   // 文章与站点信息并行取（都已跨请求缓存）；locale 与它们也互不依赖。404 与 slug 跳转与页面同样判定
-  const [post, siteInfo, locale] = await Promise.all([getCanonicalPost(id), getCachedSiteInfo(), getLocale()])
+  const [post, siteInfo, locale, t] = await Promise.all([getCanonicalPost(id), getCachedSiteInfo(), getLocale(), getTranslations('Common')])
   // 分享图上的文字跟随页面语言
   const shareImage = localizePath(getPostShareImageUrl(post), locale)
+  // 标题为空时用「无标题」；描述依次取作者描述、正文摘要、标题；站点名为空时不输出
+  const title = post.title || t('untitled')
+  const description = metaDescription(post) || title
+  const siteName = siteInfo?.metadata.name || undefined
   return {
-    title: post.title || 'No Title',
-    description: metaDescription(post) || post.title || 'No Description',
+    title,
+    description,
     metadataBase: safeMetadataBase(siteInfo?.baseUrl),
     alternates: localeAlternates(getPostUrl({ post }), locale),
     authors: post.user ? [{ name: formatFullName(post.user) }] : undefined,
     creator: post.user ? formatFullName(post.user) : undefined,
     keywords: post.labels?.map(label => label.name) || undefined,
     openGraph: {
-      title: post.title || 'No Title',
-      description: metaDescription(post) || post.title || 'No Description',
+      title,
+      description,
       url: localizePath(getPostUrl({ post }), locale),
-      siteName: siteInfo?.metadata.name || 'Site Name',
+      siteName,
       // 分享图由 /p/{id}/share-image 生成，不直接用封面：社交平台上的卡片信息更完整
-      images: [{ url: shareImage, width: 1080, height: 1350, alt: post.title || 'No Title' }],
+      images: [{ url: shareImage, width: 1080, height: 1350, alt: title }],
       // Open Graph 的 locale 写法为 language_TERRITORY，如 zh_TW
       locale: locale.replace('-', '_'),
       type: 'article',
@@ -63,8 +67,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     twitter: {
       // 分享图是竖版卡片，用 summary 卡片避免被裁成横图
       card: 'summary',
-      title: post.title || 'No Title',
-      description: metaDescription(post) || post.title || 'No Description',
+      title,
+      description,
       images: [shareImage],
     },
     robots: {
@@ -97,16 +101,16 @@ export default async function PostPage({ params }: Props) {
     },
     // 没有封面时省略 image；站内相对路径要补成绝对地址（结构化数据不接受相对 URL）
     ...(post.cover
-      ? { image: post.cover.startsWith('http') ? post.cover : `${siteInfo.baseUrl}${post.cover}` }
+      ? { image: absoluteSiteUrl(post.cover, siteInfo.baseUrl) }
       : {}),
     'datePublished': post.createdAt,
     'dateModified': post.updatedAt,
     'publisher': {
       '@type': 'Organization',
-      'name': siteInfo?.metadata.name || 'Site Name',
+      'name': siteInfo?.metadata.name || undefined,
       'logo': {
         '@type': 'ImageObject',
-        'url': siteInfo?.metadata.icon || 'favicon.ico',
+        'url': absoluteSiteUrl(siteInfo?.metadata.icon || '/favicon.ico', siteInfo.baseUrl),
       },
     },
     'description': metaDescription(post) || post.title,
@@ -118,7 +122,7 @@ export default async function PostPage({ params }: Props) {
   }
 
   return (
-    <div className="flex flex-col h-100vh">
+    <div className="flex flex-col">
       <BlogPost post={post} />
       {/* 结构化数据必须直接出现在 SSR 的 HTML 里：用 next/script 只会进 __next_s 队列，需执行 JS 才注入 */}
       <script

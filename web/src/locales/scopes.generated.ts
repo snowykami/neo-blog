@@ -187,6 +187,7 @@ export const SCOPES = {
   'console/global': [
     'AssetPicker',
     'CodeBlock',
+    'ColorScheme',
     'Console.global',
     'ContentCard',
     'ContentComponents',
@@ -289,6 +290,7 @@ export const SCOPES = {
     'Console.storages',
   ],
   'console/user-preference': [
+    'ColorScheme',
     'Console.editor',
     'Console.user_preference',
   ],

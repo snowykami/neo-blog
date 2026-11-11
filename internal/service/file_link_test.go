@@ -84,15 +84,16 @@ func TestFileLinks(t *testing.T) {
 	direct := saveTestFile(t, ctx, env.cdnID, "direct")
 	proxied := saveTestFile(t, ctx, env.localID, "proxied")
 
-	// 上传始终返回稳定链接
-	if direct.URL != tools.GetBaseUrl()+FileLink(direct.ID) {
+	// 上传始终返回稳定链接（站内相对路径，换域名不失效）
+	if direct.URL != FileLink(direct.ID) {
 		t.Fatalf("upload url = %s", direct.URL)
 	}
+	absolute := tools.GetBaseUrl() + FileLink(direct.ID)
 	hash := direct.Hash
 	cdnURL := "https://cdn.test/p/" + hash[:4] + "/" + hash
 
 	// 读取：本站的稳定链接（相对 / 带本站域名 / 带文件名）改写为直链，代理存储与其他站点的链接不变
-	body := `{"content":"<img src=\"` + FileLink(direct.ID) + `\">![](` + FileLink(direct.ID) + `/a.png)","abs":"` + direct.URL +
+	body := `{"content":"<img src=\"` + FileLink(direct.ID) + `\">![](` + FileLink(direct.ID) + `/a.png)","abs":"` + absolute +
 		`","proxied":"` + FileLink(proxied.ID) + `","other":"https://other.test` + FileLink(direct.ID) + `","missing":"` + FileLink(9999) + `"}`
 	out, ok := RewriteFileLinks([]byte(body))
 	if !ok {
@@ -110,6 +111,12 @@ func TestFileLinks(t *testing.T) {
 	normalized, ok := NormalizeFileLinks([]byte(in))
 	if !ok || string(normalized) != `{"content":"<img src=\"`+FileLink(direct.ID)+`\"> <img src=\"`+unknown+`\">"}` {
 		t.Fatalf("normalize = %s", normalized)
+	}
+	// 写入：带本站域名的稳定链接改为相对路径（可同时还原直链），其他站点的同名路径不动
+	in = `{"icon":"` + absolute + `/a.png","cover":"` + cdnURL + `","other":"https://other.test` + FileLink(direct.ID) + `"}`
+	normalized, ok = NormalizeFileLinks([]byte(in))
+	if want := `{"icon":"` + FileLink(direct.ID) + `/a.png","cover":"` + FileLink(direct.ID) + `","other":"https://other.test` + FileLink(direct.ID) + `"}`; !ok || string(normalized) != want {
+		t.Fatalf("normalize = %s, want %s", normalized, want)
 	}
 	if _, ok := RewriteFileLinks([]byte(`{"a":"` + FileLink(proxied.ID) + `"}`)); ok {
 		t.Fatal("proxied link should stay")

@@ -567,3 +567,35 @@ func TestSendNotificationEmailsEnglishInterval(t *testing.T) {
 		t.Error("interval should be rendered in the recipient's language")
 	}
 }
+
+// 邮件发出后写库失败：共享状态里记下「已发出」，这些行超时被收回、再次领取时直接置为 sent，不会重发
+func TestNotificationEmailNotResentAfterMarkFailure(t *testing.T) {
+	setupNotificationEmailDB(t)
+	sharedstate.UseMemory()
+	sent := stubEmailSender(t)
+	recipient := createEmailUser(t, "owner", "zh")
+	actor := createEmailUser(t, "actor", "zh")
+	now := time.Now()
+	row := addNotification(t, recipient, actor, constant.NotificationTypeCommentCreated, constant.NotificationEmailStatePending, now.Add(-10*time.Minute))
+	// 模拟上一轮：已经发出，但置为 sent 时写库失败（记录留在共享状态里）
+	if err := sharedstate.Current().Set(notificationEmailSentKey(row.ID), "1", notificationEmailSentMemoTTL); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := sendNotificationEmails(now); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	if len(*sent) != 0 {
+		t.Fatalf("sent %d mails, want none (already sent before)", len(*sent))
+	}
+	var got model.Notification
+	if err := repo.GetDB().First(&got, row.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if got.EmailState != constant.NotificationEmailStateSent {
+		t.Fatalf("email state = %s, want sent", got.EmailState)
+	}
+	if _, ok, _ := sharedstate.Current().Get(notificationEmailSentKey(row.ID)); ok {
+		t.Fatal("memo should be cleared once the row is marked sent")
+	}
+}

@@ -3,6 +3,7 @@ package tasks
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"sort"
 	"strconv"
 	"time"
@@ -124,6 +125,7 @@ func deliverNotificationEmail(userID uint, due []model.Notification, now time.Ti
 	if err != nil {
 		return err
 	}
+	claimed = dropAlreadySent(claimed, now)
 	if len(claimed) == 0 {
 		// 被别的实例领走，或领取前已被标记已读
 		return nil
@@ -168,6 +170,7 @@ func deliverNotificationEmail(userID uint, due []model.Notification, now time.Ti
 		// 附带行领取失败不影响主列表：退回主列表，下一轮再来
 		return errors.Join(err, repo.Notification.DeferEmails(eligibleIDs, now))
 	}
+	attachedClaimed = dropAlreadySent(attachedClaimed, now)
 	attached := make([]model.Notification, 0, len(attachedClaimed))
 	attachedSkipped := map[string][]uint{}
 	for i := range attachedClaimed {
@@ -213,14 +216,77 @@ func deliverNotificationEmail(userID uint, due []model.Notification, now time.Ti
 	}
 	// 批次标识写进邮件头，排查重复投递时能对上代码里的这一轮
 	batchID := fmt.Sprintf("notif-%d-%d", now.Unix(), userID)
-	if err := sendNotificationEmail(tools.GetEmailConfig(), recipient.Email, content.Subject, content.HTML, map[string]string{
-		"X-NeoBlog-Notification-Batch": batchID,
-	}); err != nil {
+	headers := map[string]string{"X-NeoBlog-Notification-Batch": batchID}
+	// 邮箱客户端的「退订」按钮（一键退订）
+	maps.Copy(headers, service.NotificationUnsubscribeHeaders(recipient, now))
+	if err := sendNotificationEmail(tools.GetEmailConfig(), recipient.Email, content.Subject, content.HTML, headers); err != nil {
 		// 附带行没搭上车：退回 attached 等下一封
 		return errors.Join(rescheduleNotificationEmails(eligible, batchID, err, now), repo.Notification.ReleaseAttachedEmails(attachedIDs))
 	}
 	// 主列表与搭上车的附带行一起置为已发送；超出 attach_max 的继续挂着等下一封
-	return repo.Notification.MarkEmailsSent(append(eligibleIDs, attachedIDs...), now)
+	return markNotificationEmailsSent(append(eligibleIDs, attachedIDs...), now)
+}
+
+// notificationEmailSentMemoTTL 「已发出但没能写库」的记录保留多久：须长于 sending 超时收回的时间，收回后再被领取时能认出来
+const notificationEmailSentMemoTTL = 24 * time.Hour
+
+// notificationEmailSentRetries 邮件发出后写库失败时的重试间隔
+var notificationEmailSentRetries = []time.Duration{500 * time.Millisecond, 2 * time.Second}
+
+func notificationEmailSentKey(id uint) string {
+	return "notification_email:sent:" + itoaUint(id)
+}
+
+// markNotificationEmailsSent 邮件已经发出，把这些行置为 sent。写库失败时短暂重试；仍失败就在共享状态里记下「已发出」，
+// 这些行超时被收回、再次领取时直接置为 sent（见 dropAlreadySent），收件人不会收到重复的邮件
+func markNotificationEmailsSent(ids []uint, now time.Time) error {
+	err := repo.Notification.MarkEmailsSent(ids, now)
+	for _, wait := range notificationEmailSentRetries {
+		if err == nil {
+			return nil
+		}
+		time.Sleep(wait)
+		err = repo.Notification.MarkEmailsSent(ids, now)
+	}
+	if err == nil {
+		return nil
+	}
+	for _, id := range ids {
+		if memoErr := sharedstate.Current().Set(notificationEmailSentKey(id), "1", notificationEmailSentMemoTTL); memoErr != nil {
+			logrus.Errorf("notification email: remember sent row %d: %v", id, memoErr)
+		}
+	}
+	return err
+}
+
+// dropAlreadySent 去掉上次已经发出、只是没能写库的行，并把它们补记为 sent；共享状态读取失败时按未发出处理
+func dropAlreadySent(claimed []model.Notification, now time.Time) []model.Notification {
+	if len(claimed) == 0 {
+		return claimed
+	}
+	keys := make([]string, 0, len(claimed))
+	for i := range claimed {
+		keys = append(keys, notificationEmailSentKey(claimed[i].ID))
+	}
+	memo, err := sharedstate.Current().GetMany(keys...)
+	if err != nil || len(memo) == 0 {
+		return claimed
+	}
+	rest := make([]model.Notification, 0, len(claimed))
+	var sent []uint
+	for i := range claimed {
+		if _, ok := memo[notificationEmailSentKey(claimed[i].ID)]; ok {
+			sent = append(sent, claimed[i].ID)
+			continue
+		}
+		rest = append(rest, claimed[i])
+	}
+	if err := repo.Notification.MarkEmailsSent(sent, now); err != nil {
+		logrus.Errorf("notification email: mark previously sent rows: %v", err)
+	} else {
+		_ = sharedstate.Current().Delete(keys...)
+	}
+	return rest
 }
 
 // notificationIDs 取出一组通知的 id

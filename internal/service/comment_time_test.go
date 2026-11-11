@@ -15,7 +15,7 @@ func TestCommentDtoTimeIsRFC3339(t *testing.T) {
 	comment.CreatedAt = created
 	comment.UpdatedAt = created.Add(time.Minute)
 
-	data, err := json.Marshal(NewCommentService().toGetCommentDto(comment, false))
+	data, err := json.Marshal(NewCommentService().toGetCommentDto(comment, false, false))
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}

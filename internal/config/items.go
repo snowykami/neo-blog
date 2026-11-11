@@ -6,7 +6,7 @@ import (
 	"github.com/snowykami/neo-blog/pkg/constant"
 )
 
-// 这里声明全部后台配置。字段说明见 Item；Label / Description 等为前端 Console.global 下的 i18n 键，新增配置时同步补充 5 种语言的文案
+// 这里声明全部后台配置。字段说明见 Item；Label / Description 等为前端 Console.global 下的 i18n 键，新增配置时同步补充各语言的文案（zh / zh-tw / en / ja / ko；地区变体只写与上一级不同的条目）
 
 // 每篇文章 / 页面最多保留的历史版本数，超出的旧版本自动清理
 const (
@@ -46,9 +46,10 @@ var sections = []*Section{
 		{Key: "site_name", Type: TypeString, Label: "site_name", Default: "My Blog", siteInfoPath: path("metadata.name"), mirror: same},
 		{Key: "base_url", Type: TypeURL, Label: "base_url", Description: "base_url_desc", Default: constant.DefaultBaseUrl, Env: constant.EnvKeyBaseUrl, siteInfoPath: path("base_url"), mirror: same},
 		{Key: "site_description", Type: TypeText, Label: "site_description", Wide: true, Default: "A neo blog system", siteInfoPath: path("metadata.description"), mirror: same},
-		// 站点语言：文章主要使用的语言。没有语言偏好的访客（不带 Accept-Language 的请求，如搜索引擎爬虫）按它显示界面，
-		// 也是 RSS 订阅源的语言。取值与界面支持的语言对应（zh / zh-tw / ja / en / ko）
-		{Key: "default_language", Type: TypeEnum, Label: "site_language", Description: "site_language_desc", Options: options([]string{"zh-cn", "zh-tw", "en-us", "ja-jp", "ko-kr"}, ""), Default: "zh-cn"},
+		// 站点语言：文章主要使用的语言，只用于 RSS 订阅源的 <language> 与验证码（含测试）邮件的语言。
+		// 界面语言由地址里的语言前缀决定（不带前缀固定简体中文，见前端 i18n/routing.ts），通知邮件按收件人自己的语言发送，都不看它。
+		// 取值与界面支持的语言对应（zh / zh-tw / ja / en / ko）
+		{Key: "default_language", Type: TypeEnum, Label: "site_language", Description: "site_language_desc", Options: options([]string{"zh-cn", "zh-tw", "en-us", "ja-jp", "ko-kr"}, "site_language_"), Default: "zh-cn"},
 		{Key: "site_icon", Type: TypeImage, Label: "site_icon", Default: "", siteInfoPath: path("metadata.icon"), mirror: same},
 		{Key: "keywords", Type: TypeStringList, Label: "keywords", PlaceholderKey: "keyword_placeholder", Default: []string{}, siteInfoPath: path("keywords")},
 		// 前台随机使用其中一张；RSS 的默认封面只支持单张，独立配置键只写第一张
@@ -192,6 +193,8 @@ var sections = []*Section{
 		{Key: "ai_api_base_url", Type: TypeURL, Label: "ai_api_base_url", Description: "ai_api_base_url_desc", Placeholder: "https://api.openai.com/v1", Default: ""},
 		{Key: "ai_model", Type: TypeString, Label: "ai_model", Description: "ai_model_desc", Placeholder: "gpt-4o-mini / deepseek-chat", Default: ""},
 		{Key: "ai_api_key", Type: TypeSecret, Label: "ai_api_key", Description: "ai_api_key_desc", Wide: true, Default: ""},
+		// 识图：AI 摘要与 AI 用户读文章时把正文图片一并发给模型，需要模型支持图片输入
+		{Key: "ai_vision_enabled", Type: TypeBool, Label: "ai_vision_enabled", Description: "ai_vision_enabled_desc", Default: false},
 		{Key: "ai_summary_concurrency", Type: TypeInt, Label: "ai_summary_concurrency", Description: "ai_summary_concurrency_desc", Min: num(1), Max: num(20), Default: 3},
 		// 全站 AI 月度预算：摘要、写作、翻译、歌词标注等非 AI 用户的调用在本月全站用量（含 AI 用户）达到后被拒绝；默认 0 不限
 		{Key: "ai_monthly_token_budget", Type: TypeInt, Label: "ai_monthly_token_budget", Description: "ai_monthly_token_budget_desc", Min: num(0), Max: num(1e12), Default: 0},

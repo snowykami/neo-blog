@@ -91,8 +91,3 @@ export function PageBackgroundProvider({
 export function usePageBackground() {
   return useContext(PageBackgroundContext)
 }
-
-/** 只需要读背景配置时的便捷入口（比如让某个组件跟随遮罩强度调整自身透明度） */
-export function usePageBackgroundConfig() {
-  return useContext(PageBackgroundContext).background
-}

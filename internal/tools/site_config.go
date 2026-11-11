@@ -45,6 +45,9 @@ func GetErrorReportEnabled() bool { return config.Bool("error_report_enabled") }
 // GetErrorReportRetentionDays 错误报告的保留天数
 func GetErrorReportRetentionDays() int { return config.Int("error_report_retention_days") }
 
+// GetVisitLogRetentionDays 访问记录保留天数
+func GetVisitLogRetentionDays() int { return max(config.Int("visit_log_retention_days"), 1) }
+
 // GetVerifyCodeCoolDown 验证码发送冷却秒数
 func GetVerifyCodeCoolDown() int { return config.Int("verify_code_cool_down") }
 
@@ -81,6 +84,9 @@ func GetAIConfig() AIConfig {
 
 // GetAISummaryConcurrency AI 摘要同时进行的任务数
 func GetAISummaryConcurrency() int { return config.Int("ai_summary_concurrency") }
+
+// GetAIVisionEnabled 是否启用识图：AI 摘要与 AI 用户读文章时把正文中的图片一并发给模型（模型需支持图片输入）
+func GetAIVisionEnabled() bool { return config.Bool("ai_vision_enabled") }
 
 // GetAIMonthlyTokenBudget 全站 AI 月度 token 预算，0 为不限
 func GetAIMonthlyTokenBudget() int64 { return int64(config.Int("ai_monthly_token_budget")) }

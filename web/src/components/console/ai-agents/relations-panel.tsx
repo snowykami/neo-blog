@@ -10,6 +10,7 @@ import { deleteAgentRelation, listAgentRelations } from '@/api/ai-agent'
 import { UserAvatar } from '@/components/common/avatar'
 import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
 import { Popconfirm } from '@/components/common/popconfirm'
+import { STICKY_ACTIONS_CLASS } from '@/components/console/common/sticky-actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
@@ -78,7 +79,7 @@ export function AgentRelationsPanel({ agentId, onViewMemories }: {
               <TableHead>{t('relations.col_impression')}</TableHead>
               <TableHead className="w-24">{t('relations.col_interactions')}</TableHead>
               <TableHead className="w-28">{t('relations.col_last')}</TableHead>
-              <TableHead className="w-28 text-right">{t('list.col_actions')}</TableHead>
+              <TableHead className={`w-28 text-right ${STICKY_ACTIONS_CLASS}`}>{t('list.col_actions')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -143,7 +144,7 @@ export function AgentRelationsPanel({ agentId, onViewMemories }: {
                   <TableCell className="align-top whitespace-nowrap text-muted-foreground">
                     {relation.lastInteractedAt ? format.relativeTime(new Date(relation.lastInteractedAt)) : '-'}
                   </TableCell>
-                  <TableCell className="align-top">
+                  <TableCell className={`align-top ${STICKY_ACTIONS_CLASS}`}>
                     <div className="flex justify-end gap-1">
                       <Button
                         size="icon"

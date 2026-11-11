@@ -106,7 +106,7 @@ type CommentTargetDto struct {
 	IsPrivate bool    `json:"is_private,omitempty"` // 是否私密：只在后台（仪表盘、访客记录）返回，后台据此把链接指向后台预览
 }
 
-// UserCommentDto 用户主页的评论条目，附带所属目标信息
+// UserCommentDto 用户主页与后台评论管理的评论条目，附带所属目标信息
 type UserCommentDto struct {
 	CommentDto
 	Target CommentTargetDto `json:"target"`

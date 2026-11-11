@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { useColorSchemeName } from '@/hooks/use-color-scheme-name'
 import { useErrorMessageT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
 import { SidebarCardsField } from './sidebar-cards-field'
@@ -304,6 +305,7 @@ function SelectField({ item, label, description }: FieldProps) {
 }
 
 // 多选：勾选可选值，保持声明中的顺序
+// renderOption：自定义选项内容（替换默认的选项文案）
 function MultiSelectField({ item, label, description, renderOption }: FieldProps & { renderOption?: (value: string) => React.ReactNode }) {
   const tr = useConfigT()
   const { control } = useFormContext<ConfigValues>()
@@ -328,8 +330,7 @@ function MultiSelectField({ item, label, description, renderOption }: FieldProps
                         .map(o => o.value)
                         .filter(value => (value === option.value ? next === true : selected.includes(value))))}
                     />
-                    {renderOption?.(option.value)}
-                    {tr(option.label) ?? option.value}
+                    {renderOption ? renderOption(option.value) : (tr(option.label) ?? option.value)}
                   </label>
                 )
               })}
@@ -524,13 +525,25 @@ function ColorSwatch({ scheme }: { scheme: string }) {
   return <span data-user-color={scheme} className="inline-block size-4 shrink-0 rounded-full bg-primary ring-1 ring-border" />
 }
 
-// 允许用户切换的配色：多选，带色块
+// 允许用户切换的配色：多选，带色块与配色名
 function ColorSchemesField(props: FieldProps) {
-  return <MultiSelectField {...props} renderOption={scheme => <ColorSwatch scheme={scheme} />} />
+  const schemeName = useColorSchemeName()
+  return (
+    <MultiSelectField
+      {...props}
+      renderOption={scheme => (
+        <>
+          <ColorSwatch scheme={scheme} />
+          {schemeName(scheme)}
+        </>
+      )}
+    />
+  )
 }
 
 // 默认配色：只能从已勾选的配色中选择（都没勾选时可选全部）
 function ColorSchemeSelect({ item, label, description }: FieldProps) {
+  const schemeName = useColorSchemeName()
   const { control } = useFormContext<ConfigValues>()
   const enabled = (useWatch<ConfigValues>({ name: 'color_schemes' }) as string[] | undefined) ?? []
   const all = item.options?.map(option => option.value) ?? []
@@ -550,7 +563,7 @@ function ColorSchemeSelect({ item, label, description }: FieldProps) {
                 <SelectItem key={scheme} value={scheme}>
                   <span className="flex items-center gap-2">
                     <ColorSwatch scheme={scheme} />
-                    {scheme}
+                    {schemeName(scheme)}
                   </span>
                 </SelectItem>
               ))}
