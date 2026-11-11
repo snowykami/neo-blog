@@ -252,6 +252,18 @@ html[data-theme] .bg-primary {
   }
 }
 
+/* 页面滚动条始终预留宽度：切换页面时新页面在内容到达前短暂不满一屏，滚动条消失又出现会让整页左右闪一下 */
+html {
+  scrollbar-gutter: stable;
+}
+
+/* 弹层锁定滚动时（react-remove-scroll 给 body 加 data-scroll-locked），它会按「滚动条宽度」给 body 加 margin-right 补偿；
+ * 宽度已由上面的 scrollbar-gutter 预留，再补一次页面会向左跳，这里抵消掉 */
+html body[data-scroll-locked] {
+  margin-right: 0 !important;
+  --removed-body-scroll-bar-size: 0px;
+}
+
 /* 减小滚动条宽度 */
 ::-webkit-scrollbar {
   width: 8px; /* 可以根据需要调整宽度 */
