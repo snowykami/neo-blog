@@ -590,7 +590,8 @@
       "delete_category_description": "カテゴリを削除しても記事は削除されません。記事からそのカテゴリが外れます。",
       "edit_category": "カテゴリを編集",
       "no_categories": "カテゴリがありません。作成してください！",
-      "search_categories": "カテゴリを検索..."
+      "search_categories": "カテゴリを検索...",
+      "admin_only_hint": "カテゴリはサイト全体で共有されます。名前の変更や削除は管理者のみ可能です。新しいカテゴリは作成できます。"
     },
     "comments": {
       "title": "コメント管理",
@@ -895,7 +896,11 @@
       "delete_file_description": "削除すると元に戻せません。このファイルを参照しているコンテンツは正しく表示されなくなります。",
       "migrate_selected": "選択を移行",
       "migration_started": "移行を開始しました。進捗はストレージプロバイダーのページで確認できます",
-      "view_migration": "進捗を見る"
+      "view_migration": "進捗を見る",
+      "only_mine": "自分のみ",
+      "empty_title": "ファイルはまだありません",
+      "empty_description": "アップロードしたファイルがここに表示されます。",
+      "empty_search_description": "一致するファイルが見つかりません。別のキーワードをお試しください。"
     },
     "general": "一般",
     "global": {
@@ -1284,7 +1289,8 @@
       "label_slug": "タグスラッグ (URL 用)",
       "label_tailwind_class": "Tailwind CSS クラス",
       "no_labels": "タグがありません。作成してください！",
-      "search_labels": "タグを検索..."
+      "search_labels": "タグを検索...",
+      "admin_only_hint": "タグはサイト全体で共有されます。名前の変更や削除は管理者のみ可能です。新しいタグは作成できます。"
     },
     "login_required": "管理画面に入るにはログインしてください",
     "oidc": {
@@ -1616,6 +1622,10 @@
       },
       "search_pages": "ページを検索",
       "create_page": "ページを作成",
+      "only_mine": "自分のみ",
+      "author": "作成者：{name}",
+      "empty": "ページはまだありません",
+      "empty_search": "一致するページはありません",
       "nav_order": "ナビ #{order}",
       "fullscreen_badge": "全画面",
       "html_badge": "HTML",
@@ -1706,7 +1716,6 @@
       "save_now": "今すぐ保存",
       "words": "{count} 文字",
       "preview_tip": "読者の表示をプレビュー",
-      "preview_local_hint": "編集中の内容をローカルでプレビューしています（サイト側の自動マッチは適用されません）",
       "settings_post": "記事の設定",
       "settings_page": "ページの設定",
       "focus_mode": "集中モード",

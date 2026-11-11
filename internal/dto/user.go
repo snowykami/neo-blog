@@ -120,6 +120,16 @@ type UserBriefDto struct {
 	IsAI      bool   `json:"is_ai"`
 }
 
+// UserAvatarDto 头像墙（如文章的点赞者）用的最小用户信息：只有头像、名字与主页链接需要的字段；
+// Gravatar 哈希与评论作者等公开场景一致，用于没有上传头像的用户
+type UserAvatarDto struct {
+	ID           uint   `json:"id"`
+	Username     string `json:"username"`
+	Nickname     string `json:"nickname"`
+	AvatarUrl    string `json:"avatar_url"`
+	GravatarHash string `json:"gravatar_hash,omitempty"`
+}
+
 // SearchUsersReq 提及功能里的用户搜索：按用户名 / 昵称模糊匹配
 type SearchUsersReq struct {
 	Query string `query:"q"`

@@ -590,7 +590,8 @@
       "delete_category_description": "删除分类不会删除文章，但会将该分类从所有文章中移除。",
       "edit_category": "编辑分类",
       "no_categories": "还没有分类，创建一个吧！",
-      "search_categories": "搜索分类..."
+      "search_categories": "搜索分类...",
+      "admin_only_hint": "分类全站共享，只有管理员可以修改或删除；你可以新建分类。"
     },
     "comments": {
       "title": "评论管理",
@@ -895,7 +896,11 @@
       "delete_file_description": "删除后不可恢复，引用该文件的内容将无法正常显示。",
       "migrate_selected": "迁移所选",
       "migration_started": "迁移已开始，可在存储供应商页面查看进度",
-      "view_migration": "查看进度"
+      "view_migration": "查看进度",
+      "only_mine": "只看我的",
+      "empty_title": "还没有文件",
+      "empty_description": "上传的文件会显示在这里。",
+      "empty_search_description": "没有找到匹配的文件，换个关键词试试。"
     },
     "general": "常规",
     "global": {
@@ -1284,7 +1289,8 @@
       "label_slug": "标签 Slug (用于 URL)",
       "label_tailwind_class": "Tailwind CSS 类名",
       "no_labels": "还没有标签，创建一个吧！",
-      "search_labels": "搜索标签..."
+      "search_labels": "搜索标签...",
+      "admin_only_hint": "标签全站共享，只有管理员可以修改或删除；你可以新建标签。"
     },
     "login_required": "请先登录再进入后台",
     "oidc": {
@@ -1616,6 +1622,10 @@
       },
       "search_pages": "搜索页面",
       "create_page": "创建页面",
+      "only_mine": "只看我的",
+      "author": "作者：{name}",
+      "empty": "还没有页面",
+      "empty_search": "没有找到匹配的页面",
       "nav_order": "导航 #{order}",
       "fullscreen_badge": "全屏",
       "html_badge": "HTML",
@@ -1706,7 +1716,6 @@
       "save_now": "立即保存",
       "words": "{count} 字",
       "preview_tip": "预览阅读效果",
-      "preview_local_hint": "本地预览当前编辑内容，未包含站点的自动匹配处理",
       "settings_post": "文章设置",
       "settings_page": "页面设置",
       "focus_mode": "专注模式",

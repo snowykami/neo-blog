@@ -16,7 +16,7 @@ import {
 import { useAuth } from '@/contexts/auth-context'
 import { useToLogin } from '@/hooks/use-route'
 import { usePathname, useRouter } from '@/i18n/navigation'
-import { consolePath } from '@/utils/common/route'
+import { consolePath, isConsolePreviewPath } from '@/utils/common/route'
 
 export function ConsoleShell({
   children,
@@ -78,8 +78,8 @@ export function ConsoleShell({
     }
   }
 
-  // 文章预览按前台文章页的样子渲染（页面自带前台外壳），不套后台的侧栏与顶栏；权限由后端接口判定
-  if (pathname.startsWith(`${consolePath.postPreview}/`))
+  // 文章 / 页面预览按前台的样子渲染（页面自带前台外壳），不套后台的侧栏与顶栏；权限由后端接口判定
+  if (isConsolePreviewPath(pathname))
     return children
 
   return (

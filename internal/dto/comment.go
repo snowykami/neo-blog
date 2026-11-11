@@ -99,10 +99,11 @@ type ListUserCommentsReq struct {
 
 // CommentTargetDto 评论所属的文章或页面，用于在用户主页展示标题与链接
 type CommentTargetDto struct {
-	ID    uint    `json:"id"`
-	Type  string  `json:"type"` // "post" 或 "page"
-	Title string  `json:"title"`
-	Slug  *string `json:"slug"`
+	ID        uint    `json:"id"`
+	Type      string  `json:"type"` // "post" 或 "page"
+	Title     string  `json:"title"`
+	Slug      *string `json:"slug"`
+	IsPrivate bool    `json:"is_private,omitempty"` // 是否私密：只在后台（仪表盘、访客记录）返回，后台据此把链接指向后台预览
 }
 
 // UserCommentDto 用户主页的评论条目，附带所属目标信息

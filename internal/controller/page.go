@@ -40,28 +40,32 @@ func (p *pageType) Delete(ctx context.Context, c *app.RequestContext) {
 	resps.Ok(c, resps.Success, nil)
 }
 
+// Get 前台读取页面：只返回公开页面的已发布内容，私密页面与不存在的页面一律 404；草稿只在后台接口（GetForEdit）返回
 func (p *pageType) Get(ctx context.Context, c *app.RequestContext) {
 	slugOrID := c.Param("slug_or_id")
 	if slugOrID == "" {
-		slugOrID = c.Param("id")
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
 	}
-	isDraft := c.Query("type") == "draft"
 	page, svcerr := p.service.GetPageSlugOrID(ctx, slugOrID)
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return
 	}
-	if isDraft {
-		if !(ctxutils.IsOwnerOfTarget(ctx, page.UserID) || ctxutils.IsAdmin(ctx)) {
-			resps.Forbidden(c, resps.ErrForbidden)
-			return
-		}
-		if page.DraftContent == nil {
-			page.DraftContent = &page.Content
-		}
-	} else {
-		page.DraftContent = nil
-		page.DraftVersion = 0
+	resps.Ok(c, resps.Success, page)
+}
+
+// GetForEdit 后台编辑器与预览读取页面（含私密页面与草稿），仅作者本人与管理员；路径参数可以是 id 或 slug
+func (p *pageType) GetForEdit(ctx context.Context, c *app.RequestContext) {
+	slugOrID := c.Param("id")
+	if slugOrID == "" {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	page, svcerr := p.service.GetPageForEdit(ctx, slugOrID)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
 	}
 	resps.Ok(c, resps.Success, page)
 }
@@ -88,6 +92,21 @@ func (p *pageType) List(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 	pages, total, svcerr := p.service.ListPages(ctx, req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, utils.H{"pages": pages, "total": total})
+}
+
+// ListMine 后台「我的页面」：当前用户自己的全部页面（含私密页面）
+func (p *pageType) ListMine(ctx context.Context, c *app.RequestContext) {
+	req := &dto.ListPageReq{}
+	if err := c.BindAndValidate(req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	pages, total, svcerr := p.service.ListMyPages(ctx, req)
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return

@@ -3,7 +3,6 @@
 import type { PageModel } from '@/models/page'
 import { useFormatter, useTranslations } from 'next-intl'
 import { useParams } from 'next/navigation'
-import { useCallback } from 'react'
 import { ContentEditorShell } from '@/components/tiptap-editor/content-editor-shell'
 import { useContentEditor } from '@/hooks/use-content-editor'
 import { consolePath, getPageUrl } from '@/utils/common/route'
@@ -17,8 +16,7 @@ export function PageEditor() {
   const { id } = useParams() as { id: string }
   const controller = useContentEditor('page', id)
   const page = controller.doc as PageModel | null
-  const { meta, editor } = controller
-  const getHtml = useCallback(() => editor?.getHTML() ?? '', [editor])
+  const { meta } = controller
 
   const publishSummary = [
     { label: t('publish_visibility'), value: meta.isPrivate ? t('visibility_private') : t('visibility_public') },
@@ -48,8 +46,8 @@ export function PageEditor() {
       renderSettings={panel => (
         <PageSettingsSheet {...panel} meta={meta} onChange={controller.updateMeta} />
       )}
-      renderPreview={panel => (
-        <PagePreviewDialog {...panel} meta={meta} getHtml={getHtml} />
+      renderPreview={panel => page && (
+        <PagePreviewDialog {...panel} page={page} onBeforePreview={() => controller.flushSave()} />
       )}
     />
   )

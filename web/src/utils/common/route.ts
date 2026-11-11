@@ -24,6 +24,13 @@ export const consolePath = {
   aiAgentRun: '/console/ai-agents/runs',
   // 文章预览：按前台文章页的样子渲染草稿与私密文章，不套后台外壳（见 app/console/console-shell.tsx）
   postPreview: '/console/posts/preview',
+  // 页面预览：同上，按前台页面的样子渲染草稿与私密页面
+  pagePreview: '/console/pages/preview',
+}
+
+/** 后台的预览页（文章 / 页面）：按前台的样子渲染、不套后台外壳 */
+export function isConsolePreviewPath(pathname: string): boolean {
+  return pathname.startsWith(`${consolePath.postPreview}/`) || pathname.startsWith(`${consolePath.pagePreview}/`)
 }
 
 export const mainPath = {
@@ -119,6 +126,21 @@ export function getPageUrl<T extends { slug?: string | null, id?: string | numbe
     throw new Error('getPageUrl: object must contain slug or id')
   }
   return `/page/${String(key)}`
+}
+
+/** 后台的页面预览（草稿与私密页面，仅作者本人与管理员）：用 id，编辑中改了 slug 也不受影响 */
+export function getPagePreviewUrl<T extends { id: string | number }>(page: T): string {
+  return `${consolePath.pagePreview}/${String(page.id)}`
+}
+
+/** 在后台查看页面：私密页面前台 404，转到后台预览；公开页面打开前台页面 */
+export function getPageViewUrl<T extends { slug?: string | null, id: string | number, isPrivate?: boolean }>(page: T): string {
+  return page.isPrivate ? getPagePreviewUrl(page) : getPageUrl(page)
+}
+
+/** 在后台查看评论 / 访问所在的文章或页面：私密的（后台接口带 isPrivate）转到后台预览，公开的打开前台 */
+export function getTargetViewUrl<T extends { type: string, id: string | number, slug?: string | null, isPrivate?: boolean }>(target: T): string {
+  return target.type === 'page' ? getPageViewUrl(target) : getPostViewUrl(target)
 }
 
 /**

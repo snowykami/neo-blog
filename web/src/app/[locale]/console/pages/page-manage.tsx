@@ -4,9 +4,11 @@ import type { PageModel } from '@/models/page'
 import type { BaseResponseError } from '@/models/resp'
 import { CodeXmlIcon, Ellipsis, Eye, LinkIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import { parseAsBoolean, useQueryState } from 'nuqs'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { deletePage, listPages, updatePage } from '@/api/page'
+import { listPagesAdmin } from '@/api/admin'
+import { deletePage, listMyPages, updatePage } from '@/api/page'
 import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
 import { Popconfirm } from '@/components/common/popconfirm'
 import { Badge } from '@/components/ui/badge'
@@ -18,22 +20,31 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Empty, EmptyDescription } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
+import { Switch } from '@/components/ui/switch'
 import { useAuth } from '@/contexts/auth-context'
 import { useConsoleQuery } from '@/hooks/use-console-query'
 import { useDebouncedState } from '@/hooks/use-debounce'
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { Link } from '@/i18n/navigation'
 import { OrderBy } from '@/models/common'
-import { getPageEditUrl, getPageUrl } from '@/utils/common/route'
+import { isAdmin } from '@/utils/common/permission'
+import { getPageEditUrl, getPageViewUrl } from '@/utils/common/route'
 import { PageMetaDialog } from './page-meta-dialog'
 
 const PAGE_SIZE = 15
 
-// 查看：链接页面直接打开其地址
-function getPageViewUrl(page: PageModel) {
-  return page.kind === 'link' && page.linkUrl ? page.linkUrl : getPageUrl(page)
+// 查看：链接页面直接打开其地址；私密页面前台 404，打开后台预览
+function getPageOpenUrl(page: PageModel) {
+  return page.kind === 'link' && page.linkUrl ? page.linkUrl : getPageViewUrl(page)
+}
+
+// 「查看」打开的是后台预览（私密的正文 / HTML 页面）
+function isPreview(page: PageModel) {
+  return page.isPrivate && !(page.kind === 'link' && page.linkUrl)
 }
 
 // 列表为空时的固定引用：onPageChange 的 useCallback 依赖 pages
@@ -41,6 +52,8 @@ const EMPTY_PAGES: PageModel[] = []
 
 export function PageManage() {
   const { user } = useAuth()
+  // 管理员可管理所有人的页面（与文章管理一致，可切换「只看我的」），编辑者只能管理自己的页面
+  const isAdminUser = !!user && isAdmin({ user })
   const t = useTranslations('Console.pages')
   const errorMessageT = useErrorMessageT()
   const operationT = useOperationT()
@@ -48,19 +61,19 @@ export function PageManage() {
   const [size, setSize] = useState(PAGE_SIZE)
   const [queryInput, setQueryInput, debouncedQueryInput] = useDebouncedState('', 200)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [onlyMine, setOnlyMine] = useQueryState(
+    'only_mine',
+    parseAsBoolean.withDefault(false).withOptions({ history: 'replace', clearOnDefault: true }),
+  )
 
   // 回到这个页面时先显示上次的结果，同时重新请求（见 hooks/use-console-query.ts）；写操作后缓存会被清空
   const pagesQuery = useConsoleQuery(
-    user ? ['page/list', page, size, debouncedQueryInput] : null,
-    () => listPages({
-      page,
-      size,
-      query: debouncedQueryInput,
-      noContent: true,
-      userId: user!.id,
-      orderBy: OrderBy.CreatedAt,
-      desc: true,
-    }).then(res => ({ pages: res.data.pages, total: res.data.total })),
+    user ? ['page/list', isAdminUser, page, size, debouncedQueryInput, onlyMine] : null,
+    () => {
+      const params = { page, size, query: debouncedQueryInput, noContent: true, orderBy: OrderBy.CreatedAt, desc: true }
+      return (isAdminUser ? listPagesAdmin({ ...params, userId: onlyMine ? user!.id : 0 }) : listMyPages(params))
+        .then(res => ({ pages: res.data.pages, total: res.data.total }))
+    },
     { onError: error => toast.error(`${operationT('fetch_failed')}: ${errorMessageT(error)}`) },
   )
   const pages = pagesQuery.data?.pages ?? EMPTY_PAGES
@@ -92,13 +105,28 @@ export function PageManage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4 gap-3">
-        <Input
-          type="search"
-          placeholder={t('search_pages')}
-          value={queryInput}
-          onChange={event => setQueryInput(event.target.value)}
-          className="max-w-sm"
-        />
+        <div className="flex flex-wrap items-center gap-3">
+          <Input
+            type="search"
+            placeholder={t('search_pages')}
+            value={queryInput}
+            onChange={event => setQueryInput(event.target.value)}
+            className="max-w-sm"
+          />
+          {isAdminUser && (
+            <div className="flex items-center gap-2 shrink-0">
+              <Switch
+                id="page-manage-only-mine"
+                checked={onlyMine}
+                onCheckedChange={(checked) => {
+                  setOnlyMine(checked)
+                  setPage(1)
+                }}
+              />
+              <Label htmlFor="page-manage-only-mine">{t('only_mine')}</Label>
+            </div>
+          )}
+        </div>
         <Button size="sm" onClick={() => setCreateDialogOpen(true)}>{t('create_page')}</Button>
         <PageMetaDialog
           open={createDialogOpen}
@@ -108,9 +136,15 @@ export function PageManage() {
         />
       </div>
       <Separator />
+      {/* 加载完成后列表为空：区分「没有页面」与「没有匹配搜索的页面」 */}
+      {pagesQuery.data && pages.length === 0 && (
+        <Empty className="py-10">
+          <EmptyDescription>{t(debouncedQueryInput ? 'empty_search' : 'empty')}</EmptyDescription>
+        </Empty>
+      )}
       {pages.map(pageItem => (
         <div key={pageItem.id}>
-          <PageItem page={pageItem} onPageChange={onPageChange} onPageDelete={onPageDelete} />
+          <PageItem page={pageItem} showAuthor={isAdminUser} onPageChange={onPageChange} onPageDelete={onPageDelete} />
           <Separator />
         </div>
       ))}
@@ -134,10 +168,12 @@ function PageItem({
   onPageChange,
   onPageDelete,
   page,
+  showAuthor,
 }: {
   onPageChange: ({ page }: { page: Partial<PageModel> & Pick<PageModel, 'id'> }) => void
   onPageDelete: ({ pageId }: { pageId: number }) => void
   page: PageModel
+  showAuthor: boolean // 管理员看所有人的页面时显示作者
 }) {
   const [metaDialogOpen, setMetaDialogOpen] = useState(false)
   const t = useTranslations('Console.pages')
@@ -175,11 +211,16 @@ function PageItem({
               {t('nav_order', { order: page.navOrder })}
             </Badge>
           )}
+          {showAuthor && page.user && (
+            <Badge className="bg-teal-100 text-teal-800">
+              {t('author', { name: page.user.nickname || page.user.username })}
+            </Badge>
+          )}
         </div>
       </div>
       <div className="ml-auto flex items-center gap-2">
         <Button variant="ghost" size="icon-sm" asChild>
-          <a href={getPageViewUrl(page)} target="_blank" rel="noreferrer" aria-label={operationT('view')} title={operationT('view')}>
+          <a href={getPageOpenUrl(page)} target="_blank" rel="noreferrer" aria-label={operationT(isPreview(page) ? 'preview' : 'view')} title={operationT(isPreview(page) ? 'preview' : 'view')}>
             <Eye className="size-4" />
           </a>
         </Button>
@@ -258,7 +299,7 @@ function PageDropdownMenu({
           // 客户端跳转（不整页刷新）；菜单打开时（链接挂载）就完整预取编辑器的页面与 JS
           : <DropdownMenuItem asChild><Link href={getPageEditUrl(page)} prefetch>{operationT('edit')}</Link></DropdownMenuItem>}
         <DropdownMenuItem onClick={() => setMetaDialogOpen(true)}>{operationT('setting')}</DropdownMenuItem>
-        <DropdownMenuItem asChild><a href={getPageViewUrl(page)} target="_blank" rel="noreferrer">{operationT('view')}</a></DropdownMenuItem>
+        <DropdownMenuItem asChild><a href={getPageOpenUrl(page)} target="_blank" rel="noreferrer">{operationT(isPreview(page) ? 'preview' : 'view')}</a></DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={togglePrivate}>{operationT(page.isPrivate ? 'set_public' : 'set_private')}</DropdownMenuItem>
         <DropdownMenuItem onSelect={() => setConfirmOpen(true)} className="text-destructive">

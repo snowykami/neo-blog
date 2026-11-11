@@ -398,7 +398,7 @@ func (s *VisitService) enrichVisitLogs(logs []model.VisitLog) ([]*dto.VisitLogDt
 		item := l.ToDto()
 		if targetType, targetID := subjectOf(l); targetID > 0 {
 			if info, ok := infos[targetType][targetID]; ok {
-				item.Subject = &dto.CommentTargetDto{ID: info.ID, Type: targetType, Title: info.Title, Slug: info.Slug}
+				item.Subject = &dto.CommentTargetDto{ID: info.ID, Type: targetType, Title: info.Title, Slug: info.Slug, IsPrivate: info.IsPrivate}
 			}
 		}
 		if l.TargetType == constant.TargetTypeComment {

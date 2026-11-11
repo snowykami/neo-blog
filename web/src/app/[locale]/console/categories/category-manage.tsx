@@ -9,12 +9,17 @@ import { DeleteButtonWithPopconfirm } from '@/components/common/delete-button-wi
 
 import { CreateOrUpdateCategoryDialogWithButton } from '@/components/console/common/create-label-and-category'
 import { Input } from '@/components/ui/input'
+import { useAuth } from '@/contexts/auth-context'
 import { useConsoleQuery } from '@/hooks/use-console-query'
 import { useOperationT } from '@/hooks/use-translations'
+import { isAdmin } from '@/utils/common/permission'
 
 export function CategoryManage() {
   const t = useTranslations('Console.categories')
   const operationT = useOperationT()
+  const { user } = useAuth()
+  // 分类全站共享：编辑者只能新建，改名与删除只有管理员可以（与后端路由一致）
+  const canManage = !!user && isAdmin({ user })
 
   const [query, setQuery] = useState('')
   // 回到这个页面时先显示上次的结果，同时重新请求（见 hooks/use-console-query.ts）；写操作后缓存会被清空
@@ -59,17 +64,18 @@ export function CategoryManage() {
           onSaved={cat => onCategoryCreatedOrUpdated(cat)}
         />
       </div>
+      {!canManage && <p className="text-sm text-muted-foreground mb-4">{t('admin_only_hint')}</p>}
 
       <div className="overflow-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
         {filtered.map(c => (
-          <CategoryItem key={c.id} category={c} onChange={onChange} />
+          <CategoryItem key={c.id} category={c} canManage={canManage} onChange={onChange} />
         ))}
       </div>
     </div>
   )
 }
 
-function CategoryItem({ category, onChange }: { category: Category, onChange: () => void }) {
+function CategoryItem({ category, canManage, onChange }: { category: Category, canManage: boolean, onChange: () => void }) {
   const operationT = useOperationT()
   const handleDelete = async () => {
     await deleteCategory({ id: category.id })
@@ -94,13 +100,15 @@ function CategoryItem({ category, onChange }: { category: Category, onChange: ()
           <div className="text-sm text-muted-foreground truncate mt-1">{category.description}</div>
         )}
       </div>
-      <div className="flex items-center gap-2">
-        <CreateOrUpdateCategoryDialogWithButton
-          category={category}
-          onSaved={onChange}
-        />
-        <DeleteButtonWithPopconfirm name={category.name} onDelete={handleDelete} />
-      </div>
+      {canManage && (
+        <div className="flex items-center gap-2">
+          <CreateOrUpdateCategoryDialogWithButton
+            category={category}
+            onSaved={onChange}
+          />
+          <DeleteButtonWithPopconfirm name={category.name} onDelete={handleDelete} />
+        </div>
+      )}
     </div>
   )
 }

@@ -18,7 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { Link } from '@/i18n/navigation'
 import { cn } from '@/lib/utils'
-import { consolePath, getPostUrl } from '@/utils/common/route'
+import { consolePath, getPostPreviewUrl } from '@/utils/common/route'
 import { RunStatusBadge, triggerKey, useAIAgentT, useCompactNumber } from './shared'
 
 export interface AgentRunFilters {
@@ -135,8 +135,9 @@ function RunTarget({ run, link = false }: { run: AgentRun, link?: boolean }) {
   if (!run.targetType || !run.targetId)
     return <span className="text-muted-foreground">{t('runs.no_target')}</span>
   const title = run.targetTitle || `${t(`target_type.${run.targetType === 'comment' ? 'comment' : 'post'}`)} #${run.targetId}`
+  // 运行记录里没有文章是否私密（运行之后也可能被改为私密），一律链到后台预览：前台对私密文章 404，管理员在预览里都能看
   if (link && run.targetType === 'post')
-    return <Link href={getPostUrl({ post: { id: run.targetId } })} target="_blank" className="font-medium hover:text-primary hover:underline">{title}</Link>
+    return <Link href={getPostPreviewUrl({ id: run.targetId })} target="_blank" className="font-medium hover:text-primary hover:underline">{title}</Link>
   return <span className="font-medium">{title}</span>
 }
 
@@ -302,8 +303,9 @@ function ActionTarget({ target }: { target?: string }) {
   if (!target)
     return <span className="text-muted-foreground">-</span>
   const [type, id] = target.split(':')
+  // 同 RunTarget：不知道是否私密，链到后台预览
   if (type === 'post' && id)
-    return <Link href={getPostUrl({ post: { id } })} target="_blank" className="font-mono text-xs hover:text-primary hover:underline">{target}</Link>
+    return <Link href={getPostPreviewUrl({ id })} target="_blank" className="font-mono text-xs hover:text-primary hover:underline">{target}</Link>
   return <span className="font-mono text-xs">{target}</span>
 }
 

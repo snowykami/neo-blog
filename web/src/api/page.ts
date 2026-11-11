@@ -6,19 +6,19 @@ import { OrderBy } from '@/models/common'
 import axiosClient from './client'
 import { editSessionHeaders } from './edit-session'
 
-export async function getPageById({
-  id,
-  type = 'normal',
-}: {
-  id: string
-  type?: 'draft' | 'normal'
-}): Promise<BaseResponse<PageModel | null>> {
-  const res = await axiosClient.get(`/page/p/${id}`, {
-    params: { type },
-  })
+// 前台读取页面：不带登录身份，只拿到公开页面的已发布内容（私密页面 404）
+export async function getPageById({ id }: { id: string }): Promise<BaseResponse<PageModel | null>> {
+  const res = await axiosClient.get(`/page/p/${id}`)
   return res.data
 }
 
+// 后台读取页面（编辑器、HTML 页面管理）：含私密页面与草稿，仅作者本人与管理员；前台页面不要用
+export async function getPageForEdit({ id }: { id: string }): Promise<BaseResponse<PageModel>> {
+  const res = await axiosClient.get(`/page/p/${id}/draft`)
+  return res.data
+}
+
+// 前台页面列表（导航等）：只含公开页面，不论谁在看；后台管理用 listMyPages / listPagesAdmin
 export async function listPages({
   page = 1,
   size = 10,
@@ -45,6 +45,21 @@ export async function listPages({
       onlyNav,
       userId,
     },
+  })
+  return res.data
+}
+
+// 后台「我的页面」：当前用户自己的全部页面（含私密页面）
+export async function listMyPages({
+  page = 1,
+  size = 10,
+  orderBy = OrderBy.CreatedAt,
+  desc = true,
+  query = '',
+  noContent = false,
+}: { query?: string, noContent?: boolean } & PaginationParams): Promise<BaseResponse<{ pages: PageModel[], total: number }>> {
+  const res = await axiosClient.get('/page/mine', {
+    params: { page, size, orderBy, desc, query, noContent },
   })
   return res.data
 }

@@ -120,18 +120,47 @@ func (p *PageService) DeletePage(ctx context.Context, pageID uint) *errs.Service
 	return nil
 }
 
+// GetPageSlugOrID 前台读取页面：不看当前用户是谁，私密页面对所有人（含作者与管理员）都当作不存在（404），不返回草稿；
+// 作者在后台预览里看（见 GetPageForEdit）
 func (p *PageService) GetPageSlugOrID(ctx context.Context, slugOrID string) (*dto.PageDto, *errs.ServiceError) {
 	if slugOrID == "" {
 		return nil, errs.NewBadRequest("missing_request_parameters")
 	}
 	page, err := repo.Page.GetPageBySlugOrID(slugOrID)
+	if err != nil || page.IsPrivate {
+		return nil, errs.NewNotFound("target_not_found").WithResource("page")
+	}
+	pageDto := page.ToDto()
+	pageDto.DraftContent = nil
+	pageDto.DraftVersion = 0
+	pageDto.HTMLBundle = NewPageHTMLService().BundleForPage(page)
+	return pageDto, nil
+}
+
+// GetPageForEdit 后台编辑器与预览读取页面：含私密页面与草稿（没有草稿时取已发布的正文），
+// 要求当前角色为编辑及以上（与路由一致），且为作者本人或管理员
+func (p *PageService) GetPageForEdit(ctx context.Context, slugOrID string) (*dto.PageDto, *errs.ServiceError) {
+	if slugOrID == "" {
+		return nil, errs.NewBadRequest("missing_request_parameters")
+	}
+	currentUser, ok := ctxutils.GetCurrentUser(ctx)
+	if !ok {
+		return nil, errs.NewUnauthorized("login_required")
+	}
+	if !currentUser.GreaterThanEditor() {
+		return nil, errs.NewForbidden("permission_denied")
+	}
+	page, err := repo.Page.GetPageBySlugOrID(slugOrID)
 	if err != nil {
 		return nil, errs.NewNotFound("target_not_found").WithResource("page")
 	}
-	if page.IsPrivate && !(ctxutils.IsOwnerOfTarget(ctx, page.UserID) || ctxutils.IsAdmin(ctx)) {
+	if !(ctxutils.IsOwnerOfTarget(ctx, page.UserID) || ctxutils.IsAdmin(ctx)) {
 		return nil, errs.NewForbidden("permission_denied")
 	}
 	pageDto := page.ToDto()
+	if pageDto.DraftContent == nil {
+		pageDto.DraftContent = &pageDto.Content
+	}
 	pageDto.HTMLBundle = NewPageHTMLService().BundleForPage(page)
 	return pageDto, nil
 }
@@ -328,15 +357,41 @@ func normalizeAspectRatio(raw string) (string, bool) {
 	return fmt.Sprintf("%d:%d", width, height), true
 }
 
+// ListPages 前台页面列表（导航等）：不看当前用户是谁，只返回公开页面
 func (p *PageService) ListPages(ctx context.Context, req *dto.ListPageReq) ([]*dto.PageDto, int64, *errs.ServiceError) {
-	currentUserID, _ := ctxutils.GetCurrentUserID(ctx)
+	return p.listPages(req, false)
+}
+
+// ListMyPages 后台「我的页面」：当前用户自己的全部页面（含私密页面），要求编辑及以上角色（与路由一致）
+func (p *PageService) ListMyPages(ctx context.Context, req *dto.ListPageReq) ([]*dto.PageDto, int64, *errs.ServiceError) {
+	currentUser, ok := ctxutils.GetCurrentUser(ctx)
+	if !ok {
+		return nil, 0, errs.NewUnauthorized("login_required")
+	}
+	if !currentUser.GreaterThanEditor() {
+		return nil, 0, errs.NewForbidden("permission_denied")
+	}
+	req.UserID = currentUser.ID
+	return p.listPages(req, true)
+}
+
+// ListPagesAdmin 后台页面管理列出所有人的页面（含私密页面），仅管理员；传 user_id 时只看该用户的页面
+func (p *PageService) ListPagesAdmin(ctx context.Context, req *dto.ListPageReq) ([]*dto.PageDto, int64, *errs.ServiceError) {
+	if !ctxutils.IsAdmin(ctx) {
+		return nil, 0, errs.NewForbidden("permission_denied")
+	}
+	return p.listPages(req, true)
+}
+
+// listPages includePrivate 为 true 时是后台管理视图（含私密页面）
+func (p *PageService) listPages(req *dto.ListPageReq, includePrivate bool) ([]*dto.PageDto, int64, *errs.ServiceError) {
 	queryArray := make([]string, 0)
 	if req.Query != "" {
 		for _, q := range strings.Split(req.Query, ",") {
 			queryArray = append(queryArray, strings.TrimSpace(q))
 		}
 	}
-	pages, total, err := repo.Page.ListPages(currentUserID, req, queryArray)
+	pages, total, err := repo.Page.ListPages(includePrivate, req, queryArray)
 	if err != nil {
 		return nil, total, errs.Internal("failed_to_get_target", err).WithResource("page")
 	}

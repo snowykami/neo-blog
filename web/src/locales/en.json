@@ -590,7 +590,8 @@
       "delete_category_description": "Deleting a category doesn't delete its posts; the category is only removed from them.",
       "edit_category": "Edit category",
       "no_categories": "No categories yet, create one!",
-      "search_categories": "Search categories..."
+      "search_categories": "Search categories...",
+      "admin_only_hint": "Categories are shared across the site. Only admins can rename or delete them; you can create new ones."
     },
     "comments": {
       "title": "Comments",
@@ -895,7 +896,11 @@
       "delete_file_description": "This cannot be undone. Content that references this file will no longer display correctly.",
       "migrate_selected": "Migrate selected",
       "migration_started": "Migration started. Track it on the storage providers page.",
-      "view_migration": "View progress"
+      "view_migration": "View progress",
+      "only_mine": "Only mine",
+      "empty_title": "No files yet",
+      "empty_description": "Files you upload will show up here.",
+      "empty_search_description": "No files match your search. Try a different keyword."
     },
     "general": "General",
     "global": {
@@ -1284,7 +1289,8 @@
       "label_slug": "Tag slug (for URL)",
       "label_tailwind_class": "Tailwind CSS class",
       "no_labels": "No tags yet, create one!",
-      "search_labels": "Search tags..."
+      "search_labels": "Search tags...",
+      "admin_only_hint": "Labels are shared across the site. Only admins can rename or delete them; you can create new ones."
     },
     "login_required": "Please login to access admin",
     "oidc": {
@@ -1616,6 +1622,10 @@
       },
       "search_pages": "Search pages",
       "create_page": "Create page",
+      "only_mine": "Only mine",
+      "author": "Author: {name}",
+      "empty": "No pages yet",
+      "empty_search": "No matching pages",
       "nav_order": "Nav #{order}",
       "fullscreen_badge": "Fullscreen",
       "html_badge": "HTML",
@@ -1706,7 +1716,6 @@
       "save_now": "Save now",
       "words": "{count} chars",
       "preview_tip": "Preview as readers see it",
-      "preview_local_hint": "Local preview of the current content; site-side auto matching is not applied",
       "settings_post": "Post settings",
       "settings_page": "Page settings",
       "focus_mode": "Focus mode",

@@ -8,12 +8,17 @@ import { deleteLabel, getLabels } from '@/api/label'
 import { DeleteButtonWithPopconfirm } from '@/components/common/delete-button-with-popconfirm'
 import { CreateOrUpdateLabelDialogWithButton } from '@/components/console/common/create-label-and-category'
 import { Input } from '@/components/ui/input'
+import { useAuth } from '@/contexts/auth-context'
 import { useConsoleQuery } from '@/hooks/use-console-query'
 import { useOperationT } from '@/hooks/use-translations'
+import { isAdmin } from '@/utils/common/permission'
 
 export function LabelManage() {
   const t = useTranslations('Console.labels')
   const operationT = useOperationT()
+  const { user } = useAuth()
+  // 标签全站共享：编辑者只能新建，改名与删除只有管理员可以（与后端路由一致）
+  const canManage = !!user && isAdmin({ user })
 
   const [query, setQuery] = useState('')
   // 回到这个页面时先显示上次的结果，同时重新请求（见 hooks/use-console-query.ts）；写操作后缓存会被清空
@@ -45,17 +50,18 @@ export function LabelManage() {
         />
         <CreateOrUpdateLabelDialogWithButton label={null} onLabelCreated={onChange} />
       </div>
+      {!canManage && <p className="text-sm text-muted-foreground mb-4">{t('admin_only_hint')}</p>}
 
       <div className="overflow-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
         {filtered.map(l => (
-          <LabelItem key={l.id} label={l} onChange={onChange} />
+          <LabelItem key={l.id} label={l} canManage={canManage} onChange={onChange} />
         ))}
       </div>
     </div>
   )
 }
 
-function LabelItem({ label, onChange }: { label: Label, onChange: () => void }) {
+function LabelItem({ label, canManage, onChange }: { label: Label, canManage: boolean, onChange: () => void }) {
   const operationT = useOperationT()
   const handleDelete = async () => {
     await deleteLabel({ id: label.id })
@@ -75,13 +81,15 @@ function LabelItem({ label, onChange }: { label: Label, onChange: () => void }) 
           </div>
         </div>
       </div>
-      <div className="flex items-center gap-2">
-        <CreateOrUpdateLabelDialogWithButton
-          label={label}
-          onLabelCreated={onChange}
-        />
-        <DeleteButtonWithPopconfirm name={label.name} onDelete={handleDelete} />
-      </div>
+      {canManage && (
+        <div className="flex items-center gap-2">
+          <CreateOrUpdateLabelDialogWithButton
+            label={label}
+            onLabelCreated={onChange}
+          />
+          <DeleteButtonWithPopconfirm name={label.name} onDelete={handleDelete} />
+        </div>
+      )}
     </div>
   )
 }

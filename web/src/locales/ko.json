@@ -590,7 +590,8 @@
       "delete_category_description": "카테고리를 삭제해도 글은 삭제되지 않으며, 모든 글에서 이 카테고리만 해제됩니다.",
       "edit_category": "카테고리 편집",
       "no_categories": "아직 카테고리가 없습니다. 하나 만들어 보세요!",
-      "search_categories": "카테고리 검색..."
+      "search_categories": "카테고리 검색...",
+      "admin_only_hint": "카테고리는 사이트 전체에서 공유됩니다. 이름 변경과 삭제는 관리자만 할 수 있으며, 새 카테고리는 만들 수 있습니다."
     },
     "comments": {
       "title": "댓글",
@@ -895,7 +896,11 @@
       "delete_file_description": "삭제하면 되돌릴 수 없습니다. 이 파일을 참조하는 콘텐츠는 정상적으로 표시되지 않습니다.",
       "migrate_selected": "선택 항목 이전",
       "migration_started": "이전을 시작했습니다. 스토리지 공급자 페이지에서 진행 상황을 확인하세요",
-      "view_migration": "진행 상황 보기"
+      "view_migration": "진행 상황 보기",
+      "only_mine": "내 파일만",
+      "empty_title": "아직 파일이 없습니다",
+      "empty_description": "업로드한 파일이 여기에 표시됩니다.",
+      "empty_search_description": "일치하는 파일이 없습니다. 다른 키워드로 검색해 보세요."
     },
     "general": "일반",
     "global": {
@@ -1284,7 +1289,8 @@
       "label_slug": "태그 슬러그(URL용)",
       "label_tailwind_class": "Tailwind CSS 클래스",
       "no_labels": "아직 태그가 없습니다. 하나 만들어 보세요!",
-      "search_labels": "태그 검색..."
+      "search_labels": "태그 검색...",
+      "admin_only_hint": "태그는 사이트 전체에서 공유됩니다. 이름 변경과 삭제는 관리자만 할 수 있으며, 새 태그는 만들 수 있습니다."
     },
     "login_required": "관리 화면에 들어가려면 먼저 로그인하세요",
     "oidc": {
@@ -1616,6 +1622,10 @@
       },
       "search_pages": "페이지 검색",
       "create_page": "페이지 만들기",
+      "only_mine": "내 것만",
+      "author": "작성자: {name}",
+      "empty": "아직 페이지가 없습니다",
+      "empty_search": "일치하는 페이지가 없습니다",
       "nav_order": "내비게이션 #{order}",
       "fullscreen_badge": "전체 화면",
       "html_badge": "HTML",
@@ -1706,7 +1716,6 @@
       "save_now": "지금 저장",
       "words": "{count}자",
       "preview_tip": "독자 화면 미리 보기",
-      "preview_local_hint": "현재 편집 내용을 로컬에서 미리 봅니다 (사이트의 자동 매칭은 적용되지 않음)",
       "settings_post": "글 설정",
       "settings_page": "페이지 설정",
       "focus_mode": "집중 모드",

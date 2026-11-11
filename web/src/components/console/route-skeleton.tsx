@@ -2,7 +2,7 @@
 
 import { Skeleton } from '@/components/ui/skeleton'
 import { usePathname } from '@/i18n/navigation'
-import { consolePath } from '@/utils/common/route'
+import { consolePath, isConsolePreviewPath } from '@/utils/common/route'
 
 /**
  * 后台页面的加载骨架：只画在内容区里，侧栏与顶栏不动。
@@ -60,8 +60,8 @@ const EDITOR_PREFIXES = [`${consolePath.post}/edit/`, `${consolePath.page}/edit/
  */
 export function ConsoleRouteSkeleton() {
   const pathname = usePathname() ?? ''
-  // 文章预览按前台文章页的样子渲染、不套后台外壳（见 console-shell.tsx），不画后台骨架
-  if (pathname.startsWith(`${consolePath.postPreview}/`))
+  // 文章 / 页面预览按前台的样子渲染、不套后台外壳（见 console-shell.tsx），不画后台骨架
+  if (isConsolePreviewPath(pathname))
     return null
   if (pathname === consolePath.dashboard) {
     return (

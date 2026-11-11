@@ -64,6 +64,17 @@ func (user *User) ToBriefDto() dto.UserBriefDto {
 	}
 }
 
+// ToAvatarDto 头像墙用的最小信息（见 dto.UserAvatarDto）
+func (user *User) ToAvatarDto() dto.UserAvatarDto {
+	return dto.UserAvatarDto{
+		ID:           user.ID,
+		Username:     user.Username,
+		Nickname:     user.Nickname,
+		AvatarUrl:    user.AvatarUrl,
+		GravatarHash: gravatarHash(user.Email),
+	}
+}
+
 // ToProfileDto 个人主页使用的公开信息：用户开启「公开当地时间」后才附带时区，评论、文章作者等其他场景不返回
 func (user *User) ToProfileDto() dto.UserDto {
 	userDto := user.ToDto()

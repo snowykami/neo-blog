@@ -126,7 +126,7 @@ func fillContentInsights(result *dto.VisitInsightsDto, logs []model.VisitLog, vi
 			continue // 已删除
 		}
 		stats := posts[id]
-		item := dto.VisitPostInsightDto{ID: id, Title: info.Title, Slug: info.Slug, Views: stats.views, EngagedVisits: stats.engagedVisits, Completed: stats.completed}
+		item := dto.VisitPostInsightDto{ID: id, Title: info.Title, Slug: info.Slug, IsPrivate: info.IsPrivate, Views: stats.views, EngagedVisits: stats.engagedVisits, Completed: stats.completed}
 		if stats.engagedVisits > 0 {
 			item.AvgEngagedMs = stats.engagedTotal / stats.engagedVisits
 			item.AvgScrollDepth = int(stats.depthTotal / stats.engagedVisits)

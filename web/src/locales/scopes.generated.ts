@@ -228,6 +228,20 @@ export const SCOPES = {
   ],
   'console/pages/html/[id]': [
   ],
+  'console/pages/preview/[id]': [
+    'CodeBlock',
+    'ColorScheme',
+    'ContentCard',
+    'ContentComponents',
+    'Copyright',
+    'HtmlPage',
+    'ImageViewer',
+    'Nav',
+    'Notifications',
+    'Search',
+    'ThemePack',
+    'TopbarIsland',
+  ],
   'console/posts': [
     'AssetPicker',
     'Components',
@@ -348,6 +362,7 @@ export const SCOPE_PARENT: Record<keyof typeof SCOPES, keyof typeof SCOPES | nul
   'console/pages': 'console',
   'console/pages/edit/[id]': 'console/pages',
   'console/pages/html/[id]': 'console/pages',
+  'console/pages/preview/[id]': 'console/pages',
   'console/posts': 'console',
   'console/posts/edit/[id]': 'console/posts',
   'console/posts/preview/[id]': 'console/posts',

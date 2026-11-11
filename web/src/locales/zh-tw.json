@@ -590,7 +590,8 @@
       "delete_category_description": "刪除分類不會刪除文章，只會把該分類從文章中移除。",
       "edit_category": "編輯分類",
       "no_categories": "尚未有分類，建立一個吧！",
-      "search_categories": "搜尋分類..."
+      "search_categories": "搜尋分類...",
+      "admin_only_hint": "分類全站共用，只有管理員可以修改或刪除；你可以新增分類。"
     },
     "comments": {
       "title": "評論管理",
@@ -895,7 +896,11 @@
       "delete_file_description": "刪除後無法復原，引用此檔案的內容將無法正常顯示。",
       "migrate_selected": "遷移所選",
       "migration_started": "遷移已開始，可在儲存供應商頁面查看進度",
-      "view_migration": "查看進度"
+      "view_migration": "查看進度",
+      "only_mine": "只看我的",
+      "empty_title": "還沒有檔案",
+      "empty_description": "上傳的檔案會顯示在這裡。",
+      "empty_search_description": "沒有找到符合的檔案，換個關鍵字試試。"
     },
     "general": "一般",
     "global": {
@@ -1284,7 +1289,8 @@
       "label_slug": "標籤 Slug（用於 URL）",
       "label_tailwind_class": "Tailwind CSS 類別",
       "no_labels": "尚未有標籤，建立一個吧！",
-      "search_labels": "搜尋標籤..."
+      "search_labels": "搜尋標籤...",
+      "admin_only_hint": "標籤全站共用，只有管理員可以修改或刪除；你可以新增標籤。"
     },
     "login_required": "請先登入以進入後臺",
     "oidc": {
@@ -1616,6 +1622,10 @@
       },
       "search_pages": "搜尋頁面",
       "create_page": "建立頁面",
+      "only_mine": "只看我的",
+      "author": "作者：{name}",
+      "empty": "還沒有頁面",
+      "empty_search": "沒有找到符合的頁面",
       "nav_order": "導覽 #{order}",
       "fullscreen_badge": "全螢幕",
       "html_badge": "HTML",
@@ -1706,7 +1716,6 @@
       "save_now": "立即儲存",
       "words": "{count} 字",
       "preview_tip": "預覽閱讀效果",
-      "preview_local_hint": "本機預覽目前編輯的內容，未包含網站的自動匹配處理",
       "settings_post": "文章設定",
       "settings_page": "頁面設定",
       "focus_mode": "專注模式",

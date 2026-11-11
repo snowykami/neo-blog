@@ -16,7 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Link } from '@/i18n/navigation'
 import { cn } from '@/lib/utils'
-import { consolePath, getPageUrl, getPostUrl } from '@/utils/common/route'
+import { consolePath, getTargetViewUrl } from '@/utils/common/route'
 import { formatDuration, formatOffset, useCountryName, useRuleText } from './format'
 import { IpAddress } from './ip-address'
 import { SeverityBadge, TrustBadge } from './trust-badge'
@@ -86,7 +86,8 @@ function OverviewCard({ visit, trust }: { visit: VisitLog, trust: VisitTrustResu
   const format = useFormatter()
   const place = useVisitPlace()(visit)
   const subject = visit.subject
-  const href = subject ? (subject.type === 'page' ? getPageUrl(subject) : getPostUrl({ post: subject })) : visit.path
+  // 私密文章 / 页面前台 404，链到后台预览
+  const href = subject ? getTargetViewUrl(subject) : visit.path
   const hits = trust?.rules.filter(rule => rule.status === 'hit' && rule.severity !== 'info').length ?? 0
   return (
     <Card className="gap-3 px-5 py-4">

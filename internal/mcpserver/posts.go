@@ -153,16 +153,23 @@ func isAgentRun(ctx context.Context) bool {
 	return ok
 }
 
-// canSeeDraft 作者本人与管理员通过 API Token 写作时可以读私密文章与草稿（MCP 不是前台页面）；AI 用户的运行不行
-func canSeeDraft(ctx context.Context, ownerID uint) bool {
-	return !isAgentRun(ctx) && (ctxutils.IsOwnerOfTarget(ctx, ownerID) || ctxutils.IsAdmin(ctx))
+// hasConsoleRole 当前角色能否读后台视图（私密文章与草稿）：编辑及以上，与后台 /post/mine、/post/p/:id/draft 的路由要求一致；
+// 按当前角色判断，被降级为普通用户的原作者只能读公开内容
+func hasConsoleRole(ctx context.Context) bool {
+	user, ok := ctxutils.GetCurrentUser(ctx)
+	return ok && user.GreaterThanEditor()
 }
 
-// loadPost 按 ID 或 slug 读取文章：作者本人与管理员读后台视图（含私密文章与草稿），其他人只能读到公开文章
+// canSeeDraft 作者本人与管理员（当前角色为编辑及以上）通过 API Token 写作时可以读私密文章与草稿（MCP 不是前台页面）；AI 用户的运行不行
+func canSeeDraft(ctx context.Context, ownerID uint) bool {
+	return !isAgentRun(ctx) && hasConsoleRole(ctx) && (ctxutils.IsOwnerOfTarget(ctx, ownerID) || ctxutils.IsAdmin(ctx))
+}
+
+// loadPost 按 ID 或 slug 读取文章：作者本人与管理员（当前角色为编辑及以上）读后台视图（含私密文章与草稿），其他人只能读到公开文章
 func loadPost(ctx context.Context, slugOrID string) (*dto.PostDto, error) {
 	key := strings.TrimSpace(slugOrID)
 	postService := service.NewPostService()
-	if !isAgentRun(ctx) {
+	if !isAgentRun(ctx) && hasConsoleRole(ctx) {
 		post, svcerr := postService.GetPostForEdit(ctx, key)
 		if svcerr == nil {
 			return post, nil
@@ -252,14 +259,14 @@ func listPosts(ctx context.Context, _ *mcp.CallToolRequest, in listPostsInput) (
 		req.UserID, _ = ctxutils.GetCurrentUserID(ctx)
 	}
 	postService := service.NewPostService()
-	// 管理员可以看到所有人的私密文章，作者用 mine 看自己的全部文章（含私密），其余只列公开文章；
-	// AI 用户的运行一律只列公开文章
+	// 管理员可以看到所有人的私密文章，编辑者用 mine 看自己的全部文章（含私密），其余只列公开文章；
+	// AI 用户的运行、被降级为普通用户的原作者一律只列公开文章（mine 时为自己的公开文章）
 	list := postService.ListPosts
 	switch {
 	case isAgentRun(ctx):
 	case ctxutils.IsAdmin(ctx):
 		list = postService.ListPostsAdmin
-	case in.Mine:
+	case in.Mine && hasConsoleRole(ctx):
 		list = postService.ListMyPosts
 	}
 	posts, total, svcerr := list(ctx, req)
@@ -277,7 +284,7 @@ func listPosts(ctx context.Context, _ *mcp.CallToolRequest, in listPostsInput) (
 
 type getPostInput struct {
 	Post          string `json:"post" jsonschema:"post id or slug"`
-	Version       string `json:"version,omitempty" jsonschema:"draft (default) returns the latest unpublished draft when you are the author or an admin, otherwise the published body; published always returns what readers see"`
+	Version       string `json:"version,omitempty" jsonschema:"draft (default) returns the latest unpublished draft when you are the author (editor role or above) or an admin, otherwise the published body; published always returns what readers see"`
 	ContentFormat string `json:"content_format,omitempty" jsonschema:"markdown (default) or html"`
 }
 

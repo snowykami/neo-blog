@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -406,5 +407,54 @@ func TestInlineFormatsRoundTrip(t *testing.T) {
 		if !strings.Contains(back, want) {
 			t.Errorf("lost %q\nmarkdown:\n%s\nhtml:\n%s", want, md, back)
 		}
+	}
+}
+
+// 被降级为普通用户的原作者：posts:read 仍然生效，但只能读公开内容，读不到自己的私密文章与草稿（与后台 /post/mine、/post/p/:id/draft 的角色要求一致）
+func TestDemotedAuthorReadsPublicOnly(t *testing.T) {
+	env := setupTest(t)
+	writer := tokenCtx(t, env.author, constant.ScopePostsRead, constant.ScopePostsWrite, constant.ScopePostsPublish)
+	_, secret, err := createPost(writer, nil, createPostInput{Title: "Secret", Content: "hidden **draft**"})
+	if err != nil {
+		t.Fatalf("create secret: %v", err)
+	}
+	_, public, err := createPost(writer, nil, createPostInput{Title: "Public", Content: "published body"})
+	if err != nil {
+		t.Fatalf("create public: %v", err)
+	}
+	if _, _, err := publishPost(writer, nil, postIDInput{PostID: public.ID}); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+	// 公开文章发布后再改草稿：降级后不应读到这份草稿
+	if _, _, err := updatePost(writer, nil, updatePostInput{PostID: public.ID, EditMode: "append", Content: ptr("unpublished tail")}); err != nil {
+		t.Fatalf("update draft: %v", err)
+	}
+
+	// Token 在降级前创建，降级后再认证（与线上一致：已有 Token 随角色收窄）
+	resp, svcerr := service.NewAPITokenService().Create(env.authorCtx, &dto.CreateAPITokenReq{Name: "reader", Scopes: []string{constant.ScopePostsRead}})
+	if svcerr != nil {
+		t.Fatalf("create token: %v", svcerr)
+	}
+	if err := repo.GetDB().Model(env.author).Update("role", constant.RoleUser).Error; err != nil {
+		t.Fatalf("demote: %v", err)
+	}
+	userID, info, svcerr := service.NewAPITokenService().Authenticate(resp.Token)
+	if svcerr != nil {
+		t.Fatalf("authenticate: %v", svcerr)
+	}
+	demoted := ctxutils.WithAPIToken(ctxutils.WithUserCache(context.WithValue(context.Background(), "user_id", userID)), info)
+
+	_, _, err = getPost(demoted, nil, getPostInput{Post: strconv.Itoa(int(secret.ID))})
+	wantErr(t, err, "target_not_found")
+	_, d, err := getPost(demoted, nil, getPostInput{Post: strconv.Itoa(int(public.ID))})
+	if err != nil {
+		t.Fatalf("demoted author should read the public post: %v", err)
+	}
+	if d.Version != versionPublished || d.DraftVersion != nil || d.PreviewURL != "" || strings.Contains(d.Content, "unpublished tail") {
+		t.Fatalf("demoted author should only see the published body: %+v", d)
+	}
+	_, list, err := listPosts(demoted, nil, listPostsInput{Mine: true})
+	if err != nil || list.Total != 1 || list.Posts[0].ID != public.ID {
+		t.Fatalf("demoted author mine should list own public posts only: %v %+v", err, list)
 	}
 }

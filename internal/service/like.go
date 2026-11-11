@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
@@ -140,16 +141,43 @@ func (ls *LikeService) IsLiked(ctx context.Context, targetID uint, targetType st
 	return liked, nil
 }
 
-func (ls *LikeService) GetLikedUsers(ctx context.Context, targetID uint, targetType string, limit int) ([]dto.UserDto, *errs.ServiceError) {
+// GetLikedUsers 最近点赞的用户（点赞头像墙）：可见性与 ToggleLike 一致，目标不可见（私密文章 / 私密评论 / 不存在）一律 404，
+// 不区分「不存在」与「无权查看」；只返回头像墙需要的最小字段
+func (ls *LikeService) GetLikedUsers(ctx context.Context, targetID uint, targetType string, limit int) ([]dto.UserAvatarDto, *errs.ServiceError) {
+	if svcerr := checkLikeTargetVisible(ctx, targetID, targetType); svcerr != nil {
+		return nil, svcerr
+	}
 	users, err := repo.Like.GetLikedUsers(targetID, targetType, limit)
 	if err != nil {
 		return nil, errs.Internal("failed_to_get_target", err)
 	}
-	var userDtos []dto.UserDto
+	userDtos := make([]dto.UserAvatarDto, 0, len(users))
 	for _, user := range users {
-		userDtos = append(userDtos, user.ToDto())
+		userDtos = append(userDtos, user.ToAvatarDto())
 	}
 	return userDtos, nil
+}
+
+// checkLikeTargetVisible 点赞目标对当前用户是否可见：私密文章仅作者本人与管理员；
+// 评论要求所在文章 / 页面可访问、私密评论对当前用户可见（见 CommentService.loadVisibleComment）。不可见时统一 404
+func checkLikeTargetVisible(ctx context.Context, targetID uint, targetType string) *errs.ServiceError {
+	switch targetType {
+	case constant.TargetTypePost:
+		post, err := repo.Post.GetPostMeta(targetID)
+		if err != nil || (post.IsPrivate && !(ctxutils.IsOwnerOfTarget(ctx, post.UserID) || ctxutils.IsAdmin(ctx))) {
+			return errs.NewNotFound("operation_target_not_found")
+		}
+	case constant.TargetTypeComment:
+		if _, svcerr := NewCommentService().loadVisibleComment(ctx, targetID); svcerr != nil {
+			if svcerr.Code == http.StatusForbidden || svcerr.Code == http.StatusNotFound {
+				return errs.NewNotFound("operation_target_not_found")
+			}
+			return svcerr
+		}
+	default:
+		return errs.NewBadRequest("invalid_target_type")
+	}
+	return nil
 }
 
 // ListUserLikes 用户主页的点赞列表：点赞记录涉及个人偏好，默认仅本人与管理员可见；

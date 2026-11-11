@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getPostPreviewUrl, getPostUrl, getPostViewUrl, getUserUrl, withCommentAnchor } from './route'
+import { getPagePreviewUrl, getPageViewUrl, getPostPreviewUrl, getPostUrl, getPostViewUrl, getTargetViewUrl, getUserUrl, isConsolePreviewPath, withCommentAnchor } from './route'
 
 describe('getPostUrl', () => {
   it('前台地址优先用 slug，不带任何查询参数', () => {
@@ -16,6 +16,36 @@ describe('getPostViewUrl', () => {
 
   it('公开文章打开前台文章页', () => {
     expect(getPostViewUrl({ id: 3, slug: 'hello', isPrivate: false })).toBe('/p/hello')
+  })
+})
+
+describe('getPageViewUrl', () => {
+  it('私密页面只在后台可见，转到后台预览（按 id）', () => {
+    expect(getPageViewUrl({ id: 7, slug: 'about', isPrivate: true })).toBe('/console/pages/preview/7')
+    expect(getPagePreviewUrl({ id: 7 })).toBe('/console/pages/preview/7')
+  })
+
+  it('公开页面打开前台页面', () => {
+    expect(getPageViewUrl({ id: 7, slug: 'about', isPrivate: false })).toBe('/page/about')
+    expect(getPageViewUrl({ id: 7, slug: 'about' })).toBe('/page/about')
+  })
+})
+
+describe('getTargetViewUrl', () => {
+  it('按类型与是否私密选择前台或后台预览', () => {
+    expect(getTargetViewUrl({ type: 'post', id: 3, slug: 'hello' })).toBe('/p/hello')
+    expect(getTargetViewUrl({ type: 'post', id: 3, slug: 'hello', isPrivate: true })).toBe('/console/posts/preview/3')
+    expect(getTargetViewUrl({ type: 'page', id: 7, slug: 'about' })).toBe('/page/about')
+    expect(getTargetViewUrl({ type: 'page', id: 7, slug: 'about', isPrivate: true })).toBe('/console/pages/preview/7')
+  })
+})
+
+describe('isConsolePreviewPath', () => {
+  it('文章与页面的后台预览不套后台外壳', () => {
+    expect(isConsolePreviewPath('/console/posts/preview/3')).toBe(true)
+    expect(isConsolePreviewPath('/console/pages/preview/7')).toBe(true)
+    expect(isConsolePreviewPath('/console/pages')).toBe(false)
+    expect(isConsolePreviewPath('/console/pages/edit/7')).toBe(false)
   })
 })
 

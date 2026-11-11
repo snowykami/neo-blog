@@ -17,7 +17,7 @@ import { toast } from 'sonner'
 import axiosClient from '@/api/client'
 import { editSessionHeaders, isDraftConflict, isEditSessionConflict } from '@/api/edit-session'
 import { deleteFile, uploadFile } from '@/api/file'
-import { getPageById, updatePage } from '@/api/page'
+import { getPageForEdit, updatePage } from '@/api/page'
 import { getPostForEdit, updatePost } from '@/api/post'
 import { batchDeleteRevisions, deleteRevision, discardDraft, restoreRevision } from '@/api/revision'
 import { AI_PREVIEW_META } from '@/components/tiptap-extension/ai-write-extension'
@@ -186,7 +186,7 @@ const postAdapter: ContentAdapter = {
 }
 
 const pageAdapter: ContentAdapter = {
-  load: id => getPageById({ id, type: 'draft' }).then(res => res.data),
+  load: id => getPageForEdit({ id }).then(res => res.data),
   toMeta: (doc) => {
     const page = doc as PageModel
     return {

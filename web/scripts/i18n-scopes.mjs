@@ -69,6 +69,7 @@ export const SCOPE_DIRS = [
   'console/pages',
   'console/pages/edit/[id]',
   'console/pages/html/[id]',
+  'console/pages/preview/[id]',
   'console/posts',
   'console/posts/edit/[id]',
   'console/posts/preview/[id]',

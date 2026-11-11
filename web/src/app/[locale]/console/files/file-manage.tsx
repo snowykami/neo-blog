@@ -29,8 +29,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
+import { Switch } from '@/components/ui/switch'
 import { useAuth } from '@/contexts/auth-context'
 import { useDevice } from '@/contexts/device-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
@@ -39,6 +42,7 @@ import { useDebouncedState } from '@/hooks/use-debounce'
 import { useCommonT, useOperationT } from '@/hooks/use-translations'
 import { useRouter } from '@/i18n/navigation'
 import copyToClipboard from '@/lib/clipboard'
+import { cn } from '@/lib/utils'
 import { ArrangementMode, OrderBy } from '@/models/common'
 import { getFileUri } from '@/utils/client/file'
 import { formatDataSize } from '@/utils/common/datasize'
@@ -59,8 +63,14 @@ export function FileManage() {
   const { isMobile } = useDevice()
   const { user } = useAuth()
   const router = useRouter()
+  // 管理员默认查看全站文件，可切换为只看自己的；其他用户只能看到自己的文件（后端 scope=all 仅管理员可用）
   // 只有管理员可以在存储之间迁移文件
   const isAdminUser = !!user && isAdmin({ user })
+  const [onlyMine, setOnlyMine] = useQueryState(
+    'only_mine',
+    parseAsBoolean.withDefault(false).withOptions({ history: 'replace', clearOnDefault: true }),
+  )
+  const scope = isAdminUser && !onlyMine ? 'all' : 'mine'
   const [migrateOpen, setMigrateOpen] = useState(false)
   const [arrangement, setArrangement] = useQueryState(
     'arrangement',
@@ -97,14 +107,16 @@ export function FileManage() {
 
   // 列表取数：回到这个页面时先显示上次的结果，同时重新请求（见 hooks/use-console-query.ts）；写操作后缓存会被清空
   const listFilesQuery = useConsoleQuery(
-    ['file/file-list', page, size, orderBy, desc, debouncedQueryInput],
+    ['file/file-list', scope, page, size, orderBy, desc, debouncedQueryInput],
     async () => {
-      const res = await listFiles({ page, size, orderBy, desc, query: debouncedQueryInput })
+      const res = await listFiles({ page, size, orderBy, desc, query: debouncedQueryInput, scope })
       return { files: res.data.files, total: res.data.total }
     },
   )
   const files = listFilesQuery.data?.files ?? EMPTY_FILES
   const total = listFilesQuery.data?.total ?? 0
+  // 首次请求完成前不显示空状态，避免闪一下「没有文件」
+  const showEmpty = listFilesQuery.data !== undefined && !listFilesQuery.isPreviousData && files.length === 0
   const { refresh: refreshFiles, setData: setFileList } = listFilesQuery
 
   // 防抖后的搜索词真正变化时才重置分页，避免挂载时把 URL 中的页码重置为 1
@@ -234,6 +246,21 @@ export function FileManage() {
             onChange={e => setQueryInput(e.target.value)}
             className="flex-1 min-w-0"
           />
+          {isAdminUser && (
+            <div className="flex items-center gap-2 shrink-0">
+              <Switch
+                id="file-manage-only-mine"
+                checked={onlyMine}
+                onCheckedChange={(checked) => {
+                  setOnlyMine(checked)
+                  setPage(1)
+                  // 切换范围后原先选中的文件可能不在列表里，清空以免批量操作误删看不见的文件
+                  setSelectedFileIds(new Set())
+                }}
+              />
+              <Label htmlFor="file-manage-only-mine">{t('only_mine')}</Label>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-4 w-full sm:w-auto justify-end">
           <div className="flex items-center gap-2 ml-auto sm:ml-0">
@@ -265,6 +292,16 @@ export function FileManage() {
         />
       )}
       <Separator className="flex-1" />
+      {showEmpty && (
+        <Empty className="my-4 border">
+          <EmptyHeader>
+            <EmptyTitle>{t('empty_title')}</EmptyTitle>
+            <EmptyDescription>
+              {debouncedQueryInput ? t('empty_search_description') : t('empty_description')}
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      )}
       {/* 列表 */}
       {arrangement === ArrangementMode.List
         && files.map(file => (
@@ -336,13 +373,21 @@ function FileItem({
   if (layout === ArrangementMode.Grid) {
     return (
       <div className="group">
-        <div className="flex flex-col items-center px-2 border rounded-lg hover:bg-accent/50 transition-colors">
+        {/* 点击卡片任意位置切换选中（参照 file-selector），勾选框与右上角操作各自阻止冒泡 */}
+        <div
+          onClick={() => onSelect(!selected)}
+          className={cn(
+            'flex flex-col items-center px-2 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer select-none',
+            selected && 'border-primary bg-accent/50',
+          )}
+        >
           {/* 顶部操作行：选择框 + 链接按钮 与 更多 按钮 在同一行 */}
           <div className="flex items-center justify-between w-full mb-0">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
               <Checkbox checked={selected} onCheckedChange={onSelect} aria-label={`${operationT('select')} ${file.name}`} />
             </div>
-            <div className="flex items-center">
+            {/* 菜单与删除确认通过 Portal 渲染，React 事件仍沿组件树冒泡，在这里一并拦下 */}
+            <div className="flex items-center" onClick={e => e.stopPropagation()}>
               <Button
                 variant="ghost"
                 size="sm"

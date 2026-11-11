@@ -181,7 +181,7 @@ func recentDashboardComments() ([]dto.DashboardCommentDto, error) {
 			item.User = &user
 		}
 		if info, ok := infos[comment.TargetType][comment.TargetID]; ok {
-			item.Target = &dto.CommentTargetDto{ID: info.ID, Type: comment.TargetType, Title: info.Title, Slug: info.Slug}
+			item.Target = &dto.CommentTargetDto{ID: info.ID, Type: comment.TargetType, Title: info.Title, Slug: info.Slug, IsPrivate: info.IsPrivate}
 		}
 		result = append(result, item)
 	}

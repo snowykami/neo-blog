@@ -80,6 +80,6 @@ export function getFallbackAvatarStyle(seed: string): CSSProperties {
  * formatDisplayName({ nickname: "Sam", username: "sam42" }); // "Sam(sam42)"
  * formatDisplayName({ username: "sam42" }); // "sam42"
  */
-export function formatDisplayName(user: User): string {
+export function formatDisplayName(user: Pick<User, 'nickname' | 'username'>): string {
   return user?.nickname ? `${user.nickname}(${user.username})` : user.username
 }

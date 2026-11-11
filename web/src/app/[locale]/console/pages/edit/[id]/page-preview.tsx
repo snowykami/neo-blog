@@ -1,85 +1,49 @@
-'use client'
-
-import type { ContentMeta } from '@/hooks/use-content-editor'
-import DOMPurify from 'isomorphic-dompurify'
-import { useTranslations } from 'next-intl'
-import { useMemo } from 'react'
-import HtmlEnhancer from '@/components/blog-post/blog-content-enhanced'
-import { ContentFontLinks } from '@/components/blog-post/content-font-links'
-import { ContentHdrText } from '@/components/blog-post/content-hdr-text'
-import { ContentHoverCard } from '@/components/blog-post/content-hover-card'
-import { ContentImageFallback } from '@/components/blog-post/content-image-fallback'
-import { ContentInlineIcons } from '@/components/blog-post/content-inline-icons'
-import { SafeImage } from '@/components/common/safe-image'
-import { ComponentIslands } from '@/components/content-components/component-islands'
+import type { PageModel } from '@/models/page'
+import { useEffect, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
-import { useSiteInfo } from '@/contexts/site-info-context'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useOperationT } from '@/hooks/use-translations'
-import { contentWebFonts, resolveContentTheme } from '@/lib/content-theme'
-import { renderMathInHtml } from '@/lib/math/latex'
-import '@/app/styles/content-themes/index.scss'
-import '@/components/tiptap-node/image-node/image-figure.scss'
-import '@/components/tiptap-node/video-node/video-figure.scss'
-import '@/components/tiptap-node/inline-icon-node/inline-icon.scss'
+import { getPagePreviewUrl } from '@/utils/common/route'
 
-const CONTAINER_ID = 'page-preview-content'
-
-/**
- * 页面预览：前台页面暂不支持草稿预览，这里按前台页面的版式在本地渲染当前编辑内容
- * （不含服务端的“自动匹配”处理）
- */
+// iframe 草稿预览器：加载后台的页面预览页（按前台页面的样子渲染草稿，私密页面同样可看），不走前台路由（与文章的预览器一致）
 export function PagePreviewDialog({
+  page,
   open,
   onOpenChange,
-  meta,
-  getHtml,
+  onBeforePreview,
 }: {
+  page: PageModel
   open: boolean
   onOpenChange: (open: boolean) => void
-  meta: ContentMeta
-  getHtml: () => string
+  // 打开时先保存草稿
+  onBeforePreview: () => Promise<unknown> | void
 }) {
   const operationT = useOperationT()
-  const t = useTranslations('Console.editor')
-  // 打开时取一次内容快照；净化后再渲染公式
-  const html = useMemo(() => (open ? renderMathInHtml(DOMPurify.sanitize(getHtml())) : ''), [open, getHtml])
-  // 页面正文使用站点默认的内容主题
-  const theme = resolveContentTheme(null, useSiteInfo().siteInfo.contentTheme)
+  // 等草稿保存完成后再加载 iframe，避免预览到保存前的旧草稿
+  const [ready, setReady] = useState(false)
+  const beforeRef = useRef(onBeforePreview)
+  beforeRef.current = onBeforePreview
+  useEffect(() => {
+    if (!open)
+      return
+    let cancelled = false
+    Promise.resolve(beforeRef.current()).finally(() => {
+      if (!cancelled)
+        setReady(true)
+    })
+    return () => {
+      cancelled = true
+      setReady(false)
+    }
+  }, [open, beforeRef])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="h-[90vh] w-[90vw] !max-w-none overflow-y-auto rounded-2xl border-0 bg-background p-4 md:p-8">
+      <DialogContent className="h-[90vh] w-[90vw] !max-w-none overflow-hidden rounded-2xl border-0 p-0">
         <DialogTitle className="sr-only">{operationT('preview')}</DialogTitle>
-        <div className="mx-auto w-full max-w-[56rem] rounded-2xl bg-card px-6 pt-6 pb-8 md:px-9">
-          <p className="mb-4 text-xs text-muted-foreground">{t('preview_local_hint')}</p>
-          {meta.cover && (
-            <div className="relative mb-8 aspect-[2/1] w-full overflow-hidden rounded-xl bg-muted">
-              <SafeImage src={meta.cover} alt="" fill className="object-cover" sizes="(max-width: 896px) 100vw, 896px" />
-            </div>
-          )}
-          <h1 className="relative mb-3 text-3xl font-bold text-foreground/90 md:text-[2.25rem] md:leading-[2.75rem] md:before:absolute md:before:top-[0.875rem] md:before:-left-[1.125rem] md:before:h-4 md:before:w-1 md:before:rounded-md md:before:bg-primary">
-            {meta.title || t('untitled_page')}
-          </h1>
-          {meta.description && <p className="mb-5 text-foreground/75">{meta.description}</p>}
-          <div className="mb-6 border-b border-dashed border-foreground/10" />
-          <ContentFontLinks fonts={contentWebFonts(theme, html)} />
-          <article
-            id={CONTAINER_ID}
-            className="content-body prose max-w-none dark:prose-invert pangu-autospace"
-            data-content-theme={theme}
-            dangerouslySetInnerHTML={{ __html: html }}
-          />
-          {open && (
-            <>
-              <HtmlEnhancer containerId={CONTAINER_ID} />
-              <ComponentIslands containerId={CONTAINER_ID} />
-              <ContentHoverCard containerId={CONTAINER_ID} />
-              <ContentImageFallback containerId={CONTAINER_ID} />
-              <ContentInlineIcons containerId={CONTAINER_ID} />
-              <ContentHdrText containerId={CONTAINER_ID} />
-            </>
-          )}
-        </div>
+        {ready
+          ? <iframe src={getPagePreviewUrl(page)} className="size-full" />
+          : <Skeleton className="size-full rounded-2xl" />}
       </DialogContent>
     </Dialog>
   )

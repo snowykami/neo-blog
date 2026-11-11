@@ -2,7 +2,7 @@ import type { PaginationParams } from '@/models/common'
 import type { UserLike } from '@/models/like'
 import type { BaseResponse } from '@/models/resp'
 import type { TargetType } from '@/models/types'
-import type { User } from '@/models/user'
+import type { UserAvatarInfo } from '@/models/user'
 import axiosClient from './client'
 
 export async function toggleLike({
@@ -44,7 +44,8 @@ export async function getLikedUsers({
   targetType: TargetType
   targetId: number
   number: number
-}): Promise<BaseResponse<{ users: User[] }>> {
+}): Promise<BaseResponse<{ users: UserAvatarInfo[] }>> {
+  // 只返回头像墙需要的字段；目标不可见（私密文章 / 私密评论 / 不存在）时 404
   const res = await axiosClient.get('/like/liked_users', {
     params: { targetType, targetId, number },
   })

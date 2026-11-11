@@ -198,6 +198,7 @@ export interface VisitPostInsight {
   id: number
   title: string
   slug: string | null
+  isPrivate: boolean // 私密文章的链接指向后台预览
   views: number
   engagedVisits: number
   avgEngagedMs: number

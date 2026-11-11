@@ -212,6 +212,7 @@ type VisitPostInsightDto struct {
 	ID             uint    `json:"id"`
 	Title          string  `json:"title"`
 	Slug           *string `json:"slug"`
+	IsPrivate      bool    `json:"is_private"` // 私密文章的链接指向后台预览
 	Views          int64   `json:"views"`
 	EngagedVisits  int64   `json:"engaged_visits"`   // 收到参与度数据的访问
 	AvgEngagedMs   int64   `json:"avg_engaged_ms"`   // 平均有效停留时长

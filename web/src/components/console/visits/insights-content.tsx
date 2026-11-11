@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Empty, EmptyDescription } from '@/components/ui/empty'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Link } from '@/i18n/navigation'
-import { getPostUrl } from '@/utils/common/route'
+import { getPostViewUrl } from '@/utils/common/route'
 import { formatDuration } from './format'
 import { BarListCard, StatCard } from './insights-parts'
 
@@ -70,7 +70,7 @@ function PostsCard({ data }: { data: VisitInsights }) {
                   {data.posts.map(post => (
                     <TableRow key={post.id}>
                       <TableCell className="max-w-64 truncate">
-                        <Link href={getPostUrl({ post })} target="_blank" className="hover:text-primary hover:underline" title={post.title}>{post.title}</Link>
+                        <Link href={getPostViewUrl(post)} target="_blank" className="hover:text-primary hover:underline" title={post.title}>{post.title}</Link>
                       </TableCell>
                       <TableCell className="text-right tabular-nums">{format.number(post.views)}</TableCell>
                       <TableCell className="text-right tabular-nums">{post.engagedVisits ? formatDuration(post.avgEngagedMs) : '—'}</TableCell>

@@ -7,7 +7,7 @@ import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle }
 import { Empty, EmptyDescription } from '@/components/ui/empty'
 import { Link } from '@/i18n/navigation'
 import { cn } from '@/lib/utils'
-import { consolePath, getPageUrl, getPostUrl } from '@/utils/common/route'
+import { consolePath, getTargetViewUrl } from '@/utils/common/route'
 
 // 最新评论：读者在说什么、哪些还没回复
 export function RecentCommentsCard({ comments, pendingComments, days, className }: {
@@ -53,7 +53,8 @@ function CommentRow({ comment }: { comment: DashboardComment }) {
   // 显式传入当前时间，避免 next-intl 的 ENVIRONMENT_FALLBACK，并每分钟刷新相对时间
   const now = useNow({ updateInterval: 60_000 })
   const { target, user } = comment
-  const targetUrl = target ? (target.type === 'page' ? getPageUrl(target) : getPostUrl({ post: target })) : null
+  // 私密文章 / 页面前台 404，链到后台预览
+  const targetUrl = target ? getTargetViewUrl(target) : null
   const createdAt = new Date(comment.createdAt)
   return (
     <li className="flex gap-3 rounded-md px-2 py-2">

@@ -1,6 +1,6 @@
 'use client'
 import type { Post } from '@/models/post'
-import type { User } from '@/models/user'
+import type { UserAvatarInfo } from '@/models/user'
 import { useEffect, useRef, useState } from 'react'
 import { getLikedUsers } from '@/api/like'
 import { UserAvatar } from '@/components/common/avatar'
@@ -19,7 +19,7 @@ export function BlogLikeButton({ post }: { post: Pick<Post, 'id' | 'isLiked' | '
   const operationT = useOperationT()
   // 与顶栏灵动岛的「读完啦」提示共用点赞状态（见 hooks/use-post-like.tsx）：在岛上点赞后这里同步变化
   const { liked, count: likeCount, version: likedUsersVersion, toggle } = usePostLike(post)
-  const [likedUsers, setLikedUsers] = useState<User[]>([])
+  const [likedUsers, setLikedUsers] = useState<UserAvatarInfo[]>([])
   const [shouldFetchLikedUsers, setShouldFetchLikedUsers] = useState(false)
   const likeButtonRef = useRef<HTMLDivElement>(null)
 

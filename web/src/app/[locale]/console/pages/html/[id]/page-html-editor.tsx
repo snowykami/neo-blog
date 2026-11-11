@@ -7,7 +7,7 @@ import { useFormatter, useTranslations } from 'next-intl'
 import { useParams } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { getPageById, listPageHtmlVersions, updatePageHtmlVersion, uploadPageHtml } from '@/api/page'
+import { getPageForEdit, listPageHtmlVersions, updatePageHtmlVersion, uploadPageHtml } from '@/api/page'
 import Forbidden from '@/components/common/forbidden'
 import { HtmlPageFrame } from '@/components/html-page/html-page-frame'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -25,7 +25,7 @@ import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { Link } from '@/i18n/navigation'
 import { formatDataSize } from '@/utils/common/datasize'
 import { isAdmin } from '@/utils/common/permission'
-import { consolePath, getPageUrl } from '@/utils/common/route'
+import { consolePath, getPageUrl, getPageViewUrl } from '@/utils/common/route'
 import { PageMetaDialog } from '../../page-meta-dialog'
 
 const UPLOAD_ACCEPT = '.html,.htm,.zip'
@@ -66,7 +66,7 @@ function PageHtmlEditorContent({ id }: { id: string }) {
 
   useEffect(() => {
     let cancelled = false
-    getPageById({ id })
+    getPageForEdit({ id })
       .then(async (res) => {
         const loaded = res.data
         if (!loaded || cancelled)
@@ -142,7 +142,7 @@ function PageHtmlEditorContent({ id }: { id: string }) {
             {operationT('setting')}
           </Button>
           <Button variant="outline" size="sm" asChild>
-            <a href={getPageUrl(page)} target="_blank" rel="noreferrer">
+            <a href={getPageViewUrl(page)} target="_blank" rel="noreferrer">
               <Eye />
               {operationT('view')}
             </a>

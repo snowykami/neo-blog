@@ -27,7 +27,7 @@ func (l *LabelController) Create(ctx context.Context, c *app.RequestContext) {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	labelID, svcerr := l.service.CreateLabel(req)
+	labelID, svcerr := l.service.CreateLabel(ctx, req)
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return
@@ -37,7 +37,7 @@ func (l *LabelController) Create(ctx context.Context, c *app.RequestContext) {
 
 func (l *LabelController) Delete(ctx context.Context, c *app.RequestContext) {
 	id := ctxutils.GetIDParam(c).Uint
-	svcerr := l.service.DeleteLabel(id)
+	svcerr := l.service.DeleteLabel(ctx, id)
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return
@@ -65,7 +65,7 @@ func (l *LabelController) Update(ctx context.Context, c *app.RequestContext) {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	labelID, svcerr := l.service.UpdateLabel(req)
+	labelID, svcerr := l.service.UpdateLabel(ctx, req)
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return

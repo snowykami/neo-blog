@@ -62,6 +62,7 @@ export interface CommentTarget {
   type: TargetType
   title: string
   slug: string | null
+  isPrivate?: boolean // 是否私密：只有后台（仪表盘、访客记录）返回，后台据此把链接指向后台预览
 }
 
 // 用户主页的评论条目，附带所属目标信息

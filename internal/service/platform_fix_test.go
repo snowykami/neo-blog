@@ -153,7 +153,7 @@ func TestToggleLikeCount(t *testing.T) {
 }
 
 func TestPostSlugAndCategory(t *testing.T) {
-	author, _, _, _, label := setupEditTest(t)
+	author, admin, _, _, label := setupEditTest(t)
 	empty, numeric, taken := "", "123", "hello"
 	first := createPublicPost(t, author, &empty)
 	createPublicPost(t, author, &empty) // 多篇无 slug 的文章不应触发唯一约束
@@ -193,10 +193,10 @@ func TestPostSlugAndCategory(t *testing.T) {
 	if svcerr != nil || labelDto.PostCount != 0 {
 		t.Fatalf("label post count should exclude private posts, got %+v (%v)", labelDto, svcerr)
 	}
-	if svcerr := NewLabelService().DeleteLabel(label.ID); svcerr != nil {
+	if svcerr := NewLabelService().DeleteLabel(admin, label.ID); svcerr != nil {
 		t.Fatalf("delete label: %v", svcerr)
 	}
-	if _, svcerr := NewLabelService().CreateLabel(&dto.CreateLabelReq{LabelBase: dto.LabelBase{Name: "go", Slug: "go"}}); svcerr != nil {
+	if _, svcerr := NewLabelService().CreateLabel(admin, &dto.CreateLabelReq{LabelBase: dto.LabelBase{Name: "go", Slug: "go"}}); svcerr != nil {
 		t.Fatalf("recreate label with same slug: %v", svcerr)
 	}
 }

@@ -5,6 +5,7 @@ import type { Dashboard, DashboardDays } from '@/models/dashboard'
 import type { ErrorEvent, ErrorEventSummary, ErrorIssue, ErrorIssueDetail, ErrorKind, ErrorReportStats, ErrorSource, ErrorStatus } from '@/models/error-report'
 import type { NotificationDelivery } from '@/models/notification'
 import type { OidcConfig } from '@/models/oidc-config'
+import type { PageModel } from '@/models/page'
 import type { Post } from '@/models/post'
 import type { BaseResponse } from '@/models/resp'
 import type { Role, User } from '@/models/user'
@@ -111,6 +112,24 @@ export async function listPostsAdmin({
   const res = await axiosClient.get(
     '/admin/posts',
     { params: { ...pagination, query, userId } },
+  )
+  return res.data
+}
+
+// 后台页面管理：所有人的页面（含私密页面），仅管理员
+export async function listPagesAdmin({
+  query = '',
+  userId = 0,
+  noContent = false,
+  ...pagination
+}: {
+  query?: string // 搜索查询，逗号分割
+  userId?: number // 指定用户ID，为 0 时列出所有用户的页面
+  noContent?: boolean
+} & PaginationParams): Promise<BaseResponse<{ pages: PageModel[], total: number }>> {
+  const res = await axiosClient.get(
+    '/admin/pages',
+    { params: { ...pagination, query, userId, noContent } },
   )
   return res.data
 }

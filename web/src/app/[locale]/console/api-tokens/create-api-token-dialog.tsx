@@ -40,24 +40,51 @@ interface FormValues {
   expiry: (typeof EXPIRY_OPTIONS)[number]
 }
 
-const DEFAULT_VALUES: FormValues = { name: '', scopes: ['posts:read', 'posts:write'], expiry: '90' }
+// 默认勾选的权限范围；实际只勾选当前角色可用的那些
+const DEFAULT_SCOPES: readonly APITokenScope[] = ['posts:read', 'posts:write']
+
+interface RolePermissions {
+  canWritePosts: boolean
+  canManageAIUsers: boolean
+}
+
+// 当前角色不能使用某个权限范围的原因（文案键），可用时为 null（与后端 RoleAllowsScope 一致）
+function scopeRequirement(scope: APITokenScope, { canWritePosts, canManageAIUsers }: RolePermissions) {
+  if (ADMIN_ONLY_SCOPES.includes(scope) && !canManageAIUsers)
+    return 'scope_requires_admin'
+  if (EDITOR_ONLY_SCOPES.includes(scope) && !canWritePosts)
+    return 'scope_requires_editor'
+  return null
+}
+
+function defaultValues(permissions: RolePermissions): FormValues {
+  return {
+    name: '',
+    scopes: DEFAULT_SCOPES.filter(scope => scopeRequirement(scope, permissions) === null),
+    expiry: '90',
+  }
+}
 
 export function CreateAPITokenDialog({ onCreated }: { onCreated: () => void }) {
   const t = useTranslations('Console.api_tokens')
   const operationT = useOperationT()
   const errorMessageT = useErrorMessageT()
   const { user } = useAuth()
-  const canWritePosts = Boolean(user && isEditor({ user }))
-  const canManageAIUsers = Boolean(user && isAdmin({ user }))
+  const permissions: RolePermissions = {
+    canWritePosts: Boolean(user && isEditor({ user })),
+    canManageAIUsers: Boolean(user && isAdmin({ user })),
+  }
+  const isScopeAllowed = (scope: APITokenScope) => scopeRequirement(scope, permissions) === null
   const [open, setOpen] = useState(false)
   // 新建 Token 的明文只在本次弹窗中展示，关闭后无法再次查看
   const [createdToken, setCreatedToken] = useState<string | null>(null)
 
-  const form = useForm<FormValues>({ mode: 'onChange', defaultValues: DEFAULT_VALUES })
+  const form = useForm<FormValues>({ mode: 'onChange', defaultValues: defaultValues(permissions) })
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (nextOpen) {
-      form.reset(DEFAULT_VALUES)
+      // 每次打开按当前角色重新生成默认值（登录信息可能在首次渲染之后才就绪）
+      form.reset(defaultValues(permissions))
       setCreatedToken(null)
     }
     setOpen(nextOpen)
@@ -67,7 +94,8 @@ export function CreateAPITokenDialog({ onCreated }: { onCreated: () => void }) {
     try {
       const res = await createAPIToken({
         name: name.trim(),
-        scopes,
+        // 只提交当前角色可用的权限范围，被禁用的项即使残留勾选也不提交
+        scopes: scopes.filter(isScopeAllowed),
         expiresAt: expiry === 'never' ? null : new Date(Date.now() + Number(expiry) * DAY_MS).toISOString(),
       })
       setCreatedToken(res.data.token)
@@ -118,22 +146,20 @@ export function CreateAPITokenDialog({ onCreated }: { onCreated: () => void }) {
                     <FormField
                       control={form.control}
                       name="scopes"
-                      rules={{ validate: value => value.length > 0 || t('scopes_required') }}
+                      rules={{ validate: value => value.some(isScopeAllowed) || t('scopes_required') }}
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>{t('scopes')}</FormLabel>
                           <div className="grid gap-3">
                             {API_TOKEN_SCOPES.map((scope) => {
-                              const requires = ADMIN_ONLY_SCOPES.includes(scope) && !canManageAIUsers
-                                ? 'scope_requires_admin'
-                                : EDITOR_ONLY_SCOPES.includes(scope) && !canWritePosts ? 'scope_requires_editor' : null
+                              const requires = scopeRequirement(scope, permissions)
                               const disabled = requires !== null
                               return (
                                 <label key={scope} className="flex items-start gap-3 text-sm">
                                   <Checkbox
                                     className="mt-0.5"
                                     disabled={disabled}
-                                    checked={field.value.includes(scope)}
+                                    checked={!disabled && field.value.includes(scope)}
                                     onCheckedChange={checked => field.onChange(
                                       checked ? [...field.value, scope] : field.value.filter(s => s !== scope),
                                     )}

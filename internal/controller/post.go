@@ -2,7 +2,6 @@ package v1
 
 import (
 	"context"
-	"errors"
 	"slices"
 	"strconv"
 	"strings"
@@ -15,10 +14,8 @@ import (
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/service"
 	"github.com/snowykami/neo-blog/pkg/constant"
-	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/resps"
 	utils2 "github.com/snowykami/neo-blog/pkg/utils"
-	"gorm.io/gorm"
 )
 
 type PostController struct {
@@ -232,19 +229,12 @@ func parseIDList(raw string) ([]uint, bool) {
 }
 
 func (p *PostController) GetCategories(ctx context.Context, c *app.RequestContext) {
-	var categories []model.Category
-	err := repo.GetDB().Order("id DESC").Find(&categories).Error
-	if err != nil {
-		resps.Error(c, errs.Internal("failed_to_get_target", err).WithResource("category"))
+	categories, svcerr := p.service.ListCategories()
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
-	resps.Ok(c, resps.Success, utils.H{"categories": func() []dto.CategoryDto {
-		dtos := make([]dto.CategoryDto, len(categories))
-		for i, category := range categories {
-			dtos[i] = *category.ToDto()
-		}
-		return dtos
-	}()})
+	resps.Ok(c, resps.Success, utils.H{"categories": categories})
 }
 
 func (p *PostController) CreateCategory(ctx context.Context, c *app.RequestContext) {
@@ -253,17 +243,12 @@ func (p *PostController) CreateCategory(ctx context.Context, c *app.RequestConte
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	categoryModel := &model.Category{
-		Name:        req.Name,
-		Description: req.Description,
-		Slug:        req.Slug,
-	}
-	if err := repo.GetDB().Create(categoryModel).Error; err != nil {
-		resps.Error(c, categoryWriteError(err, categoryModel, "failed_to_create_target"))
+	id, svcerr := service.NewCategoryService().CreateCategory(ctx, &req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
-	repo.InvalidatePostCache()
-	resps.Ok(c, resps.Success, utils.H{"id": categoryModel.ID})
+	resps.Ok(c, resps.Success, utils.H{"id": id})
 }
 
 func (p *PostController) UpdateCategory(ctx context.Context, c *app.RequestContext) {
@@ -272,33 +257,20 @@ func (p *PostController) UpdateCategory(ctx context.Context, c *app.RequestConte
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	categoryModel := &model.Category{
-		Model:       gorm.Model{ID: req.ID},
-		Name:        req.Name,
-		Description: req.Description,
-		Slug:        req.Slug,
-	}
-	if err := repo.GetDB().Updates(categoryModel).Error; err != nil {
-		resps.Error(c, categoryWriteError(err, categoryModel, "failed_to_update_target"))
+	id, svcerr := service.NewCategoryService().UpdateCategory(ctx, &req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
-	repo.InvalidatePostCache()
-	resps.Ok(c, resps.Success, utils.H{"id": categoryModel.ID})
+	resps.Ok(c, resps.Success, utils.H{"id": id})
 }
 
 func (p *PostController) DeleteCategory(ctx context.Context, c *app.RequestContext) {
 	id := ctxutils.GetIDParam(c).Uint
-	// 分类硬删除并清空文章的分类引用，避免软删除记录占用唯一的名称与 slug
-	if err := repo.GetDB().Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&model.Post{}).Where("category_id = ?", id).UpdateColumn("category_id", nil).Error; err != nil {
-			return err
-		}
-		return tx.Unscoped().Delete(&model.Category{}, id).Error
-	}); err != nil {
-		resps.Error(c, errs.Internal("failed_to_delete_target", err).WithResource("category"))
+	if svcerr := service.NewCategoryService().DeleteCategory(ctx, id); svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
-	repo.InvalidatePostCache()
 	resps.Ok(c, resps.Success, nil)
 }
 
@@ -336,17 +308,4 @@ func (p *PostController) GetAISummaryStatus(ctx context.Context, c *app.RequestC
 		return
 	}
 	resps.Ok(c, resps.Success, status)
-}
-
-// categoryWriteError 分类的名称与 slug 都唯一：重复时指明是哪个字段，其他错误只写日志
-func categoryWriteError(err error, category *model.Category, code string) *errs.ServiceError {
-	if errors.Is(err, gorm.ErrDuplicatedKey) {
-		var count int64
-		repo.GetDB().Model(&model.Category{}).Where("slug = ? AND id <> ?", category.Slug, category.ID).Count(&count)
-		if count > 0 {
-			return errs.AlreadyExists("category", "slug", category.Slug)
-		}
-		return errs.AlreadyExists("category", "name", category.Name)
-	}
-	return errs.Internal(code, err).WithResource("category")
 }

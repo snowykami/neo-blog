@@ -7,6 +7,9 @@ export interface UserBrief {
   isAi?: boolean
 }
 
+// 头像墙（如文章的点赞者）用的最小用户信息（后端 UserAvatarDto）
+export type UserAvatarInfo = Pick<User, 'id' | 'username' | 'nickname' | 'avatarUrl' | 'gravatarHash'>
+
 export interface User {
   id: number
   username: string

@@ -13,6 +13,8 @@ func registerPostRoutes(group *route.RouterGroup) {
 	postController := controller.NewPostController()
 	postGroupWithAuth := group.Group("/post").Use(middleware.UseAuth(true)).Use(middleware.UseRole(constant.RoleEditor))
 	postGroupPublic := group.Group("/post").Use(middleware.UseAuth(false))
+	// 分类全站共享：改名与删除会影响其他作者的文章，只开放给管理员
+	postGroupWithAdmin := group.Group("/post").Use(middleware.UseAuth(true)).Use(middleware.UseRole(constant.RoleAdmin))
 	{
 		// 前台接口只返回公开文章，不认登录身份放开私密文章；私密文章与草稿只在下方的后台接口返回
 		postGroupPublic.GET("/p/:slug_or_id", postController.Get)        // 获取文章
@@ -44,9 +46,9 @@ func registerPostRoutes(group *route.RouterGroup) {
 		postGroupWithAuth.POST("/p/:id/ai-summary", postController.TriggerAISummary)
 		postGroupWithAuth.GET("/p/:id/ai-summary", postController.GetAISummaryStatus)
 		postGroupWithAuth.POST("/ai-summary/batch", postController.BatchAISummary) // 全站 AI 摘要，仅管理员
-		postGroupWithAuth.POST("/c", postController.CreateCategory)                // 创建文章分类
-		postGroupWithAuth.PUT("/c/:id", postController.UpdateCategory)             // 更新文章分类
-		postGroupWithAuth.DELETE("/c/:id", postController.DeleteCategory)          // 删除文章分类
+		postGroupWithAuth.POST("/c", postController.CreateCategory)                // 创建文章分类（编辑者写文章时可新建）
+		postGroupWithAdmin.PUT("/c/:id", postController.UpdateCategory)            // 更新文章分类，仅管理员
+		postGroupWithAdmin.DELETE("/c/:id", postController.DeleteCategory)         // 删除文章分类，仅管理员
 		// AI 写作：编辑器内帮写 / 润色，以 SSE 流式返回
 		postGroupWithAuth.POST("/p/:id/ai-write", controller.AIWrite.Stream(constant.TargetTypePost))
 	}

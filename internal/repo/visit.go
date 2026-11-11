@@ -309,9 +309,10 @@ func (v *visitRepo) DeleteVisitLogsBefore(before time.Time) (int64, error) {
 
 // TargetInfo 访问目标（文章/页面）的当前标题与 slug
 type TargetInfo struct {
-	ID    uint
-	Title string
-	Slug  *string
+	ID        uint
+	Title     string
+	Slug      *string
+	IsPrivate bool // 后台据此把私密文章 / 页面的链接指向后台预览
 }
 
 // GetTargetInfos 批量查询文章或页面的标题，用于访问记录展示
@@ -330,7 +331,7 @@ func (v *visitRepo) GetTargetInfos(targetType string, ids []uint) (map[uint]Targ
 		return result, nil
 	}
 	var infos []TargetInfo
-	if err := GetDB().Model(target).Select("id, title, slug").Where("id IN ?", ids).Scan(&infos).Error; err != nil {
+	if err := GetDB().Model(target).Select("id, title, slug, is_private").Where("id IN ?", ids).Scan(&infos).Error; err != nil {
 		return nil, err
 	}
 	for _, info := range infos {

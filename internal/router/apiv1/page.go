@@ -13,8 +13,13 @@ func registerPageRoutes(group *route.RouterGroup) {
 	postGroup := group.Group("/page").Use(middleware.UseAuth(true)).Use(middleware.UseRole(constant.RoleEditor))
 	postGroupWithoutAuth := group.Group("/page").Use(middleware.UseAuth(false))
 	{
+		// 前台接口只返回公开页面，不认登录身份放开私密页面；私密页面与草稿只在下方的后台接口返回
 		postGroupWithoutAuth.GET("/p/:slug_or_id", controller.Page.Get)
 		postGroupWithoutAuth.GET("/list", controller.Page.List)
+
+		// 后台读取：编辑器与预览读取页面（含私密页面与草稿），作者本人的页面列表（含私密页面）；所有人的页面见 /admin/pages
+		postGroup.GET("/p/:id/draft", controller.Page.GetForEdit)
+		postGroup.GET("/mine", controller.Page.ListMine)
 
 		postGroup.POST("/p", controller.Page.Create)
 		postGroup.PUT("/p/:id", controller.Page.Update)

@@ -186,13 +186,18 @@ func (p *PostService) GetPublicPostStats(id uint) (*dto.PostStatsDto, *errs.Serv
 	return stats, nil
 }
 
-// GetPostForEdit 后台编辑器与预览读取文章：含私密文章与草稿（没有草稿时取已发布的正文），仅作者本人与管理员可用
+// GetPostForEdit 后台编辑器与预览读取文章：含私密文章与草稿（没有草稿时取已发布的正文），
+// 要求当前角色为编辑及以上（与路由一致，MCP 等不经过路由中间件的调用方同样受限，被降级为普通用户的原作者读不到），且为作者本人或管理员
 func (p *PostService) GetPostForEdit(ctx context.Context, slugOrId string) (*dto.PostDto, *errs.ServiceError) {
 	if slugOrId == "" {
 		return nil, errs.NewBadRequest("missing_request_parameters")
 	}
-	if _, ok := ctxutils.GetCurrentUser(ctx); !ok {
+	currentUser, ok := ctxutils.GetCurrentUser(ctx)
+	if !ok {
 		return nil, errs.NewUnauthorized("login_required")
+	}
+	if !currentUser.GreaterThanEditor() {
+		return nil, errs.NewForbidden("permission_denied")
 	}
 	post, err := repo.Post.GetPostBySlugOrID(slugOrId)
 	if err != nil {
@@ -345,13 +350,17 @@ func (p *PostService) ListPostsAdmin(ctx context.Context, req *dto.ListPostReq) 
 	return p.listPosts(ctx, req, true)
 }
 
-// ListMyPosts 后台「我的文章」：当前用户自己的全部文章（含私密文章），供没有管理员权限的作者管理自己的文章
+// ListMyPosts 后台「我的文章」：当前用户自己的全部文章（含私密文章），供没有管理员权限的作者管理自己的文章；
+// 要求当前角色为编辑及以上（与路由一致），被降级为普通用户后只能在前台看到自己的公开文章
 func (p *PostService) ListMyPosts(ctx context.Context, req *dto.ListPostReq) ([]*dto.PostDto, int64, *errs.ServiceError) {
-	currentUserID, ok := ctxutils.GetCurrentUserID(ctx)
+	currentUser, ok := ctxutils.GetCurrentUser(ctx)
 	if !ok {
 		return nil, 0, errs.NewUnauthorized("login_required")
 	}
-	req.UserID = currentUserID
+	if !currentUser.GreaterThanEditor() {
+		return nil, 0, errs.NewForbidden("permission_denied")
+	}
+	req.UserID = currentUser.ID
 	return p.listPosts(ctx, req, true)
 }
 
@@ -432,7 +441,7 @@ func normalizePostCardIDs(ids []uint) []uint {
 func (p *PostService) ListCategories() ([]dto.CategoryDto, *errs.ServiceError) {
 	categories, err := repo.Post.ListCategories()
 	if err != nil {
-		return nil, errs.Internal("failed_to_get_target", err).WithResource("post")
+		return nil, errs.Internal("failed_to_get_target", err).WithResource("category")
 	}
 	result := make([]dto.CategoryDto, 0, len(categories))
 	for i := range categories {

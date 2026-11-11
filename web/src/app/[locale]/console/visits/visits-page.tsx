@@ -22,7 +22,7 @@ import { useAuth } from '@/contexts/auth-context'
 import { useConsoleQuery } from '@/hooks/use-console-query'
 import { Link } from '@/i18n/navigation'
 import { VISIT_TRUSTS } from '@/models/visit'
-import { consolePath, getPageUrl, getPostUrl, getUserUrl, mainPath } from '@/utils/common/route'
+import { consolePath, getTargetViewUrl, getUserUrl, mainPath } from '@/utils/common/route'
 
 const KINDS = ['all', 'user', 'anonymous'] as const
 type Kind = (typeof KINDS)[number]
@@ -307,7 +307,7 @@ function VisitActionText({ visit }: { visit: VisitLog }) {
   const { user: viewer } = useAuth()
   const subject = visit.subject
   const subjectHref = subject
-    ? (subject.type === 'page' ? getPageUrl(subject) : getPostUrl({ post: subject }))
+    ? getTargetViewUrl(subject) // 私密文章 / 页面前台 404，链到后台预览
     : null
   const link = (href: string | null) => function VisitLink(chunks: ReactNode) {
     return href
