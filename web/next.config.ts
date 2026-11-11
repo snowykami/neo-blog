@@ -12,8 +12,17 @@ import { IMAGE_OPTIMIZE_HOSTS } from '@/utils/common/image'
 const requireFromMotion = createRequire(createRequire(path.join(process.cwd(), 'package.json')).resolve('motion/package.json'))
 const framerMotionDir = path.relative(process.cwd(), path.dirname(requireFromMotion.resolve('framer-motion/package.json')))
 
+// 前端版本：构建参数 APP_VERSION（commit）注入的 NEXT_PUBLIC_APP_VERSION；没传时（如 Luna 构建）按构建时间生成一个，保证每次构建都不同。
+// 已打开的页面据此发现新部署（提示刷新、滚动更新期间版本错位时自动刷新，见 utils/client/chunk-error.ts），错误报告也按它区分版本
+// 写回环境变量：构建时配置会在多个工作进程里各加载一次，子进程继承这个值，各处拿到的是同一个版本
+const appVersion = process.env.NEXT_PUBLIC_APP_VERSION?.trim() || `build-${new Date().toISOString().replace(/\D/g, '').slice(0, 14)}`
+process.env.NEXT_PUBLIC_APP_VERSION = appVersion
+
 const nextConfig: NextConfig = {
   output: 'standalone',
+  env: {
+    NEXT_PUBLIC_APP_VERSION: appVersion,
+  },
   // Cache Components：页面默认按请求渲染，用 'use cache' + cacheLife + cacheTag 声明哪些数据 / 组件跨请求缓存（取代路由段的
   // dynamic、revalidate 与 unstable_cache），每个路由先预渲染出静态外壳（App Shell），读地址参数的部分在 Suspense 里流式补上。
   // 局部预取（partialPrefetching）：链接进入视口时只预取所在路由共用的 App Shell（同一个路由的所有链接共用一份），

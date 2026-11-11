@@ -46,3 +46,49 @@ describe('reloadForChunkError', () => {
     expect(reload).toHaveBeenCalledTimes(2)
   })
 })
+
+describe('isNewVersionDeployed', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
+    vi.resetModules()
+  })
+
+  // 版本在模块加载时读取，按需设置环境变量后重新导入
+  async function load(version: string) {
+    vi.stubEnv('NEXT_PUBLIC_APP_VERSION', version)
+    vi.resetModules()
+    return (await import('./chunk-error')).isNewVersionDeployed
+  }
+
+  function stubVersionResponse(body: unknown, ok = true) {
+    const fetchMock = vi.fn().mockResolvedValue({ ok, json: async () => body })
+    vi.stubGlobal('fetch', fetchMock)
+    return fetchMock
+  }
+
+  it('reports a different deployed version', async () => {
+    const isNewVersionDeployed = await load('abc')
+    stubVersionResponse({ version: 'def' })
+    expect(await isNewVersionDeployed()).toBe(true)
+  })
+
+  it('treats the same version, missing versions and failures as not deployed', async () => {
+    const isNewVersionDeployed = await load('abc')
+    stubVersionResponse({ version: 'abc' })
+    expect(await isNewVersionDeployed()).toBe(false)
+    stubVersionResponse({})
+    expect(await isNewVersionDeployed()).toBe(false)
+    stubVersionResponse({ version: 'def' }, false)
+    expect(await isNewVersionDeployed()).toBe(false)
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
+    expect(await isNewVersionDeployed()).toBe(false)
+  })
+
+  it('does not check when the page version is unknown (local development)', async () => {
+    const isNewVersionDeployed = await load('')
+    const fetchMock = stubVersionResponse({ version: 'def' })
+    expect(await isNewVersionDeployed()).toBe(false)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})

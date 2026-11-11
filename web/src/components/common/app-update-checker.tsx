@@ -8,12 +8,8 @@ import { toast } from 'sonner'
 import { IslandSlot, IslandText } from '@/components/layout/topbar-island/island-parts'
 import { useIslandAccepts, useIslandActivity } from '@/contexts/topbar-island'
 import { usePathname } from '@/i18n/navigation'
-import { isChunkLoadError, reloadForChunkError } from '@/utils/client/chunk-error'
+import { CURRENT_APP_VERSION, isChunkLoadError, isNewVersionDeployed, reloadForChunkError } from '@/utils/client/chunk-error'
 
-// 构建时注入的版本（commit）；未注入（本地开发、未传构建参数）时不检查
-// 必须使用全局 process：构建时只会内联全局 process.env.NEXT_PUBLIC_*，导入的 process 不会被替换
-// eslint-disable-next-line node/prefer-global/process
-const CURRENT_VERSION = process.env.NEXT_PUBLIC_APP_VERSION?.trim() ?? ''
 const CHECK_INTERVAL_MS = 5 * 60 * 1000
 const TOAST_ID = 'app-update-available'
 // 顶栏灵动岛里低于音乐与阅读进度：不急，读完再刷新也行
@@ -51,7 +47,7 @@ export function AppUpdateChecker() {
   }, [])
 
   useEffect(() => {
-    if (!CURRENT_VERSION)
+    if (!CURRENT_APP_VERSION)
       return
     let notified = false
     let checking = false
@@ -59,22 +55,12 @@ export function AppUpdateChecker() {
       if (notified || checking || document.visibilityState !== 'visible')
         return
       checking = true
-      try {
-        const res = await fetch('/api/version', { cache: 'no-store' })
-        if (!res.ok)
-          return
-        const { version } = await res.json() as { version?: string }
-        if (!version || version === CURRENT_VERSION)
-          return
+      // 检查失败（离线、部署中等）视为没有新版本，不影响当前页面，下次再试
+      if (await isNewVersionDeployed()) {
         notified = true
         setUpdateAvailable(true)
       }
-      catch {
-        // 检查失败（离线、部署中等）不影响当前页面，下次再试
-      }
-      finally {
-        checking = false
-      }
+      checking = false
     }
     const onVisibilityChange = () => void check()
     const timer = window.setInterval(() => void check(), CHECK_INTERVAL_MS)

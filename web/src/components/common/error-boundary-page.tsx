@@ -8,7 +8,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Link } from '@/i18n/navigation'
 import copyToClipboard from '@/lib/clipboard'
 import { captureBoundaryError } from '@/lib/telemetry/client'
-import { isChunkLoadError, reloadForChunkError } from '@/utils/client/chunk-error'
+import { isChunkLoadError, isNewVersionDeployed, reloadForChunkError } from '@/utils/client/chunk-error'
 
 // 复制后按钮显示「已复制」的时长
 const COPIED_MS = 2000
@@ -80,7 +80,17 @@ export function ErrorBoundaryPage({
       reloadForChunkError()
       return
     }
-    setReportId(captureBoundaryError(error))
+    // 滚动更新期间旧页面混进了新版本的代码（版本错位），会出现「xx is not a function」这类与代码本身无关的错误：
+    // 服务器上已经是新版本时按版本错位处理，刷新一次加载新版本，不上报；冷却期内已刷新过（新版本本身有问题）时照常上报
+    let cancelled = false
+    void isNewVersionDeployed().then((deployed) => {
+      if (cancelled || (deployed && reloadForChunkError()))
+        return
+      setReportId(captureBoundaryError(error))
+    })
+    return () => {
+      cancelled = true
+    }
   }, [error])
 
   return (
