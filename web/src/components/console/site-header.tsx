@@ -2,7 +2,6 @@ import { SiGithub } from 'react-icons/si'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { SidebarTrigger } from '@/components/ui/sidebar'
-import { Link } from '@/i18n/navigation'
 
 export function SiteHeader({ title }: { title?: string }) {
   return (
@@ -13,14 +12,15 @@ export function SiteHeader({ title }: { title?: string }) {
         <h1 className="text-base font-medium">{title}</h1>
         <div className="ml-auto flex items-center gap-2">
           <Button variant="ghost" className=" h-8 w-8" asChild>
-            <Link
-              href={new URL('https://github.com/snowykami/neo-blog')}
+            {/* 站外链接用普通 <a>：交给 Link（URL 对象）时会被当成站内的 /snowykami/neo-blog 预取，每次进后台都白白渲染一次 404 */}
+            <a
+              href="https://github.com/snowykami/neo-blog"
               rel="noopener noreferrer"
               target="_blank"
               className="dark:text-foreground"
             >
               <SiGithub className="h-full w-full" />
-            </Link>
+            </a>
           </Button>
         </div>
       </div>

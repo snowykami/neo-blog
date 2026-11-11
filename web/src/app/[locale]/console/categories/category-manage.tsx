@@ -2,31 +2,32 @@
 
 import type { Category } from '@/models/category'
 import { useTranslations } from 'next-intl'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
 import { deleteCategory, getCategories } from '@/api/post'
 import { DeleteButtonWithPopconfirm } from '@/components/common/delete-button-with-popconfirm'
 
 import { CreateOrUpdateCategoryDialogWithButton } from '@/components/console/common/create-label-and-category'
 import { Input } from '@/components/ui/input'
+import { useConsoleQuery } from '@/hooks/use-console-query'
 import { useOperationT } from '@/hooks/use-translations'
 
 export function CategoryManage() {
   const t = useTranslations('Console.categories')
   const operationT = useOperationT()
 
-  const [categories, setCategories] = useState<Category[]>([])
   const [query, setQuery] = useState('')
-  const [refreshKey, setRefreshKey] = useState(0)
-
-  useEffect(() => {
-    getCategories()
-      .then(res => setCategories(res.data.categories || []))
-      .catch(() => toast.error(operationT('fetch_failed')))
-  }, [operationT, refreshKey])
+  // 回到这个页面时先显示上次的结果，同时重新请求（见 hooks/use-console-query.ts）；写操作后缓存会被清空
+  const categoriesQuery = useConsoleQuery(
+    ['category/list'],
+    () => getCategories().then(res => res.data.categories || []),
+    { onError: () => toast.error(operationT('fetch_failed')) },
+  )
+  const categories = categoriesQuery.data ?? []
+  const { refresh, setData: setCategories } = categoriesQuery
 
   const onCategoryCreatedOrUpdated = (cat: Category) => {
-    setCategories((prev) => {
+    setCategories((prev = []) => {
       const exist = prev.find(c => c.id === cat.id)
       if (exist)
         return prev.map(c => (c.id === cat.id ? cat : c))
@@ -35,8 +36,8 @@ export function CategoryManage() {
   }
 
   const onChange = useCallback(() => {
-    setRefreshKey(k => k + 1)
-  }, [])
+    void refresh()
+  }, [refresh])
 
   const filtered = categories.filter(
     c =>

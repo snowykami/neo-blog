@@ -1,8 +1,7 @@
 'use client'
-import type { Dashboard as DashboardData, DashboardDays } from '@/models/dashboard'
+import type { DashboardDays } from '@/models/dashboard'
 import { useTranslations } from 'next-intl'
 import { parseAsNumberLiteral, useQueryState } from 'nuqs'
-import { useCallback, useEffect, useState } from 'react'
 import { getDashboard } from '@/api/admin'
 import { PostListCard } from '@/components/console/dashboard/post-list-card'
 import { RecentCommentsCard } from '@/components/console/dashboard/recent-comments-card'
@@ -11,10 +10,11 @@ import { StatCards } from '@/components/console/dashboard/stat-cards'
 import { TodoCard } from '@/components/console/dashboard/todo-card'
 import { TotalsCard } from '@/components/console/dashboard/totals-card'
 import { TrendChart } from '@/components/console/dashboard/trend-chart'
+import { DashboardSkeleton } from '@/components/console/route-skeleton'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { useConsoleQuery } from '@/hooks/use-console-query'
 import { useErrorMessageT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
 import { DASHBOARD_DAYS } from '@/models/dashboard'
@@ -96,37 +96,14 @@ export function Dashboard() {
   )
 }
 
+// 回到看板时先显示上次的数据，同时重新请求（见 hooks/use-console-query.ts）
 function useDashboard(days: DashboardDays) {
-  const [data, setData] = useState<DashboardData | null>(null)
-  const [error, setError] = useState<unknown>(null)
-  const [loading, setLoading] = useState(true)
-  const [version, setVersion] = useState(0)
-  const reload = useCallback(() => setVersion(v => v + 1), [])
-
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    getDashboard(days)
-      .then((res) => {
-        if (cancelled)
-          return
-        setData(res.data)
-        setError(null)
-      })
-      .catch((err: unknown) => {
-        if (!cancelled)
-          setError(err ?? new Error('unknown'))
-      })
-      .finally(() => {
-        if (!cancelled)
-          setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [days, version])
-
-  return { data, error, loading, reload }
+  const { data, error, isPreviousData, refresh } = useConsoleQuery(
+    ['admin/dashboard', days],
+    () => getDashboard(days).then(res => res.data),
+  )
+  // 只在切换区间、新数据未到时变淡；显示缓存的同一区间数据并在后台刷新时不变淡，避免每次回到看板都闪一下
+  return { data: data ?? null, error: error ?? null, loading: isPreviousData, reload: refresh }
 }
 
 // 加载失败常驻提示并提供重试，已有数据时继续展示旧数据
@@ -141,23 +118,5 @@ function LoadError({ error, onRetry }: { error: unknown, onRetry: () => void }) 
         <Button variant="outline" size="sm" onClick={onRetry}>{t('retry')}</Button>
       </AlertDescription>
     </Alert>
-  )
-}
-
-function DashboardSkeleton() {
-  return (
-    <div className="grid gap-4" aria-busy="true">
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
-      </div>
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Skeleton className="h-80 rounded-xl lg:col-span-2" />
-        <Skeleton className="h-80 rounded-xl" />
-      </div>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Skeleton className="h-72 rounded-xl" />
-        <Skeleton className="h-72 rounded-xl" />
-      </div>
-    </div>
   )
 }

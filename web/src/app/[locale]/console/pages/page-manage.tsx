@@ -21,8 +21,10 @@ import {
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { useAuth } from '@/contexts/auth-context'
+import { useConsoleQuery } from '@/hooks/use-console-query'
 import { useDebouncedState } from '@/hooks/use-debounce'
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
+import { Link } from '@/i18n/navigation'
 import { OrderBy } from '@/models/common'
 import { getPageEditUrl, getPageUrl } from '@/utils/common/route'
 import { PageMetaDialog } from './page-meta-dialog'
@@ -34,40 +36,36 @@ function getPageViewUrl(page: PageModel) {
   return page.kind === 'link' && page.linkUrl ? page.linkUrl : getPageUrl(page)
 }
 
+// 列表为空时的固定引用：onPageChange 的 useCallback 依赖 pages
+const EMPTY_PAGES: PageModel[] = []
+
 export function PageManage() {
   const { user } = useAuth()
   const t = useTranslations('Console.pages')
   const errorMessageT = useErrorMessageT()
   const operationT = useOperationT()
-  const [pages, setPages] = useState<PageModel[]>([])
-  const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [size, setSize] = useState(PAGE_SIZE)
   const [queryInput, setQueryInput, debouncedQueryInput] = useDebouncedState('', 200)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
 
-  const loadPages = useCallback(() => {
-    if (!user)
-      return
-    listPages({
+  // 回到这个页面时先显示上次的结果，同时重新请求（见 hooks/use-console-query.ts）；写操作后缓存会被清空
+  const pagesQuery = useConsoleQuery(
+    user ? ['page/list', page, size, debouncedQueryInput] : null,
+    () => listPages({
       page,
       size,
       query: debouncedQueryInput,
       noContent: true,
-      userId: user.id,
+      userId: user!.id,
       orderBy: OrderBy.CreatedAt,
       desc: true,
-    }).then((res) => {
-      setPages(res.data.pages)
-      setTotal(res.data.total)
-    }).catch((error: BaseResponseError) => {
-      toast.error(`${operationT('fetch_failed')}: ${errorMessageT(error)}`)
-    })
-  }, [debouncedQueryInput, operationT, page, size, user])
-
-  useEffect(() => {
-    loadPages()
-  }, [loadPages])
+    }).then(res => ({ pages: res.data.pages, total: res.data.total })),
+    { onError: error => toast.error(`${operationT('fetch_failed')}: ${errorMessageT(error)}`) },
+  )
+  const pages = pagesQuery.data?.pages ?? EMPTY_PAGES
+  const total = pagesQuery.data?.total ?? 0
+  const { refresh: loadPages, setData: setPageList } = pagesQuery
 
   // 搜索词变化时回到第一页
   const prevQueryRef = useRef(debouncedQueryInput)
@@ -84,13 +82,12 @@ export function PageManage() {
       loadPages()
       return
     }
-    setPages(prev => prev.map(item => (item.id === page.id ? { ...item, ...page } : item)))
-  }, [pages, loadPages])
+    setPageList(prev => prev && { ...prev, pages: prev.pages.map(item => (item.id === page.id ? { ...item, ...page } : item)) })
+  }, [pages, loadPages, setPageList])
 
   const onPageDelete = useCallback(({ pageId }: { pageId: number }) => {
-    setPages(prev => prev.filter(item => item.id !== pageId))
-    setTotal(prev => Math.max(0, prev - 1))
-  }, [])
+    setPageList(prev => prev && { pages: prev.pages.filter(item => item.id !== pageId), total: Math.max(0, prev.total - 1) })
+  }, [setPageList])
 
   return (
     <div>
@@ -258,7 +255,8 @@ function PageDropdownMenu({
         {/* 链接页面没有正文，编辑即打开设置 */}
         {page.kind === 'link'
           ? <DropdownMenuItem onClick={() => setMetaDialogOpen(true)}>{operationT('edit')}</DropdownMenuItem>
-          : <DropdownMenuItem asChild><a href={getPageEditUrl(page)}>{operationT('edit')}</a></DropdownMenuItem>}
+          // 客户端跳转（不整页刷新）；菜单打开时（链接挂载）就完整预取编辑器的页面与 JS
+          : <DropdownMenuItem asChild><Link href={getPageEditUrl(page)} prefetch>{operationT('edit')}</Link></DropdownMenuItem>}
         <DropdownMenuItem onClick={() => setMetaDialogOpen(true)}>{operationT('setting')}</DropdownMenuItem>
         <DropdownMenuItem asChild><a href={getPageViewUrl(page)} target="_blank" rel="noreferrer">{operationT('view')}</a></DropdownMenuItem>
         <DropdownMenuSeparator />

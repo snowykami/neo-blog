@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 import { ContentFontLinks } from '@/components/blog-post/content-font-links'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { EditSessionBanner } from '@/components/console/common/edit-session-banner'
+import { EditorSkeleton } from '@/components/console/route-skeleton'
 import { ComponentLibraryDialog } from '@/components/content-components/component-library-dialog'
 import { AnnotationPopover } from '@/components/tiptap-ui/annotation-popover'
 import { InlineIconPicker } from '@/components/tiptap-ui/inline-icon-picker'
@@ -17,7 +18,6 @@ import { LinkPopover } from '@/components/tiptap-ui/link-popover'
 import { MathPopover } from '@/components/tiptap-ui/math-popover'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
-import { Skeleton } from '@/components/ui/skeleton'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { useFullscreen } from '@/hooks/use-editor-helpers'
 import { useRouter } from '@/i18n/navigation'
@@ -82,16 +82,6 @@ export function ContentEditorShell(props: ContentEditorShellProps) {
     return <EditorSkeleton label={postEditT('loading')} />
 
   return <LoadedShell {...props} />
-}
-
-function EditorSkeleton({ label }: { label: string }) {
-  return (
-    <div className="flex flex-1 flex-col gap-3" aria-busy="true" aria-label={label}>
-      <Skeleton className="h-10 w-full" />
-      <Skeleton className="mx-auto h-11 w-full max-w-[54rem] rounded-xl" />
-      <Skeleton className="mx-auto h-[60vh] w-full max-w-[54rem] rounded-2xl" />
-    </div>
-  )
 }
 
 function LoadedShell({

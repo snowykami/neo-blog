@@ -1,6 +1,6 @@
 'use client'
 
-import type { ErrorIssue, ErrorKind, ErrorReportStats, ErrorSource, ErrorStatus } from '@/models/error-report'
+import type { ErrorIssue, ErrorKind, ErrorSource, ErrorStatus } from '@/models/error-report'
 import { SearchIcon } from 'lucide-react'
 import { useFormatter, useTranslations } from 'next-intl'
 import { parseAsInteger, parseAsStringEnum, useQueryState } from 'nuqs'
@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useConsoleQuery } from '@/hooks/use-console-query'
 import { Link } from '@/i18n/navigation'
 import { ERROR_KINDS, ERROR_SOURCES, ERROR_STATUSES } from '@/models/error-report'
 import { consolePath } from '@/utils/common/route'
@@ -33,25 +34,18 @@ export default function ErrorsPage() {
   const [keyword, setKeyword] = useState(query)
   const [page, setPage] = useQueryState('page', parseAsInteger.withDefault(1).withOptions({ history: 'replace', clearOnDefault: true }))
   const [size, setSize] = useState(20)
-  const [issues, setIssues] = useState<ErrorIssue[]>([])
-  const [total, setTotal] = useState(0)
-  const [loading, setLoading] = useState(false)
-  const [stats, setStats] = useState<ErrorReportStats | null>(null)
-
-  useEffect(() => {
-    getErrorStatsAdmin().then(res => setStats(res.data)).catch(() => setStats(null))
-  }, [])
-
-  useEffect(() => {
-    setLoading(true)
-    listErrorIssuesAdmin({ page, size, status: status === ALL ? undefined : status as ErrorStatus, source: source ?? undefined, kind: kind ?? undefined, q: query || undefined })
-      .then((res) => {
-        setIssues(res.data.issues)
-        setTotal(res.data.total)
-      })
-      .catch(() => setIssues([]))
-      .finally(() => setLoading(false))
-  }, [page, size, status, source, kind, query])
+  // 回到这个页面时先显示上次的结果，同时重新请求（见 hooks/use-console-query.ts）；写操作后缓存会被清空
+  const statsQuery = useConsoleQuery(['admin/errors/stats'], () => getErrorStatsAdmin().then(res => res.data))
+  const stats = statsQuery.error ? null : (statsQuery.data ?? null)
+  const statusFilter = status === ALL ? undefined : status as ErrorStatus
+  const issuesQuery = useConsoleQuery(
+    ['admin/errors', page, size, statusFilter, source, kind, query],
+    () => listErrorIssuesAdmin({ page, size, status: statusFilter, source: source ?? undefined, kind: kind ?? undefined, q: query || undefined }).then(res => res.data),
+  )
+  // 请求失败时显示为空列表（同改前）；有上次的数据时照常显示，后台刷新不再换成「加载中」
+  const issues = issuesQuery.error ? [] : (issuesQuery.data?.issues ?? [])
+  const total = issuesQuery.error ? 0 : (issuesQuery.data?.total ?? 0)
+  const loading = issuesQuery.loading && !issuesQuery.data
 
   // 输入停顿后再搜索
   useEffect(() => {

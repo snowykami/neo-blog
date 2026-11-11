@@ -45,6 +45,7 @@ import {
 } from '@/components/ui/table'
 import { useAuth } from '@/contexts/auth-context'
 import { useDevice } from '@/contexts/device-context'
+import { useConsoleQuery } from '@/hooks/use-console-query'
 import { useDebouncedState } from '@/hooks/use-debounce'
 import { useCommonT, useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { Link } from '@/i18n/navigation'
@@ -90,10 +91,6 @@ export function UserManagePage() {
   const operationT = useOperationT()
   const { user: currentUser } = useAuth()
   const { isMobile } = useDevice()
-  const [users, setUsers] = useState<User[]>([])
-  const [total, setTotal] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [orderBy, setOrderBy] = useQueryState(
     'order_by',
     parseAsStringEnum<OrderBy>(USER_ORDER_BYS)
@@ -129,33 +126,25 @@ export function UserManagePage() {
   const closeDialog = () => setDialog(null)
   const dialogUser = (kind: DialogKind) => (dialog?.kind === kind ? dialog.user : null)
 
-  const fetchUsers = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await listUsers({
-        page,
-        size,
-        orderBy,
-        desc,
-        keyword: keyword.trim(),
-        role: role ?? '',
-        status: status ?? '',
-      })
-      setUsers(res.data.users || [])
-      setTotal(res.data.total)
-    }
-    catch (err) {
-      setError(errorMessageT(err))
-    }
-    finally {
-      setLoading(false)
-    }
-  }, [desc, errorMessageT, keyword, orderBy, page, role, size, status])
-
-  useEffect(() => {
-    fetchUsers()
-  }, [fetchUsers])
+  // 回到这个页面时先显示上次的结果，同时重新请求（见 hooks/use-console-query.ts）；写操作后缓存会被清空
+  const usersQuery = useConsoleQuery(
+    ['admin/users', page, size, orderBy, desc, keyword.trim(), role ?? '', status ?? ''],
+    () => listUsers({
+      page,
+      size,
+      orderBy,
+      desc,
+      keyword: keyword.trim(),
+      role: role ?? '',
+      status: status ?? '',
+    }).then(res => ({ users: res.data.users || [], total: res.data.total })),
+  )
+  const users = usersQuery.data?.users ?? []
+  const total = usersQuery.data?.total ?? 0
+  // 有上次的数据时照常显示，后台刷新不再换成骨架
+  const loading = usersQuery.loading && !usersQuery.data
+  const error = usersQuery.error ? errorMessageT(usersQuery.error) : null
+  const fetchUsers = usersQuery.refresh
 
   // 仅在搜索词真正变化时重置页码，避免挂载时把 URL 中的页码重置为 1
   const prevKeywordRef = useRef(keyword)

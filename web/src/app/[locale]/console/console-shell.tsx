@@ -6,13 +6,13 @@ import Forbidden from '@/components/common/forbidden'
 import { AppSidebar } from '@/components/console/app-sidebar'
 import { ConsoleTabs } from '@/components/console/console-tabs'
 import { getFirstPermittedSidebarItem, matchSidebarItem, permittedItems } from '@/components/console/data'
+import { ConsoleContentSkeleton } from '@/components/console/route-skeleton'
 import { SiteHeader } from '@/components/console/site-header'
 import {
   SidebarAutoCloseOnRouteChange,
   SidebarInset,
   SidebarProvider,
 } from '@/components/ui/sidebar'
-import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/contexts/auth-context'
 import { useToLogin } from '@/hooks/use-route'
 import { usePathname, useRouter } from '@/i18n/navigation'
@@ -110,17 +110,5 @@ export function ConsoleShell({
         </div>
       </SidebarInset>
     </SidebarProvider>
-  )
-}
-
-// 登录状态确认中或跳转中的占位
-function ConsoleContentSkeleton() {
-  return (
-    <div className="grid gap-4" aria-busy="true">
-      <Skeleton className="h-9 w-full max-w-sm" />
-      <Skeleton className="h-16 w-full" />
-      <Skeleton className="h-16 w-full" />
-      <Skeleton className="h-16 w-full" />
-    </div>
   )
 }

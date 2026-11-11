@@ -9,7 +9,7 @@ import {
   parseAsStringEnum,
   useQueryState,
 } from 'nuqs'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { listCommentsAdmin } from '@/api/admin'
 import { deleteComment } from '@/api/comment'
@@ -31,6 +31,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useDevice } from '@/contexts/device-context'
+import { useConsoleQuery } from '@/hooks/use-console-query'
 import { useDebouncedState } from '@/hooks/use-debounce'
 import { useCommonT, useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { OrderBy } from '@/models/common'
@@ -45,9 +46,6 @@ export default function CommentsManage() {
   const metricsT = useTranslations('Metrics')
   const t = useTranslations('Console.comments')
   const { isMobile } = useDevice()
-  const [comments, setComments] = useState<Comment[]>([])
-  const [total, setTotal] = useState(0)
-  const [loading, setLoading] = useState(false)
   const [orderBy, setOrderBy] = useQueryState(
     'order_by',
     parseAsStringEnum<OrderBy>(Object.values(OrderBy))
@@ -72,29 +70,17 @@ export default function CommentsManage() {
   )
   const [queryInput, setQueryInput, debouncedQueryInput] = useDebouncedState('', 200)
 
-  const fetchComments = useCallback(async () => {
-    setLoading(true)
-    try {
-      const res = await listCommentsAdmin({
-        page,
-        size,
-        orderBy,
-        desc,
-      }, debouncedQueryInput)
-      setComments(res.data.comments)
-      setTotal(res.data.total)
-    }
-    catch (error) {
-      toast.error(`${operationT('fetch_failed')}: ${errorMessageT(error)}`)
-    }
-    finally {
-      setLoading(false)
-    }
-  }, [debouncedQueryInput, desc, operationT, orderBy, page, size])
-
-  useEffect(() => {
-    fetchComments()
-  }, [fetchComments])
+  // 回到这个页面时先显示上次的结果，同时重新请求（见 hooks/use-console-query.ts）；写操作后缓存会被清空
+  const commentsQuery = useConsoleQuery(
+    ['admin/comments', page, size, orderBy, desc, debouncedQueryInput],
+    () => listCommentsAdmin({ page, size, orderBy, desc }, debouncedQueryInput).then(res => res.data),
+    { onError: error => toast.error(`${operationT('fetch_failed')}: ${errorMessageT(error)}`) },
+  )
+  const comments = commentsQuery.data?.comments ?? []
+  const total = commentsQuery.data?.total ?? 0
+  // 有上次的数据时照常显示，后台刷新不再换成「加载中」
+  const loading = commentsQuery.loading && !commentsQuery.data
+  const fetchComments = commentsQuery.refresh
 
   // 仅在搜索词真正变化时重置页码，避免挂载时把 URL 中的页码重置为 1
   const prevQueryRef = useRef(debouncedQueryInput)

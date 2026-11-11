@@ -91,7 +91,9 @@ function PostRow({ post, rank, metric }: { post: DashboardPost, rank: number, me
       </div>
       <PostMetric post={post} metric={metric} />
       <Button asChild variant="ghost" size="icon" className="size-7 shrink-0 text-muted-foreground sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100">
-        <Link href={getPostEditUrl(post)} aria-label={t('edit_post')} title={t('edit_post')}>
+        {/* 不预取：编辑器路由按请求渲染，视口预取每次进看板都会拉编辑器约 600 KB（gzip）的 JS，并因 [id] 段是「可升级的回退外壳」
+            反复重取同一段（Next 每 2 秒重试 3 次，每次约 90 KB）；点击后由 posts/loading.tsx 先出编辑器骨架 */}
+        <Link href={getPostEditUrl(post)} prefetch={false} aria-label={t('edit_post')} title={t('edit_post')}>
           <Pencil className="size-3.5" />
         </Link>
       </Button>

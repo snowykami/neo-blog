@@ -1,11 +1,11 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import type { VisitLog, Visitor, VisitSourceCount, VisitStats, VisitTrust } from '@/models/visit'
+import type { VisitLog, Visitor, VisitSourceCount, VisitTrust } from '@/models/visit'
 import { ChevronRightIcon, ClockIcon, LanguagesIcon, ListFilterIcon, MapPinIcon, TimerIcon, XIcon } from 'lucide-react'
 import { useFormatter, useTranslations } from 'next-intl'
 import { parseAsInteger, parseAsStringEnum, useQueryState } from 'nuqs'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { getVisitInsightsAdmin, getVisitorAdmin, getVisitStatsAdmin, listVisitsAdmin } from '@/api/admin'
 import { UserAvatar } from '@/components/common/avatar'
 import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/contexts/auth-context'
+import { useConsoleQuery } from '@/hooks/use-console-query'
 import { Link } from '@/i18n/navigation'
 import { VISIT_TRUSTS } from '@/models/visit'
 import { consolePath, getPageUrl, getPostUrl, getUserUrl, mainPath } from '@/utils/common/route'
@@ -32,6 +33,7 @@ const DEVICES = ['desktop', 'mobile', 'tablet'] as const
 type Device = (typeof DEVICES)[number]
 // Select 不允许空值，“全部”用占位值表示
 const ALL = 'all'
+const EMPTY_COUNTRIES: string[] = []
 
 export default function VisitsPage() {
   const t = useTranslations('Console.visits')
@@ -46,41 +48,27 @@ export default function VisitsPage() {
   const [trust, setTrust] = useQueryState('trust', parseAsStringEnum<VisitTrust>([...VISIT_TRUSTS]).withOptions({ history: 'replace' }))
   const [country, setCountry] = useQueryState('country', { history: 'replace' })
   const [device, setDevice] = useQueryState('device', parseAsStringEnum<Device>([...DEVICES]).withOptions({ history: 'replace' }))
-  const [countries, setCountries] = useState<string[]>([])
   const countryName = useCountryName()
   const [page, setPage] = useQueryState('page', parseAsInteger.withDefault(1).withOptions({ history: 'replace', clearOnDefault: true }))
   const [size, setSize] = useState(20)
-  const [visits, setVisits] = useState<VisitLog[]>([])
-  const [total, setTotal] = useState(0)
-  const [loading, setLoading] = useState(false)
-  const [stats, setStats] = useState<VisitStats | null>(null)
-  const [visitor, setVisitor] = useState<Visitor | null>(null)
+  // 回到这个页面时先显示上次的结果，同时重新请求（见 hooks/use-console-query.ts）；请求失败时同改前显示为空
+  const statsQuery = useConsoleQuery(['admin/visits/stats'], () => getVisitStatsAdmin().then(res => res.data))
+  const stats = statsQuery.error ? null : (statsQuery.data ?? null)
+  // 推断地区筛选项：近 30 天出现过的国家（与访客统计页的 30 天数据共用缓存）
+  const insightsQuery = useConsoleQuery(['admin/visits/insights', 30], () => getVisitInsightsAdmin(30).then(res => res.data))
+  const countries = insightsQuery.error ? EMPTY_COUNTRIES : (insightsQuery.data?.inferredCountries.map(item => item.name) ?? EMPTY_COUNTRIES)
+  const visitsQuery = useConsoleQuery(
+    ['admin/visits', page, size, kind, action, visitorId, source, sourceHost, trust, country, device],
+    () => listVisitsAdmin({ page, size, kind, action: action === 'all' ? undefined : action, visitorId: visitorId ?? undefined, source: source ?? undefined, sourceHost: sourceHost ?? undefined, trust: trust ?? undefined, country: country ?? undefined, device: device ?? undefined })
+      .then(res => res.data),
+  )
+  const visits = visitsQuery.error ? [] : (visitsQuery.data?.visits ?? [])
+  const total = visitsQuery.data?.total ?? 0
+  // 有上次的数据时照常显示，后台刷新不再换成「加载中」
+  const loading = visitsQuery.loading && !visitsQuery.data
+  const visitorQuery = useConsoleQuery(visitorId ? ['admin/visits/visitor', visitorId] : null, () => getVisitorAdmin(visitorId!).then(res => res.data))
+  const visitor = visitorId && !visitorQuery.error && !visitorQuery.isPreviousData ? (visitorQuery.data ?? null) : null
   // 权限由控制台布局统一校验（仅管理员可进入）
-
-  useEffect(() => {
-    getVisitStatsAdmin().then(res => setStats(res.data)).catch(() => setStats(null))
-    // 推断地区筛选项：近 30 天出现过的国家
-    getVisitInsightsAdmin(30).then(res => setCountries(res.data.inferredCountries.map(item => item.name))).catch(() => setCountries([]))
-  }, [])
-
-  useEffect(() => {
-    setLoading(true)
-    listVisitsAdmin({ page, size, kind, action: action === 'all' ? undefined : action, visitorId: visitorId ?? undefined, source: source ?? undefined, sourceHost: sourceHost ?? undefined, trust: trust ?? undefined, country: country ?? undefined, device: device ?? undefined })
-      .then((res) => {
-        setVisits(res.data.visits)
-        setTotal(res.data.total)
-      })
-      .catch(() => setVisits([]))
-      .finally(() => setLoading(false))
-  }, [page, size, kind, action, visitorId, source, sourceHost, trust, country, device])
-
-  useEffect(() => {
-    if (!visitorId) {
-      setVisitor(null)
-      return
-    }
-    getVisitorAdmin(visitorId).then(res => setVisitor(res.data)).catch(() => setVisitor(null))
-  }, [visitorId])
 
   const changeKind = (value: string) => {
     setKind(value as Kind)

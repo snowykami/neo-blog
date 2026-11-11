@@ -2,13 +2,14 @@
 
 import type { VisitInsights } from '@/models/visit'
 import { useFormatter, useTranslations } from 'next-intl'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { getVisitInsightsAdmin } from '@/api/admin'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Empty, EmptyDescription } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useConsoleQuery } from '@/hooks/use-console-query'
 import { cn } from '@/lib/utils'
 import { VISIT_TRUSTS } from '@/models/visit'
 import { useCountryName } from './format'
@@ -27,16 +28,11 @@ export function VisitInsightsView() {
   const t = useTranslations('Console.visit_insights')
   const [range, setRange] = useState<Range>(7)
   const [section, setSection] = useState<Section>('visitors')
-  const [data, setData] = useState<VisitInsights | null>(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    setLoading(true)
-    getVisitInsightsAdmin(range)
-      .then(res => setData(res.data))
-      .catch(() => setData(null))
-      .finally(() => setLoading(false))
-  }, [range])
+  // 回到这个页面时先显示上次的数据，同时重新请求（见 hooks/use-console-query.ts）
+  const insights = useConsoleQuery(['admin/visits/insights', range], () => getVisitInsightsAdmin(range).then(res => res.data))
+  // 请求失败时不显示旧数据（同改前）
+  const data = insights.error ? null : (insights.data ?? null)
+  const loading = insights.loading
 
   return (
     <div className="grid gap-4">

@@ -2,7 +2,6 @@
 import type { Post } from '@/models/post'
 import type { BaseResponseError } from '@/models/resp'
 import { DropdownMenuGroup } from '@radix-ui/react-dropdown-menu'
-import { useAsyncTask } from '@snowykami/use-async-task'
 import { Ellipsis, Eye } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import {
@@ -36,13 +35,16 @@ import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { useAuth } from '@/contexts/auth-context'
 import { useDevice } from '@/contexts/device-context'
+import { useConsoleQuery } from '@/hooks/use-console-query'
 import { useDebouncedState } from '@/hooks/use-debounce'
 import { useIsMobile } from '@/hooks/use-mobile'
-import { useToEditPost, useToPost } from '@/hooks/use-route'
+import { useToPost } from '@/hooks/use-route'
 import { useCommonT, useErrorMessageT, useOperationT } from '@/hooks/use-translations'
+import { Link } from '@/i18n/navigation'
 import { OrderBy } from '@/models/common'
 import { PINNED_POSTS_LIMIT } from '@/models/post'
 import { isAdmin } from '@/utils/common/permission'
+import { getPostEditUrl } from '@/utils/common/route'
 import { AISummaryBadges, PostDescriptionLine, useAISummary, useAISummaryMenuLabel } from './post-ai-summary'
 import { PostAISummaryBatchButton } from './post-ai-summary-batch'
 import { usePinUntilText, usePostPinAction } from './post-pin'
@@ -58,8 +60,6 @@ export function PostManage() {
   const { user } = useAuth()
   // 管理员可管理所有文章，编辑者只能管理自己的文章
   const isAdminUser = !!user && isAdmin({ user })
-  const [posts, setPosts] = useState<Post[]>([])
-  const [total, setTotal] = useState(0)
   const [orderBy, setOrderBy] = useQueryState(
     'order_by',
     parseAsStringEnum<OrderBy>(Object.values(OrderBy))
@@ -95,44 +95,26 @@ export function PostManage() {
     parseAsBoolean.withDefault(false).withOptions({ history: 'replace', clearOnDefault: true }),
   )
   const [createPostDialogOpen, setCreatePostDialogOpen] = useState(false)
-  // 写操作后自增，作为缓存 key 的一部分强制重新拉取列表（reset 只清空状态，不会重新请求）
-  const [refreshKey, setRefreshKey] = useState(0)
-
-  // 使用 useAsyncTask 进行搜索并缓存结果
-  const listPostsTask = useAsyncTask(
-    async (p: number, sz: number, ob: OrderBy, d: boolean, q: string, mine: boolean, pinned: boolean) => {
+  // 列表取数：回到这个页面时先显示上次的结果，同时重新请求（见 hooks/use-console-query.ts）；写操作后缓存会被清空
+  const listPosts = useConsoleQuery(
+    ['admin/posts', isAdminUser, page, size, orderBy, desc, debouncedQueryInput, onlyMine, onlyPinned],
+    async () => {
       if (!user)
         return { posts: [], total: 0 }
-      if (isAdminUser && pinned) {
+      if (isAdminUser && onlyPinned) {
         const res = await listPinnedPostsAdmin()
         return { posts: res.data.posts, total: res.data.posts.length }
       }
-      const params = { page: p, size: sz, orderBy: ob, desc: d, query: q }
+      const params = { page, size, orderBy, desc, query: debouncedQueryInput }
       const res = isAdminUser
-        ? await listPostsAdmin({ ...params, userId: mine ? user.id : 0 })
+        ? await listPostsAdmin({ ...params, userId: onlyMine ? user.id : 0 })
         : await listMyPosts(params)
       return { posts: res.data.posts, total: res.data.total }
     },
-    {
-      // 当搜索参数变化时自动执行
-      immediate: true,
-      dependencies: [page, size, orderBy, desc, debouncedQueryInput, onlyMine, onlyPinned, user, refreshKey],
-      getArgs: () => [page, size, orderBy, desc, debouncedQueryInput, onlyMine, onlyPinned] as const,
-      // 相同搜索条件在 10 秒内使用缓存，避免重复请求
-      cacheTime: 10_000,
-      // 根据搜索条件生成唯一的 cache key
-      taskKey: (p, sz, ob, d, q, mine, pinned) => `listPosts-${user?.id}-${isAdminUser}-${p}-${sz}-${ob}-${d}-${q}-${mine}-${pinned}-${refreshKey}`,
-      maxRetries: 1,
-    },
   )
-
-  // 更新本地状态
-  useEffect(() => {
-    if (listPostsTask.data) {
-      setPosts(listPostsTask.data.posts)
-      setTotal(listPostsTask.data.total)
-    }
-  }, [listPostsTask.data])
+  const posts = listPosts.data?.posts ?? []
+  const total = listPosts.data?.total ?? 0
+  const { refresh: refreshPosts, setData: setPostList } = listPosts
 
   // 防抖后的搜索词真正变化时才重置分页，避免挂载时把 URL 中的页码重置为 1
   const prevQueryRef = useRef(debouncedQueryInput)
@@ -145,22 +127,21 @@ export function PostManage() {
 
   const onPostCreate = useCallback(() => {
     // 创建新文章后重新拉取列表，新文章需要后端分配的 ID 与排序位置
-    setRefreshKey(k => k + 1)
-  }, [])
+    void refreshPosts()
+  }, [refreshPosts])
 
   const onPostUpdate = useCallback(
     ({ post }: { post: Partial<Post> & Pick<Post, 'id'> }) => {
-      setPosts(prev => prev.map(p => (p.id === post.id ? { ...p, ...post } : p)))
+      setPostList(prev => prev && { ...prev, posts: prev.posts.map(p => (p.id === post.id ? { ...p, ...post } : p)) })
     },
-    [setPosts],
+    [setPostList],
   )
 
   const onPostDelete = useCallback(
     ({ postId }: { postId: number }) => {
-      setPosts(prev => prev.filter(p => p.id !== postId))
-      setTotal(prev => Math.max(0, prev - 1))
+      setPostList(prev => prev && { posts: prev.posts.filter(p => p.id !== postId), total: Math.max(0, prev.total - 1) })
     },
-    [setPosts],
+    [setPostList],
   )
 
   const onOrderChange = useCallback(
@@ -230,7 +211,7 @@ export function PostManage() {
                 OrderBy.ViewCount,
               ]}
             />
-            {isAdminUser && <PostAISummaryBatchButton onQueued={() => setRefreshKey(k => k + 1)} />}
+            {isAdminUser && <PostAISummaryBatchButton onQueued={() => void refreshPosts()} />}
             <Button size="sm" onClick={() => setCreatePostDialogOpen(true)}>
               {t('create_post')}
             </Button>
@@ -465,7 +446,6 @@ function PostDropdownMenu({
 }) {
   const operationT = useOperationT()
   const errorMessageT = useErrorMessageT()
-  const clickToPostEdit = useToEditPost()
   const clickToPost = useToPost()
   const aiSummaryLabel = useAISummaryMenuLabel(post)
   const postT = useTranslations('Console.post_edit')
@@ -519,8 +499,11 @@ function PostDropdownMenu({
         onCloseAutoFocus={e => confirmOpen && e.preventDefault()}
       >
         <DropdownMenuGroup>
-          <DropdownMenuItem onClick={() => clickToPostEdit({ post })} className="cursor-pointer">
-            {operationT('edit')}
+          {/* 用链接而不是 router.push：菜单打开时（链接挂载）就完整预取编辑器的页面与 JS，点「编辑」时不用再等 */}
+          <DropdownMenuItem asChild className="cursor-pointer">
+            <Link href={getPostEditUrl({ id: post.id })} prefetch>
+              {operationT('edit')}
+            </Link>
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setMetaDialogOpen(true)} className="cursor-pointer">
             {operationT('setting')}

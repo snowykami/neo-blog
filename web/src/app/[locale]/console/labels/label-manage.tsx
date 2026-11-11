@@ -2,30 +2,30 @@
 
 import type { Label } from '@/models/label'
 import { useTranslations } from 'next-intl'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 import { deleteLabel, getLabels } from '@/api/label'
 import { DeleteButtonWithPopconfirm } from '@/components/common/delete-button-with-popconfirm'
 import { CreateOrUpdateLabelDialogWithButton } from '@/components/console/common/create-label-and-category'
 import { Input } from '@/components/ui/input'
+import { useConsoleQuery } from '@/hooks/use-console-query'
 import { useOperationT } from '@/hooks/use-translations'
 
 export function LabelManage() {
   const t = useTranslations('Console.labels')
   const operationT = useOperationT()
 
-  const [labels, setLabels] = useState<Label[]>([])
   const [query, setQuery] = useState('')
-  const [refreshKey, setRefreshKey] = useState(0)
-
-  useEffect(() => {
-    getLabels()
-      .then(res => setLabels(res.data.labels || []))
-      .catch(() => toast.error(operationT('fetch_failed')))
-  }, [operationT, refreshKey])
+  // 回到这个页面时先显示上次的结果，同时重新请求（见 hooks/use-console-query.ts）；写操作后缓存会被清空
+  const labelsQuery = useConsoleQuery(
+    ['label/list'],
+    () => getLabels().then(res => res.data.labels || []),
+    { onError: () => toast.error(operationT('fetch_failed')) },
+  )
+  const labels = labelsQuery.data ?? []
 
   const onChange = () => {
-    setRefreshKey(k => k + 1)
+    void labelsQuery.refresh()
   }
 
   const filtered = labels.filter(

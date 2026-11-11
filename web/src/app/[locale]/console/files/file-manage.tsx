@@ -1,7 +1,6 @@
 'use client'
 import type { FileModel } from '@/models/file'
 import { DropdownMenuGroup } from '@radix-ui/react-dropdown-menu'
-import { useAsyncTask } from '@snowykami/use-async-task'
 import { ArrowRightLeft, Ellipsis, LinkIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import {
@@ -35,6 +34,7 @@ import { Separator } from '@/components/ui/separator'
 import { useAuth } from '@/contexts/auth-context'
 import { useDevice } from '@/contexts/device-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
+import { useConsoleQuery } from '@/hooks/use-console-query'
 import { useDebouncedState } from '@/hooks/use-debounce'
 import { useCommonT, useOperationT } from '@/hooks/use-translations'
 import { useRouter } from '@/i18n/navigation'
@@ -48,6 +48,9 @@ import { consolePath } from '@/utils/common/route'
 const PAGE_SIZE = 15
 const MOBILE_PAGE_SIZE = 10
 
+// 列表为空时的固定引用：全选的 useCallback 依赖 files，避免每次渲染都换新数组
+const EMPTY_FILES: FileModel[] = []
+
 export function FileManage() {
   const t = useTranslations('Console.files')
   const commonT = useCommonT()
@@ -59,8 +62,6 @@ export function FileManage() {
   // 只有管理员可以在存储之间迁移文件
   const isAdminUser = !!user && isAdmin({ user })
   const [migrateOpen, setMigrateOpen] = useState(false)
-  const [files, setFiles] = useState<FileModel[]>([])
-  const [total, setTotal] = useState(0)
   const [arrangement, setArrangement] = useQueryState(
     'arrangement',
     parseAsStringEnum<ArrangementMode>(Object.values(ArrangementMode))
@@ -93,35 +94,18 @@ export function FileManage() {
     200,
   )
   const [selectedFileIds, setSelectedFileIds] = useState<Set<number>>(new Set())
-  // 写操作后自增，作为缓存 key 的一部分强制重新拉取列表（reset 只清空状态，不会重新请求）
-  const [refreshKey, setRefreshKey] = useState(0)
 
-  // 使用 useAsyncTask 进行文件列表搜索并缓存结果
-  const listFilesTask = useAsyncTask(
-    async (p: number, sz: number, ob: OrderBy, d: boolean, q: string) => {
-      const res = await listFiles({ page: p, size: sz, orderBy: ob, desc: d, query: q })
+  // 列表取数：回到这个页面时先显示上次的结果，同时重新请求（见 hooks/use-console-query.ts）；写操作后缓存会被清空
+  const listFilesQuery = useConsoleQuery(
+    ['file/file-list', page, size, orderBy, desc, debouncedQueryInput],
+    async () => {
+      const res = await listFiles({ page, size, orderBy, desc, query: debouncedQueryInput })
       return { files: res.data.files, total: res.data.total }
     },
-    {
-      // 当搜索参数变化时自动执行
-      immediate: true,
-      dependencies: [page, size, orderBy, desc, debouncedQueryInput, refreshKey],
-      getArgs: () => [page, size, orderBy, desc, debouncedQueryInput] as const,
-      // 相同搜索条件在 10 秒内使用缓存，避免重复请求
-      cacheTime: 10_000,
-      // 根据搜索条件生成唯一的 cache key
-      taskKey: (p, sz, ob, d, q) => `listFiles-${p}-${sz}-${ob}-${d}-${q}-${refreshKey}`,
-      maxRetries: 1,
-    },
   )
-
-  // 更新本地状态
-  useEffect(() => {
-    if (listFilesTask.data) {
-      setFiles(listFilesTask.data.files)
-      setTotal(listFilesTask.data.total)
-    }
-  }, [listFilesTask.data])
+  const files = listFilesQuery.data?.files ?? EMPTY_FILES
+  const total = listFilesQuery.data?.total ?? 0
+  const { refresh: refreshFiles, setData: setFileList } = listFilesQuery
 
   // 防抖后的搜索词真正变化时才重置分页，避免挂载时把 URL 中的页码重置为 1
   const prevQueryRef = useRef(debouncedQueryInput)
@@ -134,15 +118,14 @@ export function FileManage() {
 
   const onFileDelete = useCallback(
     ({ fileId }: { fileId: number }) => {
-      setFiles(prev => prev.filter(f => f.id !== fileId))
-      setTotal(prev => Math.max(0, prev - 1))
+      setFileList(prev => prev && { files: prev.files.filter(f => f.id !== fileId), total: Math.max(0, prev.total - 1) })
       setSelectedFileIds((prev) => {
         const newSet = new Set(prev)
         newSet.delete(fileId)
         return newSet
       })
     },
-    [setFiles],
+    [setFileList],
   )
 
   const onOrderChange = useCallback(
@@ -200,8 +183,8 @@ export function FileManage() {
     setOrderBy(OrderBy.CreatedAt)
     setDesc(true)
     // 上传文件后重新拉取列表
-    setRefreshKey(k => k + 1)
-  }, [setPage, setOrderBy, setDesc])
+    void refreshFiles()
+  }, [setPage, setOrderBy, setDesc, refreshFiles])
 
   // 失败时抛出，由 ConfirmDialog 统一提示并保持打开
   const handleBatchDelete = async () => {
