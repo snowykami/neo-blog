@@ -35,6 +35,12 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
   // 置顶文章：只在没有筛选时由接口返回，显示在第一页最上方；它们不在 posts 里，也不计入 totalPosts
   const [pinnedPosts, setPinnedPosts] = useState<Post[]>(initialData?.pinned ?? [])
   const initialKeyRef = useRef(initialData?.key)
+  // 服务端后来又给了新的预取结果（后台改完内容后 router.refresh，或被 Activity 保留的首页重新取到新的页面数据）：
+  // state 只在挂载时取一次 initialData，这里记下最新的一份与收到的次数，参数一致时换上，不一致时按当前参数重新请求
+  const serverDataRef = useRef(initialData)
+  const [serverVersion, setServerVersion] = useState(0)
+  // 请求序号：快速翻页、切换筛选或排序时只采用最后一次请求的结果，旧请求晚到不覆盖新结果
+  const requestSeqRef = useRef(0)
   const [loading, setLoading] = useState(false)
   // 加载失败标记与重试计数：重试时自增以重新触发请求
   const [loadError, setLoadError] = useState(false)
@@ -54,16 +60,27 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
     return () => window.removeEventListener('popstate', onPop)
   }, [])
 
-  // 监听 page 变化，只有在非 popstate 情况下滚动到顶部
+  // 页码或筛选真正变化时滚到顶部（浏览器回退 / 前进恢复的除外）。用 ref 记下上次的值：从文章返回首页时，
+  // 被 Activity 保留的首页重新显示会重跑 effect，值没变就不滚，停在离开时的位置；首次挂载也不滚（由路由决定滚动位置）
+  const scrollKey = JSON.stringify([page, labelSlug, categorySlug, query])
+  const scrollKeyRef = useRef(scrollKey)
   useEffect(() => {
-    if (popStateRef.current) {
-      // 清除标记，不执行滚动（这是浏览器回退/前进恢复）
-      popStateRef.current = false
+    const fromPopState = popStateRef.current
+    popStateRef.current = false
+    if (scrollKeyRef.current === scrollKey)
       return
-    }
-    // 用户主动触发分页时滚动
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [page, labelSlug, categorySlug, query])
+    scrollKeyRef.current = scrollKey
+    if (!fromPopState)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [scrollKey])
+
+  useEffect(() => {
+    if (serverDataRef.current === initialData)
+      return
+    serverDataRef.current = initialData
+    initialKeyRef.current = initialData?.key
+    setServerVersion(v => v + 1)
+  }, [initialData])
 
   useEffect(() => {
     if (!isOrderByStateLoaded)
@@ -72,9 +89,21 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
     // 首次查询与服务端预取参数一致时复用预取结果
     const key = blogHomeQueryKey({ page, label: labelSlug, category: categorySlug, query, orderBy })
     // 参数变化后预取结果即失效（不在命中时清除，开发模式下 effect 会执行两次）
-    if (initialKeyRef.current === key && reloadKey === 0)
+    if (initialKeyRef.current === key && reloadKey === 0) {
+      // 首次挂载时 state 已由预取结果初始化；之后收到的新预取结果在这里换上，并作废进行中的旧请求
+      const data = serverDataRef.current
+      if (serverVersion > 0 && data) {
+        ++requestSeqRef.current
+        setPosts(data.posts)
+        setTotalPosts(data.total)
+        setPinnedPosts(data.pinned ?? [])
+        setLoadError(false)
+        setLoading(false)
+      }
       return
+    }
     initialKeyRef.current = undefined
+    const seq = ++requestSeqRef.current
     setLoading(true)
     setLoadError(false)
     listPosts({
@@ -88,17 +117,21 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
       withPinned: true,
     })
       .then((res) => {
+        if (seq !== requestSeqRef.current)
+          return
         setPosts(res.data.posts)
         setTotalPosts(res.data.total)
         setPinnedPosts(res.data.pinned ?? [])
         setLoading(false)
       })
       .catch((err) => {
+        if (seq !== requestSeqRef.current)
+          return
         console.error(err)
         setLoadError(true)
         setLoading(false)
       })
-  }, [query, labelSlug, categorySlug, page, orderByState, isOrderByStateLoaded, siteInfo.postsPerPage, reloadKey])
+  }, [query, labelSlug, categorySlug, page, orderByState, isOrderByStateLoaded, siteInfo.postsPerPage, reloadKey, serverVersion])
 
   // 标题随筛选条件变化：标签/分类优先显示名称（从返回的文章中取，取不到则用 slug），其次搜索词
   const order = orderByState === OrderBy.CreatedAt ? 'latest' : 'hottest'

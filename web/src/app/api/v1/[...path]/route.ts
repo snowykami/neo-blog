@@ -10,6 +10,19 @@ import { backendRequestHeaders, backendResponse } from '@/lib/backend-proxy'
 // AI 用户 Runner 的接口与 AI 用户专用 MCP 只供 Runner 直连后端，不经前端转发
 const DIRECT_ONLY = /^\/api\/v1\/(?:agent-runner|agent-mcp)(?:\/|$)/
 
+// 页面缓存的标签版本号状态（cache-tag-versions.mjs 的 tagState，按 Symbol.for 的键放在 globalThis 上）
+const TAG_STATE_KEY = Symbol.for('neo-blog.cache-tag-versions')
+
+/**
+ * 写请求成功后立刻让本实例读一次后端的缓存标签版本号，而不是等下一次轮询（最长 3 秒）：
+ * 后台保存后浏览器马上清路由缓存（hooks/use-public-content-refresh.ts）、回到前台，请求的页面在这里就已按新版本号失效，
+ * 不会先拿到旧页面。读取有 2 秒超时，失败只记日志；其他副本仍按轮询得知（浏览器稍后会再清一次）
+ */
+async function syncCacheTagsNow() {
+  const state = (globalThis as Record<symbol, { syncNow?: () => Promise<void> } | undefined>)[TAG_STATE_KEY]
+  await state?.syncNow?.().catch(() => {})
+}
+
 async function forward(request: NextRequest) {
   await connection()
   const { pathname, search } = request.nextUrl
@@ -39,6 +52,8 @@ async function forward(request: NextRequest) {
     return new Response('Bad Gateway', { status: 502 })
   }
 
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && upstream.ok)
+    await syncCacheTagsNow()
   return backendResponse(upstream)
 }
 

@@ -14,6 +14,7 @@ import {
   SidebarProvider,
 } from '@/components/ui/sidebar'
 import { useAuth } from '@/contexts/auth-context'
+import { usePublicContentRefresh } from '@/hooks/use-public-content-refresh'
 import { useToLogin } from '@/hooks/use-route'
 import { usePathname, useRouter } from '@/i18n/navigation'
 import { consolePath, isConsolePreviewPath } from '@/utils/common/route'
@@ -27,6 +28,8 @@ export function ConsoleShell({
   const { user, loading } = useAuth()
   const toLogin = useToLogin()
   const router = useRouter()
+  // 后台改了前台可见的内容后清掉浏览器路由缓存，回到前台时看到的是新内容
+  usePublicContentRefresh()
   const pathname = usePathname() ?? '/'
   // 标题与当前菜单直接由路径推导，避免首帧闪现占位标题；标题使用菜单名，同一菜单的页面以 Tab 区分
   const match = useMemo(() => matchSidebarItem(pathname), [pathname])

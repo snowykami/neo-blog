@@ -10,6 +10,7 @@ import { createComment, deleteComment, getComment, listComments } from '@/api/co
 import { notifySuccess } from '@/components/layout/topbar-island/island-feedback'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useAuth } from '@/contexts/auth-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { usePostStats } from '@/hooks/use-post-stats'
 import { useErrorMessageT } from '@/hooks/use-translations'
@@ -58,6 +59,26 @@ export function CommentSection({
   const requestSeqRef = useRef(0)
   // 上次加载后本地删除的顶层评论数，非 0 时下一页的 offset 会错位
   const localDeletedRef = useRef(0)
+  // 深链定位的线程根：它可能不在已加载的页里，列表（首屏、重新拉取）晚到时要合并进去，不能被覆盖掉
+  const pinnedRootRef = useRef<Comment | null>(null)
+
+  // 登出或换账号：上一个账号能看到的私密评论、点赞状态、展开的回复都要清掉，按新身份重新拉取。
+  // 渲染期间就清空并换掉列表的 key（重新挂载每条评论），不让旧内容再画一帧。
+  // epoch 为登出 / 换账号的次数；访客登录不加：访客能看到的登录后都能看到，快捷登录后紧接着的评论、回复也不能被重拉打断
+  const { user } = useAuth()
+  const userId = user?.id ?? null
+  const [viewer, setViewer] = useState({ userId, epoch: 0 })
+  if (viewer.userId !== userId) {
+    const reset = viewer.userId !== null
+    setViewer({ userId, epoch: reset ? viewer.epoch + 1 : viewer.epoch })
+    if (reset) {
+      setComments([])
+      setFocus(null)
+      setActiveInput(null)
+      setInitialLoading(true)
+    }
+  }
+  const viewerEpoch = viewer.epoch
 
   // 加载0/顶层评论
   useEffect(() => {
@@ -82,7 +103,7 @@ export function CommentSection({
       if (seq !== requestSeqRef.current)
         return
       const list: Comment[] = response.data.comments || []
-      setComments(list)
+      setComments(withPinnedRoot(list, pinnedRootRef.current))
       setTranslatable(Boolean(response.data.translatable))
       // If we got fewer comments than requested, no more pages
       setNeedLoadMore(list.length >= pageSize)
@@ -94,7 +115,7 @@ export function CommentSection({
       if (seq === requestSeqRef.current)
         setInitialLoading(false)
     })
-  }, [targetId, targetType, pageSize, orderBy, desc, t])
+  }, [targetId, targetType, pageSize, orderBy, desc, t, viewerEpoch])
 
   const onCommentSubmitted = async ({
     commentContent,
@@ -138,6 +159,8 @@ export function CommentSection({
     await deleteComment({ id: commentId })
     toast.success(t('delete_success'))
     const removed = comments.find(comment => comment.id === commentId)
+    if (pinnedRootRef.current?.id === commentId)
+      pinnedRootRef.current = null
     setComments(prevComments => prevComments.filter(comment => comment.id !== commentId))
     onCountChange(-1 - (removed?.threadCount ?? 0))
     localDeletedRef.current += 1
@@ -147,6 +170,7 @@ export function CommentSection({
   useEffect(() => {
     if (typeof window === 'undefined')
       return
+    pinnedRootRef.current = null
     const commentId = Number(new URLSearchParams(window.location.search).get('comment'))
     if (!Number.isFinite(commentId) || commentId <= 0) {
       setFocus(null)
@@ -157,18 +181,18 @@ export function CommentSection({
       if (cancelled)
         return
       const target = response.data
+      // 只定位本页目标下的评论：手改 ?comment= 不能把别的文章的线程插进来
+      if (target.targetType !== targetType || target.targetId !== targetId) {
+        setFocus(null)
+        return
+      }
       const rootId = target.rootId || target.id
       setFocus({ rootId, commentId: target.id })
-      if (rootId === target.id)
+      const root = rootId === target.id ? target : (await getComment({ id: rootId })).data
+      if (cancelled || root.targetType !== targetType || root.targetId !== targetId)
         return
-      const rootResponse = await getComment({ id: rootId })
-      if (cancelled)
-        return
-      setComments((prev) => {
-        if (prev.some(comment => comment.id === rootResponse.data.id))
-          return prev
-        return [rootResponse.data, ...prev]
-      })
+      pinnedRootRef.current = root
+      setComments(prev => withPinnedRoot(prev, root))
     }).catch(() => {
       // 评论可能已被删除：不打断页面，只是没有可定位的目标
       if (!cancelled)
@@ -177,7 +201,7 @@ export function CommentSection({
     return () => {
       cancelled = true
     }
-  }, [targetId, targetType])
+  }, [targetId, targetType, viewerEpoch])
 
   const handleLoadMore = () => {
     if (loadingMore || initialLoading)
@@ -203,8 +227,8 @@ export function CommentSection({
       setNeedLoadMore(list.length >= (refetchAll ? pageSize * nextPage : pageSize))
       if (refetchAll) {
         localDeletedRef.current = 0
-        // 服务端结果已包含本地新增的评论，直接替换
-        setComments(list)
+        // 服务端结果已包含本地新增的评论，直接替换（深链定位的线程根不在其中时仍保留）
+        setComments(withPinnedRoot(list, pinnedRootRef.current))
       }
       else {
         // 按 id 去重：本地新增评论会让后续页的 offset 后移，导致重复
@@ -250,7 +274,7 @@ export function CommentSection({
       <div className="mt-4">
         <CommentInput collapsible showAvatar onCommentSubmitted={onCommentSubmitted} />
       </div>
-      <div className="mt-2">
+      <div className="mt-2" key={viewerEpoch}>
         {initialLoading
           ? <CommentLoading />
           : comments.map(comment => (
@@ -288,6 +312,13 @@ export function CommentSection({
       </div>
     </div>
   )
+}
+
+/** 把深链定位的线程根放在列表最前面；列表里已经有它时保持原样 */
+function withPinnedRoot(list: Comment[], root: Comment | null): Comment[] {
+  if (!root || list.some(comment => comment.id === root.id))
+    return list
+  return [root, ...list]
 }
 
 function CommentLoading() {

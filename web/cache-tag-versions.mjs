@@ -54,6 +54,9 @@ const BACKEND_URL = (process.env.BACKEND_URL
  *   pending: Map<string, { versions: Record<string, string> | null, at: number }>,
  *   expiredAt: Map<string, number>,
  *   lastErrorAt: number,
+ *   syncSeq: number,
+ *   appliedSyncSeq: number,
+ *   syncNow: () => Promise<void>,
  * }} TagState
  */
 const STATE_KEY = Symbol.for('neo-blog.cache-tag-versions')
@@ -73,6 +76,12 @@ export function tagState() {
     // revalidateTag / updateTag 的失效时间
     expiredAt: new Map(),
     lastErrorAt: 0,
+    // 每次读取版本号加一；只采用比已采用的更晚发出的读取结果，避免轮询的旧结果覆盖 syncNow 刚读到的新版本号
+    syncSeq: 0,
+    appliedSyncSeq: 0,
+    // 立刻读一次版本号：经前端转发的写请求成功后调用（见 app/api/v1/[...path]/route.ts），不必等下一次轮询。
+    // 放在共享状态上而不是让路由 import 本文件：路由会被打包，本文件由缓存处理器在运行时直接加载
+    syncNow: () => syncOnce(),
   }
   return holder[STATE_KEY]
 }
@@ -125,8 +134,13 @@ export function expiredTagsKey() {
 /** 读一次后端的版本号；配置了 Redis 时顺带读其他副本 revalidateTag 的失效时间 */
 async function syncOnce() {
   const s = tagState()
+  const seq = ++s.syncSeq
   try {
-    s.versions = await fetchTagVersions()
+    const versions = await fetchTagVersions()
+    if (seq > s.appliedSyncSeq) {
+      s.appliedSyncSeq = seq
+      s.versions = versions
+    }
   }
   catch (err) {
     // 取不到时沿用上一次的版本号，条目最多按各自的 revalidate 过期

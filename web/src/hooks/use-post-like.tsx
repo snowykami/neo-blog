@@ -30,6 +30,27 @@ const listeners = new Set<() => void>()
 // 已读取过点赞状态的「用户:文章」，按钮与灵动岛共用一次请求
 const fetchedStatus = new Set<string>()
 
+// 仓库里的点赞状态属于哪个账号：null 为访客，undefined 为还没有组件读到过登录状态
+let account: number | null | undefined
+// 每次按账号重置加一：请求开始时记下，结束时不一致就说明期间登出或换了账号，结果属于上一个账号，丢弃
+let generation = 0
+
+/**
+ * 登出或换账号时清掉上一个账号的点赞状态（点赞数是公开的，保留），新账号进入页面后重新读取。
+ * 访客登录不清：访客没有自己的点赞状态，快捷登录后紧接着的点赞（乐观状态、请求进行中）不能被清掉
+ */
+export function syncPostLikeAccount(userId: number | null) {
+  const previous = account
+  account = userId
+  if (previous === undefined || previous === null || previous === userId)
+    return
+  generation++
+  fetchedStatus.clear()
+  for (const [id, state] of states)
+    states.set(id, { ...state, liked: false, pending: false, version: 0 })
+  listeners.forEach(listener => listener())
+}
+
 function subscribe(listener: () => void) {
   listeners.add(listener)
   return () => {
@@ -60,13 +81,19 @@ export function usePostLike(post: Pick<Post, 'id' | 'isLiked' | 'likeCount'>) {
   const { user } = useAuth()
 
   // 登录用户读取自己的点赞状态；请求期间已经点过（pending 或状态已变）时以本地为准
+  // 先按当前账号清掉上一个账号的状态（见 syncPostLikeAccount），再读取
+  const userId = user?.id ?? null
   useEffect(() => {
-    const key = user ? `${user.id}:${post.id}` : ''
-    if (!user || fetchedStatus.has(key))
+    syncPostLikeAccount(userId)
+    const key = userId !== null ? `${userId}:${post.id}` : ''
+    if (userId === null || fetchedStatus.has(key))
       return
     fetchedStatus.add(key)
+    const requestGeneration = generation
     getLikeStatus({ targetType: TargetType.Post, targetId: post.id })
       .then((res) => {
+        if (generation !== requestGeneration)
+          return
         const current = states.get(post.id) ?? initial
         if (current.pending || current.version > 0)
           return
@@ -75,7 +102,7 @@ export function usePostLike(post: Pick<Post, 'id' | 'isLiked' | 'likeCount'>) {
       .catch(() => {
         fetchedStatus.delete(key)
       })
-  }, [initial, post.id, user])
+  }, [initial, post.id, userId])
 
   // 改成期望的状态：先乐观更新，以服务端结果为准校正，失败时回滚。传入期望状态而不是取反：
   // 快捷登录后页面上的状态可能已过期，避免把已赞的点成取消
@@ -84,8 +111,12 @@ export function usePostLike(post: Pick<Post, 'id' | 'isLiked' | 'likeCount'>) {
     if (current.pending || current.liked === liked)
       return
     setState(post.id, { ...current, liked, count: current.count + (liked ? 1 : -1), pending: true })
+    const requestGeneration = generation
     toggleLike({ targetType: TargetType.Post, targetId: post.id, liked })
       .then((res) => {
+        // 请求期间登出或换了账号：仓库已按新账号重置，不再写回上一个账号的结果
+        if (generation !== requestGeneration)
+          return
         const status = res.data.status
         // 操作反馈走岛上的 feedback 层（见 components/layout/topbar-island/island-feedback.tsx）：
         // 能以约 1.4 秒的短提示盖过其他提示，开关关闭或后台页时自动回落 toast。
@@ -99,7 +130,8 @@ export function usePostLike(post: Pick<Post, 'id' | 'isLiked' | 'likeCount'>) {
       })
       .catch((error) => {
         toast.error(`${operationT('like_failed')}: ${error.message}`)
-        setState(post.id, { ...current, pending: false })
+        if (generation === requestGeneration)
+          setState(post.id, { ...current, pending: false })
       })
   }, [initial, operationT, post.id])
 

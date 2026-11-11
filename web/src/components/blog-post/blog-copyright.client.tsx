@@ -14,6 +14,10 @@ import { cn } from '@/lib/utils'
 import { getPostUrl, getUserUrl } from '@/utils/common/route'
 import { formatDisplayName } from '@/utils/common/username'
 
+// 站点没配置许可协议时的兜底：名称与链接成对使用
+const DEFAULT_LICENSE = 'CC BY-NC-SA 4.0'
+const DEFAULT_LICENSE_LINK = 'https://creativecommons.org/licenses/by-nc-sa/4.0/'
+
 /**
  * 版权卡片（参考 Fuwari 的 License，MIT License, saicaca/fuwari）：
  * 标题 + 原文链接，作者 / 发布于 / 许可协议三栏，右侧浅色 CC 水印
@@ -24,8 +28,9 @@ function CopyrightCard({ post, className }: { post: Pick<Post, 'id' | 'slug' | '
   const format = useFormatter()
   const operationT = useOperationT()
   const postUrl = siteInfo.baseUrl + getPostUrl({ post })
-  const license = siteInfo.copyright || 'CC BY-NC-SA 4.0'
-  const licenseLink = siteInfo.copyrightLink || 'https://creativecommons.org/licenses/by/4.0/'
+  const license = siteInfo.copyright || DEFAULT_LICENSE
+  // 兜底链接只配兜底名称：只填了名称、没填链接时不显示链接，避免把自定义协议链到别的协议上
+  const licenseLink = siteInfo.copyrightLink || (license === DEFAULT_LICENSE ? DEFAULT_LICENSE_LINK : '')
 
   return (
     <section
@@ -87,14 +92,18 @@ function CopyrightCard({ post, className }: { post: Pick<Post, 'id' | 'slug' | '
           <div>
             <dt className="text-sm text-foreground/30">{copyrightT('license')}</dt>
             <dd>
-              <Link
-                href={licenseLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="whitespace-nowrap text-foreground/75 hover:text-primary"
-              >
-                {license}
-              </Link>
+              {licenseLink
+                ? (
+                    <Link
+                      href={licenseLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="whitespace-nowrap text-foreground/75 hover:text-primary"
+                    >
+                      {license}
+                    </Link>
+                  )
+                : <span className="whitespace-nowrap text-foreground/75">{license}</span>}
             </dd>
           </div>
         </dl>
