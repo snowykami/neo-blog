@@ -69,7 +69,8 @@ function octaveError(analysis: RhythmAnalysis, bpm: number) {
 const TEMPOS = [74, 88, 96, 100, 120, 140, 160, 172, 180]
 const NAMES = Object.keys(PATTERNS) as (keyof typeof PATTERNS)[]
 
-describe('拍速估计', () => {
+// 每个用例都要合成并分析几十段不同鼓型、不同拍速的音频，空闲时也要 4 秒左右，机器繁忙时会超过默认的 5 秒；给足时间，避免偶发超时
+describe('拍速估计', { timeout: 30_000 }, () => {
   it('常速（88 ~ 160 BPM）在三种鼓型下都能给对 BPM', () => {
     for (const pattern of NAMES) {
       for (const bpm of TEMPOS.filter(v => v >= 88 && v <= 160)) {
