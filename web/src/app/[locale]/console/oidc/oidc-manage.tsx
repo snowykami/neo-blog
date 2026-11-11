@@ -99,7 +99,8 @@ export default function OidcManage() {
     setLoading(true)
     try {
       const res = await listOidcAdmin()
-      setConfigs(res.data)
+      // 旧版本后端没有配置时返回 null
+      setConfigs(res.data ?? [])
     }
     catch (error) {
       toast.error(`${operationT('fetch_failed')}: ${errorMessageT(error)}`)

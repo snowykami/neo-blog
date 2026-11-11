@@ -57,7 +57,8 @@ func (c *AdminService) ListOidcConfigs(onlyEnabled bool) ([]*dto.AdminOidcConfig
 	if err != nil {
 		return nil, errs.Internal("failed_to_get_target", err)
 	}
-	var dtos []*dto.AdminOidcConfigDto
+	// 没有配置时返回空数组（JSON 为 []，不是 null）
+	dtos := make([]*dto.AdminOidcConfigDto, 0, len(configs))
 	for _, config := range configs {
 		dtos = append(dtos, config.ToAdminDto())
 	}

@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -206,8 +207,18 @@ func dispatch(channel, payload string) {
 	list := append([]func(string){}, handlers[channel]...)
 	handlersMu.RUnlock()
 	for _, handler := range list {
-		handler(message)
+		callHandler(channel, handler, message)
 	}
+}
+
+// callHandler 调用一个订阅回调：回调 panic 时只打日志，不能让订阅协程（Redis 订阅循环）连同整个进程退出
+func callHandler(channel string, handler func(string), message string) {
+	defer func() {
+		if r := recover(); r != nil {
+			logrus.Errorf("sharedstate: handler of channel %q panicked: %v\n%s", channel, r, debug.Stack())
+		}
+	}()
+	handler(message)
 }
 
 // subscribedChannels 已注册订阅的频道，Redis 存储初始化时据此订阅

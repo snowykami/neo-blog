@@ -22,7 +22,9 @@ var NotificationHub = &notificationHub{subscribers: map[uint]map[chan struct{}]s
 
 const notificationChannel = "notification"
 
-// Subscribe 订阅某个用户的通知；返回的通道在每次有新通知时收到一个信号，取消订阅函数必须调用
+// Subscribe 订阅某个用户的通知；返回的通道在每次有新通知时收到一个信号，取消订阅函数必须调用。
+// 取消订阅只从订阅表里移除、不关闭通道：publish 解锁后才逐个发送，期间关闭的通道会让发送 panic；
+// 订阅方靠写入失败、心跳或到期退出，不依赖通道关闭，没人引用的通道由 GC 回收
 func (h *notificationHub) Subscribe(userID uint) (<-chan struct{}, func()) {
 	ch := make(chan struct{}, 1)
 	h.mu.Lock()
@@ -40,7 +42,6 @@ func (h *notificationHub) Subscribe(userID uint) (<-chan struct{}, func()) {
 			}
 		}
 		h.mu.Unlock()
-		close(ch)
 	}
 }
 

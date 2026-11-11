@@ -59,6 +59,17 @@ func TestDeleteUserWithRelatedRecords(t *testing.T) {
 		mustCreate(&model.EditSession{TargetType: constant.TargetTypePost, TargetID: post.ID, SessionID: "s", UserID: target.ID, APITokenID: &token.ID})
 		mustCreate(&model.AIAgent{UserID: target.ID})
 
+		// 目标用户点赞了别人的文章（作为触发者），别人回复了目标用户（作为收件人），另有一条与目标用户无关的通知
+		likedEvent := &model.InteractionEvent{Type: "post.liked", ActorID: target.ID, OwnerID: other.ID, DedupeKey: "like-target"}
+		mustCreate(likedEvent)
+		mustCreate(&model.Notification{EventID: likedEvent.ID, UserID: other.ID, ActorID: target.ID, DedupeKey: "like-target"})
+		repliedEvent := &model.InteractionEvent{Type: "comment.replied", ActorID: other.ID, OwnerID: target.ID, DedupeKey: "reply-target"}
+		mustCreate(repliedEvent)
+		mustCreate(&model.Notification{EventID: repliedEvent.ID, UserID: target.ID, ActorID: other.ID, DedupeKey: "reply-target"})
+		unrelatedEvent := &model.InteractionEvent{Type: "post.liked", ActorID: other.ID, OwnerID: admin.ID, DedupeKey: "like-admin"}
+		mustCreate(unrelatedEvent)
+		mustCreate(&model.Notification{EventID: unrelatedEvent.ID, UserID: admin.ID, ActorID: other.ID, DedupeKey: "like-admin"})
+
 		if err := User.DeleteUser(target.ID, admin.ID); err != nil {
 			t.Fatalf("delete user: %v", err)
 		}
@@ -79,6 +90,9 @@ func TestDeleteUserWithRelatedRecords(t *testing.T) {
 		assertCount("api tokens", db.Unscoped().Model(&model.APIToken{}).Where("user_id = ?", target.ID), 0)
 		assertCount("collaborators", db.Table("post_collaborators").Where("user_id = ?", target.ID), 0)
 		assertCount("ai agents", db.Model(&model.AIAgent{}).Where("user_id = ?", target.ID), 0)
+		assertCount("notifications of the user", db.Unscoped().Model(&model.Notification{}).Where("user_id = ? OR actor_id = ?", target.ID, target.ID), 0)
+		assertCount("events of the user", db.Unscoped().Model(&model.InteractionEvent{}).Where("actor_id = ? OR owner_id = ?", target.ID, target.ID), 0)
+		assertCount("unrelated notifications", db.Model(&model.Notification{}), 1)
 		assertCount("transferred revisions", db.Model(&model.ContentRevision{}).Where("user_id = ? AND api_token_id IS NULL", admin.ID), 1)
 
 		var reloadedPost model.Post

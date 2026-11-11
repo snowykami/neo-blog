@@ -318,8 +318,22 @@ func (user *userRepo) DeleteUser(userID, transferTo uint) error {
 		if err := deleteUserAIData(tx, userID); err != nil {
 			return err
 		}
+		if err := deleteUserNotifications(tx, userID); err != nil {
+			return err
+		}
 		return tx.Unscoped().Delete(&model.User{}, userID).Error
 	})
+}
+
+// deleteUserNotifications 删除用户相关的互动事件与通知：作为触发者（actor_id 有外键指向用户，不删无法删除用户）、
+// 作为收件人，以及这些事件派生的通知（事件删除后不留孤儿行）
+func deleteUserNotifications(tx *gorm.DB, userID uint) error {
+	events := tx.Unscoped().Model(&model.InteractionEvent{}).Select("id").Where("actor_id = ? OR owner_id = ?", userID, userID)
+	if err := tx.Unscoped().Where("user_id = ? OR actor_id = ? OR event_id IN (?)", userID, userID, events).
+		Delete(&model.Notification{}).Error; err != nil {
+		return err
+	}
+	return tx.Unscoped().Where("actor_id = ? OR owner_id = ?", userID, userID).Delete(&model.InteractionEvent{}).Error
 }
 
 // FillAvatarIfEmpty 仅在用户尚未设置头像时写入头像地址

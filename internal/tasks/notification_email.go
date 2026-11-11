@@ -41,7 +41,7 @@ var notificationEmailBackoff = []time.Duration{time.Minute, 5 * time.Minute, 30 
 func StartNotificationEmailWorker() {
 	go func() {
 		for {
-			runNotificationEmailRound()
+			runSafely("notification_email", runNotificationEmailRound)
 			time.Sleep(notificationEmailInterval)
 		}
 	}()

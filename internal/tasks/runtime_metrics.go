@@ -21,7 +21,7 @@ func StartRuntimeMetricsReporter() {
 		ticker := time.NewTicker(service.RuntimeMetricsInterval)
 		defer ticker.Stop()
 		for range ticker.C {
-			report()
+			runSafely("runtime_metrics", report)
 		}
 	}()
 }
