@@ -55,8 +55,9 @@ describe('isNewVersionDeployed', () => {
   })
 
   // 版本在模块加载时读取，按需设置环境变量后重新导入
-  async function load(version: string) {
+  async function load(version: string, buildTime = '1000') {
     vi.stubEnv('NEXT_PUBLIC_APP_VERSION', version)
+    vi.stubEnv('NEXT_PUBLIC_BUILD_TIME', buildTime)
     vi.resetModules()
     return (await import('./chunk-error')).isNewVersionDeployed
   }
@@ -67,10 +68,18 @@ describe('isNewVersionDeployed', () => {
     return fetchMock
   }
 
-  it('reports a different deployed version', async () => {
+  it('reports a newer deployed version', async () => {
     const isNewVersionDeployed = await load('abc')
-    stubVersionResponse({ version: 'def' })
+    stubVersionResponse({ version: 'def', builtAt: 2000 })
     expect(await isNewVersionDeployed()).toBe(true)
+  })
+
+  it('ignores an older or undated version (rolling update hitting an old instance)', async () => {
+    const isNewVersionDeployed = await load('abc')
+    stubVersionResponse({ version: 'old', builtAt: 500 })
+    expect(await isNewVersionDeployed()).toBe(false)
+    stubVersionResponse({ version: 'older' })
+    expect(await isNewVersionDeployed()).toBe(false)
   })
 
   it('treats the same version, missing versions and failures as not deployed', async () => {
@@ -79,7 +88,7 @@ describe('isNewVersionDeployed', () => {
     expect(await isNewVersionDeployed()).toBe(false)
     stubVersionResponse({})
     expect(await isNewVersionDeployed()).toBe(false)
-    stubVersionResponse({ version: 'def' }, false)
+    stubVersionResponse({ version: 'def', builtAt: 2000 }, false)
     expect(await isNewVersionDeployed()).toBe(false)
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
     expect(await isNewVersionDeployed()).toBe(false)

@@ -17,11 +17,15 @@ const framerMotionDir = path.relative(process.cwd(), path.dirname(requireFromMot
 // 写回环境变量：构建时配置会在多个工作进程里各加载一次，子进程继承这个值，各处拿到的是同一个版本
 const appVersion = process.env.NEXT_PUBLIC_APP_VERSION?.trim() || `build-${new Date().toISOString().replace(/\D/g, '').slice(0, 14)}`
 process.env.NEXT_PUBLIC_APP_VERSION = appVersion
+// 构建时间（毫秒）：已打开的页面据此判断服务器上的版本是不是更新的（滚动更新期间可能打到旧实例，只比「不同」会被刷回旧版本）
+const buildTime = process.env.NEXT_PUBLIC_BUILD_TIME?.trim() || String(Date.now())
+process.env.NEXT_PUBLIC_BUILD_TIME = buildTime
 
 const nextConfig: NextConfig = {
   output: 'standalone',
   env: {
     NEXT_PUBLIC_APP_VERSION: appVersion,
+    NEXT_PUBLIC_BUILD_TIME: buildTime,
   },
   // Cache Components：页面默认按请求渲染，用 'use cache' + cacheLife + cacheTag 声明哪些数据 / 组件跨请求缓存（取代路由段的
   // dynamic、revalidate 与 unstable_cache），每个路由先预渲染出静态外壳（App Shell），读地址参数的部分在 Suspense 里流式补上。

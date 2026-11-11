@@ -8,8 +8,14 @@
 // eslint-disable-next-line node/prefer-global/process
 export const CURRENT_APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION?.trim() ?? ''
 
+/** 本页面的构建时间（毫秒），本地开发为 0 */
+// eslint-disable-next-line node/prefer-global/process
+export const CURRENT_BUILD_TIME = Number(process.env.NEXT_PUBLIC_BUILD_TIME) || 0
+
 /**
- * 服务器上是否已经部署了与本页面不同的版本（请求 /api/version）；未知版本、请求失败时返回 false
+ * 服务器上是否已经部署了比本页面更新的版本（请求 /api/version）：版本不同且构建时间更晚才算。
+ * 滚动更新期间请求可能打到还没下线的旧实例，只比较「不同」会让已经是新版本的页面被提示、刷回旧版本；
+ * 服务器没有返回构建时间（更早的版本）时视为不是更新的。未知版本、请求失败时返回 false
  */
 export async function isNewVersionDeployed(): Promise<boolean> {
   if (!CURRENT_APP_VERSION)
@@ -18,8 +24,12 @@ export async function isNewVersionDeployed(): Promise<boolean> {
     const res = await fetch('/api/version', { cache: 'no-store' })
     if (!res.ok)
       return false
-    const { version } = await res.json() as { version?: string }
-    return !!version && version !== CURRENT_APP_VERSION
+    const { version, builtAt } = await res.json() as { version?: string, builtAt?: number }
+    if (!version || version === CURRENT_APP_VERSION)
+      return false
+    if (!CURRENT_BUILD_TIME)
+      return true
+    return typeof builtAt === 'number' && builtAt > CURRENT_BUILD_TIME
   }
   catch {
     return false
