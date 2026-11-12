@@ -36,10 +36,15 @@ export function FloatingWidgets() {
   const isConsole = pathname?.startsWith('/console')
   // 歌单只来自后台配置的网易云歌单：没配好（API 地址或歌单为空）时不挂载播放器，也不发任何歌单请求
   const musicEnabled = Boolean(siteInfo.musicEnabled)
+  // 音乐悬浮球默认停靠在右下角（移动端 48px / 桌面端 64px，距边缘 12px）：快捷按钮（38px）与其同轴对齐并留出间距；
+  // 未启用音乐时直接停靠在右下角安全区内
+  const quickNavPosition = musicEnabled
+    ? 'right-[17px] bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] lg:right-[25px] lg:bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))]'
+    : 'right-4 bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] lg:right-8 lg:bottom-[calc(2rem+env(safe-area-inset-bottom,0px))]'
   return (
     <>
       {siteInfo.enableThirdPartyScript && !isConsole && <Script src={THIRD_PARTY_SCRIPT_SRC} strategy="lazyOnload" />}
-      <ScrollToTopButton positionClass="bottom-30 right-3 md:right-3 lg:right-12" />
+      <ScrollToTopButton positionClass={quickNavPosition} />
       {/* 未配置歌单时不显示音乐播放器；空闲挂载，避免播放器进首屏关键路径 */}
       {musicEnabled && playerReady && <MusicPlayer />}
     </>

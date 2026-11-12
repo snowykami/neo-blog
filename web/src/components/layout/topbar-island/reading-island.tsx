@@ -7,12 +7,11 @@ import * as PopoverPrimitive from '@radix-ui/react-popover'
 import { ArrowUpIcon, MessageCircleIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { getScrollOffset } from '@/components/blog-post/post-toc.client'
 import { LikeIcon } from '@/contexts/theme-context'
 import { pushIslandAlert, useIslandActivity } from '@/contexts/topbar-island'
 import { usePostLike } from '@/hooks/use-post-like'
 import { cn } from '@/lib/utils'
-import { getVisibleElementById } from '@/utils/client/dom'
+import { getScrollOffset, getVisibleElementById, measureArticleReading } from '@/utils/client/dom'
 import { IslandText, ProgressRing } from './island-parts'
 
 // 低于播放中的音乐：同时存在时阅读进度缩成旁边的进度环
@@ -90,11 +89,7 @@ export function ReadingIsland({ title, headings, minutes, post }: { title: strin
     let frame = 0
     const measure = () => {
       frame = 0
-      const offset = getScrollOffset()
-      const rect = article.getBoundingClientRect()
-      const scrollable = Math.max(0, rect.height - (window.innerHeight - offset))
-      const read = offset - rect.top
-      const progress = Math.min(1, Math.max(0, scrollable > 0 ? read / scrollable : read >= 0 ? 1 : 0))
+      const { offset, rect, scrollable, progress } = measureArticleReading(article)
       let activeIndex = -1
       for (let i = 0; i < headingEls.length; i++) {
         const el = headingEls[i]
