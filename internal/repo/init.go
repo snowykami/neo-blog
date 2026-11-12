@@ -23,13 +23,20 @@ import (
 
 var db *gorm.DB
 
+// ErrDatabaseNotInitialized 数据库尚未初始化时返回该错误，避免空指针解引用
+var ErrDatabaseNotInitialized = errors.New("database is not initialized")
+
 func GetDB() *gorm.DB {
 	return db
 }
 
 // Ping 检查数据库连接是否可用（就绪检查使用）
 func Ping(ctx context.Context) error {
-	sqlDB, err := GetDB().DB()
+	d := GetDB()
+	if d == nil {
+		return ErrDatabaseNotInitialized
+	}
+	sqlDB, err := d.DB()
 	if err != nil {
 		return err
 	}

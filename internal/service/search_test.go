@@ -841,3 +841,23 @@ func TestMeilisearchFallbackMonitoringAndTestEndpoint(t *testing.T) {
 	}
 	_ = fmt.Sprint(postID)
 }
+
+func TestSearchGoroutinePanicRecoveryAndConfigListener(t *testing.T) {
+	setupSearchTestEnv(t)
+
+	// 异步协程模式下，内部 panic 被安全捕获且不会导致进程崩溃
+	searchClientHolder.mu.Lock()
+	searchClientHolder.syncInline = false
+	searchClientHolder.mu.Unlock()
+
+	done := make(chan struct{})
+	runSearchGoroutine("test_panic", func() {
+		defer close(done)
+		panic("simulated search async panic")
+	})
+	<-done
+
+	// 重复调用 ListenSearchConfigChanges 幂等且不报错
+	ListenSearchConfigChanges()
+	ListenSearchConfigChanges()
+}

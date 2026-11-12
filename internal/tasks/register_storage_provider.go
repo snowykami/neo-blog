@@ -35,6 +35,9 @@ func ListenStorageProviderChanges() {
 
 // ReloadStorageProviders 从数据库重新加载本实例的存储提供者
 func ReloadStorageProviders() error {
+	if repo.GetDB() == nil {
+		return repo.ErrDatabaseNotInitialized
+	}
 	providerModels, err := repo.File.ListStorageProviders()
 	if err != nil {
 		return err

@@ -38,8 +38,12 @@ func (k *kvRepo) loadKV(key string) (*model.KV, error) {
 	if ok && time.Now().Before(entry.expiresAt) {
 		return &entry.kv, entry.err
 	}
+	d := GetDB()
+	if d == nil {
+		return nil, ErrDatabaseNotInitialized
+	}
 	var kv model.KV
-	err := GetDB().First(&kv, "key = ?", key).Error
+	err := d.First(&kv, "key = ?", key).Error
 	if err == nil || errors.Is(err, gorm.ErrRecordNotFound) {
 		k.mu.Lock()
 		k.cache[key] = kvCacheEntry{kv: kv, err: err, expiresAt: time.Now().Add(kvCacheTTL)}
@@ -111,17 +115,25 @@ func (k *kvRepo) GetKV(key string, defaultValue ...any) (any, error) {
 }
 
 func (k *kvRepo) SetKV(key string, value any) error {
+	d := GetDB()
+	if d == nil {
+		return ErrDatabaseNotInitialized
+	}
 	kv := &model.KV{
 		Key:   key,
 		Value: map[string]any{"value": value},
 	}
 	defer k.changed(key)
-	return GetDB().Save(kv).Error
+	return d.Save(kv).Error
 }
 
 func (k *kvRepo) ListKV(query string) ([]model.KV, error) {
+	d := GetDB()
+	if d == nil {
+		return nil, ErrDatabaseNotInitialized
+	}
 	var kvs []model.KV
-	q := GetDB().Model(&model.KV{})
+	q := d.Model(&model.KV{})
 	if query != "" {
 		q = q.Where("key LIKE ?", "%"+query+"%")
 	}
@@ -132,14 +144,21 @@ func (k *kvRepo) ListKV(query string) ([]model.KV, error) {
 }
 
 func (k *kvRepo) DeleteKV(key string) error {
+	d := GetDB()
+	if d == nil {
+		return ErrDatabaseNotInitialized
+	}
 	defer k.changed(key)
-	return GetDB().Delete(&model.KV{}, "key = ?", key).Error
+	return d.Delete(&model.KV{}, "key = ?", key).Error
 }
 
 func (k *kvRepo) GetKVWithoutErr(key string, defaultValue ...any) any {
 	value, err := k.GetKV(key, defaultValue...)
 	if err != nil {
-		return defaultValue[0]
+		if len(defaultValue) > 0 {
+			return defaultValue[0]
+		}
+		return nil
 	}
 	return value
 }

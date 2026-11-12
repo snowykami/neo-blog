@@ -74,6 +74,11 @@ func recordSearchCall(elapsed time.Duration, err error) {
 	if nowNano-prevFlush >= int64(searchStatsFlushWindow) && searchStats.lastFlush.CompareAndSwap(prevFlush, nowNano) {
 		snap := searchInstanceCounters{Calls: calls, Nanos: nanos}
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					logrus.Errorf("flush search stats panicked: %v", r)
+				}
+			}()
 			_ = sharedstate.SetJSON(searchStatsKeyPrefix+sharedstate.InstanceID(), snap, searchStatsTTL)
 		}()
 	}

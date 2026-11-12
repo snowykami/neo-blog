@@ -42,9 +42,11 @@ type redisStore struct {
 	client *redis.Client
 	prefix string
 
-	pubsubOnce sync.Once
-	pubsub     *redis.PubSub
-	cancel     context.CancelFunc
+	subMu       sync.Mutex
+	subChannels map[string]bool
+	closed      bool
+	pubsub      *redis.PubSub
+	cancel      context.CancelFunc
 }
 
 func newRedisStore(redisURL, prefix string) (*redisStore, error) {
@@ -208,26 +210,42 @@ func (s *redisStore) Publish(channel, message string) error {
 	return s.client.Publish(ctx, s.key(channel), message).Err()
 }
 
-// subscribe 订阅频道；首次调用时启动接收循环。连接中断后 go-redis 会自动重连并重新订阅，
-// 重新订阅成功时以空消息通知订阅者全量刷新（期间的广播可能已经错过）
+// subscribe 订阅频道；同一频道多次注册回调时只向 Redis 发送一次 SUBSCRIBE，避免重复订阅确认被误判为断线重连。
+// 连接中断后 go-redis 会自动重连并重新订阅，重新订阅成功时以空消息通知订阅者全量刷新（期间的广播可能已经错过）
 func (s *redisStore) subscribe(channel string) {
-	s.pubsubOnce.Do(func() {
+	s.subMu.Lock()
+	if s.closed {
+		s.subMu.Unlock()
+		return
+	}
+	if s.subChannels == nil {
+		s.subChannels = make(map[string]bool)
+	}
+	if s.subChannels[channel] {
+		s.subMu.Unlock()
+		return
+	}
+	if s.pubsub == nil {
 		ctx, cancel := context.WithCancel(context.Background())
 		s.cancel = cancel
 		s.pubsub = s.client.Subscribe(ctx)
-		go s.receive(ctx)
-	})
+		go s.receive(ctx, s.pubsub)
+	}
+	pubsub := s.pubsub
+	s.subChannels[channel] = true
+	s.subMu.Unlock()
+
 	ctx, cancel := s.ctx()
 	defer cancel()
-	if err := s.pubsub.Subscribe(ctx, s.key(channel)); err != nil {
+	if err := pubsub.Subscribe(ctx, s.key(channel)); err != nil {
 		logrus.Errorf("subscribe %s failed: %v", channel, err)
 	}
 }
 
-func (s *redisStore) receive(ctx context.Context) {
+func (s *redisStore) receive(ctx context.Context, pubsub *redis.PubSub) {
 	subscribed := map[string]bool{}
 	for {
-		msg, err := s.pubsub.Receive(ctx)
+		msg, err := pubsub.Receive(ctx)
 		if err != nil {
 			if ctx.Err() != nil {
 				return
@@ -241,24 +259,29 @@ func (s *redisStore) receive(ctx context.Context) {
 			if m.Kind != "subscribe" {
 				continue
 			}
-			channel := m.Channel[len(s.prefix):]
+			channel := strings.TrimPrefix(m.Channel, s.prefix)
 			// 同一频道再次收到订阅确认说明是断线重连
 			if subscribed[channel] {
 				dispatch(channel, "")
 			}
 			subscribed[channel] = true
 		case *redis.Message:
-			dispatch(m.Channel[len(s.prefix):], m.Payload)
+			dispatch(strings.TrimPrefix(m.Channel, s.prefix), m.Payload)
 		}
 	}
 }
 
 func (s *redisStore) Close() error {
-	if s.cancel != nil {
-		s.cancel()
+	s.subMu.Lock()
+	s.closed = true
+	cancel := s.cancel
+	pubsub := s.pubsub
+	s.subMu.Unlock()
+	if cancel != nil {
+		cancel()
 	}
-	if s.pubsub != nil {
-		_ = s.pubsub.Close()
+	if pubsub != nil {
+		_ = pubsub.Close()
 	}
 	return s.client.Close()
 }

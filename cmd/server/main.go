@@ -39,7 +39,12 @@ func main() {
 	if sharedstate.Shared() && utils.Env.Get(constant.EnvKeyJwtSecrete) == "" {
 		logrus.Warnf("已配置 Redis 但未设置 %s：未设置时每个实例随机生成密钥，登录令牌无法在实例间通用，多副本部署须为所有实例设置相同的值", constant.EnvKeyJwtSecrete)
 	}
-	// 其他实例修改配置、存储提供者后同步清除本实例的缓存
+	err = repo.InitDatabase()
+	if err != nil {
+		panic(err)
+	}
+
+	// 数据库就绪后再注册跨实例广播监听，避免滚动发布或重连时回调在数据库未初始化前访问 repo
 	repo.KV.ListenChanges()
 	tasks.ListenStorageProviderChanges()
 	service.ListenFileLinkChanges()
@@ -47,11 +52,6 @@ func main() {
 	service.ListenMusicWhitelistChanges()
 	// 搜索配置在后台更新后，各实例重置客户端并确保目标索引结构就绪
 	service.ListenSearchConfigChanges()
-
-	err = repo.InitDatabase()
-	if err != nil {
-		panic(err)
-	}
 
 	err = tasks.InitStorageProvider()
 	if err != nil {

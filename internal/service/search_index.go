@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"runtime/debug"
 	"slices"
 	"strconv"
 	"strings"
@@ -84,10 +85,7 @@ func activeMeiliClient(timeout time.Duration) (*meili.Client, tools.MeilisearchC
 	return searchClientHolder.client, cfg, true
 }
 
-func runSearchAsync(fn func()) {
-	if !tools.GetMeilisearchConfig().Enabled() {
-		return
-	}
+func runSearchGoroutine(name string, fn func()) {
 	searchClientHolder.mu.Lock()
 	inline := searchClientHolder.syncInline
 	searchClientHolder.mu.Unlock()
@@ -98,31 +96,38 @@ func runSearchAsync(fn func()) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logrus.Errorf("search async panic: %v", r)
+				logrus.Errorf("search background task %s panicked: %v\n%s", name, r, debug.Stack())
 			}
 		}()
 		fn()
 	}()
 }
 
+func runSearchAsync(fn func()) {
+	if repo.GetDB() == nil || !tools.GetMeilisearchConfig().Enabled() {
+		return
+	}
+	runSearchGoroutine("incremental_sync", fn)
+}
+
+var searchConfigListenOnce sync.Once
+
 // ListenSearchConfigChanges 监听后台保存 Meilisearch 配置，首次启用或更换前缀时自动确保索引结构并回填公开数据
 func ListenSearchConfigChanges() {
-	sharedstate.OnNotify("config_changed", func(key string) {
-		if key == "" || strings.HasPrefix(key, "meilisearch_") {
-			onSearchConfigSaved()
-		}
+	searchConfigListenOnce.Do(func() {
+		sharedstate.OnNotify("config_changed", func(key string) {
+			if key == "" || strings.HasPrefix(key, "meilisearch_") {
+				onSearchConfigSaved()
+			}
+		})
 	})
 }
 
 func onSearchConfigSaved() {
-	searchClientHolder.mu.Lock()
-	inline := searchClientHolder.syncInline
-	searchClientHolder.mu.Unlock()
-	if inline {
-		EnsureSearchReady()
-	} else {
-		go EnsureSearchReady()
+	if repo.GetDB() == nil {
+		return
 	}
+	runSearchGoroutine("config_saved", EnsureSearchReady)
 }
 
 // ---- 索引文档结构（物理只存公开数据与最小公开字段） ----
@@ -374,6 +379,9 @@ func indexSettingsMap() map[string]meili.IndexSettings {
 
 // EnsureSearchReady 确保四个公开索引结构就绪；若索引尚未创建或全空而数据库已有公开数据，则自动启动后台回填
 func EnsureSearchReady() {
+	if repo.GetDB() == nil {
+		return
+	}
 	client, cfg, ok := activeMeiliClient(searchWriteTimeout)
 	if !ok {
 		return
@@ -441,6 +449,9 @@ func IsSearchReindexing() bool {
 
 // TriggerSearchReindex 触发全站公开资源索引平滑重建（多副本互斥，已有任务在跑时直接返回 AlreadyRunning）
 func TriggerSearchReindex() (dto.ReindexSearchResp, error) {
+	if repo.GetDB() == nil {
+		return dto.ReindexSearchResp{}, repo.ErrDatabaseNotInitialized
+	}
 	_, _, ok := activeMeiliClient(searchWriteTimeout)
 	if !ok {
 		return dto.ReindexSearchResp{}, fmt.Errorf("meilisearch is not enabled")
@@ -464,6 +475,9 @@ func TriggerSearchReindex() (dto.ReindexSearchResp, error) {
 			}
 		}()
 		defer func() {
+			if r := recover(); r != nil {
+				logrus.Errorf("search full reindex panicked: %v\n%s", r, debug.Stack())
+			}
 			close(stopWatch)
 			cancel()
 			lease.Release()
@@ -474,20 +488,13 @@ func TriggerSearchReindex() (dto.ReindexSearchResp, error) {
 		}
 		_ = sharedstate.Current().Delete(searchReindexPendingKey)
 	}
-	searchClientHolder.mu.Lock()
-	inline := searchClientHolder.syncInline
-	searchClientHolder.mu.Unlock()
-	if inline {
-		runReindex()
-	} else {
-		go runReindex()
-	}
+	runSearchGoroutine("full_reindex", runReindex)
 	return dto.ReindexSearchResp{Started: true}, nil
 }
 
 // ResumeSearchReindex 定时故障恢复：若上次重建因实例滚动更新中断，租约过期后由存活实例接手完成
 func ResumeSearchReindex() {
-	if !IsSearchReindexing() {
+	if repo.GetDB() == nil || !IsSearchReindexing() {
 		return
 	}
 	if !tools.GetMeilisearchConfig().Enabled() {
@@ -674,7 +681,7 @@ func pruneStaleDocIDs(ctx context.Context, client *meili.Client, uid string, val
 
 // ReconcileSearchIndexes 定时轻量对账：补齐偶发网络抖动漏写的公开文档、清理已转私密或已删除的残留文档
 func ReconcileSearchIndexes() {
-	if IsSearchReindexing() {
+	if repo.GetDB() == nil || IsSearchReindexing() {
 		return
 	}
 	client, cfg, ok := activeMeiliClient(searchWriteTimeout)

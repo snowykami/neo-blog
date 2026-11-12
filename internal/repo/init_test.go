@@ -1,6 +1,8 @@
 package repo
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -181,5 +183,38 @@ func TestInitDatabaseFromSQLiteURL(t *testing.T) {
 	}
 	if foreignKeys != 1 {
 		t.Errorf("foreign_keys = %d, want 1 from DB_URL params", foreignKeys)
+	}
+}
+
+// 数据库尚未初始化时调用 Ping 或 KV 读写应返回错误或默认值，不能空指针 panic
+func TestKVAndPingWhenDatabaseUninitialized(t *testing.T) {
+	prev := db
+	db = nil
+	KV.resetCache()
+	t.Cleanup(func() {
+		db = prev
+		KV.resetCache()
+	})
+
+	if err := Ping(context.Background()); !errors.Is(err, ErrDatabaseNotInitialized) {
+		t.Fatalf("Ping when db==nil = %v, want ErrDatabaseNotInitialized", err)
+	}
+	if _, err := KV.GetKV("meilisearch_enable"); !errors.Is(err, ErrDatabaseNotInitialized) {
+		t.Fatalf("GetKV when db==nil = %v, want ErrDatabaseNotInitialized", err)
+	}
+	if got := KV.GetKVWithoutErr("meilisearch_enable"); got != nil {
+		t.Fatalf("GetKVWithoutErr without default when db==nil = %v, want nil", got)
+	}
+	if got := KV.GetBoolWithoutErr("meilisearch_enable", false); got != false {
+		t.Fatalf("GetBoolWithoutErr when db==nil = %v, want false", got)
+	}
+	if err := KV.SetKV("k", "v"); !errors.Is(err, ErrDatabaseNotInitialized) {
+		t.Fatalf("SetKV when db==nil = %v, want ErrDatabaseNotInitialized", err)
+	}
+	if _, err := KV.ListKV(""); !errors.Is(err, ErrDatabaseNotInitialized) {
+		t.Fatalf("ListKV when db==nil = %v, want ErrDatabaseNotInitialized", err)
+	}
+	if err := KV.DeleteKV("k"); !errors.Is(err, ErrDatabaseNotInitialized) {
+		t.Fatalf("DeleteKV when db==nil = %v, want ErrDatabaseNotInitialized", err)
 	}
 }

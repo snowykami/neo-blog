@@ -193,8 +193,16 @@ func TestNotifyAcrossInstances(t *testing.T) {
 	t.Cleanup(UseMemory)
 
 	got := make(chan string, 4)
+	got2 := make(chan string, 4)
 	OnNotify("test_channel", func(message string) { got <- message })
+	// 同一频道注册第二个回调时不应触发伪断线重连的空消息广播
+	OnNotify("test_channel", func(message string) { got2 <- message })
 	time.Sleep(100 * time.Millisecond) // 等订阅生效
+	select {
+	case unexpected := <-got:
+		t.Fatalf("unexpected message on duplicate OnNotify: %q", unexpected)
+	default:
+	}
 
 	// 本实例发出的消息不回传给自己
 	Notify("test_channel", "self")
@@ -202,13 +210,35 @@ func TestNotifyAcrossInstances(t *testing.T) {
 	if err := Current().Publish("test_channel", "other-instance|hello"); err != nil {
 		t.Fatal(err)
 	}
-	select {
-	case message := <-got:
-		if message != "hello" {
-			t.Fatalf("got %q, want message from the other instance only", message)
+	for i, ch := range []chan string{got, got2} {
+		select {
+		case message := <-ch:
+			if message != "hello" {
+				t.Fatalf("handler #%d got %q, want message from the other instance only", i, message)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatalf("handler #%d notification not received", i)
 		}
-	case <-time.After(2 * time.Second):
-		t.Fatalf("notification not received")
+	}
+}
+
+// 多个回调订阅同一频道时：单个回调 panic 不影响后续回调执行，本实例消息自动忽略
+func TestDispatchMultipleHandlersAndPanicIsolation(t *testing.T) {
+	chName := "panic_isolation_" + randomToken()[:8]
+	var secondCalled string
+	OnNotify(chName, func(string) {
+		panic("boom")
+	})
+	OnNotify(chName, func(msg string) {
+		secondCalled = msg
+	})
+	dispatch(chName, InstanceID()+"|ignored")
+	if secondCalled != "" {
+		t.Fatalf("self message should be ignored, got %q", secondCalled)
+	}
+	dispatch(chName, "other-node|meilisearch_enable")
+	if secondCalled != "meilisearch_enable" {
+		t.Fatalf("second handler after panicking handler got %q, want meilisearch_enable", secondCalled)
 	}
 }
 
