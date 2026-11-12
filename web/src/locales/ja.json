@@ -186,9 +186,15 @@
     "view_attachment": "画像 {name} を表示",
     "download_attachment": "{name} をダウンロード",
     "mention_candidates": "@ する相手を選択",
+    "mention_suggested": "このスレッドの参加者",
+    "mention_type_hint": "ユーザー名・ニックネームを入力して検索…",
     "mention_searching": "検索中…",
     "mention_empty": "一致するユーザーがいません",
-    "mention_profile": "@{username} のプロフィールを見る"
+    "mention_profile": "@{username} のプロフィールを見る",
+    "mention_button": "ユーザーをメンション",
+    "mention_button_hint": "@ でユーザーをメンション",
+    "mentions_max": "1 件のコメントでメンションできるのは最大 {count} 人です",
+    "mention_author": "著者"
   },
   "Common": {
     "image_load_failed": "画像を読み込めませんでした",

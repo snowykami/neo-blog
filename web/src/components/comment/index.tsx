@@ -2,9 +2,10 @@
 import type { CommentSubmitPayload } from './comment-input'
 import type { ActiveInput } from './comment-item'
 import type { Comment } from '@/models/comment'
+import type { UserBrief } from '@/models/user'
 import { Loader2, MessageCircleHeartIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { createComment, deleteComment, getComment, listComments } from '@/api/comment'
 import { notifySuccess } from '@/components/layout/topbar-island/island-feedback'
@@ -27,11 +28,13 @@ export function CommentSection({
   targetId,
   totalCount = 0,
   ownerId,
+  owner,
 }: {
   targetType: TargetType
   targetId: number
   totalCount?: number
   ownerId?: number
+  owner?: UserBrief
 }) {
   const { siteInfo } = useSiteInfo()
   const t = useTranslations('Comment')
@@ -281,6 +284,20 @@ export function CommentSection({
     })
   }
 
+  // 本帖上下文候选用户：文章作者优先，其次是当前已加载评论及回复摘要中的参与者
+  const sectionUsers = useMemo(() => {
+    const list: UserBrief[] = []
+    if (owner)
+      list.push(owner)
+    for (const c of comments) {
+      if (c.user)
+        list.push(c.user)
+      if (c.threadUsers)
+        list.push(...c.threadUsers)
+    }
+    return list
+  }, [comments, owner])
+
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -305,7 +322,13 @@ export function CommentSection({
         </div>
       </div>
       <div className="mt-4">
-        <CommentInput collapsible showAvatar onCommentSubmitted={onCommentSubmitted} />
+        <CommentInput
+          collapsible
+          showAvatar
+          contextUsers={sectionUsers}
+          ownerId={ownerId}
+          onCommentSubmitted={onCommentSubmitted}
+        />
       </div>
       <div className="mt-2" key={viewerEpoch}>
         {initialLoading
@@ -319,6 +342,7 @@ export function CommentSection({
                 setActiveInputId={setActiveInput}
                 onCountChange={onCountChange}
                 ownerId={ownerId}
+                sectionUsers={sectionUsers}
                 translatable={translatable}
                 focusRootId={focus?.rootId}
                 focusCommentId={focus?.commentId}

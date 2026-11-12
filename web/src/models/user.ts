@@ -1,9 +1,10 @@
-// 提及候选用的最小用户信息（后端 UserBriefDto），不含邮箱哈希等字段
+// 提及候选用的最小用户信息（后端 UserBriefDto），不含邮箱哈希等字段；本地上下文候选可带已公开的 gravatarHash
 export interface UserBrief {
   id: number
   username: string
   nickname?: string
   avatarUrl?: string
+  gravatarHash?: string
   isAi?: boolean
 }
 

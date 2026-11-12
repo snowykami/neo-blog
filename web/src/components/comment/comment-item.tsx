@@ -1,6 +1,6 @@
 import type { CommentSubmitPayload } from './comment-input'
 import type { Comment, CommentTranslation } from '@/models/comment'
-import type { User } from '@/models/user'
+import type { User, UserBrief } from '@/models/user'
 import { ChevronDown, Ellipsis, Languages, Loader2, Lock, MessageCircleHeartIcon, Reply } from 'lucide-react'
 import { useLocale, useTranslations } from 'next-intl'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -43,6 +43,7 @@ const THREAD_PAGE = 5
 export function CommentItem({
   comment,
   ownerId,
+  sectionUsers,
   onCommentDelete,
   activeInput,
   setActiveInputId,
@@ -53,6 +54,7 @@ export function CommentItem({
 }: {
   comment: Comment
   ownerId?: number // 不是评论的作者ID，而是文章的作者ID
+  sectionUsers?: UserBrief[] // 本帖上下文候选用户（文章作者与其他评论者）
   onCommentDelete: ({ commentId }: { commentId: number }) => Promise<void>
   activeInput: ActiveInput
   setActiveInputId: (input: ActiveInput) => void
@@ -138,12 +140,26 @@ export function CommentItem({
     onCountChange(-(after === null ? 1 : before - after))
   }
 
+  // 当前线程参与者 + 本帖作者与其他评论者，供回复框与编辑框敲下空 @ 时优先推荐
+  const threadContextUsers = useMemo(() => {
+    const list: UserBrief[] = [root.user]
+    if (replies)
+      replies.forEach(reply => list.push(reply.user))
+    else if (root.threadUsers)
+      list.push(...root.threadUsers)
+    if (sectionUsers)
+      list.push(...sectionUsers)
+    return list
+  }, [replies, root.threadUsers, root.user, sectionUsers])
+
   const replying = activeInput?.type === 'reply' ? activeInput.id : null
   const replyComposer = (target: Comment) => (
     <div className="comment-thread-composer">
       <CommentInput
         autoFocus
         replyTo={target.user.nickname || target.user.username}
+        contextUsers={[target.user, ...threadContextUsers]}
+        ownerId={ownerId}
         initIsPrivate={target.isPrivate}
         onCancel={() => setActiveInputId(null)}
         onCommentSubmitted={payload => onReply(target, payload)}
@@ -193,6 +209,7 @@ export function CommentItem({
           comment={root}
           variant="root"
           ownerId={ownerId}
+          contextUsers={threadContextUsers}
           activeInput={activeInput}
           setActiveInputId={setActiveInputId}
           onDelete={onCommentDelete}
@@ -213,6 +230,7 @@ export function CommentItem({
                     variant="reply"
                     replyToUser={target?.user}
                     ownerId={ownerId}
+                    contextUsers={threadContextUsers}
                     activeInput={activeInput}
                     setActiveInputId={setActiveInputId}
                     onDelete={onReplyDelete}
@@ -262,6 +280,7 @@ function CommentBody({
   variant,
   replyToUser,
   ownerId,
+  contextUsers,
   activeInput,
   setActiveInputId,
   onDelete,
@@ -272,6 +291,7 @@ function CommentBody({
   variant: 'root' | 'reply'
   replyToUser?: User
   ownerId?: number
+  contextUsers?: UserBrief[]
   activeInput: ActiveInput
   setActiveInputId: (input: ActiveInput) => void
   onDelete: ({ commentId }: { commentId: number }) => Promise<void>
@@ -535,6 +555,8 @@ function CommentBody({
             initAttachments={comment.attachments}
             initIsPrivate={comment.isPrivate}
             initShowClientInfo={comment.showClientInfo}
+            contextUsers={[...(comment.mentions ?? []), ...(replyToUser ? [replyToUser] : []), ...(contextUsers ?? [])]}
+            ownerId={ownerId}
             onCancel={() => setActiveInputId(null)}
             onCommentSubmitted={onEdit}
           />

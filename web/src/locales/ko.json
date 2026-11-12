@@ -186,9 +186,15 @@
     "view_attachment": "이미지 {name} 보기",
     "download_attachment": "{name} 다운로드",
     "mention_candidates": "@할 사람 선택",
+    "mention_suggested": "이 대화의 참여자",
+    "mention_type_hint": "사용자 이름이나 닉네임을 입력해 검색…",
     "mention_searching": "검색 중…",
     "mention_empty": "일치하는 사용자가 없습니다",
-    "mention_profile": "@{username} 님의 프로필 열기"
+    "mention_profile": "@{username} 님의 프로필 열기",
+    "mention_button": "사용자 멘션",
+    "mention_button_hint": "@로 사용자 멘션",
+    "mentions_max": "댓글당 최대 {count}명까지 멘션할 수 있습니다",
+    "mention_author": "작성자"
   },
   "Common": {
     "image_load_failed": "이미지를 불러오지 못했습니다",

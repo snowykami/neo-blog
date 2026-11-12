@@ -17,6 +17,11 @@ export function isMentionBoundaryBefore(char: string | undefined): boolean {
   return char === undefined || BOUNDARY_BEFORE.test(char)
 }
 
+/** 在 text 的 index 位置插入 @ 时，前面是否需要自动补一个空格以满足边界规则 */
+export function needsSpaceBeforeMention(text: string, index: number): boolean {
+  return !isMentionBoundaryBefore(charBefore(text, index))
+}
+
 /** 取 index 处的完整字符（含代理对） */
 function charAt(text: string, index: number): string | undefined {
   const code = text.codePointAt(index)
@@ -135,5 +140,41 @@ export function resolveMentions(content: string, mentions: CommentMention[] = []
   })
   if (cursor < content.length)
     segments.push({ type: 'text', text: content.slice(cursor) })
+  return segments
+}
+
+export interface MentionHighlightSegment {
+  text: string
+  matched: boolean
+}
+
+/**
+ * 把输入框正文切成「普通文本 / 已生效的 @用户名」片段，供 Textarea 底层同色高亮镜像使用：
+ * - 只高亮在候选列表里实际选中过（或编辑时原有）的有效用户名，手打未选中的 @某某 保持普通文本
+ * - 严格复用 mentionAt 边界规则，且拼接后与原字符串逐字符一致，绝不改变字符宽度与光标位置
+ */
+export function highlightMentions(content: string, activeUsernames: string[]): MentionHighlightSegment[] {
+  if (!content)
+    return []
+  const names = [...new Set(activeUsernames.filter(Boolean))].sort((a, b) => b.length - a.length)
+  if (names.length === 0)
+    return [{ text: content, matched: false }]
+
+  const segments: MentionHighlightSegment[] = []
+  let cursor = 0
+  for (let index = content.indexOf('@'); index >= 0; index = content.indexOf('@', index + 1)) {
+    if (index < cursor)
+      continue
+    const matchedName = names.find(username => mentionAt(content, index, username))
+    if (!matchedName)
+      continue
+    if (index > cursor)
+      segments.push({ text: content.slice(cursor, index), matched: false })
+    const end = index + 1 + matchedName.length
+    segments.push({ text: content.slice(index, end), matched: true })
+    cursor = end
+  }
+  if (cursor < content.length)
+    segments.push({ text: content.slice(cursor), matched: false })
   return segments
 }

@@ -186,9 +186,15 @@
     "view_attachment": "查看图片 {name}",
     "download_attachment": "下载 {name}",
     "mention_candidates": "选择要 @ 的人",
+    "mention_suggested": "当前讨论与作者",
+    "mention_type_hint": "输入用户名、昵称或拼音搜索…",
     "mention_searching": "搜索中…",
     "mention_empty": "没有匹配的用户",
-    "mention_profile": "查看 @{username} 的主页"
+    "mention_profile": "查看 @{username} 的主页",
+    "mention_button": "提及用户",
+    "mention_button_hint": "@ 提及用户",
+    "mentions_max": "一条评论最多 @ {count} 人",
+    "mention_author": "作者"
   },
   "Common": {
     "image_load_failed": "图片加载失败",

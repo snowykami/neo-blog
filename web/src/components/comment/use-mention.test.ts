@@ -3,7 +3,7 @@ import type { UserBrief } from '@/models/user'
 import { createElement, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { MENTION_DEBOUNCE_MS, useMention } from './use-mention'
+import { MAX_COMMENT_MENTIONS, MENTION_DEBOUNCE_MS, useMention } from './use-mention'
 
 const searchUsers = vi.fn()
 vi.mock('@/api/user', () => ({ searchUsers: (...args: unknown[]) => searchUsers(...args) }))
@@ -35,13 +35,24 @@ afterEach(() => {
   container = null
 })
 
-/** 与 comment-input.tsx 相同的接法：onChange 后等一拍再同步光标，keyup 时也同步 */
-async function mount() {
+/** 与 comment-input.tsx 相同的接法：onChange 后等一拍再同步光标，keyup 与 IME 事件一并接入 */
+async function mount(options: {
+  contextUsers?: UserBrief[]
+  currentUserId?: number
+  onExceedLimit?: () => void
+} = {}) {
   const state: { mention: Mention | null, value: string } = { mention: null, value: '' }
   function Harness() {
     const [value, setValue] = useState('')
     const textareaRef = useRef<HTMLTextAreaElement | null>(null)
-    const mention = useMention({ value, textareaRef, onChange: setValue })
+    const mention = useMention({
+      value,
+      textareaRef,
+      onChange: setValue,
+      contextUsers: options.contextUsers,
+      currentUserId: options.currentUserId,
+      onExceedLimit: options.onExceedLimit,
+    })
     state.mention = mention
     state.value = value
     return createElement('textarea', {
@@ -51,6 +62,8 @@ async function mount() {
         setValue(event.target.value)
         window.setTimeout(mention.syncFromCursor, 0)
       },
+      onCompositionStart: () => mention.setComposing(true),
+      onCompositionEnd: () => mention.setComposing(false),
       onKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => mention.handleKeyDown(event),
       onKeyUp: mention.syncFromCursor,
     })
@@ -73,10 +86,12 @@ async function type(textarea: HTMLTextAreaElement, value: string) {
 }
 
 async function press(textarea: HTMLTextAreaElement, key: string) {
-  textarea.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }))
+  const down = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
+  textarea.dispatchEvent(down)
   await sleep(0)
   textarea.dispatchEvent(new KeyboardEvent('keyup', { key, bubbles: true }))
   await sleep(10)
+  return down
 }
 
 describe('useMention', () => {
@@ -101,6 +116,29 @@ describe('useMention', () => {
     expect(state.value).toBe('@albert ')
     expect(state.mention!.open).toBe(false)
     expect(state.mention!.mentions()).toEqual([3])
+    expect(state.mention!.activeUsernames).toEqual(['albert'])
+  })
+
+  it('刚输入空 @ 时 0ms 弹出当前上下文候选且不请求搜索接口（排除自己与已提及者）', async () => {
+    const contextUsers: UserBrief[] = [
+      { id: 10, username: 'me', nickname: '我' },
+      { id: 11, username: 'author', nickname: '站长' },
+      { id: 12, username: 'reader', nickname: '读者' },
+    ]
+    const { state, textarea } = await mount({ contextUsers, currentUserId: 10 })
+    await type(textarea, '@')
+    expect(state.mention!.open).toBe(true)
+    expect(state.mention!.isEmptyQuery).toBe(true)
+    expect(state.mention!.loading).toBe(false)
+    expect(state.mention!.candidates.map(u => u.username)).toEqual(['author', 'reader'])
+    await sleep(MENTION_DEBOUNCE_MS + 50)
+    expect(searchUsers).not.toHaveBeenCalled()
+
+    await press(textarea, 'Enter')
+    expect(state.value).toBe('@author ')
+    // 再次输入空 @ 时，已提及过的 author 不再重复推荐
+    await type(textarea, '@author @')
+    expect(state.mention!.candidates.map(u => u.username)).toEqual(['reader'])
   })
 
   it('没有匹配时仍打开，显示「没有匹配」', async () => {
@@ -121,6 +159,90 @@ describe('useMention', () => {
     expect(state.mention!.open).toBe(false)
     await type(textarea, '@ali')
     expect(state.mention!.open).toBe(true)
+  })
+
+  it('中文输入法组字期间不抢按键，选词上屏（无 keyup）后立即同步并触发搜索', async () => {
+    searchUsers.mockResolvedValue({ data: { users: [{ id: 21, username: 'xiaoxue', nickname: '小雪' }] } })
+    const { state, textarea } = await mount({
+      contextUsers: [{ id: 11, username: 'author', nickname: '站长' }],
+    })
+    await type(textarea, '@')
+    expect(state.mention!.open).toBe(true)
+
+    textarea.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }))
+    await sleep(0)
+    expect(state.mention!.open).toBe(false)
+
+    // 组字期间 input 先于 compositionend 触发（模拟 Chrome / Safari 鼠标点选输入法候选词，无后续 keyup）
+    nativeSetValue.call(textarea, '@小雪')
+    textarea.setSelectionRange(3, 3)
+    textarea.dispatchEvent(new Event('input', { bubbles: true }))
+    const enterDuringIme = new KeyboardEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true, cancelable: true })
+    textarea.dispatchEvent(enterDuringIme)
+    expect(enterDuringIme.defaultPrevented).toBe(false)
+
+    textarea.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }))
+    await sleep(MENTION_DEBOUNCE_MS + 50)
+    expect(searchUsers).toHaveBeenCalledWith({ query: '小雪' })
+    expect(state.mention!.open).toBe(true)
+    expect(state.mention!.candidates.map(u => u.username)).toEqual(['xiaoxue'])
+  })
+
+  it('工具栏 triggerMention 自动补前导空格，且达到 3 人上限时拦截提示', async () => {
+    const onExceedLimit = vi.fn()
+    const { state, textarea } = await mount({
+      contextUsers: [
+        { id: 1, username: 'u1', nickname: 'U1' },
+        { id: 2, username: 'u2', nickname: 'U2' },
+        { id: 3, username: 'u3', nickname: 'U3' },
+        { id: 4, username: 'u4', nickname: 'U4' },
+      ],
+      onExceedLimit,
+    })
+    await type(textarea, '写得真好')
+    state.mention!.triggerMention()
+    await sleep(10)
+    expect(state.value).toBe('写得真好 @')
+    expect(state.mention!.open).toBe(true)
+
+    await press(textarea, 'Enter')
+    expect(state.value).toBe('写得真好 @u1 ')
+
+    state.mention!.triggerMention()
+    await sleep(10)
+    await press(textarea, 'Enter')
+    state.mention!.triggerMention()
+    await sleep(10)
+    await press(textarea, 'Enter')
+
+    expect(state.mention!.mentionCount).toBe(MAX_COMMENT_MENTIONS)
+    expect(state.mention!.atLimit).toBe(true)
+    expect(state.mention!.mentions()).toEqual([1, 2, 3])
+
+    // 已满 3 人再点 @ 按钮：触发上限提示，不再插入新的 @
+    const before = state.value
+    state.mention!.triggerMention()
+    await sleep(10)
+    expect(onExceedLimit).toHaveBeenCalledTimes(1)
+    expect(state.value).toBe(before)
+  })
+
+  it('回退关键词时直接命中会话缓存，不重复请求后端', async () => {
+    const { state, textarea } = await mount()
+    await type(textarea, '@al')
+    await sleep(MENTION_DEBOUNCE_MS + 50)
+    expect(searchUsers).toHaveBeenCalledTimes(1)
+
+    await type(textarea, '@ali')
+    await sleep(MENTION_DEBOUNCE_MS + 50)
+    expect(searchUsers).toHaveBeenCalledTimes(2)
+
+    // 退格回到 @al：立即命中缓存，loading 为 false 且不再发第 3 次请求
+    await type(textarea, '@al')
+    expect(state.mention!.loading).toBe(false)
+    expect(state.mention!.candidates).toHaveLength(3)
+    await sleep(MENTION_DEBOUNCE_MS + 50)
+    expect(searchUsers).toHaveBeenCalledTimes(2)
   })
 
   it('编辑时原有的提及按正文裁剪：删掉的人不再提交', async () => {

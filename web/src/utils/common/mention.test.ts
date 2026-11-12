@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { detectMentionQuery, mentionsUser, resolveMentions } from './mention'
+import { detectMentionQuery, highlightMentions, mentionsUser, needsSpaceBeforeMention, resolveMentions } from './mention'
 
 // 与后端 internal/service/comment_mention_test.go 共用同一组边界用例
 const boundaryCases: { name: string, content: string, username: string, mentioned: boolean }[] = JSON.parse(
@@ -111,5 +111,28 @@ describe('detectMentionQuery', () => {
   it('片段里有空白或光标已离开时不算', () => {
     expect(detectMentionQuery('@al ice', 7)).toBeNull()
     expect(detectMentionQuery('@alice 你好', 9)).toBeNull()
+  })
+
+  it('刚输入空 @ 时也返回空查询供即时弹上下文候选', () => {
+    expect(detectMentionQuery('@', 1)).toEqual({ start: 0, query: '' })
+    expect(detectMentionQuery('你好 @', 4)).toEqual({ start: 3, query: '' })
+    expect(detectMentionQuery('好的，@', 4)).toEqual({ start: 3, query: '' })
+  })
+})
+
+describe('highlightMentions & needsSpaceBeforeMention', () => {
+  it('只高亮已选中名单内的有效 @用户名，手打未选中的保持普通文本且拼接逐字一致', () => {
+    const content = '你好 @handtyped，谢谢 @zhang.san 和 @zhang！a@zhang 不算'
+    const segments = highlightMentions(content, ['zhang', 'zhang.san'])
+    expect(segments.map(s => s.text).join('')).toBe(content)
+    expect(segments.filter(s => s.matched).map(s => s.text)).toEqual(['@zhang.san', '@zhang'])
+  })
+
+  it('判断是否需要在插入 @ 前补空格', () => {
+    expect(needsSpaceBeforeMention('', 0)).toBe(false)
+    expect(needsSpaceBeforeMention('你好 ', 3)).toBe(false)
+    expect(needsSpaceBeforeMention('好的，', 3)).toBe(false)
+    expect(needsSpaceBeforeMention('你好', 2)).toBe(true)
+    expect(needsSpaceBeforeMention('abc', 3)).toBe(true)
   })
 })

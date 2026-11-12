@@ -215,6 +215,13 @@ export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?
             <CommentSection
               targetType={TargetType.Post}
               ownerId={post.user.id}
+              owner={{
+                id: post.user.id,
+                username: post.user.username,
+                nickname: post.user.nickname,
+                avatarUrl: post.user.avatarUrl,
+                gravatarHash: post.user.gravatarHash,
+              }}
               targetId={post.id}
               totalCount={post.commentCount}
             />

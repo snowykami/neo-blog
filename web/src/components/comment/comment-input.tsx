@@ -1,13 +1,15 @@
 import type { CommentAttachment, CommentMention } from '@/models/comment'
-import { Loader2, Lock, LogIn, Monitor, X } from 'lucide-react'
+import type { UserBrief } from '@/models/user'
+import { AtSign, Loader2, Lock, LogIn, Monitor, X } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { useId, useRef, useState, useSyncExternalStore } from 'react'
+import { useId, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { toast } from 'sonner'
 import { useLoginDialog } from '@/components/auth/login-dialog'
 import { OidcProviderButtons, useOidcProviders } from '@/components/auth/oidc-providers'
 import { GuestAvatar, UserAvatar } from '@/components/common/avatar'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
+import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { Toggle } from '@/components/ui/toggle'
@@ -15,17 +17,19 @@ import { useAuth } from '@/contexts/auth-context'
 import { pastedFilesOf, withPastedFileNames } from '@/hooks/use-clipboard-file-paste'
 import { useOperationT } from '@/hooks/use-translations'
 import { Link, usePathname } from '@/i18n/navigation'
+import { isComposingKey } from '@/lib/ime'
 import { isMac } from '@/lib/tiptap-utils'
 import { cn } from '@/lib/utils'
+import { highlightMentions, mentionsUser } from '@/utils/common/mention'
 import { getUserUrl } from '@/utils/common/route'
 import { CommentAttachmentButton, CommentAttachmentList, useCommentAttachments } from './comment-attachment-input'
 import { CommentLengthRing } from './comment-length-ring'
 import { commentCharCount, useCommentLimits } from './comment-limits'
 import { MentionCandidates, mentionOptionId } from './mention-candidates'
-import { useMention } from './use-mention'
+import { MAX_COMMENT_MENTIONS, useMention } from './use-mention'
 
 /**
- * 评论框：未登录时显示登录邀请卡片；登录后为带工具栏的输入框（附件、私密、显示设备信息、⌘/Ctrl + Enter 发布）。
+ * 评论框：未登录时显示登录邀请卡片；登录后为带工具栏的输入框（附件、@提及、私密、显示设备信息、⌘/Ctrl + Enter 发布）。
  * 附件可直接粘贴 / 拖入，也可从资产库选择，排在文字之后展示；有附件时可以不写文字。
  * collapsible 时平时收起成一行，聚焦或有内容时展开工具栏；replyTo 时在框内显示「回复 @某人」
  */
@@ -42,6 +46,8 @@ export function CommentInput({
   showAvatar = false,
   autoFocus = false,
   replyTo,
+  contextUsers,
+  ownerId,
   onCancel,
 }: {
   onCommentSubmitted: (payload: CommentSubmitPayload) => Promise<void> // 失败时需 reject，以便保留输入内容
@@ -56,6 +62,8 @@ export function CommentInput({
   showAvatar?: boolean // 在输入框左侧显示当前用户头像（主评论框）
   autoFocus?: boolean
   replyTo?: string // 回复对象的名字
+  contextUsers?: UserBrief[] // 本帖作者与当前讨论参与者，敲下空 @ 时 0ms 即时推荐
+  ownerId?: number // 文章/页面作者 ID，用于在候选里标注「作者」
   onCancel?: () => void
 }) {
   const { user, loading: authLoading } = useAuth()
@@ -79,6 +87,9 @@ export function CommentInput({
     value: commentContent,
     textareaRef,
     onChange: setCommentContent,
+    contextUsers,
+    currentUserId: user?.id,
+    onExceedLimit: () => toast.warning(t('mentions_max', { count: MAX_COMMENT_MENTIONS })),
   })
   // 编辑已有评论时带上原来的提及，之后新选的会追加在后面
   const [seeded, setSeeded] = useState(false)
@@ -87,6 +98,16 @@ export function CommentInput({
     setSeeded(true)
   }
 
+  const hasHighlight = mention.activeUsernames.length > 0 && commentContent.length > 0
+  const highlightSegments = useMemo(
+    () => (hasHighlight ? highlightMentions(commentContent, mention.activeUsernames) : []),
+    [commentContent, hasHighlight, mention.activeUsernames],
+  )
+  const initMentionIds = useMemo(
+    () => [...new Set((initMentions ?? []).filter(m => mentionsUser(initContent, m.username)).map(m => m.id))].slice(0, MAX_COMMENT_MENTIONS),
+    [initContent, initMentions],
+  )
+
   // 登录状态在浏览器里确认，确认前显示占位，避免先闪出登录邀请
   if (authLoading)
     return <Skeleton aria-hidden className="h-24 w-full rounded-xl" />
@@ -94,10 +115,15 @@ export function CommentInput({
     return <GuestInvite />
 
   const empty = !commentContent.trim() && attachments.items.length === 0
-  const expanded = !collapsible || focused || !empty || attachments.pickerOpen
+  const expanded = !collapsible || focused || !empty || attachments.pickerOpen || mention.open
   const attachmentIds = attachments.attachments.map(attachment => attachment.id)
-  const unchanged = isUpdate && commentContent.trim() === initContent.trim() && isPrivate === initIsPrivate && showClientInfo === initShowClientInfo
+  const currentMentionIds = mention.mentions()
+  const unchanged = isUpdate
+    && commentContent.trim() === initContent.trim()
+    && isPrivate === initIsPrivate
+    && showClientInfo === initShowClientInfo
     && attachmentIds.join() === (initAttachments ?? []).map(attachment => attachment.id).join()
+    && currentMentionIds.join() === initMentionIds.join()
 
   const handleCommentSubmit = async () => {
     if (submitting)
@@ -124,7 +150,7 @@ export function CommentInput({
         attachments: attachments.attachments,
         isPrivate,
         showClientInfo,
-        mentionUserIds: mention.mentions(),
+        mentionUserIds: currentMentionIds,
       })
       // 仅在提交成功后清空，失败时保留用户输入
       setCommentContent('')
@@ -157,8 +183,13 @@ export function CommentInput({
           (focused || !collapsible) && 'border-primary/50 ring-3 ring-primary/15',
         )}
         onFocus={() => setFocused(true)}
-        // 焦点移到框内的按钮上时不收起
-        onBlur={e => !e.currentTarget.contains(e.relatedTarget) && setFocused(false)}
+        // 焦点移出评论框时收起工具栏与提及浮层（浮层内部按钮阻止了 mousedown 默认失焦，不受影响）
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget)) {
+            setFocused(false)
+            mention.close()
+          }
+        }}
         // 拖入文件作为附件，避免浏览器直接打开文件；资产库弹窗（Portal）里的拖放事件也会冒泡到这里，需排除
         onDragOver={e => e.currentTarget.contains(e.target as Node) && e.dataTransfer.types.includes('Files') && e.preventDefault()}
         onDrop={(e) => {
@@ -179,61 +210,131 @@ export function CommentInput({
             )}
           </span>
         )}
-        <Textarea
-          ref={textareaRef}
-          // 回复与编辑时打开即可输入
-          autoFocus={autoFocus}
-          placeholder={placeholder || (isPrivate ? t('private_placeholder') : t('placeholder'))}
-          aria-label={placeholder || t('placeholder')}
-          // @ 候选列表展开时，读屏通过 activedescendant 得知当前选中的候选（焦点仍留在输入框）
-          aria-autocomplete="list"
-          aria-expanded={mention.open}
-          aria-controls={mention.open ? mentionListId : undefined}
-          aria-activedescendant={mention.open && mention.candidates.length > 0 ? mentionOptionId(mentionListId, mention.activeIndex) : undefined}
-          className={cn('resize-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent', expanded ? 'min-h-16' : 'min-h-10')}
-          value={commentContent}
-          onChange={(e) => {
-            setCommentContent(e.target.value)
-            // 光标位置要等 React 更新完 value 才准
-            window.setTimeout(mention.syncFromCursor, 0)
-          }}
-          onCompositionStart={() => mention.setComposing(true)}
-          onCompositionEnd={() => mention.setComposing(false)}
-          // 点击、方向键移动光标后重新判断是否还在 @片段 里
-          onClick={mention.syncFromCursor}
-          onKeyUp={mention.syncFromCursor}
-          // 粘贴截图、图片或文件时作为附件上传，文字照常粘贴
-          onPaste={(e) => {
-            const files = pastedFilesOf(e.clipboardData)
-            if (files.length === 0)
-              return
-            e.preventDefault()
-            attachments.addFiles(withPastedFileNames(files))
-          }}
-          onKeyDown={(e) => {
-            // 提及候选展开时优先让上下键与回车选中候选
-            if (mention.handleKeyDown(e))
-              return
-            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-              e.preventDefault()
-              void handleCommentSubmit()
-            }
-          }}
-        />
-        {mention.open && (
-          <MentionCandidates
-            id={mentionListId}
-            candidates={mention.candidates}
-            activeIndex={mention.activeIndex}
-            loading={mention.loading}
-            onPick={mention.select}
-            onHover={mention.setActiveIndex}
-          />
-        )}
+        <Popover open={mention.open}>
+          <PopoverAnchor asChild>
+            <div className="relative grid">
+              {hasHighlight && (
+                <div
+                  aria-hidden="true"
+                  className={cn(
+                    'pointer-events-none col-start-1 row-start-1 w-full px-3 py-2 font-sans text-base leading-6 whitespace-pre-wrap wrap-break-word md:text-sm md:leading-5',
+                    expanded ? 'min-h-16' : 'min-h-10',
+                  )}
+                >
+                  {highlightSegments.map((seg, index) => seg.matched
+                    ? (
+                        <mark
+                          key={index}
+                          className={cn(
+                            'rounded-[3px] bg-primary/15',
+                            mention.composing ? 'text-transparent' : 'text-primary',
+                          )}
+                        >
+                          {seg.text}
+                        </mark>
+                      )
+                    : (
+                        <span key={index} className={mention.composing ? 'text-transparent' : 'text-foreground'}>
+                          {seg.text}
+                        </span>
+                      ))}
+                  {commentContent.endsWith('\n') ? '\u200B' : null}
+                </div>
+              )}
+              <Textarea
+                ref={textareaRef}
+                // 回复与编辑时打开即可输入
+                autoFocus={autoFocus}
+                placeholder={placeholder || (isPrivate ? t('private_placeholder') : t('placeholder'))}
+                aria-label={placeholder || t('placeholder')}
+                // @ 候选列表展开时，读屏通过 activedescendant 得知当前选中的候选（焦点仍留在输入框）
+                aria-autocomplete="list"
+                aria-expanded={mention.open}
+                aria-controls={mention.open ? mentionListId : undefined}
+                aria-activedescendant={mention.open && mention.candidates.length > 0 ? mentionOptionId(mentionListId, mention.activeIndex) : undefined}
+                className={cn(
+                  'col-start-1 row-start-1 resize-none border-0 bg-transparent px-3 py-2 font-sans text-base leading-6 wrap-break-word shadow-none focus-visible:ring-0 md:text-sm md:leading-5 dark:bg-transparent',
+                  expanded ? 'min-h-16' : 'min-h-10',
+                  hasHighlight && 'overflow-hidden',
+                  hasHighlight && !mention.composing && 'text-transparent caret-foreground selection:bg-primary/20 selection:text-transparent',
+                )}
+                value={commentContent}
+                onChange={(e) => {
+                  setCommentContent(e.target.value)
+                  // 光标位置要等 React 更新完 value 才准
+                  window.setTimeout(mention.syncFromCursor, 0)
+                }}
+                onCompositionStart={() => mention.setComposing(true)}
+                onCompositionEnd={() => mention.setComposing(false)}
+                // 点击、方向键移动光标后重新判断是否还在 @片段 里
+                onClick={mention.syncFromCursor}
+                onKeyUp={mention.syncFromCursor}
+                // 粘贴截图、图片或文件时作为附件上传，文字照常粘贴
+                onPaste={(e) => {
+                  const files = pastedFilesOf(e.clipboardData)
+                  if (files.length === 0)
+                    return
+                  e.preventDefault()
+                  attachments.addFiles(withPastedFileNames(files))
+                }}
+                onKeyDown={(e) => {
+                  // 提及候选展开时优先让上下键与回车选中候选（IME 组字期间内部直接放行）
+                  if (mention.handleKeyDown(e))
+                    return
+                  if (!isComposingKey(e) && e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault()
+                    void handleCommentSubmit()
+                  }
+                }}
+              />
+            </div>
+          </PopoverAnchor>
+          <PopoverContent
+            align="start"
+            side="bottom"
+            sideOffset={6}
+            collisionPadding={12}
+            onOpenAutoFocus={e => e.preventDefault()}
+            onCloseAutoFocus={e => e.preventDefault()}
+            onMouseDown={e => e.preventDefault()}
+            className="w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-xl p-0 shadow-lg"
+          >
+            <MentionCandidates
+              id={mentionListId}
+              candidates={mention.candidates}
+              activeIndex={mention.activeIndex}
+              loading={mention.loading}
+              isEmptyQuery={mention.isEmptyQuery}
+              atLimit={mention.atLimit}
+              mentionCount={mention.mentionCount}
+              ownerId={ownerId}
+              onPick={mention.select}
+              onHover={mention.setActiveIndex}
+            />
+          </PopoverContent>
+        </Popover>
         <CommentAttachmentList state={attachments} />
         {expanded && (
           <div className="flex flex-wrap items-center gap-1.5 px-2 pb-2">
             <CommentAttachmentButton state={attachments} />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              aria-disabled={mention.atLimit}
+              title={mention.atLimit ? t('mentions_max', { count: MAX_COMMENT_MENTIONS }) : t('mention_button_hint')}
+              aria-label={t('mention_button')}
+              onMouseDown={e => e.preventDefault()}
+              onClick={mention.triggerMention}
+              className={cn(
+                'h-7 rounded-full px-2.5 text-xs font-normal text-muted-foreground max-sm:h-9 max-sm:px-3',
+                mention.mentionCount > 0 && 'text-primary hover:text-primary',
+                mention.atLimit && 'opacity-60',
+              )}
+            >
+              <AtSign className="size-3.5" />
+              {mention.mentionCount > 0 && <span className="tabular-nums">{`${mention.mentionCount}/${MAX_COMMENT_MENTIONS}`}</span>}
+            </Button>
             <Toggle
               size="sm"
               variant="outline"

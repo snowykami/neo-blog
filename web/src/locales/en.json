@@ -186,9 +186,15 @@
     "view_attachment": "View image {name}",
     "download_attachment": "Download {name}",
     "mention_candidates": "Choose someone to mention",
+    "mention_suggested": "In this discussion",
+    "mention_type_hint": "Type a username or nickname to search…",
     "mention_searching": "Searching…",
     "mention_empty": "No matching users",
-    "mention_profile": "Open the profile of @{username}"
+    "mention_profile": "Open the profile of @{username}",
+    "mention_button": "Mention user",
+    "mention_button_hint": "Mention someone (@)",
+    "mentions_max": "Up to {count} mentions per comment",
+    "mention_author": "Author"
   },
   "Common": {
     "image_load_failed": "Image failed to load",

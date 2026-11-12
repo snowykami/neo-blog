@@ -186,9 +186,15 @@
     "view_attachment": "檢視圖片 {name}",
     "download_attachment": "下載 {name}",
     "mention_candidates": "選擇要 @ 的人",
+    "mention_suggested": "目前討論與作者",
+    "mention_type_hint": "輸入使用者名稱、暱稱或拼音搜尋…",
     "mention_searching": "搜尋中…",
     "mention_empty": "沒有符合的使用者",
-    "mention_profile": "查看 @{username} 的主頁"
+    "mention_profile": "查看 @{username} 的主頁",
+    "mention_button": "提及使用者",
+    "mention_button_hint": "@ 提及使用者",
+    "mentions_max": "一則評論最多 @ {count} 人",
+    "mention_author": "作者"
   },
   "Common": {
     "image_load_failed": "圖片載入失敗",
