@@ -1,9 +1,20 @@
-/* 正文图片可点击放大预览（链接内的图片保持跳转） */
-.prose img:not(a img) {
+/* 正文图片可点击放大预览（链接内与组件岛内的图片保持各自原有交互） */
+.prose img:not(a img):not([data-component] img) {
   cursor: zoom-in;
 }
 
-/* 预览中的图片保留系统长按菜单，便于移动端长按保存 */
+/* 预览中的图片保留系统长按菜单，便于移动端长按保存，同时禁止原生拖拽幽灵图 */
 .content-image-viewer-img {
   -webkit-touch-callout: default;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+/* 底部缩略图导航条隐藏原生滚动条 */
+.content-image-viewer-thumbs {
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }

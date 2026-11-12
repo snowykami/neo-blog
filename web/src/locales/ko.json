@@ -78,6 +78,13 @@
     "next": "다음 이미지",
     "zoom_in": "확대",
     "zoom_out": "축소",
+    "reset_zoom": "확대/축소 초기화",
+    "rotate": "90° 회전",
+    "open_original": "원본 이미지 열기",
+    "loading": "이미지 불러오는 중…",
+    "load_failed": "이미지를 불러오지 못했습니다",
+    "thumbnails": "썸네일 목록",
+    "go_to_image": "{index}번째 이미지로 이동",
     "close": "닫기"
   },
   "ContentCard": {

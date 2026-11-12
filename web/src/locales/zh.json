@@ -78,6 +78,13 @@
     "next": "下一张",
     "zoom_in": "放大",
     "zoom_out": "缩小",
+    "reset_zoom": "重置缩放",
+    "rotate": "旋转 90°",
+    "open_original": "查看原图",
+    "loading": "图片加载中…",
+    "load_failed": "图片加载失败",
+    "thumbnails": "图片列表",
+    "go_to_image": "查看第 {index} 张图片",
     "close": "关闭"
   },
   "ContentCard": {

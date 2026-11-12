@@ -78,6 +78,13 @@
     "next": "Next image",
     "zoom_in": "Zoom in",
     "zoom_out": "Zoom out",
+    "reset_zoom": "Reset zoom",
+    "rotate": "Rotate 90°",
+    "open_original": "Open original",
+    "loading": "Loading image…",
+    "load_failed": "Failed to load image",
+    "thumbnails": "Image thumbnails",
+    "go_to_image": "Go to image {index}",
     "close": "Close"
   },
   "ContentCard": {
