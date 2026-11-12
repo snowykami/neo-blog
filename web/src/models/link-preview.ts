@@ -1,4 +1,4 @@
-// 外链预览：由 /api/get-link-info 抓取网页元信息生成
+// 外链预览：由后端 /api/v1/misc/link-preview 抓取网页元信息生成
 export interface LinkPreview {
   /** 网页标题；取不到时为空，由前端显示域名 */
   title: string

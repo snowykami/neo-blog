@@ -10,6 +10,7 @@ import { ContentImageFallback } from '@/components/blog-post/content-image-fallb
 import { ContentImageViewer } from '@/components/blog-post/content-image-viewer'
 import { PageInfoCard } from '@/components/blog-post/page-info-card'
 import { PostToc } from '@/components/blog-post/post-toc.client'
+import { LinkPreviewScopeProvider } from '@/components/common/link-preview-context'
 import { SafeImage } from '@/components/common/safe-image'
 import { VisitReporter } from '@/components/common/visit-reporter'
 import { ComponentIslands } from '@/components/content-components/component-islands'
@@ -56,8 +57,10 @@ export async function PageView({ page, isDraft = false }: { page: PageModel, isD
     <>
       <ContentFontLinks fonts={contentWebFonts(theme, html)} />
       <HtmlEnhancer containerId="page-content" />
-      <ComponentIslands containerId="page-content" />
-      <ContentHoverCard containerId="page-content" />
+      <LinkPreviewScopeProvider targetType="page" targetId={page.id}>
+        <ComponentIslands containerId="page-content" />
+        <ContentHoverCard containerId="page-content" />
+      </LinkPreviewScopeProvider>
       <ContentImageFallback containerId="page-content" />
       <ContentHdrText containerId="page-content" />
       <ContentImageViewer containerId="page-content" />

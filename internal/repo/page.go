@@ -54,6 +54,22 @@ func (p *pageRepo) GetPageMeta(id uint) (*PostMeta, error) {
 	return &meta, nil
 }
 
+// GetPublicPageContent 公开正文页面的 HTML 内容，供外链预览白名单提取使用；私密、非正文类型或不存在时返回 gorm.ErrRecordNotFound
+func (p *pageRepo) GetPublicPageContent(id uint) (string, error) {
+	var row struct {
+		Kind    string
+		Content string
+	}
+	if err := GetDB().Model(&model.Page{}).Select("kind", "content").
+		Where("id = ? AND is_private = ?", id, false).Take(&row).Error; err != nil {
+		return "", err
+	}
+	if model.NormalizePageKind(row.Kind) != model.PageKindContent {
+		return "", gorm.ErrRecordNotFound
+	}
+	return row.Content, nil
+}
+
 // GetPageByID 按 id 查询页面，内部流程使用，避免纯数字 slug 遮蔽同数字 id 的页面
 func (p *pageRepo) GetPageByID(id uint) (*model.Page, error) {
 	var page model.Page

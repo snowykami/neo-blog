@@ -151,6 +151,33 @@ func (p *postRepo) GetPublicPostStats(id uint) (*dto.PostStatsDto, error) {
 	return &stats, nil
 }
 
+// GetPublicPostContentHash 公开文章的正文哈希：外链白名单命中缓存时不必读取整篇正文
+func (p *postRepo) GetPublicPostContentHash(id uint) (string, error) {
+	var row struct {
+		ContentHash string
+	}
+	err := GetDB().Model(&model.Post{}).Select("content_hash").
+		Where("id = ? AND is_private = ?", id, false).Take(&row).Error
+	if err != nil {
+		return "", err
+	}
+	return row.ContentHash, nil
+}
+
+// GetPublicPostContent 公开文章的正文与哈希，供外链预览白名单提取使用；私密或不存在时返回 gorm.ErrRecordNotFound
+func (p *postRepo) GetPublicPostContent(id uint) (string, string, error) {
+	var row struct {
+		Content     string
+		ContentHash string
+	}
+	err := GetDB().Model(&model.Post{}).Select("content", "content_hash").
+		Where("id = ? AND is_private = ?", id, false).Take(&row).Error
+	if err != nil {
+		return "", "", err
+	}
+	return row.Content, row.ContentHash, nil
+}
+
 func (p *postRepo) GetPostByID(id uint) (*model.Post, error) {
 	var post model.Post
 	if err := GetDB().Preload(clause.Associations).First(&post, id).Error; err != nil {

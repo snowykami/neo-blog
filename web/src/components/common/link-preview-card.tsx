@@ -1,17 +1,21 @@
 'use client'
 
+import type { LinkPreviewTargetType } from '@/api/link-preview'
 import type { LinkPreview } from '@/models/link-preview'
+import { isAxiosError } from 'axios'
 import { CircleAlertIcon, ExternalLinkIcon, GlobeIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { getLinkPreview } from '@/api/link-preview'
+import { useLinkPreviewScope } from '@/components/common/link-preview-context'
 import { SafeImage } from '@/components/common/safe-image'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { useOperationT } from '@/hooks/use-translations'
 import copyToClipboard from '@/lib/clipboard'
 
-// ready：抓取成功；basic：访客（预览接口仅登录用户可用），只展示链接本身；failed：抓取失败
+// ready：抓取成功；basic：无预览权限场景只展示链接本身；failed：抓取失败
 type PreviewResult
   = | { status: 'ready', preview: LinkPreview }
     | { status: 'basic' }
@@ -20,24 +24,24 @@ type PreviewResult
 // 失败多为对方站点限流、超时等临时问题：失败结果只保留一小段时间，之后再打开卡片会重新请求
 const FAILURE_RETRY_MS = 30_000
 
-// 同一链接的预览只请求一次
+// 同一作用域下同一链接的预览只请求一次
 const previewCache = new Map<string, Promise<PreviewResult>>()
 
-function fetchLinkPreview(url: string) {
-  let task = previewCache.get(url)
+function fetchLinkPreview(url: string, targetType?: LinkPreviewTargetType, targetId?: number) {
+  const cacheKey = `${targetType ?? ''}:${targetId ?? ''}:${url}`
+  let task = previewCache.get(cacheKey)
   if (!task) {
-    task = fetch(`/api/get-link-info?url=${encodeURIComponent(url)}`)
-      .then(async (response): Promise<PreviewResult> => {
-        if (response.ok)
-          return { status: 'ready', preview: await response.json() as LinkPreview }
-        return { status: response.status === 401 ? 'basic' : 'failed' }
+    task = getLinkPreview({ url, targetType, targetId })
+      .then((preview): PreviewResult => ({ status: 'ready', preview }))
+      .catch((err): PreviewResult => {
+        const status = isAxiosError(err) ? err.response?.status : undefined
+        return { status: status === 401 || status === 403 ? 'basic' : 'failed' }
       })
-      .catch((): PreviewResult => ({ status: 'failed' }))
     task.then((result) => {
       if (result.status === 'failed')
-        window.setTimeout(() => previewCache.delete(url), FAILURE_RETRY_MS)
+        window.setTimeout(() => previewCache.delete(cacheKey), FAILURE_RETRY_MS)
     })
-    previewCache.set(url, task)
+    previewCache.set(cacheKey, task)
   }
   return task
 }
@@ -60,26 +64,42 @@ function describeUrl(url: string) {
 
 /**
  * 链接预览卡片：封面、标题、描述，以及始终可用的链接入口（域名 + 完整地址）与复制/打开操作。
- * 加载中、加载失败与访客状态下同样可以直接打开链接（移动端点链接只会弹出卡片，不能只依赖预览成功）
+ * 加载中、加载失败状态下同样可以直接打开链接（移动端点链接只会弹出卡片，不能只依赖预览成功）
  */
-export function LinkPreviewCard({ url, onOpen }: { url: string, onOpen?: () => void }) {
+export function LinkPreviewCard({
+  url,
+  targetType: propTargetType,
+  targetId: propTargetId,
+  onOpen,
+}: {
+  url: string
+  targetType?: LinkPreviewTargetType
+  targetId?: number
+  onOpen?: () => void
+}) {
   const t = useTranslations('ContentCard')
   const operationT = useOperationT()
-  const [result, setResult] = useState<{ url: string } & PreviewResult | null>(null)
+  const scope = useLinkPreviewScope()
+  const targetType = propTargetType ?? scope.targetType
+  const targetId = propTargetId ?? scope.targetId
+  const requestKey = `${targetType ?? ''}:${targetId ?? ''}:${url}`
+  const [result, setResult] = useState<{ key: string } & PreviewResult | null>(null)
 
   useEffect(() => {
+    if (!url)
+      return
     let cancelled = false
-    fetchLinkPreview(url).then((next) => {
+    fetchLinkPreview(url, targetType, targetId).then((next) => {
       if (!cancelled)
-        setResult({ url, ...next })
+        setResult({ key: requestKey, ...next })
     })
     return () => {
       cancelled = true
     }
-  }, [url])
+  }, [url, targetType, targetId, requestKey])
 
   // 切换链接后旧结果不再展示
-  const state = result?.url === url ? result : null
+  const state = result?.key === requestKey ? result : null
   const preview = state?.status === 'ready' ? state.preview : null
   const { host, display } = describeUrl(url)
 

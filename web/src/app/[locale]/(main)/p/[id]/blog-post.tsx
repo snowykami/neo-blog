@@ -20,6 +20,7 @@ import { PostMeta } from '@/components/blog-post/post-meta'
 import { PostToc } from '@/components/blog-post/post-toc.client'
 import { BlogSidebarAbout } from '@/components/blog-sidebar/blog-sidebar-card'
 import { CommentSection } from '@/components/comment'
+import { LinkPreviewScopeProvider } from '@/components/common/link-preview-context'
 import { SafeImage } from '@/components/common/safe-image'
 import { VisitReporter } from '@/components/common/visit-reporter'
 import { ComponentIslands } from '@/components/content-components/component-islands'
@@ -126,11 +127,13 @@ async function PostArticle({ post, html, isDraft }: { post: Post, html: string, 
         dangerouslySetInnerHTML={{ __html: html }}
       />
       <HtmlEnhancer containerId="blog-content" />
-      {/* 正文中的组件块：按注册表懒加载并挂载为交互组件 */}
-      <ComponentIslands containerId="blog-content" />
+      <LinkPreviewScopeProvider targetType="post" targetId={post.id}>
+        {/* 正文中的组件块：按注册表懒加载并挂载为交互组件 */}
+        <ComponentIslands containerId="blog-content" />
+        <ContentHoverCard containerId="blog-content" />
+      </LinkPreviewScopeProvider>
       {/* 草稿预览不计入访客记录 */}
       {!isDraft && <VisitReporter targetType="post" targetId={post.id} />}
-      <ContentHoverCard containerId="blog-content" />
       <ContentImageFallback containerId="blog-content" />
       <ContentHdrText containerId="blog-content" />
       <ContentImageViewer containerId="blog-content" />

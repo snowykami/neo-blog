@@ -8,6 +8,7 @@ import { Suspense, useEffect, useState } from 'react'
 import { getLabels } from '@/api/label'
 import { listPosts } from '@/api/post'
 import { ImageAvatar } from '@/components/common/avatar'
+import { LinkPreviewScopeProvider } from '@/components/common/link-preview-context'
 import { SafeImage } from '@/components/common/safe-image'
 import { ContentView } from '@/components/content-components/content-component-view'
 import { CONTENT_COMPONENT_LOADERS } from '@/components/content-components/runtime-registry.generated'
@@ -265,7 +266,11 @@ export function SidebarComponentCard({ title, name, props, version }: { title: s
   // 组件被删除或版本过高时不渲染（保存配置时已校验过，这里只是兜底）
   if (!def || (version != null && version > def.version))
     return null
-  const view = <ContentView component={def.component} props={props} className="my-0" />
+  const view = (
+    <LinkPreviewScopeProvider targetType="sidebar">
+      <ContentView component={def.component} props={props} className="my-0" />
+    </LinkPreviewScopeProvider>
+  )
   // 组件本体由 next/dynamic 按需加载、不带 Suspense 边界：在这里接住挂起（整张卡片等组件代码到了再出现），
   // 免得冒泡到路由的 loading 边界把整页换回骨架
   return <Suspense fallback={null}>{title ? <SidebarCard title={title}>{view}</SidebarCard> : view}</Suspense>
