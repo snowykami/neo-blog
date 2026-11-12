@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client'
 import { toast } from 'sonner'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EMPTY_LYRICS } from '@/lib/lyrics/types'
-import { MusicProvider, useMusic } from './music-context'
+import { MAX_ABNORMAL_AUTO_SKIPS, MAX_MEDIA_SESSION_STORM_SKIPS, MIN_VALID_PLAY_MS, MusicProvider, useMusic } from './music-context'
 
 // 提示文案直接用键名，便于断言
 vi.mock('next-intl', () => ({ useTranslations: () => (key: string) => key }))
@@ -48,6 +48,7 @@ async function mount({ audible = false } = {}) {
 afterEach(() => {
   act(() => root?.unmount())
   root = null
+  localStorage.clear()
   vi.restoreAllMocks()
   vi.mocked(toast.error).mockClear()
 })
@@ -267,5 +268,148 @@ describe('<audio> 出错', () => {
       audio.dispatchEvent(new Event('error'))
     })
     expect(toast.error).not.toHaveBeenCalled()
+  })
+})
+
+describe('异常自动切歌熔断', () => {
+  it('连续未正常播放就触发 ended 达阈值时停播熔断，之后点播放会重新加载', async () => {
+    await mount()
+    await act(async () => music.replacePlaylist([track(1), track(2), track(3), track(4)], 0))
+    const audio = music.getAudio()!
+    const pause = vi.spyOn(audio, 'pause').mockImplementation(() => {})
+    Object.defineProperty(audio, 'paused', { configurable: true, get: () => false })
+
+    // 前 MAX_ABNORMAL_AUTO_SKIPS - 1 次仍允许自动切歌，兼容偶发单首异常
+    for (let i = 1; i < MAX_ABNORMAL_AUTO_SKIPS; i++) {
+      await act(async () => {
+        audio.dispatchEvent(new Event('play'))
+        audio.dispatchEvent(new Event('ended'))
+      })
+      expect(music.currentTrack?.id).toBe(i + 1)
+      expect(toast.error).not.toHaveBeenCalled()
+    }
+
+    // 第 MAX_ABNORMAL_AUTO_SKIPS 次触发熔断：停在当前曲目（歌3），不再切到歌4
+    await act(async () => {
+      audio.dispatchEvent(new Event('play'))
+      audio.dispatchEvent(new Event('ended'))
+    })
+    expect(music.currentTrack?.id).toBe(MAX_ABNORMAL_AUTO_SKIPS)
+    expect(music.isPlaying).toBe(false)
+    expect(pause).toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('playback_circuit_broken', expect.anything())
+
+    // 熔断后读者手动点播放：重新 load() 并重置计数
+    Object.defineProperty(audio, 'paused', { configurable: true, get: () => true })
+    const load = vi.spyOn(audio, 'load').mockImplementation(() => {})
+    await act(async () => music.play())
+    expect(load).toHaveBeenCalledTimes(1)
+  })
+
+  it('单曲循环下连续异常 ended 同样熔断，不会在同一首死循环重播', async () => {
+    await mount()
+    await act(async () => {
+      music.replacePlaylist([track(1), track(2)], 0)
+      music.setPlayMode('repeat-one')
+    })
+    const audio = music.getAudio()!
+    const playSpy = vi.mocked(audio.play)
+    playSpy.mockClear()
+
+    for (let i = 0; i < MAX_ABNORMAL_AUTO_SKIPS; i++) {
+      await act(async () => {
+        audio.dispatchEvent(new Event('ended'))
+      })
+    }
+    // 前 MAX_ABNORMAL_AUTO_SKIPS - 1 次重播，最后一次熔断不再调用 play()
+    expect(playSpy).toHaveBeenCalledTimes(MAX_ABNORMAL_AUTO_SKIPS - 1)
+    expect(toast.error).toHaveBeenCalledWith('playback_circuit_broken', expect.anything())
+  })
+
+  it('中间有一首正常播放满阈值后清零异常计数，后续继续正常切歌', async () => {
+    let now = 1000
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
+    await mount()
+    await act(async () => music.replacePlaylist([track(1), track(2), track(3), track(4)], 0))
+    const audio = music.getAudio()!
+
+    // 歌1、歌2 异常秒切（计数 = 2）
+    await act(async () => {
+      audio.dispatchEvent(new Event('ended'))
+    })
+    await act(async () => {
+      audio.dispatchEvent(new Event('ended'))
+    })
+    expect(music.currentTrack?.id).toBe(3)
+
+    // 歌3 正常出声播放满 MIN_VALID_PLAY_MS 后自然结束 -> 清零计数并切到歌4
+    await act(async () => {
+      audio.dispatchEvent(new Event('playing'))
+    })
+    now += MIN_VALID_PLAY_MS + 500
+    await act(async () => {
+      audio.dispatchEvent(new Event('ended'))
+    })
+    expect(music.currentTrack?.id).toBe(4)
+    expect(toast.error).not.toHaveBeenCalled()
+
+    // 歌4 即使再次秒切，也从 1 重新计，不会立刻误熔断
+    await act(async () => {
+      audio.dispatchEvent(new Event('ended'))
+    })
+    expect(music.currentTrack?.id).toBe(1)
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('读者主动拖动进度条到末尾后触发 ended 不计为异常', async () => {
+    await mount()
+    await act(async () => music.replacePlaylist([track(1), track(2), track(3), track(4)], 0))
+    const audio = music.getAudio()!
+    Object.defineProperty(audio, 'duration', { configurable: true, value: 200 })
+
+    for (let i = 0; i < MAX_ABNORMAL_AUTO_SKIPS + 1; i++) {
+      await act(async () => {
+        music.seek(199)
+        audio.dispatchEvent(new Event('ended'))
+      })
+    }
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('系统 MediaSession 连续快速未出声切歌触发熔断，界面按钮手动切歌不受限', async () => {
+    let now = 1000
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
+    const handlers = new Map<string, MediaSessionActionHandler | null>()
+    Object.defineProperty(navigator, 'mediaSession', {
+      configurable: true,
+      value: {
+        metadata: null,
+        playbackState: 'none',
+        setActionHandler: vi.fn((action: string, handler: MediaSessionActionHandler | null) => {
+          handlers.set(action, handler)
+        }),
+        setPositionState: vi.fn(),
+      },
+    })
+
+    await mount()
+    await act(async () => music.replacePlaylist([track(1), track(2), track(3), track(4), track(5), track(6)], 0))
+
+    // 界面按钮连续快速点下一首：不受熔断限制
+    for (let i = 0; i < MAX_MEDIA_SESSION_STORM_SKIPS + 2; i++) {
+      now += 100
+      await act(async () => music.next())
+    }
+    expect(toast.error).not.toHaveBeenCalled()
+
+    // 系统 MediaSession 短时间内连续未出声触发 nexttrack：达阈值时熔断
+    const nextTrack = handlers.get('nexttrack')!
+    for (let i = 0; i < MAX_MEDIA_SESSION_STORM_SKIPS; i++) {
+      now += 100
+      await act(async () => {
+        nextTrack({ action: 'nexttrack' })
+      })
+    }
+    expect(toast.error).toHaveBeenCalledWith('playback_circuit_broken', expect.anything())
   })
 })

@@ -182,6 +182,13 @@ const PLAYLIST_FAILED_TOAST_ID = 'music-playlist-failed'
 const PLAYBACK_FAILED_TOAST_ID = 'music-playback-failed'
 // MediaError.MEDIA_ERR_ABORTED：读者或代码中止了加载（如切歌），不算出错
 const MEDIA_ERR_ABORTED = 1
+// 自动切歌熔断阈值（见 spec 5.2）：单首至少实际出声播放满 MIN_VALID_PLAY_MS 才算正常播放；
+// 未主动定位到曲末而连续异常 ended 达 MAX_ABNORMAL_AUTO_SKIPS 次，或系统媒体控制未出声连续快速切歌达 MAX_MEDIA_SESSION_STORM_SKIPS 次时停播熔断
+export const MIN_VALID_PLAY_MS = 2000
+export const MAX_ABNORMAL_AUTO_SKIPS = 3
+const NEAR_END_SEEK_THRESHOLD_S = 5
+const MEDIA_SESSION_STORM_WINDOW_MS = 1500
+export const MAX_MEDIA_SESSION_STORM_SKIPS = 5
 
 const STORAGE_KEY_PLAY_MODE = 'music-play-mode'
 const STORAGE_KEY_SHOW_TRANSLATION = 'music-show-translation'
@@ -503,6 +510,40 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     audioRef.current.muted = isMuted
   }, [isMuted, volume])
 
+  // 单曲实际出声时长统计与自动切歌熔断（见 spec 5.2）：防止浏览器缓存异常、空音频流或系统媒体会话失控导致「不播放、无限切歌」
+  const playedMsRef = useRef(0)
+  const playingSinceRef = useRef<number | null>(null)
+  const seekedNearEndRef = useRef(false)
+  const abnormalEndCountRef = useRef(0)
+  const mediaStormCountRef = useRef(0)
+  const lastMediaSkipAtRef = useRef(0)
+  const circuitTrippedRef = useRef(false)
+
+  const resetTrackPlayStats = useCallback(() => {
+    playedMsRef.current = 0
+    playingSinceRef.current = null
+    seekedNearEndRef.current = false
+  }, [])
+
+  const flushTrackPlayTimer = useCallback(() => {
+    if (playingSinceRef.current != null) {
+      playedMsRef.current += Math.max(0, performance.now() - playingSinceRef.current)
+      playingSinceRef.current = null
+    }
+    return playedMsRef.current
+  }, [])
+
+  const getPlayedMs = useCallback(() => {
+    const active = playingSinceRef.current != null ? Math.max(0, performance.now() - playingSinceRef.current) : 0
+    return playedMsRef.current + active
+  }, [])
+
+  const resetCircuitBreaker = useCallback(() => {
+    abnormalEndCountRef.current = 0
+    mediaStormCountRef.current = 0
+    lastMediaSkipAtRef.current = 0
+  }, [])
+
   // 仅在曲目 id 变化时切换 audio.src，并在 pendingPlay 时尝试播放
   useEffect(() => {
     const audio = audioRef.current
@@ -510,6 +551,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return
     if (currentTrackId == null) {
       if (prevTrackIdRef.current != null) {
+        resetTrackPlayStats()
         audio.removeAttribute('src')
         audio.load()
         prevTrackIdRef.current = null
@@ -521,6 +563,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const track = playlistRef.current[currentIndexRef.current ?? -1]
     prevTrackIdRef.current = currentTrackId
+    resetTrackPlayStats()
     // 切换曲目时重置时长与进度，避免进度条短暂沿用上一首的时长
     setDuration(null)
     clock.set(0)
@@ -533,7 +576,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         /* play 可能被浏览器阻止（自动播放策略），事件监听会同步状态 */
       })
     }
-  }, [clock, currentTrackId])
+  }, [clock, currentTrackId, resetTrackPlayStats])
 
   // 节拍分析（韵律动效）：开启歌词特效时分析当前曲目，结果按歌曲缓存；拿不到时动效回退到固定快慢（见 lib/lyrics/rhythm/source.ts）。
   // 分析要另外下载一整首音频：等这首歌出声后再请求，不跟切歌后的首段缓冲抢带宽；页面不可见时（锁屏、后台用系统媒体控制切歌）
@@ -694,8 +737,11 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       : null
     if (index === currentIndexRef.current) {
       pendingSeekRef.current = null
+      resetTrackPlayStats()
       if (audio) {
         if (pendingSeek) {
+          if (Number.isFinite(audio.duration) && audio.duration > 0 && pendingSeek.time >= audio.duration - NEAR_END_SEEK_THRESHOLD_S)
+            seekedNearEndRef.current = true
           try {
             audio.currentTime = Math.max(0, Math.min(pendingSeek.time, audio.duration || pendingSeek.time))
           }
@@ -715,7 +761,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // 立即同步 ref，保证连续切歌时基于最新索引计算
     currentIndexRef.current = index
     setCurrentIndex(index)
-  }, [clock])
+  }, [clock, resetTrackPlayStats])
 
   // 切歌代号：读者直接选歌（点歌单里的歌、播放文章里的歌、换歌单）时加一。等歌单补全的上一首 / 下一首记下当时的代号，
   // 补全后代号已变（读者在等待期间自己选了歌）就丢弃，不把读者的选择切走；连续的上一首 / 下一首代号相同，补全后按顺序依次执行
@@ -756,18 +802,36 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     })
   }, [ensurePlaylist, goTo])
 
-  // 开始播放：上次加载出错时先重新加载（出错的音频直接 play() 会立即失败、没有任何反应），保留出错前的进度
+  // 触发自动切歌熔断：停在当前曲目、丢弃排队的切歌、同步未播放状态并提示读者；下次手动点播放时会重新 load()
+  const tripCircuitBreaker = useCallback(() => {
+    resetCircuitBreaker()
+    flushTrackPlayTimer()
+    circuitTrippedRef.current = true
+    pendingPlayRef.current = false
+    supersedeSteps()
+    const audio = audioRef.current
+    if (audio && !audio.paused)
+      audio.pause()
+    setIsPlaying(false)
+    toast.error(tRef.current('playback_circuit_broken'), { id: PLAYBACK_FAILED_TOAST_ID })
+  }, [flushTrackPlayTimer, resetCircuitBreaker, supersedeSteps])
+
+  // 开始播放：上次加载出错或刚触发熔断时先重新加载（出错的音频直接 play() 会立即失败，熔断曲目需从头重新拉流）
   const startAudio = useCallback((audio: HTMLAudioElement) => {
-    if (audio.error && audio.error.code !== MEDIA_ERR_ABORTED) {
+    resetCircuitBreaker()
+    const wasTripped = circuitTrippedRef.current
+    if (wasTripped || (audio.error && audio.error.code !== MEDIA_ERR_ABORTED)) {
+      circuitTrippedRef.current = false
+      resetTrackPlayStats()
       const time = audio.currentTime
-      if (prevTrackIdRef.current != null && time > 0 && !pendingSeekRef.current)
+      if (!wasTripped && prevTrackIdRef.current != null && time > 0 && !pendingSeekRef.current)
         pendingSeekRef.current = { trackId: prevTrackIdRef.current, time }
       audio.load()
     }
     void audio.play().catch(() => {
       /* 失败或被阻止，事件监听会同步状态 */
     })
-  }, [])
+  }, [resetCircuitBreaker, resetTrackPlayStats])
 
   // 统一通过 audio 事件驱动上下文状态（isPlaying / time / duration / buffered）
   useEffect(() => {
@@ -778,8 +842,15 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const onPlay = () => {
       setIsPlaying(true)
     }
+    const onPlaying = () => {
+      playingSinceRef.current ??= performance.now()
+    }
     const onPause = () => {
+      flushTrackPlayTimer()
       setIsPlaying(false)
+    }
+    const onWaiting = () => {
+      flushTrackPlayTimer()
     }
 
     const updateBuffered = () => {
@@ -801,6 +872,8 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const pendingSeek = pendingSeekRef.current
       if (pendingSeek && pendingSeek.trackId === prevTrackIdRef.current && Number.isFinite(audio.duration) && audio.duration > 0) {
         pendingSeekRef.current = null
+        if (pendingSeek.time >= audio.duration - NEAR_END_SEEK_THRESHOLD_S)
+          seekedNearEndRef.current = true
         try {
           audio.currentTime = Math.max(0, Math.min(pendingSeek.time, audio.duration))
         }
@@ -810,14 +883,19 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       clock.set(audio.currentTime ?? 0)
       updateBuffered()
     }
-    // timeupdate 本身约每秒 4 次；跳转完成时立即同步一次
-    const onTimeUpdate = () => clock.set(audio.currentTime)
+    // timeupdate 本身约每秒 4 次；跳转完成时立即同步一次；正常播放满阈值后清零异常计数
+    const onTimeUpdate = () => {
+      clock.set(audio.currentTime)
+      if (!audio.paused && getPlayedMs() >= MIN_VALID_PLAY_MS)
+        resetCircuitBreaker()
+    }
     // 加载或播放出错（播放地址失效、网络中断、格式不支持）：浏览器不会因此暂停，界面会一直显示「播放中」。
     // 停下来并同步状态；读者本想听（正在播放或切歌后等着出声）时提示一次，只是预加载失败时不打扰
     const onError = () => {
       const error = audio.error
       if (!error || error.code === MEDIA_ERR_ABORTED)
         return
+      flushTrackPlayTimer()
       const wanted = !audio.paused || pendingPlayRef.current
       pendingPlayRef.current = false
       if (!audio.paused)
@@ -827,7 +905,22 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         toast.error(tRef.current('playback_failed'), { id: PLAYBACK_FAILED_TOAST_ID })
     }
     const onEnded = () => {
+      const playedMs = flushTrackPlayTimer()
+      const track = playlistRef.current[currentIndexRef.current ?? -1]
+      const expectedMs = track?.duration && track.duration > 0 ? track.duration : 0
+      const minRequiredMs = expectedMs > 0 ? Math.min(MIN_VALID_PLAY_MS, expectedMs * 0.5) : MIN_VALID_PLAY_MS
+      if (playedMs >= minRequiredMs || seekedNearEndRef.current) {
+        resetCircuitBreaker()
+      }
+      else {
+        abnormalEndCountRef.current++
+        if (abnormalEndCountRef.current >= MAX_ABNORMAL_AUTO_SKIPS) {
+          tripCircuitBreaker()
+          return
+        }
+      }
       if (playModeRef.current === 'repeat-one') {
+        resetTrackPlayStats()
         audio.currentTime = 0
         void audio.play().catch(() => { })
         return
@@ -836,7 +929,9 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     audio.addEventListener('play', onPlay)
+    audio.addEventListener('playing', onPlaying)
     audio.addEventListener('pause', onPause)
+    audio.addEventListener('waiting', onWaiting)
     audio.addEventListener('loadedmetadata', onLoaded)
     audio.addEventListener('timeupdate', onTimeUpdate)
     audio.addEventListener('seeked', onTimeUpdate)
@@ -846,7 +941,9 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     return () => {
       audio.removeEventListener('play', onPlay)
+      audio.removeEventListener('playing', onPlaying)
       audio.removeEventListener('pause', onPause)
+      audio.removeEventListener('waiting', onWaiting)
       audio.removeEventListener('loadedmetadata', onLoaded)
       audio.removeEventListener('timeupdate', onTimeUpdate)
       audio.removeEventListener('seeked', onTimeUpdate)
@@ -854,7 +951,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       audio.removeEventListener('ended', onEnded)
       audio.removeEventListener('error', onError)
     }
-  }, [clock, step])
+  }, [clock, flushTrackPlayTimer, getPlayedMs, resetCircuitBreaker, resetTrackPlayStats, step, tripCircuitBreaker])
 
   // 当前曲目的歌词：与文章内的单曲卡、歌词摘录共用同一份来源与选择结果（见 contexts/song-lyrics.ts）；
   // 去掉署名行时用曲目信息判断「歌名 - 歌手」行
@@ -896,6 +993,8 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // 操作函数 —— 不直接 set isPlaying/currentTime（由事件回路同步）
   const replacePlaylist = useCallback((tracks: MusicTrack[], startIndex = 0, startTime?: number) => {
     supersedeSteps()
+    resetCircuitBreaker()
+    circuitTrippedRef.current = false
     const index = tracks.length > 0 ? Math.max(0, Math.min(startIndex, tracks.length - 1)) : null
     const track = index == null ? null : tracks[index]
     pendingSeekRef.current = track && startTime != null && Number.isFinite(startTime) && startTime > 0
@@ -904,6 +1003,8 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // 新歌单的起始曲目与正在加载的曲目相同时，src 不会重新加载，若元数据已就绪需立即应用进度
     const audio = audioRef.current
     if (audio && pendingSeekRef.current && pendingSeekRef.current.trackId === prevTrackIdRef.current && audio.readyState >= 1) {
+      if (Number.isFinite(audio.duration) && audio.duration > 0 && pendingSeekRef.current.time >= audio.duration - NEAR_END_SEEK_THRESHOLD_S)
+        seekedNearEndRef.current = true
       try {
         audio.currentTime = Math.max(0, Math.min(pendingSeekRef.current.time, audio.duration || pendingSeekRef.current.time))
       }
@@ -915,12 +1016,14 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setPlaylist(tracks)
     setCurrentIndex(index)
     setPlaylistState('loaded')
-  }, [supersedeSteps])
+  }, [resetCircuitBreaker, supersedeSteps])
 
   const playTrack = useCallback((index: number, startTime?: number) => {
     if (index < 0 || index >= playlistRef.current.length)
       return
     supersedeSteps()
+    resetCircuitBreaker()
+    circuitTrippedRef.current = false
     // 指定了起始进度时（如歌词摘录）总是从该位置播放
     if (startTime != null) {
       goTo(index, true, startTime)
@@ -933,10 +1036,12 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return
     }
     goTo(index, true)
-  }, [goTo, startAudio, supersedeSteps])
+  }, [goTo, resetCircuitBreaker, startAudio, supersedeSteps])
 
   const playSong = useCallback((track: MusicTrack, startTime?: number) => {
     supersedeSteps()
+    resetCircuitBreaker()
+    circuitTrippedRef.current = false
     const existing = playlistRef.current.findIndex(item => item.id === track.id)
     if (existing >= 0) {
       playTrack(existing, startTime)
@@ -947,7 +1052,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     playlistRef.current = tracks
     setPlaylist(tracks)
     goTo(insertAt, true, startTime)
-  }, [goTo, playTrack, supersedeSteps])
+  }, [goTo, playTrack, resetCircuitBreaker, supersedeSteps])
 
   const play = useCallback(() => {
     const audio = audioRef.current
@@ -975,14 +1080,41 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [startAudio])
 
-  const next = useCallback(() => step(1), [step])
+  // 界面按钮主动切歌：重置自动切歌熔断计数，不拦截读者的手动连续切歌
+  const next = useCallback(() => {
+    resetCircuitBreaker()
+    circuitTrippedRef.current = false
+    step(1)
+  }, [resetCircuitBreaker, step])
 
-  const prev = useCallback(() => step(-1), [step])
+  const prev = useCallback(() => {
+    resetCircuitBreaker()
+    circuitTrippedRef.current = false
+    step(-1)
+  }, [resetCircuitBreaker, step])
+
+  // 系统 MediaSession 切歌：短时间内连续触发且始终未正常出声时熔断，避免系统媒体控制异常连发导致无限切歌
+  const mediaSessionStep = useCallback((direction: 1 | -1) => {
+    const now = performance.now()
+    if (getPlayedMs() < MIN_VALID_PLAY_MS && lastMediaSkipAtRef.current > 0 && now - lastMediaSkipAtRef.current < MEDIA_SESSION_STORM_WINDOW_MS) {
+      mediaStormCountRef.current++
+      if (mediaStormCountRef.current >= MAX_MEDIA_SESSION_STORM_SKIPS) {
+        tripCircuitBreaker()
+        return
+      }
+    }
+    else {
+      mediaStormCountRef.current = 1
+    }
+    lastMediaSkipAtRef.current = now
+    step(direction)
+  }, [getPlayedMs, step, tripCircuitBreaker])
 
   const seek = useCallback((seconds: number) => {
     const audio = audioRef.current
     if (!audio)
       return
+    seekedNearEndRef.current = true
     clock.set(Math.max(0, Math.min(seconds, audio.duration || seconds)))
     try {
       audio.currentTime = Math.max(0, Math.min(seconds, audio.duration || seconds))
@@ -1057,11 +1189,12 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     try {
       ms.setActionHandler('play', () => play())
       ms.setActionHandler('pause', () => pause())
-      ms.setActionHandler('previoustrack', () => prev())
-      ms.setActionHandler('nexttrack', () => next())
+      ms.setActionHandler('previoustrack', () => mediaSessionStep(-1))
+      ms.setActionHandler('nexttrack', () => mediaSessionStep(1))
       ms.setActionHandler('seekto', (details) => {
         if (!audio || typeof details?.seekTime !== 'number')
           return
+        seekedNearEndRef.current = true
         if (details.fastSeek && typeof audio.fastSeek === 'function') {
           try {
             audio.fastSeek(details.seekTime)
@@ -1106,7 +1239,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
       catch { }
     }
-  }, [pause, play, next, prev])
+  }, [mediaSessionStep, pause, play])
 
   // 有歌词且正在播放时，把 MediaSession 的标题更新为当前歌词，暂停后回退到曲目名。
   // 直接订阅当前行（不经过 React 渲染）；重建 MediaMetadata（含封面）开销不小，快歌换行频繁时最多每秒更新一次

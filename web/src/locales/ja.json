@@ -3525,6 +3525,7 @@
     "no_matching_tracks": "一致する曲がありません",
     "no_tracks": "曲がありません",
     "playback_failed": "この曲は現在再生できません",
+    "playback_circuit_broken": "複数の曲が続けて再生できなかったため、自動再生を停止しました",
     "playlist_load_failed": "プレイリストを読み込めないため、曲を切り替えられません。しばらくしてからもう一度お試しください",
     "previous": "前の曲",
     "next": "次の曲",

@@ -3525,6 +3525,7 @@
     "no_matching_tracks": "No matching tracks",
     "no_tracks": "No tracks available",
     "playback_failed": "This track can't be played right now",
+    "playback_circuit_broken": "Multiple tracks in a row couldn't be played, so auto-advance has been stopped",
     "playlist_load_failed": "Couldn't load the playlist, so the track can't be changed right now. Please try again later.",
     "previous": "Previous",
     "next": "Next",

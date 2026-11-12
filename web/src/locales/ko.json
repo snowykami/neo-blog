@@ -3525,6 +3525,7 @@
     "no_matching_tracks": "일치하는 곡이 없습니다",
     "no_tracks": "곡이 없습니다",
     "playback_failed": "이 곡은 지금 재생할 수 없습니다",
+    "playback_circuit_broken": "여러 곡이 연속으로 재생되지 않아 자동 곡 넘김을 중지했습니다",
     "playlist_load_failed": "재생목록을 불러오지 못해 지금은 곡을 바꿀 수 없습니다. 잠시 후 다시 시도해 주세요",
     "previous": "이전 곡",
     "next": "다음 곡",

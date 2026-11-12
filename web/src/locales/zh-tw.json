@@ -3525,6 +3525,7 @@
     "no_matching_tracks": "沒有符合的歌曲",
     "no_tracks": "暫無歌曲",
     "playback_failed": "這首歌暫時無法播放",
+    "playback_circuit_broken": "連續多首歌曲無法正常播放，已停止自動切歌",
     "playlist_load_failed": "歌單載入失敗，暫時無法切歌，請稍後再試",
     "previous": "上一首",
     "next": "下一首",
