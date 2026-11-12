@@ -45,6 +45,8 @@ func main() {
 	service.ListenFileLinkChanges()
 	// 公开的文章与页面变化后，各实例作废音乐白名单中文章引用的歌曲
 	service.ListenMusicWhitelistChanges()
+	// 搜索配置在后台更新后，各实例重置客户端并确保目标索引结构就绪
+	service.ListenSearchConfigChanges()
 
 	err = repo.InitDatabase()
 	if err != nil {
@@ -94,6 +96,8 @@ func main() {
 	tasks.StartNotificationEmailWorker()
 	// 通知与互动事件按保留期清理，并处理长期没搭上车的附带行
 	tasks.StartNotificationCleanup()
+	// 公开搜索索引启动检查与定期轻量对账（未启用 Meilisearch 时为空操作）
+	tasks.StartSearchSync()
 
 	err = router.Run(ctx)
 	// 已领取的 AI 用户任务尽量执行完，来不及的立即放回队列由其他实例接着执行

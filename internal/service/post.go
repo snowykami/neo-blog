@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"slices"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -68,9 +69,10 @@ func (p *PostService) CreatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 		}
 		return 0, errs.Internal("failed_to_create_target", err).WithResource("post")
 	}
-	// 直接以公开状态创建：曝光给感兴趣的 AI 用户
+	// 直接以公开状态创建：曝光给感兴趣的 AI 用户，并写入公开搜索索引
 	if !post.IsPrivate {
 		NotifyPostPublished(post.ID)
+		SyncSearchPost(post.ID, post.UserID, false)
 	}
 	return post.ID, nil
 }
@@ -146,6 +148,7 @@ func (p *PostService) DeletePost(ctx context.Context, postId uint) *errs.Service
 	if err := repo.Revision.DeleteByTarget(constant.TargetTypePost, postId); err != nil {
 		logrus.Warnf("delete revisions of post %d failed: %v", postId, err)
 	}
+	SyncSearchPost(postId, post.UserID, true)
 	return nil
 }
 
@@ -333,6 +336,9 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 	if wasPrivate && !post.IsPrivate {
 		NotifyPostPublished(post.ID)
 	}
+	if replaceLabels || slices.ContainsFunc(columns, func(col string) bool { return col != "draft_content" }) {
+		SyncSearchPost(post.ID, post.UserID, wasPrivate != post.IsPrivate || slices.Contains(columns, "title"))
+	}
 	return &dto.ContentSaveResult{ID: post.ID, DraftVersion: post.DraftVersion}, nil
 }
 
@@ -369,6 +375,11 @@ func (p *PostService) ListMyPosts(ctx context.Context, req *dto.ListPostReq) ([]
 
 // listPosts includePrivate 为 true 时是后台管理视图（含私密文章、带 AI 摘要任务状态）
 func (p *PostService) listPosts(ctx context.Context, req *dto.ListPostReq, includePrivate bool) ([]*dto.PostDto, int64, *errs.ServiceError) {
+	if !includePrivate && strings.TrimSpace(req.Query) != "" {
+		if dtos, total, ok := searchPublicPostsMeili(ctx, req); ok {
+			return dtos, total, nil
+		}
+	}
 	postDtos := make([]*dto.PostDto, 0)
 	queryArray := make([]string, 0)
 	if req.Query != "" {

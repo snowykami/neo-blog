@@ -157,6 +157,7 @@ func (s *UserService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterR
 			return nil, errs.Internal("failed_to_update_target", err).WithResource("user")
 		}
 	}
+	SyncSearchUser(newUser.ID, false)
 	// 生成访问令牌和刷新令牌并保存session
 	sessionId := utils.Strings.GenerateRandomString(32)
 	err = repo.Session.CreateSession(&model.Session{
@@ -404,6 +405,9 @@ func (s *UserService) UpdateUser(req *dto.UpdateUserReq) (*dto.UpdateUserResp, *
 		logrus.Errorln("Failed to update user:", err)
 		return nil, errs.Internal("failed_to_update_target", err).WithResource("user")
 	}
+	if req.Username != "" || req.Nickname != "" {
+		SyncSearchUser(req.ID, true)
+	}
 	return &dto.UpdateUserResp{}, nil
 }
 
@@ -504,6 +508,13 @@ func (s *UserService) SearchUsers(ctx context.Context, req *dto.SearchUsersReq) 
 	}
 	if len([]rune(keyword)) > 20 {
 		keyword = string([]rune(keyword)[:20])
+	}
+	if users, ok := searchUsersMeili(ctx, keyword, currentUser.ID, req.Limit); ok {
+		result := make([]dto.UserBriefDto, 0, len(users))
+		for i := range users {
+			result = append(result, users[i].ToBriefDto())
+		}
+		return result, nil
 	}
 	users, err := repo.User.SearchUsers(keyword, currentUser.ID, req.Limit)
 	if err != nil {

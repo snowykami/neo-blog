@@ -58,6 +58,9 @@ func (s *CategoryService) UpdateCategory(ctx context.Context, req *dto.CategoryD
 		return 0, categoryWriteError(err, category, "failed_to_update_target")
 	}
 	repo.InvalidatePostCache()
+	if postIDs, err := repo.ListPublicPostIDsByCategory(category.ID); err == nil {
+		SyncSearchPostsByIDs(postIDs)
+	}
 	return category.ID, nil
 }
 
@@ -69,10 +72,12 @@ func (s *CategoryService) DeleteCategory(ctx context.Context, id uint) *errs.Ser
 	if svcerr := ensureCategoryExists(id); svcerr != nil {
 		return svcerr
 	}
+	affectedPostIDs, _ := repo.ListPublicPostIDsByCategory(id)
 	if err := repo.Category.Delete(id); err != nil {
 		return errs.Internal("failed_to_delete_target", err).WithResource("category")
 	}
 	repo.InvalidatePostCache()
+	SyncSearchPostsByIDs(affectedPostIDs)
 	return nil
 }
 

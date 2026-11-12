@@ -43,3 +43,22 @@ func TestHTMLExcerptLongContent(t *testing.T) {
 		t.Fatalf("excerpt runes = %d (%q)", n, got)
 	}
 }
+
+func TestHTMLSearchText(t *testing.T) {
+	noise := strings.Repeat("A", 160)
+	htmlContent := `<h2>部署指南</h2><p>正文<strong>关键词</strong></p>` +
+		`<pre><code>go build -o bin/server ./cmd/server</code></pre>` +
+		`<span data-type="inline-math" data-latex="E=mc^2"></span>` +
+		`<img src="/a.png" alt="架构示意图" />` +
+		`<p>` + noise + `</p>` +
+		`<script>console.log("secret")</script>`
+	got := HTMLSearchText(htmlContent, 5000)
+	for _, want := range []string{"部署指南", "正文关键词", "go build -o bin/server", "E=mc^2", "架构示意图"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("expected %q in %q", want, got)
+		}
+	}
+	if strings.Contains(got, "secret") || strings.Contains(got, noise) {
+		t.Fatalf("expected script and long ASCII noise stripped, got %q", got)
+	}
+}

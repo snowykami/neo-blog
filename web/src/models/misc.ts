@@ -212,11 +212,39 @@ export interface RedisMetrics {
   keyGroupsComplete: boolean
 }
 
-/** 依赖服务（数据库与 Redis），每 15 秒由一个后端实例采集 */
+/** 单个公开对象索引的文档统计 */
+export interface MeilisearchIndexStat {
+  group: 'posts' | 'pages' | 'comments' | 'users' | string
+  indexUid: string
+  documents: number
+  isIndexing: boolean
+}
+
+/** 搜索服务（Meilisearch）的运行统计 */
+export interface MeilisearchMetrics {
+  version: string
+  location: string
+  error?: string
+  usedSize: number
+  databaseSize: number
+  lastUpdate?: string | null
+  documents: number
+  indexingCount: number
+  pendingTasks: number
+  failedTasksRecent: number
+  searchesPerSecond: number
+  searchesHistory: number[]
+  avgLatencyMs: number
+  reindexing: boolean
+  indexes: MeilisearchIndexStat[]
+}
+
+/** 依赖服务（数据库、Redis 与 Meilisearch），每 15 秒由一个后端实例采集 */
 export interface DependencyMetrics {
   updatedAt: string
   database: DatabaseMetrics | null
   redis: RedisMetrics | null // 未使用 Redis 时为空
+  meilisearch?: MeilisearchMetrics | null // 未启用 Meilisearch 时为空
 }
 
 /** 全部存活前后端实例的运行时指标；未配置 Redis 时只有本实例，前端没有配置 Redis 时 frontends 为空 */

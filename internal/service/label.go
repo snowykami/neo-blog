@@ -50,6 +50,10 @@ func (l *LabelService) UpdateLabel(ctx context.Context, req *dto.UpdateLabelReq)
 	if err := repo.Label.UpdateLabel(label); err != nil {
 		return 0, labelWriteError(err, label, "failed_to_update_target")
 	}
+	repo.InvalidatePostCache()
+	if postIDs, err := repo.ListPublicPostIDsByLabel(label.ID); err == nil {
+		SyncSearchPostsByIDs(postIDs)
+	}
 	return label.ID, nil
 }
 
@@ -61,10 +65,13 @@ func (l *LabelService) DeleteLabel(ctx context.Context, id uint) *errs.ServiceEr
 	if svcerr := ensureLabelExists(id); svcerr != nil {
 		return svcerr
 	}
+	affectedPostIDs, _ := repo.ListPublicPostIDsByLabel(id)
 	err := repo.Label.DeleteLabel(id)
 	if err != nil {
 		return errs.Internal("failed_to_delete_target", err).WithResource("label")
 	}
+	repo.InvalidatePostCache()
+	SyncSearchPostsByIDs(affectedPostIDs)
 	return nil
 }
 

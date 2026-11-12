@@ -286,3 +286,74 @@ func GetAIAgentConfig() AIAgentConfig {
 		RunRetentionDays:   config.Int("ai_agents_run_retention_days"),
 	}
 }
+
+// MeilisearchConfig Meilisearch 搜索服务配置（仅后端使用，APIKey 不对外公开）
+type MeilisearchConfig struct {
+	Enable      bool
+	URL         string
+	APIKey      string
+	IndexPrefix string
+}
+
+// Enabled 已开启且服务地址合法
+func (c MeilisearchConfig) Enabled() bool {
+	return c.Enable && c.URL != ""
+}
+
+// IndexUID 带前缀的完整索引名
+func (c MeilisearchConfig) IndexUID(name string) string {
+	return c.IndexPrefix + name
+}
+
+// NormalizeMeilisearchPrefix 规整索引前缀（Meilisearch 索引 UID 只允许字母、数字、连字符与下划线）
+func NormalizeMeilisearchPrefix(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "neo_"
+	}
+	var b strings.Builder
+	for _, r := range raw {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' || r == '-' {
+			b.WriteRune(r)
+		}
+	}
+	if b.Len() == 0 {
+		return "neo_"
+	}
+	return b.String()
+}
+
+// NormalizeMeilisearchURL 规整 Meilisearch 服务地址（保留可选子路径，去掉末尾斜杠）
+func NormalizeMeilisearchURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	if !strings.Contains(raw, "://") {
+		raw = "http://" + raw
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+		return ""
+	}
+	u.RawQuery = ""
+	u.Fragment = ""
+	return strings.TrimRight(u.String(), "/")
+}
+
+// GetMeilisearchConfig 读取生效的 Meilisearch 配置：
+// 环境变量优先；若通过环境变量设置了 MEILISEARCH_URL 而未显式设置 MEILISEARCH_ENABLE，则默认视为启用
+func GetMeilisearchConfig() MeilisearchConfig {
+	enable := config.Bool("meilisearch_enable")
+	if _, hasEnableEnv := config.Lookup("meilisearch_enable").EnvValue(); !hasEnableEnv {
+		if urlEnv, hasURLEnv := config.Lookup("meilisearch_url").EnvValue(); hasURLEnv && NormalizeMeilisearchURL(urlEnv) != "" {
+			enable = true
+		}
+	}
+	return MeilisearchConfig{
+		Enable:      enable,
+		URL:         NormalizeMeilisearchURL(config.String("meilisearch_url")),
+		APIKey:      strings.TrimSpace(config.String("meilisearch_api_key")),
+		IndexPrefix: NormalizeMeilisearchPrefix(config.String("meilisearch_index_prefix")),
+	}
+}

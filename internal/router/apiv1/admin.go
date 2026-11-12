@@ -28,6 +28,9 @@ func registerAdminRoutes(group *route.RouterGroup) {
 		consoleGroup.PUT("/config", adminController.SaveConfig)
 		// 请求体里带 SMTP 密码，用 POST 且不写进地址；只发信，不改动已保存的配置
 		consoleGroup.POST("/config/email/test", adminController.SendTestEmail)
+		// 搜索服务：请求体可带未保存的地址与密钥做连通测试，不改动已保存配置；重建接口触发全站公开资源平滑重建
+		consoleGroup.POST("/config/search/test", adminController.TestMeilisearch)
+		consoleGroup.POST("/search/reindex", adminController.ReindexSearch)
 		// 通知：管理员不能读别人的通知，只能给自己发一条测试通知确认链路可用
 		consoleGroup.POST("/notifications/test", controller.NewNotificationController().SendTestNotification)
 		// 邮件投递排查：只看状态与错误，管理员读不到别人的通知内容

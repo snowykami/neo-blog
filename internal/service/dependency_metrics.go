@@ -30,10 +30,10 @@ const (
 // redisKeyGroups 键名第一段 → 用途分组（界面上的名称由前端翻译）
 var redisKeyGroups = map[string]string{
 	"session_touch": "sessions", "session_ip": "sessions",
-	"rate_limit": "rate_limits",
-	"lock":       "locks", "task_round": "locks", "storage_migration": "locks",
+	"rate_limit": "rate_limits", "global_search": "rate_limits",
+	"lock": "locks", "task_round": "locks", "storage_migration": "locks", "search_reindex": "locks", "search_settings": "locks",
 	"ai": "ai", "ai_call": "ai", "ai_summary": "ai", "lyric_annotation": "ai",
-	"runtime_metrics": "metrics", "fe_runtime_metrics": "metrics", "dependency_metrics": "metrics",
+	"runtime_metrics": "metrics", "fe_runtime_metrics": "metrics", "dependency_metrics": "metrics", "search_stats": "metrics",
 	"oidc_state": "auth", "verify_email": "auth", "verify_email_ip": "auth",
 }
 
@@ -49,16 +49,19 @@ type redisCounters struct {
 
 // dependencyState 存在共享状态中的采集状态：给后台看的快照，以及计算下一次增量用的累计计数与历史
 type dependencyState struct {
-	Snapshot        dto.DependencyMetricsDto `json:"snapshot"`
-	At              time.Time                `json:"at"`
-	DB              *repo.DatabaseCounters   `json:"db,omitempty"`
-	Redis           *redisCounters           `json:"redis,omitempty"`
-	DeadlockHistory []int64                  `json:"deadlock_history"` // 每次采集新增的死锁数
-	TempFileHistory []int64                  `json:"temp_file_history"`
-	EvictedHistory  []int64                  `json:"evicted_history"`
+	Snapshot           dto.DependencyMetricsDto          `json:"snapshot"`
+	At                 time.Time                         `json:"at"`
+	DB                 *repo.DatabaseCounters            `json:"db,omitempty"`
+	Redis              *redisCounters                    `json:"redis,omitempty"`
+	MeiliFailed        *int64                            `json:"meili_failed,omitempty"`
+	MeiliByInstance    map[string]searchInstanceCounters `json:"meili_by_instance,omitempty"`
+	DeadlockHistory    []int64                           `json:"deadlock_history"` // 每次采集新增的死锁数
+	TempFileHistory    []int64                           `json:"temp_file_history"`
+	EvictedHistory     []int64                           `json:"evicted_history"`
+	MeiliFailedHistory []int64                           `json:"meili_failed_history"`
 }
 
-// SampleDependencyMetrics 采集一次数据库与 Redis 的运行统计，由定时任务调用（多副本时每轮只有一个实例执行）
+// SampleDependencyMetrics 采集一次数据库、Redis 与 Meilisearch 的运行统计，由定时任务调用（多副本时每轮只有一个实例执行）
 func SampleDependencyMetrics() {
 	ctx, cancel := context.WithTimeout(context.Background(), dependencyMetricsTimeout)
 	defer cancel()
@@ -75,6 +78,7 @@ func SampleDependencyMetrics() {
 	next.Snapshot.UpdatedAt = now
 	next.Snapshot.Database = sampleDatabase(ctx, &prev, next, elapsed)
 	next.Snapshot.Redis = sampleRedis(&prev, next, elapsed)
+	next.Snapshot.Meilisearch = sampleMeilisearch(ctx, &prev, next, elapsed)
 	if err := sharedstate.SetJSON(dependencyMetricsKey, next, dependencyMetricsTTL); err != nil {
 		logrus.Warnf("save dependency metrics: %v", err)
 	}
@@ -263,4 +267,106 @@ func redisKeyGroupCounts() ([]dto.RedisKeyGroupDto, bool) {
 		return strings.Compare(a.Group, b.Group)
 	})
 	return groups, complete
+}
+
+func sampleMeilisearch(ctx context.Context, prev, next *dependencyState, elapsed float64) *dto.MeilisearchMetricsDto {
+	client, cfg, ok := activeMeiliClient(dependencyMetricsTimeout)
+	if !ok {
+		return nil
+	}
+	stats, err := client.Stats(ctx)
+	if err != nil {
+		logrus.Warnf("read meilisearch stats: %v", err)
+		return &dto.MeilisearchMetricsDto{
+			Location:        client.Location(),
+			Error:           "unavailable",
+			SearchesHistory: []float64{},
+			Indexes:         []dto.MeilisearchIndexStatDto{},
+		}
+	}
+	ver, _ := client.Version(ctx)
+
+	usedSize := stats.UsedDatabaseSize
+	if usedSize <= 0 {
+		usedSize = stats.DatabaseSize
+	}
+
+	var totalDocs int64
+	var indexingCount int
+	indexes := make([]dto.MeilisearchIndexStatDto, 0, len(searchGroups))
+	for _, group := range searchGroups {
+		uid := cfg.IndexUID(group)
+		idxStat := stats.Indexes[uid]
+		totalDocs += idxStat.NumberOfDocuments
+		if idxStat.IsIndexing {
+			indexingCount++
+		}
+		indexes = append(indexes, dto.MeilisearchIndexStatDto{
+			Group:      group,
+			IndexUID:   uid,
+			Documents:  idxStat.NumberOfDocuments,
+			IsIndexing: idxStat.IsIndexing,
+		})
+	}
+
+	var pendingTasks, failedDelta int64
+	if taskCounts, err := client.TaskCounts(ctx); err == nil && taskCounts != nil {
+		pendingTasks = taskCounts.Pending
+		failedTotal := taskCounts.Failed
+		next.MeiliFailed = &failedTotal
+		if prev.MeiliFailed != nil && elapsed > 0 {
+			failedDelta = delta(failedTotal, *prev.MeiliFailed)
+		}
+	} else if prev.MeiliFailed != nil {
+		copied := *prev.MeiliFailed
+		next.MeiliFailed = &copied
+	}
+	next.MeiliFailedHistory = appendHistory(prev.MeiliFailedHistory, failedDelta)
+
+	byInst := collectAllSearchCounters()
+	next.MeiliByInstance = byInst
+	var qps, avgLatencyMs float64
+	if prev.MeiliByInstance != nil && elapsed > 0 {
+		var deltaCalls, deltaNanos int64
+		for instID, cur := range byInst {
+			if p, exists := prev.MeiliByInstance[instID]; exists {
+				deltaCalls += delta(cur.Calls, p.Calls)
+				deltaNanos += delta(cur.Nanos, p.Nanos)
+			} else {
+				deltaCalls += max(0, cur.Calls)
+				deltaNanos += max(0, cur.Nanos)
+			}
+		}
+		qps = float64(deltaCalls) / elapsed
+		if deltaCalls > 0 {
+			avgLatencyMs = float64(deltaNanos) / float64(deltaCalls) / 1e6
+		}
+	}
+	previous := []float64{}
+	if prev.Snapshot.Meilisearch != nil && elapsed > 0 {
+		previous = prev.Snapshot.Meilisearch.SearchesHistory
+	}
+	var history []float64
+	if elapsed > 0 {
+		history = appendHistory(previous, qps)
+	} else {
+		history = previous
+	}
+
+	return &dto.MeilisearchMetricsDto{
+		Version:           ver,
+		Location:          client.Location(),
+		UsedSize:          usedSize,
+		DatabaseSize:      stats.DatabaseSize,
+		LastUpdate:        stats.LastUpdate,
+		Documents:         totalDocs,
+		IndexingCount:     indexingCount,
+		PendingTasks:      pendingTasks,
+		FailedTasksRecent: sum64(next.MeiliFailedHistory),
+		SearchesPerSecond: qps,
+		SearchesHistory:   history,
+		AvgLatencyMs:      avgLatencyMs,
+		Reindexing:        IsSearchReindexing(),
+		Indexes:           indexes,
+	}
 }

@@ -38,6 +38,9 @@ type PostDto struct {
 	IsLiked bool `json:"is_liked"` // 当前用户是否点赞
 	// Excerpt 已发布正文的纯文本摘要（最多 200 字，截断时带省略号）：列表不返回正文，摘要与 meta description 用它
 	Excerpt string `json:"excerpt"`
+	// 搜索命中增强（仅在前台关键词检索命中 Meilisearch 时返回）：裁剪后的命中上下文片段与实际命中的原文词
+	SearchSnippet  string   `json:"search_snippet,omitempty"`
+	HighlightTerms []string `json:"highlight_terms,omitempty"`
 	// 置顶到首页：Pinned 为此刻是否置顶（已置顶且未到期）；PinnedUntil 为空表示不自动取消
 	Pinned       bool       `json:"pinned"`
 	PinnedAt     *time.Time `json:"pinned_at"`

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -91,6 +92,9 @@ func (p *PageService) CreatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 		}
 		return 0, errs.Internal("failed_to_create_target", err).WithResource("page")
 	}
+	if !page.IsPrivate {
+		SyncSearchPage(page.ID, false)
+	}
 	return page.ID, nil
 }
 
@@ -119,6 +123,7 @@ func (p *PageService) DeletePage(ctx context.Context, pageID uint) *errs.Service
 	if err := NewPageHTMLService().DeleteAllForPage(ctx, pageID); err != nil {
 		logrus.Warnf("delete html versions of page %d failed: %v", pageID, err)
 	}
+	SyncSearchPage(pageID, true)
 	return nil
 }
 
@@ -224,6 +229,7 @@ func (p *PageService) UpdatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 		columns = append(columns, "draft_content")
 	}
 	// 未传的字段保持原值，只保存草稿时不会重置私密与导航设置
+	wasPrivate := page.IsPrivate
 	if req.IsPrivate != nil {
 		page.IsPrivate = *req.IsPrivate
 		columns = append(columns, "is_private")
@@ -303,6 +309,9 @@ func (p *PageService) UpdatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 	}
 	// 通知打开了编辑页的客户端：编辑页据此合并他人（外部 AI 工具）的修改
 	publishSavedEvent(ctx, constant.TargetTypePage, page.ID, page.DraftVersion)
+	if slices.ContainsFunc(columns, func(col string) bool { return col != "draft_content" }) {
+		SyncSearchPage(page.ID, wasPrivate != page.IsPrivate || slices.Contains(columns, "title"))
+	}
 	return &dto.ContentSaveResult{ID: page.ID, DraftVersion: page.DraftVersion}, nil
 }
 
@@ -387,6 +396,11 @@ func (p *PageService) ListPagesAdmin(ctx context.Context, req *dto.ListPageReq) 
 
 // listPages includePrivate 为 true 时是后台管理视图（含私密页面）
 func (p *PageService) listPages(req *dto.ListPageReq, includePrivate bool) ([]*dto.PageDto, int64, *errs.ServiceError) {
+	if !includePrivate && strings.TrimSpace(req.Query) != "" {
+		if dtos, total, ok := searchPublicPagesMeili(req); ok {
+			return dtos, total, nil
+		}
+	}
 	queryArray := make([]string, 0)
 	if req.Query != "" {
 		for _, q := range strings.Split(req.Query, ",") {

@@ -463,6 +463,7 @@ func createAgentWithUser(user *model.User, tier string, profile dto.AIAgentProfi
 		return nil, errs.Internal("failed_to_create_target", err).WithResource("ai_agent")
 	}
 	agent.User = *user
+	SyncSearchUser(user.ID, false)
 	return agent, nil
 }
 

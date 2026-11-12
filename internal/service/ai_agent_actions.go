@@ -354,6 +354,9 @@ func (s *AIAgentService) AgentUpdateProfile(ctx context.Context, nickname, prefe
 	for _, e := range effects {
 		recordEffect(w.run.RunID, e)
 	}
+	if _, changedNick := changes["nickname"]; changedNick {
+		SyncSearchUser(user.ID, true)
+	}
 	return nil
 }
 

@@ -297,6 +297,7 @@ func (s *UserService) finalizeUserFromUserinfo(ctx context.Context, req *dto.Oid
 			return nil, errs.Internal("failed_to_update_target", err)
 		}
 	}
+	SyncSearchUser(newUser.ID, false)
 	userOpenID = &model.UserOpenID{
 		UserID: newUser.ID,
 		Issuer: oidcConfig.Issuer,

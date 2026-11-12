@@ -49,4 +49,8 @@ const (
 	EnvKeyAccessLog                        = "ACCESS_LOG"                           // 环境变量：是否输出访问日志（每个请求一行），默认 true
 	EnvKeyAccessLogLevel                   = "ACCESS_LOG_LEVEL"                     // 环境变量：访问日志的级别（debug / info / warn），默认 info；5xx 至少为 warn，探针与长连接等高频路径固定为 debug
 	EnvKeyMetricsToken                     = "METRICS_TOKEN"                        // 环境变量：Prometheus 指标端点 /metrics 的 Bearer token；未设置时端点关闭（返回 404）
+	EnvKeyMeilisearchEnable                = "MEILISEARCH_ENABLE"                   // 环境变量：是否启用 Meilisearch 搜索
+	EnvKeyMeilisearchURL                   = "MEILISEARCH_URL"                      // 环境变量：Meilisearch 服务地址（如 http://meilisearch:7700）
+	EnvKeyMeilisearchAPIKey                = "MEILISEARCH_API_KEY"                  // 环境变量：Meilisearch API Key（Master Key 或 Admin API Key）
+	EnvKeyMeilisearchIndexPrefix           = "MEILISEARCH_INDEX_PREFIX"             // 环境变量：Meilisearch 索引名前缀，默认 neo_
 )

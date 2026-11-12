@@ -150,6 +150,9 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
 	if req.ReplyID != 0 || len(comment.MentionUserIDs) > 0 {
 		NotifyCommentCreated(commentID)
 	}
+	if !comment.IsPrivate && !target.isPrivate {
+		SyncSearchComment(commentID)
+	}
 	return commentID, nil
 }
 
@@ -210,6 +213,7 @@ func (cs *CommentService) UpdateComment(ctx context.Context, req *dto.UpdateComm
 	if !comment.IsPrivate && (wasPrivate || hasNewMention(comment.MentionUserIDs, previousMentions)) {
 		NotifyCommentEdited(comment.ID)
 	}
+	SyncSearchComment(comment.ID)
 	return nil
 }
 
@@ -254,6 +258,7 @@ func (cs *CommentService) DeleteComment(ctx context.Context, commentID uint) *er
 		return errs.Internal("failed_to_delete_target", err).WithResource("comment")
 	}
 	notifyNotificationUsers(notified)
+	DeleteSearchComment(commentID, comment.TargetID, comment.TargetType)
 	return nil
 }
 

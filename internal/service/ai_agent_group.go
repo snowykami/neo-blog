@@ -403,6 +403,7 @@ func (s *AIAgentService) runGroupGeneration(groupID uint) {
 				logrus.Warnf("group %d: create agent: %v", groupID, err)
 				continue
 			}
+			SyncSearchUser(user.ID, false)
 			if err := repo.AIAgent.IncrGroupCreated(groupID); err != nil {
 				logrus.Warnf("group %d: update progress: %v", groupID, err)
 			}

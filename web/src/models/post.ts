@@ -49,6 +49,9 @@ export interface Post {
   aiSummaryAt?: string | null // 摘要生成时间
   aiSummaryStatus?: 'queued' | 'running' | 'failed' // 生成任务状态，仅列表中有排队/进行中/失败的任务时返回
   aiSummaryError?: string // 最近一次生成失败的原因
+  // 搜索命中增强（仅 Meilisearch 列表检索命中时返回）
+  searchSnippet?: string // 命中的正文裁剪片段
+  highlightTerms?: string[] // 实际命中的原词（含拼音/容错反推的汉字或词元）
 }
 
 /** 首页最多同时置顶的文章数，与后端 service.MaxPinnedPosts 一致 */

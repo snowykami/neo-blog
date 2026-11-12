@@ -80,3 +80,116 @@ var inlineTextTags = map[atom.Atom]bool{
 	atom.Ruby: true, atom.S: true, atom.Samp: true, atom.Small: true, atom.Span: true, atom.Strong: true,
 	atom.Sub: true, atom.Sup: true, atom.Time: true, atom.U: true, atom.Var: true, atom.Font: true,
 }
+
+// maxNoiseTokenLen 不含空白与汉字的连续 ASCII 串超过该长度时视为 Base64 / 长签名串噪音，不写入全文索引
+const maxNoiseTokenLen = 120
+
+// HTMLSearchText 从正文 HTML 提取用于全文检索的纯文本：
+//   - 剥离全部 HTML 标签，跳过 script / style / template / noscript
+//   - 保留代码块内容，并提取公式节点的 data-latex 与图片的 alt 说明
+//   - 剔除超长无空白 ASCII 噪音串（如 Base64、长签名 URL），最多保留 maxRunes 个字符
+func HTMLSearchText(content string, maxRunes int) string {
+	if maxRunes <= 0 || content == "" {
+		return ""
+	}
+	z := html.NewTokenizer(strings.NewReader(content))
+	var raw strings.Builder
+	runeCount := 0
+	skipDepth := 0
+	pendingSpace := false
+
+	appendText := func(s string) {
+		for _, r := range s {
+			if unicode.IsSpace(r) {
+				pendingSpace = raw.Len() > 0
+				continue
+			}
+			if pendingSpace {
+				raw.WriteByte(' ')
+				runeCount++
+				pendingSpace = false
+			}
+			raw.WriteRune(r)
+			runeCount++
+			if runeCount >= maxRunes {
+				break
+			}
+		}
+	}
+
+	for runeCount < maxRunes {
+		tokenType := z.Next()
+		if tokenType == html.ErrorToken {
+			break
+		}
+		switch tokenType {
+		case html.TextToken:
+			if skipDepth > 0 {
+				continue
+			}
+			appendText(string(z.Text()))
+		case html.StartTagToken, html.SelfClosingTagToken:
+			name, hasAttr := z.TagName()
+			tag := atom.Lookup(name)
+			if hiddenTextTags[tag] {
+				if tokenType == html.StartTagToken {
+					skipDepth++
+				}
+				continue
+			}
+			if !inlineTextTags[tag] {
+				pendingSpace = pendingSpace || raw.Len() > 0
+			}
+			if hasAttr && skipDepth == 0 {
+				for {
+					k, v, more := z.TagAttr()
+					key := string(k)
+					if key == "data-latex" || (tag == atom.Img && key == "alt") {
+						if val := strings.TrimSpace(string(v)); val != "" {
+							pendingSpace = pendingSpace || raw.Len() > 0
+							appendText(val)
+							pendingSpace = true
+						}
+					}
+					if !more || runeCount >= maxRunes {
+						break
+					}
+				}
+			}
+		case html.EndTagToken:
+			name, _ := z.TagName()
+			tag := atom.Lookup(name)
+			if hiddenTextTags[tag] {
+				if skipDepth > 0 {
+					skipDepth--
+				}
+				continue
+			}
+			if !inlineTextTags[tag] {
+				pendingSpace = pendingSpace || raw.Len() > 0
+			}
+		}
+	}
+
+	// 过滤超长无意义 ASCII 噪音词（如内联 Base64 或签名串）
+	words := strings.Fields(raw.String())
+	kept := words[:0]
+	for _, w := range words {
+		if !isNoiseToken(w) {
+			kept = append(kept, w)
+		}
+	}
+	return strings.Join(kept, " ")
+}
+
+func isNoiseToken(word string) bool {
+	if len(word) <= maxNoiseTokenLen {
+		return false
+	}
+	for _, r := range word {
+		if unicode.Is(unicode.Han, r) || (r >= 0x3040 && r <= 0x30FF) || (r >= 0xAC00 && r <= 0xD7AF) {
+			return false
+		}
+	}
+	return true
+}

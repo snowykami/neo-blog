@@ -178,6 +178,7 @@ func runtimeSnapshot() dto.RuntimeInstanceDto {
 // ReportRuntimeMetrics 计算本实例的核心指标并把快照写进共享状态，由定时任务在每个实例上调用
 func ReportRuntimeMetrics() error {
 	runtimeCore.sample(time.Now())
+	flushSearchStatsInstance()
 	return sharedstate.SetJSON(runtimeMetricsKeyPrefix+sharedstate.InstanceID(), runtimeSnapshot(), runtimeMetricsTTL)
 }
 

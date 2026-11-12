@@ -580,6 +580,7 @@ func (s *AISummaryService) run(job *aiSummaryTracker, cfg tools.AIConfig, userID
 		return
 	}
 	repo.InvalidatePostCache()
+	SyncSearchPost(postID, 0, false)
 	job.finish(aiSummaryStatusSucceeded, "")
 }
 

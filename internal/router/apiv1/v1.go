@@ -3,23 +3,24 @@ package apiv1
 import "github.com/cloudwego/hertz/pkg/app/server"
 
 func RegisterRoutes(h *server.Hertz) {
-  apiV1Group := h.Group("/api/v1")
-  {
-    registerAIPromptRoutes(apiV1Group)
-    registerAIAgentRoutes(apiV1Group)
-    registerCommentRoutes(apiV1Group)
-    registerAdminRoutes(apiV1Group)
-    registerFileRoutes(apiV1Group)
-    registerLabelRoutes(apiV1Group)
-    registerLikeRoutes(apiV1Group)
-    registerMCPRoutes(apiV1Group)
-    registerMiscRoutes(apiV1Group)
-    registerMusicRoutes(apiV1Group)
-    registerNotificationRoutes(apiV1Group)
-    registerPageRoutes(apiV1Group)
-    registerPostRoutes(apiV1Group)
-    registerTelemetryRoutes(apiV1Group)
-    registerUserRoutes(apiV1Group)
-    registerVisitRoutes(apiV1Group)
-  }
+	apiV1Group := h.Group("/api/v1")
+	{
+		registerAIPromptRoutes(apiV1Group)
+		registerAIAgentRoutes(apiV1Group)
+		registerCommentRoutes(apiV1Group)
+		registerAdminRoutes(apiV1Group)
+		registerFileRoutes(apiV1Group)
+		registerLabelRoutes(apiV1Group)
+		registerLikeRoutes(apiV1Group)
+		registerMCPRoutes(apiV1Group)
+		registerMiscRoutes(apiV1Group)
+		registerMusicRoutes(apiV1Group)
+		registerNotificationRoutes(apiV1Group)
+		registerPageRoutes(apiV1Group)
+		registerPostRoutes(apiV1Group)
+		registerSearchRoutes(apiV1Group)
+		registerTelemetryRoutes(apiV1Group)
+		registerUserRoutes(apiV1Group)
+		registerVisitRoutes(apiV1Group)
+	}
 }

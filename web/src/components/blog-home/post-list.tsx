@@ -51,8 +51,11 @@ export function PostListItem({ post, showAuthor = true, pinned = false, highligh
   const t = useTranslations()
   const url = getPostUrl({ post })
   const hasCover = !!post.cover
-  // 摘要：作者填写的描述优先，其次是后端生成的纯文本摘要；后端尚未返回 excerpt 时（旧版本）退回自己从正文提取
-  const summary = stripInlineMarkdown(post.description) || post.excerpt || htmlToText(post.content || '').slice(0, 200)
+  // 搜索命中了正文片段时优先展示裁剪片段，否则按作者描述 → 后端纯文本摘要 → 前端兜底提取展示
+  const summary = post.searchSnippet || stripInlineMarkdown(post.description) || post.excerpt || htmlToText(post.content || '').slice(0, 200)
+  const effectiveHighlight = post.highlightTerms?.length
+    ? Array.from(new Set([...(highlight ?? []), ...post.highlightTerms]))
+    : highlight
 
   return (
     // 整行可点：标题链接的伪元素铺满整行（stretched link），分类 / 标签链接层级更高
@@ -78,7 +81,7 @@ export function PostListItem({ post, showAuthor = true, pinned = false, highligh
             href={url}
             className="rounded-sm outline-none after:absolute after:inset-0 after:rounded-2xl focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset"
           >
-            <Highlighted text={post.title} terms={highlight} />
+            <Highlighted text={post.title} terms={effectiveHighlight} />
           </Link>
         </h2>
 
@@ -87,7 +90,7 @@ export function PostListItem({ post, showAuthor = true, pinned = false, highligh
         {summary && (
           // 最多 4 行，超出显示省略号；max-h 兜底：浏览器忽略 line-clamp 时也只露出 4 行
           // 关闭 text-autospace：Safari 默认开启而 Chrome 不开启，保持一致，也避免其影响截断
-          <p className="mb-3.5 line-clamp-4 max-h-[4lh] text-foreground/75 [text-autospace:no-autospace]"><Highlighted text={summary} terms={highlight} /></p>
+          <p className="mb-3.5 line-clamp-4 max-h-[4lh] text-foreground/75 [text-autospace:no-autospace]"><Highlighted text={summary} terms={effectiveHighlight} /></p>
         )}
 
         {/* 列表正文已被接口截断，字数 / 阅读时长只在文章页按完整正文展示 */}

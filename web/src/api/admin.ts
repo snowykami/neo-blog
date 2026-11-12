@@ -9,6 +9,7 @@ import type { OidcConfig } from '@/models/oidc-config'
 import type { PageModel } from '@/models/page'
 import type { Post } from '@/models/post'
 import type { BaseResponse } from '@/models/resp'
+import type { ReindexSearchResult, TestMeilisearchParams, TestMeilisearchResult } from '@/models/search'
 import type { Role, User } from '@/models/user'
 import type { VisitDetail, VisitInsights, VisitLog, Visitor, VisitStats, VisitTrust } from '@/models/visit'
 import axiosClient from './client'
@@ -188,6 +189,18 @@ export interface SendTestEmailParams {
 
 export async function sendTestEmail(params: SendTestEmailParams): Promise<BaseResponse<{ to: string }>> {
   const res = await axiosClient.post('/admin/config/email/test', params, { timeout: 60000 })
+  return res.data
+}
+
+/** 测试 Meilisearch 服务连通性与密钥权限（支持未保存的表单值，不写入数据库） */
+export async function testMeilisearch(params: TestMeilisearchParams): Promise<BaseResponse<TestMeilisearchResult>> {
+  const res = await axiosClient.post('/admin/config/search/test', params, { timeout: 15000 })
+  return res.data
+}
+
+/** 手动触发全站公开资源搜索索引平滑重建 */
+export async function reindexSearch(): Promise<BaseResponse<ReindexSearchResult>> {
+  const res = await axiosClient.post('/admin/search/reindex')
   return res.data
 }
 

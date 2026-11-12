@@ -2,8 +2,8 @@
 
 import type { ReactNode } from 'react'
 import type { Level } from './runtime-shared'
-import type { DatabaseMetrics, DependencyMetrics, RedisMetrics } from '@/models/misc'
-import { Check, Database, Layers, TriangleAlert } from 'lucide-react'
+import type { DatabaseMetrics, DependencyMetrics, MeilisearchMetrics, RedisMetrics } from '@/models/misc'
+import { Check, Database, Layers, Search, TriangleAlert } from 'lucide-react'
 import { useFormatter, useNow, useTranslations } from 'next-intl'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -20,6 +20,8 @@ const USAGE_CRITICAL = 0.95
 const CACHE_HIT_WARNING = 0.99
 const LONG_QUERY_WARNING_SECONDS = 30
 const REDIS_CPU_WARNING = 70
+const MEILI_PENDING_WARNING = 200
+const MEILI_LATENCY_WARNING_MS = 150
 
 const usageLevel = (ratio: number): Level => (ratio > USAGE_CRITICAL ? 'critical' : ratio > USAGE_WARNING ? 'warning' : null)
 const percent = (ratio: number, digits = 1) => `${(ratio * 100).toFixed(digits)}%`
@@ -34,13 +36,14 @@ export function DependencyCards({ metrics, loading }: { metrics: DependencyMetri
         <h3 className="text-sm font-semibold">{t('runtime_dependencies')}</h3>
         {age !== null && <span className="text-xs text-muted-foreground">{t('runtime_dependencies_updated', { seconds: age })}</span>}
       </div>
-      <div className="grid gap-3 @3xl:grid-cols-2">
+      <div className="grid gap-3 @3xl:grid-cols-2 @6xl:grid-cols-3">
         {loading || !metrics
-          ? Array.from({ length: 2 }, (_, i) => <Skeleton key={i} className="h-56 w-full" />)
+          ? Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className="h-56 w-full" />)
           : (
               <>
                 {metrics.database ? <DatabaseCard db={metrics.database} /> : <Skeleton className="h-56 w-full" />}
                 {metrics.redis ? <RedisCard redis={metrics.redis} /> : <NoRedisCard />}
+                {metrics.meilisearch ? <MeilisearchCard meili={metrics.meilisearch} /> : <NoMeilisearchCard />}
               </>
             )}
       </div>
@@ -354,6 +357,149 @@ function NoRedisCard() {
       <div className="grid gap-1 text-sm text-muted-foreground">
         <p>{t('runtime_redis_not_used_note')}</p>
         <p>{t('runtime_redis_not_used_hint')}</p>
+      </div>
+    </DepCard>
+  )
+}
+
+function MeilisearchCard({ meili }: { meili: MeilisearchMetrics }) {
+  const t = useTranslations('Console.dashboard')
+  const format = useFormatter()
+  const subtitle = `Meilisearch ${meili.version || '-'} · ${meili.location}`
+  if (meili.error) {
+    return (
+      <DepCard
+        icon={<Search className="size-4" />}
+        title="Meilisearch"
+        subtitle={meili.location || 'Meilisearch'}
+        status={<StatusBadge problems={[t('runtime_unavailable')]} level="critical" />}
+      >
+        <p className="text-sm text-muted-foreground">{t('runtime_meili_unavailable')}</p>
+      </DepCard>
+    )
+  }
+
+  const problems = [
+    meili.failedTasksRecent > 0 && t('runtime_problem_meili_failed', { count: meili.failedTasksRecent }),
+    meili.pendingTasks >= MEILI_PENDING_WARNING && t('runtime_problem_meili_pending', { count: meili.pendingTasks }),
+  ].filter((p): p is string => Boolean(p))
+  const statusLevel: Level = meili.failedTasksRecent > 0 ? 'critical' : problems.length > 0 ? 'warning' : null
+
+  const indexLabel = (group: string) => (t.has(`runtime_meili_group_${group}`) ? t(`runtime_meili_group_${group}`) : group)
+  const palette = ['bg-primary', 'bg-primary/70', 'bg-primary/45', 'bg-muted-foreground/45']
+  const totalDocs = Math.max(1, meili.documents)
+  const segments = meili.indexes.map((idx, i) => ({
+    key: idx.group,
+    uid: idx.indexUid,
+    label: indexLabel(idx.group),
+    count: idx.documents,
+    isIndexing: idx.isIndexing,
+    className: palette[i % palette.length],
+  }))
+  const latency = `${meili.avgLatencyMs.toFixed(1)} ms`
+
+  return (
+    <DepCard
+      icon={<Search className="size-4" />}
+      title="Meilisearch"
+      subtitle={subtitle}
+      status={<StatusBadge problems={problems} level={statusLevel} />}
+    >
+      <div className="grid items-end gap-4 @sm:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+        <Hint
+          className="grid gap-1"
+          tip={(
+            <Tip
+              value={t('runtime_tip_meili_docs_value', { count: meili.documents })}
+              lines={[
+                segments.map(s => `${s.label} (${s.uid}): ${format.number(s.count)}`).join(' · '),
+                t('runtime_tip_meili_public_only'),
+              ]}
+            />
+          )}
+        >
+          <span className="text-xs text-muted-foreground">{t('runtime_meili_documents')}</span>
+          <span className={cn(jetBrainsMono.className, 'flex flex-wrap items-baseline gap-1.5 tabular-nums')}>
+            <span className="text-xl font-semibold">{format.number(meili.documents)}</span>
+            {meili.reindexing && (
+              <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[11px] font-medium text-primary">
+                {t('runtime_meili_reindexing')}
+              </span>
+            )}
+          </span>
+          <div className="flex h-2 gap-0.5 overflow-hidden rounded-full bg-primary/10">
+            {segments.filter(s => s.count > 0).map(s => (
+              <div key={s.key} className={s.className} style={{ width: `${Math.max(2, (s.count / totalDocs) * 100)}%` }} />
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
+            {segments.map(s => (
+              <span key={s.key} className="inline-flex items-center gap-1">
+                <i className={cn('inline-block size-2 rounded-xs', s.className)} />
+                {`${s.label} ${format.number(s.count)}`}
+              </span>
+            ))}
+          </div>
+        </Hint>
+        <Trend
+          label={t('runtime_meili_qps')}
+          values={meili.searchesHistory}
+          current={meili.searchesPerSecond}
+          unit={t('runtime_unit_rps')}
+          name={t('runtime_meili_qps_name')}
+        />
+      </div>
+      <div className="grid grid-cols-3 gap-x-3 gap-y-2 border-t pt-2.5">
+        <Stat
+          label={t('runtime_meili_latency')}
+          value={latency}
+          level={meili.avgLatencyMs > MEILI_LATENCY_WARNING_MS ? 'warning' : null}
+          tip={<Tip value={latency} lines={[t('runtime_tip_meili_latency')]} />}
+        />
+        <Stat
+          label={t('runtime_meili_used_size')}
+          value={formatDataSize({ size: meili.usedSize })}
+          tip={<Tip value={formatDataSize({ size: meili.usedSize })} lines={[t('runtime_tip_meili_used_size')]} />}
+        />
+        <Stat
+          label={t('runtime_meili_db_size')}
+          value={formatDataSize({ size: meili.databaseSize })}
+          tip={<Tip value={formatDataSize({ size: meili.databaseSize })} lines={[t('runtime_tip_meili_db_size')]} />}
+        />
+        <Stat
+          label={t('runtime_meili_pending')}
+          value={format.number(meili.pendingTasks)}
+          level={meili.pendingTasks >= MEILI_PENDING_WARNING ? 'warning' : null}
+          tip={<Tip value={String(meili.pendingTasks)} lines={[t('runtime_tip_meili_pending')]} />}
+        />
+        <Stat
+          label={t('runtime_meili_failed')}
+          value={String(meili.failedTasksRecent)}
+          level={meili.failedTasksRecent > 0 ? 'critical' : null}
+          tip={<Tip value={String(meili.failedTasksRecent)} lines={[t('runtime_tip_meili_failed')]} />}
+        />
+        <Stat
+          label={t('runtime_meili_indexing')}
+          value={meili.reindexing ? t('runtime_meili_reindexing') : `${meili.indexingCount}/${meili.indexes.length}`}
+          tip={<Tip value={`${meili.indexingCount} / ${meili.indexes.length}`} lines={[t('runtime_tip_meili_indexing')]} />}
+        />
+      </div>
+    </DepCard>
+  )
+}
+
+function NoMeilisearchCard() {
+  const t = useTranslations('Console.dashboard')
+  return (
+    <DepCard
+      icon={<Search className="size-4" />}
+      title="Meilisearch"
+      subtitle={t('runtime_redis_not_used')}
+      status={<span className="shrink-0 rounded-full border px-2 text-xs leading-5 text-muted-foreground">{t('runtime_meili_db_fallback')}</span>}
+    >
+      <div className="grid gap-1 text-sm text-muted-foreground">
+        <p>{t('runtime_meili_not_used_note')}</p>
+        <p>{t('runtime_meili_not_used_hint')}</p>
       </div>
     </DepCard>
   )

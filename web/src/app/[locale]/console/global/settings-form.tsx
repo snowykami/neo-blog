@@ -22,6 +22,7 @@ import { fallbackSiteInfo } from '@/utils/common/siteinfo'
 import { ConfigField, useConfigT } from './config-fields'
 import { EmailTestField } from './email-test-field'
 import { NotificationTestField } from './notification-test-field'
+import { SearchTestField } from './search-test-field'
 
 // 存为独立配置键的配置项，供「高级」Tab 的原始键值编辑快速选择
 const StandaloneKeysContext = createContext<string[]>([])
@@ -137,7 +138,7 @@ export function SettingsForm({ advanced }: { advanced: React.ReactNode }) {
               <TabsContent key={key} value={key} forceMount className="grid gap-4 data-[state=inactive]:hidden">
                 {schema.sections.filter(section => section.tab === key).map(section => (
                   <Section key={section.key} title={tr(section.title) ?? section.key} description={tr(section.description)}>
-                    <SectionWidget name={section.widget} />
+                    <SectionWidget name={section.widget} items={section.items} />
                     {section.items.map(item => <VisibleField key={item.key} item={item} />)}
                   </Section>
                 ))}
@@ -169,8 +170,8 @@ function VisibleField({ item }: { item: ConfigItem }) {
   return <ConfigField item={item} />
 }
 
-// 组内最前面、不对应配置项的组件（后端 Section.Widget 声明，如主题包预览、发送测试邮件）
-function SectionWidget({ name }: { name?: string }) {
+// 组内最前面、不对应配置项的组件（后端 Section.Widget 声明，如主题包预览、发送测试邮件、测试搜索连接）
+function SectionWidget({ name, items }: { name?: string, items?: ConfigItem[] }) {
   switch (name) {
     case 'theme_preview':
       return <ThemePackPreviewField />
@@ -178,6 +179,8 @@ function SectionWidget({ name }: { name?: string }) {
       return <EmailTestField />
     case 'notification_test':
       return <NotificationTestField />
+    case 'search_test':
+      return <SearchTestField items={items} />
   }
   return null
 }

@@ -200,6 +200,7 @@ func (s *AdminUserService) CreateUser(ctx context.Context, req *dto.AdminCreateU
 		logrus.Errorln("Failed to create user:", err)
 		return nil, errs.Internal("failed_to_create_target", err).WithResource("user")
 	}
+	SyncSearchUser(newUser.ID, false)
 	userDto := newUser.ToPrivateDto()
 	return &userDto, nil
 }
@@ -248,6 +249,7 @@ func (s *AdminUserService) UpdateUser(ctx context.Context, req *dto.AdminUpdateU
 		logrus.Errorln("Failed to update user:", err)
 		return errs.Internal("failed_to_update_target", err).WithResource("user")
 	}
+	SyncSearchUser(target.ID, target.Username != req.Username || target.Nickname != req.Nickname)
 	return nil
 }
 
@@ -272,6 +274,7 @@ func (s *AdminUserService) UpdateUserRole(ctx context.Context, req *dto.AdminUpd
 	if err := repo.User.UpdateUserColumns(target.ID, map[string]any{"role": req.Role}); err != nil {
 		return errs.Internal("failed_to_update_target", err).WithResource("user")
 	}
+	SyncSearchUser(target.ID, false)
 	return nil
 }
 
@@ -297,6 +300,7 @@ func (s *AdminUserService) UpdateUserStatus(ctx context.Context, req *dto.AdminU
 			logrus.Errorln("Failed to revoke sessions:", err)
 		}
 	}
+	SyncSearchUser(target.ID, false)
 	return nil
 }
 
@@ -339,5 +343,6 @@ func (s *AdminUserService) DeleteUser(ctx context.Context, userID uint) *errs.Se
 		logrus.Errorln("Failed to delete user:", err)
 		return errs.Internal("failed_to_delete_target", err).WithResource("user")
 	}
+	SyncSearchUserDeleted(target.ID, operator.ID)
 	return nil
 }

@@ -79,11 +79,12 @@ type RuntimeMetricsResp struct {
 	Dependencies *DependencyMetricsDto `json:"dependencies"` // 数据库与 Redis；启动后第一次采集前为空
 }
 
-// DependencyMetricsDto 依赖服务（数据库与 Redis）的运行统计，每 15 秒由一个实例采集
+// DependencyMetricsDto 依赖服务（数据库、Redis 与 Meilisearch）的运行统计，每 15 秒由一个实例采集
 type DependencyMetricsDto struct {
-	UpdatedAt time.Time           `json:"updated_at"`
-	Database  *DatabaseMetricsDto `json:"database"`
-	Redis     *RedisMetricsDto    `json:"redis"` // 未使用 Redis（共享状态在进程内存）时为空
+	UpdatedAt   time.Time              `json:"updated_at"`
+	Database    *DatabaseMetricsDto    `json:"database"`
+	Redis       *RedisMetricsDto       `json:"redis"`       // 未使用 Redis（共享状态在进程内存）时为空
+	Meilisearch *MeilisearchMetricsDto `json:"meilisearch"` // 未启用 Meilisearch 时为空
 }
 
 // DatabaseMetricsDto 数据库的运行统计；速率类指标按最近两次采集之间的增量计算
@@ -137,4 +138,31 @@ type RedisMetricsDto struct {
 type RedisKeyGroupDto struct {
 	Group string `json:"group"`
 	Count int    `json:"count"`
+}
+
+// MeilisearchMetricsDto 搜索服务（Meilisearch）的运行统计
+type MeilisearchMetricsDto struct {
+	Version           string                    `json:"version"`
+	Location          string                    `json:"location"`
+	Error             string                    `json:"error,omitempty"`
+	UsedSize          int64                     `json:"used_size"`     // 实际数据字节数
+	DatabaseSize      int64                     `json:"database_size"` // LMDB 分配文件字节数
+	LastUpdate        *time.Time                `json:"last_update,omitempty"`
+	Documents         int64                     `json:"documents"`           // 本站四个公开索引的文档总数
+	IndexingCount     int                       `json:"indexing_count"`      // 当前正在构建索引的索引数
+	PendingTasks      int64                     `json:"pending_tasks"`       // 队列中排队或处理中的任务数
+	FailedTasksRecent int64                     `json:"failed_tasks_recent"` // 近 10 分钟新增失败任务数
+	SearchesPerSecond float64                   `json:"searches_per_second"` // 搜索速率（次/秒）
+	SearchesHistory   []float64                 `json:"searches_history"`    // 搜索速率趋势
+	AvgLatencyMs      float64                   `json:"avg_latency_ms"`      // 搜索平均耗时（毫秒）
+	Reindexing        bool                      `json:"reindexing"`          // 是否正在执行全站重建任务
+	Indexes           []MeilisearchIndexStatDto `json:"indexes"`             // 各公开对象索引分布
+}
+
+// MeilisearchIndexStatDto 单个公开对象索引的文档计数；group 为 posts / pages / comments / users
+type MeilisearchIndexStatDto struct {
+	Group      string `json:"group"`
+	IndexUID   string `json:"index_uid"`
+	Documents  int64  `json:"documents"`
+	IsIndexing bool   `json:"is_indexing"`
 }

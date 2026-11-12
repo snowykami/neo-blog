@@ -93,6 +93,13 @@ var sections = []*Section{
 		{Key: "footer_text", Type: TypeString, Label: "footer_text", Wide: true, Default: "", siteInfoPath: path("footer.text")},
 		{Key: "footer_links", Type: TypeLinkList, Label: "footer_links", Default: []map[string]any{}, siteInfoPath: path("footer.links")},
 	}},
+	// 全站公开资源检索（Meilisearch）：只索引公开的文章、页面、评论与候选用户，支持拼音与首字母检索；未启用或不可用时自动回退数据库查询
+	{Tab: "content", Key: "search", Title: "section_search", Description: "section_search_desc", Widget: "search_test", Items: []*Item{
+		{Key: "meilisearch_enable", Type: TypeBool, Label: "meilisearch_enable", Description: "meilisearch_enable_desc", Default: false, Env: constant.EnvKeyMeilisearchEnable},
+		{Key: "meilisearch_url", Type: TypeURL, Label: "meilisearch_url", Description: "meilisearch_url_desc", Placeholder: "http://meilisearch:7700", Default: "", Env: constant.EnvKeyMeilisearchURL},
+		{Key: "meilisearch_api_key", Type: TypeSecret, Label: "meilisearch_api_key", Description: "meilisearch_api_key_desc", Wide: true, Default: "", Env: constant.EnvKeyMeilisearchAPIKey},
+		{Key: "meilisearch_index_prefix", Type: TypeString, Label: "meilisearch_index_prefix", Description: "meilisearch_index_prefix_desc", Placeholder: "neo_", Default: "neo_", Env: constant.EnvKeyMeilisearchIndexPrefix},
+	}},
 
 	{Tab: "frontend", Key: "personalize", Title: "section_personalize", Description: "section_personalize_desc", Items: []*Item{
 		{Key: "about_background", Type: TypeImage, Label: "about_background", Description: "empty_to_hide", Default: "", siteInfoPath: path("about_background")},
@@ -245,6 +252,16 @@ var crossChecks = []struct {
 		check: func(get func(string) any) string {
 			if get("captcha_provider") != constant.CaptchaTypeDisable && (get("captcha_site_key") == "" || get("captcha_secret_key") == "") {
 				return "captcha_keys_required"
+			}
+			return ""
+		},
+	},
+	{
+		// 开启 Meilisearch 时必须填写服务地址
+		keys: []string{"meilisearch_enable", "meilisearch_url"},
+		check: func(get func(string) any) string {
+			if enabled, _ := get("meilisearch_enable").(bool); enabled && strings.TrimSpace(get("meilisearch_url").(string)) == "" {
+				return "meilisearch_url_required"
 			}
 			return ""
 		},
