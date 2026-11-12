@@ -101,3 +101,72 @@ func TestContentSaveInvalidatesOnlyPublicChanges(t *testing.T) {
 		}, nil)
 	})
 }
+
+// 只保存草稿时不刷新更新时间：前台显示的「更新于」是公开内容的修改时间；写入公开字段时照常刷新
+func TestDraftSaveKeepsUpdatedAt(t *testing.T) {
+	forEachDialect(t, func(t *testing.T) {
+		sharedstate.UseMemory()
+		if err := migrate(); err != nil {
+			t.Fatalf("migrate: %v", err)
+		}
+		user := &model.User{Username: "draft-time", Email: "draft-time@example.com"}
+		if err := User.CreateUser(user); err != nil {
+			t.Fatal(err)
+		}
+		post := &model.Post{UserID: user.ID, PostBase: model.PostBase{Title: "post", Content: "<p>正文</p>"}}
+		if err := Post.CreatePost(post); err != nil {
+			t.Fatal(err)
+		}
+		page := &model.Page{UserID: user.ID, PageBase: model.PageBase{Title: "page", Slug: "draft-time-page"}}
+		if err := Page.CreatePage(page); err != nil {
+			t.Fatal(err)
+		}
+		old := time.Now().Add(-48 * time.Hour).UTC().Truncate(time.Second)
+		reset := func() {
+			t.Helper()
+			if err := GetDB().Model(&model.Post{}).Where("id = ?", post.ID).UpdateColumn("updated_at", old).Error; err != nil {
+				t.Fatal(err)
+			}
+			if err := GetDB().Model(&model.Page{}).Where("id = ?", page.ID).UpdateColumn("updated_at", old).Error; err != nil {
+				t.Fatal(err)
+			}
+		}
+		// check 执行 write 后比较库中的更新时间是否变化
+		check := func(name string, target any, id uint, wantTouched bool, write func() error) {
+			t.Helper()
+			reset()
+			if err := write(); err != nil {
+				t.Fatalf("%s: %v", name, err)
+			}
+			var row struct{ UpdatedAt time.Time }
+			if err := GetDB().Model(target).Select("updated_at").Where("id = ?", id).Scan(&row).Error; err != nil {
+				t.Fatal(err)
+			}
+			if touched := row.UpdatedAt.After(old.Add(time.Hour)); touched != wantTouched {
+				t.Fatalf("%s: updated_at = %v, touched = %v, want %v", name, row.UpdatedAt, touched, wantTouched)
+			}
+		}
+
+		draft := "<p>草稿</p>"
+		post.DraftContent = &draft
+		check("post draft only", &model.Post{}, post.ID, false, func() error {
+			return Post.SavePostWithDraftVersion(post, post.DraftVersion, []string{"draft_content"}, false)
+		})
+		check("post publish", &model.Post{}, post.ID, true, func() error {
+			post.Content = "<p>新正文</p>"
+			return Post.SavePostWithDraftVersion(post, post.DraftVersion, []string{"content", "draft_content"}, false)
+		})
+		check("post labels only", &model.Post{}, post.ID, true, func() error {
+			return Post.SavePost(post, nil, true)
+		})
+
+		page.DraftContent = &draft
+		check("page draft only", &model.Page{}, page.ID, false, func() error {
+			return Page.SavePageWithDraftVersion(page, page.DraftVersion, []string{"draft_content"})
+		})
+		check("page title", &model.Page{}, page.ID, true, func() error {
+			page.Title = "新标题"
+			return Page.SavePage(page, []string{"title"})
+		})
+	})
+}

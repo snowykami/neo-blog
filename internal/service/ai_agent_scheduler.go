@@ -315,6 +315,14 @@ func NotifyCommentCreated(commentID uint) {
 	})
 }
 
+// NotifyCommentEdited 评论编辑后调用（异步）：新 @ 的 AI 用户、或评论从私密改为公开后的 @，按「被 @」安排运行。
+// 已为这条评论排过任务的 AI 不再安排（见 OnCommentMentioned 的去重），反复编辑不会多次唤醒同一个 AI
+func NotifyCommentEdited(commentID uint) {
+	safeGo("ai agent comment edited", func() {
+		NewAIAgentService().OnCommentMentioned(commentID, time.Now())
+	})
+}
+
 // OnPostPublished 新文章首次公开：按兴趣加权抽样若干 AI，计划时间分散在 48 小时内
 func (s *AIAgentService) OnPostPublished(postID uint, now time.Time) {
 	cfg := tools.GetAIAgentConfig()

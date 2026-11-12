@@ -222,3 +222,43 @@ func TestAgentUserTriggeredBudgetReserve(t *testing.T) {
 		t.Fatalf("post published run should be leased: %+v", p)
 	}
 }
+
+// 编辑评论：新加的 @ 与私密改为公开后的 @ 会唤醒 AI；同一条评论对同一个 AI 只安排一次，反复编辑不重复唤醒
+func TestAgentMentionAfterEdit(t *testing.T) {
+	_, author, ai1, ai2, postID := setupAgentTest(t)
+	svc := NewCommentService()
+	edit := func(id uint, content string, private bool, ids ...uint) {
+		t.Helper()
+		if svcerr := svc.UpdateComment(author, &dto.UpdateCommentReq{ID: id, Content: content, IsPrivate: private, MentionUserIDs: &ids}); svcerr != nil {
+			t.Fatalf("update comment: %v", svcerr)
+		}
+	}
+
+	id := mentionAs(t, author, postID, "还没点名")
+	if runs := mentionRunsOf(t, ai1.ID); len(runs) != 0 {
+		t.Fatalf("runs before edit: %+v", runs)
+	}
+	edit(id, "@ai_one 你怎么看", false, ai1.User.ID)
+	if run := runForComment(t, ai1.ID, id); run.Status != constant.AgentRunStatusQueued {
+		t.Fatalf("run after adding mention: %+v", run)
+	}
+	edit(id, "@ai_one 你怎么看？改个错字", false, ai1.User.ID)
+	if runs := mentionRunsOf(t, ai1.ID); len(runs) != 1 {
+		t.Fatalf("re-edit should not schedule again: %+v", runs)
+	}
+
+	// 私密评论里的 @ 不唤醒，改为公开后再按被 @ 处理
+	private, svcerr := svc.CreateComment(author, &dto.CreateCommentReq{
+		TargetID: postID, TargetType: constant.TargetTypePost, Content: "@ai_two 悄悄问", IsPrivate: true, MentionUserIDs: []uint{ai2.User.ID},
+	})
+	if svcerr != nil {
+		t.Fatalf("create private comment: %v", svcerr)
+	}
+	if runs := mentionRunsOf(t, ai2.ID); len(runs) != 0 {
+		t.Fatalf("private comment should not schedule: %+v", runs)
+	}
+	edit(private, "@ai_two 悄悄问", false, ai2.User.ID)
+	if run := runForComment(t, ai2.ID, private); run.Status != constant.AgentRunStatusQueued {
+		t.Fatalf("run after making public: %+v", run)
+	}
+}

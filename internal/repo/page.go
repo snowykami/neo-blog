@@ -125,8 +125,8 @@ func updatePageTx(tx *gorm.DB, page *model.Page, columns []string) error {
 	if len(columns) == 0 {
 		return nil
 	}
-	selected := append([]string{"updated_at"}, columns...)
-	return tx.Model(page).Omit(clause.Associations).Select(selected).Updates(page).Error
+	selected, omitted := savedColumns(columns, false)
+	return tx.Model(page).Omit(omitted...).Select(selected).Updates(page).Error
 }
 
 // ListPages includePrivate 为 false 时只列公开页面（前台）；为 true 时是后台管理视图，含私密页面，按 req.UserID 限定作者

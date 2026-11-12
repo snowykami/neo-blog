@@ -292,15 +292,30 @@ func invalidateAfterPostSave(err error, columns []string, replaceLabels bool) {
 	}
 }
 
+// savedColumns 按列更新时要写入与排除的列：写入了前台可见的数据才刷新更新时间，只保存草稿时不改（前台显示的「更新于」是公开内容的修改时间）
+// GORM 按列更新时即使没选 updated_at 也会自动写入，因此只存草稿时要显式排除；关联字段一律不随更新写入。
+// 排除列要一次传给 Omit：多次调用 Omit 后一次会覆盖前一次
+func savedColumns(columns []string, replaceLabels bool) (selected, omitted []string) {
+	if touchesPublicColumns(columns, replaceLabels) {
+		return append([]string{"updated_at"}, columns...), []string{clause.Associations}
+	}
+	return columns, []string{clause.Associations, "updated_at"}
+}
+
 // updatePostTx 按列更新文章；写入正文时一并写入正文哈希（由 BeforeSave 计算），只改标签时也刷新更新时间
 func updatePostTx(tx *gorm.DB, post *model.Post, columns []string, replaceLabels bool) error {
-	if len(columns) > 0 || replaceLabels {
-		selected := append([]string{"updated_at"}, columns...)
+	if len(columns) > 0 {
+		selected, omitted := savedColumns(columns, replaceLabels)
 		if slices.Contains(columns, "content") {
 			selected = append(selected, "content_hash", "excerpt")
 		}
 		// 关联字段不随更新写入，否则已加载的 Category 会把清空的 category_id 写回去
-		if err := tx.Model(post).Omit(clause.Associations).Select(selected).Updates(post).Error; err != nil {
+		if err := tx.Model(post).Omit(omitted...).Select(selected).Updates(post).Error; err != nil {
+			return err
+		}
+	} else if replaceLabels {
+		// 只改标签：刷新更新时间
+		if err := tx.Model(post).Omit(clause.Associations).Select("updated_at").Updates(post).Error; err != nil {
 			return err
 		}
 	}

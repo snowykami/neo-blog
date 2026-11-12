@@ -206,7 +206,21 @@ func (cs *CommentService) UpdateComment(ctx context.Context, req *dto.UpdateComm
 	}
 	// 改为私密后收回无权查看者的通知、新加的 @ 补发提及通知，再唤醒相关收件人的实时连接
 	notifyNotificationUsers(syncCommentNotificationsAfterEdit(ctx, comment, wasPrivate, previousMentions))
+	// 新加了 @ 或改为公开时，由调度器决定被 @ 的 AI 用户是否回应（异步，不影响本次请求）
+	if !comment.IsPrivate && (wasPrivate || hasNewMention(comment.MentionUserIDs, previousMentions)) {
+		NotifyCommentEdited(comment.ID)
+	}
 	return nil
+}
+
+// hasNewMention 编辑后的提及列表里是否有编辑前没有的用户
+func hasNewMention(mentions, previous []uint) bool {
+	for _, id := range mentions {
+		if !slices.Contains(previous, id) {
+			return true
+		}
+	}
+	return false
 }
 
 func (cs *CommentService) DeleteComment(ctx context.Context, commentID uint) *errs.ServiceError {
