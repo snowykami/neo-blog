@@ -11,13 +11,27 @@ ARG NODE_IMAGE=node:24-alpine
 FROM ${NODE_IMAGE} AS builder
 WORKDIR /app
 ARG PNPM_VERSION=10.23.0
+# npm 镜像源（可选）。默认留空走官方源 https://registry.npmjs.org；拉取慢或失败时可通过构建参数切换，
+# 例如 --build-arg NPM_REGISTRY=https://registry.npmmirror.com（同时作用于 corepack 下载 pnpm 与 pnpm install）
+ARG NPM_REGISTRY=""
+# 让 Node 24 内置 fetch（corepack 使用）在构建期遵循 Docker 预定义的 HTTP_PROXY / HTTPS_PROXY；未配置代理时无影响
+ARG NODE_USE_ENV_PROXY=1
 
 # enable corepack and activate pnpm
-RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
+RUN corepack enable && \
+  if [ -n "${NPM_REGISTRY}" ]; then \
+    NODE_USE_ENV_PROXY="${NODE_USE_ENV_PROXY}" COREPACK_NPM_REGISTRY="${NPM_REGISTRY%/}" corepack prepare pnpm@${PNPM_VERSION} --activate; \
+  else \
+    NODE_USE_ENV_PROXY="${NODE_USE_ENV_PROXY}" corepack prepare pnpm@${PNPM_VERSION} --activate; \
+  fi
 
 # copy lock & package then install (dev deps needed for build)
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+RUN if [ -n "${NPM_REGISTRY}" ]; then \
+    npm_config_registry="${NPM_REGISTRY%/}" pnpm install --frozen-lockfile; \
+  else \
+    pnpm install --frozen-lockfile; \
+  fi
 
 # copy source and build
 COPY . .
