@@ -69,7 +69,7 @@ backend:
     # App settings 应用程序配置
     LOG_LEVEL: info
     BASE_URL: https://blog.shenyu.moe
-    MAX_REQUEST_BODY_SIZE: "1000000"
+    MAX_REQUEST_BODY_SIZE: "104857600"
     MODE: prod
 
     # 后端端口，无需替换

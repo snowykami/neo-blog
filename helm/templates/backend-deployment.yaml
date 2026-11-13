@@ -59,12 +59,13 @@ spec:
             {{- end }}
             {{- if $fromSecret }}
             {{- range $key, $secretKey := $secretKeys }}
+            {{- $requiredInProd := and (eq (toString $.Values.backend.env.MODE) "prod") (or (eq $key "JWT_SECRET") (eq $key "PASSWORD_SALT")) (not (index $.Values.backend.env $key)) }}
             - name: {{ $key | quote }}
               valueFrom:
                 secretKeyRef:
                   name: {{ $fromSecret | quote }}
                   key: {{ $secretKey | quote }}
-                  optional: true
+                  optional: {{ not $requiredInProd }}
             {{- end }}
             {{- end }}
             {{- if .Values.database.existingSecret }}
