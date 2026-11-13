@@ -45,6 +45,11 @@ func (l *Lease) keepAlive() {
 		case <-ticker.C:
 			ok, err := Current().Extend(l.key, l.token, l.ttl)
 			if err != nil {
+				if time.Since(time.Unix(0, l.renewedAt.Load())) >= l.ttl {
+					logrus.Warnf("lease %s expired after renewal errors: %v", l.key, err)
+					l.markLost()
+					return
+				}
 				logrus.Warnf("renew lease %s failed: %v", l.key, err)
 				continue
 			}

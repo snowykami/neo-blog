@@ -72,9 +72,9 @@ func processRun(ctx context.Context, site dto.AgentLeaseSite, run *dto.AgentLeas
 	runCtx, cancel := context.WithTimeout(ctx, service.AgentRunMaxDuration)
 	defer cancel()
 	runCtx = service.WithVisionFallbackNotice(runCtx, e.noteVisionFallback)
-	go e.keepAlive(runCtx)
+	go e.keepAlive(runCtx, cancel)
 
-	result := &dto.AgentCompleteReq{ID: run.RunID, Status: "done"}
+	result := &dto.AgentCompleteReq{ID: run.RunID, LeaseToken: run.LeaseToken, Status: "done"}
 	d, err := e.decide(runCtx)
 	if err == nil {
 		result.Reason, result.MemoryNote = d.Reason, d.MemoryNote
@@ -136,8 +136,8 @@ func (e *execution) loadImages(ctx context.Context, postRef, markdown string) (s
 	return annotated, loaded
 }
 
-// keepAlive 每 2 分钟续期一次租约
-func (e *execution) keepAlive(ctx context.Context) {
+// keepAlive 每 2 分钟续期一次租约；失去租约时立即取消本次运行的上下文
+func (e *execution) keepAlive(ctx context.Context, cancel context.CancelFunc) {
 	ticker := time.NewTicker(2 * time.Minute)
 	defer ticker.Stop()
 	for {
@@ -145,8 +145,10 @@ func (e *execution) keepAlive(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if _, svcerr := service.NewAIAgentService().Heartbeat(ctx, e.run.RunID); svcerr != nil {
-				logrus.Warnf("heartbeat run %d: %v", e.run.RunID, svcerr)
+			if _, svcerr := service.NewAIAgentService().Heartbeat(ctx, e.run.RunID, e.run.LeaseToken); svcerr != nil {
+				logrus.Warnf("heartbeat run %d: %v, aborting execution", e.run.RunID, svcerr)
+				cancel()
+				return
 			}
 		}
 	}

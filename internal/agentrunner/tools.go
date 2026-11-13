@@ -33,7 +33,7 @@ func (e *execution) callTool(ctx context.Context, name string, args map[string]a
 	if tool == nil {
 		return "", fmt.Errorf("unknown tool %s", name)
 	}
-	agentCtx, svcerr := service.NewAIAgentService().AgentRunContext(ctx, e.run.RunID)
+	agentCtx, svcerr := service.NewAIAgentService().AgentRunContext(ctx, e.run.RunID, e.run.LeaseToken)
 	if svcerr != nil {
 		return "", errors.New(svcerr.Message)
 	}

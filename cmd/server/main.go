@@ -19,8 +19,8 @@ import (
 	"github.com/snowykami/neo-blog/pkg/utils"
 )
 
-// aiAgentDrainTimeout 退出时等待 AI 用户任务执行完的最长时间；与就绪检查摘流（默认 5 秒）、HTTP 优雅关停（5 秒）
-// 合计不超过 Kubernetes 默认的 30 秒退出时间
+// aiAgentDrainTimeout 退出时等待 AI 用户任务执行完的最长时间；与就绪检查摘流（默认 10 秒）、HTTP 优雅关停（5 秒）
+// 合计不超过 Kubernetes 配置的 35 秒退出宽限期
 const aiAgentDrainTimeout = 15 * time.Second
 
 func main() {
@@ -64,9 +64,11 @@ func main() {
 	// 令牌有效期读取后台配置（环境变量优先）
 	utils.Jwt.Durations = tools.GetAuthDurations
 
-	// 初始化完成后由此统一接收退出信号：通知 worker 停止领取新任务，并让 HTTP 服务优雅关停后退出
+	// 初始化完成后由此统一接收退出信号：通知后台定时任务与 worker 停止领取新任务，并让 HTTP 服务优雅关停后退出
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	tasks.SetContext(ctx)
+	service.StartViewCountFlusher(ctx)
 
 	// 定期清理超过保留期的访问记录
 	tasks.StartVisitLogCleanup()
@@ -100,6 +102,7 @@ func main() {
 	tasks.StartSearchSync()
 
 	err = router.Run(ctx)
+	service.FlushPendingViews()
 	// 已领取的 AI 用户任务尽量执行完，来不及的立即放回队列由其他实例接着执行
 	tasks.DrainAIAgentWorkers(aiAgentDrainTimeout)
 	if err != nil {

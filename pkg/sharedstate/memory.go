@@ -49,10 +49,28 @@ func (m *memoryStore) getLocked(key string, now time.Time) (memoryItem, bool) {
 	return item, true
 }
 
+func isProtectedMemoryKey(key string) bool {
+	return strings.HasPrefix(key, "lock:") ||
+		strings.HasPrefix(key, "lease") ||
+		strings.HasPrefix(key, "task_round:") ||
+		strings.HasPrefix(key, "storage_migration:") ||
+		strings.HasPrefix(key, "ai_summary:") ||
+		strings.HasPrefix(key, "edit_session:")
+}
+
 func (m *memoryStore) putLocked(key string, item memoryItem, now time.Time) {
 	if _, exists := m.items[key]; !exists && len(m.items) >= memoryMaxItems {
 		for k, v := range m.items {
 			if v.expired(now) {
+				delete(m.items, k)
+			}
+		}
+		// 优先淘汰非锁/租约的普通缓存与限流计数，防止写满时误删互斥锁与任务令牌
+		for k := range m.items {
+			if len(m.items) < memoryMaxItems {
+				break
+			}
+			if !isProtectedMemoryKey(k) {
 				delete(m.items, k)
 			}
 		}
@@ -127,6 +145,9 @@ func (m *memoryStore) CompareAndDelete(key, value string) (bool, error) {
 }
 
 func (m *memoryStore) Extend(key, value string, ttl time.Duration) (bool, error) {
+	if ttl <= 0 {
+		return false, nil
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	now := time.Now()

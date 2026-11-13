@@ -470,6 +470,7 @@ type AgentLeaseQuota struct {
 
 type AgentLeaseRun struct {
 	RunID          uint               `json:"run_id"`
+	LeaseToken     string             `json:"lease_token"`
 	Kind           string             `json:"kind"`
 	Trigger        string             `json:"trigger"`
 	DryRun         bool               `json:"dry_run"`
@@ -495,6 +496,7 @@ type AgentLeaseSite struct {
 
 type AgentCompleteReq struct {
 	ID         uint             `json:"id"`
+	LeaseToken string           `json:"lease_token"`
 	Status     string           `json:"status"` // done / failed
 	Actions    []AgentActionDto `json:"actions"`
 	Reason     string           `json:"reason"`

@@ -676,7 +676,7 @@ func (s *AIAgentService) DryRun(ctx context.Context, req *dto.AIAgentDryRunReq) 
 	switch req.TargetType {
 	case constant.TargetTypePost:
 		post, err := repo.Post.GetPostByID(req.TargetID)
-		if err != nil || post.IsPrivate {
+		if err != nil || !post.IsPublic() {
 			return nil, errs.NewNotFound("target_not_found").WithResource("post")
 		}
 	case constant.TargetTypeComment:

@@ -67,6 +67,7 @@ type AgentRun struct {
 	Status           string    `gorm:"type:varchar(16);index:idx_agent_run_status_scheduled,priority:1"`
 	ScheduledAt      time.Time `gorm:"index:idx_agent_run_status_scheduled,priority:2"`
 	LeaseUntil       *time.Time
+	LeaseToken       string `gorm:"type:varchar(64);default:''"` // 租约围栏令牌：防止超时僵尸 worker 篡改新 worker 的运行状态
 	Attempts         int
 	SkipReason       string `gorm:"type:varchar(64)"`
 	Actions          string `gorm:"type:text"` // JSON：[]dto.AgentActionDto，worker 回报的操作列表与执行结果

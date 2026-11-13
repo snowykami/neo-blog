@@ -39,13 +39,18 @@ func Start(ctx context.Context, workers int) {
 	}()
 }
 
+type inflightRun struct {
+	leaseToken string
+	cancel     context.CancelFunc
+}
+
 var (
 	workersDone chan struct{} // workLoop 退出且已领取的任务都执行完时关闭；本实例未启动 worker 时为 nil
-	inflight    sync.Map      // 本实例正在执行的任务 ID
+	inflight    sync.Map      // 本实例正在执行的任务 ID -> inflightRun
 )
 
 // Drain 进程退出前调用（Start 的 ctx 应已结束，不再领取新任务）：等待已领取的任务执行完，最多 timeout；
-// 仍未完成的立即放回队列，由其他实例接着执行，不必等租约到期
+// 仍未完成的立即取消本实例执行并放回队列，由其他实例接着执行，不必等租约到期
 func Drain(timeout time.Duration) {
 	if workersDone == nil {
 		return
@@ -56,8 +61,10 @@ func Drain(timeout time.Duration) {
 	case <-time.After(timeout):
 	}
 	svc := service.NewAIAgentService()
-	inflight.Range(func(key, _ any) bool {
-		svc.ReleaseRun(key.(uint))
+	inflight.Range(func(key, value any) bool {
+		entry := value.(inflightRun)
+		entry.cancel()
+		svc.ReleaseRun(key.(uint), entry.leaseToken)
 		return true
 	})
 }
@@ -92,14 +99,16 @@ func workLoop(ctx context.Context, workers int) {
 					run := runs[i]
 					busy.Add(1)
 					wg.Add(1)
-					inflight.Store(run.RunID, struct{}{})
+					execCtx, execCancel := context.WithCancel(context.Background())
+					inflight.Store(run.RunID, inflightRun{leaseToken: run.LeaseToken, cancel: execCancel})
 					go func() {
 						defer wg.Done()
+						defer execCancel()
 						defer inflight.Delete(run.RunID)
 						defer func() {
 							if r := recover(); r != nil {
 								logrus.Errorf("agent run %d panic: %v\n%s", run.RunID, r, debug.Stack())
-								reportPanic(run.RunID, r)
+								reportPanic(run.RunID, run.LeaseToken, r)
 							}
 							busy.Add(-1)
 							select {
@@ -107,8 +116,8 @@ func workLoop(ctx context.Context, workers int) {
 							default:
 							}
 						}()
-						// 已领取的任务不随退出信号中断，尽量在进程退出前回报结果
-						processRun(context.Background(), site, &run)
+						// 已领取的任务不随退出信号立即中断，尽量在 Drain 宽限期内回报结果；超时后由 Drain 取消并释放租约
+						processRun(execCtx, site, &run)
 					}()
 				}
 			}
@@ -124,13 +133,13 @@ func workLoop(ctx context.Context, workers int) {
 }
 
 // reportPanic 执行中 panic 的运行立即记为失败并写入 panic 摘要，不必等租约过期后重试（同样的输入多半还会 panic）
-func reportPanic(runID uint, r any) {
+func reportPanic(runID uint, leaseToken string, r any) {
 	defer func() {
 		if r := recover(); r != nil {
 			logrus.Errorf("report panic of agent run %d: %v", runID, r)
 		}
 	}()
-	result := &dto.AgentCompleteReq{ID: runID, Status: "failed", Error: fmt.Sprintf("panic: %v", r)}
+	result := &dto.AgentCompleteReq{ID: runID, LeaseToken: leaseToken, Status: "failed", Error: fmt.Sprintf("panic: %v", r)}
 	if svcerr := service.NewAIAgentService().Complete(context.Background(), result); svcerr != nil {
 		logrus.Warnf("report panic of agent run %d: %v", runID, svcerr)
 	}

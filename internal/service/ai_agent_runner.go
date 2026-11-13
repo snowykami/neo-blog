@@ -41,12 +41,19 @@ const (
 
 // ---------- 运行上下文 ----------
 
-// AgentRunContext 以某次运行的 AI 用户身份执行工具时的上下文：运行必须仍在租约中、AI 用户未被暂停或禁用，每次调用工具前确认。
+func matchLeaseToken(expected string, provided []string) bool {
+	if len(provided) == 0 {
+		return expected == ""
+	}
+	return provided[0] == expected
+}
+
+// AgentRunContext 以某次运行的 AI 用户身份执行工具时的上下文：运行必须仍在租约中、令牌匹配、AI 用户未被暂停或禁用，每次调用工具前确认。
 // 返回挂载了用户、权限范围与运行信息的上下文；权限范围 = 运行允许的范围 ∩ 用户角色，与个人 API Token 一致，试运行只有读权限
-func (s *AIAgentService) AgentRunContext(ctx context.Context, runID uint) (context.Context, *errs.ServiceError) {
+func (s *AIAgentService) AgentRunContext(ctx context.Context, runID uint, leaseToken ...string) (context.Context, *errs.ServiceError) {
 	notLeased := errs.NewNotFound("lease_not_found")
 	run, err := repo.AIAgent.GetRun(runID)
-	if err != nil || run.Status != constant.AgentRunStatusLeased || run.LeaseUntil == nil || !run.LeaseUntil.After(time.Now()) {
+	if err != nil || run.Status != constant.AgentRunStatusLeased || run.LeaseUntil == nil || !run.LeaseUntil.After(time.Now()) || !matchLeaseToken(run.LeaseToken, leaseToken) {
 		return ctx, notLeased
 	}
 	agent, err := repo.AIAgent.GetByID(run.AgentID)
@@ -96,10 +103,11 @@ func AgentRunWake() <-chan struct{} {
 
 // ReleaseRun 实例退出前放弃尚未完成的任务：立即重新排队并退回这次领取计入的尝试次数，其他实例可以马上接着执行，不必等租约到期。
 // 已执行过的写操作不会重复：同一次运行对同一目标只发一条评论、写操作总数受限，这两项计数都在共享状态中
-func (s *AIAgentService) ReleaseRun(runID uint) {
-	ok, err := repo.AIAgent.UpdateRunIf(runID, constant.AgentRunStatusLeased, map[string]any{
+func (s *AIAgentService) ReleaseRun(runID uint, leaseToken string) {
+	ok, err := repo.AIAgent.UpdateRunLeased(runID, leaseToken, map[string]any{
 		"status":      constant.AgentRunStatusQueued,
 		"lease_until": nil,
+		"lease_token": "",
 		"attempts":    gorm.Expr("attempts - 1"),
 	})
 	if err != nil {
@@ -214,9 +222,11 @@ func (s *AIAgentService) claimRuns(ctx context.Context, maxRuns int) ([]dto.Agen
 			}
 		}
 		leaseUntil := now.Add(agentLeaseDuration)
+		leaseToken := utils.Strings.GenerateRandomString(32)
 		ok, err = repo.AIAgent.UpdateRunIf(run.ID, constant.AgentRunStatusQueued, map[string]any{
 			"status":      constant.AgentRunStatusLeased,
 			"lease_until": leaseUntil,
+			"lease_token": leaseToken,
 			"attempts":    run.Attempts + 1,
 		})
 		if err != nil {
@@ -226,10 +236,11 @@ func (s *AIAgentService) claimRuns(ctx context.Context, maxRuns int) ([]dto.Agen
 			continue
 		}
 		run.Attempts++
+		run.LeaseToken = leaseToken
 		leased, err := s.buildLeaseRun(run, agent, cfg, now, leaseUntil)
 		if err != nil {
 			logrus.Errorf("build lease for run %d: %v", run.ID, err)
-			_ = repo.AIAgent.UpdateRun(run.ID, map[string]any{"status": constant.AgentRunStatusFailed, "error": err.Error(), "finished_at": now})
+			_, _ = repo.AIAgent.UpdateRunLeased(run.ID, leaseToken, map[string]any{"status": constant.AgentRunStatusFailed, "error": err.Error(), "finished_at": now, "lease_token": ""})
 			continue
 		}
 		busy[run.AgentID] = true
@@ -300,29 +311,29 @@ func contentTargetSkipReason(targetType string, targetID uint) string {
 	if err != nil {
 		return ""
 	}
-	if meta.IsPrivate {
+	if !meta.IsPublic() {
 		return "target_private"
 	}
 	return ""
 }
 
-// Heartbeat 续期租约
-func (s *AIAgentService) Heartbeat(ctx context.Context, runID uint) (*time.Time, *errs.ServiceError) {
+// Heartbeat 续期租约（仅当前持有租约令牌的实例可续期）
+func (s *AIAgentService) Heartbeat(ctx context.Context, runID uint, leaseToken string) (*time.Time, *errs.ServiceError) {
 	run, err := repo.AIAgent.GetRun(runID)
-	if err != nil || run.Status != constant.AgentRunStatusLeased {
+	if err != nil || run.Status != constant.AgentRunStatusLeased || run.LeaseToken != leaseToken {
 		return nil, errs.NewNotFound("lease_not_found")
 	}
 	until := time.Now().Add(agentLeaseDuration)
-	if ok, err := repo.AIAgent.UpdateRunIf(run.ID, constant.AgentRunStatusLeased, map[string]any{"lease_until": until}); err != nil || !ok {
+	if ok, err := repo.AIAgent.UpdateRunLeased(run.ID, leaseToken, map[string]any{"lease_until": until}); err != nil || !ok {
 		return nil, errs.NewNotFound("lease_not_found")
 	}
 	return &until, nil
 }
 
-// Complete 回报一次运行的结果：保存操作列表、轨迹，并写入记忆
+// Complete 回报一次运行的结果：保存操作列表、轨迹，并写入记忆（须校验租约令牌，防止超时实例覆盖）
 func (s *AIAgentService) Complete(ctx context.Context, req *dto.AgentCompleteReq) *errs.ServiceError {
 	run, err := repo.AIAgent.GetRun(req.ID)
-	if err != nil || run.Status != constant.AgentRunStatusLeased {
+	if err != nil || run.Status != constant.AgentRunStatusLeased || run.LeaseToken != req.LeaseToken {
 		return errs.NewNotFound("lease_not_found")
 	}
 	status := constant.AgentRunStatusDone
@@ -346,7 +357,7 @@ func (s *AIAgentService) Complete(ctx context.Context, req *dto.AgentCompleteReq
 	}
 	note := sanitizeMemoryNote(req.MemoryNote, memoryNoteMaxRunes)
 	now := time.Now()
-	ok, err := repo.AIAgent.UpdateRunIf(run.ID, constant.AgentRunStatusLeased, map[string]any{
+	ok, err := repo.AIAgent.UpdateRunLeased(run.ID, req.LeaseToken, map[string]any{
 		"status":      status,
 		"actions":     mustJSON(req.Actions),
 		"reason":      clipRunes(req.Reason, 300),
@@ -355,6 +366,7 @@ func (s *AIAgentService) Complete(ctx context.Context, req *dto.AgentCompleteReq
 		"error":       clipRunes(req.Error, 1000),
 		"finished_at": now,
 		"lease_until": nil,
+		"lease_token": "",
 	})
 	if err != nil {
 		return errs.Internal("failed_to_update_target", err).WithResource("agent_run")
@@ -423,9 +435,9 @@ func monthTokensCached(now time.Time) int64 {
 
 // AgentChat 以某次运行的名义调用模型（OpenAI 兼容的 chat/completions）：复用后台 AI 配置，
 // 按全站上限与预算限流，并把用量记到运行上；返回上游的原始响应体
-func (s *AIAgentService) AgentChat(ctx context.Context, runID uint, payload map[string]any) ([]byte, error) {
+func (s *AIAgentService) AgentChat(ctx context.Context, runID uint, payload map[string]any, leaseToken ...string) ([]byte, error) {
 	run, err := repo.AIAgent.GetRun(runID)
-	if err != nil || run.Status != constant.AgentRunStatusLeased {
+	if err != nil || run.Status != constant.AgentRunStatusLeased || !matchLeaseToken(run.LeaseToken, leaseToken) {
 		return nil, errs.NewNotFound("lease_not_found")
 	}
 	agent, err := repo.AIAgent.GetByID(run.AgentID)
@@ -600,6 +612,7 @@ func (s *AIAgentService) buildLeaseRun(run *model.AgentRun, agent *model.AIAgent
 	dryRun := run.Kind == constant.AgentRunKindDryRun
 	leased := &dto.AgentLeaseRun{
 		RunID:          run.ID,
+		LeaseToken:     run.LeaseToken,
 		Kind:           run.Kind,
 		Trigger:        run.Trigger,
 		DryRun:         dryRun,
@@ -637,8 +650,8 @@ func (s *AIAgentService) buildLeaseRun(run *model.AgentRun, agent *model.AIAgent
 		if err != nil {
 			return nil, err
 		}
-		// 私密文章只在后台可见，不交给 AI（领取前已按 eventTargetSkipReason 跳过，这里兜底）
-		if len(posts) == 0 || posts[0].IsPrivate {
+		// 私密或未发布草稿文章只在后台可见，不交给 AI（领取前已按 eventTargetSkipReason 跳过，这里兜底）
+		if len(posts) == 0 || !posts[0].IsPublic() {
 			return nil, errors.New("target post not found")
 		}
 		ref := postRef(&posts[0], baseURL)
@@ -662,7 +675,7 @@ func (s *AIAgentService) buildLeaseRun(run *model.AgentRun, agent *model.AIAgent
 		}
 		event := &dto.AgentLeaseEvent{TargetType: constant.TargetTypeComment, TargetID: c.ID, Comment: ref, AIDepth: aiChainDepth(c.ID)}
 		if c.TargetType == constant.TargetTypePost {
-			if posts, err := repo.AIAgent.PostsByIDs([]uint{c.TargetID}); err == nil && len(posts) > 0 && !posts[0].IsPrivate {
+			if posts, err := repo.AIAgent.PostsByIDs([]uint{c.TargetID}); err == nil && len(posts) > 0 && posts[0].IsPublic() {
 				p := postRef(&posts[0], baseURL)
 				event.Post = &p
 				keywords = append(keywords, p.Labels...)
@@ -685,7 +698,7 @@ func (s *AIAgentService) buildLeaseRun(run *model.AgentRun, agent *model.AIAgent
 			byID[posts[i].ID] = &posts[i]
 		}
 		for _, id := range feedIDs {
-			if p, ok := byID[id]; ok && !p.IsPrivate {
+			if p, ok := byID[id]; ok && p.IsPublic() {
 				ref := postRef(p, baseURL)
 				ref.Commented, ref.Liked = commented[id], liked[id]
 				leased.Feed = append(leased.Feed, ref)

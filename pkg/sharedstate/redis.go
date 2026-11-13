@@ -148,6 +148,9 @@ func (s *redisStore) CompareAndDelete(key, value string) (bool, error) {
 }
 
 func (s *redisStore) Extend(key, value string, ttl time.Duration) (bool, error) {
+	if ttl <= 0 {
+		return false, nil
+	}
 	ctx, cancel := s.ctx()
 	defer cancel()
 	n, err := extendScript.Run(ctx, s.client, []string{s.key(key)}, value, ttl.Milliseconds()).Int64()
@@ -238,6 +241,9 @@ func (s *redisStore) subscribe(channel string) {
 	ctx, cancel := s.ctx()
 	defer cancel()
 	if err := pubsub.Subscribe(ctx, s.key(channel)); err != nil {
+		s.subMu.Lock()
+		delete(s.subChannels, channel)
+		s.subMu.Unlock()
 		logrus.Errorf("subscribe %s failed: %v", channel, err)
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"runtime/debug"
+	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -11,15 +12,49 @@ import (
 	"github.com/snowykami/neo-blog/pkg/sharedstate"
 )
 
-// runPeriodically 启动后立即执行一次 fn，之后每隔 interval 执行一次。
+var (
+	tasksCtxMu sync.RWMutex
+	tasksCtx   = context.Background()
+)
+
+// SetContext 绑定进程退出信号上下文：收到退出信号后不再启动新一轮定时任务
+func SetContext(ctx context.Context) {
+	if ctx == nil {
+		return
+	}
+	tasksCtxMu.Lock()
+	tasksCtx = ctx
+	tasksCtxMu.Unlock()
+}
+
+func stopDone() <-chan struct{} {
+	tasksCtxMu.RLock()
+	ch := tasksCtx.Done()
+	tasksCtxMu.RUnlock()
+	return ch
+}
+
+// runPeriodically 启动后立即执行一次 fn，之后每隔 interval 执行一次；收到退出信号后立即停止。
 // 多实例部署时每一轮只有一个实例认领执行；认领有效期略短于周期，各实例的时间差不会导致整轮都被跳过
 func runPeriodically(task string, interval time.Duration, fn func()) {
 	go func() {
+		done := stopDone()
 		for {
+			select {
+			case <-done:
+				return
+			default:
+			}
 			if sharedstate.ClaimRound(task, interval*9/10) {
 				runSafely(task, fn)
 			}
-			time.Sleep(interval)
+			timer := time.NewTimer(interval)
+			select {
+			case <-done:
+				timer.Stop()
+				return
+			case <-timer.C:
+			}
 		}
 	}()
 }

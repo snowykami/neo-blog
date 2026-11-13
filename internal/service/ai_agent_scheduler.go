@@ -330,7 +330,7 @@ func (s *AIAgentService) OnPostPublished(postID uint, now time.Time) {
 		return
 	}
 	posts, err := repo.AIAgent.PostsByIDs([]uint{postID})
-	if err != nil || len(posts) == 0 || posts[0].IsPrivate {
+	if err != nil || len(posts) == 0 || !posts[0].IsPublic() {
 		return
 	}
 	post := &posts[0]

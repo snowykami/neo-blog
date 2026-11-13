@@ -18,7 +18,7 @@ func TestReportPanicMarksRunFailed(t *testing.T) {
 	if err := repo.AIAgent.CreateRun(run); err != nil {
 		t.Fatal(err)
 	}
-	reportPanic(run.ID, "boom")
+	reportPanic(run.ID, "", "boom")
 	got, err := repo.AIAgent.GetRun(run.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -27,5 +27,5 @@ func TestReportPanicMarksRunFailed(t *testing.T) {
 		t.Fatalf("run after panic = %+v", got)
 	}
 	// 已经结束的运行再回报不会出错
-	reportPanic(run.ID, "again")
+	reportPanic(run.ID, "", "again")
 }

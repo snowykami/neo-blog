@@ -90,7 +90,7 @@ func (e *execution) chat(ctx context.Context, messages []chatMessage, tools []to
 			case <-time.After(time.Duration(attempt*attempt) * 3 * time.Second):
 			}
 		}
-		body, err := service.NewAIAgentService().AgentChat(ctx, e.run.RunID, payload)
+		body, err := service.NewAIAgentService().AgentChat(ctx, e.run.RunID, payload, e.run.LeaseToken)
 		if err != nil {
 			if !retryable(err) {
 				return nil, err

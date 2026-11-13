@@ -336,15 +336,24 @@ func TestAgentLeaseCompleteFlow(t *testing.T) {
 			t.Fatal("agent claimed twice")
 		}
 	}
-	// 以运行的 AI 用户身份回复并回报
-	leaseContext, svcerr := svc.AgentRunContext(context.Background(), leased.RunID)
+	// 以运行的 AI 用户身份回复并回报（错误的租约令牌必须拒绝，防止过期实例覆盖）
+	if _, svcerr := svc.AgentRunContext(context.Background(), leased.RunID, "stale-token"); svcerr == nil {
+		t.Fatal("stale lease token should be rejected by AgentRunContext")
+	}
+	if _, svcerr := svc.Heartbeat(context.Background(), leased.RunID, "stale-token"); svcerr == nil {
+		t.Fatal("stale lease token should be rejected by Heartbeat")
+	}
+	if svcerr := svc.Complete(context.Background(), &dto.AgentCompleteReq{ID: leased.RunID, LeaseToken: "stale-token", Status: "done"}); svcerr == nil {
+		t.Fatal("stale lease token should be rejected by Complete")
+	}
+	leaseContext, svcerr := svc.AgentRunContext(context.Background(), leased.RunID, leased.LeaseToken)
 	if svcerr != nil {
 		t.Fatal(svcerr)
 	}
 	if _, svcerr := svc.AgentCreateComment(leaseContext, "", 0, reply, "谢谢！下次一起聊聊部署"); svcerr != nil {
 		t.Fatalf("reply as agent: %v", svcerr)
 	}
-	if svcerr := svc.Complete(context.Background(), &dto.AgentCompleteReq{ID: leased.RunID, Status: "done", Reason: "对方在道谢",
+	if svcerr := svc.Complete(context.Background(), &dto.AgentCompleteReq{ID: leased.RunID, LeaseToken: leased.LeaseToken, Status: "done", Reason: "对方在道谢",
 		MemoryNote: "author 喜欢讨论部署", Actions: []dto.AgentActionDto{{Type: "reply", Target: "comment:1", Result: "ok"}}}); svcerr != nil {
 		t.Fatalf("complete: %v", svcerr)
 	}

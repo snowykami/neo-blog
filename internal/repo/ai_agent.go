@@ -268,6 +268,14 @@ func (r *aiAgentRepo) UpdateRunIf(id uint, fromStatus string, columns map[string
 	return res.RowsAffected == 1, res.Error
 }
 
+// UpdateRunLeased 仅在运行仍处于 leased 且持有匹配的租约令牌时更新（防止过期实例覆盖新实例结果）
+func (r *aiAgentRepo) UpdateRunLeased(id uint, leaseToken string, columns map[string]any) (bool, error) {
+	res := GetDB().Model(&model.AgentRun{}).
+		Where("id = ? AND status = ? AND lease_token = ?", id, constant.AgentRunStatusLeased, leaseToken).
+		Updates(columns)
+	return res.RowsAffected == 1, res.Error
+}
+
 // DueRuns 已到执行时间的待办，按计划时间先后（试运行的计划时间提前，因而排在最前）
 func (r *aiAgentRepo) DueRuns(now time.Time, limit int) ([]model.AgentRun, error) {
 	var runs []model.AgentRun
@@ -291,11 +299,11 @@ func (r *aiAgentRepo) LeasedAgentIDs(now time.Time) (map[uint]bool, error) {
 func (r *aiAgentRepo) RequeueExpired(now time.Time, maxAttempts int) error {
 	db := GetDB().Model(&model.AgentRun{}).Where("status = ? AND lease_until <= ?", constant.AgentRunStatusLeased, now)
 	if err := db.Session(&gorm.Session{}).Where("attempts >= ?", maxAttempts).
-		Updates(map[string]any{"status": constant.AgentRunStatusFailed, "error": "lease expired", "finished_at": now}).Error; err != nil {
+		Updates(map[string]any{"status": constant.AgentRunStatusFailed, "error": "lease expired", "finished_at": now, "lease_token": ""}).Error; err != nil {
 		return err
 	}
 	return GetDB().Model(&model.AgentRun{}).Where("status = ? AND lease_until <= ? AND attempts < ?", constant.AgentRunStatusLeased, now, maxAttempts).
-		Updates(map[string]any{"status": constant.AgentRunStatusQueued, "lease_until": nil}).Error
+		Updates(map[string]any{"status": constant.AgentRunStatusQueued, "lease_until": nil, "lease_token": ""}).Error
 }
 
 // HasPendingRun AI 用户是否已有排队或执行中的任务
@@ -771,7 +779,7 @@ func feedPostQuery() *gorm.DB {
 func (r *aiAgentRepo) RecentPublicPosts(since time.Time, limit int) ([]model.Post, error) {
 	var posts []model.Post
 	err := feedPostQuery().
-		Where("is_private = ? AND created_at >= ?", false, since).Order("created_at DESC").Limit(limit).Find(&posts).Error
+		Where("is_private = ? AND is_draft = ? AND created_at >= ?", false, false, since).Order("created_at DESC").Limit(limit).Find(&posts).Error
 	return posts, err
 }
 
@@ -779,7 +787,7 @@ func (r *aiAgentRepo) RecentPublicPosts(since time.Time, limit int) ([]model.Pos
 func (r *aiAgentRepo) HotPublicPosts(limit int) ([]model.Post, error) {
 	var posts []model.Post
 	err := feedPostQuery().
-		Where("is_private = ?", false).Order("heat DESC, id DESC").Limit(limit).Find(&posts).Error
+		Where("is_private = ? AND is_draft = ?", false, false).Order("heat DESC, id DESC").Limit(limit).Find(&posts).Error
 	return posts, err
 }
 
@@ -787,7 +795,7 @@ func (r *aiAgentRepo) HotPublicPosts(limit int) ([]model.Post, error) {
 func (r *aiAgentRepo) OldPublicPosts(before time.Time, limit int) ([]model.Post, error) {
 	var posts []model.Post
 	err := feedPostQuery().
-		Where("is_private = ? AND created_at < ?", false, before).Order("RANDOM()").Limit(limit).Find(&posts).Error
+		Where("is_private = ? AND is_draft = ? AND created_at < ?", false, false, before).Order("RANDOM()").Limit(limit).Find(&posts).Error
 	return posts, err
 }
 

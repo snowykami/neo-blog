@@ -6,9 +6,9 @@ rollingUpdate:
   maxSurge: 1
   maxUnavailable: 0
 
-# 退出时间（秒）：后端收到 SIGTERM 后先让就绪检查失败并等待 5 秒（SHUTDOWN_DELAY_SECONDS）、
+# 退出时间（秒）：后端收到 SIGTERM 后先让就绪检查失败并等待 10 秒（SHUTDOWN_DELAY_SECONDS）、
 # 再优雅关停 HTTP 服务（5 秒），最后等待已领取的 AI 用户任务（15 秒），合计不超过这个时间
-terminationGracePeriodSeconds: 30
+terminationGracePeriodSeconds: 35
 
 # 前端收到 SIGTERM 前等待的秒数（preStop），留给负载均衡摘掉正在退出的实例
 frontendPreStopSleepSeconds: 5

@@ -15,10 +15,27 @@ import (
 type notificationHub struct {
 	mu          sync.Mutex
 	subscribers map[uint]map[chan struct{}]struct{}
+	shutdown    chan struct{}
+	closeOnce   sync.Once
 }
 
 // NotificationHub 站内通知的实时推送入口
-var NotificationHub = &notificationHub{subscribers: map[uint]map[chan struct{}]struct{}{}}
+var NotificationHub = &notificationHub{
+	subscribers: map[uint]map[chan struct{}]struct{}{},
+	shutdown:    make(chan struct{}),
+}
+
+// Done 实例开始关停时关闭，SSE 通知流据此主动断开重连到新实例
+func (h *notificationHub) Done() <-chan struct{} {
+	return h.shutdown
+}
+
+// CloseNotificationStreams 关停前结束本实例上的所有通知 SSE 长连接
+func CloseNotificationStreams() {
+	NotificationHub.closeOnce.Do(func() {
+		close(NotificationHub.shutdown)
+	})
+}
 
 const notificationChannel = "notification"
 

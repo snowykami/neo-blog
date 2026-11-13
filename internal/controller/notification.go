@@ -211,6 +211,10 @@ func (nc *NotificationController) StreamNotifications(ctx context.Context, c *ap
 		deadline := time.After(notificationStreamMaxLifetime)
 		for {
 			select {
+			case <-ctx.Done():
+				return
+			case <-service.NotificationHub.Done():
+				return
 			case <-subscription:
 				if !writeEvent() {
 					return

@@ -3,6 +3,7 @@ package sharedstate
 import (
 	"context"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -92,6 +93,10 @@ func TestStoreContract(t *testing.T) {
 			}
 			if ok, _ := s.Extend("missing-ext", "mine", time.Minute); ok {
 				t.Fatalf("extend missing key should fail")
+			}
+			// Extend 传入非正 TTL 时统一返回 (false, nil)，不会把键改为永不过期或误报错
+			if ok, err := s.Extend("ext", "mine", 0); ok || err != nil {
+				t.Fatalf("extend with zero ttl: ok=%v err=%v, want false nil", ok, err)
 			}
 
 			// Incr 固定窗口
@@ -364,5 +369,25 @@ func TestServerInfoAndCountKeys(t *testing.T) {
 				t.Fatal("scan limit should mark the result incomplete")
 			}
 		})
+	}
+}
+
+func TestMemoryEvictionProtectsLocksAndLeases(t *testing.T) {
+	m := newMemoryStore()
+	if err := m.Set("lock:critical", "holder-1", time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Set("storage_migration:active", "holder-2", time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	// 塞满至超过 memoryMaxItems，确认锁与迁移租约键不会被随机淘汰
+	for i := 0; i < memoryMaxItems+500; i++ {
+		_ = m.Set("rate_limit:ip:"+strconv.Itoa(i), "1", time.Hour)
+	}
+	if v, ok, _ := m.Get("lock:critical"); !ok || v != "holder-1" {
+		t.Fatalf("lock key was evicted: v=%q ok=%v", v, ok)
+	}
+	if v, ok, _ := m.Get("storage_migration:active"); !ok || v != "holder-2" {
+		t.Fatalf("migration lease key was evicted: v=%q ok=%v", v, ok)
 	}
 }

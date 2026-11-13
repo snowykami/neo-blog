@@ -31,6 +31,7 @@ const (
 	storageMigrationRequestKey = "storage_migration:request" // 运行中任务的参数，用于实例中途退出后自动继续
 	storageMigrationMaxResumes = 5                           // 自动继续的次数上限，避免反复中断的任务无限重试
 	storageMigrationLease      = time.Minute
+	storageMigrationCancelTTL  = 24 * time.Hour
 	storageMigrationStatusTTL  = 7 * 24 * time.Hour
 	storageMigrationMaxErrors  = 20
 	storageMigrationMaxFiles   = 1000 // 按选中文件迁移时一次最多的文件数
@@ -124,12 +125,11 @@ func startStorageMigration(req *dto.StorageMigrationReq, resumes int) (*dto.Stor
 		sources[id] = provider
 	}
 
-	token := utils.Strings.GenerateRandomString(32)
-	ok, err := sharedstate.Current().SetNX(storageMigrationActiveKey, token, storageMigrationLease)
+	lease, err := sharedstate.AcquireLease(storageMigrationActiveKey, storageMigrationLease)
 	if err != nil {
 		return nil, errs.Internal("failed_to_start_storage_migration", err)
 	}
-	if !ok {
+	if lease == nil {
 		return nil, errs.NewConflict("storage_migration_running")
 	}
 	_ = sharedstate.Current().Delete(storageMigrationCancelKey)
@@ -139,7 +139,7 @@ func startStorageMigration(req *dto.StorageMigrationReq, resumes int) (*dto.Stor
 
 	now := time.Now()
 	m := &storageMigration{
-		token:   token,
+		lease:   lease,
 		fileIDs: fileIDs,
 		target:  target,
 		sources: sources,
@@ -186,7 +186,7 @@ func CancelStorageMigration() *errs.ServiceError {
 	} else if !active {
 		return errs.NewBadRequest("storage_migration_not_running")
 	}
-	if err := sharedstate.Current().Set(storageMigrationCancelKey, "1", storageMigrationLease); err != nil {
+	if err := sharedstate.Current().Set(storageMigrationCancelKey, "1", storageMigrationCancelTTL); err != nil {
 		return errs.Internal("failed_to_cancel_storage_migration", err)
 	}
 	return nil
@@ -199,7 +199,7 @@ func storageMigrationBusy(providerID uint) bool {
 }
 
 type storageMigration struct {
-	token   string
+	lease   *sharedstate.Lease
 	fileIDs []uint
 	target  storageprovider.StorageProvider
 	sources map[uint]storageprovider.StorageProvider
@@ -207,6 +207,10 @@ type storageMigration struct {
 	mu       sync.Mutex
 	status   dto.StorageMigrationStatus
 	lastSave time.Time
+}
+
+func (m *storageMigration) held() bool {
+	return m.lease == nil || m.lease.Held()
 }
 
 func (m *storageMigration) snapshot() dto.StorageMigrationStatus {
@@ -230,6 +234,9 @@ func (m *storageMigration) update(fn func(s *dto.StorageMigrationStatus)) {
 }
 
 func (m *storageMigration) save() {
+	if !m.held() {
+		return
+	}
 	status := m.snapshot()
 	m.mu.Lock()
 	m.lastSave = time.Now()
@@ -256,6 +263,9 @@ func (m *storageMigration) canceled() bool {
 }
 
 func (m *storageMigration) finish(state string) {
+	if !m.held() {
+		return
+	}
 	now := time.Now()
 	m.update(func(s *dto.StorageMigrationStatus) {
 		s.State = state
@@ -266,46 +276,43 @@ func (m *storageMigration) finish(state string) {
 	_ = sharedstate.Current().Delete(storageMigrationRequestKey)
 }
 
-// keepAlive 运行期间续期任务令牌
-func (m *storageMigration) keepAlive(stop <-chan struct{}) {
-	ticker := time.NewTicker(storageMigrationLease / 3)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-stop:
-			return
-		case <-ticker.C:
-			// 只续期自己持有的令牌：令牌已过期并被其他实例接手时不覆盖
-			if ok, err := sharedstate.Current().Extend(storageMigrationActiveKey, m.token, storageMigrationLease); err != nil {
-				logrus.Warnf("续期存储迁移任务失败: %v", err)
-			} else if !ok {
-				logrus.Warnf("存储迁移任务令牌已失效")
-			}
-		}
-	}
-}
-
 func (m *storageMigration) run() {
-	stop := make(chan struct{})
-	go m.keepAlive(stop)
+	ctx, cancel := context.WithCancel(context.Background())
+	if m.lease != nil {
+		go func() {
+			select {
+			case <-ctx.Done():
+			case <-m.lease.Lost():
+				logrus.Warn("存储迁移任务租约已失效，立即中止本实例迁移")
+				cancel()
+			}
+		}()
+	}
 	defer func() {
+		cancel()
+		stillHeld := m.held()
 		if r := recover(); r != nil {
 			logrus.Errorf("存储迁移异常退出: %v", r)
-			m.addError("panic: %v", r)
-			m.finish(StorageMigrationFailed)
+			if stillHeld {
+				m.addError("panic: %v", r)
+				m.finish(StorageMigrationFailed)
+			}
 		}
-		close(stop)
-		if _, err := sharedstate.Current().CompareAndDelete(storageMigrationActiveKey, m.token); err != nil {
-			logrus.Warnf("释放存储迁移任务失败: %v", err)
+		if stillHeld {
+			_ = sharedstate.Current().Delete(storageMigrationCancelKey)
 		}
-		_ = sharedstate.Current().Delete(storageMigrationCancelKey)
+		if m.lease != nil {
+			m.lease.Release()
+		}
 		if storageMigrationAfterRun != nil {
 			storageMigrationAfterRun()
 		}
 	}()
-	ctx := context.Background()
 	if storageMigrationBeforeRun != nil {
 		storageMigrationBeforeRun()
+	}
+	if !m.held() {
+		return
 	}
 
 	// 1. 先把源存储遗留在内容中的直链还原为稳定链接，否则迁移后这些直链会随源存储失效
@@ -348,6 +355,10 @@ func (m *storageMigration) run() {
 	})
 	moved := false
 	for _, object := range objects {
+		if !m.held() {
+			m.afterMove(moved)
+			return
+		}
 		if m.canceled() {
 			m.afterMove(moved)
 			m.finish(StorageMigrationCanceled)
@@ -388,6 +399,10 @@ func (m *storageMigration) run() {
 		})
 		source := m.sources[m.status.SourceProviderID]
 		for i := range versions {
+			if !m.held() {
+				m.afterMove(moved)
+				return
+			}
 			if m.canceled() {
 				m.afterMove(moved)
 				m.finish(StorageMigrationCanceled)
