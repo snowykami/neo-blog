@@ -1,8 +1,9 @@
 import type { AbstractIntlMessages } from 'next-intl'
 import type { I18nScope as I18nScopeKey } from '@/locales/scopes.generated'
-import { getLocale, getTimeZone } from 'next-intl/server'
+import { getLocale } from 'next-intl/server'
 import { ClientI18nProvider } from '@/components/i18n-scope.client'
 import { getScopeOwnMessages } from '@/locales/scoped-messages'
+import { DEFAULT_TIME_ZONE } from '@/utils/common/time-zone'
 
 /**
  * 只把当前这一层子树用到的文案交给客户端组件（清单见 src/locales/scopes.generated.ts）
@@ -15,11 +16,18 @@ import { getScopeOwnMessages } from '@/locales/scoped-messages'
  *
  * 服务端组件（getTranslations）不受影响：它们走 i18n/request.ts 的完整文案，不进入响应体。
  */
-export async function I18nScope({ scope, children }: { scope: I18nScopeKey, children: React.ReactNode }) {
-  const locale = await getLocale()
-  // 客户端 Provider 不会像服务端版本那样自动从请求配置取时区，这里补上服务端渲染用的固定时区，保证水合前后一致。
-  // 不传 now：它是每个请求不同的「现在」，会让页面因人因时而异；用到「现在」的组件在浏览器里自己取（如 useNow）
-  const timeZone = await getTimeZone()
+export async function I18nScope({
+  scope,
+  children,
+  locale: propLocale,
+}: {
+  scope: I18nScopeKey
+  children: React.ReactNode
+  locale?: string
+}) {
+  const locale = propLocale ?? await getLocale()
+  // 服务端按统一固定时区渲染，与 request.ts 保持一致，避免调用 getTimeZone 触发未缓存动态请求上下文
+  const timeZone = DEFAULT_TIME_ZONE
   return (
     <ClientI18nProvider
       locale={locale}

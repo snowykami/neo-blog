@@ -97,7 +97,7 @@ export default async function RootLayout({
             {/* Toaster 读取 DeviceProvider 中的主题，需放在其内部 */}
             <Toaster richColors position="top-center" offset={80} />
             {/* 只下发根布局这一层用到的文案，其余由各路由段的作用域补齐（见 scripts/i18n-scopes.mjs） */}
-            <I18nScope scope="root">
+            <I18nScope scope="root" locale={locale}>
               <AppUpdateChecker />
               {/* ThemeProvider 要按登录用户的角色决定是否应用管理员的主题预览，所以放在 AuthProvider 里面 */}
               <AuthProvider>
