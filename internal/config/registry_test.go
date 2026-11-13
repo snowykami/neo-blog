@@ -237,15 +237,22 @@ func TestGetSchema(t *testing.T) {
 	if err := repo.KV.SetKV("email_host", "smtp.db.test"); err != nil {
 		t.Fatal(err)
 	}
+	if err := repo.KV.SetKV("email_password", "super-secret-db"); err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv(constant.EnvKeyEmailHost, "smtp.env.test")
+	t.Setenv(constant.EnvKeyEmailPassword, "super-secret-env")
 	schema := GetSchema()
 	if len(schema.Tabs) != len(tabs) || len(schema.Sections) != len(sections) {
 		t.Fatalf("schema size %d / %d", len(schema.Tabs), len(schema.Sections))
 	}
 	for _, section := range schema.Sections {
 		for _, view := range section.Items {
-			if view.Key == "email_host" && (view.Value != "smtp.db.test" || view.EnvValue != "smtp.env.test") {
+			if view.Key == "email_host" && (view.Value != "smtp.db.test" || view.EnvValue != "smtp.env.test" || !view.EnvSet) {
 				t.Fatalf("email_host view = %+v", view)
+			}
+			if view.Key == "email_password" && (view.Value != "" || view.EnvValue != "" || !view.HasValue || !view.EnvSet) {
+				t.Fatalf("email_password secret leaked or missing boolean markers: %+v", view)
 			}
 		}
 	}

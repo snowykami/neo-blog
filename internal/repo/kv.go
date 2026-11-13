@@ -65,8 +65,9 @@ func cloneKVValue(v any) any {
 func cloneModelKV(src model.KV) *model.KV {
 	cloned, _ := cloneKVValue(src.Value).(model.JSONMap)
 	return &model.KV{
-		Key:   src.Key,
-		Value: cloned,
+		Key:    src.Key,
+		Value:  cloned,
+		Secret: src.Secret,
 	}
 }
 
@@ -173,16 +174,42 @@ func (k *kvRepo) GetKV(key string, defaultValue ...any) (any, error) {
 }
 
 func (k *kvRepo) SetKV(key string, value any) error {
+	return k.SetKVWithSecret(key, value, true, nil)
+}
+
+// SetKVWithSecret 写入配置键并可选更新敏感布尔标记：
+//   - updateValue 为 false 时保持原 Value 不变，仅修改 Secret 标记
+//   - secret 为 nil 时保持已有记录的 Secret 标记不变
+func (k *kvRepo) SetKVWithSecret(key string, value any, updateValue bool, secret *bool) error {
 	d := GetDB()
 	if d == nil {
 		return ErrDatabaseNotInitialized
 	}
-	kv := &model.KV{
-		Key:   key,
-		Value: map[string]any{"value": value},
+	var existing model.KV
+	err := d.First(&existing, "key = ?", key).Error
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		kv := &model.KV{
+			Key:    key,
+			Value:  map[string]any{"value": value},
+			Secret: secret != nil && *secret,
+		}
+		if !updateValue {
+			kv.Value = map[string]any{"value": nil}
+		}
+		defer k.changed(key)
+		return d.Create(kv).Error
+	}
+	if updateValue {
+		existing.Value = map[string]any{"value": value}
+	}
+	if secret != nil {
+		existing.Secret = *secret
 	}
 	defer k.changed(key)
-	return d.Save(kv).Error
+	return d.Save(&existing).Error
 }
 
 func (k *kvRepo) ListKV(query string) ([]model.KV, error) {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"sync"
+	"sync/atomic"
 
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/storage/local"
@@ -13,9 +14,15 @@ import (
 )
 
 var (
-	providers   = make(map[uint]storageprovider.StorageProvider)
-	providersMu sync.RWMutex
+	providers        = make(map[uint]storageprovider.StorageProvider)
+	providersMu      sync.RWMutex
+	providersVersion atomic.Uint64
 )
+
+// ProvidersVersion 当前存储提供者快照的版本号，每次替换时自增（供正则缓存等按版本失效）
+func ProvidersVersion() uint64 {
+	return providersVersion.Load()
+}
 
 // SupportedProviderTypes 已实现的存储类型
 var SupportedProviderTypes = []string{"local", "webdav", "s3"}
@@ -37,8 +44,9 @@ func ListStorageProviders() map[uint]storageprovider.StorageProvider {
 // ReplaceStorageProviders 整体替换已注册的存储提供者，已删除的提供者不会残留
 func ReplaceStorageProviders(next map[uint]storageprovider.StorageProvider) {
 	providersMu.Lock()
-	defer providersMu.Unlock()
 	providers = next
+	providersVersion.Add(1)
+	providersMu.Unlock()
 }
 
 func NewStorageProvider(providerConfig model.StorageProviderModelAndDto) (storageprovider.StorageProvider, error) {

@@ -65,13 +65,22 @@ const fileLinkChangedChannel = "file_links_changed"
 var (
 	fileLocCache   = make(map[uint]fileLoc)
 	fileLocCacheMu sync.RWMutex
+
+	directMatchersMu      sync.RWMutex
+	directMatchersVersion uint64
+	directMatchersCached  []directLinkMatcher
 )
 
-// ResetFileLinkCache 清空本实例的文件位置缓存
+// ResetFileLinkCache 清空本实例的文件位置缓存与直链匹配正则缓存
 func ResetFileLinkCache() {
 	fileLocCacheMu.Lock()
 	fileLocCache = make(map[uint]fileLoc)
 	fileLocCacheMu.Unlock()
+
+	directMatchersMu.Lock()
+	directMatchersVersion = 0
+	directMatchersCached = nil
+	directMatchersMu.Unlock()
 }
 
 // fileLinksChanged 文件所在存储变化后清空本实例缓存并通知其他实例
@@ -88,12 +97,14 @@ func ListenFileLinkChanges() {
 func lookupFileLocs(ids []uint) map[uint]fileLoc {
 	result := make(map[uint]fileLoc, len(ids))
 	var missing []uint
+	seenMissing := make(map[uint]struct{})
 	fileLocCacheMu.RLock()
 	now := time.Now()
 	for _, id := range ids {
 		if loc, ok := fileLocCache[id]; ok && (loc.providerID != 0 || now.Sub(loc.checkedAt) < fileLocMissingTTL) {
 			result[id] = loc
-		} else {
+		} else if _, dup := seenMissing[id]; !dup {
+			seenMissing[id] = struct{}{}
 			missing = append(missing, id)
 		}
 	}
@@ -133,12 +144,7 @@ func lookupFileLocs(ids []uint) map[uint]fileLoc {
 
 // hasDirectStorage 是否存在可直连的存储；没有时读写都不需要改写
 func hasDirectStorage() bool {
-	for _, provider := range storage.ListStorageProviders() {
-		if !provider.IsProxy() {
-			return true
-		}
-	}
-	return false
+	return len(cachedDirectLinkMatchers()) > 0
 }
 
 // directURL 文件在可直连存储中的直链；存储需要代理，或文件为附件 / SVG（需经后端附带下载头或 CSP 沙箱）时返回空字符串
@@ -229,14 +235,49 @@ func newDirectLinkMatcher(providerID uint, provider storageprovider.StorageProvi
 	}, true
 }
 
-// currentDirectLinkMatchers 当前所有可直连存储的匹配规则；providerIDs 不为空时只取其中的存储
-func currentDirectLinkMatchers(providerIDs ...uint) []directLinkMatcher {
+func cachedDirectLinkMatchers() []directLinkMatcher {
+	ver := storage.ProvidersVersion()
+	if ver == 0 {
+		// 尚未替换过存储提供者时直接计算（极少见，仅部分未注册 provider 的单测）
+		return buildDirectLinkMatchers()
+	}
+	directMatchersMu.RLock()
+	if directMatchersVersion == ver {
+		cached := directMatchersCached
+		directMatchersMu.RUnlock()
+		return cached
+	}
+	directMatchersMu.RUnlock()
+
+	built := buildDirectLinkMatchers()
+	directMatchersMu.Lock()
+	if storage.ProvidersVersion() == ver {
+		directMatchersVersion = ver
+		directMatchersCached = built
+	}
+	directMatchersMu.Unlock()
+	return built
+}
+
+func buildDirectLinkMatchers() []directLinkMatcher {
 	var matchers []directLinkMatcher
 	for id, provider := range storage.ListStorageProviders() {
-		if len(providerIDs) > 0 && !slices.Contains(providerIDs, id) {
-			continue
-		}
 		if m, ok := newDirectLinkMatcher(id, provider); ok {
+			matchers = append(matchers, m)
+		}
+	}
+	return matchers
+}
+
+// currentDirectLinkMatchers 当前所有可直连存储的匹配规则；providerIDs 不为空时只取其中的存储
+func currentDirectLinkMatchers(providerIDs ...uint) []directLinkMatcher {
+	all := cachedDirectLinkMatchers()
+	if len(providerIDs) == 0 {
+		return all
+	}
+	matchers := make([]directLinkMatcher, 0, len(providerIDs))
+	for _, m := range all {
+		if slices.Contains(providerIDs, m.providerID) {
 			matchers = append(matchers, m)
 		}
 	}
@@ -278,9 +319,22 @@ func normalizeFileLinks(content string, matchers []directLinkMatcher) (string, b
 
 // NormalizeFileLinks 把请求内容中的存储直链还原为稳定链接、带本站域名的稳定链接改为相对路径，无需改动时返回 false
 func NormalizeFileLinks(data []byte) ([]byte, bool) {
+	if !bytes.Contains(data, []byte("http")) {
+		return data, false
+	}
 	data, relativized := relativizeOwnFileLinks(data)
 	matchers := currentDirectLinkMatchers()
 	if len(matchers) == 0 {
+		return data, relativized
+	}
+	hasDirectCandidate := false
+	for _, m := range matchers {
+		if bytes.Contains(data, []byte(m.prefix)) {
+			hasDirectCandidate = true
+			break
+		}
+	}
+	if !hasDirectCandidate {
 		return data, relativized
 	}
 	content, changed, err := normalizeFileLinks(string(data), matchers)

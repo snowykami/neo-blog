@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/cloudwego/hertz/pkg/app"
@@ -40,6 +42,26 @@ func NewFileController() *FileController {
 	return &FileController{}
 }
 
+var allowedUserImageMimeTypes = []string{
+	"image/png",
+	"image/jpeg",
+	"image/gif",
+	"image/webp",
+	"image/avif",
+}
+
+func sniffFileContentType(head []byte) string {
+	// ISO BMFF AVIF 魔数（4..12 字节为 ftypavif / ftypavis）
+	if len(head) >= 12 && string(head[4:8]) == "ftyp" && (string(head[8:12]) == "avif" || string(head[8:12]) == "avis") {
+		return "image/avif"
+	}
+	sniffed := http.DetectContentType(head)
+	if idx := strings.IndexByte(sniffed, ';'); idx >= 0 {
+		sniffed = strings.TrimSpace(sniffed[:idx])
+	}
+	return sniffed
+}
+
 func (f *FileController) UploadFileStream(ctx context.Context, c *app.RequestContext) {
 	// 获取文件信息
 	req := &dto.FileUploadReq{}
@@ -47,9 +69,21 @@ func (f *FileController) UploadFileStream(ctx context.Context, c *app.RequestCon
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
+	isPrivileged := ctxutils.IsEditor(ctx) || ctxutils.IsAdmin(ctx)
+	if !isPrivileged {
+		userID, ok := ctxutils.GetCurrentUserID(ctx)
+		if !ok {
+			resps.Error(c, errs.NewUnauthorized("login_required"))
+			return
+		}
+		if !utils.AllowRequest(fmt.Sprintf("file_upload_user:%d", userID), 20, time.Minute) {
+			resps.Error(c, errs.NewTooManyRequests("too_many_requests"))
+			return
+		}
+	}
 	// 请求体为流式读取，解析表单前先按 Content-Length 拒绝超限上传，避免大文件落盘
 	maxBody := utils.Env.GetAsInt(constant.EnvKeyMaxRequestBodySize, constant.DefaultMaxRequestBodySize)
-	if !(ctxutils.IsEditor(ctx) || ctxutils.IsAdmin(ctx)) {
+	if !isPrivileged {
 		maxBody = userMaxUploadSize + 1<<20 // 预留表单字段的开销
 	}
 	if c.Request.Header.ContentLength() > maxBody {
@@ -68,7 +102,7 @@ func (f *FileController) UploadFileStream(ctx context.Context, c *app.RequestCon
 	}
 	mimeType := f.getContentType(file.Filename)
 	// 普通用户只能上传有限大小的图片（头像、评论配图等），编辑和管理员不受限
-	if !(ctxutils.IsEditor(ctx) || ctxutils.IsAdmin(ctx)) {
+	if !isPrivileged {
 		if !strings.HasPrefix(mimeType, "image/") || mimeType == "image/svg+xml" {
 			resps.BadRequest(c, "unsupported_file_type")
 			return
@@ -79,13 +113,39 @@ func (f *FileController) UploadFileStream(ctx context.Context, c *app.RequestCon
 		}
 	}
 
-	// 打开文件
+	// 打开文件并读取前 512 字节做魔数嗅探，防止把 HTML/SVG/脚本伪装成图片后缀绕过校验或直连沙箱
 	src, err := file.Open()
 	if err != nil {
 		resps.Error(c, errs.NewBadRequest("failed_to_open_file").WithCause(err))
 		return
 	}
 	defer src.Close()
+
+	var headBuf [512]byte
+	n, readErr := io.ReadFull(src, headBuf[:])
+	if readErr != nil && !errors.Is(readErr, io.EOF) && !errors.Is(readErr, io.ErrUnexpectedEOF) {
+		resps.Error(c, errs.NewBadRequest("failed_to_read_file").WithCause(readErr))
+		return
+	}
+	if n == 0 {
+		resps.BadRequest(c, "empty_file")
+		return
+	}
+	sniffed := sniffFileContentType(headBuf[:n])
+	if !isPrivileged {
+		if !slices.Contains(allowedUserImageMimeTypes, sniffed) {
+			resps.BadRequest(c, "unsupported_file_type")
+			return
+		}
+		mimeType = sniffed
+	} else if utils.DirectSafeContentType(mimeType) && strings.HasPrefix(mimeType, "image/") && !slices.Contains(allowedUserImageMimeTypes, sniffed) && mimeType != "image/x-icon" {
+		// 编辑或管理员上传的文件若声称为可直连光栅图片，但魔数实际为 HTML/XML/脚本等，回退为嗅探出的真实类型走隔离响应头
+		mimeType = sniffed
+	}
+	if _, err := src.Seek(0, io.SeekStart); err != nil {
+		resps.Error(c, errs.NewBadRequest("failed_to_read_file").WithCause(err))
+		return
+	}
 
 	saved, svcerr := service.NewFileService().SaveFile(ctx, &service.SaveFileInput{
 		Name:       req.Name,
@@ -308,6 +368,7 @@ func (f *FileController) CreateStorageProvider(ctx context.Context, c *app.Reque
 		resps.Error(c, errs.Internal("failed_to_reload_storage_providers", err))
 		return
 	}
+	req.SanitizeSecrets()
 	resps.Ok(c, "存储提供者创建成功", req)
 }
 
@@ -332,6 +393,7 @@ func (f *FileController) UpdateStorageProvider(ctx context.Context, c *app.Reque
 		resps.Error(c, errs.Internal("failed_to_reload_storage_providers", err))
 		return
 	}
+	req.SanitizeSecrets()
 	resps.Ok(c, "存储提供者更新成功", req)
 }
 
@@ -410,6 +472,9 @@ func (f *FileController) ListStorageProviders(ctx context.Context, c *app.Reques
 	if err != nil {
 		resps.Error(c, errs.Internal("failed_to_get_target", err))
 		return
+	}
+	for i := range providers {
+		providers[i].SanitizeSecrets()
 	}
 	usage, svcerr := service.ListStorageProviderUsage()
 	if svcerr != nil {

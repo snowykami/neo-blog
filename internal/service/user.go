@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
@@ -112,29 +113,29 @@ func (s *UserService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterR
 	if !tools.GetAllowRegister() {
 		return nil, errs.NewForbidden("register_disabled")
 	}
+	req.Username = strings.TrimSpace(req.Username)
+	req.Nickname = strings.TrimSpace(req.Nickname)
+	req.Email = strings.TrimSpace(req.Email)
+	if !isValidUsername(req.Username) {
+		return nil, errs.NewBadRequest("invalid_username")
+	}
+	if utf8.RuneCountInString(req.Nickname) > nicknameMaxLen {
+		return nil, errs.NewBadRequest("invalid_nickname")
+	}
 	if !isValidPassword(req.Password) {
 		return nil, errs.NewBadRequest("invalid_password_format")
 	}
 	if !isValidEmail(req.Email) {
 		return nil, errs.NewBadRequest("invalid_email").WithField("email", req.Email)
 	}
+	// 先检查用户名与邮箱未被占用，避免输入已被占用的用户名时白白消耗一次性邮箱验证码
+	if svcerr := checkUsernameEmailFree(req.Username, req.Email, 0); svcerr != nil {
+		return nil, svcerr
+	}
 	// 开启邮箱验证时，注册必须验证邮箱所有权，防止抢注他人邮箱
 	if EmailVerifyEnabled() && !utils.VerifyEmailCode(req.Email, req.VerifyCode) {
 		return nil, errs.NewUnauthorized("invalid_verify_code")
 	}
-	// 检查用户名或邮箱是否已存在
-	usernameExist, err := repo.User.CheckUsernameExists(req.Username)
-	if err != nil {
-		return nil, errs.NewBadRequest("failed_to_check_target").WithResource("user")
-	}
-	emailExist, err := repo.User.CheckEmailExists(req.Email)
-	if err != nil {
-		return nil, errs.NewBadRequest("failed_to_check_target").WithResource("user")
-	}
-	if usernameExist || emailExist {
-		return nil, errs.NewConflict("username_or_email_already_exists")
-	}
-	// 创建新用户
 	hashedPassword, err := utils.Password.HashPassword(req.Password)
 	if err != nil {
 		return nil, errs.Internal("failed_to_create_target", err).WithResource("user")
@@ -143,22 +144,28 @@ func (s *UserService) UserRegister(req *dto.UserRegisterReq) (*dto.UserRegisterR
 		Username: req.Username,
 		Nickname: req.Nickname,
 		Email:    req.Email,
-		Role:     "user",
+		Role:     constant.RoleUser,
 		Password: hashedPassword,
 	}
-	err = repo.User.CreateUser(newUser)
+	err = repo.GetDB().Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(newUser).Error; err != nil {
+			return err
+		}
+		if newUser.ID == 1 {
+			newUser.Role = constant.RoleAdmin
+			if err := tx.Model(newUser).UpdateColumn("role", constant.RoleAdmin).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 	if err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return nil, errs.NewConflict("username_or_email_already_exists")
+		}
 		return nil, errs.Internal("failed_to_create_target", err).WithResource("user")
 	}
-	// 创建默认管理员账户
-	if newUser.ID == 1 {
-		newUser.Role = constant.RoleAdmin
-		err = repo.User.UpdateUser(newUser)
-		if err != nil {
-			logrus.Errorln("Failed to update user role to admin:", err)
-			return nil, errs.Internal("failed_to_update_target", err).WithResource("user")
-		}
-	}
+	repo.TouchCacheTags(repo.CacheTagUsers)
 	SyncSearchUser(newUser.ID, false)
 	// 生成访问令牌和刷新令牌并保存session
 	sessionId := utils.Strings.GenerateRandomString(32)
@@ -242,6 +249,9 @@ func (s *UserService) ListOidcConfigs() ([]dto.UserOidcConfigDto, *errs.ServiceE
 // OidcAuthorize 用户点击第三方登录时生成一次性 state（含 PKCE code_verifier），返回跳转到身份提供商的地址。
 // 页面上的登录按钮只是普通链接，不会因为页面停留太久而失效
 func (s *UserService) OidcAuthorize(ctx context.Context, req *dto.OidcAuthorizeReq) (string, *errs.ServiceError) {
+	if req.UserIP != "" && !utils.AllowRequest("oidc_auth_ip:"+req.UserIP, 30, time.Minute) {
+		return "", errs.NewTooManyRequests("too_many_requests")
+	}
 	oidcConfig, serr := s.getOidcConfig(req.Name)
 	if serr != nil {
 		return "", serr
@@ -369,6 +379,23 @@ func (s *UserService) GetUserByUsername(ctx context.Context, req *dto.GetUserByU
 }
 
 func (s *UserService) UpdateUser(req *dto.UpdateUserReq) (*dto.UpdateUserResp, *errs.ServiceError) {
+	if req.Username != "" {
+		req.Username = strings.TrimSpace(req.Username)
+		if !isValidUsername(req.Username) {
+			return nil, errs.NewBadRequest("invalid_username")
+		}
+		if u, err := repo.User.GetUserByUsername(req.Username); err == nil && u.ID != req.ID {
+			return nil, errs.NewConflict("username_or_email_already_exists")
+		} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errs.Internal("failed_to_check_target", err).WithResource("user")
+		}
+	}
+	if req.Nickname != "" {
+		req.Nickname = strings.TrimSpace(req.Nickname)
+		if utf8.RuneCountInString(req.Nickname) > nicknameMaxLen {
+			return nil, errs.NewBadRequest("invalid_nickname")
+		}
+	}
 	// 时区只在公开当地时间时保存，关闭时一并清空，不留存用户不想公开的信息；按列更新才能写入空值
 	var localTimeColumns map[string]any
 	if req.ShowLocalTime != nil {
@@ -402,20 +429,33 @@ func (s *UserService) UpdateUser(req *dto.UpdateUserReq) (*dto.UpdateUserResp, *
 		ShowIPLocation: req.ShowIPLocation,
 		ShowLikes:      req.ShowLikes,
 	}
-	err := repo.User.UpdateUser(user)
-	if err == nil && localTimeColumns != nil {
-		err = repo.User.UpdateUserColumns(req.ID, localTimeColumns)
-	}
-	if err == nil && req.Gender != nil {
-		err = repo.User.UpdateUserColumns(req.ID, map[string]any{"gender": gender})
-	}
+	err := repo.GetDB().Transaction(func(tx *gorm.DB) error {
+		if err := tx.Updates(user).Error; err != nil {
+			return err
+		}
+		if localTimeColumns != nil {
+			if err := tx.Model(&model.User{}).Where("id = ?", req.ID).Updates(localTimeColumns).Error; err != nil {
+				return err
+			}
+		}
+		if req.Gender != nil {
+			if err := tx.Model(&model.User{}).Where("id = ?", req.ID).Updates(map[string]any{"gender": gender}).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errs.NewNotFound("target_not_found").WithResource("user")
 		}
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return nil, errs.NewConflict("username_or_email_already_exists")
+		}
 		logrus.Errorln("Failed to update user:", err)
 		return nil, errs.Internal("failed_to_update_target", err).WithResource("user")
 	}
+	repo.TouchCacheTags(repo.CacheTagUsers)
 	if req.Username != "" || req.Nickname != "" {
 		SyncSearchUser(req.ID, true)
 	}
@@ -439,9 +479,7 @@ func (s *UserService) UpdatePassword(ctx context.Context, req *dto.UpdatePasswor
 		logrus.Errorln("Failed to update password:", err)
 		return false, errs.Internal("failed_to_update_target", err).WithResource("user")
 	}
-	currentUser.Password = hashedPassword
-	err = repo.GetDB().Save(currentUser).Error
-	if err != nil {
+	if err := repo.User.UpdateUserColumns(currentUser.ID, map[string]any{"password": hashedPassword}); err != nil {
 		return false, errs.Internal("failed_to_update_target", err).WithResource("user")
 	}
 	// 改密后其他设备上的登录全部失效，只保留当前会话
@@ -452,9 +490,23 @@ func (s *UserService) UpdatePassword(ctx context.Context, req *dto.UpdatePasswor
 	return true, nil
 }
 
-func (s *UserService) ResetPassword(req *dto.ResetPasswordReq) (bool, *errs.ServiceError) {
+func (s *UserService) ResetPassword(req *dto.ResetPasswordReq, verifyCode string) (bool, *errs.ServiceError) {
+	if !EmailVerifyEnabled() {
+		return false, errs.NewForbidden("email_verify_disabled")
+	}
+	req.Email = strings.TrimSpace(req.Email)
+	verifyCode = strings.TrimSpace(verifyCode)
+	if req.Email == "" || verifyCode == "" {
+		return false, errs.NewBadRequest("missing_email_or_verify_code")
+	}
+	if !isValidEmail(req.Email) {
+		return false, errs.NewBadRequest("invalid_email").WithField("email", req.Email)
+	}
 	if !isValidPassword(req.NewPassword) {
 		return false, errs.NewBadRequest("invalid_password_format")
+	}
+	if !utils.VerifyEmailCode(req.Email, verifyCode) {
+		return false, errs.NewUnauthorized("invalid_verify_code")
 	}
 	// 查找用户
 	user, err := repo.User.GetUserByEmail(req.Email)
@@ -465,9 +517,7 @@ func (s *UserService) ResetPassword(req *dto.ResetPasswordReq) (bool, *errs.Serv
 	if err != nil {
 		return false, errs.Internal("failed_to_create_target", err).WithResource("user")
 	}
-	user.Password = hashedPassword
-	err = repo.User.UpdateUser(user)
-	if err != nil {
+	if err := repo.User.UpdateUserColumns(user.ID, map[string]any{"password": hashedPassword}); err != nil {
 		return false, errs.Internal("failed_to_update_target", err).WithResource("user")
 	}
 	// 重置密码后吊销该用户的全部会话
@@ -477,14 +527,35 @@ func (s *UserService) ResetPassword(req *dto.ResetPasswordReq) (bool, *errs.Serv
 	return true, nil
 }
 
-func (s *UserService) UpdateEmail(ctx context.Context, email string) (bool, *errs.ServiceError) {
+func (s *UserService) UpdateEmail(ctx context.Context, email, verifyCode string) (bool, *errs.ServiceError) {
 	currentUser, ok := ctxutils.GetCurrentUser(ctx)
 	if !ok || currentUser == nil {
 		return false, errs.NewUnauthorized("login_required")
 	}
-	currentUser.Email = email
-	err := repo.GetDB().Save(currentUser).Error
-	if err != nil {
+	if !EmailVerifyEnabled() {
+		return false, errs.NewForbidden("email_verify_disabled")
+	}
+	email = strings.TrimSpace(email)
+	verifyCode = strings.TrimSpace(verifyCode)
+	if email == "" || verifyCode == "" {
+		return false, errs.NewBadRequest("missing_email_or_verify_code")
+	}
+	if !isValidEmail(email) {
+		return false, errs.NewBadRequest("invalid_email").WithField("email", email)
+	}
+	// 先检查邮箱未被其他账号占用，再消费一次性验证码
+	if u, err := repo.User.GetUserByEmail(email); err == nil && u.ID != currentUser.ID {
+		return false, errs.NewConflict("username_or_email_already_exists")
+	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, errs.Internal("failed_to_check_target", err).WithResource("user")
+	}
+	if !utils.VerifyEmailCode(email, verifyCode) {
+		return false, errs.NewUnauthorized("invalid_verify_code")
+	}
+	if err := repo.User.UpdateUserColumns(currentUser.ID, map[string]any{"email": email}); err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return false, errs.NewConflict("username_or_email_already_exists")
+		}
 		return false, errs.Internal("failed_to_update_target", err).WithResource("user")
 	}
 	return true, nil

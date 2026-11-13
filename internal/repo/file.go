@@ -44,6 +44,8 @@ const fileMetaTTL = time.Hour
 func resetQueryCaches() {
 	fileMetaCache.ResetLocal()
 	PostGuestCache.ResetLocal()
+	PageGuestCache.ResetLocal()
+	SitemapGuestCache.ResetLocal()
 }
 
 // GetByIDCached 同 GetByID，读取文件内容时使用；找不到的记录不缓存

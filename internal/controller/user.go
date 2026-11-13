@@ -12,6 +12,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/service"
 	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/errs"
+	"github.com/snowykami/neo-blog/pkg/ipregion"
 	"github.com/snowykami/neo-blog/pkg/resps"
 	utils2 "github.com/snowykami/neo-blog/pkg/utils"
 )
@@ -232,13 +233,9 @@ func (u *UserController) ResetPassword(ctx context.Context, c *app.RequestContex
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	email := strings.TrimSpace(string(c.GetHeader("X-Email")))
-	if email == "" {
-		resps.BadRequest(c, "email_cannot_be_empty")
-		return
-	}
-	resetPasswordReq.Email = email
-	ok, svcerr := u.service.ResetPassword(&resetPasswordReq)
+	resetPasswordReq.Email = strings.TrimSpace(string(c.GetHeader("X-Email")))
+	verifyCode := strings.TrimSpace(string(c.GetHeader("X-Verify-Code")))
+	ok, svcerr := u.service.ResetPassword(&resetPasswordReq, verifyCode)
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return
@@ -252,11 +249,8 @@ func (u *UserController) ResetPassword(ctx context.Context, c *app.RequestContex
 
 func (u *UserController) ChangeEmail(ctx context.Context, c *app.RequestContext) {
 	email := strings.TrimSpace(string(c.GetHeader("X-Email")))
-	if email == "" {
-		resps.BadRequest(c, "email_cannot_be_empty")
-		return
-	}
-	ok, svcerr := u.service.UpdateEmail(ctx, email)
+	verifyCode := strings.TrimSpace(string(c.GetHeader("X-Verify-Code")))
+	ok, svcerr := u.service.UpdateEmail(ctx, email, verifyCode)
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return
@@ -294,14 +288,21 @@ func (u *UserController) GetUserLastIPLocation(ctx context.Context, c *app.Reque
 		resps.Error(c, errs.FromDB(err, "session", "failed_to_get_target"))
 		return
 	}
-	ipInfo, err := utils2.GetIPInfo(session.LatestIP())
-	if err != nil {
-		resps.Error(c, errs.Internal("failed_to_get_ip_location", err))
-		return
-	}
-	// 脱敏
-	if ipInfo != nil {
-		utils2.DesensitizeIpData(ipInfo)
+	// 使用本地离线 ip2region 查询归属地，不把用户会话 IP 发送给第三方在线接口
+	reg := ipregion.Lookup(session.LatestIP())
+	ipInfo := &utils2.IPData{}
+	if !reg.Reserved {
+		ipInfo.Country = reg.Country
+		ipInfo.CountryCode = reg.CountryCode
+		ipInfo.Province = reg.Province
+		ipInfo.City = reg.City
+		ipInfo.ISP = reg.ISP
+		if ipInfo.Province == ipInfo.Country {
+			ipInfo.Province = ""
+		}
+		if ipInfo.City == ipInfo.Province {
+			ipInfo.City = ""
+		}
 	}
 	resps.Ok(c, resps.Success, ipInfo)
 }

@@ -27,7 +27,7 @@ var h *server.Hertz
 var shuttingDown atomic.Bool
 
 const (
-	defaultShutdownDelay = 5 * time.Second // 收到退出信号到开始关停 HTTP 服务的等待时间，留给负载均衡摘掉本实例
+	defaultShutdownDelay = 10 * time.Second // 收到退出信号到开始关停 HTTP 服务的等待时间（覆盖 K8s readinessProbe 摘流窗口）
 	readyzTimeout        = 2 * time.Second
 )
 
@@ -49,8 +49,9 @@ func Run(ctx context.Context) error {
 				logrus.Infof("shutting down in %s", delay)
 				time.Sleep(delay)
 			}
-			// 编辑事件流是长连接，不会自行结束：先结束它们，客户端随即重连到其他实例，也不拖慢关停
+			// 编辑事件流与站内通知 SSE 是长连接，不会自行结束：先结束它们，客户端随即重连到其他实例，也不拖慢关停
 			service.CloseEditEventStreams()
+			service.CloseNotificationStreams()
 			return nil
 		case runErr = <-errCh:
 			return runErr
@@ -72,7 +73,15 @@ func init() {
 	// 请求 ID 与访问日志注册在最外层：panic 时也能记下 recovery 写出的 500，recovery 与错误报告拿到的 ctx 已带请求 ID
 	// panic 与 5xx 记为后端错误报告，可在控制台查看
 	// 压缩注册在文件链接改写之前：先等其他中间件处理完响应体，再整体压缩
-	h.Use(middleware.UseRequestLog(), recovery.Recovery(recovery.WithRecoveryHandler(middleware.RecoveryHandler)), middleware.UseCompress(), middleware.UseTrack(), middleware.UseErrorReport(), middleware.UseFileLinks())
+	h.Use(
+		middleware.UseRequestLog(),
+		recovery.Recovery(recovery.WithRecoveryHandler(middleware.RecoveryHandler)),
+		middleware.UseCompress(),
+		middleware.UseTrack(),
+		middleware.UseErrorReport(),
+		middleware.UseCookieCSRF(),
+		middleware.UseFileLinks(),
+	)
 	apiv1.RegisterRoutes(h)
 	// Prometheus 指标：只在设置了 METRICS_TOKEN 时可用（Bearer 鉴权），否则 404；不经前端转发，由 Prometheus 直接按实例抓取
 	h.GET("/metrics", controller.Metrics.Prometheus)

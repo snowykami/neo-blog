@@ -7,24 +7,25 @@ import (
 )
 
 type UserDto struct {
-	ID             uint          `json:"id"`       // 用户ID
-	Username       string        `json:"username"` // 用户名
-	Nickname       string        `json:"nickname"`
-	AvatarUrl      string        `json:"avatar_url"` // 头像URL
-	BackgroundUrl  string        `json:"background_url"`
-	PreferredColor string        `json:"preferred_color"`         // 主题色
-	Email          string        `json:"email,omitempty"`         // 邮箱，仅本人和管理员可见
-	GravatarHash   string        `json:"gravatar_hash,omitempty"` // 邮箱的 SHA-256 哈希，用于生成 Gravatar 头像，不暴露邮箱本身
-	Gender         string        `json:"gender"`
-	Role           constant.Role `json:"role"`
-	Language       string        `json:"language"`             // 语言
-	ShowIPLocation *bool         `json:"show_ip_location"`     // 是否显示IP归属地
-	ShowLikes      *bool         `json:"show_likes"`           // 是否公开点赞记录
-	ShowLocalTime  *bool         `json:"show_local_time"`      // 是否公开当地时间
-	TimeZone       string        `json:"time_zone,omitempty"`  // IANA 时区，只在个人主页且用户公开当地时间时返回
-	CreatedAt      *time.Time    `json:"created_at,omitempty"` // 注册时间，仅本人和管理员可见
-	Disabled       *bool         `json:"disabled,omitempty"`   // 是否被禁用，仅本人和管理员可见
-	IsAI           *bool         `json:"is_ai,omitempty"`      // 是否为 AI 用户，仅本人和管理员可见；前台不做区分
+	ID             uint            `json:"id"`       // 用户ID
+	Username       string          `json:"username"` // 用户名
+	Nickname       string          `json:"nickname"`
+	AvatarUrl      string          `json:"avatar_url"` // 头像URL
+	BackgroundUrl  string          `json:"background_url"`
+	PreferredColor string          `json:"preferred_color"`         // 主题色
+	Email          string          `json:"email,omitempty"`         // 邮箱，仅本人和管理员可见
+	GravatarHash   string          `json:"gravatar_hash,omitempty"` // 邮箱的 SHA-256 哈希，用于生成 Gravatar 头像，不暴露邮箱本身
+	Gender         string          `json:"gender"`
+	Role           constant.Role   `json:"role"`
+	Language       string          `json:"language"`             // 语言
+	ShowIPLocation *bool           `json:"show_ip_location"`     // 是否显示IP归属地
+	ShowLikes      *bool           `json:"show_likes"`           // 是否公开点赞记录
+	ShowLocalTime  *bool           `json:"show_local_time"`      // 是否公开当地时间
+	TimeZone       string          `json:"time_zone,omitempty"`  // IANA 时区，只在个人主页且用户公开当地时间时返回
+	CreatedAt      *time.Time      `json:"created_at,omitempty"` // 注册时间，仅本人和管理员可见
+	Disabled       *bool           `json:"disabled,omitempty"`   // 是否被禁用，仅本人和管理员可见
+	IsAI           *bool           `json:"is_ai,omitempty"`      // 是否为 AI 用户，仅本人和管理员可见；前台不做区分
+	OpenIDs        []UserOpenIDDto `json:"open_ids,omitempty"`   // 绑定的外部账号，仅管理员接口返回
 }
 
 type UserOidcConfigDto struct {
@@ -98,6 +99,7 @@ type OidcAuthorizeReq struct {
 	IsBind       bool   `query:"bind"`          // 是否是绑定操作，需已登录
 	BrowserNonce string // 写入浏览器 Cookie 的 nonce
 	UserID       uint   // 绑定操作的发起用户
+	UserIP       string // 发起请求的客户端 IP，用于防刷限流
 }
 
 type ListOidcConfigResp struct {
@@ -178,12 +180,13 @@ type AdminListUsersReq struct {
 	Status  string `query:"status"`  // active / disabled，为空表示全部
 }
 
-// AdminUserDetailResp 管理员查看的用户详情，附带内容统计，用于删除前提示影响范围
+// AdminUserDetailResp 管理员查看的用户详情，附带内容统计与外部绑定账号，用于详情面板及删除前提示影响范围
 type AdminUserDetailResp struct {
-	User         UserDto `json:"user"`
-	PostCount    int64   `json:"post_count"`
-	PageCount    int64   `json:"page_count"`
-	CommentCount int64   `json:"comment_count"`
+	User         UserDto         `json:"user"`
+	PostCount    int64           `json:"post_count"`
+	PageCount    int64           `json:"page_count"`
+	CommentCount int64           `json:"comment_count"`
+	OpenIDs      []UserOpenIDDto `json:"open_ids"`
 }
 
 type AdminCreateUserReq struct {

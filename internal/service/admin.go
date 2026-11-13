@@ -66,13 +66,21 @@ func (c *AdminService) ListOidcConfigs(onlyEnabled bool) ([]*dto.AdminOidcConfig
 }
 
 func (c *AdminService) UpdateOidcConfig(req *dto.UpdateOidcConfigDto) *errs.ServiceError {
+	clientSecret := req.ClientSecret
+	if clientSecret == "" {
+		existing, err := repo.Oidc.GetOidcConfigByID(req.ID)
+		if err != nil {
+			return errs.FromDB(err, "oidc_config", "failed_to_get_target")
+		}
+		clientSecret = existing.ClientSecret
+	}
 	oidcConfig := &model.OidcConfig{
 		Model:                 gorm.Model{ID: req.ID},
 		Name:                  req.Name,
 		DisplayName:           req.DisplayName,
 		Icon:                  req.Icon,
 		ClientID:              req.ClientID,
-		ClientSecret:          req.ClientSecret,
+		ClientSecret:          clientSecret,
 		TokenAuthMethod:       req.TokenAuthMethod,
 		OidcDiscoveryUrl:      req.OidcDiscoveryUrl,
 		Issuer:                req.Issuer,

@@ -2,13 +2,26 @@ package v1
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/utils"
+	"github.com/snowykami/neo-blog/internal/config"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/pkg/resps"
 )
+
+func hasKVValue(v any) bool {
+	if v == nil {
+		return false
+	}
+	if s, ok := v.(string); ok {
+		return strings.TrimSpace(s) != ""
+	}
+	return strings.TrimSpace(fmt.Sprint(v)) != ""
+}
 
 func (cc *AdminController) ListKV(ctx context.Context, c *app.RequestContext) {
 	kvs, err := repo.KV.ListKV(c.Query("query"))
@@ -18,7 +31,17 @@ func (cc *AdminController) ListKV(ctx context.Context, c *app.RequestContext) {
 	}
 	items := make([]dto.KVDto, 0, len(kvs))
 	for _, kv := range kvs {
-		items = append(items, dto.KVDto{Key: kv.Key, Value: kv.Value["value"]})
+		rawVal := kv.Value["value"]
+		if kv.Secret || config.IsSecretKey(kv.Key) {
+			items = append(items, dto.KVDto{
+				Key:      kv.Key,
+				Value:    nil,
+				Secret:   true,
+				HasValue: hasKVValue(rawVal),
+			})
+			continue
+		}
+		items = append(items, dto.KVDto{Key: kv.Key, Value: rawVal})
 	}
 	resps.Ok(c, resps.Success, utils.H{"items": items})
 }
@@ -56,7 +79,13 @@ func (cc *AdminController) SetKV(ctx context.Context, c *app.RequestContext) {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	if err := repo.KV.SetKV(key, req.Value); err != nil {
+	updateValue := req.UpdateValue == nil || *req.UpdateValue
+	secret := req.Secret
+	if secret == nil && config.IsSecretKey(key) {
+		isSecret := true
+		secret = &isSecret
+	}
+	if err := repo.KV.SetKVWithSecret(key, req.Value, updateValue, secret); err != nil {
 		resps.InternalError(c, err)
 		return
 	}

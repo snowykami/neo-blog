@@ -5,6 +5,7 @@ package config
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"slices"
 	"strconv"
@@ -112,6 +113,12 @@ var byKey = func() map[string]*Item {
 // Lookup 按配置键查找声明，未注册时为 nil
 func Lookup(key string) *Item {
 	return byKey[key]
+}
+
+// IsSecretKey 配置键是否为注册表声明的敏感密钥项
+func IsSecretKey(key string) bool {
+	it := byKey[key]
+	return it != nil && it.Type == TypeSecret
 }
 
 func mustLookup(key string) *Item {
@@ -278,12 +285,14 @@ func (it *Item) clamp(v any) any {
 
 // ---- 后台表单 ----
 
-// ItemView 下发给后台表单的配置项：声明加上数据库中的值与环境变量的值
+// ItemView 下发给后台表单的配置项：声明加上数据库中的值与环境变量的值（敏感密钥项仅返回布尔已配置标记，不回传明文）
 type ItemView struct {
 	*Item
 	Value      any    `json:"value"`
 	EnvValue   string `json:"env_value,omitempty"`
-	Standalone bool   `json:"standalone"` // 存为同名独立配置键（高级键值编辑可直接修改）；否则只存在 site_info 中
+	HasValue   bool   `json:"has_value,omitempty"` // 敏感项已在数据库中保存非空值
+	EnvSet     bool   `json:"env_set,omitempty"`   // 已通过环境变量设置
+	Standalone bool   `json:"standalone"`          // 存为同名独立配置键（高级键值编辑可直接修改）；否则只存在 site_info 中
 }
 
 type SectionView struct {
@@ -300,14 +309,27 @@ type Schema struct {
 	Sections []SectionView `json:"sections"`
 }
 
-// GetSchema 后台全局配置表单的结构与当前值（仅管理员可读，含密钥）
+// GetSchema 后台全局配置表单的结构与当前值（敏感密钥项脱敏，仅返回 has_value / env_set 标记）
 func GetSchema() Schema {
 	views := make([]SectionView, 0, len(sections))
 	for _, section := range sections {
 		items := make([]ItemView, 0, len(section.Items))
 		for _, it := range section.Items {
-			env, _ := it.EnvValue()
-			items = append(items, ItemView{Item: it, Value: it.dbValue(), EnvValue: env, Standalone: len(it.siteInfoPath) == 0 || it.mirror != nil})
+			val := it.dbValue()
+			env, hasEnv := it.EnvValue()
+			view := ItemView{
+				Item:       it,
+				Value:      val,
+				EnvValue:   env,
+				EnvSet:     hasEnv && env != "",
+				Standalone: len(it.siteInfoPath) == 0 || it.mirror != nil,
+			}
+			if it.Type == TypeSecret {
+				view.HasValue = val != nil && strings.TrimSpace(fmt.Sprint(val)) != ""
+				view.Value = ""
+				view.EnvValue = ""
+			}
+			items = append(items, view)
 		}
 		views = append(views, SectionView{Tab: section.Tab, Key: section.Key, Title: section.Title, Description: section.Description, Widget: section.Widget, Items: items})
 	}
@@ -363,8 +385,15 @@ func Save(changes []Change) *errs.ServiceError {
 				info = siteInfoForWrite()
 			}
 			setPath(info, it.siteInfoPath, v)
-		} else if err := repo.KV.SetKV(key, v); err != nil {
-			return errs.NewInternalServer("internal_server_error")
+		} else {
+			var secret *bool
+			if it.Type == TypeSecret {
+				isSecret := true
+				secret = &isSecret
+			}
+			if err := repo.KV.SetKVWithSecret(key, v, true, secret); err != nil {
+				return errs.NewInternalServer("internal_server_error")
+			}
 		}
 		if it.mirror != nil {
 			if err := repo.KV.SetKV(key, it.mirror(v)); err != nil {

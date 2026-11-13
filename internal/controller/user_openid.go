@@ -32,6 +32,7 @@ func (u *UserController) OidcAuthorize(ctx context.Context, c *app.RequestContex
 		return
 	}
 	req.BrowserNonce = ctxutils.EnsureOidcNonce(c)
+	req.UserIP = c.ClientIP()
 	authorizeUrl, svcerr := u.service.OidcAuthorize(ctx, req)
 	if svcerr != nil {
 		logrus.WithField("oidc_name", req.Name).Warn("oidc authorize failed: ", svcerr.Error())

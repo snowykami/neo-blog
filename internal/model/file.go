@@ -48,17 +48,30 @@ type StorageProviderConfig struct {
 	// for local & webdav storage provider
 	BaseDir string `json:"base_dir"` // 本地存储目录 Local storage directory
 	// for s3 storage provider
-	S3Region          string `json:"s3_region"`            // S3区域 S3 region
-	S3Bucket          string `json:"s3_bucket"`            // S3桶名 S3 bucket name
-	S3Prefix          string `json:"s3_prefix"`            // S3对象前缀 S3 object prefix
-	S3AccessKeyID     string `json:"s3_access_key_id"`     // AWS访问密钥ID AWS Access Key ID
-	S3SecretAccessKey string `json:"s3_secret_access_key"` // AWS访问密钥 AWS Secret Access Key
-	S3Endpoint        string `json:"s3_endpoint"`          // 自定义端点 Custom endpoint (for S3-compatible services)
-	S3PathStyle       bool   `json:"s3_path_style"`        // 是否使用路径风格URL Whether to use path-style URLs
-	S3BaseURL         string `json:"s3_base_url"`          // 用于生成公开访问URL的基础URL Base URL for generating public access URLs
+	S3Region             string `json:"s3_region"`                                   // S3区域 S3 region
+	S3Bucket             string `json:"s3_bucket"`                                   // S3桶名 S3 bucket name
+	S3Prefix             string `json:"s3_prefix"`                                   // S3对象前缀 S3 object prefix
+	S3AccessKeyID        string `json:"s3_access_key_id"`                            // AWS访问密钥ID AWS Access Key ID
+	S3SecretAccessKey    string `json:"s3_secret_access_key"`                        // AWS访问密钥 AWS Secret Access Key
+	HasS3SecretAccessKey bool   `gorm:"-" json:"has_s3_secret_access_key,omitempty"` // 是否已保存 S3 密钥（读取接口脱敏后用该标记告知前端）
+	S3Endpoint           string `json:"s3_endpoint"`                                 // 自定义端点 Custom endpoint (for S3-compatible services)
+	S3PathStyle          bool   `json:"s3_path_style"`                               // 是否使用路径风格URL Whether to use path-style URLs
+	S3BaseURL            string `json:"s3_base_url"`                                 // 用于生成公开访问URL的基础URL Base URL for generating public access URLs
 	// for webdav only
-	WebDAVEndpoint string `json:"webdav_endpoint"` // WebDAV服务器基础URL WebDAV server base URL
-	WebDAVUsername string `json:"webdav_username"` // WebDAV用户名 WebDAV username
-	WebDAVPassword string `json:"webdav_password"` // WebDAV密码 WebDAV password
+	WebDAVEndpoint    string `json:"webdav_endpoint"`                        // WebDAV服务器基础URL WebDAV server base URL
+	WebDAVUsername    string `json:"webdav_username"`                        // WebDAV用户名 WebDAV username
+	WebDAVPassword    string `json:"webdav_password"`                        // WebDAV密码 WebDAV password
+	HasWebDAVPassword bool   `gorm:"-" json:"has_webdav_password,omitempty"` // 是否已保存 WebDAV 密码（读取接口脱敏后用该标记告知前端）
 	// for sftp only
+}
+
+// SanitizeSecrets 清空返回给客户端的敏感凭据明文，仅保留布尔已配置标记
+func (sp *StorageProviderModelAndDto) SanitizeSecrets() {
+	if sp == nil {
+		return
+	}
+	sp.HasS3SecretAccessKey = sp.S3SecretAccessKey != ""
+	sp.HasWebDAVPassword = sp.WebDAVPassword != ""
+	sp.S3SecretAccessKey = ""
+	sp.WebDAVPassword = ""
 }

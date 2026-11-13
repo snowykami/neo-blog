@@ -5,6 +5,7 @@ type AdminOidcConfigDto struct {
 	Name                  string `json:"name"`
 	ClientID              string `json:"client_id"`
 	ClientSecret          string `json:"client_secret"`
+	HasClientSecret       bool   `json:"has_client_secret,omitempty"`
 	TokenAuthMethod       string `json:"token_auth_method"`
 	DisplayName           string `json:"display_name"`
 	Icon                  string `json:"icon"`

@@ -31,6 +31,13 @@ func UpdateStorageProvider(id uint, next *model.StorageProviderModelAndDto) *err
 	if err != nil {
 		return errs.FromDB(err, "storage_provider", "failed_to_get_target")
 	}
+	// 编辑存储时未重新填写的敏感凭据沿用数据库原值，避免前端脱敏留空后覆盖为空字符串
+	if next.S3SecretAccessKey == "" {
+		next.S3SecretAccessKey = current.S3SecretAccessKey
+	}
+	if next.WebDAVPassword == "" {
+		next.WebDAVPassword = current.WebDAVPassword
+	}
 	usage, err := repo.File.ProviderUsage(id)
 	if err != nil {
 		return errs.Internal("failed_to_check_target", err).WithResource("storage_provider")

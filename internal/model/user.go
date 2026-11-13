@@ -120,8 +120,8 @@ type UserOpenID struct {
 	gorm.Model
 	UserID            uint   `gorm:"index"`
 	User              User   `gorm:"foreignKey:UserID;references:ID"`
-	Issuer            string `gorm:"index"` // OIDC Issuer
-	Sub               string `gorm:"index"` // OIDC Sub openid
+	Issuer            string `gorm:"uniqueIndex:idx_user_openid_issuer_sub"` // OIDC Issuer
+	Sub               string `gorm:"uniqueIndex:idx_user_openid_issuer_sub"` // OIDC Sub openid
 	Name              string // 昵称，以下每次登录会更新
 	Email             string // 邮箱
 	Picture           string // 头像

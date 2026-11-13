@@ -1,7 +1,6 @@
 // Package ipregion 离线 IP 归属地查询，基于 ip2region（Apache-2.0, lionsoul2014/ip2region）
 //   - IPv4：内置数据文件（assets/ip2region_v4.xdb），随二进制分发，无需联网
-//   - IPv6：数据文件较大（约 37MB）未内置，可通过环境变量 IP2REGION_V6_PATH 指定；
-//     未指定时回退到在线接口（utils.GetIPInfo）并做内存缓存
+//   - IPv6：数据文件较大（约 37MB）未内置，可通过环境变量 IP2REGION_V6_PATH 指定；未指定时返回空结果，不向第三方在线接口泄露用户 IP
 package ipregion
 
 import (
@@ -59,13 +58,7 @@ var (
 	v4Searcher *xdb.Searcher
 	v6Searcher *xdb.Searcher
 	initOnce   sync.Once
-
-	// IPv6 在线查询结果缓存，超过上限时整体清空，避免无界增长
-	onlineCache   = map[string]Region{}
-	onlineCacheMu sync.Mutex
 )
-
-const onlineCacheLimit = 10000
 
 func initSearchers() {
 	var err error
@@ -106,7 +99,7 @@ func Lookup(ip string) Region {
 	if parsed == nil {
 		return Region{}
 	}
-	if parsed.IsLoopback() || parsed.IsPrivate() || parsed.IsLinkLocalUnicast() || parsed.IsUnspecified() {
+	if utils.IsReservedIP(parsed.String()) {
 		return Region{Reserved: true}
 	}
 	if v4 := parsed.To4(); v4 != nil {
@@ -126,28 +119,5 @@ func Lookup(ip string) Region {
 		}
 		return parse(raw)
 	}
-	return lookupOnline(parsed.String())
-}
-
-// lookupOnline 未配置 IPv6 数据文件时回退到在线接口
-func lookupOnline(ip string) Region {
-	onlineCacheMu.Lock()
-	if region, ok := onlineCache[ip]; ok {
-		onlineCacheMu.Unlock()
-		return region
-	}
-	onlineCacheMu.Unlock()
-
-	region := Region{}
-	if data, err := utils.GetIPInfo(ip); err == nil && data != nil {
-		region = Region{Country: data.Country, Province: data.Province, City: data.City, ISP: data.ISP, CountryCode: data.CountryCode}
-	}
-
-	onlineCacheMu.Lock()
-	if len(onlineCache) >= onlineCacheLimit {
-		onlineCache = map[string]Region{}
-	}
-	onlineCache[ip] = region
-	onlineCacheMu.Unlock()
-	return region
+	return Region{}
 }

@@ -40,9 +40,9 @@ func registerUserRoutes(group *route.RouterGroup) {
 		userGroupWithAuth.GET("/api-tokens", apiTokenController.List)
 		userGroupWithAuth.POST("/api-tokens", apiTokenController.Create)
 		userGroupWithAuth.POST("/api-tokens/:id/revoke", apiTokenController.Revoke)
-		// 需要邮箱验证但是不需要登录
-		group.Group(userRoute).Use(middleware.UseEmailVerify()).PUT("/password/reset", userController.ResetPassword) // 不需要登录
+		// 需要邮箱验证但是不需要登录（由 service 先校验格式/唯一性后再消费一次性验证码）
+		userGroupNoAuth.PUT("/password/reset", userController.ResetPassword)
 		// 需要邮箱验证和登录
-		group.Group(userRoute).Use(middleware.UseAuth(true), middleware.UseEmailVerify()).PUT("/email/edit", userController.ChangeEmail)
+		userGroupWithAuth.PUT("/email/edit", userController.ChangeEmail)
 	}
 }

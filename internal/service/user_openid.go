@@ -257,16 +257,17 @@ func (s *UserService) finalizeUserFromUserinfo(ctx context.Context, req *dto.Oid
 		return nil, errs.Internal("failed_to_check_target", err)
 	}
 	if usernameExists {
+		oldUsername := userInfo.PreferredUsername
 		for i := 0; i < 10; i++ {
 			randomSuffix := utils.Strings.GenerateRandomString(6)
-			newUsername := userInfo.PreferredUsername + "_" + randomSuffix
+			newUsername := oldUsername + "_" + randomSuffix
 			exists, err := repo.User.CheckUsernameExists(newUsername)
 			if err != nil {
 				return nil, errs.Internal("failed_to_check_target", err)
 			}
 			if !exists {
 				userInfo.PreferredUsername = newUsername
-				logrus.Infof("Username conflict resolved: %s -> %s", userInfo.PreferredUsername, newUsername)
+				logrus.Infof("Username conflict resolved: %s -> %s", oldUsername, newUsername)
 				break
 			}
 		}
@@ -279,26 +280,32 @@ func (s *UserService) finalizeUserFromUserinfo(ctx context.Context, req *dto.Oid
 		Email:     userInfo.Email,
 		Role:      constant.RoleUser,
 	}
-
-	if err = repo.User.CreateUser(newUser); err != nil {
-		return nil, errs.Internal("failed_to_create_user", err)
-	}
-	if newUser.ID == 1 {
-		newUser.Role = constant.RoleAdmin
-		if err = repo.User.UpdateUser(newUser); err != nil {
-			logrus.Errorln("Failed to update user role to admin:", err)
-			return nil, errs.Internal("failed_to_update_target", err)
-		}
-	}
-	SyncSearchUser(newUser.ID, false)
 	userOpenID = &model.UserOpenID{
-		UserID: newUser.ID,
 		Issuer: oidcConfig.Issuer,
 		Sub:    userInfo.Sub,
 	}
-	if err = repo.User.CreateOrUpdateUserOpenID(userOpenID); err != nil {
-		return nil, errs.NewConflict("failed_to_link_oidc_account")
+
+	err = repo.GetDB().Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(newUser).Error; err != nil {
+			return err
+		}
+		if newUser.ID == 1 {
+			newUser.Role = constant.RoleAdmin
+			if err := tx.Model(newUser).UpdateColumn("role", constant.RoleAdmin).Error; err != nil {
+				return err
+			}
+		}
+		userOpenID.UserID = newUser.ID
+		return tx.Create(userOpenID).Error
+	})
+	if err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return nil, errs.NewConflict("username_or_email_already_exists")
+		}
+		return nil, errs.Internal("failed_to_create_user", err)
 	}
+	repo.TouchCacheTags(repo.CacheTagUsers)
+	SyncSearchUser(newUser.ID, false)
 	// 更新openid信息，不致命错误不阻断登录
 	if err = s.updateUserOpenIdInfo(userOpenID, userInfo); err != nil {
 		return nil, errs.Internal("failed_to_update_target", err)
