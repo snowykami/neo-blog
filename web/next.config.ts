@@ -37,8 +37,13 @@ export default (phase: string): NextConfig => {
   const nextConfig: NextConfig = {
     output: 'standalone',
     ...(assetPrefix ? { assetPrefix } : {}),
-    // 开发模式下关闭 Node 层 gzip 压缩与 ETag 304 协商缓存，避免流式响应缓冲与条件缓存干扰调试
-    compress: !isDev,
+    // 支持环境变量 COMPRESS（或 NEXT_COMPRESS）控制；开发模式下默认关闭，生产环境默认启用（有外层 Nginx/CDN 压缩时可传 COMPRESS=false 关闭）
+    compress: (() => {
+      const env = process.env.COMPRESS ?? process.env.NEXT_COMPRESS
+      if (env !== undefined)
+        return env === 'true' || env === '1' || env === 'on'
+      return !isDev
+    })(),
     generateEtags: !isDev,
     env: {
       NEXT_PUBLIC_APP_VERSION: appVersion,

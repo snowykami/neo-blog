@@ -56,3 +56,26 @@ for (const file of files.filter(f => f.endsWith('.map') && existsSync(f)))
   unlinkSync(file)
 writeFileSync(join(outputDir, 'index.json'), JSON.stringify(index))
 console.log(`collect-sourcemaps: moved ${Object.keys(index).length} source maps to .next/sourcemaps`)
+
+// 为 standalone 生产入口注入运行时 COMPRESS / NEXT_COMPRESS 环境变量支持（默认延续构建配置，设置 false / 0 时在运行时关闭）
+const serverJsCandidates = [
+  join(root, '.next/standalone/server.js'),
+  join(root, '.next/standalone/web/server.js'),
+]
+for (const serverJsPath of serverJsCandidates) {
+  if (existsSync(serverJsPath)) {
+    let content = readFileSync(serverJsPath, 'utf8')
+    const target = 'process.env.__NEXT_PRIVATE_STANDALONE_CONFIG = JSON.stringify(nextConfig)'
+    const patch = `// 运行时支持通过 COMPRESS / NEXT_COMPRESS 环境变量动态开关压缩
+const compressEnv = process.env.COMPRESS ?? process.env.NEXT_COMPRESS
+if (compressEnv !== undefined) {
+  nextConfig.compress = compressEnv === 'true' || compressEnv === '1' || compressEnv === 'on'
+}
+process.env.__NEXT_PRIVATE_STANDALONE_CONFIG = JSON.stringify(nextConfig)`
+    if (content.includes(target) && !content.includes('compressEnv')) {
+      content = content.replace(target, patch)
+      writeFileSync(serverJsPath, content)
+      console.log(`collect-sourcemaps: enabled runtime COMPRESS env in ${relative(root, serverJsPath)}`)
+    }
+  }
+}
