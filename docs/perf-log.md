@@ -29,6 +29,58 @@ cd .next/standalone && BACKEND_URL=http://localhost:8888 PORT=3100 node server.j
 
 ---
 
+## 005 首屏全链路性能优化（P0 / P1 / P2，2026-11-14）
+
+### 改动
+
+1. **彻底移出首屏重依赖（P0）**：
+   - **zod**：003 遗留在主题系统的 zod（`themes/types.ts` 定义校验）拆分至独立 `themes/schema.ts`，首屏彻底移出 zod（`111.4 KB raw / 32.7 KB gzip` → `0`）。
+   - **@sentry/* 延后**：新增 `lib/telemetry/loader.ts` 监听并缓冲首屏未捕获错误与路由，推迟到 `requestIdleCallback` 空闲期动态加载 Sentry SDK（`~88.5 KB raw / ~27.1 KB gzip` → `0`）。
+   - **歌词/律动引擎按需加载**：`MusicProvider` 挂在全局根布局，原本常驻加载歌词解析器、wanakana、AI 强调与律动模型。拆分为 `contexts/music-lyrics-engine.tsx`，无曲目或未播放时不下载（移出 `~60~85 KB`），曲目就绪时按需加载。
+2. **首屏关键图片 SSR 直出与优先级（P0）**：
+   - `ImageAvatar` 从 `@radix-ui/react-avatar`（SSR 不输出 `<img>`，需等水合后 `new Image()` 完成才上屏）重构为基于 `SafeImage`（`next/image`），服务端直接输出 `<img>`、`srcSet` 与精准 `sizes`。
+   - 侧栏站长头像与背景横幅设为 `eager`；首屏第一篇博文封面在 Next 16 下启用 `preload`、`loading="eager"` 与 `fetchPriority="high"`（LCP 图片提前至 HTML 解析阶段并行下载）。
+3. **交互组件拆包与按需懒加载（P1）**：
+   - 将 `@radix-ui/react-select` 从 `pagination.tsx` 剥离入独立 `page-size-selector.tsx`，移出首页首屏（`-21.5 KB`）。
+   - 搜索弹窗（`cmdk` + `react-hotkeys-hook`）、移动端抽屉菜单（`Sheet`）、文章大图预览器、分享弹窗（`react-icons` 平台图标）均改为点击/悬停/聚焦按需懒加载。
+   - 评论区附件选择器懒加载抽屉 `vaul`（`-31.9 KB`）；正文下方评论区采用 `IntersectionObserver` 懒加载，支持 `?comment=` / `#comment` 锚点直接直出。
+4. **服务端渲染优化与 CLS 消除（P1）**：
+   - 导航栏自定义页面采用服务端 `'use cache'`（`cacheLife('site')` + `CacheTag.Pages`）预取，消除客户端首次挂载时的网络抖动。
+   - 代码块工具栏包裹与 `highlight.js` 着色移至服务端（`utils/server/render-code.ts`）并随正文哈希缓存，客户端仅需事件委托处理复制，彻底消除水合后插入工具栏导致的 CLS 布局偏移。
+   - 首页侧边栏移出 `searchParams` 的 Suspense 阻塞区，并在已有摘要时裁剪列表返回项冗余的完整 `content`。
+5. **CSS 与 i18n 作用域细粒度治理（P2）**：
+   - 全局移出 240+ 条 `--color-*-500` / `--color-*-200` 色板变量的 `tailwindcolor.css`（`-11.6 KB raw`），改为在正文与编辑器共用的 `content-themes/index.scss` 中按需引入。
+   - `ContentComponents` 加入 `SPLIT_NAMESPACES` 拆为二级下发单元，访客页面不再携带编辑器/组件库专属的 11 个子命名空间文案。
+
+### 打包产物与体积对比（生产构建）
+
+| 页面 / 资源 | 改前 (raw / gzip) | 改后 (raw / gzip) | 净收益 |
+| :--- | :--- | :--- | :--- |
+| **首页 JS** | 1539.9 KB / 500.0 KB (40 chunks) | **1266.7 KB / 413.6 KB** (35 chunks) | **−273.2 KB / −86.4 KB (−17.3% gzip)** |
+| **首页 CSS** | 267.5 KB / 45.0 KB | **249.9 KB / 38.8 KB** | **−17.6 KB / −6.2 KB (−13.8% gzip)** |
+| **文章页 JS** | 1753.8 KB / 570.7 KB (46 chunks) | **1318.4 KB / 431.4 KB** (36 chunks) | **−435.4 KB / −139.3 KB (−24.4% gzip)** |
+| **文章页 CSS** | 313.8 KB / 54.4 KB | **311.9 KB / 53.2 KB** | **−1.9 KB / −1.2 KB** |
+| **i18n (main)** | 42.2 KB | **37.4 KB** | **−4.8 KB** |
+| **i18n (main)/p/[id]** | 48.4 KB | **43.6 KB** | **−4.8 KB** |
+| **i18n (player)** | 40.5 KB | **30.5 KB** | **−10.0 KB** |
+
+### SSR 出图性能基准测试（回应“万一 SSR 更慢？”）
+
+测试场景：Node 25 环境下模拟单页包含 **1 个侧栏横幅 + 12 个站内头像 + 10 张博文封面**，采样 1000 次：
+
+- **网络 I/O 阻塞**：`0` 次（`next/image` 在 SSR 阶段仅为纯同步字符串拼接输出 `srcSet`，不发网络请求，无磁盘/图片解码阻塞）。
+- **`renderToString` 耗时**：`0.315 ms` → `0.409 ms`（单页仅微增 **+0.094 ms**）。
+- **`renderToReadableStream` 耗时**：`0.346 ms` → `0.518 ms`（单页仅微增 **+0.172 ms**）。
+- **HTML 传输量变化**：输出 `<img>` 从 11 增至 22 个、`<link rel="preload">` 从 0 增至 3 个，HTML gzip 体积仅增加 **+0.84 KB**。
+
+### 验证
+
+- `pnpm lint` 0 error 通过；`tsc --noEmit` 通过。
+- 113 个单测文件 / 810 个用例全量通过（含新增 `render-code.test.ts`、`image-avatar.test.ts` 以及 `coverage.test.ts`、`proxy.test.ts`）。
+- 生产打包 `pnpm build`（Turbopack）构建成功并提取 sourcemap 确认特征包已完全剥离。
+
+---
+
 ## 004 补齐两处漏掉的文案：配置项枚举值、通知事件（2026-11-10）
 
 线上 `/notifications` 的整页事件文案、控制台「全局配置」里音乐音质等下拉选项都是原始键名。
