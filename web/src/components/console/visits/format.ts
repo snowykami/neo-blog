@@ -129,7 +129,8 @@ export function useRuleText() {
           values[key] = value
       }
     }
-    return t(`reasons.${rule.reason}`, values)
+    const reasonKey = `reasons.${rule.reason}` as const
+    return t.has(reasonKey) ? t(reasonKey, values) : rule.reason
   }, [t, countryName, list])
 }
 

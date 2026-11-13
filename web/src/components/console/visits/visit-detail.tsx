@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils'
 import { consolePath, getTargetViewUrl } from '@/utils/common/route'
 import { formatDuration, formatOffset, useCountryName, useRuleText } from './format'
 import { IpAddress } from './ip-address'
-import { SeverityBadge, TrustBadge } from './trust-badge'
+import { SeverityBadge, TRUST_STYLES, TrustBadge } from './trust-badge'
 
 const SEVERITY_ORDER: Record<string, number> = { high: 3, medium: 2, low: 1, info: 0 }
 const SEVERITY_ICON = { high: 'text-red-600', medium: 'text-orange-600', low: 'text-amber-600' }
@@ -89,6 +89,7 @@ function OverviewCard({ visit, trust }: { visit: VisitLog, trust: VisitTrustResu
   // 私密文章 / 页面前台 404，链到后台预览
   const href = subject ? getTargetViewUrl(subject) : visit.path
   const hits = trust?.rules.filter(rule => rule.status === 'hit' && rule.severity !== 'info').length ?? 0
+  const knownVerdict = trust && trust.verdict in TRUST_STYLES ? trust.verdict : 'unknown'
   return (
     <Card className="gap-3 px-5 py-4">
       <div className="flex flex-wrap items-center gap-2 text-lg font-semibold">
@@ -97,7 +98,7 @@ function OverviewCard({ visit, trust }: { visit: VisitLog, trust: VisitTrustResu
         {place.inferred && <Badge variant="secondary" title={t('inferred_hint')}>{t('inferred')}</Badge>}
         {trust && <TrustBadge trust={trust.verdict} />}
       </div>
-      {trust && <p className="text-sm text-muted-foreground">{t(`trust.verdicts.${trust.verdict}.why`)}</p>}
+      {trust && <p className="text-sm text-muted-foreground">{t(`trust.verdicts.${knownVerdict}.why`)}</p>}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
         <Link href={href} target="_blank" className="font-medium text-foreground hover:text-primary hover:underline">{subject?.title || visit.path}</Link>
         <time dateTime={visit.createdAt}>{format.dateTime(new Date(visit.createdAt), { dateStyle: 'medium', timeStyle: 'medium' })}</time>
@@ -154,18 +155,20 @@ function LocationCard({ visit, trust }: { visit: VisitLog, trust: VisitTrustResu
           </TableHeader>
           <TableBody>
             {trust.sources.map((source) => {
-              const Icon = icons[source.key]
+              const Icon = icons[source.key] ?? GlobeIcon
+              const sourceKey = `trust.sources.${source.key}` as const
+              const noteKey = source.note ? (`trust.notes.${source.note}` as const) : null
               return (
                 <TableRow key={source.key}>
                   <TableCell>
                     <span className="flex items-center gap-1.5">
                       <Icon className="size-4 text-muted-foreground" />
-                      {t(`trust.sources.${source.key}`)}
+                      {t.has(sourceKey) ? t(sourceKey) : source.key}
                     </span>
                   </TableCell>
                   <TableCell className="whitespace-normal">
                     <div>{source.value || '—'}</div>
-                    {source.note && <div className="text-xs text-muted-foreground">{t(`trust.notes.${source.note}`)}</div>}
+                    {noteKey && <div className="text-xs text-muted-foreground">{t.has(noteKey) ? t(noteKey) : source.note}</div>}
                   </TableCell>
                   <TableCell>{source.country ? countryName(source.country) : '—'}</TableCell>
                   <TableCell className="tabular-nums">{source.weight}</TableCell>
@@ -259,22 +262,25 @@ function RuleItem({ rule }: { rule: VisitRuleResult }) {
   const detailT = useTranslations('Console.visits.detail')
   const ruleText = useRuleText()
   const hit = rule.status === 'hit' && rule.severity
+  const ruleNameKey = `rules.${rule.id}.name` as const
+  const ruleWhyKey = `rules.${rule.id}.why` as const
+  const categoryKey = `categories.${rule.category}` as const
   let icon: ReactNode = <MinusIcon className="mt-0.5 size-4 text-muted-foreground" />
   if (hit)
-    icon = rule.severity === 'info' ? <InfoIcon className="mt-0.5 size-4 text-sky-600" /> : <TriangleAlertIcon className={cn('mt-0.5 size-4', SEVERITY_ICON[rule.severity as keyof typeof SEVERITY_ICON])} />
+    icon = rule.severity === 'info' ? <InfoIcon className="mt-0.5 size-4 text-sky-600" /> : <TriangleAlertIcon className={cn('mt-0.5 size-4', SEVERITY_ICON[rule.severity as keyof typeof SEVERITY_ICON] ?? SEVERITY_ICON.low)} />
   else if (rule.status === 'pass')
     icon = <CheckIcon className="mt-0.5 size-4 text-emerald-600" />
   return (
     <div className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-2 gap-y-0.5 border-b py-2.5 last:border-b-0">
       {icon}
       <div className="flex flex-wrap items-center gap-1.5 text-sm font-medium">
-        {t(`rules.${rule.id}.name`)}
+        {t.has(ruleNameKey) ? t(ruleNameKey) : rule.id}
         {hit && <SeverityBadge severity={rule.severity as VisitSeverity} />}
-        <Badge variant="outline" className="font-normal text-muted-foreground">{t(`categories.${rule.category}`)}</Badge>
+        <Badge variant="outline" className="font-normal text-muted-foreground">{t.has(categoryKey) ? t(categoryKey) : rule.category}</Badge>
       </div>
       <div className="col-start-2 text-sm text-muted-foreground">
         {ruleText(rule)}
-        {hit && <div className="text-xs">{detailT('why', { why: t(`rules.${rule.id}.why`) })}</div>}
+        {hit && t.has(ruleWhyKey) && <div className="text-xs">{detailT('why', { why: t(ruleWhyKey) })}</div>}
       </div>
     </div>
   )

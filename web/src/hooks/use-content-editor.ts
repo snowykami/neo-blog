@@ -553,9 +553,14 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
   const syncRemoteRef = useRef<() => Promise<void>>(async () => {})
   // content：要保存的正文快照（离开编辑页时编辑器随后会被销毁，由调用方先取下）；未传时读取编辑器，AI 写作中读取打开面板时的正文
   // retryFailedMeta：重新提交上次保存失败的元信息（点返回离开前用：自动保存会跳过它，不重试的话会当作没有修改直接离开，丢掉这些修改）
-  const save = useCallback(async ({ manual = false, keepalive = false, content, retryFailedMeta = false }: { manual?: boolean, keepalive?: boolean, content?: SavedContent, retryFailedMeta?: boolean } = {}): Promise<boolean> => {
+  const save = useCallback(async ({ manual = false, flush = false, keepalive = false, content, retryFailedMeta = false }: { manual?: boolean, flush?: boolean, keepalive?: boolean, content?: SavedContent, retryFailedMeta?: boolean } = {}): Promise<boolean> => {
     if (!doc || !canSave)
       return false
+    // 自动保存遇到输入法正在组字（拼音/假名尚未上屏）时延后：等组字结束后统一提交，避免截断半成品草稿
+    if (!manual && !flush && !keepalive && !content && editor && !editor.isDestroyed && editor.view?.composing) {
+      scheduleAutosaveRef.current()
+      return false
+    }
     const source = content ?? (aiBusyRef.current ? aiBaseRef.current : null)
     // 编辑器在保存过程中可能被销毁（离开编辑页），此时读不到内容
     const readContent = (): SavedContent | null => source ?? (editor && !editor.isDestroyed && !editorStaleRef.current ? snapshotContent(editor) : null)
@@ -681,7 +686,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
     if (savingRef.current || syncingRef.current)
       await waitForSaveSettled(() => savingRef.current || syncingRef.current)
     // 是否真有修改由 save 比较正文与已保存的内容判断（卸载后不再渲染，isDirtyRef 可能是旧值），没有修改时不发请求
-    return saveNow({ keepalive, content, retryFailedMeta })
+    return saveNow({ flush: true, keepalive, content, retryFailedMeta })
   }, [canSave])
   const flushSaveRef = useRef(flushSave)
   flushSaveRef.current = flushSave
@@ -734,7 +739,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
     }
   }, [])
 
-  // 正文变化：标记未保存并安排自动保存
+  // 正文变化：标记未保存并安排自动保存（IME 组字期间只标记脏状态，等 compositionend 后再启动防抖）
   useEffect(() => {
     if (!editor)
       return
@@ -743,11 +748,20 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
       if (transaction.getMeta(AI_PREVIEW_META) || transaction.getMeta(REMOTE_SYNC_META))
         return
       setContentDirty(true)
+      if (!editor.isDestroyed && editor.view?.composing)
+        return
       scheduleAutosave()
     }
+    const onCompositionEnd = () => {
+      if (isDirtyRef.current)
+        scheduleAutosave()
+    }
+    const dom = !editor.isDestroyed ? editor.view?.dom : null
     editor.on('update', onUpdate)
+    dom?.addEventListener('compositionend', onCompositionEnd)
     return () => {
       editor.off('update', onUpdate)
+      dom?.removeEventListener('compositionend', onCompositionEnd)
     }
   }, [editor, scheduleAutosave])
 

@@ -37,22 +37,26 @@ export function TrustBadge({ trust, className }: { trust: VisitTrust, className?
 // 命中的规则：显示规则名，颜色与图标表示严重度
 export function RuleFlagBadge({ id, severity, title }: { id: string, severity: VisitSeverity, title?: string }) {
   const t = useTranslations('Console.visits.trust')
-  const Icon = severity === 'info' ? InfoIcon : TriangleAlertIcon
+  const knownSeverity: VisitSeverity = severity in SEVERITY_STYLES ? severity : 'info'
+  const Icon = knownSeverity === 'info' ? InfoIcon : TriangleAlertIcon
+  const ruleKey = `rules.${id}.name` as const
+  const label = t.has(ruleKey) ? t(ruleKey) : id
   return (
-    <Badge variant="outline" className={SEVERITY_STYLES[severity]} title={title ?? t(`severity.${severity}`)}>
+    <Badge variant="outline" className={SEVERITY_STYLES[knownSeverity]} title={title ?? t(`severity.${knownSeverity}`)}>
       <Icon aria-hidden="true" />
-      {t(`rules.${id}.name`)}
+      {label}
     </Badge>
   )
 }
 
 export function SeverityBadge({ severity }: { severity: VisitSeverity }) {
   const t = useTranslations('Console.visits.trust')
-  const Icon = severity === 'info' ? InfoIcon : TriangleAlertIcon
+  const knownSeverity: VisitSeverity = severity in SEVERITY_STYLES ? severity : 'info'
+  const Icon = knownSeverity === 'info' ? InfoIcon : TriangleAlertIcon
   return (
-    <Badge variant="outline" className={SEVERITY_STYLES[severity]}>
+    <Badge variant="outline" className={SEVERITY_STYLES[knownSeverity]}>
       <Icon aria-hidden="true" />
-      {t(`severity.${severity}`)}
+      {t(`severity.${knownSeverity}`)}
     </Badge>
   )
 }

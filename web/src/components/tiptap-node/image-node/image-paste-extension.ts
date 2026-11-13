@@ -180,13 +180,15 @@ export const ImagePaste = Extension.create<ImagePasteOptions, ImagePasteStorage>
           },
           handleDrop: (view, event, _slice, moved) => {
             // 编辑器内部拖动（移动块、拖文字）交给 ProseMirror
-            if (moved || !view.editable)
+            if (moved)
               return false
             const route = routeDroppedFiles(event.dataTransfer)
             if (!route.handled)
               return false
-            // 拦下浏览器默认行为：插入会被写成 blob: 地址，其余类型会被导航到该文件
+            // 拦下浏览器默认行为：插入会被写成 blob: 地址，其余类型会被导航到该文件；只读态下也不让浏览器跳离当前编辑页
             event.preventDefault()
+            if (!view.editable)
+              return true
             if (route.unsupported.length > 0)
               storage.onUnsupportedFiles?.(route.unsupported)
             const at = view.posAtCoords({ left: event.clientX, top: event.clientY })

@@ -122,4 +122,32 @@ describe('粘贴上传的取消', () => {
     editor.destroy()
     expect(signal()?.aborted).toBe(true)
   })
+
+  it('只读态拖入文件时阻止浏览器默认打开文件且不触发上传', () => {
+    let uploaded = false
+    const editor = new Editor({
+      editable: false,
+      extensions: [StarterKit, Image, ImagePaste.configure({
+        upload: async () => {
+          uploaded = true
+          return '/f/1'
+        },
+      })],
+      content: '<p>只读预览</p>',
+    })
+    editors.push(editor)
+    let prevented = false
+    const event = {
+      dataTransfer: fakeData([png]),
+      clientX: 0,
+      clientY: 0,
+      preventDefault: () => {
+        prevented = true
+      },
+    } as unknown as DragEvent
+    const handled = editor.view.someProp('handleDrop', f => f(editor.view, event, {} as Slice, false))
+    expect(handled).toBe(true)
+    expect(prevented).toBe(true)
+    expect(uploaded).toBe(false)
+  })
 })
