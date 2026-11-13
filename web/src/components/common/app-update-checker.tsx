@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 import { IslandSlot, IslandText } from '@/components/layout/topbar-island/island-parts'
 import { useIslandAccepts, useIslandActivity } from '@/contexts/topbar-island'
 import { usePathname } from '@/i18n/navigation'
-import { CURRENT_APP_VERSION, isChunkLoadError, isNewVersionDeployed, reloadForChunkError } from '@/utils/client/chunk-error'
+import { CHUNK_LOAD_MESSAGE_RE, CURRENT_APP_VERSION, isChunkLoadError, isNewVersionDeployed, reloadForChunkError } from '@/utils/client/chunk-error'
 
 const CHECK_INTERVAL_MS = 5 * 60 * 1000
 // 页面内跳转时顺带检查的最小间隔：连续翻页不用每次都问
@@ -65,7 +65,7 @@ export function AppUpdateChecker() {
 
   useEffect(() => {
     const onError = (event: ErrorEvent) => {
-      if (isChunkLoadError(event.error) || /Failed to load chunk/i.test(event.message))
+      if (isChunkLoadError(event.error) || CHUNK_LOAD_MESSAGE_RE.test(event.message))
         reloadForChunkError()
     }
     const onRejection = (event: PromiseRejectionEvent) => {

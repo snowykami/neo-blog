@@ -33,6 +33,14 @@ function isDocumentRequest(request: NextRequest) {
   return dest === null || dest === 'document'
 }
 
+/**
+ * 客户端路由的取数与预取请求（RSC Flight 流）：响应体里引用了本次构建专用的 JS 代码块文件名，
+ * 而 _rsc 查询参数只对路由状态头做哈希、不含构建号，不能让外层 CDN 跨部署缓存（前端副本内已有 L1 + 按构建号隔离的 Redis 页面缓存）
+ */
+function isRscRequest(request: NextRequest) {
+  return request.headers.get('rsc') === '1' || request.nextUrl.searchParams.has('_rsc')
+}
+
 function redirectTo(request: NextRequest, pathname: string) {
   const url = request.nextUrl.clone()
   url.pathname = pathname
@@ -54,7 +62,10 @@ export function proxy(request: NextRequest) {
     const locale = preferredLocale(request) ?? routing.defaultLocale
     const url = request.nextUrl.clone()
     url.pathname = `/${locale}${pathname}`
-    return NextResponse.rewrite(url)
+    const response = NextResponse.rewrite(url)
+    // 后台界面语言因人而异，且路由壳预取含当前构建的代码块文件名，不能进共享缓存
+    response.headers.set('CDN-Cache-Control', 'no-store')
+    return response
   }
 
   if (!prefixed.locale && isDocumentRequest(request)) {
@@ -63,13 +74,18 @@ export function proxy(request: NextRequest) {
       return redirectTo(request, localizePath(pathname, locale))
     // 不带前缀的页面对偏好别的语言的人会跳转（上面），这份 200 响应其实因人而异：ISR 页面带着 s-maxage，
     // CDN 若把它存下来，之后偏好别的语言的访客就拿不到跳转了。用 CDN-Cache-Control（RFC 9213，浏览器不认）只让共享缓存不存；
-    // 带前缀的地址与客户端路由取数（地址带 _rsc）对所有人一致，照常按 Cache-Control 缓存
+    // 带前缀的整页文档对所有人一致，照常按 Cache-Control 缓存
     const response = handleI18nRouting(request)
     response.headers.set('CDN-Cache-Control', 'no-store')
     return response
   }
 
-  return handleI18nRouting(request)
+  const response = handleI18nRouting(request)
+  if (isRscRequest(request)) {
+    // 客户端路由取数与预取含当前构建的代码块文件名，禁止外层共享缓存跨版本留存；带前缀的整页文档仍照常按 Cache-Control 缓存
+    response.headers.set('CDN-Cache-Control', 'no-store')
+  }
+  return response
 }
 
 export const config = {

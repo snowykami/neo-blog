@@ -1,5 +1,6 @@
 import type { Breadcrumb, ErrorEvent } from '@sentry/browser'
 import * as Sentry from '@sentry/browser'
+import { CHUNK_LOAD_MESSAGE_RE } from '@/utils/client/chunk-error'
 import { doNotTrack } from '@/utils/client/fingerprint'
 import { collectVisitSignals } from '@/utils/client/visit-signals'
 import { collectTelemetryContexts } from './context'
@@ -30,7 +31,8 @@ const IGNORE_ERRORS: (string | RegExp)[] = [
   /^Script error\.?$/,
   /^(?:TypeError: )?(?:Failed to fetch|Load failed|NetworkError when attempting to fetch resource\.?)$/,
   /AbortError|The operation was aborted|signal is aborted/i,
-  /ChunkLoadError|Loading (?:CSS )?chunk [\w-]+ failed|Failed to load chunk/,
+  /ChunkLoadError/,
+  CHUNK_LOAD_MESSAGE_RE,
   /Non-Error promise rejection captured/,
 ]
 const DENY_URLS = [/^(?:chrome|moz|safari(?:-web)?)-extension:/i, /^chrome:\/\//i, /extensions\//i]

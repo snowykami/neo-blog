@@ -9,12 +9,15 @@ describe('isChunkLoadError', () => {
     expect(isChunkLoadError(new Error('Loading chunk 42 failed.'))).toBe(true)
     expect(isChunkLoadError(new Error('Loading CSS chunk app-layout failed.'))).toBe(true)
     expect(isChunkLoadError(new TypeError('Failed to fetch dynamically imported module: https://x/_next/a.js'))).toBe(true)
+    expect(isChunkLoadError(new Error('Module 995741 was instantiated because it was required from module 677572, but the module factory is not available.'))).toBe(true)
+    expect(isChunkLoadError(new Error('Module 995741 was instantiated as a runtime entry of chunk /_next/static/chunks/abc.js, but the module factory is not available.'))).toBe(true)
     // 被包装后的错误沿 cause 查找
     expect(isChunkLoadError(new Error('render failed', { cause: turbopack }))).toBe(true)
   })
 
   it('ignores other errors', () => {
     expect(isChunkLoadError(new Error('Network Error'))).toBe(false)
+    expect(isChunkLoadError(new Error('Module [project]/src/a.tsx was instantiated because of an HMR update, but the module factory is not available.'))).toBe(false)
     expect(isChunkLoadError(null)).toBe(false)
     expect(isChunkLoadError('Failed to load chunk')).toBe(false)
   })

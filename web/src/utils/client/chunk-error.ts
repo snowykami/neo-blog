@@ -39,6 +39,14 @@ export async function isNewVersionDeployed(): Promise<boolean> {
 const CHUNK_RELOAD_KEY = 'neo-chunk-reload-at'
 const CHUNK_RELOAD_COOLDOWN_MS = 60_000
 
+/**
+ * 代码块加载失败或新旧构建模块错位的错误消息特征：
+ * - Turbopack / webpack 网络加载失败：Failed to load chunk、Loading (CSS) chunk ... failed
+ * - 原生动态 import 失败：Failed to fetch dynamically imported module、Importing a module script failed
+ * - Turbopack 版本错位：旧代码块命中缓存混入新页面（或反之）后，引用的内部模块号在当前运行时不存在（排除本地 HMR 更新分支）
+ */
+export const CHUNK_LOAD_MESSAGE_RE = /Failed to load chunk|Loading (?:CSS )?chunk \S+ failed|Failed to fetch dynamically imported module|Importing a module script failed|Module \S+ was instantiated (?:as a runtime entry of chunk|because it was required from module) .+, but the module factory is not available/i
+
 /** 是否为代码块加载失败（Turbopack / webpack 的 ChunkLoadError、动态 import 失败），会沿 cause 向上查找 */
 export function isChunkLoadError(error: unknown, depth = 0): boolean {
   if (!error || typeof error !== 'object' || depth > 3)
@@ -46,7 +54,7 @@ export function isChunkLoadError(error: unknown, depth = 0): boolean {
   const { name, message, cause } = error as { name?: unknown, message?: unknown, cause?: unknown }
   if (name === 'ChunkLoadError')
     return true
-  if (typeof message === 'string' && /Failed to load chunk|Loading (?:CSS )?chunk \S+ failed|Failed to fetch dynamically imported module|Importing a module script failed/i.test(message))
+  if (typeof message === 'string' && CHUNK_LOAD_MESSAGE_RE.test(message))
     return true
   return isChunkLoadError(cause, depth + 1)
 }
