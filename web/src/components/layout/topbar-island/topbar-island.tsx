@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { alertDurationOf, finishIslandAlert, interruptIslandAlert, setIslandPanelOpen, setIslandSettings, useIslandAlert, useIslandState } from '@/contexts/topbar-island'
 import { Link, usePathname } from '@/i18n/navigation'
-import { loadMotionFeatures } from '@/lib/motion'
+import { getMotionFeatures } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import { fallbackSiteInfo } from '@/utils/common/siteinfo'
 import { AmbientIsland, NetworkIsland } from './ambient-island'
@@ -37,6 +37,8 @@ const ISLAND_SPRING: Transition = { type: 'spring', mass: 1, stiffness: 273, dam
 const CONTENT_SHIFT_PX = 24
 const CONTENT_SWITCH_MS = 400
 const ANNOUNCE_MS = 4000
+// 站名与胶囊的退场兜底时长：退场动画最长约 380ms（弹簧），若因后台标签页冻结等原因超时仍并存则强制回收旧节点
+const EXIT_FALLBACK_MS = 800
 
 // 胶囊与小圆点共用的外观：按钮本身透明，只负责尺寸、形变与焦点环；深色药丸（浅色、深色主题下都是黑色，同灵动岛）画在内层，
 // 内层的细描边让它在深色卡片上也有边界（胶囊静止时改由连续曲率的轮廓画出，见 useContinuousCapsule）
@@ -171,7 +173,7 @@ export function TopbarIsland() {
     // 胶囊内容的交叉淡入一结束就会触发一次，而此时胶囊还在形变，从半途测出的位置重新起动画，切换活动时就会「走两遍」。
     // 小圆点跟着胶囊重新测量改由它的 layoutKey 完成。
     // 动画特性按需加载（见 lib/motion）：首屏只带 m 组件，水合后再取布局动画等特性，取到之前站名与胶囊照常显示、只是没有动画
-    <LazyMotion features={loadMotionFeatures} strict>
+    <LazyMotion features={getMotionFeatures()} strict>
       <MotionConfig reducedMotion="user">
         <IslandStage settings={settings} />
         {settings.enabled && (
@@ -321,17 +323,60 @@ function IslandStage({ settings }: { settings: IslandSettings }) {
   }
 
   const active = !!(alert || primary)
+  const stageRef = useRef<HTMLDivElement>(null)
+  const [presenceEpoch, setPresenceEpoch] = useState(0)
+  const wasHiddenRef = useRef(false)
+
+  // Cache Components 用 React <Activity mode="hidden"> 保留前台布局：隐藏期间 display: none（测量尺寸为 0）且不跑 layout effect，
+  // 全局仓库变化会让 AnimatePresence 的退场状态失步；重新可见时重置一次，直接渲染当前该显示的那一项
+  useLayoutEffect(() => {
+    if (wasHiddenRef.current) {
+      wasHiddenRef.current = false
+      setPresenceEpoch(epoch => epoch + 1)
+    }
+    return () => {
+      wasHiddenRef.current = true
+    }
+  }, [])
+
+  // 首屏 LazyMotion 特性包与首次切换同帧到达时，m 组件挂载 VisualElement 会短暂重置 ref，导致 PopChild 漏挂 data-motion-pop-id、
+  // ExitAnimationFeature 的退场回调早于父级 AnimatePresence 注册而丢失，旧节点会留在普通 flex 流中与新节点并排；在绘制前同步兜底重置
+  useLayoutEffect(() => {
+    const stage = stageRef.current
+    if (!stage)
+      return
+    const siteEl = stage.querySelector('[data-island-site]')
+    const capsuleEl = stage.querySelector('[data-island-capsule]')
+    if (!siteEl || !capsuleEl)
+      return
+    const exitingEl = active ? siteEl : capsuleEl
+    if (!exitingEl.hasAttribute('data-motion-pop-id'))
+      setPresenceEpoch(epoch => epoch + 1)
+  }, [active])
+
+  // 退场动画若因后台标签页冻结等原因超时未触发 onExitComplete，回收残留节点
+  useEffect(() => {
+    if (panelOpen)
+      return
+    const timer = window.setTimeout(() => {
+      const stage = stageRef.current
+      if (stage && stage.querySelector('[data-island-site]') && stage.querySelector('[data-island-capsule]'))
+        setPresenceEpoch(epoch => epoch + 1)
+    }, EXIT_FALLBACK_MS)
+    return () => window.clearTimeout(timer)
+  }, [active, panelOpen, presenceEpoch])
 
   return (
     <div
-      className="flex min-w-0 flex-1 items-center gap-1.5"
+      ref={stageRef}
+      className="relative flex min-w-0 flex-1 items-center gap-1.5"
       onPointerEnter={() => setHolding(true)}
       onPointerLeave={() => setHolding(false)}
       onFocus={() => setHolding(true)}
       onBlur={() => setHolding(false)}
     >
       {/* 站名与胶囊互相替换：岛上有内容时站名淡出、胶囊从它的位置长出来，没有内容时再变回站名 */}
-      <AnimatePresence initial={false} mode="popLayout">
+      <AnimatePresence key={presenceEpoch} initial={false} mode="popLayout">
         {active
           ? (
               <IslandButton
@@ -397,6 +442,7 @@ function SiteLink({ ref, onRestore }: { ref?: React.Ref<HTMLDivElement>, onResto
   return (
     <m.div
       ref={setRef}
+      data-island-site=""
       initial={{ opacity: 0, filter: 'blur(4px)' }}
       animate={{ opacity: 1, filter: 'blur(0px)' }}
       exit={{ opacity: 0, filter: 'blur(4px)' }}

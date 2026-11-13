@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Navbar from '@/components/layout/nav/navbar-or-side'
 import { useNav } from '@/contexts/nav-context'
-import { loadMotionFeatures } from '@/lib/motion'
+import { getMotionFeatures } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 
 /**
@@ -93,7 +93,7 @@ function ImmersiveHeader() {
 
   return (
     // 动画特性按需加载（见 lib/motion）：收起状态由 initial={false} 直接按终值渲染，不等特性
-    <LazyMotion features={loadMotionFeatures} strict>
+    <LazyMotion features={getMotionFeatures()} strict>
       <m.header
         ref={headerRef}
         initial={false}
