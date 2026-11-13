@@ -1,6 +1,6 @@
 'use client'
 
-import { CalendarClockIcon, CalendarDaysIcon } from 'lucide-react'
+import { CalendarDaysIcon, CalendarSyncIcon } from 'lucide-react'
 import { useFormatter, useTranslations } from 'next-intl'
 import { PostMetaItem } from './post-meta-item'
 
@@ -32,7 +32,7 @@ export function PostMetaDates({
         </PostMetaItem>
       )}
       {showUpdated && updatedText && updatedText !== createdText && (
-        <PostMetaItem icon={CalendarClockIcon} label={t('Common.updated_at')}>
+        <PostMetaItem icon={CalendarSyncIcon} label={t('Common.updated_at')}>
           <time dateTime={updatedAt} className="tabular-nums" title={t('Common.updated_at')}>{updatedText}</time>
         </PostMetaItem>
       )}

@@ -1,5 +1,5 @@
 import type { PageModel } from '@/models/page'
-import { CalendarClockIcon, InfoIcon, UserIcon } from 'lucide-react'
+import { CalendarSyncIcon, InfoIcon, UserIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { SidebarCard } from '@/components/blog-sidebar/sidebar-card'
 import { LocalTime } from '@/components/common/local-time'
@@ -13,7 +13,7 @@ export function PageInfoCard({ page, words }: { page: PageModel, words: number }
   const copyrightT = useTranslations('Copyright')
   const rows = [
     { icon: UserIcon, label: copyrightT('author'), value: formatDisplayName(page.user) },
-    { icon: CalendarClockIcon, label: t('updated_at'), value: <LocalTime value={page.updatedAt} options={{ year: 'numeric', month: 'short', day: 'numeric' }} /> },
+    { icon: CalendarSyncIcon, label: t('updated_at'), value: <LocalTime value={page.updatedAt} options={{ year: 'numeric', month: 'short', day: 'numeric' }} /> },
   ]
   return (
     <SidebarCard title={t('page_info')} icon={InfoIcon} contentClassName="grid gap-3">
