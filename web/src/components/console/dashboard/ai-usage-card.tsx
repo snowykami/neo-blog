@@ -18,6 +18,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useErrorMessageT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
 import { AI_USAGE_PURPOSES } from '@/models/ai-usage'
+import { formatCompactNumber } from '@/utils/common/number'
 
 // 趋势看 token 或调用次数，按用途堆叠
 const VIEWS = ['tokens', 'calls'] as const
@@ -59,7 +60,7 @@ export function AIUsageCard() {
     load()
   }, [load])
 
-  const compact = (value: number) => format.number(value, { notation: 'compact', maximumFractionDigits: 1 })
+  const compact = formatCompactNumber
   const purposeLabel = (purpose: string) => isKnownPurpose(purpose) ? t(`purpose.${purpose}`) : purpose
 
   const series = stats?.series ?? []

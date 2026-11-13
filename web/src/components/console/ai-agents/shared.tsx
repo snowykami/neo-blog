@@ -2,7 +2,7 @@
 
 import type { AgentRunStatus, AgentRunTrigger, AIAgentStatus, AIAgentTier } from '@/models/ai-agent'
 import { Check, ChevronsUpDown } from 'lucide-react'
-import { useFormatter, useTranslations } from 'next-intl'
+import { useTranslations } from 'next-intl'
 import { useEffect, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Spinner } from '@/components/ui/spinner'
 import { useDebouncedState } from '@/hooks/use-debounce'
 import { cn } from '@/lib/utils'
+import { formatCompactNumber } from '@/utils/common/number'
 
 export const useAIAgentT = () => useTranslations('Console.ai_agents')
 
@@ -64,10 +65,9 @@ export function RunStatusBadge({ status }: { status: AgentRunStatus }) {
   )
 }
 
-// tokens 等大数字使用紧凑写法（如 8.2M）
+// tokens 等大数字统一按 K / M / B 紧凑展示（如 8.2M）
 export function useCompactNumber() {
-  const format = useFormatter()
-  return (value: number) => format.number(value, { notation: 'compact', maximumFractionDigits: 1 })
+  return formatCompactNumber
 }
 
 export interface SearchSelectOption {
