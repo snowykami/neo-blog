@@ -52,18 +52,55 @@ func (user *userRepo) UpdateUserOpenID(userOpenID *model.UserOpenID) error {
 }
 
 func (user *userRepo) ListUserOpenIDsByUserID(userID uint) ([]model.UserOpenID, error) {
-	var userOpenIDs []model.UserOpenID
-	if err := GetDB().Where("user_id = ?", userID).Find(&userOpenIDs).Error; err != nil {
+	if userID == 0 {
+		return []model.UserOpenID{}, nil
+	}
+	grouped, err := user.ListUserOpenIDsByUserIDs([]uint{userID})
+	if err != nil {
 		return nil, err
 	}
-	for i := range userOpenIDs {
-		// 找到OpenID对应的OIDC配置
-		oidcConfig, err := Oidc.GetOidcConfigByIssuer(userOpenIDs[i].Issuer)
-		if err == nil && oidcConfig != nil {
-			userOpenIDs[i].OidcName = oidcConfig.Name
-			userOpenIDs[i].OidcIcon = oidcConfig.Icon
-			userOpenIDs[i].OidcDisplayName = oidcConfig.DisplayName
+	if list, ok := grouped[userID]; ok {
+		return list, nil
+	}
+	return []model.UserOpenID{}, nil
+}
+
+// ListUserOpenIDsByUserIDs 批量读取用户绑定的外部账号并关联 OIDC 配置展示信息（避免列表 N+1 查询）
+func (user *userRepo) ListUserOpenIDsByUserIDs(userIDs []uint) (map[uint][]model.UserOpenID, error) {
+	result := make(map[uint][]model.UserOpenID)
+	if len(userIDs) == 0 {
+		return result, nil
+	}
+	var userOpenIDs []model.UserOpenID
+	if err := GetDB().Where("user_id IN ?", userIDs).Order("id ASC").Find(&userOpenIDs).Error; err != nil {
+		return nil, err
+	}
+	if len(userOpenIDs) == 0 {
+		return result, nil
+	}
+
+	configs, err := Oidc.ListOidcConfigs(false)
+	if err == nil && len(configs) > 0 {
+		issuerMap := make(map[string]model.OidcConfig, len(configs))
+		for _, cfg := range configs {
+			if cfg.Issuer == "" {
+				continue
+			}
+			if existing, ok := issuerMap[cfg.Issuer]; !ok || (!existing.Enabled && cfg.Enabled) {
+				issuerMap[cfg.Issuer] = cfg
+			}
+		}
+		for i := range userOpenIDs {
+			if cfg, ok := issuerMap[userOpenIDs[i].Issuer]; ok {
+				userOpenIDs[i].OidcName = cfg.Name
+				userOpenIDs[i].OidcIcon = cfg.Icon
+				userOpenIDs[i].OidcDisplayName = cfg.DisplayName
+			}
 		}
 	}
-	return userOpenIDs, nil
+
+	for _, item := range userOpenIDs {
+		result[item.UserID] = append(result[item.UserID], item)
+	}
+	return result, nil
 }

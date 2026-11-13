@@ -13,7 +13,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { deleteUserAdmin, listUsers, updateUserStatusAdmin } from '@/api/admin'
-import { UserAvatar } from '@/components/common/avatar'
+import { ImageAvatar, UserAvatar } from '@/components/common/avatar'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { OrderSelector } from '@/components/common/orderby-selector'
 import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
@@ -66,7 +66,7 @@ import {
 
 const PAGE_SIZE = 15
 const MOBILE_PAGE_SIZE = 10
-const COLUMN_COUNT = 7
+const COLUMN_COUNT = 8
 // 后端用户列表支持的排序字段（另有 id / username，前端 OrderBy 暂未定义）
 const USER_ORDER_BYS = [OrderBy.CreatedAt, OrderBy.UpdatedAt]
 
@@ -251,6 +251,7 @@ export function UserManagePage() {
               <TableHead>{commonT('username')}</TableHead>
               <TableHead>{t('nickname')}</TableHead>
               <TableHead>{commonT('email')}</TableHead>
+              <TableHead>{t('external_accounts')}</TableHead>
               <TableHead>{t('role')}</TableHead>
               <TableHead>{t('status')}</TableHead>
               <TableHead>{commonT('created_at')}</TableHead>
@@ -268,6 +269,7 @@ export function UserManagePage() {
                 </TableCell>
                 <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                 <TableCell><Skeleton className="h-4 w-36" /></TableCell>
+                <TableCell><Skeleton className="h-6 w-16" /></TableCell>
                 <TableCell><Skeleton className="h-5 w-14" /></TableCell>
                 <TableCell><Skeleton className="h-5 w-12" /></TableCell>
                 <TableCell><Skeleton className="h-4 w-24" /></TableCell>
@@ -323,6 +325,39 @@ export function UserManagePage() {
                   </TableCell>
                   <TableCell className="max-w-48 truncate">{user.nickname || '-'}</TableCell>
                   <TableCell className="max-w-64 truncate text-muted-foreground">{user.email || '-'}</TableCell>
+                  <TableCell>
+                    {user.openIds && user.openIds.length > 0
+                      ? (
+                          <div className="flex items-center gap-1.5">
+                            {user.openIds.map((openId) => {
+                              const providerLabel = openId.oidcDisplayName || openId.oidcName || openId.issuer
+                              const identity = openId.name || openId.preferredUsername || openId.email || openId.sub
+                              const tooltip = identity ? `${providerLabel} (${identity})` : providerLabel
+                              return (
+                                <Button
+                                  key={openId.id}
+                                  type="button"
+                                  variant="outline"
+                                  size="icon-sm"
+                                  className="shrink-0 rounded-full"
+                                  title={tooltip}
+                                  aria-label={tooltip}
+                                  onClick={() => setDialog({ kind: 'detail', user })}
+                                >
+                                  <ImageAvatar
+                                    src={openId.oidcIcon}
+                                    alt=""
+                                    fallback={providerLabel.slice(0, 1)}
+                                    className="size-5"
+                                    fallbackClassName="text-[10px]"
+                                  />
+                                </Button>
+                              )
+                            })}
+                          </div>
+                        )
+                      : <span className="text-muted-foreground">-</span>}
+                  </TableCell>
                   <TableCell>
                     <Badge variant={ROLE_BADGE_VARIANT[user.role] ?? 'outline'}>
                       {Object.values(Role).includes(user.role) ? roleT(user.role) : user.role}

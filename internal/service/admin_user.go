@@ -133,7 +133,24 @@ func (s *AdminUserService) ListUsers(ctx context.Context, req *dto.AdminListUser
 		logrus.Errorln("Failed to list users:", err)
 		return nil, 0, errs.Internal("failed_to_get_target", err).WithResource("user")
 	}
-	return model.ToAdminUserDtos(users), total, nil
+	dtos := model.ToAdminUserDtos(users)
+	if len(users) > 0 {
+		userIDs := make([]uint, len(users))
+		for i := range users {
+			userIDs[i] = users[i].ID
+		}
+		openIDMap, err := repo.User.ListUserOpenIDsByUserIDs(userIDs)
+		if err != nil {
+			logrus.Errorln("Failed to list user openids:", err)
+			return nil, 0, errs.Internal("failed_to_get_target", err).WithResource("user_openid")
+		}
+		for i := range dtos {
+			if list := openIDMap[dtos[i].ID]; len(list) > 0 {
+				dtos[i].OpenIDs = model.ToOpenIdDtos(list)
+			}
+		}
+	}
+	return dtos, total, nil
 }
 
 func (s *AdminUserService) GetUserDetail(ctx context.Context, userID uint) (*dto.AdminUserDetailResp, *errs.ServiceError) {
@@ -145,11 +162,21 @@ func (s *AdminUserService) GetUserDetail(ctx context.Context, userID uint) (*dto
 	if err != nil {
 		return nil, errs.Internal("failed_to_get_target", err).WithResource("user")
 	}
+	openIDModels, err := repo.User.ListUserOpenIDsByUserID(target.ID)
+	if err != nil {
+		return nil, errs.Internal("failed_to_get_target", err).WithResource("user_openid")
+	}
+	openIDDtos := model.ToOpenIdDtos(openIDModels)
+	userDto := target.ToPrivateDto()
+	if len(openIDDtos) > 0 {
+		userDto.OpenIDs = openIDDtos
+	}
 	return &dto.AdminUserDetailResp{
-		User:         target.ToPrivateDto(),
+		User:         userDto,
 		PostCount:    posts,
 		PageCount:    pages,
 		CommentCount: comments,
+		OpenIDs:      openIDDtos,
 	}, nil
 }
 

@@ -190,3 +190,66 @@ func TestAdminUserUpdateAndDelete(t *testing.T) {
 		t.Fatalf("other user should be kept: %v", err)
 	}
 }
+
+func TestAdminUserOpenIDsInListAndDetail(t *testing.T) {
+	author, admin, _, _, _ := setupEditTest(t)
+	svc := NewAdminUserService()
+	authorID := mustUserID(t, author)
+
+	if err := repo.Oidc.CreateOidcConfig(&model.OidcConfig{
+		Name:        "github",
+		DisplayName: "GitHub",
+		Icon:        "https://example.com/github.png",
+		Issuer:      "https://github.com",
+		Enabled:     true,
+	}); err != nil {
+		t.Fatalf("create oidc config: %v", err)
+	}
+	if err := repo.User.CreateOrUpdateUserOpenID(&model.UserOpenID{
+		UserID:            authorID,
+		Issuer:            "https://github.com",
+		Sub:               "github:10086",
+		Name:              "Octocat",
+		Email:             "octo@github.local",
+		PreferredUsername: "octocat",
+	}); err != nil {
+		t.Fatalf("create user openid: %v", err)
+	}
+
+	users, _, svcerr := svc.ListUsers(admin, &dto.AdminListUsersReq{
+		PaginationParams: dto.PaginationParams{Page: 1, Size: 10},
+	})
+	if svcerr != nil {
+		t.Fatalf("list users: %v", svcerr)
+	}
+	var found *dto.UserDto
+	for i := range users {
+		if users[i].ID == authorID {
+			found = &users[i]
+			break
+		}
+	}
+	if found == nil || len(found.OpenIDs) != 1 {
+		t.Fatalf("expected 1 open_id in list, got %+v", found)
+	}
+	if found.OpenIDs[0].OidcDisplayName != "GitHub" || found.OpenIDs[0].Sub != "github:10086" || found.OpenIDs[0].Email != "octo@github.local" {
+		t.Fatalf("unexpected open_id in list: %+v", found.OpenIDs[0])
+	}
+
+	detail, svcerr := svc.GetUserDetail(admin, authorID)
+	if svcerr != nil {
+		t.Fatalf("get user detail: %v", svcerr)
+	}
+	if len(detail.OpenIDs) != 1 || detail.OpenIDs[0].Name != "Octocat" || detail.OpenIDs[0].OidcIcon != "https://example.com/github.png" {
+		t.Fatalf("unexpected open_ids in detail: %+v", detail.OpenIDs)
+	}
+
+	// 确认公开 DTO 不暴露外部账号绑定
+	rawUser, err := repo.User.GetUserByID(authorID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rawUser.ToDto().OpenIDs) != 0 {
+		t.Fatal("public UserDto must not expose open_ids")
+	}
+}

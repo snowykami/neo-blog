@@ -14,7 +14,7 @@ import {
   updateUserAdmin,
   updateUserRoleAdmin,
 } from '@/api/admin'
-import { UserAvatar } from '@/components/common/avatar'
+import { ImageAvatar, UserAvatar } from '@/components/common/avatar'
 import { LabelWithInfo } from '@/components/common/info-tooltip'
 import { UserProfileFields, useUserFieldRules } from '@/components/console/users/user-profile-fields'
 import { Badge } from '@/components/ui/badge'
@@ -36,6 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
 import {
   Sheet,
   SheetContent,
@@ -426,6 +427,7 @@ export function UserDetailSheet({ user, isSelf, onOpenChange }: {
   const format = useFormatter()
   const { detail, error } = useUserDetail(user?.id ?? null)
   const current = detail?.user ?? user
+  const openIds = detail?.openIds ?? current?.openIds
 
   const rows: [string, React.ReactNode][] = current
     ? [
@@ -481,6 +483,77 @@ export function UserDetailSheet({ user, isSelf, onOpenChange }: {
                   <div className="text-xs text-muted-foreground">{t(key)}</div>
                 </div>
               ))}
+            </div>
+            <Separator />
+            <div className="grid gap-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-medium">{t('external_accounts')}</h3>
+                {openIds && openIds.length > 0 && (
+                  <Badge variant="secondary" className="tabular-nums">{openIds.length}</Badge>
+                )}
+              </div>
+              {!detail && !openIds && !error && <Skeleton className="h-20 w-full" />}
+              {(detail || openIds) && (!openIds || openIds.length === 0) && (
+                <p className="text-sm text-muted-foreground">{t('external_empty')}</p>
+              )}
+              {openIds && openIds.length > 0 && (
+                <div className="grid gap-2.5">
+                  {openIds.map((openId) => {
+                    const providerLabel = openId.oidcDisplayName || openId.oidcName || openId.issuer || '-'
+                    const accountFields: [string, React.ReactNode][] = [
+                      [
+                        t('external_provider'),
+                        <span key="provider" className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                          <span>{providerLabel}</span>
+                          {openId.issuer && openId.issuer !== providerLabel && (
+                            <span className="font-mono text-[11px] text-muted-foreground">{`(${openId.issuer})`}</span>
+                          )}
+                        </span>,
+                      ],
+                      [t('external_sub'), <span key="sub" className="font-mono">{openId.sub || '-'}</span>],
+                      [t('nickname'), openId.name || '-'],
+                      ...(openId.preferredUsername
+                        ? [[commonT('username'), openId.preferredUsername] as [string, React.ReactNode]]
+                        : []),
+                      [commonT('email'), openId.email || '-'],
+                    ]
+                    return (
+                      <div key={openId.id} className="grid gap-2.5 rounded-md border p-3">
+                        <div className="flex items-center gap-2">
+                          <ImageAvatar
+                            src={openId.oidcIcon}
+                            alt=""
+                            fallback={providerLabel.slice(0, 1)}
+                            className="size-6 shrink-0"
+                            fallbackClassName="text-xs"
+                          />
+                          <span className="min-w-0 truncate text-sm font-medium">{providerLabel}</span>
+                          {openId.oidcDisplayName && openId.oidcName && openId.oidcDisplayName !== openId.oidcName && (
+                            <Badge variant="outline" className="font-mono text-[11px]">{openId.oidcName}</Badge>
+                          )}
+                          {openId.picture && (
+                            <ImageAvatar
+                              src={openId.picture}
+                              alt=""
+                              fallback={(openId.name || openId.preferredUsername || '?').slice(0, 1)}
+                              className="ml-auto size-6 shrink-0 rounded-full"
+                              fallbackClassName="text-[10px]"
+                            />
+                          )}
+                        </div>
+                        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-xs">
+                          {accountFields.map(([label, value]) => (
+                            <div key={label} className="contents">
+                              <dt className="text-muted-foreground">{label}</dt>
+                              <dd className="min-w-0 break-all">{value}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
             {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
           </div>
