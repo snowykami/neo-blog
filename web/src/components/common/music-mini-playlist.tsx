@@ -11,6 +11,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useMusicActions, useMusicPlayback } from '@/contexts/music-context'
 import { cn } from '@/lib/utils'
 
+const INITIAL_CHUNK = 50
+const CHUNK_STEP = 50
+
 /**
  * 悬浮播放器的小歌单：从歌单按钮弹出的小浮层（不使用播放器页的侧边抽屉），列表内搜索与播放器页相同（不联网）；
  * 打开时滚动到当前曲目，点击即播放并收起
@@ -23,6 +26,25 @@ export function MusicMiniPlaylist() {
   const [keyword, setKeyword] = useState('')
   const listRef = useRef<HTMLOListElement>(null)
   const results = useMemo(() => filterPlaylist(playlist, keyword), [keyword, playlist])
+  const targetResultIndex = useMemo(() => {
+    return results.findIndex(item => item.index === currentIndex)
+  }, [results, currentIndex])
+
+  // 分批渐进式加载，确保当前播放曲目在初始窗口内
+  const [visibleCount, setVisibleCount] = useState(() => Math.max(INITIAL_CHUNK, targetResultIndex + 20))
+
+  useEffect(() => {
+    setVisibleCount(prev => Math.max(prev, INITIAL_CHUNK, targetResultIndex + 20))
+  }, [targetResultIndex, keyword])
+
+  const handleScroll = useCallback((event: React.UIEvent<HTMLOListElement>) => {
+    const target = event.currentTarget
+    if (target.scrollTop + target.clientHeight >= target.scrollHeight - 200) {
+      setVisibleCount(prev => (prev < results.length ? Math.min(prev + CHUNK_STEP, results.length) : prev))
+    }
+  }, [results.length])
+
+  const visibleResults = useMemo(() => results.slice(0, visibleCount), [results, visibleCount])
 
   const handleSelect = useCallback((index: number) => {
     playTrack(index)
@@ -85,8 +107,8 @@ export function MusicMiniPlaylist() {
           ? <PlaylistPendingState compact />
           : results.length > 0
             ? (
-                <ol ref={listRef} className="grid max-h-72 content-start gap-0.5 overflow-y-auto overscroll-contain">
-                  {results.map(({ track, index }) => (
+                <ol ref={listRef} onScroll={handleScroll} className="grid max-h-72 content-start gap-0.5 overflow-y-auto overscroll-contain transform-gpu will-change-transform">
+                  {visibleResults.map(({ track, index }) => (
                     <MusicPlaylistItem
                       key={track.id}
                       track={track}

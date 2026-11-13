@@ -13,6 +13,9 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 import { filterPlaylist } from './playlist-filter'
 
+const INITIAL_CHUNK = 50
+const CHUNK_STEP = 50
+
 /** 歌单中的一首歌（深色界面）；compact 为悬浮播放器的小歌单使用的紧凑尺寸 */
 export const MusicPlaylistItem = memo(({ track, index, active, playing, onSelect, compact = false }: {
   track: MusicTrack
@@ -23,7 +26,7 @@ export const MusicPlaylistItem = memo(({ track, index, active, playing, onSelect
   compact?: boolean
 }) => {
   return (
-    <li>
+    <li className={cn('[content-visibility:auto]', compact ? '[contain-intrinsic-size:auto_40px]' : '[contain-intrinsic-size:auto_56px]')}>
       <button
         type="button"
         data-index={index}
@@ -100,6 +103,26 @@ export function MusicPlaylistSheet({ open, onOpenChange }: { open: boolean, onOp
   const [keyword, setKeyword] = useState('')
   const listRef = useRef<HTMLOListElement>(null)
   const results = useMemo(() => filterPlaylist(playlist, keyword), [playlist, keyword])
+  const targetResultIndex = useMemo(() => {
+    return results.findIndex(item => item.index === currentIndex)
+  }, [results, currentIndex])
+
+  // 分批渐进式加载，确保当前播放曲目在初始窗口内
+  const [visibleCount, setVisibleCount] = useState(() => Math.max(INITIAL_CHUNK, targetResultIndex + 20))
+
+  useEffect(() => {
+    setVisibleCount(prev => Math.max(prev, INITIAL_CHUNK, targetResultIndex + 20))
+  }, [targetResultIndex, keyword])
+
+  const handleScroll = useCallback((event: React.UIEvent<HTMLOListElement>) => {
+    const target = event.currentTarget
+    if (target.scrollTop + target.clientHeight >= target.scrollHeight - 300) {
+      setVisibleCount(prev => (prev < results.length ? Math.min(prev + CHUNK_STEP, results.length) : prev))
+    }
+  }, [results.length])
+
+  const visibleResults = useMemo(() => results.slice(0, visibleCount), [results, visibleCount])
+
   // 稳定的回调，保证列表项的 memo 生效
   const handleSelect = useCallback((index: number) => {
     playTrack(index)
@@ -161,8 +184,8 @@ export function MusicPlaylistSheet({ open, onOpenChange }: { open: boolean, onOp
           ? <PlaylistPendingState />
           : results.length > 0
             ? (
-                <ol ref={listRef} className="grid min-h-0 flex-1 content-start gap-0.5 overflow-y-auto px-2 pb-4">
-                  {results.map(({ track, index }) => (
+                <ol ref={listRef} onScroll={handleScroll} className="grid min-h-0 flex-1 content-start gap-0.5 overflow-y-auto px-2 pb-4 transform-gpu will-change-transform">
+                  {visibleResults.map(({ track, index }) => (
                     <MusicPlaylistItem
                       key={track.id}
                       track={track}
