@@ -20,67 +20,86 @@ const (
 
 var webVitalOrder = []string{"LCP", "INP", "CLS", "FCP", "TTFB"}
 
+type postInsightStats struct {
+	views, engagedVisits, engagedTotal, depthTotal, completed int64
+	sources                                                   map[[2]string]int64
+}
+
+type contentInsightAgg struct {
+	posts      map[uint]*postInsightStats
+	paths      map[[2]string]int64
+	durations  []int64
+	depthTotal int64
+	buckets    []int64
+	completed  int64
+}
+
+func newContentInsightAgg() *contentInsightAgg {
+	return &contentInsightAgg{
+		posts:   map[uint]*postInsightStats{},
+		paths:   map[[2]string]int64{},
+		buckets: make([]int64, 5),
+	}
+}
+
+func (a *contentInsightAgg) observe(l *model.VisitLog) {
+	if l.Trust == constant.VisitTrustBot {
+		return
+	}
+	var stats *postInsightStats
+	if l.TargetType == constant.TargetTypePost && l.TargetID > 0 {
+		if stats = a.posts[l.TargetID]; stats == nil {
+			stats = &postInsightStats{sources: map[[2]string]int64{}}
+			a.posts[l.TargetID] = stats
+		}
+		stats.views++
+		if !(l.Source == "" || l.Source == utils.SourceInternal || l.Source == utils.SourceRandom || l.Source == utils.SourceDirect) {
+			stats.sources[[2]string{l.Source, l.ReferrerHost}]++
+		}
+	}
+	if l.Source == utils.SourceInternal {
+		// 刷新或同页跳转（如锚点）不算路径
+		if u, err := url.Parse(l.Referrer); err == nil && u.Path != "" && u.Path != pathOnly(l.Path) {
+			a.paths[[2]string{u.Path, pathOnly(l.Path)}]++
+		}
+	}
+	if l.EngagedMs == nil {
+		return
+	}
+	depth := 0
+	if l.ScrollDepth != nil {
+		depth = *l.ScrollDepth
+	}
+	a.durations = append(a.durations, *l.EngagedMs)
+	a.depthTotal += int64(depth)
+	a.buckets[depthBucket(depth)]++
+	if stats != nil {
+		stats.engagedVisits++
+		stats.engagedTotal += *l.EngagedMs
+		stats.depthTotal += int64(depth)
+	}
+	if depth >= readCompleteDepth {
+		a.completed++
+		if stats != nil {
+			stats.completed++
+		}
+	}
+}
+
 // fillContentInsights 访客统计中的内容部分：新老访客、阅读参与度、文章表现、站内路径、外链与下载（均不含疑似自动化）
-func fillContentInsights(result *dto.VisitInsightsDto, logs []model.VisitLog, visitorIDs []uint, since time.Time) error {
+func fillContentInsights(result *dto.VisitInsightsDto, agg *contentInsightAgg, visitorIDs []uint, since time.Time, includeAI bool) error {
 	newVisitors, err := repo.Visit.CountVisitorsFirstSeenSince(visitorIDs, since)
 	if err != nil {
 		return err
 	}
 	result.NewVisitors, result.ReturningVisitors = newVisitors, int64(len(visitorIDs))-newVisitors
+	result.Engagement.Completed = agg.completed
 
-	type postStats struct {
-		views, engagedVisits, engagedTotal, depthTotal, completed int64
-		sources                                                   map[[2]string]int64
-	}
-	posts := map[uint]*postStats{}
-	paths := map[[2]string]int64{}
-	var durations []int64
-	var depthTotal int64
-	buckets := make([]int64, 5)
-	for i := range logs {
-		l := &logs[i]
-		if l.Trust == constant.VisitTrustBot {
-			continue
-		}
-		var stats *postStats
-		if l.TargetType == constant.TargetTypePost && l.TargetID > 0 {
-			if stats = posts[l.TargetID]; stats == nil {
-				stats = &postStats{sources: map[[2]string]int64{}}
-				posts[l.TargetID] = stats
-			}
-			stats.views++
-			if !(l.Source == "" || l.Source == utils.SourceInternal || l.Source == utils.SourceRandom || l.Source == utils.SourceDirect) {
-				stats.sources[[2]string{l.Source, l.ReferrerHost}]++
-			}
-		}
-		if l.Source == utils.SourceInternal {
-			// 刷新或同页跳转（如锚点）不算路径
-			if u, err := url.Parse(l.Referrer); err == nil && u.Path != "" && u.Path != pathOnly(l.Path) {
-				paths[[2]string{u.Path, pathOnly(l.Path)}]++
-			}
-		}
-		if l.EngagedMs == nil {
-			continue
-		}
-		depth := 0
-		if l.ScrollDepth != nil {
-			depth = *l.ScrollDepth
-		}
-		durations = append(durations, *l.EngagedMs)
-		depthTotal += int64(depth)
-		buckets[depthBucket(depth)]++
-		if stats != nil {
-			stats.engagedVisits++
-			stats.engagedTotal += *l.EngagedMs
-			stats.depthTotal += int64(depth)
-		}
-		if depth >= readCompleteDepth {
-			result.Engagement.Completed++
-			if stats != nil {
-				stats.completed++
-			}
-		}
-	}
+	posts := agg.posts
+	paths := agg.paths
+	durations := agg.durations
+	depthTotal := agg.depthTotal
+	buckets := agg.buckets
 
 	// 阅读参与度
 	labels := []string{"0-25", "25-50", "50-75", "75-90", "90-100"}
@@ -115,7 +134,7 @@ func fillContentInsights(result *dto.VisitInsightsDto, logs []model.VisitLog, vi
 	if err != nil {
 		return err
 	}
-	interactions, err := repo.Visit.CountPostInteractions(since)
+	interactions, err := repo.Visit.CountPostInteractions(since, includeAI)
 	if err != nil {
 		return err
 	}
@@ -167,10 +186,10 @@ func fillContentInsights(result *dto.VisitInsightsDto, logs []model.VisitLog, vi
 	}
 
 	// 外链点击与文件下载
-	if result.Outbound, err = topEventLabels(constant.VisitEventOutbound, since); err != nil {
+	if result.Outbound, err = topEventLabels(constant.VisitEventOutbound, since, includeAI); err != nil {
 		return err
 	}
-	result.Downloads, err = topEventLabels(constant.VisitEventDownload, since)
+	result.Downloads, err = topEventLabels(constant.VisitEventDownload, since, includeAI)
 	return err
 }
 
@@ -195,16 +214,8 @@ func depthBucket(depth int) int {
 	return 4
 }
 
-func topEventLabels(name string, since time.Time) ([]dto.NamedCount, error) {
-	events, err := repo.Visit.ListVisitEvents(name, since)
-	if err != nil {
-		return nil, err
-	}
-	counts := map[string]int64{}
-	for _, e := range events {
-		counts[e.Label]++
-	}
-	return topCounts(counts, visitInsightsTop), nil
+func topEventLabels(name string, since time.Time, includeAI bool) ([]dto.NamedCount, error) {
+	return repo.Visit.TopEventLabels(name, since, visitInsightsTop, includeAI)
 }
 
 func topCounts(counts map[string]int64, limit int) []dto.NamedCount {
@@ -228,16 +239,12 @@ func percentile75(values []float64) float64 {
 }
 
 // fillVitalInsights Web Vitals：各指标 p75（区分手机与桌面）、评级分布，以及 LCP 最慢的页面
-func fillVitalInsights(result *dto.VisitInsightsDto, since time.Time) error {
-	events, err := repo.Visit.ListVisitEvents(constant.VisitEventWebVital, since)
-	if err != nil {
-		return err
-	}
+func fillVitalInsights(result *dto.VisitInsightsDto, since time.Time, includeAI bool) error {
 	type group struct{ all, mobile, desktop []float64 }
 	metrics := map[string]*group{}
 	ratings := map[string]map[string]int64{}
 	lcpByPath := map[string][]float64{}
-	for _, e := range events {
+	err := repo.Visit.StreamVisitEvents(constant.VisitEventWebVital, since, includeAI, func(e *model.VisitEvent) {
 		g := metrics[e.Label]
 		if g == nil {
 			g = &group{}
@@ -254,6 +261,9 @@ func fillVitalInsights(result *dto.VisitInsightsDto, since time.Time) error {
 		if e.Label == "LCP" {
 			lcpByPath[pathOnly(e.Path)] = append(lcpByPath[pathOnly(e.Path)], e.Value)
 		}
+	})
+	if err != nil {
+		return err
 	}
 	result.Vitals = []dto.WebVitalDto{}
 	for _, name := range webVitalOrder {

@@ -166,6 +166,9 @@ func (v *visitRepo) ListVisitLogs(req *dto.ListVisitLogReq) ([]model.VisitLog, i
 			q = q.Where("target_id = ?", req.TargetID)
 		}
 	}
+	if !req.ShouldIncludeAI() {
+		q = excludeAIUsers(q, "visit_logs.user_id")
+	}
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -184,12 +187,16 @@ func (v *visitRepo) ListVisitLogs(req *dto.ListVisitLogReq) ([]model.VisitLog, i
 }
 
 // CountVisitStats 统计指定时间之后的访问量、独立访客数与登录用户访问数，以及累计访客数
-func (v *visitRepo) CountVisitStats(since time.Time) (*dto.VisitStatsDto, error) {
+func (v *visitRepo) CountVisitStats(since time.Time, includeAI bool) (*dto.VisitStatsDto, error) {
 	stats := &dto.VisitStatsDto{}
 	db := GetDB()
 	// 只统计访问，不含点赞、评论等互动记录与疑似自动化
 	visits := func() *gorm.DB {
-		return HumanVisits(db.Model(&model.VisitLog{}))
+		q := HumanVisits(db.Model(&model.VisitLog{}))
+		if !includeAI {
+			q = excludeAIUsers(q, "visit_logs.user_id")
+		}
+		return q
 	}
 	if err := visits().Where("created_at >= ?", since).Count(&stats.TodayPV).Error; err != nil {
 		return nil, err
@@ -202,7 +209,11 @@ func (v *visitRepo) CountVisitStats(since time.Time) (*dto.VisitStatsDto, error)
 		Count(&stats.TodayUserVisits).Error; err != nil {
 		return nil, err
 	}
-	if err := db.Model(&model.Visitor{}).Count(&stats.TotalVisitors).Error; err != nil {
+	visitorsQ := db.Model(&model.Visitor{})
+	if !includeAI {
+		visitorsQ = excludeAIUsers(visitorsQ, "visitors.user_id")
+	}
+	if err := visitorsQ.Count(&stats.TotalVisitors).Error; err != nil {
 		return nil, err
 	}
 	// 来源排行：常见来源按分类汇总，其他网站按域名区分；不统计站内跳转
@@ -223,6 +234,18 @@ func HumanVisits(q *gorm.DB) *gorm.DB {
 		Where("(visit_logs.trust IS NULL OR visit_logs.trust <> ?)", constant.VisitTrustBot)
 }
 
+// excludeAIUsers 排除站内 AI 用户账号（users.is_ai = true）关联的记录；匿名访客（user_id IS NULL）与普通用户保留
+func excludeAIUsers(q *gorm.DB, userCol string) *gorm.DB {
+	return q.Where("NOT EXISTS (SELECT 1 FROM users WHERE users.id = "+userCol+" AND users.is_ai = ?)", true)
+}
+
+// excludeAIVisitEvents 排除关联到站内 AI 用户访问或访客的页面事件
+func excludeAIVisitEvents(q *gorm.DB) *gorm.DB {
+	return q.
+		Where("NOT EXISTS (SELECT 1 FROM visit_logs JOIN users ON users.id = visit_logs.user_id WHERE visit_logs.id = visit_events.visit_log_id AND users.is_ai = ?)", true).
+		Where("NOT EXISTS (SELECT 1 FROM visitors JOIN users ON users.id = visitors.user_id WHERE visitors.id = visit_events.visitor_id AND users.is_ai = ?)", true)
+}
+
 func (v *visitRepo) GetVisitLog(id uint) (*model.VisitLog, error) {
 	var log model.VisitLog
 	if err := GetDB().Preload("User").Preload("Visitor").Preload("TargetUser").First(&log, id).Error; err != nil {
@@ -240,13 +263,40 @@ func (v *visitRepo) ListVisitorVisits(visitorID uint, limit int) ([]model.VisitL
 	return logs, err
 }
 
-// ListInsightVisits 指定时间之后的全部访问（含疑似自动化），只取统计用到的字段
-func (v *visitRepo) ListInsightVisits(since time.Time) ([]model.VisitLog, error) {
-	var logs []model.VisitLog
-	err := GetDB().Model(&model.VisitLog{}).
+// StreamInsightVisits 流式读取指定时间之后的全部访问（含疑似自动化），避免一次性分配大数组
+func (v *visitRepo) StreamInsightVisits(since time.Time, includeAI bool, visit func(*model.VisitLog)) error {
+	q := GetDB().Model(&model.VisitLog{}).
 		Select("visitor_id, created_at, path, target_type, target_id, source, referrer, referrer_host, os, browser, device_type, ip_country, has_signals, time_zone, languages, color_scheme, trust, trust_flags, inferred_country, engaged_ms, scroll_depth").
-		Where("action = ? AND created_at >= ? AND path <> ?", constant.VisitActionVisit, since, "/random").
-		Find(&logs).Error
+		Where("action = ? AND created_at >= ? AND path <> ?", constant.VisitActionVisit, since, "/random")
+	if !includeAI {
+		q = excludeAIUsers(q, "visit_logs.user_id")
+	}
+	rows, err := q.Rows()
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	db := GetDB()
+	for rows.Next() {
+		var log model.VisitLog
+		if err := db.ScanRows(rows, &log); err != nil {
+			return err
+		}
+		visit(&log)
+	}
+	return rows.Err()
+}
+
+// ListInsightVisits 指定时间之后的全部访问（含疑似自动化），只取统计用到的字段
+func (v *visitRepo) ListInsightVisits(since time.Time, includeAI bool) ([]model.VisitLog, error) {
+	var logs []model.VisitLog
+	q := GetDB().Model(&model.VisitLog{}).
+		Select("visitor_id, created_at, path, target_type, target_id, source, referrer, referrer_host, os, browser, device_type, ip_country, has_signals, time_zone, languages, color_scheme, trust, trust_flags, inferred_country, engaged_ms, scroll_depth").
+		Where("action = ? AND created_at >= ? AND path <> ?", constant.VisitActionVisit, since, "/random")
+	if !includeAI {
+		q = excludeAIUsers(q, "visit_logs.user_id")
+	}
+	err := q.Find(&logs).Error
 	return logs, err
 }
 
@@ -280,6 +330,48 @@ func (v *visitRepo) ListVisitEvents(name string, since time.Time) ([]model.Visit
 	return events, err
 }
 
+// TopEventLabels 指定时间之后某类事件按标签聚合的排行（下推到数据库，避免加载全部事件行）
+func (v *visitRepo) TopEventLabels(name string, since time.Time, limit int, includeAI bool) ([]dto.NamedCount, error) {
+	items := []dto.NamedCount{}
+	q := GetDB().Model(&model.VisitEvent{}).
+		Select("label AS name, COUNT(*) AS count").
+		Where("name = ? AND created_at >= ? AND label <> ''", name, since)
+	if !includeAI {
+		q = excludeAIVisitEvents(q)
+	}
+	q = q.Group("label").
+		Order("count DESC, name ASC")
+	if limit > 0 {
+		q = q.Limit(limit)
+	}
+	err := q.Scan(&items).Error
+	return items, err
+}
+
+// StreamVisitEvents 流式扫描指定时间之后的某类事件（只读统计所需列）
+func (v *visitRepo) StreamVisitEvents(name string, since time.Time, includeAI bool, visit func(*model.VisitEvent)) error {
+	q := GetDB().Model(&model.VisitEvent{}).
+		Select("label, value, rating, device_type, path").
+		Where("name = ? AND created_at >= ?", name, since)
+	if !includeAI {
+		q = excludeAIVisitEvents(q)
+	}
+	rows, err := q.Rows()
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	db := GetDB()
+	for rows.Next() {
+		var ev model.VisitEvent
+		if err := db.ScanRows(rows, &ev); err != nil {
+			return err
+		}
+		visit(&ev)
+	}
+	return rows.Err()
+}
+
 // CountVisitorsFirstSeenSince 访客中首次访问在指定时间之后的人数
 func (v *visitRepo) CountVisitorsFirstSeenSince(ids []uint, since time.Time) (int64, error) {
 	var total int64
@@ -302,11 +394,14 @@ type PostInteraction struct {
 }
 
 // CountPostInteractions 指定时间之后对文章的点赞与评论（不含对评论的点赞和回复）
-func (v *visitRepo) CountPostInteractions(since time.Time) ([]PostInteraction, error) {
+func (v *visitRepo) CountPostInteractions(since time.Time, includeAI bool) ([]PostInteraction, error) {
 	var rows []PostInteraction
-	err := GetDB().Model(&model.VisitLog{}).Select("target_id, action, COUNT(*) AS count").
-		Where("action IN ? AND target_type = ? AND created_at >= ?", []string{constant.VisitActionLike, constant.VisitActionComment}, constant.TargetTypePost, since).
-		Group("target_id, action").Scan(&rows).Error
+	q := GetDB().Model(&model.VisitLog{}).Select("target_id, action, COUNT(*) AS count").
+		Where("action IN ? AND target_type = ? AND created_at >= ?", []string{constant.VisitActionLike, constant.VisitActionComment}, constant.TargetTypePost, since)
+	if !includeAI {
+		q = excludeAIUsers(q, "visit_logs.user_id")
+	}
+	err := q.Group("target_id, action").Scan(&rows).Error
 	return rows, err
 }
 
@@ -333,7 +428,8 @@ type TargetInfo struct {
 	ID        uint
 	Title     string
 	Slug      *string
-	IsPrivate bool // 后台据此把私密文章 / 页面的链接指向后台预览
+	IsPrivate bool // 后台据此把私密或未发布草稿文章 / 页面的链接指向后台预览
+	IsDraft   bool
 }
 
 // GetTargetInfos 批量查询文章或页面的标题，用于访问记录展示
@@ -342,20 +438,23 @@ func (v *visitRepo) GetTargetInfos(targetType string, ids []uint) (map[uint]Targ
 	if len(ids) == 0 {
 		return result, nil
 	}
-	var target any
+	var q *gorm.DB
 	switch targetType {
 	case constant.TargetTypePost:
-		target = &model.Post{}
+		q = GetDB().Model(&model.Post{}).Select("id, title, slug, is_private, is_draft")
 	case constant.TargetTypePage:
-		target = &model.Page{}
+		q = GetDB().Model(&model.Page{}).Select("id, title, slug, is_private")
 	default:
 		return result, nil
 	}
 	var infos []TargetInfo
-	if err := GetDB().Model(target).Select("id, title, slug, is_private").Where("id IN ?", ids).Scan(&infos).Error; err != nil {
+	if err := q.Where("id IN ?", ids).Scan(&infos).Error; err != nil {
 		return nil, err
 	}
 	for _, info := range infos {
+		if info.IsDraft {
+			info.IsPrivate = true
+		}
 		result[info.ID] = info
 	}
 	return result, nil

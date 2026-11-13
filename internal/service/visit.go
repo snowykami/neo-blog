@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -160,11 +162,17 @@ func (s *VisitService) Report(ctx context.Context, req *dto.ReportVisitReq, visi
 		resetVisitAttribution(visitor.ID)
 	}
 
-	// 去重：刷新页面不重复记录，只更新最近活跃时间
+	// 去重：刷新页面不重复记录，优先命中共享状态以避免每次刷新查库；仅按分钟节流更新最近活跃时间
 	if visitor.ID != 0 {
+		dedupKey := visitDedupKey(visitor.ID, path)
+		if _, cached, err := sharedstate.Current().Get(dedupKey); err == nil && cached {
+			touchVisitorThrottled(visitor.ID, now)
+			return visitor.VisitorKey, nil
+		}
 		recent, err := repo.Visit.HasRecentVisit(visitor.ID, path, now.Add(-visitDedupWindow))
 		if err == nil && recent {
-			_ = repo.Visit.TouchVisitor(visitor.ID, now)
+			_ = sharedstate.Current().Set(dedupKey, "1", visitDedupWindow)
+			touchVisitorThrottled(visitor.ID, now)
 			return visitor.VisitorKey, nil
 		}
 	}
@@ -197,11 +205,23 @@ func (s *VisitService) Report(ctx context.Context, req *dto.ReportVisitReq, visi
 	if err := repo.Visit.CreateVisitLog(log); err != nil {
 		return "", errs.NewInternalServer("failed_to_create_target")
 	}
+	_ = sharedstate.Current().Set(visitDedupKey(visitor.ID, path), "1", visitDedupWindow)
 	countPostView(log)
 	return visitor.VisitorKey, nil
 }
 
-// publicVisitTarget 只把公开的文章 / 页面记为访问目标：不存在或私密的（前台对所有人 404）按「其他页面」记录，不加浏览量。
+func visitDedupKey(visitorID uint, path string) string {
+	return fmt.Sprintf("visit:dedup:%d:%s", visitorID, path)
+}
+
+func touchVisitorThrottled(visitorID uint, now time.Time) {
+	touchKey := fmt.Sprintf("visit:touch:%d", visitorID)
+	if ok, err := sharedstate.Current().SetNX(touchKey, "1", time.Minute); err != nil || ok {
+		_ = repo.Visit.TouchVisitor(visitorID, now)
+	}
+}
+
+// publicVisitTarget 只把公开的文章 / 页面记为访问目标：不存在、私密或未发布的草稿（前台对所有人 404）按「其他页面」记录，不加浏览量。
 // 上报内容来自浏览器，不能信任；查询出错时同样按其他页面处理（保守）
 func publicVisitTarget(targetType string, targetID uint) (string, uint) {
 	if targetID == 0 {
@@ -219,7 +239,7 @@ func publicVisitTarget(targetType string, targetID uint) (string, uint) {
 	default:
 		return "other", 0
 	}
-	if err != nil || meta.IsPrivate {
+	if err != nil || !meta.IsPublic() {
 		return "other", 0
 	}
 	return targetType, targetID
@@ -254,9 +274,62 @@ func resetVisitAttribution(visitorID uint) {
 	}
 }
 
+const viewFlushInterval = 5 * time.Second
+
+var (
+	viewBufferEnabled atomic.Bool
+	pendingViewsMu    sync.Mutex
+	pendingViews      = make(map[uint]uint64)
+)
+
+// StartViewCountFlusher 启动本实例的浏览量批量落库协程（进程启动时调用；单测未启动时保持同步写入）
+func StartViewCountFlusher(ctx context.Context) {
+	viewBufferEnabled.Store(true)
+	go func() {
+		ticker := time.NewTicker(viewFlushInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				FlushPendingViews()
+				return
+			case <-ticker.C:
+				FlushPendingViews()
+			}
+		}
+	}()
+}
+
+// FlushPendingViews 将内存中缓冲的文章浏览量增量批量累加到数据库；失败时放回缓冲等待下次重试
+func FlushPendingViews() {
+	pendingViewsMu.Lock()
+	if len(pendingViews) == 0 {
+		pendingViewsMu.Unlock()
+		return
+	}
+	snapshot := pendingViews
+	pendingViews = make(map[uint]uint64)
+	pendingViewsMu.Unlock()
+
+	if err := repo.Post.AddViewCounts(snapshot); err != nil {
+		logrus.Warnf("flush pending view counts failed: %v", err)
+		pendingViewsMu.Lock()
+		for id, delta := range snapshot {
+			pendingViews[id] += delta
+		}
+		pendingViewsMu.Unlock()
+	}
+}
+
 // countPostView 记录了一次新的文章访问（已去重、排除爬虫、疑似自动化与管理员）后累加文章浏览量；失败只打日志
 func countPostView(log *model.VisitLog) {
 	if log.TargetType != constant.TargetTypePost || log.TargetID == 0 || log.Trust == constant.VisitTrustBot {
+		return
+	}
+	if viewBufferEnabled.Load() {
+		pendingViewsMu.Lock()
+		pendingViews[log.TargetID]++
+		pendingViewsMu.Unlock()
 		return
 	}
 	if err := repo.Post.IncreaseViewCount(log.TargetID); err != nil {
@@ -581,10 +654,6 @@ func (s *VisitService) GetInsights(ctx context.Context, req *dto.VisitInsightsRe
 	now := time.Now()
 	midnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	since := midnight.AddDate(0, 0, 1-days)
-	logs, err := repo.Visit.ListInsightVisits(since)
-	if err != nil {
-		return nil, errs.NewInternalServer("failed_to_get_target")
-	}
 
 	// 时间桶：今日 24 小时，其余每天一个
 	var labels []string
@@ -614,8 +683,9 @@ func (s *VisitService) GetInsights(ctx context.Context, req *dto.VisitInsightsRe
 	}
 	result := &dto.VisitInsightsDto{Days: days}
 	visitors := map[uint]bool{}
-	for i := range logs {
-		l := &logs[i]
+	agg := newContentInsightAgg()
+	includeAI := req.ShouldIncludeAI()
+	err := repo.Visit.StreamInsightVisits(since, includeAI, func(l *model.VisitLog) {
 		verdict := l.Trust
 		if verdict == "" {
 			verdict = constant.VisitTrustUnknown
@@ -656,6 +726,10 @@ func (s *VisitService) GetInsights(ctx context.Context, req *dto.VisitInsightsRe
 				add("languages", langs[0])
 			}
 		}
+		agg.observe(l)
+	})
+	if err != nil {
+		return nil, errs.NewInternalServer("failed_to_get_target")
 	}
 	result.UV = int64(len(visitors))
 	top := func(group string, limit int) []dto.NamedCount { return topCounts(counters[group], limit) }
@@ -678,10 +752,10 @@ func (s *VisitService) GetInsights(ctx context.Context, req *dto.VisitInsightsRe
 	for id := range visitors {
 		visitorIDs = append(visitorIDs, id)
 	}
-	if err := fillContentInsights(result, logs, visitorIDs, since); err != nil {
+	if err := fillContentInsights(result, agg, visitorIDs, since, includeAI); err != nil {
 		return nil, errs.NewInternalServer("failed_to_get_target")
 	}
-	if err := fillVitalInsights(result, since); err != nil {
+	if err := fillVitalInsights(result, since, includeAI); err != nil {
 		return nil, errs.NewInternalServer("failed_to_get_target")
 	}
 	return result, nil
@@ -700,10 +774,10 @@ func (s *VisitService) GetVisitor(ctx context.Context, id uint) (*dto.VisitorDto
 }
 
 // GetStats 后台：今日访问统计（按服务器时区的当天零点起算）
-func (s *VisitService) GetStats(ctx context.Context) (*dto.VisitStatsDto, *errs.ServiceError) {
+func (s *VisitService) GetStats(ctx context.Context, req *dto.VisitStatsReq) (*dto.VisitStatsDto, *errs.ServiceError) {
 	now := time.Now()
 	midnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	stats, err := repo.Visit.CountVisitStats(midnight)
+	stats, err := repo.Visit.CountVisitStats(midnight, req.ShouldIncludeAI())
 	if err != nil {
 		return nil, errs.NewInternalServer("failed_to_get_target")
 	}

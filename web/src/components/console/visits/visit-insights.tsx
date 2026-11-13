@@ -2,11 +2,14 @@
 
 import type { VisitInsights } from '@/models/visit'
 import { useFormatter, useTranslations } from 'next-intl'
+import { parseAsBoolean, useQueryState } from 'nuqs'
 import { useState } from 'react'
 import { getVisitInsightsAdmin } from '@/api/admin'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Empty, EmptyDescription } from '@/components/ui/empty'
+import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useConsoleQuery } from '@/hooks/use-console-query'
@@ -28,8 +31,9 @@ export function VisitInsightsView() {
   const t = useTranslations('Console.visit_insights')
   const [range, setRange] = useState<Range>(7)
   const [section, setSection] = useState<Section>('visitors')
+  const [includeAi, setIncludeAi] = useQueryState('include_ai', parseAsBoolean.withDefault(true).withOptions({ history: 'replace', clearOnDefault: true }))
   // 回到这个页面时先显示上次的数据，同时重新请求（见 hooks/use-console-query.ts）
-  const insights = useConsoleQuery(['admin/visits/insights', range], () => getVisitInsightsAdmin(range).then(res => res.data))
+  const insights = useConsoleQuery(['admin/visits/insights', range, includeAi], () => getVisitInsightsAdmin(range, includeAi).then(res => res.data))
   // 请求失败时不显示旧数据（同改前）
   const data = insights.error ? null : (insights.data ?? null)
   const loading = insights.loading
@@ -42,11 +46,17 @@ export function VisitInsightsView() {
             {SECTIONS.map(item => <TabsTrigger key={item} value={item}>{t(`section_${item}`)}</TabsTrigger>)}
           </TabsList>
         </Tabs>
-        <Tabs value={String(range)} onValueChange={value => setRange(Number(value) as Range)}>
-          <TabsList>
-            {RANGES.map(item => <TabsTrigger key={item} value={String(item)}>{t(`range_${item}`)}</TabsTrigger>)}
-          </TabsList>
-        </Tabs>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 shrink-0">
+            <Switch id="visit-insights-include-ai" checked={includeAi} onCheckedChange={setIncludeAi} />
+            <Label htmlFor="visit-insights-include-ai" className="cursor-pointer">{t('include_ai')}</Label>
+          </div>
+          <Tabs value={String(range)} onValueChange={value => setRange(Number(value) as Range)}>
+            <TabsList>
+              {RANGES.map(item => <TabsTrigger key={item} value={String(item)}>{t(`range_${item}`)}</TabsTrigger>)}
+            </TabsList>
+          </Tabs>
+        </div>
       </div>
       <p className="text-xs text-muted-foreground">{t('bot_note')}</p>
       {loading && !data && <Skeleton className="h-64 w-full" />}

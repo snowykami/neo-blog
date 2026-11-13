@@ -105,7 +105,7 @@ func TestVisitReport(t *testing.T) {
 
 	// 7. 后台统计与列表：文章标题、IP 脱敏、只看登录用户
 	// 第 4 步 author 登录后，同一访客登录前的两次访问补记到 author，登录用户访问共 3 次
-	stats, _ := svc.GetStats(admin)
+	stats, _ := svc.GetStats(admin, nil)
 	if stats.TodayPV != 6 || stats.TodayUV != 2 || stats.TodayUserVisits != 3 || stats.TotalVisitors != 2 {
 		t.Fatalf("unexpected stats: %+v", stats)
 	}

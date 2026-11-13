@@ -38,11 +38,25 @@ type ListVisitLogReq struct {
 	Trust      string `query:"trust"`       // 按可信度结论筛选，见 constant.VisitTrust*
 	Country    string `query:"country"`     // 按推断国家筛选
 	Device     string `query:"device"`      // 按设备类型筛选
+	IncludeAI  *bool  `query:"include_ai"`  // 是否包含站内 AI 用户账号，默认 true
+}
+
+type VisitStatsReq struct {
+	IncludeAI *bool `query:"include_ai"` // 是否包含站内 AI 用户账号，默认 true
 }
 
 type VisitInsightsReq struct {
-	Days int `query:"days"` // 1（今日）/ 7 / 30
+	Days      int   `query:"days"`       // 1（今日）/ 7 / 30
+	IncludeAI *bool `query:"include_ai"` // 是否包含站内 AI 用户账号，默认 true
 }
+
+func includeAIFlag(v *bool) bool {
+	return v == nil || *v
+}
+
+func (r *ListVisitLogReq) ShouldIncludeAI() bool  { return r == nil || includeAIFlag(r.IncludeAI) }
+func (r *VisitStatsReq) ShouldIncludeAI() bool    { return r == nil || includeAIFlag(r.IncludeAI) }
+func (r *VisitInsightsReq) ShouldIncludeAI() bool { return r == nil || includeAIFlag(r.IncludeAI) }
 
 type VisitorDto struct {
 	ID          uint      `json:"id"`

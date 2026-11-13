@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import type { VisitLog, Visitor, VisitSourceCount, VisitTrust } from '@/models/visit'
 import { ChevronRightIcon, ClockIcon, LanguagesIcon, ListFilterIcon, MapPinIcon, TimerIcon, XIcon } from 'lucide-react'
 import { useFormatter, useTranslations } from 'next-intl'
-import { parseAsInteger, parseAsStringEnum, useQueryState } from 'nuqs'
+import { parseAsBoolean, parseAsInteger, parseAsStringEnum, useQueryState } from 'nuqs'
 import { useState } from 'react'
 import { getVisitInsightsAdmin, getVisitorAdmin, getVisitStatsAdmin, listVisitsAdmin } from '@/api/admin'
 import { UserAvatar } from '@/components/common/avatar'
@@ -15,8 +15,10 @@ import { IpAddress } from '@/components/console/visits/ip-address'
 import { RuleFlagBadge, TRUST_STYLES, TrustBadge } from '@/components/console/visits/trust-badge'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
+import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
+import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/contexts/auth-context'
 import { useConsoleQuery } from '@/hooks/use-console-query'
@@ -48,18 +50,19 @@ export default function VisitsPage() {
   const [trust, setTrust] = useQueryState('trust', parseAsStringEnum<VisitTrust>([...VISIT_TRUSTS]).withOptions({ history: 'replace' }))
   const [country, setCountry] = useQueryState('country', { history: 'replace' })
   const [device, setDevice] = useQueryState('device', parseAsStringEnum<Device>([...DEVICES]).withOptions({ history: 'replace' }))
+  const [includeAi, setIncludeAi] = useQueryState('include_ai', parseAsBoolean.withDefault(true).withOptions({ history: 'replace', clearOnDefault: true }))
   const countryName = useCountryName()
   const [page, setPage] = useQueryState('page', parseAsInteger.withDefault(1).withOptions({ history: 'replace', clearOnDefault: true }))
   const [size, setSize] = useState(20)
   // 回到这个页面时先显示上次的结果，同时重新请求（见 hooks/use-console-query.ts）；请求失败时同改前显示为空
-  const statsQuery = useConsoleQuery(['admin/visits/stats'], () => getVisitStatsAdmin().then(res => res.data))
+  const statsQuery = useConsoleQuery(['admin/visits/stats', includeAi], () => getVisitStatsAdmin(includeAi).then(res => res.data))
   const stats = statsQuery.error ? null : (statsQuery.data ?? null)
   // 推断地区筛选项：近 30 天出现过的国家（与访客统计页的 30 天数据共用缓存）
-  const insightsQuery = useConsoleQuery(['admin/visits/insights', 30], () => getVisitInsightsAdmin(30).then(res => res.data))
+  const insightsQuery = useConsoleQuery(['admin/visits/insights', 30, includeAi], () => getVisitInsightsAdmin(30, includeAi).then(res => res.data))
   const countries = insightsQuery.error ? EMPTY_COUNTRIES : (insightsQuery.data?.inferredCountries.map(item => item.name) ?? EMPTY_COUNTRIES)
   const visitsQuery = useConsoleQuery(
-    ['admin/visits', page, size, kind, action, visitorId, source, sourceHost, trust, country, device],
-    () => listVisitsAdmin({ page, size, kind, action: action === 'all' ? undefined : action, visitorId: visitorId ?? undefined, source: source ?? undefined, sourceHost: sourceHost ?? undefined, trust: trust ?? undefined, country: country ?? undefined, device: device ?? undefined })
+    ['admin/visits', page, size, kind, action, visitorId, source, sourceHost, trust, country, device, includeAi],
+    () => listVisitsAdmin({ page, size, kind, action: action === 'all' ? undefined : action, visitorId: visitorId ?? undefined, source: source ?? undefined, sourceHost: sourceHost ?? undefined, trust: trust ?? undefined, country: country ?? undefined, device: device ?? undefined, includeAi })
       .then(res => res.data),
   )
   const visits = visitsQuery.error ? [] : (visitsQuery.data?.visits ?? [])
@@ -100,6 +103,10 @@ export default function VisitsPage() {
   }
   const changeDevice = (value: string) => {
     setDevice(value === ALL ? null : value as Device)
+    setPage(1)
+  }
+  const changeIncludeAi = (checked: boolean) => {
+    setIncludeAi(checked)
     setPage(1)
   }
   const countryOptions = country && !countries.includes(country) ? [...countries, country] : countries
@@ -162,6 +169,10 @@ export default function VisitsPage() {
               {KINDS.map(item => <TabsTrigger key={item} value={item}>{t(`kind_${item}`)}</TabsTrigger>)}
             </TabsList>
           </Tabs>
+          <div className="flex items-center gap-2 shrink-0">
+            <Switch id="visits-include-ai" checked={includeAi} onCheckedChange={changeIncludeAi} />
+            <Label htmlFor="visits-include-ai" className="cursor-pointer">{t('include_ai')}</Label>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {source && (

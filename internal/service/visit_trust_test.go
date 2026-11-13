@@ -240,7 +240,7 @@ func TestVisitReportSignals(t *testing.T) {
 	if log.Trust != constant.VisitTrustBot || fresh.ViewCount != post.ViewCount {
 		t.Fatalf("bot: trust=%s views=%d->%d", log.Trust, post.ViewCount, fresh.ViewCount)
 	}
-	stats, _ := svc.GetStats(admin)
+	stats, _ := svc.GetStats(admin, nil)
 	if stats.TodayPV != 1 {
 		t.Fatalf("bot visit should be excluded from stats, pv=%d", stats.TodayPV)
 	}

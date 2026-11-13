@@ -26,7 +26,12 @@ func (cc *AdminController) ListVisits(ctx context.Context, c *app.RequestContext
 }
 
 func (cc *AdminController) GetVisitStats(ctx context.Context, c *app.RequestContext) {
-	stats, svcerr := service.NewVisitService().GetStats(ctx)
+	req := &dto.VisitStatsReq{}
+	if err := c.BindAndValidate(req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	stats, svcerr := service.NewVisitService().GetStats(ctx, req)
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return

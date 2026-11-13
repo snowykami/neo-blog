@@ -100,7 +100,7 @@ func TestVisitInteractions(t *testing.T) {
 	}
 
 	// 4. 互动不计入访问统计，按行为筛选互不干扰
-	stats, _ := NewVisitService().GetStats(admin)
+	stats, _ := NewVisitService().GetStats(admin, nil)
 	if stats.TodayPV != 0 {
 		t.Fatalf("interactions should not count as page views: %+v", stats)
 	}
@@ -192,5 +192,76 @@ func TestVisitRandomAndPathNames(t *testing.T) {
 	}
 	if len(want) != 0 {
 		t.Fatalf("missing paths: %v", want)
+	}
+}
+
+func TestVisitIncludeAIFilter(t *testing.T) {
+	author, admin, other, _, _ := setupEditTest(t)
+	postID := createPublicPost(t, author, nil)
+	svc := NewVisitService()
+	likes := NewLikeService()
+
+	aiUser := &model.User{Username: "ai_bot", Nickname: "AI 助手", Email: "ai@example.com", Role: constant.RoleUser, IsAI: true}
+	if err := repo.GetDB().Create(aiUser).Error; err != nil {
+		t.Fatalf("create ai user: %v", err)
+	}
+	aiCtx := context.WithValue(context.Background(), "user_id", aiUser.ID)
+	anonCtx := context.Background()
+
+	// 匿名访客、普通登录用户与 AI 用户各自访问文章，普通用户与 AI 用户点赞/评论
+	if _, svcerr := svc.Report(anonCtx, &dto.ReportVisitReq{Path: "/p/anon", TargetType: constant.TargetTypePost, TargetID: postID}, "", VisitClient{IP: "203.0.113.10", UserAgent: testChromeUA}); svcerr != nil {
+		t.Fatalf("anon report: %v", svcerr)
+	}
+	if _, svcerr := svc.Report(other, &dto.ReportVisitReq{Path: "/p/human", TargetType: constant.TargetTypePost, TargetID: postID}, "", VisitClient{IP: "203.0.113.11", UserAgent: testChromeUA}); svcerr != nil {
+		t.Fatalf("human report: %v", svcerr)
+	}
+	if _, svcerr := svc.Report(aiCtx, &dto.ReportVisitReq{Path: "/p/ai", TargetType: constant.TargetTypePost, TargetID: postID}, "", VisitClient{IP: "203.0.113.12", UserAgent: testChromeUA}); svcerr != nil {
+		t.Fatalf("ai report: %v", svcerr)
+	}
+	if _, svcerr := likes.ToggleLike(other, postID, constant.TargetTypePost, nil); svcerr != nil {
+		t.Fatalf("human like: %v", svcerr)
+	}
+	if _, svcerr := likes.ToggleLike(aiCtx, postID, constant.TargetTypePost, nil); svcerr != nil {
+		t.Fatalf("ai like: %v", svcerr)
+	}
+	if _, svcerr := createComment(aiCtx, postID, 0, false); svcerr != nil {
+		t.Fatalf("ai comment: %v", svcerr)
+	}
+
+	// 默认（IncludeAI 为空）包含 AI 用户：3 次访问 + 3 次互动 = 6 条记录
+	_, defaultTotal, svcerr := svc.ListVisitLogs(admin, &dto.ListVisitLogReq{PaginationParams: dto.PaginationParams{Page: 1, Size: 50}})
+	if svcerr != nil || defaultTotal != 6 {
+		t.Fatalf("default list total=%d err=%v, want 6", defaultTotal, svcerr)
+	}
+	defaultStats, svcerr := svc.GetStats(admin, nil)
+	if svcerr != nil || defaultStats.TodayPV != 3 || defaultStats.TodayUV != 3 || defaultStats.TodayUserVisits != 2 || defaultStats.TotalVisitors != 3 {
+		t.Fatalf("default stats: err=%v %+v", svcerr, defaultStats)
+	}
+	defaultInsights, svcerr := svc.GetInsights(admin, &dto.VisitInsightsReq{Days: 7})
+	if svcerr != nil || defaultInsights.PV != 3 || defaultInsights.UV != 3 || len(defaultInsights.Posts) != 1 || defaultInsights.Posts[0].Likes != 2 || defaultInsights.Posts[0].Comments != 1 {
+		t.Fatalf("default insights: err=%v %+v", svcerr, defaultInsights)
+	}
+
+	// 关闭包含 AI 用户（IncludeAI = false）：保留匿名与普通用户（2 次访问 + 1 次点赞 = 3 条记录）
+	excludeAI := false
+	items, filteredTotal, svcerr := svc.ListVisitLogs(admin, &dto.ListVisitLogReq{
+		IncludeAI:        &excludeAI,
+		PaginationParams: dto.PaginationParams{Page: 1, Size: 50},
+	})
+	if svcerr != nil || filteredTotal != 3 || len(items) != 3 {
+		t.Fatalf("filtered list total=%d len=%d err=%v, want 3", filteredTotal, len(items), svcerr)
+	}
+	for _, item := range items {
+		if item.User != nil && item.User.ID == aiUser.ID {
+			t.Fatalf("ai user record should be excluded: %+v", item)
+		}
+	}
+	filteredStats, svcerr := svc.GetStats(admin, &dto.VisitStatsReq{IncludeAI: &excludeAI})
+	if svcerr != nil || filteredStats.TodayPV != 2 || filteredStats.TodayUV != 2 || filteredStats.TodayUserVisits != 1 || filteredStats.TotalVisitors != 2 {
+		t.Fatalf("filtered stats: err=%v %+v", svcerr, filteredStats)
+	}
+	filteredInsights, svcerr := svc.GetInsights(admin, &dto.VisitInsightsReq{Days: 7, IncludeAI: &excludeAI})
+	if svcerr != nil || filteredInsights.PV != 2 || filteredInsights.UV != 2 || len(filteredInsights.Posts) != 1 || filteredInsights.Posts[0].Views != 2 || filteredInsights.Posts[0].Likes != 1 || filteredInsights.Posts[0].Comments != 0 {
+		t.Fatalf("filtered insights: err=%v %+v", svcerr, filteredInsights)
 	}
 }
