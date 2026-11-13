@@ -3,7 +3,13 @@ import type { LyricLine, LyricWord, ResolvedLyrics } from './types'
 import { describe, expect, it } from 'vitest'
 import { platformToLyrics } from './from-platform'
 import { alignTimedTexts, getLyricLineText } from './line-utils'
-import { getLyricMarqueeOffset, LYRIC_MARQUEE_ANCHOR_RATIO, LYRIC_MARQUEE_SMOOTH_WINDOW_MS } from './marquee'
+import {
+  getLyricMarqueeOffset,
+  getWordMarqueeKnots,
+  LYRIC_MARQUEE_CORRIDOR_MAX_RATIO,
+  LYRIC_MARQUEE_CORRIDOR_MIN_RATIO,
+  LYRIC_MARQUEE_SMOOTH_WINDOW_MS,
+} from './marquee'
 import { parseNcmLyrics, parseQqLyrics } from './parse-platform'
 import { preprocessLyricLines } from './preprocess'
 import { lyricTier, resolveLyrics } from './resolve'
@@ -276,7 +282,7 @@ describe('翻译 / 音译挂载（宁缺勿错）', () => {
   })
 })
 
-describe('逐字歌词跑马灯（分段匀变速）', () => {
+describe('逐字歌词跑马灯（舒适走廊拉紧弦 + C² 平滑）', () => {
   // [开始时间, 时长, 字宽]：各字速度不同，1600~1800、3100~3300 为字间空隙
   const syllables: [number, number, number][] = [
     [1000, 200, 40],
@@ -301,56 +307,109 @@ describe('逐字歌词跑马灯（分段匀变速）', () => {
   const containerWidth = 200
   const overflow = contentWidth - containerWidth
   const wordLine: LyricLine = { words, start: 1000, end: 4200, isDuet: false, isBackground: false }
-  const offsetAt = (currentTimeMs: number, smoothWindowMs?: number) =>
-    getLyricMarqueeOffset({ line: wordLine, currentTimeMs, containerWidth, contentWidth, wordBoxes, smoothWindowMs })
+  const offsetAt = (
+    currentTimeMs: number,
+    smoothWindowMs?: number,
+    corridorMinRatio?: number,
+    corridorMaxRatio?: number,
+  ) => getLyricMarqueeOffset({
+    line: wordLine,
+    currentTimeMs,
+    containerWidth,
+    contentWidth,
+    wordBoxes,
+    smoothWindowMs,
+    corridorMinRatio,
+    corridorMaxRatio,
+  })
   const half = LYRIC_MARQUEE_SMOOTH_WINDOW_MS / 2
   const lineEnd = 4200
+  const tautKnots = getWordMarqueeKnots(words, wordBoxes, containerWidth, overflow)
+  const kinks = tautKnots.flatMap(knot => [knot.time - half, knot.time, knot.time + half])
 
-  // 原偏移速度突变的时刻：各字边界，以及演唱位置越过滚动起点、终点的时刻
-  const crossingTime = (position: number) => {
-    const i = wordBoxes.findIndex(box => box.left + box.width > position)
-    return words[i].start + (position - wordBoxes[i].left) / wordBoxes[i].width * (words[i].end - words[i].start)
+  const cursorAt = (t: number): number => {
+    if (t <= words[0].start)
+      return 0
+    for (let i = 0; i < words.length; i++) {
+      const w = words[i]
+      const box = wordBoxes[i]
+      if (t <= w.end) {
+        const prev = i > 0 ? words[i - 1] : null
+        if (prev && t < w.start && w.start > prev.end) {
+          const prevBox = wordBoxes[i - 1]
+          return prevBox.left + prevBox.width + (box.left - (prevBox.left + prevBox.width)) * (t - prev.end) / (w.start - prev.end)
+        }
+        return box.left + box.width * Math.max(0, Math.min(1, (t - w.start) / (w.end - w.start)))
+      }
+    }
+    return contentWidth
   }
-  const anchor = containerWidth * LYRIC_MARQUEE_ANCHOR_RATIO
-  const rawKinks = [...new Set(words.flatMap(word => [word.start, word.end])), crossingTime(anchor), crossingTime(anchor + overflow)]
-  // 平滑后加速度跳变的时刻：原折点前后各半个窗口
-  const kinks = rawKinks.flatMap(time => [time - half, time + half])
 
   const h = 0.01
   const leftVelocity = (t: number, smoothWindowMs?: number) => (offsetAt(t, smoothWindowMs) - offsetAt(t - h, smoothWindowMs)) / h
   const rightVelocity = (t: number, smoothWindowMs?: number) => (offsetAt(t + h, smoothWindowMs) - offsetAt(t, smoothWindowMs)) / h
+  const velocityAt = (t: number) => (offsetAt(t + h) - offsetAt(t - h)) / (2 * h)
   const grid = (from: number, to: number, step: number) => Array.from({ length: Math.floor((to - from) / step) + 1 }, (_, i) => from + i * step)
 
-  it('不平滑时速度在字的边界突变（对照）', () => {
-    // 2200ms 处由 0.2px/ms 突变为 0.4px/ms
-    expect(rightVelocity(2200, 0) - leftVelocity(2200, 0)).toBeCloseTo(0.2, 3)
+  it('未平滑拉紧弦始终落在舒适走廊 [35%, 72%] 约束内，并把微起伏拉成直线', () => {
+    const minAnchor = containerWidth * LYRIC_MARQUEE_CORRIDOR_MIN_RATIO
+    const maxAnchor = containerWidth * LYRIC_MARQUEE_CORRIDOR_MAX_RATIO
+    for (const t of grid(1000, 4200, 10)) {
+      const c = cursorAt(t)
+      const lower = Math.max(0, Math.min(overflow, c - maxAnchor))
+      const upper = Math.max(0, Math.min(overflow, c - minAnchor))
+      const off = offsetAt(t, 0)
+      expect(off).toBeGreaterThanOrEqual(lower - 1e-6)
+      expect(off).toBeLessThanOrEqual(upper + 1e-6)
+    }
+    // 10 个音节原本产生 > 20 个折点，拉紧弦折点数明显收简
+    expect(tautKnots.length).toBeLessThan(words.length)
+
+    // 常规微起伏长句中间滚动段在走廊内直接退化为单段恒速直线（仅含首尾静止段 + 唯一一段匀速斜线）
+    const steadyWords = Array.from({ length: 12 }, (_, i) => ({
+      text: '词',
+      start: 1000 + i * 220,
+      end: 1000 + i * 220 + (i % 2 === 0 ? 190 : 210),
+    }))
+    const steadyBoxes = steadyWords.map((_, i) => ({ left: i * 40, width: 40 }))
+    const steadyOverflow = 12 * 40 - 200
+    const steadyKnots = getWordMarqueeKnots(steadyWords, steadyBoxes, 200, steadyOverflow)
+    const steadyMovingSegments = steadyKnots.slice(1).filter((knot, i) => knot.offset > steadyKnots[i].offset)
+    expect(steadyMovingSegments).toHaveLength(1)
+    expect(steadyKnots.filter(knot => knot.offset > 0 && knot.offset < steadyOverflow)).toHaveLength(0)
   })
 
-  it('字的边界、开始滚动与滚到底处速度连续', () => {
-    for (const t of [...rawKinks, ...kinks, ...grid(500, 4800, 7)])
-      expect(Math.abs(rightVelocity(t) - leftVelocity(t)), `t=${t}`).toBeLessThan(1e-3)
-  })
+  it('平滑后在全部折点与字边界处速度连续（C¹）且加速度连续（C²）', () => {
+    const rawTimes = words.flatMap(w => [w.start, w.end])
+    for (const t of [...rawTimes, ...kinks, ...grid(500, 4800, 7)])
+      expect(Math.abs(rightVelocity(t) - leftVelocity(t)), `v continuity @ t=${t}`).toBeLessThan(1e-3)
 
-  it('两次加速度跳变之间速度线性变化（匀变速）', () => {
-    const delta = 5
-    const velocity = (t: number) => (offsetAt(t + h) - offsetAt(t - h)) / (2 * h)
-    for (const t of grid(500, 4800, 3)) {
-      if (kinks.some(kink => Math.abs(kink - t) <= delta + h))
-        continue
-      expect(Math.abs(velocity(t) - (velocity(t - delta) + velocity(t + delta)) / 2), `t=${t}`).toBeLessThan(1e-3)
+    const d = 0.5
+    for (const t of kinks) {
+      const accelLeft = (velocityAt(t) - velocityAt(t - d)) / d
+      const accelRight = (velocityAt(t + d) - velocityAt(t)) / d
+      expect(Math.abs(accelRight - accelLeft), `a continuity @ t=${t}`).toBeLessThan(2e-3)
+    }
+
+    // 若存在远离拐角 > half 的匀速段，平滑后偏移与未平滑紧弦完全重合（零相位滞后）
+    for (let i = 1; i < tautKnots.length; i++) {
+      const a = tautKnots[i - 1]
+      const b = tautKnots[i]
+      if (b.time - a.time > LYRIC_MARQUEE_SMOOTH_WINDOW_MS + 40) {
+        const mid = (a.time + b.time) / 2
+        expect(offsetAt(mid)).toBeCloseTo(offsetAt(mid, 0), 6)
+      }
     }
   })
 
-  it('整句起止位置不变', () => {
-    for (const t of [0, 900, 1000])
+  it('整句起止收敛，全程不越界且单调不倒退', () => {
+    for (const t of [0, 500, 1000 - half])
       expect(offsetAt(t)).toBe(0)
-    for (const t of [lineEnd, lineEnd + half, lineEnd + 5000]) {
+    for (const t of [lineEnd + half, lineEnd + 5000]) {
       expect(offsetAt(t)).toBeCloseTo(overflow, 6)
       expect(offsetAt(t)).toBeCloseTo(offsetAt(t, 0), 6)
     }
-  })
 
-  it('不超出文本范围，也不倒退', () => {
     let last = 0
     for (const t of grid(0, 5000, 3)) {
       const offset = offsetAt(t)
@@ -361,14 +420,55 @@ describe('逐字歌词跑马灯（分段匀变速）', () => {
     }
   })
 
-  it('跟住演唱位置：介于前后半个窗口时刻的原偏移之间', () => {
-    for (const t of grid(500, 4800, 5)) {
-      const offset = offsetAt(t)
-      expect(offset).toBeGreaterThanOrEqual(offsetAt(t - half, 0) - 1e-9)
-      expect(offset).toBeLessThanOrEqual(offsetAt(t + half, 0) + 1e-9)
+  it('高速度变化句（长拖音 + 气口停顿 + 快嘴）的速度波动显著低于单点锚点', () => {
+    const burstWords: LyricWord[] = []
+    const burstBoxes: LyricMarqueeWordBox[] = []
+    let t = 1000
+    let x = 0
+    const segments: [number, number, number][] = [
+      [780, 48, 0], // 开篇拖音
+      ...[135, 135, 135, 135, 135, 135, 140].map(dur => [dur, 16, 0] as [number, number, number]),
+      [1350, 32, 160], // 句中长拖音 + 气口停顿
+      ...[80, 75, 75, 80, 75, 75, 75, 80, 80, 80, 80, 85, 85, 90, 95, 110, 260].map(dur => [dur, 16, 0] as [number, number, number]),
+    ]
+    for (const [dur, w, gap] of segments) {
+      burstWords.push({ text: '字', start: t, end: t + dur })
+      burstBoxes.push({ left: x, width: w })
+      t += dur + gap
+      x += w
     }
-    // 远离折点的匀速段与原偏移重合
-    expect(offsetAt(2850)).toBeCloseTo(offsetAt(2850, 0), 6)
+    const burstLine: LyricLine = { words: burstWords, start: 1000, end: t, isDuet: false, isBackground: false }
+    const W = 260
+    const step = 10
+    const sampleVelocityStd = (params: { minRatio: number, maxRatio: number, smoothWindowMs: number }) => {
+      const vs: number[] = []
+      const evalAt = (timeMs: number) => getLyricMarqueeOffset({
+        line: burstLine,
+        currentTimeMs: timeMs,
+        containerWidth: W,
+        contentWidth: x,
+        wordBoxes: burstBoxes,
+        corridorMinRatio: params.minRatio,
+        corridorMaxRatio: params.maxRatio,
+        smoothWindowMs: params.smoothWindowMs,
+      })
+      for (let cur = 1000; cur <= t; cur += step)
+        vs.push((evalAt(cur + 1) - evalAt(cur - 1)) / 2 * 1000)
+      const mean = vs.reduce((a, b) => a + b, 0) / vs.length
+      const std = Math.sqrt(vs.reduce((a, b) => a + (b - mean) ** 2, 0) / vs.length)
+      const peak = Math.max(...vs)
+      return { std, peak }
+    }
+
+    const legacy = sampleVelocityStd({ minRatio: 0.65, maxRatio: 0.65, smoothWindowMs: 300 })
+    const proposed = sampleVelocityStd({
+      minRatio: LYRIC_MARQUEE_CORRIDOR_MIN_RATIO,
+      maxRatio: LYRIC_MARQUEE_CORRIDOR_MAX_RATIO,
+      smoothWindowMs: LYRIC_MARQUEE_SMOOTH_WINDOW_MS,
+    })
+
+    expect(proposed.std).toBeLessThan(legacy.std * 0.6)
+    expect(proposed.peak).toBeLessThan(legacy.peak)
   })
 })
 

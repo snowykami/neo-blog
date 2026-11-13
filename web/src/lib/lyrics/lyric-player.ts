@@ -1,4 +1,4 @@
-import type { LyricMarqueeWordBox } from './marquee'
+import type { LyricMarqueeKnot, LyricMarqueeWordBox } from './marquee'
 import type { RhythmModel } from './rhythm/model'
 import type { RubyMetrics } from './ruby-layout'
 import type { StripLine, StripSlot } from './strip-slots'
@@ -32,7 +32,7 @@ import {
 import { swellCurve } from './easing'
 import { interludeDots } from './interlude'
 import { LyricDebris } from './lyric-debris'
-import { getLyricMarqueeOffset } from './marquee'
+import { evaluateMarqueeKnots, getLyricMarqueeOffset, getWordMarqueeKnots } from './marquee'
 import { PACE } from './pace'
 import { dissolveFadeMs, envelopeScale, glowLevel, heartbeatLevel, nearestFixedPace, rhythmContext, shakeCarrierMs, shakeLevel, shimmerCenter, swellAccent, waveLevels } from './rhythm/effects'
 import { placeRuby, rubyGroups, rubyText } from './ruby-layout'
@@ -121,6 +121,9 @@ interface StripMarquee {
   line: LyricLine
   nextStart?: number
   boxes: LyricMarqueeWordBox[]
+  // 按当前 containerWidth 缓存的逐字拉紧弦折点，避免逐帧重复构图；重测或宽度变化时失效
+  knots: LyricMarqueeKnot[] | null
+  knotsWidth: number
   // 行的左右内边距之和；可视宽度按此刻占整行还是半行（四格）计算
   padding: number
   contentWidth: number
@@ -830,6 +833,8 @@ export class LyricPlayer {
       line: this.lyrics.lines[index],
       nextStart: this.lyrics.lines.slice(index + 1).find(next => !next.isBackground)?.start,
       boxes: [],
+      knots: null,
+      knotsWidth: -1,
       padding: 0,
       contentWidth: 0,
       transform: '',
@@ -867,6 +872,8 @@ export class LyricPlayer {
           left: word.el.offsetLeft - marquee.main.offsetLeft + word.pad,
           width: Math.max(0, word.width - word.pad * 2),
         }))
+        marquee.knots = null
+        marquee.knotsWidth = -1
       }
     }
     this.spotScale = null
@@ -1280,21 +1287,35 @@ export class LyricPlayer {
   }
 
   /**
-   * 单行条的横向滚动：超出宽度的行跟随演唱位置（逐行歌词按行进度）匀变速地滚动，两侧按是否还有内容渐隐；
-   * 唱完的行停在末尾，随弹簧移出时仍露出结尾。减少动态效果时不滚动，只渐隐右侧
+   * 单行条的横向滚动：超出宽度的行跟随演唱位置（逐行歌词按行进度，逐字歌词沿舒适走廊拉紧弦并做 C² 平滑）滚动，
+   * 两侧按是否还有内容渐隐；唱完的行停在末尾，随弹簧移出时仍露出结尾。减少动态效果时不滚动，只渐隐右侧
    */
   private paintMarquee(marquee: StripMarquee, el: HTMLElement, containerWidth: number, timeMs: number) {
     const overflow = marquee.contentWidth - containerWidth
-    const offset = overflow > 0 && !this.reducedMotion
-      ? getLyricMarqueeOffset({
+    let offset = 0
+    if (overflow > 0 && !this.reducedMotion) {
+      const words = marquee.line.words
+      const useWordTiming = this.lyrics.wordTimed
+        && marquee.boxes.length === words.length
+        && words.length > 0
+        && words.some(word => word.end > word.start)
+      if (useWordTiming) {
+        if (marquee.knots == null || marquee.knotsWidth !== containerWidth) {
+          marquee.knots = getWordMarqueeKnots(words, marquee.boxes, containerWidth, overflow)
+          marquee.knotsWidth = containerWidth
+        }
+        offset = evaluateMarqueeKnots(marquee.knots, timeMs)
+      }
+      else {
+        offset = getLyricMarqueeOffset({
           line: marquee.line,
           nextLineStartTime: marquee.nextStart,
           currentTimeMs: timeMs,
           containerWidth,
           contentWidth: marquee.contentWidth,
-          wordBoxes: this.lyrics.wordTimed ? marquee.boxes : undefined,
         })
-      : 0
+      }
+    }
     const transform = offset > 0 ? `translate3d(${(-offset).toFixed(2)}px, 0, 0)` : ''
     if (transform !== marquee.transform) {
       marquee.transform = transform
