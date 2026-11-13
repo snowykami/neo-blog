@@ -7,12 +7,15 @@ import (
 
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/pkg/sharedstate"
+	"golang.org/x/sync/singleflight"
 	"gorm.io/gorm"
 )
 
 type kvRepo struct {
 	mu    sync.RWMutex
+	gen   uint64
 	cache map[string]kvCacheEntry
+	group singleflight.Group
 }
 
 // kvCacheEntry 配置读取缓存；配置读多写少，每个页面会读取数十个键
@@ -30,36 +33,91 @@ const kvChangedChannel = "config_changed"
 
 var KV = &kvRepo{cache: make(map[string]kvCacheEntry)}
 
-// loadKV 读取配置记录（带缓存），记录不存在也会缓存
+// cloneKVValue 深拷贝 JSON 值，防止调用方原地修改 map / slice 导致并发读写或污染进程内缓存
+func cloneKVValue(v any) any {
+	switch val := v.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(val))
+		for k, item := range val {
+			out[k] = cloneKVValue(item)
+		}
+		return out
+	case model.JSONMap:
+		if val == nil {
+			return nil
+		}
+		out := make(model.JSONMap, len(val))
+		for k, item := range val {
+			out[k] = cloneKVValue(item)
+		}
+		return out
+	case []any:
+		out := make([]any, len(val))
+		for i, item := range val {
+			out[i] = cloneKVValue(item)
+		}
+		return out
+	default:
+		return v
+	}
+}
+
+func cloneModelKV(src model.KV) *model.KV {
+	cloned, _ := cloneKVValue(src.Value).(model.JSONMap)
+	return &model.KV{
+		Key:   src.Key,
+		Value: cloned,
+	}
+}
+
+// loadKV 读取配置记录（带缓存、并发去重与代数保护），记录不存在也会缓存
 func (k *kvRepo) loadKV(key string) (*model.KV, error) {
 	k.mu.RLock()
 	entry, ok := k.cache[key]
 	k.mu.RUnlock()
 	if ok && time.Now().Before(entry.expiresAt) {
-		return &entry.kv, entry.err
+		return cloneModelKV(entry.kv), entry.err
 	}
-	d := GetDB()
-	if d == nil {
+	if GetDB() == nil {
 		return nil, ErrDatabaseNotInitialized
 	}
-	var kv model.KV
-	err := d.First(&kv, "key = ?", key).Error
-	if err == nil || errors.Is(err, gorm.ErrRecordNotFound) {
-		k.mu.Lock()
-		k.cache[key] = kvCacheEntry{kv: kv, err: err, expiresAt: time.Now().Add(kvCacheTTL)}
-		k.mu.Unlock()
-	}
-	return &kv, err
+	res, err, _ := k.group.Do(key, func() (any, error) {
+		k.mu.RLock()
+		entry, ok := k.cache[key]
+		startGen := k.gen
+		k.mu.RUnlock()
+		if ok && time.Now().Before(entry.expiresAt) {
+			return entry.kv, entry.err
+		}
+		d := GetDB()
+		if d == nil {
+			return model.KV{}, ErrDatabaseNotInitialized
+		}
+		var kv model.KV
+		qErr := d.First(&kv, "key = ?", key).Error
+		if qErr == nil || errors.Is(qErr, gorm.ErrRecordNotFound) {
+			k.mu.Lock()
+			if k.gen == startGen {
+				k.cache[key] = kvCacheEntry{kv: *cloneModelKV(kv), err: qErr, expiresAt: time.Now().Add(kvCacheTTL)}
+			}
+			k.mu.Unlock()
+		}
+		return kv, qErr
+	})
+	kv, _ := res.(model.KV)
+	return cloneModelKV(kv), err
 }
 
 func (k *kvRepo) invalidate(key string) {
 	k.mu.Lock()
+	k.gen++
 	delete(k.cache, key)
 	k.mu.Unlock()
 }
 
 func (k *kvRepo) resetCache() {
 	k.mu.Lock()
+	k.gen++
 	k.cache = make(map[string]kvCacheEntry)
 	k.mu.Unlock()
 }

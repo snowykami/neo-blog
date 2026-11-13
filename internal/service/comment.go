@@ -202,13 +202,20 @@ func (cs *CommentService) UpdateComment(ctx context.Context, req *dto.UpdateComm
 	comment.Content = content
 	comment.IsPrivate = req.IsPrivate
 	comment.ShowClientInfo = req.ShowClientInfo
-	err = repo.Comment.UpdateComment(comment)
+	cascadedIDs, err := repo.Comment.UpdateComment(comment)
 	if err != nil {
 		logrus.Errorf("UpdateComment error: %s", err.Error())
 		return errs.Internal("failed_to_update_target", err).WithResource("comment")
 	}
 	// 改为私密后收回无权查看者的通知、新加的 @ 补发提及通知，再唤醒相关收件人的实时连接
-	notifyNotificationUsers(syncCommentNotificationsAfterEdit(ctx, comment, wasPrivate, previousMentions))
+	notified := syncCommentNotificationsAfterEdit(ctx, comment, wasPrivate, previousMentions)
+	for _, descID := range cascadedIDs {
+		if desc, gErr := repo.Comment.GetComment(descID); gErr == nil {
+			notified = append(notified, syncCommentNotificationsAfterEdit(ctx, desc, false, []uint(desc.MentionUserIDs))...)
+		}
+		SyncSearchComment(descID)
+	}
+	notifyNotificationUsers(notified)
 	// 新加了 @ 或改为公开时，由调度器决定被 @ 的 AI 用户是否回应（异步，不影响本次请求）
 	if !comment.IsPrivate && (wasPrivate || hasNewMention(comment.MentionUserIDs, previousMentions)) {
 		NotifyCommentEdited(comment.ID)

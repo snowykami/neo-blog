@@ -189,18 +189,69 @@ func (cr *CommentRepo) CreateComment(comment *model.Comment, maxDepth int, tx *g
 	return commentID, err
 }
 
-func (cr *CommentRepo) UpdateComment(comment *model.Comment) error {
+// UpdateComment 更新评论，维护「私密父评论下不能有公开子评论」的不变量：
+//   - 若父评论或根评论为私密，强制保持当前评论为私密
+//   - 若当前评论变为私密，将其子树中原本公开的后代一并改为私密，并返回这些被级联改为私密的后代评论 ID
+func (cr *CommentRepo) UpdateComment(comment *model.Comment) ([]uint, error) {
 	if comment.ID == 0 {
-		return errs.NewBadRequest("id_cannot_be_empty_or_zero")
+		return nil, errs.NewBadRequest("id_cannot_be_empty_or_zero")
 	}
 
-	return GetDB().Transaction(func(tx *gorm.DB) error {
+	var cascadedIDs []uint
+	err := GetDB().Transaction(func(tx *gorm.DB) error {
+		if comment.ReplyID != 0 && !comment.IsPrivate {
+			var parent model.Comment
+			if err := tx.Select("id, is_private").Where("id = ?", comment.ReplyID).First(&parent).Error; err == nil && parent.IsPrivate {
+				comment.IsPrivate = true
+			}
+		}
+		if comment.RootID != 0 && comment.RootID != comment.ID && !comment.IsPrivate {
+			var root model.Comment
+			if err := tx.Select("id, is_private").Where("id = ?", comment.RootID).First(&root).Error; err == nil && root.IsPrivate {
+				comment.IsPrivate = true
+			}
+		}
 		if err := tx.Select("IsPrivate", "ShowClientInfo", "Content", "Language", "AttachmentIDs", "MentionUserIDs").Updates(comment).Error; err != nil {
 			return err
+		}
+		if comment.IsPrivate {
+			ids, err := cascadePrivateDescendants(tx, comment.ID)
+			if err != nil {
+				return err
+			}
+			cascadedIDs = ids
 		}
 		// 内容变化后旧译文全部作废
 		return deleteStaleCommentTranslations(tx, comment.ID, model.CommentContentMD5(comment.Content))
 	})
+	return cascadedIDs, err
+}
+
+func cascadePrivateDescendants(tx *gorm.DB, parentID uint) ([]uint, error) {
+	frontier := []uint{parentID}
+	var publicDescendantIDs []uint
+	for len(frontier) > 0 {
+		var children []struct {
+			ID        uint
+			IsPrivate bool
+		}
+		if err := tx.Model(&model.Comment{}).Select("id, is_private").Where("reply_id IN ?", frontier).Scan(&children).Error; err != nil {
+			return nil, err
+		}
+		frontier = frontier[:0]
+		for _, ch := range children {
+			frontier = append(frontier, ch.ID)
+			if !ch.IsPrivate {
+				publicDescendantIDs = append(publicDescendantIDs, ch.ID)
+			}
+		}
+	}
+	if len(publicDescendantIDs) > 0 {
+		if err := tx.Model(&model.Comment{}).Where("id IN ?", publicDescendantIDs).UpdateColumn("is_private", true).Error; err != nil {
+			return nil, err
+		}
+	}
+	return publicDescendantIDs, nil
 }
 
 // SetLanguage 记录 AI 识别出的评论语言；评论内容已不是 content（翻译期间被修改）时不更新。
