@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import type { VisitLog, Visitor, VisitSourceCount, VisitTrust } from '@/models/visit'
 import { ChevronRightIcon, ClockIcon, LanguagesIcon, ListFilterIcon, MapPinIcon, TimerIcon, XIcon } from 'lucide-react'
 import { useFormatter, useTranslations } from 'next-intl'
-import { parseAsBoolean, parseAsInteger, parseAsStringEnum, useQueryState } from 'nuqs'
+import { parseAsInteger, parseAsStringEnum, useQueryState } from 'nuqs'
 import { useState } from 'react'
 import { getVisitInsightsAdmin, getVisitorAdmin, getVisitStatsAdmin, listVisitsAdmin } from '@/api/admin'
 import { UserAvatar } from '@/components/common/avatar'
@@ -22,6 +22,7 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/contexts/auth-context'
 import { useConsoleQuery } from '@/hooks/use-console-query'
+import { useIncludeAI } from '@/hooks/use-include-ai'
 import { Link } from '@/i18n/navigation'
 import { VISIT_TRUSTS } from '@/models/visit'
 import { consolePath, getTargetViewUrl, getUserUrl, mainPath } from '@/utils/common/route'
@@ -50,7 +51,7 @@ export default function VisitsPage() {
   const [trust, setTrust] = useQueryState('trust', parseAsStringEnum<VisitTrust>([...VISIT_TRUSTS]).withOptions({ history: 'replace' }))
   const [country, setCountry] = useQueryState('country', { history: 'replace' })
   const [device, setDevice] = useQueryState('device', parseAsStringEnum<Device>([...DEVICES]).withOptions({ history: 'replace' }))
-  const [includeAi, setIncludeAi] = useQueryState('include_ai', parseAsBoolean.withDefault(true).withOptions({ history: 'replace', clearOnDefault: true }))
+  const [includeAi, setIncludeAi] = useIncludeAI()
   const countryName = useCountryName()
   const [page, setPage] = useQueryState('page', parseAsInteger.withDefault(1).withOptions({ history: 'replace', clearOnDefault: true }))
   const [size, setSize] = useState(20)
