@@ -187,8 +187,12 @@ func TestEmitNotificationSuppression(t *testing.T) {
 func TestEmitNotificationThreadAggregate(t *testing.T) {
 	setupNotificationDB(t)
 	threadStarter := createNotificationUser(t, "starter", nil)
-	first := createNotificationUser(t, "first", nil)
-	second := createNotificationUser(t, "second", nil)
+	first := createNotificationUser(t, "first", func(u *model.User) {
+		u.AvatarUrl = "https://example.com/first.png"
+	})
+	second := createNotificationUser(t, "second", func(u *model.User) {
+		u.AvatarUrl = "https://example.com/second.png"
+	})
 	ctx := context.Background()
 	service := NewNotificationService()
 	day := notificationDay(time.Now(), threadStarter.TimeZone)
@@ -217,6 +221,14 @@ func TestEmitNotificationThreadAggregate(t *testing.T) {
 	}
 	if rows[0].EmailState != constant.NotificationEmailStateAttached && rows[0].EmailState != constant.NotificationEmailStateSkipped {
 		t.Fatalf("thread activity must never queue an email, got %s", rows[0].EmailState)
+	}
+	listCtx := context.WithValue(ctx, "user_id", threadStarter.ID)
+	items, total, svcerr := service.ListNotifications(listCtx, &dto.ListNotificationsReq{})
+	if svcerr != nil || total != 1 || len(items) != 1 {
+		t.Fatalf("list notifications = %d/%d, err = %v", total, len(items), svcerr)
+	}
+	if len(items[0].Actors) != 2 || items[0].Actors[0].AvatarUrl != second.AvatarUrl || items[0].Actors[1].AvatarUrl != first.AvatarUrl || items[0].Actors[0].GravatarHash == "" || items[0].Actors[1].GravatarHash == "" {
+		t.Fatalf("list notification actors = %+v", items[0].Actors)
 	}
 }
 

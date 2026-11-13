@@ -53,9 +53,10 @@ type Notification struct {
 
 	// 折叠行：只有 comment.thread_replied 用。点赞类靠明细行在渲染时归并，不写这几列。
 	// dedupe_key 在所有行上都写入（等于事件的去重键），(dedupe_key, user_id) 唯一索引同时充当散文幂等与折叠行 upsert 键
-	DedupeKey       string `gorm:"size:200;uniqueIndex:idx_notification_dedupe"` // 事件去重键；折叠行另含自然日
-	AggregateCount  int    `gorm:"default:0"`                                    // 0 = 普通行；折叠行插入时置 1，每来一条 +1
-	AggregateActors string `gorm:"size:120"`                                     // 前 2 个昵称，逗号分隔，用于「A、B 和另外 N 人」
+	DedupeKey         string `gorm:"size:200;uniqueIndex:idx_notification_dedupe"` // 事件去重键；折叠行另含自然日
+	AggregateCount    int    `gorm:"default:0"`                                    // 0 = 普通行；折叠行插入时置 1，每来一条 +1
+	AggregateActors   string `gorm:"size:120"`                                     // 前 2 个昵称，逗号分隔，用于「A、B 和另外 N 人」
+	AggregateActorIDs string `gorm:"size:64"`                                      // 前 2 个触发者用户 ID，逗号分隔，与 AggregateActors 顺序一致，用于加载堆叠头像
 
 	// ActivityAt 最近一次活动时间，列表按它排序：普通行等于 created_at，折叠行每来一条回复刷新一次。
 	// 不用 updated_at：已读、邮件状态这些与活动无关的更新也会刷新它

@@ -314,6 +314,7 @@ function NotificationRow({ item, onOpen }: { item: NotificationItemModel, onOpen
   const locale = useLocale()
   const href = getNotificationTargetHref(item)
   const actors = formatNotificationActors(t, item)
+  const stackedActors = resolveStackedActors(item)
 
   const body = (
     <div className={cn(
@@ -322,13 +323,13 @@ function NotificationRow({ item, onOpen }: { item: NotificationItemModel, onOpen
     )}
     >
       <div className="flex shrink-0 items-start">
-        {item.actorNames && item.actorNames.length > 1
+        {stackedActors.length > 1
           // 聚合行：头像堆叠，最多两个
           ? (
               <div className="flex -space-x-2">
-                {item.actorNames.slice(0, 2).map(name => (
-                  <div key={name} className="rounded-full ring-2 ring-background">
-                    <UserAvatar user={nameOnlyUser(name)} size={64} className="size-7" />
+                {stackedActors.map((actor, index) => (
+                  <div key={actor.id || `${actor.username}-${index}`} className="rounded-full ring-2 ring-background">
+                    <UserAvatar user={actor} size={64} className="size-7" />
                   </div>
                 ))}
               </div>
@@ -414,7 +415,21 @@ function NotificationRow({ item, onOpen }: { item: NotificationItemModel, onOpen
   )
 }
 
-// nameOnlyUser 聚合行的头像只有昵称可用（没有 avatar_url），其余字段留空走首字兜底
+type StackedActorShape = AvatarUserShape & { id?: number }
+
+// resolveStackedActors 优先使用后端返回的完整头像信息，兜底兼容仅返回 actorNames 的旧响应
+function resolveStackedActors(item: NotificationItemModel): StackedActorShape[] {
+  if (item.actors && item.actors.length > 1)
+    return item.actors.slice(0, 2)
+  if (!item.actorNames || item.actorNames.length <= 1)
+    return []
+  const primaryName = item.actor.nickname || item.actor.username
+  return item.actorNames.slice(0, 2).map(name =>
+    name && name === primaryName ? item.actor : nameOnlyUser(name),
+  )
+}
+
+// nameOnlyUser 旧数据只有昵称可用（没有 avatar_url / gravatarHash），其余字段留空走首字兜底
 function nameOnlyUser(name: string): AvatarUserShape {
   return { username: name, nickname: name, avatarUrl: '', gravatarHash: '' }
 }

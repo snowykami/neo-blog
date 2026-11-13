@@ -2,6 +2,7 @@ package repo
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -37,8 +38,10 @@ type NotificationGroup struct {
 	Notification model.Notification
 	Count        int64 // 组内条数，点赞类用于「和另外 N 人」
 	UnreadCount  int64 // 组内未读条数，> 0 即整组显示为未读
-	// ActorNames 点赞组里最新的两个昵称，其它类型不用
+	// ActorNames 聚合行里最新的两个昵称
 	ActorNames []string
+	// Actors 聚合行里最新的最多两位触发者头像信息，顺序与 ActorNames 一致
+	Actors []model.User
 }
 
 // CreateEvent 写入互动事件；同一去重键已存在时复用已有事件（取消点赞后再点赞不重复记事件）。
@@ -84,6 +87,9 @@ func (r *notificationRepo) UpsertThreadAggregate(tx *gorm.DB, notification *mode
 		tx = GetDB()
 	}
 	notification.AggregateCount = 1
+	if notification.AggregateActorIDs == "" && notification.ActorID > 0 {
+		notification.AggregateActorIDs = strconv.FormatUint(uint64(notification.ActorID), 10)
+	}
 	now := time.Now()
 	notification.ActivityAt = now
 	if err := tx.Clauses(clause.OnConflict{
@@ -104,16 +110,24 @@ func (r *notificationRepo) UpsertThreadAggregate(tx *gorm.DB, notification *mode
 		return err
 	}
 	var existing model.Notification
-	if err := tx.Select("id", "aggregate_actors").
+	if err := tx.Select("id", "aggregate_actors", "aggregate_actor_ids").
 		Where("dedupe_key = ? AND user_id = ?", notification.DedupeKey, notification.UserID).
 		First(&existing).Error; err != nil {
 		return err
 	}
-	merged := mergeAggregateActors(existing.AggregateActors, notification.AggregateActors)
-	if merged == existing.AggregateActors {
+	incomingID := notification.AggregateActorIDs
+	if incomingID == "" && notification.ActorID > 0 {
+		incomingID = strconv.FormatUint(uint64(notification.ActorID), 10)
+	}
+	mergedActors := mergeAggregateActors(existing.AggregateActors, notification.AggregateActors)
+	mergedActorIDs := mergeAggregateActors(existing.AggregateActorIDs, incomingID)
+	if mergedActors == existing.AggregateActors && mergedActorIDs == existing.AggregateActorIDs {
 		return nil
 	}
-	return tx.Model(&model.Notification{}).Where("id = ?", existing.ID).UpdateColumn("aggregate_actors", merged).Error
+	return tx.Model(&model.Notification{}).Where("id = ?", existing.ID).UpdateColumns(map[string]any{
+		"aggregate_actors":    mergedActors,
+		"aggregate_actor_ids": mergedActorIDs,
+	}).Error
 }
 
 // mergeAggregateActors 折叠行保留最近两个昵称（最新触发者置顶，与点赞聚合顺序一致），其余折成「和另外 N 人」
@@ -300,12 +314,18 @@ func (r *notificationRepo) hydrate(rows []notificationGroupRow, filter *Notifica
 		group := NotificationGroup{Notification: notification, Count: row.Count, UnreadCount: row.UnreadCount}
 		if notification.AggregateCount > 0 {
 			group.Count = int64(notification.AggregateCount)
-			group.ActorNames = splitAggregateActors(notification.AggregateActors)
-		} else if isLikeGroupType(notification.Type) {
-			names, err := r.likeGroupActorNames(&notification, filter)
+			actors, names, err := r.threadAggregateActors(&notification)
 			if err != nil {
 				return nil, err
 			}
+			group.Actors = actors
+			group.ActorNames = names
+		} else if isLikeGroupType(notification.Type) {
+			actors, names, err := r.likeGroupActors(&notification, filter)
+			if err != nil {
+				return nil, err
+			}
+			group.Actors = actors
 			group.ActorNames = names
 		}
 		groups = append(groups, group)
@@ -313,16 +333,19 @@ func (r *notificationRepo) hydrate(rows []notificationGroupRow, filter *Notifica
 	return groups, nil
 }
 
-// likeGroupActorNames 点赞组里最新的两个昵称（同一人只算一次）
-func (r *notificationRepo) likeGroupActorNames(notification *model.Notification, filter *NotificationFilter) ([]string, error) {
+// likeGroupActors 点赞组里最新的最多两位触发者与昵称（同一人只算一次）
+func (r *notificationRepo) likeGroupActors(notification *model.Notification, filter *NotificationFilter) ([]model.User, []string, error) {
 	var rows []model.Notification
 	if err := notificationDayScope(GetDB(), notification.CreatedAt, filter.TimeZone).
-		Preload("Actor", func(db *gorm.DB) *gorm.DB { return db.Select("id, username, nickname") }).
+		Preload("Actor", func(db *gorm.DB) *gorm.DB {
+			return db.Select("id, username, nickname, avatar_url, email, is_ai")
+		}).
 		Where("user_id = ? AND type = ? AND target_type = ? AND target_id = ?",
 			filter.UserID, notification.Type, notification.TargetType, notification.TargetID).
 		Order("created_at DESC, id DESC").Limit(20).Find(&rows).Error; err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	actors := make([]model.User, 0, 2)
 	names := make([]string, 0, 2)
 	seen := map[uint]bool{}
 	for _, row := range rows {
@@ -330,14 +353,142 @@ func (r *notificationRepo) likeGroupActorNames(notification *model.Notification,
 			continue
 		}
 		seen[row.ActorID] = true
+		if row.Actor.ID > 0 {
+			actors = append(actors, row.Actor)
+		}
 		if name := notificationActorName(row.Actor); name != "" {
 			names = append(names, name)
 		}
-		if len(names) >= 2 {
+		if len(names) >= 2 && len(actors) >= 2 {
 			break
 		}
 	}
-	return names, nil
+	return actors, names, nil
+}
+
+func parseAggregateActorIDs(value string) []uint {
+	if value == "" {
+		return nil
+	}
+	ids := make([]uint, 0, 2)
+	for _, raw := range strings.Split(value, ",") {
+		parsed, err := strconv.ParseUint(strings.TrimSpace(raw), 10, 64)
+		if err != nil || parsed == 0 {
+			continue
+		}
+		id := uint(parsed)
+		duplicated := false
+		for _, kept := range ids {
+			if kept == id {
+				duplicated = true
+				break
+			}
+		}
+		if !duplicated {
+			ids = append(ids, id)
+			if len(ids) >= 2 {
+				break
+			}
+		}
+	}
+	return ids
+}
+
+// threadAggregateActors 提取折叠行的前两位触发者头像与昵称；历史未存 aggregate_actor_ids 的旧行会回查线程评论参与人补齐
+func (r *notificationRepo) threadAggregateActors(notification *model.Notification) ([]model.User, []string, error) {
+	names := splitAggregateActors(notification.AggregateActors)
+	if len(names) == 0 {
+		if notification.Actor.ID > 0 {
+			return []model.User{notification.Actor}, []string{notificationActorName(notification.Actor)}, nil
+		}
+		return nil, nil, nil
+	}
+	ids := parseAggregateActorIDs(notification.AggregateActorIDs)
+	usersByID := map[uint]model.User{}
+	if notification.Actor.ID > 0 {
+		usersByID[notification.Actor.ID] = notification.Actor
+	}
+	var missingIDs []uint
+	for _, id := range ids {
+		if _, ok := usersByID[id]; !ok {
+			missingIDs = append(missingIDs, id)
+		}
+	}
+	if len(missingIDs) > 0 {
+		var fetched []model.User
+		if err := GetDB().Select("id, username, nickname, avatar_url, email, is_ai").Where("id IN ?", missingIDs).Find(&fetched).Error; err != nil {
+			return nil, nil, err
+		}
+		for _, user := range fetched {
+			usersByID[user.ID] = user
+		}
+	}
+	if len(ids) >= len(names) {
+		actors := make([]model.User, 0, len(names))
+		for i, id := range ids[:len(names)] {
+			if user, ok := usersByID[id]; ok {
+				actors = append(actors, user)
+			} else {
+				actors = append(actors, model.User{Username: names[i], Nickname: names[i]})
+			}
+		}
+		return actors, names, nil
+	}
+
+	candidates := make([]model.User, 0, 8)
+	if notification.Actor.ID > 0 {
+		candidates = append(candidates, notification.Actor)
+	}
+	for _, id := range ids {
+		if user, ok := usersByID[id]; ok {
+			candidates = append(candidates, user)
+		}
+	}
+	if notification.CommentID > 0 {
+		var threadUsers []model.User
+		if err := GetDB().Table("users").
+			Select("DISTINCT users.id, users.username, users.nickname, users.avatar_url, users.email, users.is_ai").
+			Joins("JOIN comments ON comments.user_id = users.id AND comments.deleted_at IS NULL").
+			Where("comments.root_id = ? OR comments.id = ?", notification.CommentID, notification.CommentID).
+			Find(&threadUsers).Error; err != nil {
+			return nil, nil, err
+		}
+		candidates = append(candidates, threadUsers...)
+	}
+
+	actors := make([]model.User, 0, len(names))
+	usedIDs := map[uint]bool{}
+	for _, name := range names {
+		var matched *model.User
+		for i := range candidates {
+			u := &candidates[i]
+			if u.ID > 0 && !usedIDs[u.ID] && notificationActorName(*u) == name {
+				matched = u
+				break
+			}
+		}
+		if matched == nil && !strings.HasSuffix(name, "…") {
+			var fallbackUsers []model.User
+			if err := GetDB().Select("id, username, nickname, avatar_url, email, is_ai").
+				Where("nickname = ? OR username = ?", name, name).Limit(5).Find(&fallbackUsers).Error; err != nil {
+				return nil, nil, err
+			}
+			for i := range fallbackUsers {
+				u := &fallbackUsers[i]
+				if !usedIDs[u.ID] && notificationActorName(*u) == name {
+					matched = u
+					break
+				}
+			}
+		}
+		if matched != nil {
+			usedIDs[matched.ID] = true
+			actors = append(actors, *matched)
+		} else {
+			actors = append(actors, model.User{Username: name, Nickname: name})
+		}
+	}
+	return actors, names, nil
 }
 
 // UnreadGroupCount 未读徽标：未读的聚合组数（点赞组也算，见 N3），byType 为各类型的未读组数
@@ -826,7 +977,12 @@ func (r *notificationRepo) LatestUnreadPreview(userID uint, timeZone string) (*N
 	}
 	if latest.AggregateCount > 0 {
 		group.Count = int64(latest.AggregateCount)
-		group.ActorNames = splitAggregateActors(latest.AggregateActors)
+		actors, names, err := r.threadAggregateActors(&latest)
+		if err != nil {
+			return nil, err
+		}
+		group.Actors = actors
+		group.ActorNames = names
 		return group, nil
 	}
 	if isLikeGroupType(latest.Type) {
@@ -841,10 +997,11 @@ func (r *notificationRepo) LatestUnreadPreview(userID uint, timeZone string) (*N
 		if count > 0 {
 			group.Count = count
 		}
-		names, err := r.likeGroupActorNames(&latest, &NotificationFilter{UserID: userID, TimeZone: timeZone})
+		actors, names, err := r.likeGroupActors(&latest, &NotificationFilter{UserID: userID, TimeZone: timeZone})
 		if err != nil {
 			return nil, err
 		}
+		group.Actors = actors
 		group.ActorNames = names
 	}
 	return group, nil

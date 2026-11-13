@@ -56,6 +56,9 @@ func TestNotificationListGroupsLikesByDay(t *testing.T) {
 		// 同一天 3 个赞 → 1 行；第二天 1 个赞 → 另 1 行
 		for i, name := range []string{"a1", "a2", "a3"} {
 			actor := notificationTestUser(t, name)
+			if err := db.Model(actor).Update("avatar_url", "https://example.com/"+name+".png").Error; err != nil {
+				t.Fatalf("update avatar: %v", err)
+			}
 			makeNotification(t, owner.ID, actor.ID, constant.NotificationTypePostLiked, constant.TargetTypePost, 12, day.Add(time.Duration(i)*time.Hour))
 		}
 		late := notificationTestUser(t, "a4")
@@ -94,8 +97,13 @@ func TestNotificationListGroupsLikesByDay(t *testing.T) {
 				continue
 			}
 			likeGroups[group.Count] = true
-			if group.Count == 3 && len(group.ActorNames) != 2 {
-				t.Fatalf("like group should carry 2 actor names, got %v", group.ActorNames)
+			if group.Count == 3 {
+				if len(group.ActorNames) != 2 {
+					t.Fatalf("like group should carry 2 actor names, got %v", group.ActorNames)
+				}
+				if len(group.Actors) != 2 || group.Actors[0].AvatarUrl != "https://example.com/a3.png" || group.Actors[1].AvatarUrl != "https://example.com/a2.png" || group.Actors[0].Email == "" {
+					t.Fatalf("like group actors = %+v", group.Actors)
+				}
 			}
 			if group.Count == 1 && len(group.ActorNames) != 1 {
 				t.Fatalf("single like group actor names = %v", group.ActorNames)
@@ -284,6 +292,67 @@ func TestNotificationThreadAggregateUpsert(t *testing.T) {
 		}
 		if reloaded.ActorID != latestActor.ID || reloaded.AggregateActors != "丁,丙" {
 			t.Fatalf("reloaded actor = %d (%q), want %d (丁,丙)", reloaded.ActorID, reloaded.AggregateActors, latestActor.ID)
+		}
+	})
+}
+
+// 折叠行列表查询时返回两位触发者头像；历史未记录 aggregate_actor_ids 的旧行能通过线程评论人回查补齐
+func TestNotificationThreadAggregateActorsHydration(t *testing.T) {
+	forEachDialect(t, func(t *testing.T) {
+		if err := migrate(); err != nil {
+			t.Fatalf("migrate: %v", err)
+		}
+		owner := notificationTestUser(t, "owner")
+		userA := &model.User{Username: "user_a", Nickname: "用户A", Email: "ua@example.com", AvatarUrl: "https://example.com/ua.png"}
+		userB := &model.User{Username: "user_b", Nickname: "用户B", Email: "ub@example.com", AvatarUrl: "https://example.com/ub.png"}
+		if err := db.Create(userA).Error; err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Create(userB).Error; err != nil {
+			t.Fatal(err)
+		}
+		rootComment := &model.Comment{UserID: owner.ID, TargetType: constant.TargetTypePost, TargetID: 9, Content: "root"}
+		if err := db.Create(rootComment).Error; err != nil {
+			t.Fatal(err)
+		}
+		replyA := &model.Comment{UserID: userA.ID, TargetType: constant.TargetTypePost, TargetID: 9, RootID: rootComment.ID, ReplyID: rootComment.ID, Content: "reply A"}
+		replyB := &model.Comment{UserID: userB.ID, TargetType: constant.TargetTypePost, TargetID: 9, RootID: rootComment.ID, ReplyID: rootComment.ID, Content: "reply B"}
+		if err := db.Create(replyA).Error; err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Create(replyB).Error; err != nil {
+			t.Fatal(err)
+		}
+
+		dedupeKey := "comment.thread_replied:comment:" + itoa(rootComment.ID) + ":day:20261113:user:" + itoa(owner.ID)
+		for _, actor := range []*model.User{userA, userB} {
+			if err := Notification.UpsertThreadAggregate(nil, &model.Notification{
+				UserID: owner.ID, ActorID: actor.ID, Type: constant.NotificationTypeCommentThreadReplied,
+				TargetType: constant.TargetTypeComment, TargetID: rootComment.ID, CommentID: rootComment.ID,
+				DedupeKey: dedupeKey, AggregateActors: actor.Nickname,
+			}); err != nil {
+				t.Fatalf("upsert %s: %v", actor.Username, err)
+			}
+		}
+
+		groups, total, err := Notification.List(&NotificationFilter{UserID: owner.ID, Size: 10, TimeZone: "UTC"})
+		if err != nil || total != 1 || len(groups) != 1 {
+			t.Fatalf("list groups = %d/%d, err = %v", total, len(groups), err)
+		}
+		if len(groups[0].Actors) != 2 || groups[0].Actors[0].AvatarUrl != userB.AvatarUrl || groups[0].Actors[1].AvatarUrl != userA.AvatarUrl {
+			t.Fatalf("actors with ids = %+v", groups[0].Actors)
+		}
+
+		// 模拟升级前已存在的历史折叠行（aggregate_actor_ids 为空）
+		if err := db.Model(&model.Notification{}).Where("id = ?", groups[0].Notification.ID).Update("aggregate_actor_ids", "").Error; err != nil {
+			t.Fatal(err)
+		}
+		legacyGroups, _, err := Notification.List(&NotificationFilter{UserID: owner.ID, Size: 10, TimeZone: "UTC"})
+		if err != nil || len(legacyGroups) != 1 {
+			t.Fatalf("legacy list err = %v", err)
+		}
+		if len(legacyGroups[0].Actors) != 2 || legacyGroups[0].Actors[0].AvatarUrl != userB.AvatarUrl || legacyGroups[0].Actors[1].AvatarUrl != userA.AvatarUrl {
+			t.Fatalf("legacy fallback actors = %+v", legacyGroups[0].Actors)
 		}
 	})
 }

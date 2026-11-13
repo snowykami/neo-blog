@@ -317,6 +317,7 @@ func toNotificationItemDto(group *repo.NotificationGroup) dto.NotificationItemDt
 		Actor:          notification.Actor.ToDto(),
 		ActorIsAI:      notification.Actor.IsAI,
 		ActorNames:     group.ActorNames,
+		Actors:         toNotificationActorDtos(group.Actors),
 		AggregateCount: count,
 		SubjectType:    notification.SubjectType,
 		SubjectID:      notification.SubjectID,
@@ -356,6 +357,7 @@ func toNotificationPreviewDto(group *repo.NotificationGroup) *dto.NotificationPr
 		Actor:          actor,
 		ActorIsAI:      notification.Actor.IsAI,
 		ActorNames:     group.ActorNames,
+		Actors:         toNotificationActorDtos(group.Actors),
 		AggregateCount: count,
 		SubjectType:    notification.SubjectType,
 		SubjectID:      notification.SubjectID,
@@ -390,6 +392,17 @@ func (s *NotificationService) ListNotificationGroupMembers(ctx context.Context, 
 		items = append(items, toNotificationItemDto(&group))
 	}
 	return items, nil
+}
+
+func toNotificationActorDtos(users []model.User) []dto.UserAvatarDto {
+	if len(users) == 0 {
+		return nil
+	}
+	out := make([]dto.UserAvatarDto, 0, len(users))
+	for i := range users {
+		out = append(out, users[i].ToAvatarDto())
+	}
+	return out
 }
 
 func boolToInt(value bool) int64 {

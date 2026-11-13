@@ -11,6 +11,8 @@ type NotificationItemDto struct {
 	ActorIsAI bool `json:"actor_is_ai"`
 	// ActorNames 聚合行里最新的两个昵称（点赞类），单条通知为空
 	ActorNames []string `json:"actor_names,omitempty"`
+	// Actors 聚合行里最新的最多两位触发者（含头像与 Gravatar 哈希），顺序与 ActorNames 一致
+	Actors []UserAvatarDto `json:"actors,omitempty"`
 	// AggregateCount 组内条数：1 表示单条，> 1 表示聚合行
 	AggregateCount uint64 `json:"aggregate_count"`
 
@@ -42,23 +44,24 @@ type ListNotificationsReq struct {
 
 // NotificationPreviewDto 最新一条未读通知的轻量预览（用于 SSE 实时推送与顶栏灵动岛展示）
 type NotificationPreviewDto struct {
-	ID             uint           `json:"id"`
-	Type           string         `json:"type"`
-	Actor          *UserAvatarDto `json:"actor,omitempty"`
-	ActorIsAI      bool           `json:"actor_is_ai,omitempty"`
-	ActorNames     []string       `json:"actor_names,omitempty"`
-	AggregateCount int            `json:"aggregate_count"`
-	SubjectType    string         `json:"subject_type,omitempty"`
-	SubjectID      uint           `json:"subject_id,omitempty"`
-	SubjectTitle   string         `json:"subject_title,omitempty"`
-	SubjectSlug    string         `json:"subject_slug,omitempty"`
-	TargetType     string         `json:"target_type"`
-	TargetID       uint           `json:"target_id"`
-	CommentID      uint           `json:"comment_id,omitempty"`
-	Excerpt        string         `json:"excerpt,omitempty"`
-	QuotedExcerpt  string         `json:"quoted_excerpt,omitempty"`
-	IsRead         bool           `json:"is_read"`
-	ActivityAt     time.Time      `json:"activity_at"`
+	ID             uint            `json:"id"`
+	Type           string          `json:"type"`
+	Actor          *UserAvatarDto  `json:"actor,omitempty"`
+	ActorIsAI      bool            `json:"actor_is_ai,omitempty"`
+	ActorNames     []string        `json:"actor_names,omitempty"`
+	Actors         []UserAvatarDto `json:"actors,omitempty"`
+	AggregateCount int             `json:"aggregate_count"`
+	SubjectType    string          `json:"subject_type,omitempty"`
+	SubjectID      uint            `json:"subject_id,omitempty"`
+	SubjectTitle   string          `json:"subject_title,omitempty"`
+	SubjectSlug    string          `json:"subject_slug,omitempty"`
+	TargetType     string          `json:"target_type"`
+	TargetID       uint            `json:"target_id"`
+	CommentID      uint            `json:"comment_id,omitempty"`
+	Excerpt        string          `json:"excerpt,omitempty"`
+	QuotedExcerpt  string          `json:"quoted_excerpt,omitempty"`
+	IsRead         bool            `json:"is_read"`
+	ActivityAt     time.Time       `json:"activity_at"`
 }
 
 // NotificationUnreadCountDto 未读徽标：总数与分类型都是「聚合组」的数量

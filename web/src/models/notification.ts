@@ -20,6 +20,8 @@ export interface NotificationItem {
   actorIsAi: boolean
   // 聚合行里最新的两个昵称（点赞类），单条通知为空
   actorNames?: string[]
+  // 聚合行里最新的最多两位触发者头像信息，顺序与 actorNames 一致
+  actors?: UserAvatarInfo[]
   // 组内条数：1 表示单条，> 1 表示聚合行
   aggregateCount: number
 
@@ -48,6 +50,7 @@ export interface NotificationPreview {
   actor?: UserAvatarInfo
   actorIsAi?: boolean
   actorNames?: string[]
+  actors?: UserAvatarInfo[]
   aggregateCount: number
   subjectType?: 'post' | 'page'
   subjectId?: number
