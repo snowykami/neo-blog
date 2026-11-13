@@ -1,7 +1,7 @@
 'use client'
 
-import mime from 'mime-types'
 import { useEffect, useRef } from 'react'
+import { extensionFromMime } from '@/utils/client/file'
 
 /** 判断粘贴目标是否可编辑，可编辑时不接管，避免影响正常的文本粘贴 */
 function isEditableTarget(target: EventTarget | null) {
@@ -57,7 +57,7 @@ export function withPastedFileNames(files: File[], now = new Date()): File[] {
       return file
     const ext = file.name.includes('.')
       ? file.name.split('.').pop()
-      : (mime.extension(file.type) || 'bin')
+      : (extensionFromMime(file.type) || 'bin')
     const base = file.type.startsWith('image/') ? 'screenshot' : 'pasted'
     const suffix = files.length > 1 ? `-${index + 1}` : ''
     return new File([file], `${base}-${stamp}${suffix}.${ext}`, { type: file.type, lastModified: file.lastModified })

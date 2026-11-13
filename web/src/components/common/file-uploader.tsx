@@ -2,8 +2,7 @@
 
 import type { ChangeEvent } from 'react'
 import type { CompressPreview } from '@/hooks/use-image-compress'
-import { CircleXIcon, EyeIcon, FileIcon } from 'lucide-react'
-import mime from 'mime-types'
+import { CircleXIcon, EyeIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -27,7 +26,7 @@ import { useClipboardFilePaste } from '@/hooks/use-clipboard-file-paste'
 import { useCompressLevel, useCompressPreview } from '@/hooks/use-image-compress'
 import { useObjectUrl } from '@/hooks/use-object-url'
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
-import { mimeTypeIcons } from '@/utils/client/file'
+import { mimeCategoryFromFile, mimeTypeIcons } from '@/utils/client/file'
 import { isCompressibleImage } from '@/utils/client/image-compress'
 
 const MAX_FILE_NUM_PER_UPLOAD = 20
@@ -192,15 +191,8 @@ function FileUploadPreviewItem({
           />
           <AvatarFallback>
             {(() => {
-              const mimeType = file.type.split('/')[0] || mime.lookup(file.name) || ''
-              const IconComponent = mimeTypeIcons?.[mimeType as keyof typeof mimeTypeIcons]
-              return IconComponent
-                ? (
-                    <IconComponent className="w-8 h-8" />
-                  )
-                : (
-                    <FileIcon className="w-8 h-8" />
-                  )
+              const IconComponent = mimeTypeIcons[mimeCategoryFromFile(file)]
+              return <IconComponent className="w-8 h-8" />
             })()}
           </AvatarFallback>
         </Avatar>

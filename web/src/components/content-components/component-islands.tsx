@@ -1,14 +1,13 @@
 'use client'
 
+import type { ComponentType } from 'react'
+import type { ContentComponentViewProps } from './content-component-view'
 import type { ComponentHeight } from './layout'
 import type { AnyContentComponentDef } from './types'
 import { Suspense, useEffect, useLayoutEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { getVisibleElementById } from '@/utils/client/dom'
 import { COMPONENT_FALLBACK_ATTR, COMPONENT_ROOT_ATTR } from './constants'
-import { ContentComponentView } from './content-component-view'
-import { parseComponentHeight } from './layout'
-import { resolveComponentElement } from './props'
 
 interface Island {
   id: number
@@ -17,6 +16,7 @@ interface Island {
   def: AnyContentComponentDef
   props: Record<string, unknown>
   height: ComponentHeight | null
+  View: ComponentType<ContentComponentViewProps>
 }
 
 let nextIslandId = 0
@@ -34,6 +34,7 @@ const mounted = new WeakSet<Element>()
 
 /**
  * 组件岛：扫描正文中的 [data-component] 占位，按注册表懒加载组件并通过 portal 挂载
+ * - 正文不含 [data-component] 时直接返回，不下载组件注册表与 zod 校验器
  * - 未知组件、版本过高或 props 校验失败时保留降级内容
  * - 降级内容移入单独的容器，组件代码加载完、组件挂上后才隐藏；组件渲染出错时恢复显示
  */
@@ -44,36 +45,63 @@ export function ComponentIslands({ containerId }: { containerId: string }) {
     const container = getVisibleElementById(containerId)
     if (!container)
       return
-    const found: Island[] = []
-    container.querySelectorAll('[data-component]').forEach((el) => {
-      if (mounted.has(el) || !(el instanceof HTMLElement))
+    const placeholders = Array.from(container.querySelectorAll('[data-component]')).filter(
+      (el): el is HTMLElement => el instanceof HTMLElement && !mounted.has(el),
+    )
+    if (placeholders.length === 0)
+      return
+
+    let cancelled = false
+    void Promise.all([
+      import('./props'),
+      import('./layout'),
+      import('./content-component-view'),
+    ]).then(([{ resolveComponentElement }, { parseComponentHeight }, { ContentComponentView }]) => {
+      if (cancelled)
         return
-      const resolved = resolveComponentElement(el)
-      if (!resolved.ok)
-        return
-      mounted.add(el)
-      const fallback = document.createElement('div')
-      fallback.setAttribute(COMPONENT_FALLBACK_ATTR, '')
-      fallback.append(...el.childNodes)
-      const root = document.createElement('div')
-      root.setAttribute(COMPONENT_ROOT_ATTR, '')
-      el.append(fallback, root)
-      // 只采用组件支持的高度档位，其余按自动高度渲染
-      const height = parseComponentHeight(el.getAttribute('data-height'), resolved.def.heights ?? [])
-      found.push({ id: nextIslandId++, root, fallback, def: resolved.def, props: resolved.props, height })
+      const found: Island[] = []
+      for (const el of placeholders) {
+        if (mounted.has(el) || !el.isConnected)
+          continue
+        const resolved = resolveComponentElement(el)
+        if (!resolved.ok)
+          continue
+        mounted.add(el)
+        const fallback = document.createElement('div')
+        fallback.setAttribute(COMPONENT_FALLBACK_ATTR, '')
+        fallback.append(...el.childNodes)
+        const root = document.createElement('div')
+        root.setAttribute(COMPONENT_ROOT_ATTR, '')
+        el.append(fallback, root)
+        // 只采用组件支持的高度档位，其余按自动高度渲染
+        const height = parseComponentHeight(el.getAttribute('data-height'), resolved.def.heights ?? [])
+        found.push({
+          id: nextIslandId++,
+          root,
+          fallback,
+          def: resolved.def,
+          props: resolved.props,
+          height,
+          View: ContentComponentView,
+        })
+      }
+      if (found.length)
+        setIslands(prev => [...prev, ...found])
     })
-    if (found.length)
-      setIslands(prev => [...prev, ...found])
+
+    return () => {
+      cancelled = true
+    }
   }, [containerId])
 
   // 组件本体是 next/dynamic 按需加载的（默认不带 Suspense 边界）：这里不接住的话，加载中的挂起会穿过 portal 冒泡到路由的
   // loading 边界，整篇正文被隐藏（display:none）、换回 loading 骨架，等组件代码下载完才恢复（首屏水合后、客户端跳转后都会这样）。
   // 每个组件岛自己一个边界，加载期间保留降级内容。HideOnCommit 放在组件前面：渲染出错时 onError（错误边界的 componentDidCatch）
   // 在它之后执行，恢复显示降级内容
-  return islands.map(({ id, root, fallback, def, props, height }) => createPortal(
+  return islands.map(({ id, root, fallback, def, props, height, View }) => createPortal(
     <Suspense fallback={null}>
       <HideOnCommit el={fallback} />
-      <ContentComponentView
+      <View
         def={def}
         props={props}
         height={height}

@@ -1,10 +1,16 @@
 // @vitest-environment node
+import type { Buffer } from 'node:buffer'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 
 // 构建期模式：不轮询后端、不连 Redis，用 Next 自带的内存缓存（不写磁盘），版本号由测试直接设置
 process.env.NEXT_PHASE = 'phase-production-build'
 
-interface TagState { versions: Record<string, string> | null, pending: Map<string, unknown>, expiredAt: Map<string, number> }
+interface TagState {
+  versions: Record<string, string> | null
+  pending: Map<string, unknown>
+  expiredAt: Map<string, number>
+  redis: unknown
+}
 interface CacheHandler {
   get: (key: string, ctx: Record<string, unknown>) => Promise<{ value: Record<string, unknown> } | null>
   set: (key: string, data: unknown, ctx: Record<string, unknown>) => Promise<void>
@@ -52,6 +58,7 @@ afterEach(() => {
   state().versions = null
   state().pending.clear()
   state().expiredAt.clear()
+  state().redis = null
 })
 
 describe('页面缓存处理器：按后端标签版本号失效', () => {
@@ -145,5 +152,46 @@ describe('\'use cache\' 处理器（进程内模式）：按后端标签版本�
     await useCache.set('k-theme', useCacheEntry('theme', []))
     state().versions = { posts: 'v2', site: 's9' }
     expect(await readText(await useCache.get('k-theme', []))).toBe('theme')
+  })
+
+  it('redis 模式下热命中走进程内 L1，版本号变化时立即失效', async () => {
+    const store = new Map<string, Buffer>()
+    let gets = 0
+    state().redis = {
+      getBuffer: async (k: string) => {
+        gets++
+        return store.get(k) ?? null
+      },
+      set: async (k: string, v: Buffer) => {
+        store.set(k, v)
+        return 'OK'
+      },
+      del: async (k: string) => {
+        store.delete(k)
+        return 1
+      },
+    }
+    state().versions = { posts: 'v1' }
+
+    const h = handler()
+    expect(await h.get('/redis-page', { kind: 'APP_PAGE' })).toBeNull()
+    expect(gets).toBe(1)
+    await h.set('/redis-page', pageValue(200, 'posts'), { cacheControl: { revalidate: 30 } })
+    expect(await h.get('/redis-page', { kind: 'APP_PAGE' })).not.toBeNull()
+    // L1 命中，不再触发 Redis getBuffer
+    expect(gets).toBe(1)
+
+    // use-cache 同理：可被多次消费流且不重复读 Redis
+    expect(await useCache.get('k-redis-post', [])).toBeUndefined()
+    expect(gets).toBe(2)
+    await useCache.set('k-redis-post', useCacheEntry('post-body', ['posts']))
+    expect(await readText(await useCache.get('k-redis-post', []))).toBe('post-body')
+    expect(await readText(await useCache.get('k-redis-post', []))).toBe('post-body')
+    expect(gets).toBe(2)
+
+    // 版本变化后 L1 与 Redis 中的旧条目均失效
+    state().versions = { posts: 'v2' }
+    expect(await h.get('/redis-page', { kind: 'APP_PAGE' })).toBeNull()
+    expect(await useCache.get('k-redis-post', [])).toBeUndefined()
   })
 })

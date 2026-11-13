@@ -5,7 +5,8 @@
  * 1. 失效：按后端缓存标签的版本号（轮询与比较见 cache-tag-versions.mjs）。页面条目的标签由 Next 从页面里用到的 'use cache'
  *    汇总而来（x-next-cache-tags），写入时把当时已知的版本号以标签的形式（neo-ver:posts:<版本>）混在里面一起保存，
  *    读取时与最新的版本号比较，不同就当作没有缓存，下次访问重新生成（页面的标签不会发给浏览器）。
- * 2. 存储：配置了 REDIS_URL 时条目存进 Redis，多个前端副本共用，一个副本生成过的页面其他副本直接用。
+ * 2. 存储：配置了 REDIS_URL 时条目存进 Redis，多个前端副本共用，一个副本生成过的页面其他副本直接用；同时在本进程保留有上限的
+ *    L1 内存 LRU，热页面直接命中内存，省去每次请求的 Redis 往返、解压与反序列化（仍每次校验标签版本号，失效延迟不变）。
  *    没配置时沿用 Next 自带的文件系统缓存（内存 LRU + .next 目录），只在本进程内有效；
  *    上次运行时留下的条目同样按版本号判断，期间后端改过的不会再用。
  * 3. 404 页面与用到「不存在」取数结果的页面不缓存（任意地址都能拼出来，缓存会无限增长）。
@@ -19,7 +20,8 @@ import { Buffer } from 'node:buffer'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
-import { gunzipSync, gzipSync } from 'node:zlib'
+import { promisify } from 'node:util'
+import { gunzip as gunzipCb, gzip as gzipCb } from 'node:zlib'
 import {
   expireTags,
   forgetRead,
@@ -34,6 +36,9 @@ import {
   versionsForWrite,
 } from './cache-tag-versions.mjs'
 
+const gunzip = promisify(gunzipCb)
+const gzip = promisify(gzipCb)
+
 const require = createRequire(import.meta.url)
 /** @type {any} */
 const FileSystemCache = require('next/dist/server/lib/incremental-cache/file-system-cache.js').default
@@ -46,8 +51,61 @@ const VERSION_TAG_PREFIX = 'neo-ver:'
 // 与 'use cache' 的键区分开（读取时记下的版本号放在同一张表里）
 const PENDING_PREFIX = 'page:'
 
+// Redis 模式下的进程内 L1 LRU 上限：避免高并发热路径每次都走 Redis + gunzip + JSON.parse
+const L1_MAX_ENTRIES = 200
+const L1_MAX_BYTES = 32 * 1024 * 1024
+/** @type {Map<string, { record: any, size: number, expiresAt: number }>} */
+const redisL1 = new Map()
+let redisL1Bytes = 0
+
 // 构建号：Redis 里的页面键带上它，滚动更新期间新旧版本共用一个 Redis，旧版本生成的页面引用的是旧的 JS 文件，不能给新版本用
 let buildId = ''
+
+/** @param {string} rKey */
+function l1Delete(rKey) {
+  const existing = redisL1.get(rKey)
+  if (!existing)
+    return
+  redisL1.delete(rKey)
+  redisL1Bytes = Math.max(0, redisL1Bytes - existing.size)
+}
+
+/**
+ * @param {string} rKey
+ * @param {any} ctx
+ */
+function l1Get(rKey, ctx) {
+  const existing = redisL1.get(rKey)
+  if (!existing)
+    return null
+  if (Date.now() >= existing.expiresAt || isExpired(existing.record, ctx)) {
+    l1Delete(rKey)
+    return null
+  }
+  redisL1.delete(rKey)
+  redisL1.set(rKey, existing)
+  return existing.record
+}
+
+/**
+ * @param {string} rKey
+ * @param {any} record
+ * @param {number} size
+ * @param {number} ttlSeconds
+ */
+function l1Set(rKey, record, size, ttlSeconds) {
+  if (size <= 0 || size > (L1_MAX_BYTES >> 2) || ttlSeconds <= 0)
+    return
+  l1Delete(rKey)
+  while (redisL1.size >= L1_MAX_ENTRIES || (redisL1.size > 0 && redisL1Bytes + size > L1_MAX_BYTES)) {
+    const oldest = redisL1.keys().next().value
+    if (oldest === undefined)
+      break
+    l1Delete(oldest)
+  }
+  redisL1.set(rKey, { record, size, expiresAt: Date.now() + ttlSeconds * 1000 })
+  redisL1Bytes += size
+}
 
 /**
  * 条目自己的标签：取数结果（FETCH，Cache Components 下已不用）是保存时的标签，页面与路由是生成时汇总的标签
@@ -130,7 +188,7 @@ function shouldSkip(data) {
   return typeof header === 'string' && header.split(',').includes(NO_STORE_TAG)
 }
 
-// Redis 里的条目是 gzip 压缩的 JSON（文章页每种语言一条约 500 KB，压缩后约 180 KB，解压不到 1 毫秒）：
+// Redis 里的条目是 gzip 压缩的 JSON（文章页每种语言一条约 500 KB，压缩后约 180 KB，异步解压不阻塞事件循环）：
 // Buffer（RSC 数据、路由响应体）与 Map（各路由段的预取数据）另外编码
 /** @this {any} @param {string} key @param {unknown} value */
 function replacer(key, value) {
@@ -189,15 +247,26 @@ export default class NeoCacheHandler extends FileSystemCache {
     rememberRead(PENDING_PREFIX + key)
     let data = null
     if (s.redis) {
+      const rKey = entryKey(key)
+      const cached = l1Get(rKey, ctx)
+      if (cached)
+        return cached
       try {
-        const raw = await s.redis.getBuffer(entryKey(key))
-        data = raw ? JSON.parse(gunzipSync(raw).toString('utf8'), reviver) : null
+        const raw = await s.redis.getBuffer(rKey)
+        if (raw) {
+          const unzipped = await gunzip(raw)
+          const parsed = JSON.parse(unzipped.toString('utf8'), reviver)
+          if (parsed && !isExpired(parsed, ctx)) {
+            l1Set(rKey, parsed, unzipped.byteLength, entryTTL(parsed.value, ctx))
+            return parsed
+          }
+        }
       }
       catch (err) {
         logError(err)
       }
       // Redis 里没有的页面再看构建产物里预渲染好的那份（Redis 模式下文件系统里只有这些）
-      if (!data && ctx?.kind !== 'FETCH')
+      if (ctx?.kind !== 'FETCH')
         data = await super.get(key, ctx)
     }
     else {
@@ -220,9 +289,11 @@ export default class NeoCacheHandler extends FileSystemCache {
     const s = tagState()
     if (!s.redis)
       return super.set(key, stamped.data, stamped.ctx)
+    const rKey = entryKey(key)
     try {
       if (!stamped.data) {
-        await s.redis.del(entryKey(key))
+        l1Delete(rKey)
+        await s.redis.del(rKey)
         return
       }
       const record = {
@@ -230,8 +301,11 @@ export default class NeoCacheHandler extends FileSystemCache {
         value: stamped.data,
         cacheControl: ctx?.fetchCache ? undefined : ctx?.cacheControl,
       }
-      const body = gzipSync(JSON.stringify(record, replacer), { level: 1 })
-      await s.redis.set(entryKey(key), body, 'EX', entryTTL(stamped.data, ctx))
+      const ttl = entryTTL(stamped.data, ctx)
+      const json = JSON.stringify(record, replacer)
+      const body = await gzip(json, { level: 1 })
+      await s.redis.set(rKey, body, 'EX', ttl)
+      l1Set(rKey, record, Buffer.byteLength(json), ttl)
     }
     catch (err) {
       logError(err)

@@ -7,7 +7,6 @@ import { toast } from 'sonner'
 import { COMPONENT_ROOT_SELECTOR } from '@/components/content-components/constants'
 import { notifySuccess } from '@/components/layout/topbar-island/island-feedback'
 import copyToClipboard from '@/lib/clipboard'
-import hljs from '@/lib/highlight'
 import { getVisibleElementById } from '@/utils/client/dom'
 import { languageMap } from '@/utils/common/post-render'
 import 'highlight.js/styles/github-dark.css'
@@ -16,10 +15,8 @@ import 'highlight.js/styles/github-dark.css'
  * HtmlEnhancer
  * - containerId: 传入渲染原始 HTML 的父容器 id（backend 存的原始 HTML 放在这个容器内）
  * 功能：
- * - 把 <pre><code class="language-..."> 包装成带工具栏和复制按钮的样式（与 markdown-codeblock 保持一致）
- * - 给外链添加 target/rel，并添加样式类
- * - 给 img/ul/ol/li/hr/inline code 添加样式类
- * - 使用 MutationObserver 处理后续动态注入的内容
+ * - 把 <pre><code class="language-..."> 包装成带工具栏和复制按钮的样式（与 markdown-codeblock 保持一致），并按需懒加载 highlight.js
+ * - 使用容器级 MutationObserver 处理后续动态注入的代码块，卸载时统一回收事件与定时器
  */
 
 declare global {
@@ -36,13 +33,27 @@ declare global {
 
 export default function HtmlEnhancer({ containerId }: { containerId: string }) {
   const t = useTranslations('CodeBlock')
-  useEffect(() => {
-    hljs.highlightAll()
-  }, [])
+
   useEffect(() => {
     const container = getVisibleElementById(containerId)
     if (!container)
       return
+
+    let disposed = false
+    const cleanups: Array<() => void> = []
+    const timers = new Set<number>()
+    let hljsPromise: Promise<typeof import('@/lib/highlight')['default']> | null = null
+
+    const highlightCodeElement = (codeEl: HTMLElement) => {
+      if (codeEl.dataset.highlighted === 'yes')
+        return
+      hljsPromise ??= import('@/lib/highlight').then(m => m.default)
+      void hljsPromise.then((hljs) => {
+        if (disposed || !codeEl.isConnected || codeEl.dataset.highlighted === 'yes')
+          return
+        hljs.highlightElement(codeEl)
+      })
+    }
 
     const wrapCodeBlock = (pre: HTMLElement) => {
       // 组件岛内的代码块由组件自己渲染（React 管理的 DOM 不能被改动）
@@ -52,6 +63,7 @@ export default function HtmlEnhancer({ containerId }: { containerId: string }) {
       if (!codeEl)
         return
       pre.__enhanced = true
+      highlightCodeElement(codeEl)
 
       const langMatch = codeEl.className?.match?.(/language-([\w-]+)/)
       const lang = langMatch ? langMatch[1] : ''
@@ -102,6 +114,15 @@ export default function HtmlEnhancer({ containerId }: { containerId: string }) {
       pre.style.margin = '0'
       codeEl.classList.add('!p-0', '!bg-transparent')
 
+      const resetLabelLater = () => {
+        const timer = window.setTimeout(() => {
+          timers.delete(timer)
+          if (!disposed)
+            btn.textContent = t('copy')
+        }, 1200)
+        timers.add(timer)
+      }
+
       // copy handler
       const onClick = async () => {
         try {
@@ -110,31 +131,23 @@ export default function HtmlEnhancer({ containerId }: { containerId: string }) {
           if (ok) {
             notifySuccess(t('copy_success'), { key: 'copy', icon: <CopyCheckIcon aria-hidden className="text-emerald-400" />, countable: true })
             btn.textContent = t('copied')
-            setTimeout(() => (btn.textContent = t('copy')), 1200)
+            resetLabelLater()
           }
           else {
             toast.error(t('copy_failed'))
             btn.textContent = t('failed')
-            setTimeout(() => (btn.textContent = t('copy')), 1200)
+            resetLabelLater()
           }
         }
         catch (e) {
           console.error(e)
           toast.error(t('copy_failed'))
           btn.textContent = t('failed')
-          setTimeout(() => (btn.textContent = t('copy')), 1200)
+          resetLabelLater()
         }
       }
       btn.addEventListener('click', onClick)
-
-      // cleanup if wrapper removed later
-      const mo = new MutationObserver(() => {
-        if (!document.body.contains(btn)) {
-          btn.removeEventListener('click', onClick)
-          mo.disconnect()
-        }
-      })
-      mo.observe(document.body, { childList: true, subtree: true })
+      cleanups.push(() => btn.removeEventListener('click', onClick))
     }
 
     // initial: only handle pre > code
@@ -143,7 +156,7 @@ export default function HtmlEnhancer({ containerId }: { containerId: string }) {
         wrapCodeBlock(p as HTMLElement)
     })
 
-    // observe only for newly added <pre> elements
+    // observe only for newly added <pre> elements inside container
     const observer = new MutationObserver((mutations) => {
       for (const m of mutations) {
         if (m.type !== 'childList')
@@ -168,8 +181,14 @@ export default function HtmlEnhancer({ containerId }: { containerId: string }) {
 
     observer.observe(container, { childList: true, subtree: true })
 
-    return () => observer.disconnect()
-  }, [containerId])
+    return () => {
+      disposed = true
+      observer.disconnect()
+      timers.forEach(timer => window.clearTimeout(timer))
+      timers.clear()
+      cleanups.forEach(fn => fn())
+    }
+  }, [containerId, t])
 
   return null
 }

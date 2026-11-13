@@ -18,7 +18,6 @@ import { pastedFilesOf, withPastedFileNames } from '@/hooks/use-clipboard-file-p
 import { useOperationT } from '@/hooks/use-translations'
 import { Link, usePathname } from '@/i18n/navigation'
 import { isComposingKey } from '@/lib/ime'
-import { isMac } from '@/lib/tiptap-utils'
 import { cn } from '@/lib/utils'
 import { highlightMentions, mentionsUser } from '@/utils/common/mention'
 import { getUserUrl } from '@/utils/common/route'
@@ -376,9 +375,13 @@ export function CommentInput({
 
 const noopSubscribe = () => () => {}
 
+function detectMac() {
+  return typeof navigator !== 'undefined' && /mac|iphone|ipad|ipod/i.test(navigator.platform || navigator.userAgent)
+}
+
 /** 是否 macOS（快捷键提示显示 ⌘ 还是 Ctrl）；服务端渲染时按非 Mac，水合后再按实际平台 */
 function useIsMac() {
-  return useSyncExternalStore(noopSubscribe, isMac, () => false)
+  return useSyncExternalStore(noopSubscribe, detectMac, () => false)
 }
 
 export interface CommentSubmitPayload {

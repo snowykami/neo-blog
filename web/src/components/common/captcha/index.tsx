@@ -1,37 +1,35 @@
 'use client'
+
 import type { CaptchaProps } from '@/types/captcha'
-import HCaptcha from '@hcaptcha/react-hcaptcha'
+import dynamic from 'next/dynamic'
 import { useEffect } from 'react'
-import { GoogleReCaptcha, GoogleReCaptchaProvider } from 'react-google-recaptcha-v3'
 import { CaptchaProvider } from '@/types/captcha'
-import { TurnstileWidget } from './turnstile'
 import './captcha.css'
 
-export function ReCaptchaWidget(props: CaptchaProps) {
-  return (
-    <GoogleReCaptchaProvider reCaptchaKey={props.siteKey} useEnterprise={false}>
-      <GoogleReCaptcha action="submit" onVerify={props.onSuccess} />
-    </GoogleReCaptchaProvider>
-  )
-}
+const HCaptchaWidget = dynamic(
+  () => import('./hcaptcha').then(m => m.HCaptchaWidget),
+  { ssr: false },
+)
+
+const ReCaptchaWidget = dynamic(
+  () => import('./recaptcha').then(m => m.ReCaptchaWidget),
+  { ssr: false },
+)
+
+const TurnstileWidget = dynamic(
+  () => import('./turnstile').then(m => m.TurnstileWidget),
+  { ssr: false },
+)
 
 export function NoCaptchaWidget(props: CaptchaProps) {
+  const { onSuccess } = props
   useEffect(() => {
-    props.onSuccess('no-captcha')
-  }, [props, props.onSuccess])
+    onSuccess('no-captcha')
+  }, [onSuccess])
   return null
 }
 
-export function HCaptchaWidget(props: CaptchaProps) {
-  return (
-    <HCaptcha
-      sitekey={props.siteKey}
-      onVerify={props.onSuccess}
-      onError={props.onError}
-      onExpire={() => props.onError?.('Captcha expired')}
-    />
-  )
-}
+export { HCaptchaWidget, ReCaptchaWidget, TurnstileWidget }
 
 export default function AIOCaptchaWidget(props: CaptchaProps) {
   switch (props.provider) {

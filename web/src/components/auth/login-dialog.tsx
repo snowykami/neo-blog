@@ -1,15 +1,14 @@
 'use client'
 import type { User } from '@/models/user'
-import { useTranslations } from 'next-intl'
+import dynamic from 'next/dynamic'
 import { createContext, use, useCallback, useState } from 'react'
-import { LocalLoginForm } from '@/components/auth/local-login-form'
-import { LocalRegisterForm } from '@/components/auth/local-register-form'
-import { OidcProviderButtons, useOidcProviders } from '@/components/auth/oidc-providers'
-import { SectionDivider } from '@/components/common/section-divider'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useAuth } from '@/contexts/auth-context'
-import { Link, usePathname } from '@/i18n/navigation'
-import { mainPath } from '@/utils/common/route'
+import { usePathname } from '@/i18n/navigation'
+
+const LoginDialogModal = dynamic(
+  () => import('./login-dialog-body').then(m => m.LoginDialogModal),
+  { ssr: false },
+)
 
 /** 触发快捷登录的操作，决定弹窗里的提示文案 */
 export type LoginReason = 'like' | 'reply' | 'comment'
@@ -27,19 +26,21 @@ interface LoginRequest {
 
 const LoginDialogContext = createContext<(request?: LoginRequest) => void>(() => {})
 
-/** 快捷登录 / 注册弹窗：在当前页面完成登录，不再跳转到登录页或注册页 */
+/** 快捷登录 / 注册弹窗：在当前页面完成登录，不再跳转到登录页或注册页；首次打开时才按需加载表单与人机验证代码 */
 export function LoginDialogProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [request, setRequest] = useState<LoginRequest | null>(null)
   const [mode, setMode] = useState<AuthDialogMode>('login')
   // 记录打开时所在的页面：点了隐私政策、忘记密码等链接跳走后自动关闭
   const [openedAt, setOpenedAt] = useState<string | null>(null)
+  const [everOpened, setEverOpened] = useState(false)
   const open = openedAt === pathname
 
   const openLogin = useCallback((next: LoginRequest = {}) => {
     setRequest(next)
     setMode(next.mode ?? 'login')
     setOpenedAt(pathname)
+    setEverOpened(true)
   }, [pathname])
 
   const handleLoggedIn = (user: User) => {
@@ -50,96 +51,19 @@ export function LoginDialogProvider({ children }: { children: React.ReactNode })
   return (
     <LoginDialogContext.Provider value={openLogin}>
       {children}
-      <Dialog open={open} onOpenChange={next => !next && setOpenedAt(null)}>
-        <DialogContent
-          // 注册视图比登录长，矮屏幕上在弹窗内滚动，不把按钮挤出可视区
-          className="bg-card max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-sm"
-          // hCaptcha 的验证挑战在弹窗外的 iframe 中，与之交互时不应关闭弹窗
-          onInteractOutside={(e) => {
-            if (e.target instanceof HTMLIFrameElement)
-              e.preventDefault()
-          }}
-        >
-          {request && (
-            <LoginDialogBody
-              mode={mode}
-              reason={request.reason}
-              redirectBack={pathname}
-              onSwitchMode={setMode}
-              onLoggedIn={handleLoggedIn}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-    </LoginDialogContext.Provider>
-  )
-}
-
-function LoginDialogBody({ mode, reason, redirectBack, onSwitchMode, onLoggedIn }: {
-  mode: AuthDialogMode
-  reason?: LoginReason
-  redirectBack: string
-  onSwitchMode: (mode: AuthDialogMode) => void
-  onLoggedIn: (user: User) => void
-}) {
-  const t = useTranslations('Login')
-  const registerT = useTranslations('Register')
-  const { providers } = useOidcProviders()
-  const { refresh } = useAuth()
-
-  if (mode === 'register') {
-    return (
-      <>
-        <DialogHeader className="text-center sm:text-center">
-          <DialogTitle className="text-xl">{registerT('title')}</DialogTitle>
-          <DialogDescription>{registerT('register_a_new_account')}</DialogDescription>
-        </DialogHeader>
-        <LocalRegisterForm onSwitchToLogin={() => onSwitchMode('login')} onSuccess={onLoggedIn} />
-        <div className="text-muted-foreground text-center text-xs text-balance">
-          {registerT('by_registering_you_agree_to_our')}
-          {' '}
-          <Link href={mainPath.privacy} className="underline underline-offset-4 hover:text-primary">
-            {t('privacy_policy')}
-          </Link>
-        </div>
-      </>
-    )
-  }
-
-  return (
-    <>
-      <DialogHeader className="text-center sm:text-center">
-        <DialogTitle className="text-xl">{t('welcome')}</DialogTitle>
-        <DialogDescription>{reason ? t(`reason_${reason}`) : t('sign_in_hint')}</DialogDescription>
-      </DialogHeader>
-      {providers.length > 0 && (
-        <>
-          {/* 第三方登录在小窗里完成，本页不离开（见 components/auth/oidc-popup.ts） */}
-          <OidcProviderButtons
-            providers={providers}
-            redirectBack={redirectBack}
-            mode="popup"
-            onLoggedIn={() => refresh().then(user => user && onLoggedIn(user))}
-          />
-          <SectionDivider>{t('or_continue_with_local_account')}</SectionDivider>
-        </>
+      {everOpened && (
+        <LoginDialogModal
+          open={open}
+          onOpenChange={next => !next && setOpenedAt(null)}
+          mode={mode}
+          reason={request?.reason}
+          redirectBack={pathname}
+          hasRequest={Boolean(request)}
+          onSwitchMode={setMode}
+          onLoggedIn={handleLoggedIn}
+        />
       )}
-      <LocalLoginForm onSuccess={onLoggedIn} />
-      <div className="text-center text-sm">
-        {t('no_account')}
-        {' '}
-        <button type="button" className="underline underline-offset-4" onClick={() => onSwitchMode('register')}>
-          {t('register')}
-        </button>
-      </div>
-      <div className="text-muted-foreground text-center text-xs text-balance">
-        {t('by_logging_in_you_agree_to_our')}
-        {' '}
-        <Link href={mainPath.privacy} className="underline underline-offset-4 hover:text-primary">
-          {t('privacy_policy')}
-        </Link>
-      </div>
-    </>
+    </LoginDialogContext.Provider>
   )
 }
 
