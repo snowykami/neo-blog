@@ -10,8 +10,6 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
-	"github.com/snowykami/neo-blog/internal/model"
-	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/service"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/resps"
@@ -114,6 +112,17 @@ func (p *PostController) GetStats(ctx context.Context, c *app.RequestContext) {
 	resps.Ok(c, resps.Success, stats)
 }
 
+// Neighbors 公开文章的上一篇、下一篇与相关推荐（私密或草稿文章一律 404）
+func (p *PostController) Neighbors(ctx context.Context, c *app.RequestContext) {
+	id := ctxutils.GetIDParam(c).Uint
+	neighbors, svcerr := p.service.GetPostNeighbors(id)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, neighbors)
+}
+
 // GetForEdit 后台编辑器与预览读取文章（含私密文章与草稿），仅作者本人与管理员；路径参数可以是 id 或 slug
 func (p *PostController) GetForEdit(ctx context.Context, c *app.RequestContext) {
 	slugOrId := c.Param("id")
@@ -130,25 +139,11 @@ func (p *PostController) GetForEdit(ctx context.Context, c *app.RequestContext) 
 }
 
 func (p *PostController) GetRandom(ctx context.Context, c *app.RequestContext) {
-	// 先只随机取公开已发布文章的 id，避免对整表正文排序，也不暴露未发布草稿
-	var ids []uint
-	if err := repo.GetDB().Model(&model.Post{}).Where("is_private = ? AND is_draft = ?", false, false).Order("RANDOM()").Limit(1).Pluck("id", &ids).Error; err != nil {
-		resps.InternalError(c, err)
+	postDto, svcerr := p.service.GetRandomPost(ctx)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
-	if len(ids) == 0 {
-		resps.NotFound(c, "target_not_found")
-		return
-	}
-	var post model.Post
-	if err := repo.GetDB().Omit("draft_content").First(&post, ids[0]).Error; err != nil {
-		resps.InternalError(c, err)
-		return
-	}
-	postDto := post.ToDto()
-	postDto.DraftContent = nil // 不返回草稿内容
-	postDto.DraftVersion = 0
-	postDto.HasDraft = false
 	resps.Ok(c, resps.Success, postDto)
 }
 

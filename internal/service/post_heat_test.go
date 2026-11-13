@@ -42,7 +42,14 @@ func TestViewCountFromVisitReport(t *testing.T) {
 	post := reloadPost(t, createPublicPost(t, author, nil))
 	svc := NewVisitService()
 	anon := context.Background()
-	views := func() uint64 { return reloadPost(t, post.ID).ViewCount }
+	dbViews := func() uint64 { return reloadPost(t, post.ID).ViewCount }
+	liveViews := func() uint64 {
+		stats, svcerr := NewPostService().GetPublicPostStats(post.ID)
+		if svcerr != nil {
+			t.Fatalf("get public post stats: %v", svcerr)
+		}
+		return stats.ViewCount
+	}
 	report := func(ctx context.Context, key, ua string, dnt bool) string {
 		k, svcerr := svc.Report(ctx, &dto.ReportVisitReq{Path: "/p/1", TargetType: constant.TargetTypePost, TargetID: post.ID}, key, VisitClient{IP: testIP, UserAgent: ua, DoNotTrack: dnt})
 		if svcerr != nil {
@@ -52,25 +59,29 @@ func TestViewCountFromVisitReport(t *testing.T) {
 	}
 
 	// 读取文章（含编辑器加载草稿）不再计数
-	if _, svcerr := NewPostService().GetPostForEdit(author, strconv.Itoa(int(post.ID))); svcerr != nil || views() != 0 {
-		t.Fatalf("get post should not count view: err=%v views=%d", svcerr, views())
+	if _, svcerr := NewPostService().GetPostForEdit(author, strconv.Itoa(int(post.ID))); svcerr != nil || liveViews() != 0 {
+		t.Fatalf("get post should not count view: err=%v views=%d", svcerr, liveViews())
 	}
 
 	key := report(anon, "", testChromeUA, false)
-	if views() != 1 {
-		t.Fatalf("first visit should count, views=%d", views())
+	if liveViews() != 1 || dbViews() != 0 {
+		t.Fatalf("first visit should buffer in sharedstate without immediate db write, live=%d db=%d", liveViews(), dbViews())
 	}
 	// 去重窗口内的刷新、爬虫、管理员不计数
 	report(anon, key, testChromeUA, false)
 	report(anon, "", "Mozilla/5.0 (compatible; Googlebot/2.1)", false)
 	report(admin, "", testChromeUA, false)
-	if views() != 1 {
-		t.Fatalf("dedup/bot/admin should not count, views=%d", views())
+	if liveViews() != 1 {
+		t.Fatalf("dedup/bot/admin should not count, views=%d", liveViews())
 	}
 	// 请勿追踪的访问只匿名计数，同样累加浏览量
 	report(anon, "", testChromeUA, true)
-	if views() != 2 {
-		t.Fatalf("dnt visit should count, views=%d", views())
+	if liveViews() != 2 || dbViews() != 0 {
+		t.Fatalf("dnt visit should count in sharedstate buffer, live=%d db=%d", liveViews(), dbViews())
+	}
+	FlushPostViewCounts()
+	if dbViews() != 2 || liveViews() != 2 {
+		t.Fatalf("after flush dbViews=%d liveViews=%d, want 2", dbViews(), liveViews())
 	}
 }
 

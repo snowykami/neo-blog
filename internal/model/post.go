@@ -101,10 +101,10 @@ func (p *Post) ToDto() *dto.PostDto {
 	return &dto.PostDto{
 		ID:     p.ID,
 		UserID: p.UserID,
-		Collaborators: func() []dto.UserDto {
-			collaboratorDtos := make([]dto.UserDto, len(p.Collaborators))
+		Collaborators: func() []dto.PublicUserDto {
+			collaboratorDtos := make([]dto.PublicUserDto, len(p.Collaborators))
 			for i, collaborator := range p.Collaborators {
-				collaboratorDtos[i] = collaborator.ToDto()
+				collaboratorDtos[i] = collaborator.ToPublicDto()
 			}
 			return collaboratorDtos
 		}(),

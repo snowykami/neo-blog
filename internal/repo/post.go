@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"context"
 	"errors"
 	"slices"
 	"sort"
@@ -198,6 +199,29 @@ func (p *postRepo) GetPostByID(id uint) (*model.Post, error) {
 	return &post, nil
 }
 
+// GetRandomPublicPost 随机返回一篇公开已发布文章（!is_private && !is_draft），并完整预加载作者、分类、标签与协作者关联
+func (p *postRepo) GetRandomPublicPost() (*model.Post, error) {
+	var ids []uint
+	if err := GetDB().Model(&model.Post{}).
+		Where("is_private = ? AND is_draft = ?", false, false).
+		Order("RANDOM()").
+		Limit(1).
+		Pluck("id", &ids).Error; err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return nil, gorm.ErrRecordNotFound
+	}
+	var post model.Post
+	if err := GetDB().Omit("draft_content").Preload(clause.Associations).First(&post, ids[0]).Error; err != nil {
+		return nil, err
+	}
+	if err := sortLabelsByPostCount(GetDB(), post.Labels); err != nil {
+		return nil, err
+	}
+	return &post, nil
+}
+
 func (p *postRepo) GetPostBySlugOrID(slugOrId string) (*model.Post, error) {
 	var post model.Post
 
@@ -366,12 +390,20 @@ func updatePostTx(tx *gorm.DB, post *model.Post, columns []string, replaceLabels
 
 // ListPosts 列出文章；includePrivate 为 true 时包含私密文章，仅供后台管理（全站或限定 req.UserID 为本人），前台一律传 false
 func (p *postRepo) ListPosts(includePrivate bool, query []string, req *dto.ListPostReq) ([]model.Post, int64, error) {
+	return p.ListPostsContext(context.Background(), includePrivate, query, req)
+}
+
+// ListPostsContext 带上下文与慢查询超时保护的文章列表查询
+func (p *postRepo) ListPostsContext(ctx context.Context, includePrivate bool, query []string, req *dto.ListPostReq) ([]model.Post, int64, error) {
 	if !slices.Contains(constant.OrderByEnumPost, req.OrderBy) {
 		return nil, 0, errs.NewBadRequest("invalid_request_parameters")
 	}
 
+	dbSession, cancel := WithTimeout(ctx, DefaultHeavyQueryTimeout)
+	defer cancel()
+
 	// 列表只需要作者、分类和标签，不加载协作者
-	q := GetDB().Model(&model.Post{}).Preload("User").Preload("Category").Preload("Labels")
+	q := dbSession.Model(&model.Post{}).Preload("User").Preload("Category").Preload("Labels")
 	if req.UserID > 0 {
 		q = q.Where("posts.user_id = ?", req.UserID)
 	}
@@ -384,7 +416,7 @@ func (p *postRepo) ListPosts(includePrivate bool, query []string, req *dto.ListP
 
 	if req.Label != "" {
 		var labelModel model.Label
-		if err := GetDB().Where("name = ? OR slug = ?", req.Label, req.Label).First(&labelModel).Error; err != nil {
+		if err := dbSession.Where("name = ? OR slug = ?", req.Label, req.Label).First(&labelModel).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				// 标签不存在，直接返回空结果
 				return []model.Post{}, 0, nil
@@ -397,7 +429,7 @@ func (p *postRepo) ListPosts(includePrivate bool, query []string, req *dto.ListP
 
 	if req.Category != "" {
 		var categoryModel model.Category
-		if err := GetDB().Where("name = ? OR slug = ?", req.Category, req.Category).First(&categoryModel).Error; err != nil {
+		if err := dbSession.Where("name = ? OR slug = ?", req.Category, req.Category).First(&categoryModel).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return []model.Post{}, 0, nil
 			}

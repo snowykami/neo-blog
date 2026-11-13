@@ -31,10 +31,10 @@ type PostBaseDto struct {
 }
 
 type PostDto struct {
-	ID            uint      `json:"id"`            // 帖子ID
-	UserID        uint      `json:"user_id"`       // 发布者的用户ID
-	User          UserDto   `json:"user"`          // 发布者信息
-	Collaborators []UserDto `json:"collaborators"` // 协作者列表
+	ID            uint            `json:"id"`            // 帖子ID
+	UserID        uint            `json:"user_id"`       // 发布者的用户ID
+	User          UserDto         `json:"user"`          // 发布者信息
+	Collaborators []PublicUserDto `json:"collaborators"` // 协作者列表（仅公开字段）
 	PostBaseDto
 	HasDraft bool `json:"has_draft,omitempty"` // 后台列表提示是否存在未发布的草稿改动
 	IsLiked  bool `json:"is_liked"`            // 当前用户是否点赞
@@ -182,4 +182,23 @@ type BatchDeletePostReq struct {
 type BatchPostVisibilityReq struct {
 	IDs       []uint `json:"ids"`
 	IsPrivate bool   `json:"is_private"`
+}
+
+// PostNeighborItemDto 文章底部的上下篇与相关阅读卡片项（仅含公开展示字段，不含正文与草稿）
+type PostNeighborItemDto struct {
+	ID          uint         `json:"id"`
+	Slug        *string      `json:"slug"`
+	Title       string       `json:"title"`
+	Description string       `json:"description"`
+	Excerpt     string       `json:"excerpt"`
+	Cover       string       `json:"cover"`
+	Category    *CategoryDto `json:"category"`
+	CreatedAt   time.Time    `json:"created_at"`
+}
+
+// PostNeighborsResp 文章底部的连续阅读响应：上一篇、下一篇与相关推荐
+type PostNeighborsResp struct {
+	Prev    *PostNeighborItemDto  `json:"prev"`
+	Next    *PostNeighborItemDto  `json:"next"`
+	Related []PostNeighborItemDto `json:"related"`
 }

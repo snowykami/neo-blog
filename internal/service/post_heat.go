@@ -59,6 +59,8 @@ func postHeatScore(viewCount uint64, events []weightedEvent, now time.Time) floa
 
 // Refresh 流式重算所有文章的热度（不在内存中攒全量访问/点赞明细切片），只写入有变化的文章，返回更新的数量
 func (s *PostHeatService) Refresh(now time.Time) (int, error) {
+	// 重算热度前先把共享状态中的阅读量增量落库，确保累计浏览量对数项反映最新访问
+	FlushPostViewCounts()
 	since := now.Add(-heatWindow)
 	bases, err := repo.Post.ListPostHeatBases()
 	if err != nil {

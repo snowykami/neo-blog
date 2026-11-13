@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -145,6 +146,7 @@ func (p *PostService) DeletePost(ctx context.Context, postId uint) *errs.Service
 	if err != nil {
 		return errs.Internal("failed_to_delete_target", err).WithResource("post")
 	}
+	DeletePendingPostViewDelta(postId)
 	// 文章上的通知随文章一起删除：唤醒这些收件人的实时连接，未读徽标随之更新
 	notifyNotificationUsers(notified)
 	if err := repo.Revision.DeleteByTarget(constant.TargetTypePost, postId); err != nil {
@@ -154,16 +156,83 @@ func (p *PostService) DeletePost(ctx context.Context, postId uint) *errs.Service
 	return nil
 }
 
+// withPendingPostView 叠加尚未落库的阅读量增量；返回浅拷贝以避免并发修改缓存/singleflight 共享对象
+func withPendingPostView(d *dto.PostDto) *dto.PostDto {
+	if d == nil {
+		return nil
+	}
+	delta := PendingPostViewDelta(d.ID)
+	if delta == 0 {
+		return d
+	}
+	cp := *d
+	cp.ViewCount += delta
+	return &cp
+}
+
+func withPendingPostViews(items []*dto.PostDto) []*dto.PostDto {
+	if len(items) == 0 {
+		return items
+	}
+	ids := make([]uint, 0, len(items))
+	for _, item := range items {
+		if item != nil {
+			ids = append(ids, item.ID)
+		}
+	}
+	deltas := PendingPostViewDeltas(ids)
+	if len(deltas) == 0 {
+		return items
+	}
+	out := make([]*dto.PostDto, len(items))
+	for i, item := range items {
+		if item == nil {
+			continue
+		}
+		if delta := deltas[item.ID]; delta > 0 {
+			cp := *item
+			cp.ViewCount += delta
+			out[i] = &cp
+		} else {
+			out[i] = item
+		}
+	}
+	return out
+}
+
+func withPendingPostCardViews(cards []dto.PostCardDto) []dto.PostCardDto {
+	if len(cards) == 0 {
+		return cards
+	}
+	ids := make([]uint, 0, len(cards))
+	for i := range cards {
+		ids = append(ids, cards[i].ID)
+	}
+	deltas := PendingPostViewDeltas(ids)
+	if len(deltas) == 0 {
+		return cards
+	}
+	out := slices.Clone(cards)
+	for i := range out {
+		out[i].ViewCount += deltas[out[i].ID]
+	}
+	return out
+}
+
 // GetPostSlugOrId 前台读取文章：只返回公开文章的已发布内容，不带草稿。
 // 私密文章只在后台可见，对所有人（含作者与管理员）都当作不存在；作者在后台预览里看（见 GetPostForEdit）
 func (p *PostService) GetPostSlugOrId(ctx context.Context, slugOrId string) (*dto.PostDto, *errs.ServiceError) {
 	if slugOrId == "" {
 		return nil, errs.NewBadRequest("missing_request_parameters")
 	}
-	// 先读短时缓存（缓存里不存草稿）：返回内容对所有人一致，登录用户与访客共用
-	return publicCached("detail:"+slugOrId, func() (*dto.PostDto, *errs.ServiceError) {
+	// 先读短时缓存（缓存里不存草稿）：返回内容对所有人一致，登录用户与访客共用；返回前叠加尚未刷库的阅读量增量
+	d, svcerr := publicCached("detail:"+slugOrId, func() (*dto.PostDto, *errs.ServiceError) {
 		return p.getPublicPost(slugOrId)
 	})
+	if svcerr != nil {
+		return nil, svcerr
+	}
+	return withPendingPostView(d), nil
 }
 
 // getPublicPost 不看当前用户是谁：is_liked 恒为 false，登录用户的点赞状态由浏览器另取（GET /like/status）
@@ -176,6 +245,23 @@ func (p *PostService) getPublicPost(slugOrId string) (*dto.PostDto, *errs.Servic
 	postDto.DraftContent = nil
 	postDto.DraftVersion = 0
 	postDto.HasDraft = false
+	return postDto, nil
+}
+
+// GetRandomPost 随机读取一篇公开已发布文章（含作者、分类、标签、协作者完整关联，不带草稿；空库或仅私密/草稿时返回 404）
+func (p *PostService) GetRandomPost(ctx context.Context) (*dto.PostDto, *errs.ServiceError) {
+	post, err := repo.Post.GetRandomPublicPost()
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errs.NewNotFound("target_not_found").WithResource("post")
+		}
+		return nil, errs.Internal("failed_to_get_target", err).WithResource("post")
+	}
+	postDto := post.ToDto()
+	postDto.DraftContent = nil
+	postDto.DraftVersion = 0
+	postDto.HasDraft = false
+	postDto.ViewCount += PendingPostViewDelta(postDto.ID)
 	return postDto, nil
 }
 
@@ -192,7 +278,25 @@ func (p *PostService) GetPublicPostStats(id uint) (*dto.PostStatsDto, *errs.Serv
 		}
 		return nil, errs.Internal("failed_to_get_target", err).WithResource("post")
 	}
+	stats.ViewCount += PendingPostViewDelta(id)
 	return stats, nil
+}
+
+// GetPostNeighbors 获取公开文章的上下篇与相关推荐（走 PostGuestCache 短时缓存，文章或可见性变更时自动作废）
+func (p *PostService) GetPostNeighbors(id uint) (*dto.PostNeighborsResp, *errs.ServiceError) {
+	if id == 0 {
+		return nil, errs.NewBadRequest("missing_request_parameters")
+	}
+	return publicCached("neighbors:"+strconv.FormatUint(uint64(id), 10), func() (*dto.PostNeighborsResp, *errs.ServiceError) {
+		resp, err := repo.Post.GetPostNeighbors(id, 4)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, errs.NewNotFound("target_not_found").WithResource("post")
+			}
+			return nil, errs.Internal("failed_to_get_target", err).WithResource("post")
+		}
+		return resp, nil
+	})
 }
 
 // GetPostForEdit 后台编辑器与预览读取文章：含私密文章与草稿（没有草稿时取已发布的正文），
@@ -219,6 +323,7 @@ func (p *PostService) GetPostForEdit(ctx context.Context, slugOrId string) (*dto
 	if postDto.DraftContent == nil {
 		postDto.DraftContent = &postDto.Content
 	}
+	postDto.ViewCount += PendingPostViewDelta(postDto.ID)
 	return postDto, nil
 }
 
@@ -355,7 +460,10 @@ func (p *PostService) ListPosts(ctx context.Context, req *dto.ListPostReq) ([]*d
 		posts, total, svcerr := p.listPosts(ctx, req, false)
 		return guestPostList{Posts: posts, Total: total}, svcerr
 	})
-	return page.Posts, page.Total, svcerr
+	if svcerr != nil {
+		return nil, 0, svcerr
+	}
+	return withPendingPostViews(page.Posts), page.Total, nil
 }
 
 // ListPostsAdmin 后台管理列出所有文章（包含所有用户的私密文章），仅管理员可用
@@ -363,7 +471,11 @@ func (p *PostService) ListPostsAdmin(ctx context.Context, req *dto.ListPostReq) 
 	if !ctxutils.IsAdmin(ctx) {
 		return nil, 0, errs.NewForbidden("permission_denied")
 	}
-	return p.listPosts(ctx, req, true)
+	posts, total, svcerr := p.listPosts(ctx, req, true)
+	if svcerr != nil {
+		return nil, total, svcerr
+	}
+	return withPendingPostViews(posts), total, nil
 }
 
 // ListMyPosts 后台「我的文章」：当前用户自己的全部文章（含私密文章），供没有管理员权限的作者管理自己的文章；
@@ -377,7 +489,11 @@ func (p *PostService) ListMyPosts(ctx context.Context, req *dto.ListPostReq) ([]
 		return nil, 0, errs.NewForbidden("permission_denied")
 	}
 	req.UserID = currentUser.ID
-	return p.listPosts(ctx, req, true)
+	posts, total, svcerr := p.listPosts(ctx, req, true)
+	if svcerr != nil {
+		return nil, total, svcerr
+	}
+	return withPendingPostViews(posts), total, nil
 }
 
 // listPosts includePrivate 为 true 时是后台管理视图（含私密文章、带 AI 摘要任务状态）
@@ -394,7 +510,7 @@ func (p *PostService) listPosts(ctx context.Context, req *dto.ListPostReq, inclu
 			queryArray = append(queryArray, strings.TrimSpace(q))
 		}
 	}
-	posts, total, err := repo.Post.ListPosts(includePrivate, queryArray, req)
+	posts, total, err := repo.Post.ListPostsContext(ctx, includePrivate, queryArray, req)
 	if err != nil {
 		return nil, total, errs.Internal("failed_to_get_target", err).WithResource("post")
 	}
@@ -509,7 +625,7 @@ func (p *PostService) ListPostCards(ctx context.Context, ids []uint) ([]dto.Post
 	if len(ids) == 0 {
 		return []dto.PostCardDto{}, nil
 	}
-	return publicCached(postCardCacheKey(ids), func() ([]dto.PostCardDto, *errs.ServiceError) {
+	cards, svcerr := publicCached(postCardCacheKey(ids), func() ([]dto.PostCardDto, *errs.ServiceError) {
 		posts, err := repo.Post.ListPostCardsByIDs(ids)
 		if err != nil {
 			return nil, errs.Internal("failed_to_get_target", err).WithResource("post")
@@ -527,6 +643,10 @@ func (p *PostService) ListPostCards(ctx context.Context, ids []uint) ([]dto.Post
 		}
 		return cards, nil
 	})
+	if svcerr != nil {
+		return nil, svcerr
+	}
+	return withPendingPostCardViews(cards), nil
 }
 
 // normalizePostCardIDs 去掉 0 与重复的 id，最多保留 MaxPostCardIDs 个，保持原有顺序
