@@ -27,5 +27,6 @@ func List() []*gormigrate.Migration {
 		siteInfoOldDefaults(),
 		dropMusicStaticPlaylist(),
 		relativeFileLinks(),
+		postLabelsIndex(),
 	}
 }

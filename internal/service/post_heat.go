@@ -36,65 +36,64 @@ type weightedEvent struct {
 	at     time.Time
 }
 
+// eventDecay 单个互动事件对热度的贡献（未缩放）
+func eventDecay(weight float64, at, now time.Time) float64 {
+	age := now.Sub(at)
+	if age < 0 {
+		age = 0
+	}
+	if age > heatWindow {
+		return 0
+	}
+	return weight * math.Exp2(-float64(age)/float64(heatHalfLife))
+}
+
 // postHeatScore 单篇文章的热度分（未缩放）
 func postHeatScore(viewCount uint64, events []weightedEvent, now time.Time) float64 {
 	score := math.Log1p(float64(viewCount))
 	for _, e := range events {
-		age := now.Sub(e.at)
-		if age < 0 {
-			age = 0
-		}
-		if age > heatWindow {
-			continue
-		}
-		score += e.weight * math.Exp2(-float64(age)/float64(heatHalfLife))
+		score += eventDecay(e.weight, e.at, now)
 	}
 	return score
 }
 
-// Refresh 重算所有文章的热度，只写入有变化的文章，返回更新的数量
+// Refresh 流式重算所有文章的热度（不在内存中攒全量访问/点赞明细切片），只写入有变化的文章，返回更新的数量
 func (s *PostHeatService) Refresh(now time.Time) (int, error) {
 	since := now.Add(-heatWindow)
-	visits, err := repo.Post.ListHeatVisits(since)
-	if err != nil {
-		return 0, err
-	}
-	likes, err := repo.Post.ListHeatLikes(since)
-	if err != nil {
-		return 0, err
-	}
-	comments, err := repo.Post.ListHeatComments(since)
-	if err != nil {
-		return 0, err
-	}
 	bases, err := repo.Post.ListPostHeatBases()
 	if err != nil {
 		return 0, err
 	}
-
-	events := map[uint][]weightedEvent{}
-	for _, v := range visits {
-		events[v.PostID] = append(events[v.PostID], weightedEvent{heatWeightVisit, v.CreatedAt})
+	eventScores := make(map[uint]float64, len(bases))
+	if err := repo.Post.StreamHeatVisits(since, func(v repo.HeatEvent) {
+		eventScores[v.PostID] += eventDecay(heatWeightVisit, v.CreatedAt, now)
+	}); err != nil {
+		return 0, err
 	}
-	for _, l := range likes {
-		events[l.PostID] = append(events[l.PostID], weightedEvent{heatWeightLike, l.CreatedAt})
+	if err := repo.Post.StreamHeatLikes(since, func(l repo.HeatEvent) {
+		eventScores[l.PostID] += eventDecay(heatWeightLike, l.CreatedAt, now)
+	}); err != nil {
+		return 0, err
 	}
 	// 同一用户在同一篇文章下只取最近一条评论
 	type commenter struct{ postID, userID uint }
 	latest := map[commenter]time.Time{}
-	for _, c := range comments {
+	if err := repo.Post.StreamHeatComments(since, func(c repo.HeatEvent) {
 		key := commenter{c.PostID, c.UserID}
 		if c.CreatedAt.After(latest[key]) {
 			latest[key] = c.CreatedAt
 		}
+	}); err != nil {
+		return 0, err
 	}
 	for key, at := range latest {
-		events[key.postID] = append(events[key.postID], weightedEvent{heatWeightComment, at})
+		eventScores[key.postID] += eventDecay(heatWeightComment, at, now)
 	}
 
 	changed := map[uint]uint64{}
 	for _, b := range bases {
-		heat := uint64(math.Round(postHeatScore(b.ViewCount, events[b.ID], now) * heatScale))
+		score := math.Log1p(float64(b.ViewCount)) + eventScores[b.ID]
+		heat := uint64(math.Round(score * heatScale))
 		if heat != b.Heat {
 			changed[b.ID] = heat
 		}

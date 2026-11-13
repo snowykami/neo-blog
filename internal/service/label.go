@@ -93,15 +93,17 @@ func (l *LabelService) GetLabelByID(id uint) (*dto.LabelDto, *errs.ServiceError)
 }
 
 func (l *LabelService) ListLabels() ([]dto.LabelDto, *errs.ServiceError) {
-	labels, err := repo.Label.ListLabels()
-	var labelDtos []dto.LabelDto
-	if err != nil {
-		return labelDtos, errs.Internal("failed_to_list_targets", err)
-	}
-	for _, label := range labels {
-		labelDtos = append(labelDtos, label.ToDto())
-	}
-	return labelDtos, nil
+	return publicCached("labels:all", func() ([]dto.LabelDto, *errs.ServiceError) {
+		labels, err := repo.Label.ListLabels()
+		if err != nil {
+			return nil, errs.Internal("failed_to_list_targets", err)
+		}
+		labelDtos := make([]dto.LabelDto, 0, len(labels))
+		for _, label := range labels {
+			labelDtos = append(labelDtos, label.ToDto())
+		}
+		return labelDtos, nil
+	})
 }
 
 func ensureLabelExists(id uint) *errs.ServiceError {

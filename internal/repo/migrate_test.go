@@ -25,6 +25,13 @@ const testPostgresDSNEnv = "NEO_TEST_POSTGRES_DSN"
 
 var migrationIDPattern = regexp.MustCompile(`^\d{10}_[a-z0-9_]+$`)
 
+type postLabelIndexProbe struct {
+	PostID  uint `gorm:"primaryKey"`
+	LabelID uint `gorm:"primaryKey"`
+}
+
+func (postLabelIndexProbe) TableName() string { return "post_labels" }
+
 func TestMigrationIDs(t *testing.T) {
 	prev := ""
 	for _, m := range migrations.List() {
@@ -74,6 +81,12 @@ func TestMigrateFreshDatabase(t *testing.T) {
 		}
 		if !db.Migrator().HasIndex(&model.Post{}, "idx_posts_list_created") {
 			t.Error("missing index idx_posts_list_created")
+		}
+		if !db.Migrator().HasIndex(&postLabelIndexProbe{}, "idx_post_labels_label_post") {
+			t.Error("missing index idx_post_labels_label_post")
+		}
+		if !db.Migrator().HasIndex(&model.VisitLog{}, "idx_visit_logs_heat") {
+			t.Error("missing index idx_visit_logs_heat")
 		}
 
 		// 再次启动不重复执行
@@ -207,6 +220,12 @@ func TestMigrateLegacyDatabase(t *testing.T) {
 		}
 		if !db.Migrator().HasIndex(&model.Post{}, "idx_posts_list_created") || !db.Migrator().HasIndex(&model.Post{}, "PinnedAt") {
 			t.Error("list index or pinned_at index missing after migration")
+		}
+		if !db.Migrator().HasIndex(&postLabelIndexProbe{}, "idx_post_labels_label_post") {
+			t.Error("missing index idx_post_labels_label_post after legacy migration")
+		}
+		if !db.Migrator().HasIndex(&model.VisitLog{}, "idx_visit_logs_heat") {
+			t.Error("missing index idx_visit_logs_heat after legacy migration")
 		}
 		var pinned []model.Post
 		if err := db.Unscoped().Where("pinned_at IS NOT NULL").Order("pinned_at DESC").Find(&pinned).Error; err != nil {

@@ -30,6 +30,14 @@ func GetDB() *gorm.DB {
 	return db
 }
 
+// DB 返回绑定了请求上下文的数据库连接；客户端断开或超时后驱动可及时中止慢查询
+func DB(ctx context.Context) *gorm.DB {
+	if db == nil || ctx == nil {
+		return db
+	}
+	return db.WithContext(ctx)
+}
+
 // Ping 检查数据库连接是否可用（就绪检查使用）
 func Ping(ctx context.Context) error {
 	d := GetDB()
@@ -230,6 +238,7 @@ func configureConnPool(driver string) {
 	if driver == "postgres" {
 		sqlDB.SetMaxOpenConns(20)
 		sqlDB.SetMaxIdleConns(10)
+		sqlDB.SetConnMaxLifetime(30 * time.Minute)
 	}
 	sqlDB.SetConnMaxIdleTime(5 * time.Minute)
 }
@@ -295,6 +304,10 @@ func createQueryIndexes() error {
 		"CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id)",
 		// 访问去重：同一访客短时间内访问同一路径
 		"CREATE INDEX IF NOT EXISTS idx_visit_logs_dedup ON visit_logs (visitor_id, path, created_at)",
+		// 文章热度统计：按行为、目标类型与时间窗口扫描访问记录
+		"CREATE INDEX IF NOT EXISTS idx_visit_logs_heat ON visit_logs (action, target_type, created_at, target_id)",
+		// 标签关联反查：按 label_id 统计公开文章数与筛选文章（补充主键 (post_id, label_id) 的反向索引）
+		"CREATE INDEX IF NOT EXISTS idx_post_labels_label_post ON post_labels (label_id, post_id)",
 		// 通知：未读徽标与未读列表（read_at 为 NULL 时的等值查询走索引前缀）
 		"CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications (user_id, read_at, id)",
 	}
