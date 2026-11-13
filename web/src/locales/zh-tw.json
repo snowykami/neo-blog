@@ -3456,6 +3456,8 @@
     "send_verify_code": "發送驗證碼",
     "send_verify_code_failed": "發送失敗",
     "send_verify_code_success": "驗證碼已發送",
+    "captcha_error": "驗證碼錯誤，請重試。",
+    "fetch_captcha_config_failed": "取得驗證碼設定失敗",
     "verify_code": "驗證碼",
     "email_unavailable": "網站尚未設定郵件服務，收不到驗證碼，暫時無法透過信箱找回密碼。請聯絡管理員。",
     "verify_disabled": "網站關閉了信箱驗證，無法透過信箱找回密碼。請聯絡管理員。",

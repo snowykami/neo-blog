@@ -5,11 +5,24 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/sirupsen/logrus"
+	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/resps"
 	"github.com/snowykami/neo-blog/pkg/utils"
 )
+
+// UseCaptchaForAnon 未登录请求需通过人机验证，已登录请求（经 UseAuth(false) 注入用户身份）直接放行并由业务层按账号限流
+func UseCaptchaForAnon() app.HandlerFunc {
+	verify := UseCaptcha()
+	return func(ctx context.Context, c *app.RequestContext) {
+		if _, ok := ctxutils.GetCurrentUserID(ctx); ok {
+			c.Next(ctx)
+			return
+		}
+		verify(ctx, c)
+	}
+}
 
 // UseCaptcha 中间件函数，用于X-Captcha-Token验证码
 func UseCaptcha() app.HandlerFunc {

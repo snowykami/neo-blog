@@ -89,7 +89,7 @@ func (u *UserController) Register(ctx context.Context, c *app.RequestContext) {
 func (u *UserController) Logout(ctx context.Context, c *app.RequestContext) {
 	// 清除客户端Cookie
 	ctxutils.Clear2Tokens(c)
-	sessionId := ctx.Value("session_id").(string)
+	sessionId, _ := ctx.Value("session_id").(string)
 	if sessionId == "" {
 		resps.Ok(c, resps.Success, nil)
 		return
@@ -190,7 +190,8 @@ func (u *UserController) UpdateUser(ctx context.Context, c *app.RequestContext) 
 }
 
 func (u *UserController) VerifyEmail(ctx context.Context, c *app.RequestContext) {
-	verifyEmailReq := dto.VerifyEmailReq{UserIP: c.ClientIP()}
+	userID, _ := ctxutils.GetCurrentUserID(ctx)
+	verifyEmailReq := dto.VerifyEmailReq{UserIP: c.ClientIP(), UserID: userID}
 	if err := c.BindAndValidate(&verifyEmailReq); err != nil {
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
@@ -278,19 +279,19 @@ func (u *UserController) GetCaptchaConfig(ctx context.Context, c *app.RequestCon
 
 func (u *UserController) GetUserLastIPLocation(ctx context.Context, c *app.RequestContext) {
 	userID := ctxutils.GetIDParam(c).Uint
-	// 获取用户最新的session
-	session, err := repo.Session.GetLatestSessionByUserID(userID)
-	if err != nil {
-		resps.Error(c, errs.FromDB(err, "session", "failed_to_get_target"))
-		return
-	}
 	user, err := repo.User.GetUserByID(userID)
 	if err != nil {
 		resps.Error(c, errs.FromDB(err, "user", "failed_to_get_user"))
 		return
 	}
-	if !*user.ShowIPLocation {
+	if user.ShowIPLocation == nil || !*user.ShowIPLocation {
 		resps.Forbidden(c, "ip_location_hidden")
+		return
+	}
+	// 获取用户最新的session
+	session, err := repo.Session.GetLatestSessionByUserID(userID)
+	if err != nil {
+		resps.Error(c, errs.FromDB(err, "session", "failed_to_get_target"))
 		return
 	}
 	ipInfo, err := utils2.GetIPInfo(session.LatestIP())

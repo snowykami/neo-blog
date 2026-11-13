@@ -116,6 +116,9 @@ func (s *UserService) finalizeUserFromUserinfo(ctx context.Context, req *dto.Oid
 		if currentUser == nil || !userOk {
 			return nil, errs.NewUnauthorized("login_required")
 		}
+		if currentUser.Disabled {
+			return nil, errs.NewForbidden("user_disabled")
+		}
 		// 只能绑定到发起绑定的用户
 		if currentUser.ID != req.BindUserID {
 			return nil, errs.NewForbidden("invalid_oidc_state")
@@ -126,27 +129,17 @@ func (s *UserService) finalizeUserFromUserinfo(ctx context.Context, req *dto.Oid
 			return nil, errs.Internal("failed_to_get_user_openid", err)
 		}
 		if existingUserOpenID != nil {
-			// 已经绑定过的账号，不绑定直接登录，同时更新信息
+			if existingUserOpenID.UserID != currentUser.ID {
+				return nil, errs.NewConflict("openid_already_bound")
+			}
+			// 已绑定到当前账号：仅同步最新资料，不切换会话
 			if err = s.updateUserOpenIdInfo(existingUserOpenID, userInfo); err != nil {
 				return nil, errs.Internal("failed_to_update_target", err)
 			}
-			// 与其他登录方式一样创建会话：刷新令牌按会话校验，空会话的令牌在访问令牌过期后无法续期
-			sessionID := utils.Strings.GenerateRandomString(32)
-			if err = repo.Session.CreateSession(&model.Session{
-				UserID:    existingUserOpenID.UserID,
-				SessionID: sessionID,
-				UserIP:    utils.NewIPRecord(req.UserIP),
-			}); err != nil {
-				return nil, errs.Internal("failed_to_create_target", err)
-			}
-			token, refreshToken, err := utils.Jwt.New2Tokens(existingUserOpenID.UserID, sessionID, false)
-			if err != nil {
-				return nil, errs.Internal("failed_to_create_target", err)
-			}
 			return &dto.OidcLoginResp{
-				Token:        token,
-				RefreshToken: refreshToken,
-				User:         existingUserOpenID.User.ToPrivateDto(),
+				Token:        "",
+				RefreshToken: "",
+				User:         currentUser.ToPrivateDto(),
 			}, nil
 		}
 		// 绑定到当前登录用户并更新信息
@@ -345,6 +338,12 @@ func (s *UserService) exchangeAndFetchUserinfo(oidcConfig *model.OidcConfig, req
 		if err != nil {
 			logrus.WithError(err).Error("failed to request misskey oidc token")
 			return nil, errs.Internal("failed_to_request_oidc_token", err)
+		}
+		if misskeyTokenResp.User.ID == "" {
+			return nil, errs.NewBadRequest("invalid_oidc_userinfo")
+		}
+		if misskeyTokenResp.User.IsSuspended {
+			return nil, errs.NewForbidden("user_disabled")
 		}
 		userInfo.Sub = misskeyTokenResp.User.ID
 		userInfo.Name = misskeyTokenResp.User.Name

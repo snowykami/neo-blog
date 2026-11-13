@@ -3456,6 +3456,8 @@
     "send_verify_code": "Send code",
     "send_verify_code_failed": "Send failed",
     "send_verify_code_success": "Code sent",
+    "captcha_error": "Captcha error, try again.",
+    "fetch_captcha_config_failed": "Failed to get captcha config",
     "verify_code": "Verification code",
     "email_unavailable": "This site has no email service set up, so no verification code can be sent and passwords can’t be reset by email right now. Please contact the administrator.",
     "verify_disabled": "Email verification is turned off on this site, so passwords can’t be reset by email. Please contact the administrator.",

@@ -43,10 +43,12 @@ const (
 )
 
 const (
-	loginLimitWindow      = 15 * time.Minute
-	loginIPLimit          = 30 // 同一 IP 在窗口内最多登录请求数
-	loginAccountFailLimit = 10 // 同一账号在窗口内最多失败次数
-	verifyEmailIPLimit    = 10 // 同一 IP 每小时最多发送验证码次数
+	loginLimitWindow       = 15 * time.Minute
+	loginIPLimit           = 30  // 同一 IP 在窗口内最多登录请求数
+	loginAccountFailLimit  = 10  // 同一账号在窗口内最多失败次数
+	verifyEmailIPLimit     = 10  // 同一 IP 每小时最多发送验证码次数
+	verifyEmailUserLimit   = 5   // 同一已登录账号每小时最多发送验证码次数
+	verifyEmailGlobalLimit = 300 // 全站每小时最多发送验证码次数，防止分布式代理耗尽 SMTP 配额
 )
 
 // EmailVerifyEnabled 是否开启邮箱验证（环境变量 ENABLE_EMAIL_VERIFY，默认开启）：开启时注册、找回密码、改邮箱都要邮箱验证码
@@ -194,13 +196,22 @@ func (s *UserService) RequestVerifyEmail(req *dto.VerifyEmailReq) (*dto.VerifyEm
 	if !emailConfig.Usable() {
 		return nil, errs.NewForbidden("email_service_unavailable")
 	}
-	// 同一邮箱按冷却时间限制发送频率，同一 IP 每小时最多发送若干次，防止邮件轰炸
+	// 同一邮箱按冷却时间限制发送频率，同一 IP / 账号与全站每小时都有上限，防止邮件轰炸与配额耗尽
 	coolDown := time.Duration(tools.GetVerifyCodeCoolDown()) * time.Second
 	emailKey := "verify_email:" + strings.ToLower(req.Email)
 	if !utils.AllowRequest(emailKey, 1, coolDown) {
 		return nil, errs.NewTooManyRequests("too_many_requests")
 	}
+	if req.UserID != 0 && !utils.AllowRequest("verify_email_user:"+strconv.FormatUint(uint64(req.UserID), 10), verifyEmailUserLimit, time.Hour) {
+		utils.ResetFailures(emailKey)
+		return nil, errs.NewTooManyRequests("too_many_requests")
+	}
 	if !utils.AllowRequest("verify_email_ip:"+req.UserIP, verifyEmailIPLimit, time.Hour) {
+		utils.ResetFailures(emailKey)
+		return nil, errs.NewTooManyRequests("too_many_requests")
+	}
+	if !utils.AllowRequest("verify_email_global_hour", verifyEmailGlobalLimit, time.Hour) {
+		utils.ResetFailures(emailKey)
 		return nil, errs.NewTooManyRequests("too_many_requests")
 	}
 	verifyCode := utils.RequestEmailVerify(req.Email)

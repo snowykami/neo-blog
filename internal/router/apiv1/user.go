@@ -18,8 +18,8 @@ func registerUserRoutes(group *route.RouterGroup) {
 		// 需要人机验证
 		userGroupWithCaptcha.POST("/login", userController.Login)
 		userGroupWithCaptcha.POST("/register", userController.Register)
-		// 无需鉴权
-		userGroupNoAuth.POST("/email/verify", userController.VerifyEmail) // Send email verification code
+		// 无需鉴权（未登录发验证码需人机验证，已登录换绑邮箱按账号限流）
+		userGroupNoAuth.POST("/email/verify", middleware.UseCaptchaForAnon(), userController.VerifyEmail)
 		userGroupNoAuth.GET("/captcha", userController.GetCaptchaConfig)
 		userGroupNoAuth.GET("/oidc/list", userController.GetOidcConfigList)
 		userGroupNoAuth.GET("/oidc/authorize/:name", userController.OidcAuthorize) // 点击第三方登录时访问，绑定时需已登录

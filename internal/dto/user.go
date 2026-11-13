@@ -63,6 +63,7 @@ type UserRegisterResp struct {
 type VerifyEmailReq struct {
 	Email  string `json:"email"` // 邮箱地址
 	UserIP string `json:"-"`
+	UserID uint   `json:"-"`
 }
 
 type VerifyEmailResp struct {

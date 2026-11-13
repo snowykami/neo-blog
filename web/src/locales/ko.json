@@ -3456,6 +3456,8 @@
     "send_verify_code": "코드 보내기",
     "send_verify_code_failed": "전송 실패",
     "send_verify_code_success": "코드 전송됨",
+    "captcha_error": "캡차 오류, 다시 시도하세요.",
+    "fetch_captcha_config_failed": "캡차 설정 가져오기 실패",
     "verify_code": "인증 코드",
     "email_unavailable": "사이트에 메일 서비스가 설정되어 있지 않아 인증 코드를 받을 수 없으므로 지금은 이메일로 비밀번호를 재설정할 수 없습니다. 관리자에게 문의하세요.",
     "verify_disabled": "이 사이트는 이메일 인증이 꺼져 있어 이메일로 비밀번호를 재설정할 수 없습니다. 관리자에게 문의하세요.",

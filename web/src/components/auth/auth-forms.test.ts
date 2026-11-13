@@ -194,4 +194,12 @@ describe('找回密码表单', () => {
     await render(createElement(ResetPasswordForm))
     expect(container.querySelector('[data-slot="alert"]')?.textContent).toBe('email_unavailable')
   })
+
+  it('发送找回密码验证码时附带人机验证令牌', async () => {
+    api.getCaptchaConfig.mockResolvedValue({ data: { provider: 'turnstile', siteKey: 'site-key' } })
+    await render(createElement(ResetPasswordForm))
+    await type(field('email'), 'someone@example.com')
+    await click('obtain')
+    expect(api.requestEmailVerifyCode).toHaveBeenCalledWith({ email: 'someone@example.com', captchaToken: 'captcha-token' })
+  })
 })

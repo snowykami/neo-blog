@@ -1,7 +1,6 @@
 'use client'
 
 import type { User } from '@/models/user'
-import type { CaptchaProvider } from '@/types/captcha'
 import { MailWarningIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useEffect, useState } from 'react'
@@ -19,6 +18,7 @@ import { loginPath } from '@/hooks/use-route'
 import { useCommonT, useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { useVerifyCodeSender } from '@/hooks/use-verify-code-sender'
 import { Link } from '@/i18n/navigation'
+import { CaptchaProvider } from '@/types/captcha'
 import { isValidEmail, isValidPassword, PASSWORD_MAX, PASSWORD_MIN } from '@/utils/common/account'
 
 interface RegisterValues {
@@ -84,17 +84,24 @@ export function LocalRegisterForm({
     }, 1500)
   }
 
-  // 先校验邮箱再发送：格式不对时在邮箱下方提示，不发请求
+  // 先校验邮箱再发送：格式不对时在邮箱下方提示，不发请求；人机验证开启时单次令牌用后即刷新，供后续提交注册使用
   const handleSendVerifyCode = async () => {
-    if (!(await form.trigger('email')))
+    if (!captchaToken || !(await form.trigger('email')))
       return
     const email = form.getValues('email').trim()
+    const token = captchaToken
     try {
-      if (await sender.send(() => requestEmailVerifyCode({ email, captchaToken: captchaToken || '' })))
+      if (await sender.send(() => requestEmailVerifyCode({ email, captchaToken: token })))
         toast.success(t('send_verify_code_success'))
     }
     catch (error) {
       toast.error(`${t('send_verify_code_failed')}: ${translateErrorDetails(error)}`)
+    }
+    finally {
+      if (captchaProps && captchaProps.provider !== CaptchaProvider.DISABLE) {
+        setCaptchaToken(null)
+        setRefreshCaptchaKey(k => k + 1)
+      }
     }
   }
 
@@ -189,7 +196,7 @@ export function LocalRegisterForm({
                   </FormControl>
                   <Button
                     onClick={() => void handleSendVerifyCode()}
-                    disabled={emailUnavailable || sender.coolDown > 0 || sender.sending}
+                    disabled={!captchaToken || emailUnavailable || sender.coolDown > 0 || sender.sending}
                     variant="outline"
                     className="border-2"
                     type="button"

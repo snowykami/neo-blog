@@ -2,10 +2,12 @@
 
 import { MailWarningIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
-import { requestEmailVerifyCode, resetPassword } from '@/api/user'
+import { getCaptchaConfig, requestEmailVerifyCode, resetPassword } from '@/api/user'
 import { AuthHeader } from '@/components/auth/common/auth-header'
+import Captcha from '@/components/common/captcha'
 import { InputOTPControlled } from '@/components/common/input-otp'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -17,6 +19,7 @@ import { useCommonT, useErrorMessageT, useOperationT } from '@/hooks/use-transla
 import { useVerifyCodeSender } from '@/hooks/use-verify-code-sender'
 import { Link, useRouter } from '@/i18n/navigation'
 import { cn } from '@/lib/utils'
+import { CaptchaProvider } from '@/types/captcha'
 import { isValidEmail, isValidPassword, PASSWORD_MAX, PASSWORD_MIN } from '@/utils/common/account'
 
 export default function Page() {
@@ -50,18 +53,52 @@ export function ResetPasswordForm({ className, ...props }: React.ComponentProps<
   const { isSubmitting } = form.formState
   // 找回密码只能靠邮箱验证码：关闭了邮箱验证（后端直接拒绝）或发不出邮件时都走不通
   const unavailableHint = !sender.verifyRequired ? t('verify_disabled') : sender.emailUnavailable ? t('email_unavailable') : null
+  const [captchaProps, setCaptchaProps] = useState<{
+    provider: CaptchaProvider
+    siteKey: string
+    url?: string
+  } | null>(null)
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
+  const [refreshCaptchaKey, setRefreshCaptchaKey] = useState(0)
+
+  useEffect(() => {
+    getCaptchaConfig()
+      .then((res) => {
+        setCaptchaProps(res.data)
+      })
+      .catch((error) => {
+        toast.error(
+          t('fetch_captcha_config_failed') + (error?.message ? `: ${error.message}` : ''),
+        )
+        setCaptchaProps(null)
+      })
+  }, [refreshCaptchaKey, t])
+
+  const handleCaptchaError = (error: string) => {
+    toast.error(t('captcha_error') + (error ? `: ${error}` : ''))
+    setTimeout(() => {
+      setRefreshCaptchaKey(k => k + 1)
+    }, 1500)
+  }
 
   // 先校验邮箱再发送：格式不对时在邮箱下方提示，不发请求
   const handleSendVerifyCode = async () => {
-    if (!(await form.trigger('email')))
+    if (!captchaToken || !(await form.trigger('email')))
       return
     const email = form.getValues('email').trim()
+    const token = captchaToken
     try {
-      if (await sender.send(() => requestEmailVerifyCode({ email })))
+      if (await sender.send(() => requestEmailVerifyCode({ email, captchaToken: token })))
         toast.success(t('send_verify_code_success'))
     }
     catch (error) {
       toast.error(`${t('send_verify_code_failed')}: ${errorMessageT(error)}`)
+    }
+    finally {
+      if (captchaProps && captchaProps.provider !== CaptchaProvider.DISABLE) {
+        setCaptchaToken(null)
+        setRefreshCaptchaKey(k => k + 1)
+      }
     }
   }
 
@@ -122,7 +159,7 @@ export function ResetPasswordForm({ className, ...props }: React.ComponentProps<
                         <InputOTPControlled value={field.value} onChange={field.onChange} />
                       </FormControl>
                       <Button
-                        disabled={Boolean(unavailableHint) || sender.coolDown > 0 || sender.sending}
+                        disabled={!captchaToken || Boolean(unavailableHint) || sender.coolDown > 0 || sender.sending}
                         variant="outline"
                         className="border-2"
                         type="button"
@@ -136,6 +173,16 @@ export function ResetPasswordForm({ className, ...props }: React.ComponentProps<
                   </FormItem>
                 )}
               />
+              {!unavailableHint && captchaProps && (
+                <div className="flex w-full items-center justify-center">
+                  <Captcha
+                    {...captchaProps}
+                    onSuccess={setCaptchaToken}
+                    onError={handleCaptchaError}
+                    key={refreshCaptchaKey}
+                  />
+                </div>
+              )}
               <FormField
                 control={form.control}
                 name="newPassword"

@@ -3581,6 +3581,8 @@
     "send_verify_code": "发送验证码",
     "send_verify_code_failed": "发送验证码失败",
     "send_verify_code_success": "重置密码验证码已发送",
+    "captcha_error": "验证错误，请重试。",
+    "fetch_captcha_config_failed": "获取人机验证配置失败，请稍后重试。",
     "verify_code": "验证码",
     "email_unavailable": "站点还没有配置邮件服务，收不到验证码，暂时无法通过邮箱找回密码。请联系管理员。",
     "verify_disabled": "站点关闭了邮箱验证，无法通过邮箱找回密码。请联系管理员。",

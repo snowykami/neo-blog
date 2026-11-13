@@ -3456,6 +3456,8 @@
     "send_verify_code": "コードを送信",
     "send_verify_code_failed": "送信に失敗しました",
     "send_verify_code_success": "コードを送信しました",
+    "captcha_error": "CAPTCHA 認証に失敗しました。もう一度お試しください。",
+    "fetch_captcha_config_failed": "CAPTCHA の設定を取得できませんでした",
     "verify_code": "認証コード",
     "email_unavailable": "サイトのメール送信が設定されていないため認証コードが届かず、現在はメールでパスワードを再設定できません。管理者に連絡してください。",
     "verify_disabled": "このサイトではメール認証が無効のため、メールでパスワードを再設定できません。管理者に連絡してください。",
