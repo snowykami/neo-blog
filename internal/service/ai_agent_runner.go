@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -15,6 +14,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/internal/llmclient"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/tools"
@@ -467,13 +467,13 @@ func (s *AIAgentService) AgentChat(ctx context.Context, runID uint, payload map[
 	callCtx, cancel := context.WithTimeout(ctx, agentLLMTimeout)
 	defer cancel()
 	// 消息带图片时：模型拒收则去掉图片重试一次（经 ctx 上的回调告知 worker 记入运行步骤）
-	resp, err := postChatCompletionsVision(callCtx, tools.AIConfig{BaseURL: aiCfg.BaseURL, APIKey: aiCfg.APIKey, Model: modelName}, body)
+	resp, err := llmclient.PostChatCompletionsVision(callCtx, tools.AIConfig{BaseURL: aiCfg.BaseURL, APIKey: aiCfg.APIKey, Model: modelName}, body)
 	if err != nil {
 		finish(llmUsage{}, err)
 	}
-	var statusErr *chatStatusError
+	var statusErr *llmclient.StatusError
 	if errors.As(err, &statusErr) {
-		return nil, &AgentLLMStatusError{Status: statusErr.code, Message: statusErr.msg}
+		return nil, &AgentLLMStatusError{Status: statusErr.Code, Message: statusErr.Message}
 	}
 	if err != nil {
 		return nil, err
@@ -484,7 +484,7 @@ func (s *AIAgentService) AgentChat(ctx context.Context, runID uint, payload map[
 		finish(llmUsage{}, err)
 		return nil, err
 	}
-	usage := parseLLMUsageDetail(data)
+	usage := llmclient.ParseUsageDetail(data)
 	finish(usage, nil)
 	prompt, cached, completion := usage.Prompt, usage.Cached, usage.Completion
 	if err := repo.AIAgent.AddRunUsage(run.ID, modelName, prompt, cached, completion); err != nil {
@@ -505,43 +505,6 @@ func reserveAgentLLMCall(cfg tools.AIAgentConfig, now time.Time) error {
 		return fmt.Errorf("%w: hourly call limit", ErrAgentLLMBudget)
 	}
 	return nil
-}
-
-// parseLLMUsage 从 OpenAI 兼容响应中读取用量：输入、其中命中缓存的、输出 token
-func parseLLMUsage(data []byte) (prompt, cached, completion int) {
-	u := parseLLMUsageDetail(data)
-	return u.Prompt, u.Cached, u.Completion
-}
-
-// openAIUsage OpenAI 兼容响应（含流式的最后一块）中的 usage
-type openAIUsage struct {
-	PromptTokens        int `json:"prompt_tokens"`
-	CompletionTokens    int `json:"completion_tokens"`
-	PromptTokensDetails struct {
-		CachedTokens     int `json:"cached_tokens"`
-		CacheWriteTokens int `json:"cache_write_tokens"` // OpenRouter 等的写法
-	} `json:"prompt_tokens_details"`
-	PromptCacheHitTokens     int `json:"prompt_cache_hit_tokens"`     // DeepSeek 等的写法
-	CacheReadInputTokens     int `json:"cache_read_input_tokens"`     // Anthropic 兼容接口的写法
-	CacheCreationInputTokens int `json:"cache_creation_input_tokens"` // Anthropic 兼容接口的写法
-}
-
-func (u openAIUsage) detail() llmUsage {
-	return llmUsage{
-		Prompt:     u.PromptTokens,
-		Cached:     max(u.PromptTokensDetails.CachedTokens, u.PromptCacheHitTokens, u.CacheReadInputTokens),
-		CacheWrite: max(u.PromptTokensDetails.CacheWriteTokens, u.CacheCreationInputTokens),
-		Completion: u.CompletionTokens,
-	}
-}
-
-// parseLLMUsageDetail 从非流式响应中读取用量（含缓存读写，接口返回时才有）
-func parseLLMUsageDetail(data []byte) llmUsage {
-	var resp struct {
-		Usage openAIUsage `json:"usage"`
-	}
-	_ = json.Unmarshal(data, &resp)
-	return resp.Usage.detail()
 }
 
 // backgroundAgentChat 后台任务（记忆整理、人设生成）调用模型：与 worker 的调用走同一套全站预算（本月 token、每小时调用次数），
@@ -566,7 +529,7 @@ func backgroundAgentChat(ctx context.Context, record model.AgentRun, aiCfg tools
 		record.Status, record.Error = constant.AgentRunStatusFailed, clipRunes(err.Error(), 1000)
 	} else {
 		record.Status = constant.AgentRunStatusDone
-		record.PromptTokens, record.CachedTokens, record.CompletionTokens = parseLLMUsage(data)
+		record.PromptTokens, record.CachedTokens, record.CompletionTokens = llmclient.ParseUsage(data)
 	}
 	if cerr := repo.AIAgent.CreateRun(&record); cerr != nil {
 		logrus.Warnf("record background llm usage (%s): %v", record.Trigger, cerr)
@@ -574,7 +537,7 @@ func backgroundAgentChat(ctx context.Context, record model.AgentRun, aiCfg tools
 	if err != nil {
 		return "", err
 	}
-	return parseChatCompletion(data)
+	return llmclient.ParseChatCompletion(data)
 }
 
 // ---------- 构建运行内容 ----------
@@ -631,7 +594,7 @@ func (s *AIAgentService) buildLeaseRun(run *model.AgentRun, agent *model.AIAgent
 	// 识图：开启后读文章时附带正文图片；该 AI 用户所用模型最近拒收过图片时按纯文本阅读（worker 记入运行步骤）
 	if tools.GetAIVisionEnabled() {
 		aiCfg := tools.GetAIConfig()
-		leased.Vision = aiVisionUsable(aiCfg.BaseURL, agentModel(agent, profile, cfg, aiCfg))
+		leased.Vision = llmclient.VisionUsable(aiCfg.BaseURL, agentModel(agent, profile, cfg, aiCfg))
 		leased.VisionUnsupported = !leased.Vision
 	}
 	// 自己最近说过的话：提示词要求不重复开头、句式和观点，避免每条评论一个腔调

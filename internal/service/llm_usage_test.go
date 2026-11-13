@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/internal/llmclient"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/tools"
@@ -136,7 +137,7 @@ func TestLLMUsageRecordedForAllPurposes(t *testing.T) {
 
 	// AI 用户的运行：记在该 AI 用户的账号下，运行记录上的用量照旧
 	_, run := leaseCtx(t, ai1.ID, constant.AgentRunKindBrowse)
-	if _, err := NewAIAgentService().AgentChat(context.Background(), run.ID, map[string]any{"messages": chatMessages("s", "u")}); err != nil {
+	if _, err := NewAIAgentService().AgentChat(context.Background(), run.ID, map[string]any{"messages": llmclient.ChatMessages("s", "u")}); err != nil {
 		t.Fatalf("agent chat: %v", err)
 	}
 	agent := waitLLMUsage(t, constant.LLMPurposeAIAgent)
@@ -259,7 +260,7 @@ func TestSiteAIBudget(t *testing.T) {
 
 	// AI 用户的调用照常进行，并记入统一用量
 	_, run := leaseCtx(t, ai1.ID, constant.AgentRunKindBrowse)
-	if _, err := NewAIAgentService().AgentChat(context.Background(), run.ID, map[string]any{"messages": chatMessages("s", "u")}); err != nil {
+	if _, err := NewAIAgentService().AgentChat(context.Background(), run.ID, map[string]any{"messages": llmclient.ChatMessages("s", "u")}); err != nil {
 		t.Fatalf("agent chat should not be blocked by the site budget: %v", err)
 	}
 	if calls.Load() != 1 || len(llmUsageRows(t)) != before+1 {

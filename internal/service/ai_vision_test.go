@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/snowykami/neo-blog/internal/llmclient"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/tools"
@@ -223,7 +224,7 @@ func TestChatCompletionVisionFallback(t *testing.T) {
 	reject.Store(true)
 	srv, bodies := visionModelServer(t, &reject)
 	cfg := tools.AIConfig{BaseURL: srv.URL, APIKey: "k", Model: "text-only"}
-	t.Cleanup(func() { aiVisionUnsupported.Delete(aiVisionKey(cfg.BaseURL, cfg.Model)) })
+	t.Cleanup(func() { llmclient.ResetVisionUnsupported(cfg.BaseURL, cfg.Model) })
 	images := []VisionImage{{Index: 1, DataURL: "data:image/png;base64,AAAA"}}
 
 	var notices []string
@@ -242,7 +243,7 @@ func TestChatCompletionVisionFallback(t *testing.T) {
 	if c := userContent(t, all[1]); c != "正文 [图1]" {
 		t.Fatalf("retry content = %#v", c)
 	}
-	if aiVisionUsable(cfg.BaseURL, cfg.Model) {
+	if llmclient.VisionUsable(cfg.BaseURL, cfg.Model) {
 		t.Fatal("model should be remembered as not supporting images")
 	}
 
@@ -263,7 +264,7 @@ func TestChatCompletionVisionFallback(t *testing.T) {
 	if _, err := aiSummaryCompletion(context.Background(), vision, "s", "u", images); err != nil {
 		t.Fatal(err)
 	}
-	if all = bodies(); len(all) != 4 || !aiVisionUsable(vision.BaseURL, vision.Model) {
+	if all = bodies(); len(all) != 4 || !llmclient.VisionUsable(vision.BaseURL, vision.Model) {
 		t.Fatalf("requests = %d", len(all))
 	}
 	if _, ok := userContent(t, all[3]).([]any); !ok {
@@ -277,7 +278,7 @@ func TestAISummaryVision(t *testing.T) {
 	var reject atomic.Bool
 	modelSrv, bodies := visionModelServer(t, &reject)
 	setAIBaseURL(t, modelSrv.URL)
-	t.Cleanup(func() { aiVisionUnsupported.Delete(aiVisionKey(modelSrv.URL, "test-model")) })
+	t.Cleanup(func() { llmclient.ResetVisionUnsupported(modelSrv.URL, "test-model") })
 	imgSrv := imageServer(t)
 	content := `<p>正文介绍了部署架构。</p><img src="` + imgSrv.URL + `/arch.png" alt="示意图"><p>结尾</p>`
 	if err := repo.GetDB().Model(&model.Post{}).Where("id = ?", post.ID).Update("content", content).Error; err != nil {
@@ -356,7 +357,7 @@ func TestAgentChatVisionFallback(t *testing.T) {
 	if err := repo.KV.SetKV("ai_vision_enabled", true); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { aiVisionUnsupported.Delete(aiVisionKey(srv.URL, "test-model")) })
+	t.Cleanup(func() { llmclient.ResetVisionUnsupported(srv.URL, "test-model") })
 	_, run := leaseCtx(t, ai1.ID, constant.AgentRunKindBrowse)
 	var notices []string
 	ctx := WithVisionFallbackNotice(context.Background(), func(reason string) { notices = append(notices, reason) })

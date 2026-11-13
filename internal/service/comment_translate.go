@@ -13,6 +13,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/internal/llmclient"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/tools"
@@ -56,7 +57,7 @@ const commentTranslateSystemPrompt = `你是博客评论区的翻译助手。识
 // CommentTranslateService 评论 AI 翻译：译文按评论与目标语言缓存在数据库，并与评论内容的 MD5 绑定，内容变化后重新翻译；
 // 与 AI 摘要、AI 写作共用模型调用的并发限制，作为交互请求优先获取名额
 type CommentTranslateService struct {
-	limiter *aiLimiter
+	limiter *llmclient.Limiter
 	// complete 调用大模型，测试时可替换
 	complete func(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error)
 	// concurrency 读取并发上限，测试时可替换
@@ -66,7 +67,7 @@ type CommentTranslateService struct {
 }
 
 var commentTranslateService = &CommentTranslateService{
-	limiter:     aiCallLimiter,
+	limiter:     llmclient.DefaultLimiter,
 	complete:    commentTranslateCompletion,
 	concurrency: tools.GetAISummaryConcurrency,
 	rateLimit:   commentTranslateRateLimit,
@@ -183,10 +184,10 @@ func (s *CommentTranslateService) rememberLanguage(comment *model.Comment, langu
 
 // translate 调用模型翻译，返回源语言与译文；模型偶尔返回空内容或格式不对时重试一次
 func (s *CommentTranslateService) translate(ctx context.Context, cfg tools.AIConfig, content, targetLang, langName string) (string, string, *errs.ServiceError) {
-	if err := s.limiter.acquire(ctx, s.concurrency, true, nil); err != nil {
+	if err := s.limiter.Acquire(ctx, s.concurrency, true, nil); err != nil {
 		return "", "", commentTranslateError(ctx, err)
 	}
-	defer s.limiter.release()
+	defer s.limiter.Release()
 	user := fmt.Sprintf("目标语言：%s（%s）\n\n<comment>\n%s\n</comment>", langName, targetLang, content)
 	userID, _ := ctxutils.GetCurrentUserID(ctx)
 	ctx = withLLMPurpose(ctx, constant.LLMPurposeTranslation, userID)

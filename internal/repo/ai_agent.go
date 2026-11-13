@@ -783,6 +783,26 @@ func (r *aiAgentRepo) RecentPublicPosts(since time.Time, limit int) ([]model.Pos
 	return posts, err
 }
 
+// RecentPublishedPosts 近期新发布或从草稿公开的文章（供中断恢复兜底补扫）
+func (r *aiAgentRepo) RecentPublishedPosts(since time.Time, limit int) ([]model.Post, error) {
+	var posts []model.Post
+	err := feedPostQuery().
+		Where("is_private = ? AND is_draft = ? AND updated_at >= ?", false, false, since).Order("updated_at DESC").Limit(limit).Find(&posts).Error
+	return posts, err
+}
+
+// RecentHumanPublicComments 近期新建或编辑的公开非 AI 评论（供中断恢复兜底补扫）
+func (r *aiAgentRepo) RecentHumanPublicComments(since time.Time, limit int) ([]model.Comment, error) {
+	var comments []model.Comment
+	err := GetDB().Model(&model.Comment{}).
+		Joins("JOIN users ON users.id = comments.user_id AND users.deleted_at IS NULL AND users.is_ai = ?", false).
+		Where("comments.is_private = ? AND comments.updated_at >= ?", false, since).
+		Order("comments.updated_at DESC").
+		Limit(limit).
+		Find(&comments).Error
+	return comments, err
+}
+
 // HotPublicPosts 热度最高的公开文章
 func (r *aiAgentRepo) HotPublicPosts(limit int) ([]model.Post, error) {
 	var posts []model.Post

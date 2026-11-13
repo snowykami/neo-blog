@@ -3,12 +3,10 @@ package service
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"html"
 	"io"
-	"maps"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -19,6 +17,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/snowykami/neo-blog/internal/llmclient"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/storage"
 	"github.com/snowykami/neo-blog/internal/tools"
@@ -32,11 +31,10 @@ import (
 // 模型拒收图片（400 等）时去掉图片按纯文本重试一次，并按接口地址与模型记住一段时间，期间不再发送图片
 
 const (
-	AIVisionMaxImages      = 6                // 每次调用最多附带的图片数，取正文靠前的
-	aiVisionMaxImageBytes  = 4 << 20          // 单张图片上限，超过的跳过
-	aiVisionMaxTotalBytes  = 8 << 20          // 单次调用全部图片的上限（base64 后约 11 MB），超出的跳过
-	aiVisionFetchTimeout   = 15 * time.Second // 单张图片的读取超时
-	aiVisionUnsupportedTTL = 6 * time.Hour    // 模型拒收图片后多久内不再发送（之后再试一次，换了模型或接口立即生效）
+	AIVisionMaxImages     = 6                // 每次调用最多附带的图片数，取正文靠前的
+	aiVisionMaxImageBytes = 4 << 20          // 单张图片上限，超过的跳过
+	aiVisionMaxTotalBytes = 8 << 20          // 单次调用全部图片的上限（base64 后约 11 MB），超出的跳过
+	aiVisionFetchTimeout  = 15 * time.Second // 单张图片的读取超时
 )
 
 // aiVisionImageTypes 接受的图片类型（按内容嗅探）
@@ -50,12 +48,7 @@ type ContentImage struct {
 }
 
 // VisionImage 已读取、可以发给模型的图片
-type VisionImage struct {
-	Index   int    // 对应 ContentImage.Index
-	Alt     string // 替代文本
-	DataURL string // data:<mime>;base64,...
-	Size    int    // 原始字节数
-}
+type VisionImage = llmclient.VisionImage
 
 var (
 	reHTMLImage     = regexp.MustCompile(`(?is)<img\b[^>]*>`)
@@ -305,139 +298,16 @@ func decodeImageDataURL(src string) ([]byte, error) {
 }
 
 // VisionContentParts 用户消息的内容块：正文文本在前，每张图片前加一个 [图N] 标签。
-// 没有图片时直接返回文本（content 保持字符串，与不识图时的请求完全一致）
 func VisionContentParts(text string, images []VisionImage) any {
-	if len(images) == 0 {
-		return text
-	}
-	parts := make([]map[string]any, 0, 1+2*len(images))
-	parts = append(parts, map[string]any{"type": "text", "text": text})
-	for _, img := range images {
-		parts = append(parts,
-			map[string]any{"type": "text", "text": fmt.Sprintf("[图%d]", img.Index)},
-			map[string]any{"type": "image_url", "image_url": map[string]any{"url": img.DataURL}},
-		)
-	}
-	return parts
-}
-
-// ---------- 模型不支持图片时退回纯文本 ----------
-
-// aiVisionUnsupported 拒收过图片的接口与模型 → 拒收时间；属于上游行为的缓存，只存在本进程（与 reasoningEffortUnsupported 相同）
-var aiVisionUnsupported sync.Map
-
-func aiVisionKey(baseURL, model string) string {
-	return baseURL + "\x00" + model
-}
-
-// aiVisionUsable 该接口与模型最近没有拒收过图片
-func aiVisionUsable(baseURL, model string) bool {
-	v, ok := aiVisionUnsupported.Load(aiVisionKey(baseURL, model))
-	if !ok {
-		return true
-	}
-	if at, _ := v.(time.Time); time.Since(at) < aiVisionUnsupportedTTL {
-		return false
-	}
-	aiVisionUnsupported.Delete(aiVisionKey(baseURL, model))
-	return true
-}
-
-func markAIVisionUnsupported(baseURL, model string) {
-	aiVisionUnsupported.Store(aiVisionKey(baseURL, model), time.Now())
+	return llmclient.VisionContentParts(text, images)
 }
 
 // AIVisionAvailable 已开启识图，且该模型最近没有拒收过图片；调用方据此决定要不要读取图片
 func AIVisionAvailable(baseURL, model string) bool {
-	return tools.GetAIVisionEnabled() && aiVisionUsable(baseURL, model)
+	return llmclient.VisionAvailable(baseURL, model)
 }
 
-type visionFallbackKey struct{}
-
-// WithVisionFallbackNotice 在 ctx 上挂一个回调：本该附带的图片没有发出（模型拒收后按纯文本重试、或已知模型不支持）时调用，
-// 调用方据此在运行步骤或任务结果中标明「已退回纯文本」。回调在发起调用的 goroutine 中同步执行
+// WithVisionFallbackNotice 在 ctx 上挂一个回调：本该附带的图片没有发出（模型拒收后按纯文本重试、或已知模型不支持）时调用
 func WithVisionFallbackNotice(ctx context.Context, fn func(reason string)) context.Context {
-	return context.WithValue(ctx, visionFallbackKey{}, fn)
-}
-
-func notifyVisionFallback(ctx context.Context, reason string) {
-	if fn, ok := ctx.Value(visionFallbackKey{}).(func(string)); ok && fn != nil {
-		fn(reason)
-	}
-}
-
-// imageRejectedStatus 接口因请求内容（如不支持图片、图片过大）拒绝时的状态码
-func imageRejectedStatus(code int) bool {
-	return code == http.StatusBadRequest || code == http.StatusRequestEntityTooLarge ||
-		code == http.StatusUnsupportedMediaType || code == http.StatusUnprocessableEntity
-}
-
-// payloadHasImages 请求的消息里是否有图片内容块
-func payloadHasImages(payload map[string]any) bool {
-	data, err := json.Marshal(payload["messages"])
-	return err == nil && strings.Contains(string(data), `"type":"image_url"`)
-}
-
-// payloadWithoutImages 去掉消息中的图片：只剩文字的内容块合并为字符串；图片前的 [图N] 标签一并去掉（正文里的占位仍在）
-func payloadWithoutImages(payload map[string]any) map[string]any {
-	out := maps.Clone(payload)
-	data, err := json.Marshal(payload["messages"])
-	if err != nil {
-		return out
-	}
-	var messages []map[string]any
-	if json.Unmarshal(data, &messages) != nil {
-		return out
-	}
-	for _, msg := range messages {
-		parts, ok := msg["content"].([]any)
-		if !ok {
-			continue
-		}
-		var texts []string
-		for i, p := range parts {
-			part, _ := p.(map[string]any)
-			if part["type"] != "text" {
-				continue
-			}
-			// 紧挨着图片前面的文字块是该图片的标签
-			if i+1 < len(parts) {
-				if next, _ := parts[i+1].(map[string]any); next["type"] == "image_url" {
-					continue
-				}
-			}
-			if text, ok := part["text"].(string); ok {
-				texts = append(texts, text)
-			}
-		}
-		msg["content"] = strings.Join(texts, "\n\n")
-	}
-	out["messages"] = messages
-	return out
-}
-
-// postChatCompletionsVision 同 postChatCompletions，请求带图片时处理识图的兜底：
-// 未开启识图或该模型最近拒收过图片时直接去掉图片；接口以 400 等拒收时去掉图片按纯文本重试一次，重试成功则记住该模型不支持。
-// 两种情况都会通过 ctx 上的回调告知调用方。用量由外层按一次调用记录（与 reasoning_effort 的重试相同）
-func postChatCompletionsVision(ctx context.Context, cfg tools.AIConfig, payload map[string]any) (*http.Response, error) {
-	if !payloadHasImages(payload) {
-		return postChatCompletions(ctx, cfg, payload)
-	}
-	if !AIVisionAvailable(cfg.BaseURL, cfg.Model) {
-		notifyVisionFallback(ctx, "vision is disabled or the model recently rejected images")
-		return postChatCompletions(ctx, cfg, payloadWithoutImages(payload))
-	}
-	resp, err := postChatCompletions(ctx, cfg, payload)
-	var statusErr *chatStatusError
-	if !(errors.As(err, &statusErr) && imageRejectedStatus(statusErr.code)) {
-		return resp, err
-	}
-	logrus.Warnf("chat completion (model %s) rejected images, retrying as plain text: %v", cfg.Model, err)
-	notifyVisionFallback(ctx, "the model rejected images: "+err.Error())
-	resp, err = postChatCompletions(ctx, cfg, payloadWithoutImages(payload))
-	if err == nil {
-		// 去掉图片后成功，说明拒收的原因是图片：一段时间内不再发送
-		markAIVisionUnsupported(cfg.BaseURL, cfg.Model)
-	}
-	return resp, err
+	return llmclient.WithVisionFallbackNotice(ctx, fn)
 }

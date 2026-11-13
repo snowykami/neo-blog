@@ -15,5 +15,6 @@ func StartJobRecovery() {
 	runPeriodically("storage_migration_resume", jobRecoveryInterval, service.ResumeStorageMigration)
 	runPeriodically("lyric_annotation_batch_resume", jobRecoveryInterval, service.ResumeLyricAnnotationBatch)
 	runPeriodically("ai_agent_group_resume", jobRecoveryInterval, service.ResumeAIAgentGroups)
+	runPeriodically("ai_agent_event_resume", jobRecoveryInterval, service.ResumePendingAIAgentEvents)
 	runPeriodically("search_reindex_resume", jobRecoveryInterval, service.ResumeSearchReindex)
 }

@@ -36,8 +36,9 @@ func registerPageRoutes(group *route.RouterGroup) {
 		postGroup.DELETE("/p/:id/revisions/:rid", controller.Revision.Delete(constant.TargetTypePage))
 		postGroup.POST("/p/:id/revisions/batch-delete", controller.Revision.BatchDelete(constant.TargetTypePage))
 		postGroup.POST("/p/:id/discard-draft", controller.Revision.DiscardDraft(constant.TargetTypePage))
-		// AI 写作：编辑器内帮写 / 润色，以 SSE 流式返回
+		// AI 写作：编辑器内帮写 / 润色（SSE 流式），以及一键生成候选标题
 		postGroup.POST("/p/:id/ai-write", controller.AIWrite.Stream(constant.TargetTypePage))
+		postGroup.POST("/p/:id/ai-titles", controller.AIWrite.Titles(constant.TargetTypePage))
 	}
 
 	// HTML 页面：上传静态文件包与版本管理只开放给管理员

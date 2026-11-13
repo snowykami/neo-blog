@@ -14,6 +14,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/pkg/constant"
+	"github.com/snowykami/neo-blog/pkg/sharedstate"
 )
 
 // setupAgentTest 管理员、作者与两个 AI 用户；打开 AI 用户开关并填好模型配置（不会真正调用模型）
@@ -538,5 +539,97 @@ func TestAgentListCommentsSkipsPrivatePosts(t *testing.T) {
 	}
 	if _, svcerr := svc.AgentListComments(ctx, constant.TargetTypePost, postID, 0, 20); svcerr != nil {
 		t.Fatalf("public post comments: %v", svcerr)
+	}
+}
+
+func TestAIAgentEventPersistenceAndIdempotency(t *testing.T) {
+	_, _, ai1, ai2, postID := setupAgentTest(t)
+	_ = repo.KV.SetKV("ai_agents_publish_fanout", 2)
+	svc := NewAIAgentService()
+	now := time.Now()
+
+	// 1. OnCommentCreated 重复重放必须幂等：同一评论只为被回复的 AI 创建 1 条运行记录
+	ctx1, _ := leaseCtx(t, ai1.ID, constant.AgentRunKindBrowse)
+	aiCommentID, svcerr := svc.AgentCreateComment(ctx1, constant.TargetTypePost, postID, 0, "先占个沙发聊聊配置")
+	if svcerr != nil {
+		t.Fatalf("ai comment: %v", svcerr)
+	}
+	user, _ := repo.User.GetUserByUsername("author")
+	reply := &model.Comment{
+		UserID:     user.ID,
+		TargetType: constant.TargetTypePost,
+		TargetID:   postID,
+		ReplyID:    aiCommentID,
+		Content:    "请问 @ai_two 也觉得这样配更好吗？",
+		MentionUserIDs: []uint{
+			ai2.User.ID,
+		},
+	}
+	replyID, err := repo.Comment.CreateComment(reply, 10, nil)
+	if err != nil {
+		t.Fatalf("create reply: %v", err)
+	}
+	svc.OnCommentCreated(replyID, now)
+	svc.OnCommentCreated(replyID, now)
+	repliedRuns, _, _ := repo.AIAgent.ListRuns(&dto.ListAgentRunsReq{
+		AgentID:          ai1.ID,
+		Trigger:          constant.AgentTriggerCommentReplied,
+		PaginationParams: dto.PaginationParams{Page: 1, Size: 10},
+	})
+	if len(repliedRuns) != 1 || repliedRuns[0].TargetID != replyID {
+		t.Fatalf("expected exactly 1 replied run after replay, got %+v", repliedRuns)
+	}
+
+	// 2. 模拟实例写完 pending 键但尚未获得执行或中途崩溃：ResumePendingAIAgentEvents 接手并清空 pending 键
+	pendingKey := aiAgentEventPendingKey(aiAgentEventKindCommentEdited, replyID)
+	if err := sharedstate.SetJSON(pendingKey, aiAgentPendingEvent{
+		Kind:       aiAgentEventKindCommentEdited,
+		TargetID:   replyID,
+		EnqueuedAt: now,
+	}, aiAgentEventPendingTTL); err != nil {
+		t.Fatalf("seed pending: %v", err)
+	}
+	ResumePendingAIAgentEvents()
+	if _, ok, _ := sharedstate.Current().Get(pendingKey); ok {
+		t.Fatal("pending event should be cleared after resume")
+	}
+	mentionedRuns, _, _ := repo.AIAgent.ListRuns(&dto.ListAgentRunsReq{
+		AgentID:          ai2.ID,
+		Trigger:          constant.AgentTriggerCommentMentioned,
+		PaginationParams: dto.PaginationParams{Page: 1, Size: 10},
+	})
+	if len(mentionedRuns) != 1 || mentionedRuns[0].TargetID != replyID {
+		t.Fatalf("expected 1 mentioned run for ai2 after resume, got %+v", mentionedRuns)
+	}
+	// 再次执行恢复不会重复创建运行
+	ResumePendingAIAgentEvents()
+	mentionedRuns, _, _ = repo.AIAgent.ListRuns(&dto.ListAgentRunsReq{
+		AgentID:          ai2.ID,
+		Trigger:          constant.AgentTriggerCommentMentioned,
+		PaginationParams: dto.PaginationParams{Page: 1, Size: 10},
+	})
+	if len(mentionedRuns) != 1 {
+		t.Fatalf("duplicate mentioned run after second resume: %+v", mentionedRuns)
+	}
+
+	// 3. 模拟单机未配 Redis 重启（内存状态全部丢失）：DB 兜底补扫恢复近期新公开文章的触发任务
+	isPublic := false
+	freshPost := &model.Post{
+		UserID: user.ID,
+		PostBase: model.PostBase{
+			Title:     "重启前刚发布的公开文章",
+			Content:   "<p>正文</p>",
+			IsPrivate: isPublic,
+			IsDraft:   false,
+		},
+	}
+	if err := repo.Post.CreatePost(freshPost); err != nil {
+		t.Fatalf("create fresh post directly: %v", err)
+	}
+	sharedstate.UseMemory() // 清空全部内存待办与去重缓存
+	ResumePendingAIAgentEvents()
+	exists, err := repo.AIAgent.TriggerExists(constant.AgentTriggerPostPublished, constant.TargetTypePost, freshPost.ID)
+	if err != nil || !exists {
+		t.Fatalf("expected DB fallback scan to schedule post.published run, exists=%v err=%v", exists, err)
 	}
 }

@@ -17,9 +17,10 @@ func registerPostRoutes(group *route.RouterGroup) {
 	postGroupWithAdmin := group.Group("/post").Use(middleware.UseAuth(true)).Use(middleware.UseRole(constant.RoleAdmin))
 	{
 		// 前台接口只返回公开文章，不认登录身份放开私密文章；私密文章与草稿只在下方的后台接口返回
-		postGroupPublic.GET("/p/:slug_or_id", postController.Get)        // 获取文章
-		postGroupPublic.GET("/p/:id/stats", postController.GetStats)     // 文章的浏览量、点赞数、评论数（前台页面缓存的是快照，浏览器另取最新值）
-		postGroupPublic.GET("/list", postController.List)                // 获取文章列表
+		postGroupPublic.GET("/p/:slug_or_id", postController.Get)          // 获取文章
+		postGroupPublic.GET("/p/:id/stats", postController.GetStats)       // 文章的浏览量、点赞数、评论数（前台页面缓存的是快照，浏览器另取最新值）
+		postGroupPublic.GET("/p/:id/neighbors", postController.Neighbors)  // 文章的上一篇、下一篇与相关推荐
+		postGroupPublic.GET("/list", postController.List)                  // 获取文章列表
 		postGroupPublic.GET("/cards", postController.GetPostCards)       // 批量获取正文「文章引用」卡片
 		postGroupPublic.GET("/categories", postController.GetCategories) // 获取文章分类列表
 		postGroupPublic.GET("/random", postController.GetRandom)         // 获取随机文章ID
@@ -51,7 +52,9 @@ func registerPostRoutes(group *route.RouterGroup) {
 		postGroupWithAuth.POST("/c", postController.CreateCategory)                // 创建文章分类（编辑者写文章时可新建）
 		postGroupWithAdmin.PUT("/c/:id", postController.UpdateCategory)            // 更新文章分类，仅管理员
 		postGroupWithAdmin.DELETE("/c/:id", postController.DeleteCategory)         // 删除文章分类，仅管理员
-		// AI 写作：编辑器内帮写 / 润色，以 SSE 流式返回
+		// AI 写作：编辑器内帮写 / 润色（SSE 流式），以及一键生成候选标题、推荐分类与标签
 		postGroupWithAuth.POST("/p/:id/ai-write", controller.AIWrite.Stream(constant.TargetTypePost))
+		postGroupWithAuth.POST("/p/:id/ai-titles", controller.AIWrite.Titles(constant.TargetTypePost))
+		postGroupWithAuth.POST("/p/:id/ai-taxonomy", controller.AIWrite.Taxonomy)
 	}
 }

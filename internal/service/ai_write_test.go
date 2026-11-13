@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/internal/llmclient"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/constant"
@@ -279,7 +280,7 @@ func (r *eventRecorder) names() []string {
 func newTestAIWriteService(stream aiStreamFunc, concurrency int) *AIWriteService {
 	return &AIWriteService{
 		running:     make(map[uint]*aiWriteRun),
-		limiter:     &aiLimiter{},
+		limiter:     &llmclient.Limiter{},
 		stream:      stream,
 		concurrency: func() int { return concurrency },
 		heartbeat:   time.Hour,
@@ -375,27 +376,27 @@ func TestAIWriteStreamCancel(t *testing.T) {
 
 // AI 写作与摘要共用并发限制：写作优先拿到释放的名额，排队时推送 queued
 func TestAILimiterPriority(t *testing.T) {
-	l := &aiLimiter{}
+	l := &llmclient.Limiter{}
 	limit := func() int { return 1 }
-	if err := l.acquire(context.Background(), limit, false, nil); err != nil {
+	if err := l.Acquire(context.Background(), limit, false, nil); err != nil {
 		t.Fatal(err)
 	}
 	order := make(chan string, 2)
 	go func() {
-		_ = l.acquire(context.Background(), limit, false, nil)
+		_ = l.Acquire(context.Background(), limit, false, nil)
 		order <- "summary"
-		l.release()
+		l.Release()
 	}()
 	time.Sleep(20 * time.Millisecond)
 	queued := make(chan struct{})
 	go func() {
-		_ = l.acquire(context.Background(), limit, true, func() { close(queued) })
+		_ = l.Acquire(context.Background(), limit, true, func() { close(queued) })
 		order <- "write"
 		time.Sleep(10 * time.Millisecond)
-		l.release()
+		l.Release()
 	}()
 	<-queued
-	l.release()
+	l.Release()
 	if first := <-order; first != "write" {
 		t.Fatalf("priority request should acquire first, got %s", first)
 	}
@@ -404,21 +405,21 @@ func TestAILimiterPriority(t *testing.T) {
 	}
 
 	// 等待中的优先请求取消后，普通请求可以继续获取
-	if err := l.acquire(context.Background(), limit, false, nil); err != nil {
+	if err := l.Acquire(context.Background(), limit, false, nil); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	waitErr := make(chan error)
-	go func() { waitErr <- l.acquire(ctx, limit, true, nil) }()
+	go func() { waitErr <- l.Acquire(ctx, limit, true, nil) }()
 	time.Sleep(20 * time.Millisecond)
 	cancel()
 	if err := <-waitErr; err == nil {
 		t.Fatal("cancelled acquire should return error")
 	}
-	l.release()
+	l.Release()
 	got := make(chan struct{})
 	go func() {
-		_ = l.acquire(context.Background(), limit, false, nil)
+		_ = l.Acquire(context.Background(), limit, false, nil)
 		close(got)
 	}()
 	select {
@@ -430,19 +431,19 @@ func TestAILimiterPriority(t *testing.T) {
 
 // 名额在共享状态中：同名的限制器（模拟多个实例）合计不超过上限；上限大于 1 时第 0 个名额只留给交互式请求
 func TestAILimiterShared(t *testing.T) {
-	a, b := &aiLimiter{name: "shared_test"}, &aiLimiter{name: "shared_test"}
+	a, b := &llmclient.Limiter{Name: "shared_test"}, &llmclient.Limiter{Name: "shared_test"}
 	one := func() int { return 1 }
-	if err := a.acquire(context.Background(), one, false, nil); err != nil {
+	if err := a.Acquire(context.Background(), one, false, nil); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
-	if err := b.acquire(ctx, one, false, nil); err == nil {
+	if err := b.Acquire(ctx, one, false, nil); err == nil {
 		t.Fatal("another instance should wait while the only slot is taken")
 	}
-	a.release()
+	a.Release()
 	got := make(chan error, 1)
-	go func() { got <- b.acquire(context.Background(), one, false, nil) }()
+	go func() { got <- b.Acquire(context.Background(), one, false, nil) }()
 	select {
 	case err := <-got:
 		if err != nil {
@@ -451,24 +452,24 @@ func TestAILimiterShared(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("slot released by another instance should be acquired")
 	}
-	b.release()
+	b.Release()
 
 	two := func() int { return 2 }
-	if err := a.acquire(context.Background(), two, false, nil); err != nil {
+	if err := a.Acquire(context.Background(), two, false, nil); err != nil {
 		t.Fatal(err)
 	}
 	ctx2, cancel2 := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel2()
-	if err := b.acquire(ctx2, two, false, nil); err == nil {
+	if err := b.Acquire(ctx2, two, false, nil); err == nil {
 		t.Fatal("background request should not take the slot reserved for interactive requests")
 	}
 	ctx3, cancel3 := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel3()
-	if err := b.acquire(ctx3, two, true, nil); err != nil {
+	if err := b.Acquire(ctx3, two, true, nil); err != nil {
 		t.Fatalf("interactive request should get the reserved slot: %v", err)
 	}
-	a.release()
-	b.release()
+	a.Release()
+	b.Release()
 }
 
 // 润色：前端给出带格式的选区时原样交给模型并附上格式规则；未提供时退回纯文本；代码块内不使用；过长时拒绝
@@ -704,5 +705,119 @@ func TestAIWritingHabit(t *testing.T) {
 	job, _ := w.Prepare(author, constant.TargetTypePost, post.ID, writeReq("<p>前文"+aiWriteInsertMarker+"后文</p>"))
 	if strings.Contains(job.system, "# 作者的语言习惯") {
 		t.Fatal("cleared habit must not be added to the system prompt")
+	}
+}
+
+func TestSuggestTitlesAndTaxonomy(t *testing.T) {
+	author, admin, other, post, _ := setupEditTest(t)
+	draft := "<p>在部署 Nginx 反向代理 WebSocket 时，经常遇到每 60 秒自动断开的问题，原因是默认 proxy_read_timeout 为 60s。</p>"
+	if err := repo.GetDB().Model(post).Update("draft_content", draft).Error; err != nil {
+		t.Fatalf("set draft: %v", err)
+	}
+
+	var mode string
+	var wantCatID, wantLabelID uint
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch mode {
+		case "titles":
+			_, _ = fmt.Fprint(w, `{"choices":[{"message":{"content":"<think>思考中</think>\\n`+"```json\\n"+`{\"titles\":[\"1. 《Nginx 反代 WebSocket 60 秒断连排查》\",\"Nginx 反代 WebSocket 60 秒断连排查\",\"把 proxy_read_timeout 调大解决 WebSocket 断连\",\"WebSocket 长连接保活小记\"]}\\n`+"```"+`"}}],"usage":{"prompt_tokens":100,"completion_tokens":40}}`)
+		case "taxonomy":
+			_, _ = fmt.Fprintf(w, `{"choices":[{"message":{"content":"{\"category_id\":%d,\"label_ids\":[%d,999],\"new_labels\":[{\"name\":\"Nginx\",\"slug\":\"nginx\"},{\"name\":\"WebSocket\",\"slug\":\"WebSocket_Config\"},{\"name\":\"反代排障\",\"slug\":\"12345\"}]}"}}],"usage":{"prompt_tokens":120,"completion_tokens":50}}`, wantCatID, wantLabelID)
+		}
+	}))
+	defer srv.Close()
+
+	s := NewAIWriteService()
+
+	// 未配置 AI 与非作者权限校验
+	expectMessage(t, func() *errs.ServiceError {
+		_, err := s.SuggestTitles(other, constant.TargetTypePost, post.ID, &dto.AITitlesReq{})
+		return err
+	}(), http.StatusForbidden, "permission_denied")
+	expectMessage(t, func() *errs.ServiceError {
+		_, err := s.SuggestTitles(author, constant.TargetTypePost, post.ID, &dto.AITitlesReq{})
+		return err
+	}(), http.StatusBadRequest, "ai_not_configured")
+
+	configureAI(t, srv.URL)
+
+	// 1. 生成候选标题（正文留空时自动回退读取草稿，且清洗书名号/序号与重复项）
+	mode = "titles"
+	titlesResp, svcerr := s.SuggestTitles(author, constant.TargetTypePost, post.ID, &dto.AITitlesReq{})
+	if svcerr != nil {
+		t.Fatalf("suggest titles: %v", svcerr)
+	}
+	wantTitles := []string{
+		"Nginx 反代 WebSocket 60 秒断连排查",
+		"把 proxy_read_timeout 调大解决 WebSocket 断连",
+		"WebSocket 长连接保活小记",
+	}
+	if !slices.Equal(titlesResp.Titles, wantTitles) {
+		t.Fatalf("titles = %#v, want %#v", titlesResp.Titles, wantTitles)
+	}
+	// 管理员同样可操作；独立页面也支持候选标题，过短正文拒绝
+	if _, svcerr := s.SuggestTitles(admin, constant.TargetTypePost, post.ID, &dto.AITitlesReq{}); svcerr != nil {
+		t.Fatalf("admin suggest titles: %v", svcerr)
+	}
+	shortPageID, svcerr := NewPageService().CreatePage(author, &dto.CreateOrUpdatePageReq{
+		PageBaseDto: dto.PageBaseDto{Title: "短", Slug: "short-page", Content: "<p>hi</p>"},
+	})
+	if svcerr != nil {
+		t.Fatalf("create short page: %v", svcerr)
+	}
+	expectMessage(t, func() *errs.ServiceError {
+		_, err := s.SuggestTitles(author, constant.TargetTypePage, shortPageID, &dto.AITitlesReq{})
+		return err
+	}(), http.StatusBadRequest, "content_too_short")
+
+	// 2. 推荐分类与标签：校验真实分类/标签 ID，并将 new_labels 中与已有标签同名的项自动归并到 Labels
+	catID, svcerr := NewCategoryService().CreateCategory(author, &dto.CategoryDto{Name: "运维笔记", Slug: "ops-note"})
+	if svcerr != nil {
+		t.Fatalf("create category: %v", svcerr)
+	}
+	networkLabelID, svcerr := NewLabelService().CreateLabel(author, &dto.CreateLabelReq{LabelBase: dto.LabelBase{Name: "Network", Slug: "network-layer"}})
+	if svcerr != nil {
+		t.Fatalf("create network label: %v", svcerr)
+	}
+	nginxLabelID, svcerr := NewLabelService().CreateLabel(author, &dto.CreateLabelReq{LabelBase: dto.LabelBase{Name: "nginx", Slug: "nginx"}})
+	if svcerr != nil {
+		t.Fatalf("create nginx label: %v", svcerr)
+	}
+	wantCatID = catID
+	wantLabelID = networkLabelID
+
+	expectMessage(t, func() *errs.ServiceError {
+		_, err := s.SuggestPostTaxonomy(other, post.ID, &dto.AITaxonomyReq{})
+		return err
+	}(), http.StatusForbidden, "permission_denied")
+
+	mode = "taxonomy"
+	taxResp, svcerr := s.SuggestPostTaxonomy(author, post.ID, &dto.AITaxonomyReq{})
+	if svcerr != nil {
+		t.Fatalf("suggest taxonomy: %v", svcerr)
+	}
+	if taxResp.Category == nil || taxResp.Category.ID != catID {
+		t.Fatalf("unexpected category: %+v", taxResp.Category)
+	}
+	// label_ids 中的 999 幻觉 ID 被过滤，new_labels 中的 Nginx 归并到已有 nginxLabelID
+	gotLabelIDs := make([]uint, 0, len(taxResp.Labels))
+	for _, l := range taxResp.Labels {
+		gotLabelIDs = append(gotLabelIDs, l.ID)
+	}
+	if !slices.Equal(gotLabelIDs, []uint{networkLabelID, nginxLabelID}) {
+		t.Fatalf("matched label IDs = %v, want [%d %d]", gotLabelIDs, networkLabelID, nginxLabelID)
+	}
+	if len(taxResp.NewLabels) != 2 || taxResp.NewLabels[0].Slug != "websocket-config" || !strings.HasPrefix(taxResp.NewLabels[1].Slug, "tag-") {
+		t.Fatalf("unexpected new labels: %+v", taxResp.NewLabels)
+	}
+
+	// 验证写作调用已记入 llm_usages（用途为 writing）
+	stats, svcerr := NewLLMUsageService().Stats(admin)
+	if svcerr != nil {
+		t.Fatalf("usage stats: %v", svcerr)
+	}
+	if stats.MonthCalls < 3 {
+		t.Fatalf("expected >= 3 recorded writing calls, got %d", stats.MonthCalls)
 	}
 }

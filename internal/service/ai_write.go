@@ -1,13 +1,8 @@
 package service
 
 import (
-	"bufio"
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
-	"net/http"
 	"strconv"
 	"strings"
 	"sync"
@@ -17,6 +12,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/internal/llmclient"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/constant"
@@ -57,15 +53,20 @@ type AIWriteJob struct {
 // aiStreamFunc 流式调用模型，content 为正文片段，reasoning 为思考过程片段
 type aiStreamFunc func(ctx context.Context, cfg tools.AIConfig, system, user string, onChunk func(content, reasoning string) error) error
 
+// aiCompleteFunc 非流式调用模型（用于候选标题与分类标签推荐），测试时可替换
+type aiCompleteFunc func(ctx context.Context, cfg tools.AIConfig, system, user string, temperature float64, effort string) (string, error)
+
 // AIWriteService 编辑器 AI 写作：流式生成，结果由前端写入编辑器，不落库
 // 与 AI 摘要共用模型调用的并发限制，并优先获取名额；同一用户同时只保留最新的一次生成
 type AIWriteService struct {
 	mu         sync.Mutex
 	running    map[uint]*aiWriteRun
 	listenOnce sync.Once
-	limiter    *aiLimiter
+	limiter    *llmclient.Limiter
 	// stream 流式调用模型，测试时可替换
 	stream aiStreamFunc
+	// complete 非流式调用模型，测试时可替换
+	complete aiCompleteFunc
 	// concurrency 读取并发上限，测试时可替换
 	concurrency func() int
 	heartbeat   time.Duration
@@ -77,8 +78,9 @@ type aiWriteRun struct {
 
 var aiWriteService = &AIWriteService{
 	running:     make(map[uint]*aiWriteRun),
-	limiter:     aiCallLimiter,
+	limiter:     llmclient.DefaultLimiter,
 	stream:      chatCompletionStream,
+	complete:    chatCompletionWithReasoning,
 	concurrency: tools.GetAISummaryConcurrency,
 	heartbeat:   aiWriteHeartbeat,
 }
@@ -263,11 +265,11 @@ func (s *AIWriteService) Stream(ctx context.Context, job *AIWriteJob, emit func(
 		<-stopped
 	}()
 
-	if err := s.limiter.acquire(ctx, s.concurrency, true, func() { _ = send(AIWriteEventQueued, nil) }); err != nil {
+	if err := s.limiter.Acquire(ctx, s.concurrency, true, func() { _ = send(AIWriteEventQueued, nil) }); err != nil {
 		s.fail(ctx, send, err)
 		return
 	}
-	defer s.limiter.release()
+	defer s.limiter.Release()
 
 	filter := &thinkTagFilter{}
 	thinking := false
@@ -314,120 +316,6 @@ func (s *AIWriteService) fail(ctx context.Context, send func(string, any) error,
 	}
 	logrus.Warnf("ai write failed: %v", err)
 	_ = send(AIWriteEventError, map[string]string{"message": err.Error()})
-}
-
-// streamUsageUnsupported 不接受 stream_options（带上时返回 400）的接口与模型，之后不再携带
-var streamUsageUnsupported sync.Map
-
-// chatCompletionStream 以 stream: true 调用 OpenAI 兼容接口
-// 不发送 temperature 等采样参数，使用模型默认值，兼容不接受自定义采样参数的模型。
-// 请求最后一块带上用量（stream_options.include_usage），调用前检查全站 AI 预算、结束后记一条用量（失败也记）
-func chatCompletionStream(ctx context.Context, cfg tools.AIConfig, system, user string, onChunk func(content, reasoning string) error) error {
-	finish, err := beginLLMCall(ctx, cfg.Model)
-	if err != nil {
-		return err
-	}
-	usage, err := chatCompletionStreamCall(ctx, cfg, system, user, onChunk)
-	finish(usage, err)
-	return err
-}
-
-func chatCompletionStreamCall(ctx context.Context, cfg tools.AIConfig, system, user string, onChunk func(content, reasoning string) error) (llmUsage, error) {
-	payload := map[string]any{
-		"model":    cfg.Model,
-		"messages": chatMessages(system, user),
-		"stream":   true,
-	}
-	key := cfg.BaseURL + "\x00" + cfg.Model
-	if _, unsupported := streamUsageUnsupported.Load(key); !unsupported {
-		payload["stream_options"] = map[string]any{"include_usage": true}
-	}
-	resp, err := postChatCompletions(ctx, cfg, payload)
-	var statusErr *chatStatusError
-	if _, sent := payload["stream_options"]; sent && errors.As(err, &statusErr) && statusErr.code == http.StatusBadRequest {
-		logrus.Warnf("chat completion stream rejected stream_options, retrying without it: %v", err)
-		streamUsageUnsupported.Store(key, true)
-		delete(payload, "stream_options")
-		resp, err = postChatCompletions(ctx, cfg, payload)
-	}
-	if err != nil {
-		return llmUsage{}, err
-	}
-	defer resp.Body.Close()
-	// 少数兼容接口忽略 stream 参数直接返回完整 JSON，按非流式结果处理
-	if strings.Contains(resp.Header.Get("Content-Type"), "application/json") {
-		data, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-		if err != nil {
-			return llmUsage{}, err
-		}
-		usage := parseLLMUsageDetail(data)
-		content, err := parseChatCompletion(data)
-		if err != nil {
-			return usage, err
-		}
-		return usage, onChunk(content, "")
-	}
-	var usage llmUsage
-	err = parseChatStreamUsage(resp.Body, onChunk, func(u llmUsage) { usage = u })
-	return usage, err
-}
-
-// parseChatStream 解析 SSE 流：逐行读取 data 行，遇到 [DONE] 或流结束时返回
-// reasoning_content（DeepSeek 等）/ reasoning（部分兼容实现）只作为思考信号，不并入正文
-func parseChatStream(r io.Reader, onChunk func(content, reasoning string) error) error {
-	return parseChatStreamUsage(r, onChunk, nil)
-}
-
-// parseChatStreamUsage 同 parseChatStream，带 usage 的块（通常是最后一块，choices 为空）交给 onUsage
-func parseChatStreamUsage(r io.Reader, onChunk func(content, reasoning string) error, onUsage func(llmUsage)) error {
-	reader := bufio.NewReader(r)
-	for {
-		line, readErr := reader.ReadString('\n')
-		line = strings.TrimSpace(line)
-		if data, ok := strings.CutPrefix(line, "data:"); ok {
-			data = strings.TrimSpace(data)
-			if data == "[DONE]" {
-				return nil
-			}
-			var chunk struct {
-				Choices []struct {
-					Delta struct {
-						Content          string `json:"content"`
-						ReasoningContent string `json:"reasoning_content"`
-						Reasoning        string `json:"reasoning"`
-					} `json:"delta"`
-				} `json:"choices"`
-				Usage *openAIUsage `json:"usage"`
-				Error *struct {
-					Message string `json:"message"`
-				} `json:"error"`
-			}
-			if err := json.Unmarshal([]byte(data), &chunk); err != nil {
-				return fmt.Errorf("invalid stream chunk: %w", err)
-			}
-			if chunk.Error != nil {
-				return fmt.Errorf("upstream error: %s", chunk.Error.Message)
-			}
-			if chunk.Usage != nil && onUsage != nil {
-				onUsage(chunk.Usage.detail())
-			}
-			if len(chunk.Choices) > 0 {
-				delta := chunk.Choices[0].Delta
-				reasoning := delta.ReasoningContent + delta.Reasoning
-				if delta.Content != "" || reasoning != "" {
-					if err := onChunk(delta.Content, reasoning); err != nil {
-						return err
-					}
-				}
-			}
-		}
-		if readErr != nil {
-			if errors.Is(readErr, io.EOF) {
-				return nil
-			}
-			return readErr
-		}
-	}
 }
 
 const (

@@ -48,3 +48,39 @@ func (a *aiWriteType) Stream(targetType string) app.HandlerFunc {
 		})
 	}
 }
+
+// Titles 为文章或独立页面生成候选标题
+func (a *aiWriteType) Titles(targetType string) app.HandlerFunc {
+	return func(ctx context.Context, c *app.RequestContext) {
+		var req dto.AITitlesReq
+		if c.Request.Header.ContentLength() > 0 {
+			if err := c.BindAndValidate(&req); err != nil {
+				resps.BadRequest(c, resps.ErrParamInvalid)
+				return
+			}
+		}
+		out, svcerr := a.service.SuggestTitles(ctx, targetType, ctxutils.GetIDParam(c).Uint, &req)
+		if svcerr != nil {
+			resps.Error(c, svcerr)
+			return
+		}
+		resps.Ok(c, "ok", out)
+	}
+}
+
+// Taxonomy 为文章推荐已有分类、已有标签及建议新建标签
+func (a *aiWriteType) Taxonomy(ctx context.Context, c *app.RequestContext) {
+	var req dto.AITaxonomyReq
+	if c.Request.Header.ContentLength() > 0 {
+		if err := c.BindAndValidate(&req); err != nil {
+			resps.BadRequest(c, resps.ErrParamInvalid)
+			return
+		}
+	}
+	out, svcerr := a.service.SuggestPostTaxonomy(ctx, ctxutils.GetIDParam(c).Uint, &req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, "ok", out)
+}

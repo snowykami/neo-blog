@@ -20,3 +20,32 @@ type AIWriteReq struct {
 	Category       string   `json:"category"`
 	Labels         []string `json:"labels"`
 }
+
+// AITitlesReq 生成候选标题请求（document 为空时回退读取库中草稿/正文）
+type AITitlesReq struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Document    string `json:"document"`
+}
+
+type AITitlesResp struct {
+	Titles []string `json:"titles"`
+}
+
+// AITaxonomyReq 推荐文章分类与标签请求（仅针对 post；document 为空时回退读取库中草稿/正文）
+type AITaxonomyReq struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Document    string `json:"document"`
+}
+
+type AITaxonomyNewItemDto struct {
+	Name string `json:"name"`
+	Slug string `json:"slug"`
+}
+
+type AITaxonomyResp struct {
+	Category  *CategoryDto           `json:"category,omitempty"` // 匹配到的已有分类（最优 1 个）
+	Labels    []LabelDto             `json:"labels"`             // 匹配到的已有标签（最多 5 个）
+	NewLabels []AITaxonomyNewItemDto `json:"new_labels"`         // 现有标签库不足以覆盖时的建议新建标签（最多 3 个）
+}

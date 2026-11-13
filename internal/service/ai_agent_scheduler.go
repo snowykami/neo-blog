@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"math/rand/v2"
@@ -17,6 +19,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/sharedstate"
+	"gorm.io/gorm"
 )
 
 // 调度：后端决定“谁、何时、能不能”，Runner 决定“说什么”。
@@ -299,47 +302,220 @@ func safeGo(name string, fn func()) {
 	}()
 }
 
-// NotifyPostPublished 文章首次公开时调用（异步）
+// AI 互动事件持久化与中断恢复参数
+const (
+	aiAgentEventKindPost           = "post"
+	aiAgentEventKindCommentCreated = "comment_created"
+	aiAgentEventKindCommentEdited  = "comment_edited"
+
+	aiAgentEventPendingPrefix = "ai_agent:event:pending:"
+	aiAgentEventActivePrefix  = "ai_agent:event:active:"
+	aiAgentEventPendingTTL    = 24 * time.Hour
+	aiAgentEventLeaseTTL      = 30 * time.Second
+	aiAgentEventMaxRetries    = 5
+	aiAgentEvaluatedTTL       = 2 * time.Hour
+	aiAgentDBScanWindow       = time.Hour
+)
+
+type aiAgentPendingEvent struct {
+	Kind       string    `json:"kind"`
+	TargetID   uint      `json:"target_id"`
+	EnqueuedAt time.Time `json:"enqueued_at"`
+	Retries    int       `json:"retries"`
+}
+
+func aiAgentEventPendingKey(kind string, id uint) string {
+	return fmt.Sprintf("%s%s:%d", aiAgentEventPendingPrefix, kind, id)
+}
+
+func aiAgentEventActiveKey(kind string, id uint) string {
+	return fmt.Sprintf("%s%s:%d", aiAgentEventActivePrefix, kind, id)
+}
+
+func aiAgentPostEvaluatedKey(postID uint) string {
+	return fmt.Sprintf("ai_agent:post_evaluated:%d", postID)
+}
+
+func aiAgentCommentEvaluatedKey(commentID uint, updatedNano int64) string {
+	return fmt.Sprintf("ai_agent:comment_evaluated:%d:%d", commentID, updatedNano)
+}
+
+func markPostEvaluated(postID uint) {
+	_ = sharedstate.Current().Set(aiAgentPostEvaluatedKey(postID), "1", aiAgentEvaluatedTTL)
+}
+
+func markCommentEvaluated(c *model.Comment) {
+	if c == nil || c.ID == 0 {
+		return
+	}
+	_ = sharedstate.Current().Set(aiAgentCommentEvaluatedKey(c.ID, c.UpdatedAt.UnixNano()), "1", aiAgentEvaluatedTTL)
+}
+
+func enqueueAIAgentEvent(kind string, targetID uint) {
+	if targetID == 0 {
+		return
+	}
+	now := time.Now()
+	item := aiAgentPendingEvent{Kind: kind, TargetID: targetID, EnqueuedAt: now}
+	if err := sharedstate.SetJSON(aiAgentEventPendingKey(kind, targetID), item, aiAgentEventPendingTTL); err != nil {
+		logrus.Warnf("save ai agent pending event (%s:%d): %v", kind, targetID, err)
+	}
+	safeGo("ai agent event "+kind, func() {
+		NewAIAgentService().processEvent(item, time.Now())
+	})
+}
+
+// NotifyPostPublished 文章首次公开时调用（先落共享待办再异步处理，实例滚动重启后可由定时任务接手）
 func NotifyPostPublished(postID uint) {
-	safeGo("ai agent post published", func() { NewAIAgentService().OnPostPublished(postID, time.Now()) })
+	enqueueAIAgentEvent(aiAgentEventKindPost, postID)
 }
 
 // NotifyCommentCreated 有新评论时调用（异步）：被回复的 AI 与评论里被 @ 的 AI 都在这一次处理里安排，
 // 放在同一个 goroutine 里按顺序处理，避免两边各自查到「还没有任务」而把同一条评论排两遍
 func NotifyCommentCreated(commentID uint) {
-	safeGo("ai agent comment created", func() {
-		svc := NewAIAgentService()
-		now := time.Now()
-		svc.OnCommentCreated(commentID, now)
-		svc.OnCommentMentioned(commentID, now)
-	})
+	enqueueAIAgentEvent(aiAgentEventKindCommentCreated, commentID)
 }
 
 // NotifyCommentEdited 评论编辑后调用（异步）：新 @ 的 AI 用户、或评论从私密改为公开后的 @，按「被 @」安排运行。
 // 已为这条评论排过任务的 AI 不再安排（见 OnCommentMentioned 的去重），反复编辑不会多次唤醒同一个 AI
 func NotifyCommentEdited(commentID uint) {
-	safeGo("ai agent comment edited", func() {
-		NewAIAgentService().OnCommentMentioned(commentID, time.Now())
-	})
+	enqueueAIAgentEvent(aiAgentEventKindCommentEdited, commentID)
+}
+
+func (s *AIAgentService) processEvent(item aiAgentPendingEvent, now time.Time) {
+	pendingKey := aiAgentEventPendingKey(item.Kind, item.TargetID)
+	activeKey := aiAgentEventActiveKey(item.Kind, item.TargetID)
+	lease, err := sharedstate.AcquireLease(activeKey, aiAgentEventLeaseTTL)
+	if err != nil || lease == nil {
+		return
+	}
+	defer lease.Release()
+
+	var runErr error
+	switch item.Kind {
+	case aiAgentEventKindPost:
+		runErr = s.onPostPublished(item.TargetID, now)
+	case aiAgentEventKindCommentCreated:
+		if err1 := s.onCommentCreated(item.TargetID, now); err1 != nil {
+			runErr = err1
+		}
+		if err2 := s.onCommentMentioned(item.TargetID, now); err2 != nil && runErr == nil {
+			runErr = err2
+		}
+	case aiAgentEventKindCommentEdited:
+		runErr = s.onCommentMentioned(item.TargetID, now)
+	default:
+		_ = sharedstate.Current().Delete(pendingKey)
+		return
+	}
+
+	if runErr == nil {
+		_ = sharedstate.Current().Delete(pendingKey)
+		return
+	}
+	item.Retries++
+	if item.Retries >= aiAgentEventMaxRetries {
+		logrus.Warnf("ai agent event %s:%d dropped after %d retries: %v", item.Kind, item.TargetID, item.Retries, runErr)
+		_ = sharedstate.Current().Delete(pendingKey)
+		return
+	}
+	_ = sharedstate.SetJSON(pendingKey, item, aiAgentEventPendingTTL)
+}
+
+// ResumePendingAIAgentEvents 恢复执行中途中断或因单机重启丢失的 AI 互动事件
+func ResumePendingAIAgentEvents() {
+	now := time.Now()
+	svc := NewAIAgentService()
+
+	// 1. 接手共享状态中残留但活跃租约已过期的待办事件
+	if pending, err := sharedstate.Current().GetByPrefix(aiAgentEventPendingPrefix); err == nil {
+		for key, raw := range pending {
+			var item aiAgentPendingEvent
+			if err := json.Unmarshal([]byte(raw), &item); err != nil || item.TargetID == 0 {
+				_ = sharedstate.Current().Delete(key)
+				continue
+			}
+			if _, active, err := sharedstate.Current().Get(aiAgentEventActiveKey(item.Kind, item.TargetID)); err != nil || active {
+				continue
+			}
+			svc.processEvent(item, now)
+		}
+	} else {
+		logrus.Warnf("list pending ai agent events: %v", err)
+	}
+
+	// 2. 数据库兜底补扫：覆盖未配置 Redis 的单机重启，以及写库后、登记待办前极窄窗口的崩溃
+	cfg := tools.GetAIAgentConfig()
+	if !schedulerReady(cfg) {
+		return
+	}
+	since := now.Add(-aiAgentDBScanWindow)
+	if cfg.PublishFanout > 0 {
+		if posts, err := repo.AIAgent.RecentPublishedPosts(since, 20); err == nil {
+			for _, p := range posts {
+				if _, evaluated, _ := sharedstate.Current().Get(aiAgentPostEvaluatedKey(p.ID)); evaluated {
+					continue
+				}
+				if _, active, _ := sharedstate.Current().Get(aiAgentEventActiveKey(aiAgentEventKindPost, p.ID)); active {
+					continue
+				}
+				if exists, err := repo.AIAgent.TriggerExists(constant.AgentTriggerPostPublished, constant.TargetTypePost, p.ID); err != nil || exists {
+					if exists {
+						markPostEvaluated(p.ID)
+					}
+					continue
+				}
+				svc.processEvent(aiAgentPendingEvent{Kind: aiAgentEventKindPost, TargetID: p.ID, EnqueuedAt: now}, now)
+			}
+		}
+	}
+
+	if comments, err := repo.AIAgent.RecentHumanPublicComments(since, 50); err == nil {
+		for i := range comments {
+			c := &comments[i]
+			if c.ReplyID == 0 && len(c.MentionUserIDs) == 0 {
+				continue
+			}
+			if _, evaluated, _ := sharedstate.Current().Get(aiAgentCommentEvaluatedKey(c.ID, c.UpdatedAt.UnixNano())); evaluated {
+				continue
+			}
+			if _, active, _ := sharedstate.Current().Get(aiAgentEventActiveKey(aiAgentEventKindCommentCreated, c.ID)); active {
+				continue
+			}
+			svc.processEvent(aiAgentPendingEvent{Kind: aiAgentEventKindCommentCreated, TargetID: c.ID, EnqueuedAt: now}, now)
+		}
+	}
 }
 
 // OnPostPublished 新文章首次公开：按兴趣加权抽样若干 AI，计划时间分散在 48 小时内
 func (s *AIAgentService) OnPostPublished(postID uint, now time.Time) {
+	_ = s.onPostPublished(postID, now)
+}
+
+func (s *AIAgentService) onPostPublished(postID uint, now time.Time) error {
 	cfg := tools.GetAIAgentConfig()
 	if !schedulerReady(cfg) || cfg.PublishFanout <= 0 {
-		return
+		return nil
 	}
 	posts, err := repo.AIAgent.PostsByIDs([]uint{postID})
-	if err != nil || len(posts) == 0 || !posts[0].IsPublic() {
-		return
+	if err != nil {
+		return err
+	}
+	if len(posts) == 0 || !posts[0].IsPublic() {
+		return nil
 	}
 	post := &posts[0]
-	if exists, err := repo.AIAgent.TriggerExists(constant.AgentTriggerPostPublished, constant.TargetTypePost, postID); err != nil || exists {
-		return
+	exists, err := repo.AIAgent.TriggerExists(constant.AgentTriggerPostPublished, constant.TargetTypePost, postID)
+	if err != nil {
+		return err
+	}
+	if exists {
+		markPostEvaluated(postID)
+		return nil
 	}
 	agents, err := repo.AIAgent.ListActive()
 	if err != nil {
-		return
+		return err
 	}
 	type candidate struct {
 		agent   *model.AIAgent
@@ -369,93 +545,140 @@ func (s *AIAgentService) OnPostPublished(postID uint, now time.Time) {
 		})
 	}
 	if len(runs) == 0 {
-		return
+		markPostEvaluated(postID)
+		return nil
 	}
 	if err := repo.AIAgent.CreateRuns(runs); err != nil {
 		logrus.Warnf("create post published runs: %v", err)
-		return
+		return err
 	}
+	markPostEvaluated(postID)
 	notifyAgentRuns()
+	return nil
 }
 
 // OnCommentCreated 有人回复了 AI 用户的评论：未超出上限时安排这个 AI 何时看到这条回复
 func (s *AIAgentService) OnCommentCreated(commentID uint, now time.Time) {
+	_ = s.onCommentCreated(commentID, now)
+}
+
+func (s *AIAgentService) onCommentCreated(commentID uint, now time.Time) error {
 	cfg := tools.GetAIAgentConfig()
 	if !schedulerReady(cfg) {
-		return
+		return nil
 	}
 	comment, err := repo.Comment.GetComment(commentID)
-	if err != nil || comment.ReplyID == 0 || comment.IsPrivate {
-		return
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+	if comment.ReplyID == 0 || comment.IsPrivate {
+		markCommentEvaluated(comment)
+		return nil
 	}
 	parent, err := repo.Comment.GetComment(comment.ReplyID)
-	if err != nil || !parent.User.IsAI || parent.UserID == comment.UserID {
-		return
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			markCommentEvaluated(comment)
+			return nil
+		}
+		return err
+	}
+	if !parent.User.IsAI || parent.UserID == comment.UserID {
+		markCommentEvaluated(comment)
+		return nil
 	}
 	agent, err := repo.AIAgent.GetByUserID(parent.UserID)
-	if err != nil || agent.Status != constant.AIAgentStatusActive || agent.User.Disabled {
-		return
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			markCommentEvaluated(comment)
+			return nil
+		}
+		return err
+	}
+	if agent.Status != constant.AIAgentStatusActive || agent.User.Disabled {
+		markCommentEvaluated(comment)
+		return nil
 	}
 	profile := agent.ParsedProfile()
 	if !slices.Contains(profile.Triggers, constant.AgentTriggerCommentReplied) {
-		return
+		markCommentEvaluated(comment)
+		return nil
 	}
+
+	release, locked, lockErr := sharedstate.TryLock(fmt.Sprintf("ai:crun:%d:%d", comment.ID, agent.ID), 15*time.Second)
+	if lockErr != nil || !locked {
+		return lockErr
+	}
+	defer release()
+
+	// 幂等保护：恢复重放或并发触发时，若该 AI 已对此评论排过任务（含 skipped），不再重复创建或重复扣减配额
+	exists, err := repo.AIAgent.RunExistsForAgent(agent.ID, constant.TargetTypeComment, comment.ID)
+	if err != nil {
+		return err
+	}
+	if exists {
+		markCommentEvaluated(comment)
+		return nil
+	}
+
 	run := model.AgentRun{
 		AgentID: agent.ID, Kind: constant.AgentRunKindEvent, Trigger: constant.AgentTriggerCommentReplied,
 		TargetType: constant.TargetTypeComment, TargetID: comment.ID, Status: constant.AgentRunStatusQueued,
 		ScheduledAt: now.Add(randomDelay(profile)),
 	}
-	skip := func(reason string) {
+	skip := func(reason string) error {
 		run.Status, run.SkipReason, run.FinishedAt = constant.AgentRunStatusSkipped, reason, &now
 		if err := repo.AIAgent.CreateRun(&run); err != nil {
 			logrus.Warnf("record skipped agent run: %v", err)
+			return err
 		}
+		markCommentEvaluated(comment)
+		return nil
 	}
 	// AI 互动深度：这条评论所在回复链已有的连续 AI 评论数，回应后会再加一
 	depth := aiChainDepth(comment.ID)
 	if depth+1 > cfg.MaxChainDepth {
-		skip("chain_depth")
-		return
+		return skip("chain_depth")
 	}
 	if comment.Depth >= tools.GetMaximumReplyDepth() {
-		skip("reply_depth")
-		return
+		return skip("reply_depth")
 	}
 	if comment.User.IsAI {
 		if !profile.AIInteraction.Enabled {
-			skip("ai_interaction_disabled")
-			return
+			return skip("ai_interaction_disabled")
 		}
 		rootID := comment.RootID
 		if rootID == 0 {
 			rootID = parent.ID
 		}
 		if n, _ := repo.AIAgent.CountPairReplies(agent.UserID, comment.UserID, rootID, dayStart(now)); n >= int64(cfg.PairExchanges) {
-			skip("pair_exchange")
-			return
+			return skip("pair_exchange")
 		}
 	}
 	// 今天的评论额度已用完：回应不了，不必占名额、调用模型
 	if agentCommentQuotaExhausted(agent, profile, cfg, now) {
-		skip("daily_comment_limit")
-		return
+		return skip("daily_comment_limit")
 	}
 	// 同一用户每天找同一个 AI 的次数（与 @ 共用一份名额）放在最后：前面任何一项跳过都不占名额。
 	// AI 之间的来回另有 pair_exchange 上限，不占这里的名额
 	if !comment.User.IsAI {
 		if reason := takePairSlot(&comment.User, agent.UserID, cfg, now, "reply_pair_limit"); reason != "" {
-			skip(reason)
-			return
+			return skip(reason)
 		}
 	}
 	// 回不回由 AI 看过回复后自己决定：性格中的回应概率只作为倾向写进提示词（见 agentrunner 的 taskPrompt），程序只保留上面的硬性上限
 	if err := repo.AIAgent.CreateRun(&run); err != nil {
 		logrus.Warnf("create comment replied run: %v", err)
-		return
+		return err
 	}
+	markCommentEvaluated(comment)
 	if !run.ScheduledAt.After(now) {
 		notifyAgentRuns()
 	}
+	return nil
 }
 
 // @ 唤醒的计数键（共享状态，多副本共用）
@@ -542,18 +765,36 @@ func agentCommentQuotaExhausted(agent *model.AIAgent, profile dto.AIAgentProfile
 // 同一条评论对同一个 AI 只安排一次（这条评论恰是对它的回复时不再重复）。
 // 另有成本上限：AI 今天的评论额度已用完不安排；同一用户 @ 同一 AI 每天、@ 全部 AI 每小时都有次数上限
 func (s *AIAgentService) OnCommentMentioned(commentID uint, now time.Time) {
+	_ = s.onCommentMentioned(commentID, now)
+}
+
+func (s *AIAgentService) onCommentMentioned(commentID uint, now time.Time) error {
 	cfg := tools.GetAIAgentConfig()
 	if !schedulerReady(cfg) {
-		return
+		return nil
 	}
 	comment, err := repo.Comment.GetComment(commentID)
-	// 私密评论不投：AI 的回应是公开的，会把私密内容带出去
-	if err != nil || comment.IsPrivate || len(comment.MentionUserIDs) == 0 {
-		return
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
 	}
+	// 私密评论不投：AI 的回应是公开的，会把私密内容带出去
+	if comment.IsPrivate || len(comment.MentionUserIDs) == 0 {
+		markCommentEvaluated(comment)
+		return nil
+	}
+	var firstErr error
 	for _, mentionUserID := range comment.MentionUserIDs {
 		agent, err := repo.AIAgent.GetByUserID(mentionUserID)
-		if err != nil || agent.Status != constant.AIAgentStatusActive || agent.User.Disabled {
+		if err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) && firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		if agent.Status != constant.AIAgentStatusActive || agent.User.Disabled {
 			continue
 		}
 		// 自己 @ 自己（AI 用户之间）不安排
@@ -564,14 +805,41 @@ func (s *AIAgentService) OnCommentMentioned(commentID uint, now time.Time) {
 		if !slices.Contains(profile.Triggers, constant.AgentTriggerCommentMentioned) {
 			continue
 		}
+		dedupeKey := mentionDedupeKey(comment.ID, agent.ID)
+		if _, seen, _ := sharedstate.Current().Get(dedupeKey); seen {
+			continue
+		}
+
+		release, locked, lockErr := sharedstate.TryLock(fmt.Sprintf("ai:crun:%d:%d", comment.ID, agent.ID), 15*time.Second)
+		if lockErr != nil {
+			if firstErr == nil {
+				firstErr = lockErr
+			}
+			continue
+		}
+		if !locked {
+			continue
+		}
+
 		// 这条评论已经为它排过任务（比如它本来就是对这条 AI 用户评论的回复）
-		if exists, err := repo.AIAgent.RunExistsForAgent(agent.ID, constant.TargetTypeComment, comment.ID); err != nil || exists {
+		exists, err := repo.AIAgent.RunExistsForAgent(agent.ID, constant.TargetTypeComment, comment.ID)
+		if err != nil {
+			release()
+			if firstErr == nil {
+				firstErr = err
+			}
 			continue
 		}
-		// 跨实例去重：同一条评论对同一个 AI 只处理一次（数据库查询与写入之间可能有其他实例插入）
-		if ok, err := sharedstate.Current().SetNX(mentionDedupeKey(comment.ID, agent.ID), "1", mentionDedupeTTL); err != nil || !ok {
+		if exists {
+			_ = sharedstate.Current().Set(dedupeKey, "1", mentionDedupeTTL)
+			release()
 			continue
 		}
+		if _, seen, _ := sharedstate.Current().Get(dedupeKey); seen {
+			release()
+			continue
+		}
+
 		run := model.AgentRun{
 			AgentID: agent.ID, Kind: constant.AgentRunKindEvent, Trigger: constant.AgentTriggerCommentMentioned,
 			TargetType: constant.TargetTypeComment, TargetID: comment.ID, Status: constant.AgentRunStatusQueued,
@@ -581,20 +849,28 @@ func (s *AIAgentService) OnCommentMentioned(commentID uint, now time.Time) {
 			run.Status, run.SkipReason, run.FinishedAt = constant.AgentRunStatusSkipped, reason, &now
 			if err := repo.AIAgent.CreateRun(&run); err != nil {
 				logrus.Warnf("record skipped agent run: %v", err)
+				if firstErr == nil {
+					firstErr = err
+				}
+				return
 			}
+			_ = sharedstate.Current().Set(dedupeKey, "1", mentionDedupeTTL)
 		}
 		if comment.Depth >= tools.GetMaximumReplyDepth() {
 			skip("reply_depth")
+			release()
 			continue
 		}
 		// AI 互动深度：这条评论所在回复链已有的连续 AI 评论数，回应后会再加一
 		if depth := aiChainDepth(comment.ID); depth+1 > cfg.MaxChainDepth {
 			skip("chain_depth")
+			release()
 			continue
 		}
 		if comment.User.IsAI {
 			if !profile.AIInteraction.Enabled {
 				skip("ai_interaction_disabled")
+				release()
 				continue
 			}
 			rootID := comment.RootID
@@ -603,27 +879,41 @@ func (s *AIAgentService) OnCommentMentioned(commentID uint, now time.Time) {
 			}
 			if n, _ := repo.AIAgent.CountPairReplies(agent.UserID, comment.UserID, rootID, dayStart(now)); n >= int64(cfg.PairExchanges) {
 				skip("pair_exchange")
+				release()
 				continue
 			}
 		}
 		// 今天的评论额度已用完：回应不了，不必调用模型
 		if agentCommentQuotaExhausted(agent, profile, cfg, now) {
 			skip("daily_comment_limit")
+			release()
 			continue
 		}
 		// 次数上限放在最后：前面任何一项跳过都不占名额
 		if reason := takeMentionSlots(&comment.User, agent.UserID, cfg, now); reason != "" {
 			skip(reason)
+			release()
 			continue
 		}
 		if err := repo.AIAgent.CreateRun(&run); err != nil {
 			logrus.Warnf("create comment mentioned run: %v", err)
+			if firstErr == nil {
+				firstErr = err
+			}
+			release()
 			continue
 		}
+		// 在 CreateRun 落库成功后才写入长效去重键，避免写库前进程崩溃导致恢复补扫被误跳过
+		_ = sharedstate.Current().Set(dedupeKey, "1", mentionDedupeTTL)
+		release()
 		if !run.ScheduledAt.After(now) {
 			notifyAgentRuns()
 		}
 	}
+	if firstErr == nil {
+		markCommentEvaluated(comment)
+	}
+	return firstErr
 }
 
 // RunScheduler 定时任务入口

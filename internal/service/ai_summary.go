@@ -1,14 +1,11 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"html"
-	"io"
-	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
@@ -20,13 +17,13 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/internal/llmclient"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/sharedstate"
-	"github.com/snowykami/neo-blog/pkg/utils"
 	"gorm.io/gorm"
 )
 
@@ -153,149 +150,9 @@ func (t *aiSummaryTracker) finish(status, errMsg string) {
 	}
 }
 
-// aiLimiter 限制同时调用模型的请求数（AI 摘要、AI 写作、评论翻译、歌词标注共用），上限每次获取时读取，修改配置后立即生效。
-// 名额是共享状态中的租约（多副本时在 Redis），所有实例合计不超过上限；持有名额的实例退出后，名额最多 aiSlotTTL 后自动释放。
-// 交互式请求（AI 写作、评论翻译）以优先级获取：上限大于 1 时第 0 个名额只留给它们；本实例有优先请求在等待时，后台任务让出名额
-type aiLimiter struct {
-	name string // 名额的键前缀；为空时使用随机前缀（测试中各个限制器互不影响）
-
-	initOnce        sync.Once
-	bgTurn          chan struct{} // 同一实例的后台任务依次等待名额，避免同时轮询共享状态
-	mu              sync.Mutex
-	priorityWaiting int                  // 本实例正在等待的优先请求数
-	wake            chan struct{}        // 有名额释放时关闭，唤醒所有等待者重新竞争
-	held            []*sharedstate.Lease // 本实例持有的名额（获取失败而放行时为 nil 占位）
-}
-
-const (
-	aiSlotTTL        = 45 * time.Second // 名额租约，持有期间自动续期
-	aiSlotPoll       = time.Second      // 等待名额时的轮询间隔（其他实例释放名额时也会通知）
-	aiLimiterChannel = "ai_limiter_release:"
-)
-
-// aiCallLimiter 全局共用的模型调用限制器
-var aiCallLimiter = &aiLimiter{name: "ai_call"}
-
-func (l *aiLimiter) init() {
-	l.initOnce.Do(func() {
-		if l.name == "" {
-			l.name = "ai_limiter_" + utils.Strings.GenerateRandomString(8)
-		}
-		l.bgTurn = make(chan struct{}, 1)
-		sharedstate.OnNotify(aiLimiterChannel+l.name, func(string) {
-			l.mu.Lock()
-			l.broadcastLocked()
-			l.mu.Unlock()
-		})
-	})
-}
-
-// acquire 获取名额；首次需要等待时调用 onWait（可为 nil），ctx 取消时放弃等待并返回错误
-func (l *aiLimiter) acquire(ctx context.Context, limit func() int, priority bool, onWait func()) error {
-	l.init()
-	if !priority {
-		select {
-		case l.bgTurn <- struct{}{}:
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-		defer func() { <-l.bgTurn }()
-	}
-	waiting := false
-	defer func() {
-		if waiting && priority {
-			l.mu.Lock()
-			l.priorityWaiting--
-			l.broadcastLocked()
-			l.mu.Unlock()
-		}
-	}()
-	for {
-		// 先取唤醒通道再尝试，尝试期间发生的释放也能唤醒本轮等待
-		l.mu.Lock()
-		if l.wake == nil {
-			l.wake = make(chan struct{})
-		}
-		wake := l.wake
-		yield := !priority && l.priorityWaiting > 0
-		l.mu.Unlock()
-		if !yield {
-			lease, err := l.trySlot(limit(), priority)
-			if err != nil || lease != nil {
-				if err != nil {
-					// 共享状态不可用时放行，不让调用方无限等待
-					logrus.Warnf("ai limiter unavailable, allowing call: %v", err)
-				}
-				l.mu.Lock()
-				l.held = append(l.held, lease)
-				l.mu.Unlock()
-				return nil
-			}
-		}
-		if !waiting {
-			waiting = true
-			if priority {
-				l.mu.Lock()
-				l.priorityWaiting++
-				l.mu.Unlock()
-			}
-			if onWait != nil {
-				onWait()
-			}
-		}
-		select {
-		case <-wake:
-		case <-time.After(aiSlotPoll):
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
-}
-
-// trySlot 占用一个空闲名额，没有时返回 nil
-func (l *aiLimiter) trySlot(limit int, priority bool) (*sharedstate.Lease, error) {
-	limit = max(limit, 1)
-	first := 0
-	if !priority && limit > 1 {
-		first = 1 // 第 0 个名额留给交互式请求
-	}
-	for i := first; i < limit; i++ {
-		lease, err := sharedstate.AcquireLease(fmt.Sprintf("%s:slot:%d", l.name, i), aiSlotTTL)
-		if err != nil || lease != nil {
-			return lease, err
-		}
-	}
-	return nil, nil
-}
-
-// release 归还本实例持有的一个名额，并唤醒本实例与其他实例的等待者
-func (l *aiLimiter) release() {
-	l.mu.Lock()
-	var lease *sharedstate.Lease
-	if n := len(l.held); n > 0 {
-		lease, l.held = l.held[n-1], l.held[:n-1]
-	}
-	l.mu.Unlock()
-	if lease != nil {
-		lease.Release()
-		sharedstate.Notify(aiLimiterChannel+l.name, "")
-	}
-	l.mu.Lock()
-	l.broadcastLocked()
-	l.mu.Unlock()
-}
-
-// broadcastLocked 唤醒所有等待者，调用方需持有锁
-func (l *aiLimiter) broadcastLocked() {
-	if l.wake != nil {
-		close(l.wake)
-		l.wake = nil
-	}
-}
-
-// AISummaryService 文章 AI 摘要：后台任务生成，同一文章同时只允许一个任务（多实例间也唯一），按配置限制本实例的并发
+// AISummaryService 文章 AI 摘要：后台任务生成，同一文章同时只允许一个任务（多实例间也唯一），按配置限制并发
 type AISummaryService struct {
-	limiter *aiLimiter
+	limiter *llmclient.Limiter
 	// complete 调用大模型（images 为随正文发送的图片，未开启识图时为空），测试时可替换
 	complete func(ctx context.Context, cfg tools.AIConfig, system, user string, images []VisionImage) (string, error)
 	// concurrency 读取并发上限，测试时可替换
@@ -303,7 +160,7 @@ type AISummaryService struct {
 }
 
 var aiSummaryService = &AISummaryService{
-	limiter:     aiCallLimiter,
+	limiter:     llmclient.DefaultLimiter,
 	complete:    aiSummaryCompletion,
 	concurrency: tools.GetAISummaryConcurrency,
 }
@@ -527,8 +384,8 @@ func ResumePendingAISummaries() {
 func (s *AISummaryService) run(job *aiSummaryTracker, cfg tools.AIConfig, userID uint, title, content, sourceHash string) {
 	postID := job.postID
 	// 排队等待并发名额，拿到后才开始计算超时
-	_ = s.limiter.acquire(context.Background(), s.concurrency, false, nil)
-	defer s.limiter.release()
+	_ = s.limiter.Acquire(context.Background(), s.concurrency, false, nil)
+	defer s.limiter.Release()
 	job.setRunning()
 
 	defer func() {
@@ -546,7 +403,7 @@ func (s *AISummaryService) run(job *aiSummaryTracker, cfg tools.AIConfig, userID
 	prompt, contentImages := buildAISummaryUserPrompt(title, content)
 	var images []VisionImage
 	if len(contentImages) > 0 && tools.GetAIVisionEnabled() {
-		if aiVisionUsable(cfg.BaseURL, cfg.Model) {
+		if llmclient.VisionUsable(cfg.BaseURL, cfg.Model) {
 			images = LoadVisionImages(ctx, contentImages, AIVisionMaxImages)
 		} else {
 			job.setVisionFallback() // 该模型最近拒收过图片，本次直接按纯文本生成
@@ -707,150 +564,5 @@ func aiSummaryCompletion(ctx context.Context, cfg tools.AIConfig, system, user s
 	if err != nil {
 		return "", err
 	}
-	return parseChatCompletion(data)
-}
-
-// chatCompletion 调用 OpenAI 兼容的 /chat/completions 接口（温度 0.3，偏稳定）
-func chatCompletion(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error) {
-	return chatCompletionWithTemperature(ctx, cfg, system, user, 0.3)
-}
-
-// chatCompletionWithTemperature 同 chatCompletion，可指定温度（越高越有创意、越不稳定）
-func chatCompletionWithTemperature(ctx context.Context, cfg tools.AIConfig, system, user string, temperature float64) (string, error) {
-	return chatCompletionWithReasoning(ctx, cfg, system, user, temperature, "")
-}
-
-// reasoningEffortUnsupported 不支持 reasoning_effort 参数（带上时返回 400）的接口与模型，之后不再携带
-var reasoningEffortUnsupported sync.Map
-
-// chatCompletionWithReasoning 同 chatCompletionWithTemperature，可指定思考强度（OpenAI 兼容的 reasoning_effort：none / low / medium / high，
-// 空为不指定，由模型默认）。思考型模型默认会先输出大量思考内容，任务简单时调低能快数倍。
-// 不支持该参数的接口返回 400 时，去掉参数重试一次并记住
-func chatCompletionWithReasoning(ctx context.Context, cfg tools.AIConfig, system, user string, temperature float64, effort string) (string, error) {
-	data, err := chatCompletionRaw(ctx, cfg, system, user, temperature, effort)
-	if err != nil {
-		return "", err
-	}
-	return parseChatCompletion(data)
-}
-
-// chatCompletionRaw 同 chatCompletionWithReasoning，返回上游的原始响应体（需要读取 usage 用量时使用）。
-// 调用前按 ctx 上标明的用途检查全站 AI 预算，调用后记一条用量（失败也记）
-func chatCompletionRaw(ctx context.Context, cfg tools.AIConfig, system, user string, temperature float64, effort string) ([]byte, error) {
-	return chatCompletionRawWithImages(ctx, cfg, system, user, nil, temperature, effort)
-}
-
-// chatCompletionRawWithImages 同 chatCompletionRaw，用户消息可附带图片（识图，见 postChatCompletionsVision）
-func chatCompletionRawWithImages(ctx context.Context, cfg tools.AIConfig, system, user string, images []VisionImage, temperature float64, effort string) ([]byte, error) {
-	finish, err := beginLLMCall(ctx, cfg.Model)
-	if err != nil {
-		return nil, err
-	}
-	data, err := chatCompletionRawCall(ctx, cfg, system, user, images, temperature, effort)
-	var usage llmUsage
-	if err == nil {
-		usage = parseLLMUsageDetail(data)
-	}
-	finish(usage, err)
-	return data, err
-}
-
-// chatCompletionRawCall 实际发送非流式请求；不支持 reasoning_effort 的接口去掉参数重试一次、拒收图片时去掉图片重试一次（只记一次用量）
-func chatCompletionRawCall(ctx context.Context, cfg tools.AIConfig, system, user string, images []VisionImage, temperature float64, effort string) ([]byte, error) {
-	payload := map[string]any{
-		"model":       cfg.Model,
-		"messages":    chatMessagesWithImages(system, user, images),
-		"temperature": temperature,
-		"stream":      false,
-	}
-	key := cfg.BaseURL + "\x00" + cfg.Model
-	if _, unsupported := reasoningEffortUnsupported.Load(key); effort != "" && !unsupported {
-		payload["reasoning_effort"] = effort
-	}
-	resp, err := postChatCompletionsVision(ctx, cfg, payload)
-	var statusErr *chatStatusError
-	if _, sent := payload["reasoning_effort"]; sent && errors.As(err, &statusErr) && statusErr.code == http.StatusBadRequest {
-		logrus.Warnf("chat completion rejected reasoning_effort, retrying without it: %v", err)
-		reasoningEffortUnsupported.Store(key, true)
-		delete(payload, "reasoning_effort")
-		resp, err = postChatCompletionsVision(ctx, cfg, payload)
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	return io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-}
-
-func chatMessages(system, user string) []map[string]string {
-	return []map[string]string{
-		{"role": "system", "content": system},
-		{"role": "user", "content": user},
-	}
-}
-
-// chatMessagesWithImages 同 chatMessages，用户消息附带图片时 content 为文本块加图片块的数组
-func chatMessagesWithImages(system, user string, images []VisionImage) []map[string]any {
-	return []map[string]any{
-		{"role": "system", "content": system},
-		{"role": "user", "content": VisionContentParts(user, images)},
-	}
-}
-
-// chatStatusError 接口返回非 200：状态码与少量响应内容
-type chatStatusError struct {
-	code int
-	msg  string
-}
-
-func (e *chatStatusError) Error() string {
-	return fmt.Sprintf("status %d: %s", e.code, e.msg)
-}
-
-// postChatCompletions 发送请求，非 200 时读取少量响应内容作为错误返回；成功时由调用方关闭响应体
-func postChatCompletions(ctx context.Context, cfg tools.AIConfig, payload map[string]any) (*http.Response, error) {
-	body, _ := json.Marshal(payload)
-	endpoint := cfg.BaseURL
-	if !strings.HasSuffix(endpoint, "/chat/completions") {
-		endpoint += "/chat/completions"
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+cfg.APIKey)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		defer resp.Body.Close()
-		data, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-		// 只截取少量响应内容，避免把整段错误页写进状态
-		msg := strings.TrimSpace(string(data))
-		if r := []rune(msg); len(r) > 200 {
-			msg = string(r[:200])
-		}
-		return nil, &chatStatusError{code: resp.StatusCode, msg: msg}
-	}
-	return resp, nil
-}
-
-// parseChatCompletion 解析非流式响应，取第一个候选的内容
-func parseChatCompletion(data []byte) (string, error) {
-	var result struct {
-		Choices []struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-		} `json:"choices"`
-	}
-	if err := json.Unmarshal(data, &result); err != nil {
-		return "", fmt.Errorf("invalid response: %w", err)
-	}
-	if len(result.Choices) == 0 {
-		return "", errors.New("empty choices")
-	}
-	return result.Choices[0].Message.Content, nil
+	return llmclient.ParseChatCompletion(data)
 }

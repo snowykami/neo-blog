@@ -9,6 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/internal/llmclient"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/tools"
@@ -30,12 +31,7 @@ const (
 )
 
 // llmUsage 一次调用的 token 用量（取自上游响应的 usage）
-type llmUsage struct {
-	Prompt     int // 输入（含命中缓存的部分）
-	Cached     int // 输入中命中缓存的
-	CacheWrite int // 写入缓存的
-	Completion int // 输出
-}
+type llmUsage = llmclient.Usage
 
 type llmCallKey struct{}
 
@@ -224,4 +220,54 @@ func CleanupLLMUsage() {
 	} else if n > 0 {
 		logrus.Infof("llm usage cleanup: deleted %d records before %s", n, before.Format(time.DateOnly))
 	}
+}
+
+// chatCompletion 调用 OpenAI 兼容的 /chat/completions 接口（温度 0.3，偏稳定）并记录用量
+func chatCompletion(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error) {
+	return chatCompletionWithTemperature(ctx, cfg, system, user, 0.3)
+}
+
+// chatCompletionWithTemperature 同 chatCompletion，可指定温度
+func chatCompletionWithTemperature(ctx context.Context, cfg tools.AIConfig, system, user string, temperature float64) (string, error) {
+	return chatCompletionWithReasoning(ctx, cfg, system, user, temperature, "")
+}
+
+// chatCompletionWithReasoning 同 chatCompletionWithTemperature，可指定思考强度（reasoning_effort）
+func chatCompletionWithReasoning(ctx context.Context, cfg tools.AIConfig, system, user string, temperature float64, effort string) (string, error) {
+	data, err := chatCompletionRaw(ctx, cfg, system, user, temperature, effort)
+	if err != nil {
+		return "", err
+	}
+	return llmclient.ParseChatCompletion(data)
+}
+
+// chatCompletionRaw 调用前检查全站 AI 预算，调用后记录用量并返回原始响应体
+func chatCompletionRaw(ctx context.Context, cfg tools.AIConfig, system, user string, temperature float64, effort string) ([]byte, error) {
+	return chatCompletionRawWithImages(ctx, cfg, system, user, nil, temperature, effort)
+}
+
+// chatCompletionRawWithImages 同 chatCompletionRaw，用户消息可附带图片
+func chatCompletionRawWithImages(ctx context.Context, cfg tools.AIConfig, system, user string, images []VisionImage, temperature float64, effort string) ([]byte, error) {
+	finish, err := beginLLMCall(ctx, cfg.Model)
+	if err != nil {
+		return nil, err
+	}
+	data, err := llmclient.ChatCompletionRawCall(ctx, cfg, system, user, images, temperature, effort)
+	var usage llmUsage
+	if err == nil {
+		usage = llmclient.ParseUsageDetail(data)
+	}
+	finish(usage, err)
+	return data, err
+}
+
+// chatCompletionStream 流式调用模型并记录全站预算与用量
+func chatCompletionStream(ctx context.Context, cfg tools.AIConfig, system, user string, onChunk func(content, reasoning string) error) error {
+	finish, err := beginLLMCall(ctx, cfg.Model)
+	if err != nil {
+		return err
+	}
+	usage, err := llmclient.ChatCompletionStreamCall(ctx, cfg, system, user, onChunk)
+	finish(usage, err)
+	return err
 }
