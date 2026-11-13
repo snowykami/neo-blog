@@ -50,7 +50,7 @@ export function useConfigT() {
 export function ConfigField({ item }: { item: ConfigItem }) {
   const tr = useConfigT()
   const props: FieldProps = { item, label: tr(item.label) ?? item.key, description: tr(item.description) }
-  if (item.envValue)
+  if (item.envValue || item.envSet)
     return <EnvValueItem {...props} />
   switch (item.widget) {
     case 'color_schemes':
@@ -100,10 +100,9 @@ function FieldLabel({ label, description }: { label: string, description?: strin
   return <LabelWithInfo info={description}><FormLabel>{label}</FormLabel></LabelWithInfo>
 }
 
-// 由环境变量设置的值：只读显示并说明；密钥默认隐藏，开关按环境变量的取值显示
+// 由环境变量设置的值：只读显示并说明；密钥不回传明文，仅提示已由环境变量设置；开关按环境变量的取值显示
 function EnvValueItem({ item, label, description }: FieldProps) {
   const t = useTranslations('Console.global')
-  const [visible, setVisible] = useState(false)
   const value = item.envValue ?? ''
   const note = <FormDescription>{t(item.envUnit === 'seconds' ? 'env_override_seconds_note' : 'env_override_note', { name: item.env ?? '' })}</FormDescription>
   if (item.type === 'bool') {
@@ -118,14 +117,19 @@ function EnvValueItem({ item, label, description }: FieldProps) {
       </FormItem>
     )
   }
-  const secret = item.type === 'secret'
+  if (item.type === 'secret') {
+    return (
+      <FormItem className={itemClass(item)}>
+        <FieldLabel label={label} description={description} />
+        <Input type="text" value="" placeholder={t('env_secret_configured')} readOnly disabled />
+        {note}
+      </FormItem>
+    )
+  }
   return (
     <FormItem className={itemClass(item)}>
       <FieldLabel label={label} description={description} />
-      <div className="relative">
-        <Input type={secret && !visible ? 'password' : 'text'} value={value} readOnly disabled className={secret ? 'pr-10' : undefined} />
-        {secret && <RevealButton visible={visible} onToggle={() => setVisible(v => !v)} />}
-      </div>
+      <Input type="text" value={value} readOnly disabled />
       {note}
     </FormItem>
   )
@@ -194,9 +198,11 @@ function TextAreaField({ item, label, description }: FieldProps) {
 }
 
 function SecretField({ item, label, description }: FieldProps) {
+  const t = useTranslations('Console.global')
   const { control } = useFormContext<ConfigValues>()
   const [visible, setVisible] = useState(false)
-  const placeholder = usePlaceholder(item)
+  const defaultPlaceholder = usePlaceholder(item)
+  const placeholder = item.hasValue ? t('secret_configured_placeholder') : defaultPlaceholder
   return (
     <FormField
       control={control}

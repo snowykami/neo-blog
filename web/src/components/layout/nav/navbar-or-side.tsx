@@ -23,6 +23,7 @@ import { listPages } from '@/api/page'
 import {
   ColorSchemeCircles,
   ColorSchemePicker,
+  ThemePackSection,
   useColorScheme,
 } from '@/components/common/color-scheme-picker'
 import { ThemeModeToggle } from '@/components/common/theme-toggle'
@@ -381,6 +382,7 @@ function SidebarColorSchemes() {
     <div className="grid gap-2">
       <div className="text-xs font-medium text-muted-foreground">{t('title')}</div>
       <ColorSchemeCircles color={color} colorSchemes={colorSchemes} onSelect={selectColor} />
+      <ThemePackSection />
     </div>
   )
 }

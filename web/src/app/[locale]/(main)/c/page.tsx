@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { FolderIcon } from 'lucide-react'
 import { getLocale, getTranslations } from 'next-intl/server'
 import BlogSidebar from '@/components/blog-sidebar'
+import { getCachedSidebarData } from '@/components/blog-sidebar/sidebar-data'
 import { SectionTitle, SiteShell } from '@/components/layout/site-shell'
 import { localeAlternates } from '@/i18n/alternates'
 import { Link } from '@/i18n/navigation'
@@ -15,12 +16,15 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function CategoryPage() {
   // 分类列表跨请求缓存（与分类页共用）；取不到时抛错，不把空列表缓存成页面：错误时 Next 继续提供上一份成功生成的页面（见 api/misc.server.ts）
-  const categories = await getCachedCategories()
+  const [categories, sidebarData] = await Promise.all([
+    getCachedCategories(),
+    getCachedSidebarData(),
+  ])
   const t = await getTranslations()
 
   return (
     <SiteShell
-      sidebar={<BlogSidebar />}
+      sidebar={<BlogSidebar initialData={sidebarData} />}
     >
       <SectionTitle as="h1" className="mx-4 text-xl md:mx-2 md:text-2xl">
         {t('Public.categories')}

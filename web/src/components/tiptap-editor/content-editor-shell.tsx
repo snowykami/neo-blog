@@ -318,6 +318,7 @@ function LoadedShell({
           crumbRoot={crumbRoot}
           title={meta.title.trim() || untitled}
           isPrivate={meta.isPrivate}
+          isUnpublished={controller.isUnpublished}
           hasUnpublishedChanges={controller.hasUnpublishedChanges}
           words={words}
           saveState={controller.saveState}

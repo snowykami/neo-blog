@@ -24,6 +24,7 @@ export interface StorageProviderConfig {
   s3Prefix?: string // for s3 storage provider
   s3AccessKeyId?: string // for s3 storage provider
   s3SecretAccessKey?: string // for s3 storage provider
+  hasS3SecretAccessKey?: boolean
   s3Endpoint?: string // for s3 storage provider
   s3PathStyle?: boolean // for s3 storage provider
   s3BaseUrl?: string // for s3 storage provider
@@ -32,6 +33,7 @@ export interface StorageProviderConfig {
   webdavEndpoint?: string
   webdavUsername?: string
   webdavPassword?: string
+  hasWebdavPassword?: boolean
 }
 
 // 存储提供者的占用情况：仍有文件或 HTML 页面版本时不能删除

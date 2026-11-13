@@ -33,6 +33,8 @@ export interface Post {
   user: User
   isLiked: boolean // 当前用户是否点赞
   isPrivate: boolean
+  isDraft?: boolean // 是否为尚未首次发布的草稿
+  hasDraft?: boolean // 后台列表返回：是否有尚未发布的草稿改动
   // 置顶到首页（只有管理员可以设置）：pinned 为此刻是否置顶（已置顶且未到期），pinnedUntil 为空表示不自动取消
   pinned: boolean
   pinnedAt: string | null

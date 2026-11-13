@@ -277,6 +277,7 @@
       "kind_all": "전체",
       "kind_user": "로그인 사용자",
       "kind_anonymous": "익명 방문자",
+      "include_ai": "AI 사용자 포함",
       "visited_post": "글 <link>{title}</link> 방문",
       "visited_page": "페이지 <link>{title}</link> 방문",
       "visited_path": "<link>{title}</link> 방문",
@@ -635,7 +636,10 @@
       "private": "비공개",
       "reply_count": "답글 {count}개",
       "like_count": "좋아요 {count}",
-      "delete_with_replies_description": "이 댓글의 답글 {count}개와 그 하위 답글도 함께 삭제되며, 되돌릴 수 없습니다."
+      "delete_with_replies_description": "이 댓글의 답글 {count}개와 그 하위 답글도 함께 삭제되며, 되돌릴 수 없습니다.",
+      "select_all": "현재 페이지 전체 선택",
+      "selected_count": "댓글 {count}개 선택됨",
+      "batch_delete_description": "선택한 댓글 {count}개를 삭제하시겠습니까? 하위 답글도 함께 삭제되며 복구할 수 없습니다."
     },
     "dashboard": {
       "title": "대시보드",
@@ -1155,7 +1159,13 @@
         "preset_keys": "자주 쓰는 키",
         "key_required": "키를 입력해야 합니다",
         "value_invalid_json": "값은 올바른 JSON이어야 합니다",
-        "delete_description": "키 \"{key}\"이(가) 삭제됩니다. 되돌릴 수 없으며 사이트 동작에 영향을 줄 수 있습니다."
+        "delete_description": "키 \"{key}\"이(가) 삭제됩니다. 되돌릴 수 없으며 사이트 동작에 영향을 줄 수 있습니다.",
+        "secret_badge": "민감",
+        "secret_masked": "설정됨 (민감 값 숨김)",
+        "secret_empty": "비어 있음 (민감)",
+        "secret_label": "민감 설정 항목",
+        "secret_hint": "활성화하면 API 응답에서 평문 값을 숨깁니다",
+        "secret_value_placeholder": "민감 값이 설정되어 있습니다. 비워두면 기존 값을 유지하며 유효한 JSON을 입력하면 덮어씁니다"
       },
       "section_personalize": "개인화 리소스",
       "section_personalize_desc": "사이드바, 서드파티 스크립트 등 공개 사이트 리소스입니다. 비워 두면 해당 구성 요소가 숨겨집니다.",
@@ -1354,7 +1364,9 @@
       "search_reindex_started": "백그라운드에서 전체 공개 색인 재구축이 시작되었습니다 (검색 서비스는 중단되지 않습니다)",
       "search_reindex_running": "이미 전체 색인 재구축 작업이 진행 중입니다",
       "search_reindex_failed": "색인 재구축 시작 실패",
-      "search_reindex_save_first": "검색 설정이 변경되었습니다. 먼저 저장한 뒤 색인 재구축을 실행해 주세요"
+      "search_reindex_save_first": "검색 설정이 변경되었습니다. 먼저 저장한 뒤 색인 재구축을 실행해 주세요",
+      "env_secret_configured": "환경 변수로 설정됨 (숨김)",
+      "secret_configured_placeholder": "설정됨 (비워두면 유지)"
     },
     "labels": {
       "title": "태그",
@@ -1393,7 +1405,8 @@
       "types": {
         "oauth2": "OAuth2 / OIDC",
         "misskey": "Misskey"
-      }
+      },
+      "secret_configured_placeholder": "설정됨 (비워두면 유지)"
     },
     "personal": "개인",
     "posts": {
@@ -1477,7 +1490,12 @@
       "unpin_success": "고정을 해제했습니다",
       "unpin_action": "고정 해제",
       "pin_until": "{date}까지",
-      "only_pinned": "고정된 글만 (최대 {max}개)"
+      "only_pinned": "고정된 글만 (최대 {max}개)",
+      "empty": "아직 게시글이 없습니다. 첫 글을 작성해 보세요!",
+      "empty_search": "일치하는 게시글이 없습니다",
+      "select_all": "현재 페이지 전체 선택",
+      "selected_count": "{count}개 선택됨",
+      "batch_delete_description": "선택한 게시글 {count}개를 삭제하시겠습니까? 삭제 후 복구할 수 없습니다."
     },
     "storages": {
       "title": "저장소 공급자",
@@ -1546,7 +1564,9 @@
           "files": "파일 복사 중",
           "pages": "HTML 페이지 복사 중"
         }
-      }
+      },
+      "loading": "불러오는 중…",
+      "secret_configured_placeholder": "설정됨 (비워두면 유지)"
     },
     "users": {
       "title": "사용자",
@@ -1601,7 +1621,11 @@
       "invalid_email": "이메일 형식이 올바르지 않습니다",
       "invalid_url": "올바른 http(s) URL을 입력하거나 자산 라이브러리에서 선택하세요",
       "ai_badge": "AI",
-      "ai_badge_title": "AI 사용자, 클릭해서 보기"
+      "ai_badge_title": "AI 사용자, 클릭해서 보기",
+      "external_accounts": "외부 계정",
+      "external_empty": "연결된 외부 계정이 없습니다",
+      "external_provider": "플랫폼",
+      "external_sub": "OpenID (sub)"
     },
     "user_profile": {
       "title": "프로필 설정",
@@ -2298,7 +2322,8 @@
       "upload_video_too_large": "\"{name}\"은(는) {size}를 넘어 올릴 수 없습니다",
       "leave_uploading_title": "업로드 중인 파일이 있습니다",
       "leave_uploading_description": "지금 나가면 업로드가 취소되고, 완료되지 않은 이미지나 동영상은 초안에 저장되지 않습니다. 나가시겠습니까?",
-      "leave_uploading_confirm": "그래도 나가기"
+      "leave_uploading_confirm": "그래도 나가기",
+      "status_draft": "초안"
     },
     "menu": {
       "notifications": "알림",
@@ -2491,6 +2516,7 @@
     },
     "visit_insights": {
       "title": "방문자 통계",
+      "include_ai": "AI 사용자 포함",
       "range_1": "오늘",
       "range_7": "최근 7일",
       "range_30": "최근 30일",
@@ -3834,7 +3860,9 @@
       "email_service_unavailable": "사이트에 메일 서비스가 설정되어 있지 않아 인증 코드를 보낼 수 없습니다. 관리자에게 문의하세요",
       "meilisearch_url_required": "Meilisearch를 활성화하려면 올바른 서비스 주소(http:// 또는 https://)를 입력해야 합니다",
       "meilisearch_test_failed": "Meilisearch 연결 테스트에 실패했습니다",
-      "meilisearch_not_enabled": "Meilisearch 서비스가 활성화되지 않았습니다"
+      "meilisearch_not_enabled": "Meilisearch 서비스가 활성화되지 않았습니다",
+      "csrf_origin_mismatch": "교차 출처 요청 검증에 실패했습니다. 페이지를 새로고침한 후 다시 시도해 주세요.",
+      "empty_file": "업로드된 파일이 비어 있습니다"
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field} \"{value}\"이(가) 올바르지 않습니다} resource {{resource} 매개변수가 올바르지 않습니다} other {요청 매개변수가 올바르지 않습니다}}",

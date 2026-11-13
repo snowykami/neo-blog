@@ -83,7 +83,7 @@ export function SettingsForm({ advanced }: { advanced: React.ReactNode }) {
 
   const onSubmit = async (values: ConfigValues) => {
     const dirty = form.formState.dirtyFields as Record<string, unknown>
-    const changes = items.filter(item => dirty[item.key] && !item.envValue).map(item => ({ key: item.key, value: values[item.key] }))
+    const changes = items.filter(item => dirty[item.key] && !item.envValue && !item.envSet).map(item => ({ key: item.key, value: values[item.key] }))
     if (changes.length === 0) {
       toast.info(t('no_changes'))
       return

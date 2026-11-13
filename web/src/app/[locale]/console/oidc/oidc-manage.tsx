@@ -74,7 +74,8 @@ function toForm(config: OidcConfig): OidcForm {
     displayName: config.displayName || '',
     icon: config.icon || '',
     clientId: config.clientId || '',
-    clientSecret: config.clientSecret || '',
+    clientSecret: '',
+    hasClientSecret: Boolean(config.hasClientSecret),
     tokenAuthMethod: config.tokenAuthMethod || 'client_secret_post',
     oidcDiscoveryUrl: config.oidcDiscoveryUrl || '',
     issuer: config.issuer || '',
@@ -261,7 +262,7 @@ function OidcConfigForm({
   const textField = (
     name: 'name' | 'displayName' | 'clientId' | 'clientSecret' | 'oidcDiscoveryUrl' | 'issuer' | 'authorizationEndpoint' | 'tokenEndpoint' | 'userinfoEndpoint' | 'jwksUri',
     label: string,
-    options: { required?: boolean, type?: string } = {},
+    options: { required?: boolean, type?: string, placeholder?: string } = {},
   ) => (
     <FormField
       control={control}
@@ -275,6 +276,7 @@ function OidcConfigForm({
               {...field}
               value={field.value ?? ''}
               type={options.type}
+              placeholder={options.placeholder}
               autoComplete={options.type === 'password' ? 'new-password' : undefined}
             />
           </FormControl>
@@ -291,7 +293,11 @@ function OidcConfigForm({
           {textField('name', t('name'), { required: true })}
           {textField('displayName', t('display_name'))}
           {textField('clientId', 'Client ID', { required: true })}
-          {textField('clientSecret', 'Client Secret', { type: 'password' })}
+          {textField('clientSecret', 'Client Secret', {
+            type: 'password',
+            required: !initialValues.id && !initialValues.hasClientSecret,
+            placeholder: initialValues.hasClientSecret ? t('secret_configured_placeholder') : undefined,
+          })}
           <FormField
             control={control}
             name="tokenAuthMethod"

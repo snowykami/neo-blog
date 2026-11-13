@@ -1,6 +1,7 @@
 'use client'
 
 import type { BlogHomeInitialData } from './blog-home-query'
+import type { SidebarInitialData } from '@/components/blog-sidebar/sidebar-data'
 import type { Post } from '@/models/post'
 import { Clock, TrendingUp, XIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
@@ -19,7 +20,7 @@ import { OrderBy } from '@/models/common'
 import { parseHighlightTerms } from '@/utils/common/highlight'
 import { blogHomeQueryKey } from './blog-home-query'
 
-export default function BlogHome({ initialData }: { initialData?: BlogHomeInitialData }) {
+export default function BlogHome({ initialData, sidebarData }: { initialData?: BlogHomeInitialData, sidebarData?: SidebarInitialData }) {
   // 从路由查询参数中获取页码和标签们
   const t = useTranslations('BlogHome')
   const { siteInfo } = useSiteInfo()
@@ -169,7 +170,7 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
   return (
     <SiteShell
       sidebar={(
-        <BlogSidebar label={labelSlug} setLabel={setLabelSlug} />
+        <BlogSidebar label={labelSlug} setLabel={setLabelSlug} initialData={sidebarData} />
       )}
     >
       {/* 列表标题与排序 */}

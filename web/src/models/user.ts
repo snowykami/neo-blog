@@ -30,6 +30,7 @@ export interface User {
   createdAt?: string // 注册时间，仅 /user/me 与管理员接口返回
   disabled?: boolean // 是否被禁用，仅 /user/me 与管理员接口返回
   isAi?: boolean // 是否为 AI 用户，仅本人与管理员可见；前台不做区分
+  openIds?: OpenIdDto[] // 绑定的外部账号，仅管理员接口返回
 }
 
 export enum Role {

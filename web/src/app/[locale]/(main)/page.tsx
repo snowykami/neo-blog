@@ -7,6 +7,7 @@ import { Suspense } from 'react'
 import { getCachedSiteInfo } from '@/api/misc.server'
 import { listPosts } from '@/api/post'
 import { PostList } from '@/components/blog-home/post-list'
+import { getCachedSidebarData } from '@/components/blog-sidebar/sidebar-data'
 import { BlogSidebarSkeleton } from '@/components/blog-sidebar/sidebar-skeleton'
 import { SiteShell } from '@/components/layout/site-shell'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -88,8 +89,8 @@ async function getInitialPosts(searchParams: HomeSearchParams, pageSize: number)
 
 // 读地址查询参数（分页、标签、搜索）的部分：放在 Suspense 里按请求渲染，外面的部分属于首页的 App Shell 与页面缓存
 async function HomePosts({ searchParams }: { searchParams: Promise<HomeSearchParams> }) {
-  const [query, siteInfo] = await Promise.all([searchParams, getCachedSiteInfo()])
-  return <BlogHome initialData={await getInitialPosts(query, siteInfo.postsPerPage)} />
+  const [query, siteInfo, sidebarData] = await Promise.all([searchParams, getCachedSiteInfo(), getCachedSidebarData()])
+  return <BlogHome initialData={await getInitialPosts(query, siteInfo.postsPerPage)} sidebarData={sidebarData} />
 }
 
 // 文章列表到达前的占位：与列表加载态相同的文章行，侧栏只画占位卡片

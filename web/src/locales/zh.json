@@ -277,6 +277,7 @@
       "kind_all": "全部",
       "kind_user": "登录用户",
       "kind_anonymous": "匿名访客",
+      "include_ai": "包含 AI 用户",
       "visited_post": "访问了文章 <link>{title}</link>",
       "visited_page": "访问了页面 <link>{title}</link>",
       "visited_path": "访问了 <link>{title}</link>",
@@ -635,7 +636,10 @@
       "private": "私密",
       "reply_count": "{count} 回复",
       "like_count": "{count} 赞",
-      "delete_with_replies_description": "该评论下的 {count} 条回复及其后续回复会一并删除，且不可恢复。"
+      "delete_with_replies_description": "该评论下的 {count} 条回复及其后续回复会一并删除，且不可恢复。",
+      "select_all": "全选本页",
+      "selected_count": "已选 {count} 条评论",
+      "batch_delete_description": "确定要删除选中的 {count} 条评论吗？其下属回复也会一并删除且不可恢复。"
     },
     "dashboard": {
       "title": "仪表盘",
@@ -1155,7 +1159,13 @@
         "preset_keys": "常用键",
         "key_required": "键名不能为空",
         "value_invalid_json": "值必须是合法的 JSON",
-        "delete_description": "将删除配置键「{key}」，删除后不可恢复，可能影响站点运行。"
+        "delete_description": "将删除配置键「{key}」，删除后不可恢复，可能影响站点运行。",
+        "secret_badge": "敏感",
+        "secret_masked": "已配置（敏感值已隐藏）",
+        "secret_empty": "未设置（敏感）",
+        "secret_label": "敏感配置项",
+        "secret_hint": "开启后接口不再回传明文值",
+        "secret_value_placeholder": "已配置敏感值，留空则仅保存标记而不修改原值；输入合法 JSON 可覆盖"
       },
       "section_personalize": "个性化资源",
       "section_personalize_desc": "前台侧边栏与第三方脚本等资源，留空即隐藏对应组件",
@@ -1354,7 +1364,9 @@
       "search_reindex_started": "全站公开索引重建已在后台启动，期间搜索服务不会中断",
       "search_reindex_running": "已有全站索引重建任务在执行中",
       "search_reindex_failed": "触发索引重建失败",
-      "search_reindex_save_first": "修改了搜索配置，请先保存后再执行全站索引重建"
+      "search_reindex_save_first": "修改了搜索配置，请先保存后再执行全站索引重建",
+      "env_secret_configured": "已由环境变量设置（已隐藏）",
+      "secret_configured_placeholder": "已配置，留空保持不变"
     },
     "labels": {
       "title": "标签管理",
@@ -1393,7 +1405,8 @@
       "types": {
         "oauth2": "OAuth2 / OIDC",
         "misskey": "Misskey"
-      }
+      },
+      "secret_configured_placeholder": "已配置，留空保持不变"
     },
     "personal": "个人",
     "posts": {
@@ -1477,7 +1490,12 @@
       "unpin_success": "已取消置顶",
       "unpin_action": "取消置顶",
       "pin_until": "至 {date}",
-      "only_pinned": "仅看置顶（最多 {max} 篇）"
+      "only_pinned": "仅看置顶（最多 {max} 篇）",
+      "empty": "还没有文章，创建一篇吧！",
+      "empty_search": "没有找到匹配的文章",
+      "select_all": "全选本页",
+      "selected_count": "已选 {count} 篇",
+      "batch_delete_description": "确定要删除选中的 {count} 篇文章吗？删除后不可恢复。"
     },
     "storages": {
       "title": "存储供应商",
@@ -1546,7 +1564,9 @@
           "files": "正在复制文件",
           "pages": "正在复制 HTML 页面"
         }
-      }
+      },
+      "loading": "加载中…",
+      "secret_configured_placeholder": "已配置，留空保持不变"
     },
     "users": {
       "title": "用户管理",
@@ -1601,7 +1621,11 @@
       "invalid_email": "邮箱格式不正确",
       "invalid_url": "请输入有效的 http(s) 地址，或从资产库选择",
       "ai_badge": "AI",
-      "ai_badge_title": "AI 用户，点击查看"
+      "ai_badge_title": "AI 用户，点击查看",
+      "external_accounts": "外部账号",
+      "external_empty": "未绑定外部账号",
+      "external_provider": "平台",
+      "external_sub": "OpenID (sub)"
     },
     "user_profile": {
       "title": "资料设置",
@@ -2298,7 +2322,8 @@
       "upload_video_too_large": "「{name}」超过 {size}，无法上传",
       "leave_uploading_title": "还有文件在上传",
       "leave_uploading_description": "现在离开会取消上传，还没传完的图片或视频不会保存到草稿。确定要离开吗？",
-      "leave_uploading_confirm": "仍要离开"
+      "leave_uploading_confirm": "仍要离开",
+      "status_draft": "草稿"
     },
     "menu": {
       "notifications": "通知",
@@ -2491,6 +2516,7 @@
     },
     "visit_insights": {
       "title": "访客统计",
+      "include_ai": "包含 AI 用户",
       "range_1": "今日",
       "range_7": "近 7 天",
       "range_30": "近 30 天",
@@ -3795,7 +3821,9 @@
       "email_service_unavailable": "站点未配置邮件服务，暂时无法发送验证码，请联系管理员",
       "meilisearch_url_required": "启用 Meilisearch 时必须填写合法的服务地址（http:// 或 https://）",
       "meilisearch_test_failed": "Meilisearch 连接测试失败",
-      "meilisearch_not_enabled": "尚未启用或配置 Meilisearch 服务"
+      "meilisearch_not_enabled": "尚未启用或配置 Meilisearch 服务",
+      "csrf_origin_mismatch": "跨站请求校验未通过，请刷新页面后重试",
+      "empty_file": "上传的文件内容为空"
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field}「{value}」不符合要求} resource {{resource}的参数不符合要求} other {请求参数不符合要求}}",

@@ -417,6 +417,8 @@ function CommentBody({
   const editing = activeInput?.type === 'edit' && activeInput.id === comment.id
   const isRoot = variant === 'root'
   const hasText = comment.content.trim() !== ''
+  const canEdit = Boolean(user && (user.id === comment.user.id || isAdmin({ user })))
+  const canDelete = Boolean(canEdit || (user && ownerId && user.id === ownerId))
 
   return (
     <div className="group/comment">
@@ -536,10 +538,10 @@ function CommentBody({
                   : <Languages aria-hidden className="size-3.5" />}
               </button>
             )}
-            {user && (user.id === comment.user.id || isAdmin({ user })) && (
+            {canDelete && (
               // 能悬停的设备（鼠标）悬停时才显示「更多」；触屏手机、平板不能悬停，始终显示
               <span className="ml-auto transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-focus-within/comment:opacity-100 [@media(hover:hover)]:group-hover/comment:opacity-100">
-                <CommentDropdownMenu comment={comment} setActiveInputId={setActiveInputId} onCommentDelete={onDelete} />
+                <CommentDropdownMenu comment={comment} canEdit={canEdit} setActiveInputId={setActiveInputId} onCommentDelete={onDelete} />
               </span>
             )}
           </div>
@@ -578,10 +580,12 @@ function languageName(code: string, locale: string) {
 
 function CommentDropdownMenu({
   comment,
+  canEdit,
   setActiveInputId,
   onCommentDelete,
 }: {
   comment: Comment
+  canEdit: boolean
   setActiveInputId: (input: ActiveInput) => void
   onCommentDelete: ({ commentId }: { commentId: number }) => Promise<void>
 }) {
@@ -617,18 +621,22 @@ function CommentDropdownMenu({
             onCloseAutoFocus={e => confirmOpen && e.preventDefault()}
           >
             <div className="flex flex-col">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="justify-start cursor-pointer"
-                onClick={() => {
-                  setActiveInputId({ id: comment.id, type: 'edit' })
-                  setOpen(false)
-                }}
-              >
-                {operationT('edit')}
-              </Button>
-              <div className="h-px bg-border my-1" />
+              {canEdit && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="justify-start cursor-pointer"
+                    onClick={() => {
+                      setActiveInputId({ id: comment.id, type: 'edit' })
+                      setOpen(false)
+                    }}
+                  >
+                    {operationT('edit')}
+                  </Button>
+                  <div className="h-px bg-border my-1" />
+                </>
+              )}
               <Button
                 variant="ghost"
                 size="sm"

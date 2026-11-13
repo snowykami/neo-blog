@@ -2,7 +2,7 @@ import type { SubmitHandler } from 'react-hook-form'
 import type { StorageProviderConfig } from '@/models/file'
 import { Check, ChevronsUpDown } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { FormProvider, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { createStorageProvider, updateStorageProvider } from '@/api/file'
@@ -46,6 +46,16 @@ export function CreateOrUpdateStorageDialog({ initStorageProvider, onCreate }: {
   })
   const { watch, handleSubmit, formState, control } = form
   const selectedType = watch('type')
+
+  useEffect(() => {
+    if (open && initStorageProvider) {
+      form.reset({
+        ...initStorageProvider,
+        s3SecretAccessKey: '',
+        webdavPassword: '',
+      })
+    }
+  }, [open, initStorageProvider, form])
 
   const onSubmit: SubmitHandler<StorageProviderConfig> = async (data: StorageProviderConfig) => {
     if (initStorageProvider) {

@@ -1,11 +1,13 @@
 import type { MetadataRoute } from 'next'
+import { cacheLife, cacheTag } from 'next/cache'
 import { connection } from 'next/server'
 import { getSitemapData } from '@/api/misc'
 import { languageAlternates } from '@/i18n/alternates'
 import { localizePath, routing } from '@/i18n/routing'
+import { CacheTag } from '@/lib/cache-tags'
 import { getCategoryUrl, getPageUrl, getPostUrl, getUserUrl } from '@/utils/common/route'
 
-// 每次请求时生成（见函数开头的 connection()）：构建阶段连不上后端，预渲染会把空的站点地图缓存下来，每次发布后都要空一段时间
+// 构建阶段不预渲染（见 sitemap() 开头的 connection()）；运行期跨请求缓存并在内容/配置变更时按标签即时失效
 
 /**
  * 取一组时间里最晚的一个；全部无效时返回 undefined（该字段直接省略）
@@ -18,17 +20,11 @@ function latestDate(...dates: (string | null | undefined)[]): Date | undefined {
   return times.length > 0 ? new Date(Math.max(...times)) : undefined
 }
 
-/*
- * sitemap 约定（依据 Google 官方文档）：
- * - <priority> 与 <changefreq> 会被 Google 直接忽略，不再输出，避免暗示与实际不符的权重
- * - <lastmod> 只有在「始终准确」时才会被采用，因此这里只写真实的最后修改时间，
- *   绝不用本次生成时间顶替，否则整站 lastmod 都会失去参考价值
- * - <loc> 不允许带 #fragment，归档月份等锚点不再单独成条（它们和 /a 是同一个 URL）
- * - 标签筛选页 /?label=xxx 的 canonical 指向首页，不属于规范 URL，故不列入
- * - 每种界面语言一条地址（简体中文不带前缀，其余如 /en/p/x），互相用 xhtml:link hreflang 指向，见 i18n/alternates.ts
- */
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  await connection()
+async function buildSitemapEntries(): Promise<MetadataRoute.Sitemap> {
+  'use cache'
+  cacheLife('site')
+  cacheTag(CacheTag.Posts, CacheTag.Pages, CacheTag.Users, CacheTag.Site)
+
   // 后端不可用时返回错误（500），不能返回空列表，否则搜索引擎会当作全站没有页面
   const sitemapData = (await getSitemapData()).data
   const baseUrl = sitemapData.baseUrl.replace(/\/+$/, '')
@@ -62,4 +58,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       alternates: { languages },
     }))
   })
+}
+
+/*
+ * sitemap 约定（依据 Google 官方文档）：
+ * - <priority> 与 <changefreq> 会被 Google 直接忽略，不再输出，避免暗示与实际不符的权重
+ * - <lastmod> 只有在「始终准确」时才会被采用，因此这里只写真实的最后修改时间，
+ *   绝不用本次生成时间顶替，否则整站 lastmod 都会失去参考价值
+ * - <loc> 不允许带 #fragment，归档月份等锚点不再单独成条（它们和 /a 是同一个 URL）
+ * - 标签筛选页 /?label=xxx 的 canonical 指向首页，不属于规范 URL，故不列入
+ * - 每种界面语言一条地址（简体中文不带前缀，其余如 /en/p/x），互相用 xhtml:link hreflang 指向，见 i18n/alternates.ts
+ */
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  await connection()
+  return buildSitemapEntries()
 }

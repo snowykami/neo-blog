@@ -55,6 +55,7 @@ export interface EditorAppBarProps {
   crumbRoot: string
   title: string
   isPrivate: boolean
+  isUnpublished?: boolean
   hasUnpublishedChanges: boolean
   words: number
   saveState: SaveState
@@ -98,6 +99,7 @@ export function EditorAppBar(props: EditorAppBarProps) {
     crumbRoot,
     title,
     isPrivate,
+    isUnpublished = false,
     hasUnpublishedChanges,
     words,
     saveState,
@@ -154,13 +156,15 @@ export function EditorAppBar(props: EditorAppBarProps) {
           variant="secondary"
           className={cn(
             'hidden h-[22px] shrink-0 rounded-full px-2 font-medium md:inline-flex',
-            hasUnpublishedChanges
-              ? 'bg-muted text-muted-foreground'
-              : 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-400',
+            isUnpublished
+              ? 'bg-amber-500/12 text-amber-700 dark:text-amber-400'
+              : hasUnpublishedChanges
+                ? 'bg-muted text-muted-foreground'
+                : 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-400',
           )}
         >
           {isPrivate && <LockIcon className="size-3" />}
-          {hasUnpublishedChanges ? t('status_unpublished_changes') : t('status_published')}
+          {isUnpublished ? t('status_draft') : hasUnpublishedChanges ? t('status_unpublished_changes') : t('status_published')}
           {isPrivate && ` · ${t('status_private')}`}
         </Badge>
       </nav>

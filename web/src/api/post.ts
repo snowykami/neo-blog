@@ -116,6 +116,22 @@ export async function deletePost({ id }: { id: number }): Promise<null> {
   return res.data
 }
 
+export async function batchDeletePosts({ ids }: { ids: number[] }): Promise<BaseResponse<{ deleted: number }>> {
+  const res = await axiosClient.post('/post/batch-delete', { ids })
+  return res.data
+}
+
+export async function batchUpdatePostVisibility({
+  ids,
+  isPrivate,
+}: {
+  ids: number[]
+  isPrivate: boolean
+}): Promise<BaseResponse<{ updated: number }>> {
+  const res = await axiosClient.patch('/post/batch-visibility', { ids, isPrivate })
+  return res.data
+}
+
 export async function getCategories(): Promise<BaseResponse<{ categories: Category[] }>> {
   const res = await axiosClient.get('/post/categories')
   return res.data

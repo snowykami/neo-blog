@@ -119,7 +119,7 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
           description: data.description,
           labelIds: data.labels.map(l => l.id),
           isPrivate: false,
-          content: `<h1>${data.title}</h1>`,
+          content: '',
           type: 'html',
         },
       })

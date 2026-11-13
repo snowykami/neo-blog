@@ -2,7 +2,7 @@
 import type { StorageProviderConfig, StorageProviderUsage } from '@/models/file'
 import { ArrowRightLeft } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
 import { deleteStorageProvider, listStorageProviders } from '@/api/file'
 import { DeleteButtonWithPopconfirm } from '@/components/common/delete-button-with-popconfirm'
@@ -10,33 +10,31 @@ import { CreateOrUpdateStorageDialog } from '@/components/console/create-storage
 import { isDirectStorage, StorageMigrationDialog, StorageMigrationProgress, useStorageMigration } from '@/components/console/storage-migration'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Empty, EmptyDescription } from '@/components/ui/empty'
 import { Separator } from '@/components/ui/separator'
-import { useCommonT, useOperationT } from '@/hooks/use-translations'
+import { useConsoleQuery } from '@/hooks/use-console-query'
+import { useCommonT, useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { formatDataSize } from '@/utils/common/datasize'
 
 const EMPTY_USAGE: StorageProviderUsage = { files: 0, bytes: 0, pageHtmlVersions: 0 }
+const EMPTY_PROVIDERS: StorageProviderConfig[] = []
+const EMPTY_USAGE_MAP: Record<string, StorageProviderUsage> = {}
 
 export function StorageProviderManage() {
   const t = useTranslations('Console.storages')
-  const [storages, setStorages] = useState<StorageProviderConfig[]>([])
-  const [usage, setUsage] = useState<Record<string, StorageProviderUsage>>({})
-  const [refreshKey, setRefreshKey] = useState(0)
-
-  useEffect(() => {
-    listStorageProviders()
-      .then((res) => {
-        setStorages(res.data.providers || [])
-        setUsage(res.data.usage || {})
-      })
-      .catch((error) => {
-        toast.error(t('fetch_storages_failed') + (error?.message ? `: ${error.message}` : ''))
-        setStorages([])
-      })
-  }, [t, refreshKey])
-
-  const onStorageProviderAnyChange = useCallback(() => {
-    setRefreshKey(k => k + 1)
-  }, [])
+  const errorMessageT = useErrorMessageT()
+  const storagesQuery = useConsoleQuery(
+    ['console/storages'],
+    () => listStorageProviders().then(res => ({
+      providers: res.data.providers || [],
+      usage: res.data.usage || {},
+    })),
+    { onError: error => toast.error(`${t('fetch_storages_failed')}: ${errorMessageT(error)}`) },
+  )
+  const storages = storagesQuery.data?.providers ?? EMPTY_PROVIDERS
+  const usage = storagesQuery.data?.usage ?? EMPTY_USAGE_MAP
+  const loading = storagesQuery.loading && !storagesQuery.data
+  const onStorageProviderAnyChange = storagesQuery.refresh
   // 迁移结束后刷新各存储的占用
   const migration = useStorageMigration(onStorageProviderAnyChange)
 
@@ -59,6 +57,14 @@ export function StorageProviderManage() {
       )}
       <Separator className="my-1" />
       <div>
+        {loading && (
+          <div className="py-10 text-center text-sm text-muted-foreground">{t('loading')}</div>
+        )}
+        {!loading && storages.length === 0 && (
+          <Empty className="py-10">
+            <EmptyDescription>{t('no_storages')}</EmptyDescription>
+          </Empty>
+        )}
         {storages.map(storage => (
           <div id={`storage-${storage.id}`} key={storage.id}>
             <StorageProviderItem
@@ -72,9 +78,6 @@ export function StorageProviderManage() {
             <Separator className="my-1" />
           </div>
         ))}
-        {storages.length === 0 && (
-          <div className="text-sm text-muted-foreground">{t('no_storages')}</div>
-        )}
       </div>
     </div>
   )

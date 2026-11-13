@@ -76,9 +76,10 @@ export function BlogSidebarHotPosts({ posts: initialPosts, orderType = OrderBy.H
   const [posts, setPosts] = useState<Post[]>(initialPosts ?? [])
   const isLatest = orderType === OrderBy.CreatedAt
   useEffect(() => {
-    // 未传入文章时从服务器获取
-    if (initialPosts && initialPosts.length > 0)
+    if (initialPosts !== undefined) {
+      setPosts(initialPosts)
       return
+    }
     let cancelled = false
     listPosts({ orderBy: orderType, page: 1, size: 5, noContent: true })
       .then((res) => {
@@ -134,21 +135,32 @@ const LABELS_COLLAPSED_COUNT = 20
 export function BlogSidebarLabels({
   label = null,
   setLabel,
+  initialLabels,
 }: {
   label?: string | null
   setLabel?: (label: string | null) => void
+  initialLabels?: Label[]
 }) {
   const t = useTranslations('Common')
-  const [labels, setLabels] = useState<Label[]>([])
+  const [labels, setLabels] = useState<Label[]>(initialLabels ?? [])
   const [expanded, setExpanded] = useState(false)
   const router = useRouter()
   useEffect(() => {
+    if (initialLabels !== undefined) {
+      setLabels(initialLabels)
+      return
+    }
+    let cancelled = false
     getLabels()
       .then((res) => {
-        setLabels((res.data.labels || []).filter(l => (l.postCount ?? 0) > 0))
+        if (!cancelled)
+          setLabels((res.data.labels || []).filter(l => (l.postCount ?? 0) > 0))
       })
       .catch(() => {})
-  }, [])
+    return () => {
+      cancelled = true
+    }
+  }, [initialLabels])
 
   if (labels.length === 0)
     return null

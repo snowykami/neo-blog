@@ -249,6 +249,7 @@ export const SCOPES = {
     'AssetPicker',
     'Components',
     'Console.categories',
+    'Console.editor',
     'Console.labels',
     'Console.post_edit',
     'Console.post_manage_ai',
@@ -260,7 +261,6 @@ export const SCOPES = {
   ],
   'console/posts/edit/[id]': [
     'CodeBlock',
-    'Console.editor',
     'Console.global',
     'ContentCard',
     'ContentComponents',

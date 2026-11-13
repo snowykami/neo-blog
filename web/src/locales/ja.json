@@ -277,6 +277,7 @@
       "kind_all": "すべて",
       "kind_user": "ログインユーザー",
       "kind_anonymous": "匿名訪問者",
+      "include_ai": "AI ユーザーを含める",
       "visited_post": "記事 <link>{title}</link> を閲覧",
       "visited_page": "ページ <link>{title}</link> を閲覧",
       "visited_path": "<link>{title}</link> を閲覧",
@@ -635,7 +636,10 @@
       "private": "非公開",
       "reply_count": "返信 {count} 件",
       "like_count": "いいね {count}",
-      "delete_with_replies_description": "このコメントへの {count} 件の返信とその返信もあわせて削除されます。この操作は元に戻せません。"
+      "delete_with_replies_description": "このコメントへの {count} 件の返信とその返信もあわせて削除されます。この操作は元に戻せません。",
+      "select_all": "このページをすべて選択",
+      "selected_count": "{count} 件のコメントを選択中",
+      "batch_delete_description": "選択した {count} 件のコメントを削除しますか？返信もすべて削除され、元に戻せません。"
     },
     "dashboard": {
       "title": "ダッシュボード",
@@ -1155,7 +1159,13 @@
         "preset_keys": "よく使うキー",
         "key_required": "キーを入力してください",
         "value_invalid_json": "値は有効な JSON である必要があります",
-        "delete_description": "キー「{key}」を削除します。元に戻せず、サイトの動作に影響する可能性があります。"
+        "delete_description": "キー「{key}」を削除します。元に戻せず、サイトの動作に影響する可能性があります。",
+        "secret_badge": "機密",
+        "secret_masked": "設定済み（機密値は非表示）",
+        "secret_empty": "未設定（機密）",
+        "secret_label": "機密設定項目",
+        "secret_hint": "有効にすると API で平文の値を返しません",
+        "secret_value_placeholder": "機密値が設定されています。空欄のまま保存すると既存の値を維持し、有効な JSON を入力すると上書きします"
       },
       "section_personalize": "パーソナライズ",
       "section_personalize_desc": "サイドバー、サードパーティスクリプトなどのリソース。空欄にすると該当コンポーネントを非表示にします。",
@@ -1354,7 +1364,9 @@
       "search_reindex_started": "バックグラウンドで公開インデックスの再構築を開始しました（検索は継続利用できます）",
       "search_reindex_running": "インデックス再構築タスクが既に実行中です",
       "search_reindex_failed": "インデックス再構築の開始に失敗しました",
-      "search_reindex_save_first": "検索設定が変更されています。保存してから再構築を実行してください"
+      "search_reindex_save_first": "検索設定が変更されています。保存してから再構築を実行してください",
+      "env_secret_configured": "環境変数で設定済み（非表示）",
+      "secret_configured_placeholder": "設定済み（空欄で変更なし）"
     },
     "labels": {
       "title": "タグ管理",
@@ -1393,7 +1405,8 @@
       "types": {
         "oauth2": "OAuth2 / OIDC",
         "misskey": "Misskey"
-      }
+      },
+      "secret_configured_placeholder": "設定済み（空欄で変更なし）"
     },
     "personal": "個人",
     "posts": {
@@ -1477,7 +1490,12 @@
       "unpin_success": "固定を解除しました",
       "unpin_action": "固定を解除",
       "pin_until": "{date} まで",
-      "only_pinned": "固定のみ（最大 {max} 件）"
+      "only_pinned": "固定のみ（最大 {max} 件）",
+      "empty": "まだ記事がありません。最初の記事を作成しましょう！",
+      "empty_search": "一致する記事が見つかりませんでした",
+      "select_all": "このページをすべて選択",
+      "selected_count": "{count} 件選択中",
+      "batch_delete_description": "選択した {count} 件の記事を削除しますか？この操作は元に戻せません。"
     },
     "storages": {
       "title": "ストレージプロバイダ",
@@ -1546,7 +1564,9 @@
           "files": "ファイルをコピー中",
           "pages": "HTML ページをコピー中"
         }
-      }
+      },
+      "loading": "読み込み中…",
+      "secret_configured_placeholder": "設定済み（空欄で変更なし）"
     },
     "users": {
       "title": "ユーザー",
@@ -1601,7 +1621,11 @@
       "invalid_email": "メールアドレスの形式が正しくありません",
       "invalid_url": "有効な http(s) URL を入力するか、アセットライブラリから選択してください",
       "ai_badge": "AI",
-      "ai_badge_title": "AI ユーザー（クリックで表示）"
+      "ai_badge_title": "AI ユーザー（クリックで表示）",
+      "external_accounts": "外部アカウント",
+      "external_empty": "連携された外部アカウントはありません",
+      "external_provider": "プラットフォーム",
+      "external_sub": "OpenID (sub)"
     },
     "user_profile": {
       "title": "プロフィール設定",
@@ -2298,7 +2322,8 @@
       "upload_video_too_large": "「{name}」は {size} を超えるためアップロードできません",
       "leave_uploading_title": "アップロード中のファイルがあります",
       "leave_uploading_description": "今移動するとアップロードは中止され、完了していない画像や動画は下書きに保存されません。移動しますか？",
-      "leave_uploading_confirm": "移動する"
+      "leave_uploading_confirm": "移動する",
+      "status_draft": "下書き"
     },
     "menu": {
       "notifications": "通知",
@@ -2491,6 +2516,7 @@
     },
     "visit_insights": {
       "title": "訪問者統計",
+      "include_ai": "AI ユーザーを含める",
       "range_1": "今日",
       "range_7": "過去 7 日間",
       "range_30": "過去 30 日間",
@@ -3834,7 +3860,9 @@
       "email_service_unavailable": "サイトのメール送信が設定されていないため、認証コードを送れません。管理者に連絡してください",
       "meilisearch_url_required": "Meilisearch を有効にする場合は有効な URL（http:// または https://）を入力してください",
       "meilisearch_test_failed": "Meilisearch 接続テストに失敗しました",
-      "meilisearch_not_enabled": "Meilisearch が有効になっていません"
+      "meilisearch_not_enabled": "Meilisearch が有効になっていません",
+      "csrf_origin_mismatch": "クロスオリジン検証に失敗しました。ページを再読み込みしてもう一度お試しください。",
+      "empty_file": "アップロードされたファイルが空です"
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field}「{value}」が正しくありません} resource {{resource}のパラメーターが正しくありません} other {リクエストのパラメーターが正しくありません}}",

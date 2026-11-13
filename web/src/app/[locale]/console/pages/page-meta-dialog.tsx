@@ -134,8 +134,8 @@ export function PageMetaDialog({
     }
 
     const isLink = data.kind === 'link'
-    // 链接页面与 HTML 页面没有正文；链接页面创建后不进入编辑器，slug 留空由后端生成
-    const content = isLink || data.kind === 'html' ? '' : `<h1>${data.title}</h1>`
+    // 新建页面初始正文留空，不再预填标题 h1；链接页面创建后不进入编辑器，slug 留空由后端生成
+    const content = ''
     await createPage({
       page: {
         ...data,

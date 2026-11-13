@@ -34,7 +34,8 @@ export function SearchTestField({ items = [] }: { items?: ConfigItem[] }) {
   const byKey = new Map(items.map(item => [item.key, item]))
   const envUrl = byKey.get('meilisearch_url')?.envValue
   const envEnable = byKey.get('meilisearch_enable')?.envValue
-  const envKey = byKey.get('meilisearch_api_key')?.envValue
+  const envKeyItem = byKey.get('meilisearch_api_key')
+  const envKeySet = Boolean(envKeyItem?.envSet || envKeyItem?.envValue)
   const envPrefix = byKey.get('meilisearch_index_prefix')?.envValue
 
   const watchedUrl = String(useWatch<ConfigValues>({ name: 'meilisearch_url' }) ?? '').trim()
@@ -53,7 +54,7 @@ export function SearchTestField({ items = [] }: { items?: ConfigItem[] }) {
     try {
       const res = await testMeilisearch({
         url: envUrl ? undefined : watchedUrl,
-        apiKey: envKey ? undefined : String(getValues('meilisearch_api_key') ?? ''),
+        apiKey: envKeySet ? undefined : String(getValues('meilisearch_api_key') ?? ''),
         indexPrefix: envPrefix ? undefined : String(getValues('meilisearch_index_prefix') ?? ''),
       })
       const text = t('search_test_success', {

@@ -1,4 +1,5 @@
 'use client'
+import type { SidebarInitialData } from '@/components/blog-sidebar/sidebar-data'
 import { useTranslations } from 'next-intl'
 import BlogSidebar from '@/components/blog-sidebar'
 import { SiteShell } from '@/components/layout/site-shell'
@@ -22,7 +23,7 @@ export interface ArchiveGroup {
  * 归档页：按年份分组的时间线，布局与交互参考 Fuwari 的 ArchivePanel（MIT License, saicaca/fuwari）
  * 左侧年份/日期，中间虚线时间轴，右侧标题与标签；悬停时圆点拉长、标题右移并高亮
  */
-export function Archive({ groups, filter }: { groups: ArchiveGroup[], filter: { label: string, category: string } }) {
+export function Archive({ groups, filter, sidebarData }: { groups: ArchiveGroup[], filter: { label: string, category: string }, sidebarData?: SidebarInitialData }) {
   const t = useTranslations('Archive')
   const filterText = filter.label
     ? t('filter_label', { name: filter.label })
@@ -33,7 +34,7 @@ export function Archive({ groups, filter }: { groups: ArchiveGroup[], filter: { 
   return (
     <SiteShell
       sidebar={(
-        <BlogSidebar />
+        <BlogSidebar initialData={sidebarData} />
       )}
     >
       {/* 归档正文 */}

@@ -9,10 +9,10 @@ import {
   parseAsStringEnum,
   useQueryState,
 } from 'nuqs'
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { listCommentsAdmin } from '@/api/admin'
-import { deleteComment } from '@/api/comment'
+import { batchDeleteComments, deleteComment } from '@/api/comment'
 import { UserAvatar } from '@/components/common/avatar'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { OrderSelector } from '@/components/common/orderby-selector'
@@ -21,6 +21,7 @@ import { Popconfirm } from '@/components/common/popconfirm'
 import { STICKY_ACTIONS_CLASS } from '@/components/console/common/sticky-actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import {
@@ -42,6 +43,7 @@ import { getTargetViewUrl } from '@/utils/common/route'
 
 const PAGE_SIZE = 15
 const MOBILE_PAGE_SIZE = 10
+const EMPTY_COMMENTS: UserComment[] = []
 
 export default function CommentsManage() {
   const commonT = useCommonT()
@@ -73,6 +75,7 @@ export default function CommentsManage() {
       .withOptions({ history: 'replace', clearOnDefault: true }),
   )
   const [queryInput, setQueryInput, debouncedQueryInput] = useDebouncedState('', 200)
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set())
 
   // 回到这个页面时先显示上次的结果，同时重新请求（见 hooks/use-console-query.ts）；写操作后缓存会被清空
   const commentsQuery = useConsoleQuery(
@@ -80,11 +83,33 @@ export default function CommentsManage() {
     () => listCommentsAdmin({ page, size, orderBy, desc }, debouncedQueryInput).then(res => res.data),
     { onError: error => toast.error(`${operationT('fetch_failed')}: ${errorMessageT(error)}`) },
   )
-  const comments = commentsQuery.data?.comments ?? []
+  const comments = commentsQuery.data?.comments ?? EMPTY_COMMENTS
   const total = commentsQuery.data?.total ?? 0
   // 有上次的数据时照常显示，后台刷新不再换成「加载中」
   const loading = commentsQuery.loading && !commentsQuery.data
   const fetchComments = commentsQuery.refresh
+
+  const activeSelectedIds = useMemo(
+    () => comments.filter(c => selectedIds.has(c.id)).map(c => c.id),
+    [comments, selectedIds],
+  )
+  const allSelected = comments.length > 0 && activeSelectedIds.length === comments.length
+  const partiallySelected = activeSelectedIds.length > 0 && !allSelected
+
+  const toggleSelectAll = useCallback((checked: boolean) => {
+    setSelectedIds(checked ? new Set(comments.map(c => c.id)) : new Set())
+  }, [comments])
+
+  const toggleSelectOne = useCallback((id: number, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (checked)
+        next.add(id)
+      else
+        next.delete(id)
+      return next
+    })
+  }, [])
 
   // 仅在搜索词真正变化时重置页码，避免挂载时把 URL 中的页码重置为 1
   const prevQueryRef = useRef(debouncedQueryInput)
@@ -108,8 +133,28 @@ export default function CommentsManage() {
   const handleDelete = async (comment: UserComment) => {
     await deleteComment({ id: comment.id })
     toast.success(operationT('delete_success'))
+    setSelectedIds((prev) => {
+      if (!prev.has(comment.id))
+        return prev
+      const next = new Set(prev)
+      next.delete(comment.id)
+      return next
+    })
     // 删除可能连带回复，重新拉取；删光当前页时回退到上一页
     if (comments.length <= 1 && page > 1)
+      await setPage(page - 1)
+    else
+      await fetchComments()
+  }
+
+  const handleBatchDelete = async () => {
+    if (activeSelectedIds.length === 0)
+      return
+    await batchDeleteComments({ ids: activeSelectedIds })
+    toast.success(operationT('delete_success'))
+    const deletingAllOnPage = activeSelectedIds.length >= comments.length
+    setSelectedIds(new Set())
+    if (deletingAllOnPage && page > 1)
       await setPage(page - 1)
     else
       await fetchComments()
@@ -131,10 +176,42 @@ export default function CommentsManage() {
           orderBys={[OrderBy.CreatedAt, OrderBy.UpdatedAt, OrderBy.LikeCount]}
         />
       </div>
+      {activeSelectedIds.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+          <span className="text-muted-foreground">
+            {t('selected_count', { count: activeSelectedIds.length })}
+          </span>
+          <div className="flex items-center gap-2">
+            <ConfirmDialog
+              title={operationT('confirm_delete')}
+              description={t('batch_delete_description', { count: activeSelectedIds.length })}
+              confirmLabel={operationT('delete')}
+              errorText={operationT('delete_failed')}
+              confirmVariant="destructive"
+              onConfirm={handleBatchDelete}
+            >
+              <Button size="sm" variant="destructive">
+                {operationT('delete')}
+              </Button>
+            </ConfirmDialog>
+            <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
+              {operationT('cancel')}
+            </Button>
+          </div>
+        </div>
+      )}
       <Separator />
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-10">
+              <Checkbox
+                checked={allSelected ? true : partiallySelected ? 'indeterminate' : false}
+                disabled={comments.length === 0}
+                onCheckedChange={checked => toggleSelectAll(checked === true)}
+                aria-label={t('select_all')}
+              />
+            </TableHead>
             <TableHead>{t('comment')}</TableHead>
             <TableHead>{t('target')}</TableHead>
             <TableHead>{t('user')}</TableHead>
@@ -146,16 +223,22 @@ export default function CommentsManage() {
         <TableBody>
           {loading && (
             <TableRow>
-              <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">{t('loading')}</TableCell>
+              <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">{t('loading')}</TableCell>
             </TableRow>
           )}
           {!loading && comments.length === 0 && (
             <TableRow>
-              <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">{t('empty')}</TableCell>
+              <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">{t('empty')}</TableCell>
             </TableRow>
           )}
           {!loading && comments.map(comment => (
-            <CommentRow key={comment.id} comment={comment} onDelete={handleDelete} />
+            <CommentRow
+              key={comment.id}
+              comment={comment}
+              selected={selectedIds.has(comment.id)}
+              onSelectChange={checked => toggleSelectOne(comment.id, checked)}
+              onDelete={handleDelete}
+            />
           ))}
         </TableBody>
       </Table>
@@ -184,9 +267,13 @@ export default function CommentsManage() {
 
 function CommentRow({
   comment,
+  selected,
+  onSelectChange,
   onDelete,
 }: {
   comment: UserComment
+  selected: boolean
+  onSelectChange: (checked: boolean) => void
   onDelete: (comment: UserComment) => Promise<void>
 }) {
   const operationT = useOperationT()
@@ -198,6 +285,13 @@ function CommentRow({
     .join(' · ')
   return (
     <TableRow>
+      <TableCell className="w-10">
+        <Checkbox
+          checked={selected}
+          onCheckedChange={checked => onSelectChange(checked === true)}
+          aria-label={comment.content || String(comment.id)}
+        />
+      </TableCell>
       <TableCell className="max-w-[28rem] whitespace-normal">
         <div className="line-clamp-3 break-words">{comment.content || t('no_content')}</div>
         {!!comment.attachments?.length && (

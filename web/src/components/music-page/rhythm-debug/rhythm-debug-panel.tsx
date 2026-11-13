@@ -95,6 +95,7 @@ function Tex({ tex }: { tex: string }) {
   // 面板较窄，按顶层的「,\quad」「;\quad」分成多行并左对齐，单行仍放不下时横向滚动
   const html = useMemo(() => tex
     .split(/[,;]\s*\\q?quad\s*/)
+    .filter(part => part.trim().length > 0)
     .map(part => katex.renderToString(part, { displayMode: true, fleqn: true, throwOnError: false, strict: 'ignore', output: 'html' }))
     .join(''), [tex])
   return <div className="overflow-x-auto overflow-y-hidden py-1 text-[0.9em] [&_.katex-display]:my-0.5" dangerouslySetInnerHTML={{ __html: html }} />

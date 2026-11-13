@@ -1,6 +1,8 @@
+import { cacheLife, cacheTag } from 'next/cache'
 import { connection, NextResponse } from 'next/server'
 import RSS from 'rss'
 import { getRssData } from '@/api/misc'
+import { CacheTag } from '@/lib/cache-tags'
 import { renderInlineIconsHtml } from '@/lib/inline-icon/icon'
 import { getPostUrl } from '@/utils/common/route'
 import { absoluteSiteUrl, absolutizeHtmlUrls } from '@/utils/common/siteinfo'
@@ -8,19 +10,14 @@ import { formatDisplayName } from '@/utils/common/username'
 import { renderMathHtml } from '@/utils/server/render-math'
 import { sanitizeContentHtml } from '@/utils/server/sanitize-html'
 
-// 每次请求时生成（见 GET 开头的 connection()）：构建阶段连不上后端，预渲染会把 500 缓存下来，每次发布后订阅源都要失败一段时间；
-// 阅读器与 CDN 按下面的 Cache-Control 缓存 10 分钟
+// 构建阶段不预渲染（见 GET 开头的 connection()）；运行期将取数、正文公式/行内图标渲染与 XML 生成整体跨请求缓存，
+// 文章或站点配置变化时通过 posts / site 标签即时失效；后端异常时抛错不缓存失败结果
+async function buildRssXml(): Promise<string> {
+  'use cache'
+  cacheLife('site')
+  cacheTag(CacheTag.Posts, CacheTag.Site)
 
-export async function GET() {
-  await connection()
-  const rssData = await getRssData()
-    .then(res => res.data)
-    .catch(() => null)
-
-  if (!rssData) {
-    return NextResponse.json({ error: 'Failed to fetch RSS data' }, { status: 500 })
-  }
-
+  const rssData = (await getRssData()).data
   const rss = new RSS({
     title: rssData.title,
     description: rssData.description,
@@ -57,7 +54,17 @@ export async function GET() {
     })
   })
 
-  return new Response(rss.xml({ indent: true }), {
+  return rss.xml({ indent: true })
+}
+
+export async function GET() {
+  await connection()
+  const xml = await buildRssXml().catch(() => null)
+  if (!xml) {
+    return NextResponse.json({ error: 'Failed to fetch RSS data' }, { status: 500 })
+  }
+
+  return new Response(xml, {
     status: 200,
     headers: {
       'Content-Type': 'application/xml; charset=utf-8',

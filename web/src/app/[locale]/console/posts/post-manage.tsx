@@ -10,10 +10,11 @@ import {
   parseAsStringEnum,
   useQueryState,
 } from 'nuqs'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { listPinnedPostsAdmin, listPostsAdmin } from '@/api/admin'
-import { deletePost, listMyPosts, updatePost } from '@/api/post'
+import { batchDeletePosts, batchUpdatePostVisibility, deletePost, listMyPosts, updatePost } from '@/api/post'
+import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { HoverPopover } from '@/components/common/hover-popover'
 import { OrderSelector } from '@/components/common/orderby-selector'
 import { PageSizeSelector, PaginationController } from '@/components/common/pagination'
@@ -22,6 +23,7 @@ import { SafeImage } from '@/components/common/safe-image'
 import { CreateOrUpdatePostMetaDialogWithoutButton } from '@/components/console/common/post-meta-dialog-form'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,6 +31,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Empty, EmptyDescription } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
@@ -51,10 +54,13 @@ import { usePinUntilText, usePostPinAction } from './post-pin'
 
 const PAGE_SIZE = 15
 const MOBILE_PAGE_SIZE = 10
+const EMPTY_POSTS: Post[] = []
 
 export function PostManage() {
   const t = useTranslations('Console.post_edit')
   const commonT = useCommonT()
+  const operationT = useOperationT()
+  const errorMessageT = useErrorMessageT()
   const metricsT = useTranslations('Metrics')
   const { isMobile } = useDevice()
   const { user } = useAuth()
@@ -95,26 +101,82 @@ export function PostManage() {
     parseAsBoolean.withDefault(false).withOptions({ history: 'replace', clearOnDefault: true }),
   )
   const [createPostDialogOpen, setCreatePostDialogOpen] = useState(false)
-  // 列表取数：回到这个页面时先显示上次的结果，同时重新请求（见 hooks/use-console-query.ts）；写操作后缓存会被清空
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set())
+  const [batchUpdating, setBatchUpdating] = useState(false)
+
+  // 列表取数：等到 user 就绪后再发起请求，避免鉴权尚未恢复时把空结果写进缓存
   const listPosts = useConsoleQuery(
-    ['admin/posts', isAdminUser, page, size, orderBy, desc, debouncedQueryInput, onlyMine, onlyPinned],
+    user ? ['admin/posts', isAdminUser, page, size, orderBy, desc, debouncedQueryInput, onlyMine, onlyPinned] : null,
     async () => {
-      if (!user)
-        return { posts: [], total: 0 }
       if (isAdminUser && onlyPinned) {
         const res = await listPinnedPostsAdmin()
         return { posts: res.data.posts, total: res.data.posts.length }
       }
       const params = { page, size, orderBy, desc, query: debouncedQueryInput }
       const res = isAdminUser
-        ? await listPostsAdmin({ ...params, userId: onlyMine ? user.id : 0 })
+        ? await listPostsAdmin({ ...params, userId: onlyMine ? user!.id : 0 })
         : await listMyPosts(params)
       return { posts: res.data.posts, total: res.data.total }
     },
+    { onError: error => toast.error(`${operationT('fetch_failed')}: ${errorMessageT(error)}`) },
   )
-  const posts = listPosts.data?.posts ?? []
+  const posts = listPosts.data?.posts ?? EMPTY_POSTS
   const total = listPosts.data?.total ?? 0
+  const loading = (!user && !listPosts.data) || (listPosts.loading && !listPosts.data)
   const { refresh: refreshPosts, setData: setPostList } = listPosts
+
+  const activeSelectedIds = useMemo(
+    () => posts.filter(p => selectedIds.has(p.id)).map(p => p.id),
+    [posts, selectedIds],
+  )
+  const allSelected = posts.length > 0 && activeSelectedIds.length === posts.length
+  const partiallySelected = activeSelectedIds.length > 0 && !allSelected
+
+  const toggleSelectAll = useCallback((checked: boolean) => {
+    setSelectedIds(checked ? new Set(posts.map(p => p.id)) : new Set())
+  }, [posts])
+
+  const toggleSelectOne = useCallback((id: number, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (checked)
+        next.add(id)
+      else
+        next.delete(id)
+      return next
+    })
+  }, [])
+
+  const handleBatchVisibility = async (isPrivate: boolean) => {
+    if (activeSelectedIds.length === 0 || batchUpdating)
+      return
+    setBatchUpdating(true)
+    try {
+      await batchUpdatePostVisibility({ ids: activeSelectedIds, isPrivate })
+      toast.success(operationT('update_success'))
+      setSelectedIds(new Set())
+      await refreshPosts()
+    }
+    catch (error) {
+      toast.error(`${operationT('update_failed')}: ${errorMessageT(error)}`)
+    }
+    finally {
+      setBatchUpdating(false)
+    }
+  }
+
+  const handleBatchDelete = async () => {
+    if (activeSelectedIds.length === 0)
+      return
+    await batchDeletePosts({ ids: activeSelectedIds })
+    toast.success(operationT('delete_success'))
+    const deletingAllOnPage = activeSelectedIds.length >= posts.length
+    setSelectedIds(new Set())
+    if (deletingAllOnPage && page > 1)
+      await setPage(page - 1)
+    else
+      await refreshPosts()
+  }
 
   // 防抖后的搜索词真正变化时才重置分页，避免挂载时把 URL 中的页码重置为 1
   const prevQueryRef = useRef(debouncedQueryInput)
@@ -224,11 +286,62 @@ export function PostManage() {
           </div>
         </div>
       </div>
+      {posts.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+          <label className="flex cursor-pointer items-center gap-2 select-none">
+            <Checkbox
+              checked={allSelected ? true : partiallySelected ? 'indeterminate' : false}
+              onCheckedChange={checked => toggleSelectAll(checked === true)}
+              aria-label={t('select_all')}
+            />
+            <span className="text-muted-foreground">
+              {activeSelectedIds.length > 0
+                ? t('selected_count', { count: activeSelectedIds.length })
+                : t('select_all')}
+            </span>
+          </label>
+          {activeSelectedIds.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="outline" disabled={batchUpdating} onClick={() => void handleBatchVisibility(false)}>
+                {operationT('set_public')}
+              </Button>
+              <Button size="sm" variant="outline" disabled={batchUpdating} onClick={() => void handleBatchVisibility(true)}>
+                {operationT('set_private')}
+              </Button>
+              <ConfirmDialog
+                title={operationT('confirm_delete')}
+                description={t('batch_delete_description', { count: activeSelectedIds.length })}
+                confirmLabel={operationT('delete')}
+                errorText={operationT('delete_failed')}
+                confirmVariant="destructive"
+                onConfirm={handleBatchDelete}
+              >
+                <Button size="sm" variant="destructive" disabled={batchUpdating}>
+                  {operationT('delete')}
+                </Button>
+              </ConfirmDialog>
+              <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
+                {operationT('cancel')}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
       <Separator className="flex-1" />
+      {loading && (
+        <div className="py-10 text-center text-sm text-muted-foreground">{t('loading')}</div>
+      )}
+      {!loading && listPosts.data && posts.length === 0 && (
+        <Empty className="py-10">
+          <EmptyDescription>{t(debouncedQueryInput ? 'empty_search' : 'empty')}</EmptyDescription>
+        </Empty>
+      )}
       {posts.map(post => (
         <div key={post.id}>
           <PostItem
             post={post}
+            selected={selectedIds.has(post.id)}
+            onSelectChange={checked => toggleSelectOne(post.id, checked)}
             showAuthor={isAdminUser}
             canConfigureAI={isAdminUser}
             canPin={isAdminUser}
@@ -264,6 +377,8 @@ export function PostManage() {
 
 function PostItem({
   post,
+  selected,
+  onSelectChange,
   showAuthor,
   canConfigureAI,
   canPin,
@@ -271,6 +386,8 @@ function PostItem({
   onPostDelete,
 }: {
   post: Post
+  selected: boolean
+  onSelectChange: (checked: boolean) => void
   showAuthor: boolean
   canConfigureAI: boolean // 只有管理员可以在全局配置中配置 AI
   canPin: boolean // 只有管理员可以置顶到首页
@@ -281,15 +398,22 @@ function PostItem({
   const isMobile = useIsMobile()
   const labelCount = isMobile ? 1 : 3
   const postT = useTranslations('Console.post_edit')
+  const editorT = useTranslations('Console.editor')
   const stateT = useTranslations('State')
   const operationT = useOperationT()
   const clickToPost = useToPost()
   const [metaDialogOpen, setMetaDialogOpen] = useState(false)
   const aiSummary = useAISummary({ post, onPostUpdate, canConfigure: canConfigureAI })
   const pinUntilText = usePinUntilText()
+  const previewOnly = Boolean(post.isPrivate || post.isDraft)
   return (
     <div>
       <div className="flex w-full items-center gap-3 py-3">
+        <Checkbox
+          checked={selected}
+          onCheckedChange={checked => onSelectChange(checked === true)}
+          aria-label={post.title}
+        />
         {/* left：占满剩余宽度且可收缩，长描述不会把右侧操作挤出 */}
         <div className="flex min-w-0 flex-1 justify-start items-center gap-4">
           {/* avatar */}
@@ -324,12 +448,12 @@ function PostItem({
                 const items: { value: string, className: string, popover?: React.ReactNode }[] = [
                   {
                     value: `${commonT('id')}: ${post.id}`,
-                    className: 'bg-indigo-100 text-indigo-800',
+                    className: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-500/15 dark:text-indigo-300',
                   },
                   ...(showAuthor && post.user
                     ? [{
                         value: `${postT('author')}: ${post.user.nickname || post.user.username}`,
-                        className: 'bg-teal-100 text-teal-800',
+                        className: 'bg-teal-100 text-teal-800 dark:bg-teal-500/15 dark:text-teal-300',
                       }]
                     : []),
                   ...(post.pinned
@@ -337,36 +461,47 @@ function PostItem({
                         value: post.pinnedUntil
                           ? `${commonT('pinned')} · ${postT('pin_until', { date: pinUntilText(post.pinnedUntil) })}`
                           : commonT('pinned'),
-                        className: 'bg-amber-100 text-amber-800',
+                        className: 'bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300',
                       }]
                     : []),
+                  ...(post.isDraft
+                    ? [{
+                        value: editorT('status_draft'),
+                        className: 'bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300',
+                      }]
+                    : post.hasDraft
+                      ? [{
+                          value: editorT('status_unpublished_changes'),
+                          className: 'bg-slate-100 text-slate-800 dark:bg-slate-500/15 dark:text-slate-300',
+                        }]
+                      : []),
                   {
                     value: stateT(post.isPrivate ? 'private' : 'public'),
                     className: post.isPrivate
-                      ? 'bg-orange-100 text-orange-800'
-                      : 'bg-green-100 text-green-800',
+                      ? 'bg-orange-100 text-orange-800 dark:bg-orange-500/15 dark:text-orange-300'
+                      : 'bg-green-100 text-green-800 dark:bg-green-500/15 dark:text-green-300',
                   },
                   {
                     value: post.category
                       ? `${postT('category')}: ${post.category?.name}`
                       : postT('uncategorized'),
                     className: post.category
-                      ? 'bg-pink-100 text-pink-800'
-                      : 'bg-gray-100 text-gray-800',
+                      ? 'bg-pink-100 text-pink-800 dark:bg-pink-500/15 dark:text-pink-300'
+                      : 'bg-gray-100 text-gray-800 dark:bg-zinc-500/15 dark:text-zinc-300',
                   },
                   {
                     value: labelsValue,
                     className:
                       post.labels && post.labels.length > 0
-                        ? 'bg-blue-100 text-blue-800'
-                        : 'bg-gray-100 text-gray-800',
+                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300'
+                        : 'bg-gray-100 text-gray-800 dark:bg-zinc-500/15 dark:text-zinc-300',
                     popover: labelsTruncated
                       ? (
                           <div className="grid gap-2">
                             <div className="text-xs text-muted-foreground">{`${postT('labels')} (${labels.length})`}</div>
                             <div className="flex flex-wrap gap-1.5">
                               {labels.map(label => (
-                                <Badge key={label.id} className="text-xs bg-blue-100 text-blue-800" variant="secondary">
+                                <Badge key={label.id} className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300" variant="secondary">
                                   {label.name}
                                 </Badge>
                               ))}
@@ -401,8 +536,8 @@ function PostItem({
             variant="ghost"
             size="icon-sm"
             onClick={() => clickToPost({ post })}
-            aria-label={operationT(post.isPrivate ? 'preview' : 'view')}
-            title={operationT(post.isPrivate ? 'preview' : 'view')}
+            aria-label={operationT(previewOnly ? 'preview' : 'view')}
+            title={operationT(previewOnly ? 'preview' : 'view')}
           >
             <Eye className="size-4" />
           </Button>
@@ -508,9 +643,9 @@ function PostDropdownMenu({
           <DropdownMenuItem onClick={() => setMetaDialogOpen(true)} className="cursor-pointer">
             {operationT('setting')}
           </DropdownMenuItem>
-          {/* 私密文章只在后台可见：「查看」打开后台预览 */}
+          {/* 私密文章或未首次发布草稿只在后台可见：「查看」打开后台预览 */}
           <DropdownMenuItem onClick={() => clickToPost({ post })} className="cursor-pointer">
-            {operationT(post.isPrivate ? 'preview' : 'view')}
+            {operationT(post.isPrivate || post.isDraft ? 'preview' : 'view')}
           </DropdownMenuItem>
           {/* 生成中禁用，避免重复触发 */}
           <DropdownMenuItem disabled={aiSummaryRunning} onClick={onTriggerAISummary} className="cursor-pointer">

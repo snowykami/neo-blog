@@ -277,6 +277,7 @@
       "kind_all": "All",
       "kind_user": "Signed-in",
       "kind_anonymous": "Anonymous",
+      "include_ai": "Include AI users",
       "visited_post": "viewed post <link>{title}</link>",
       "visited_page": "viewed page <link>{title}</link>",
       "visited_path": "viewed <link>{title}</link>",
@@ -635,7 +636,10 @@
       "private": "Private",
       "reply_count": "{count, plural, one {# reply} other {# replies}}",
       "like_count": "{count, plural, one {# like} other {# likes}}",
-      "delete_with_replies_description": "{count, plural, one {# reply} other {# replies}} to this comment, along with their own replies, will also be deleted. This cannot be undone."
+      "delete_with_replies_description": "{count, plural, one {# reply} other {# replies}} to this comment, along with their own replies, will also be deleted. This cannot be undone.",
+      "select_all": "Select all on page",
+      "selected_count": "Selected {count} comments",
+      "batch_delete_description": "Delete {count} selected comments? Any replies under them will also be permanently deleted."
     },
     "dashboard": {
       "title": "Dashboard",
@@ -1155,7 +1159,13 @@
         "preset_keys": "Common keys",
         "key_required": "Key cannot be empty",
         "value_invalid_json": "Value must be valid JSON",
-        "delete_description": "The key \"{key}\" will be deleted. This cannot be undone and may affect how the site works."
+        "delete_description": "The key \"{key}\" will be deleted. This cannot be undone and may affect how the site works.",
+        "secret_badge": "Secret",
+        "secret_masked": "Configured (secret hidden)",
+        "secret_empty": "Empty (secret)",
+        "secret_label": "Secret item",
+        "secret_hint": "Hide plaintext value in API responses",
+        "secret_value_placeholder": "Secret configured; leave blank to keep existing value, or enter valid JSON to overwrite"
       },
       "section_personalize": "Personalization",
       "section_personalize_desc": "Resources for the sidebar and third-party scripts on the public site. Leave empty to hide the corresponding component.",
@@ -1354,7 +1364,9 @@
       "search_reindex_started": "Background reindexing started without interrupting live search",
       "search_reindex_running": "A full reindex task is already running",
       "search_reindex_failed": "Failed to start reindex",
-      "search_reindex_save_first": "Save your search configuration changes before rebuilding indexes"
+      "search_reindex_save_first": "Save your search configuration changes before rebuilding indexes",
+      "env_secret_configured": "Configured via environment variable (hidden)",
+      "secret_configured_placeholder": "Configured, leave blank to keep unchanged"
     },
     "labels": {
       "title": "Tags",
@@ -1393,7 +1405,8 @@
       "types": {
         "oauth2": "OAuth2 / OIDC",
         "misskey": "Misskey"
-      }
+      },
+      "secret_configured_placeholder": "Configured, leave blank to keep unchanged"
     },
     "personal": "Personal",
     "posts": {
@@ -1477,7 +1490,12 @@
       "unpin_success": "Unpinned",
       "unpin_action": "Unpin",
       "pin_until": "until {date}",
-      "only_pinned": "Pinned only (up to {max})"
+      "only_pinned": "Pinned only (up to {max})",
+      "empty": "No posts yet. Create your first one!",
+      "empty_search": "No matching posts found",
+      "select_all": "Select all on page",
+      "selected_count": "Selected {count}",
+      "batch_delete_description": "Delete {count} selected posts? This action cannot be undone."
     },
     "storages": {
       "title": "Storage providers",
@@ -1546,7 +1564,9 @@
           "files": "Copying files",
           "pages": "Copying HTML pages"
         }
-      }
+      },
+      "loading": "Loading…",
+      "secret_configured_placeholder": "Configured, leave blank to keep unchanged"
     },
     "users": {
       "title": "Users",
@@ -1601,7 +1621,11 @@
       "invalid_email": "Invalid email address",
       "invalid_url": "Enter a valid http(s) URL, or choose from the library",
       "ai_badge": "AI",
-      "ai_badge_title": "AI user, click to view"
+      "ai_badge_title": "AI user, click to view",
+      "external_accounts": "External accounts",
+      "external_empty": "No external accounts linked",
+      "external_provider": "Provider",
+      "external_sub": "OpenID (sub)"
     },
     "user_profile": {
       "title": "Profile settings",
@@ -2298,7 +2322,8 @@
       "upload_video_too_large": "“{name}” is larger than {size} and can’t be uploaded",
       "leave_uploading_title": "Files are still uploading",
       "leave_uploading_description": "Leaving now cancels the upload, and images or videos that haven’t finished won’t be saved to the draft. Leave anyway?",
-      "leave_uploading_confirm": "Leave anyway"
+      "leave_uploading_confirm": "Leave anyway",
+      "status_draft": "Draft"
     },
     "menu": {
       "notifications": "Notifications",
@@ -2491,6 +2516,7 @@
     },
     "visit_insights": {
       "title": "Visitor statistics",
+      "include_ai": "Include AI users",
       "range_1": "Today",
       "range_7": "Last 7 days",
       "range_30": "Last 30 days",
@@ -3834,7 +3860,9 @@
       "email_service_unavailable": "This site has no email service set up, so verification codes can’t be sent. Please contact the administrator",
       "meilisearch_url_required": "A valid Meilisearch URL (http:// or https://) is required when enabled",
       "meilisearch_test_failed": "Meilisearch connection test failed",
-      "meilisearch_not_enabled": "Meilisearch is not enabled"
+      "meilisearch_not_enabled": "Meilisearch is not enabled",
+      "csrf_origin_mismatch": "Cross-origin request verification failed. Please refresh and try again.",
+      "empty_file": "The uploaded file is empty"
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field} \"{value}\" is invalid} resource {Invalid {resource} parameters} other {Invalid request parameters}}",

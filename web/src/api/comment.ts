@@ -66,6 +66,11 @@ export async function deleteComment({ id }: { id: number }): Promise<void> {
   await axiosClient.delete(`/comment/c/${id}`)
 }
 
+export async function batchDeleteComments({ ids }: { ids: number[] }): Promise<BaseResponse<{ deleted: number }>> {
+  const res = await axiosClient.post('/comment/batch-delete', { ids })
+  return res.data
+}
+
 export async function listComments({
   targetType,
   targetId,

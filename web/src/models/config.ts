@@ -27,6 +27,8 @@ export interface ConfigItem {
   default: unknown
   value: unknown // 数据库中的值（未保存过时为默认值）
   envValue?: string // 环境变量设置的值，此时以它为准，表单只读
+  hasValue?: boolean // 敏感项已在数据库中保存非空值
+  envSet?: boolean // 已通过环境变量设置
   standalone: boolean // 存为同名独立配置键；否则只存在站点信息 site_info 中
 }
 

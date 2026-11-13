@@ -277,6 +277,7 @@
       "kind_all": "全部",
       "kind_user": "登入使用者",
       "kind_anonymous": "匿名訪客",
+      "include_ai": "包含 AI 使用者",
       "visited_post": "造訪了文章 <link>{title}</link>",
       "visited_page": "造訪了頁面 <link>{title}</link>",
       "visited_path": "造訪了 <link>{title}</link>",
@@ -635,7 +636,10 @@
       "private": "私密",
       "reply_count": "{count} 則回覆",
       "like_count": "{count} 讚",
-      "delete_with_replies_description": "此留言下的 {count} 則回覆及其後續回覆會一併刪除，且無法復原。"
+      "delete_with_replies_description": "此留言下的 {count} 則回覆及其後續回覆會一併刪除，且無法復原。",
+      "select_all": "全選本頁",
+      "selected_count": "已選 {count} 則留言",
+      "batch_delete_description": "確定要刪除選中的 {count} 則留言嗎？其下屬回覆也會一併刪除且不可恢復。"
     },
     "dashboard": {
       "title": "儀表板",
@@ -1155,7 +1159,13 @@
         "preset_keys": "常用鍵",
         "key_required": "鍵名不能為空",
         "value_invalid_json": "值必須是合法的 JSON",
-        "delete_description": "將刪除設定鍵「{key}」，刪除後無法復原，可能影響網站運作。"
+        "delete_description": "將刪除設定鍵「{key}」，刪除後無法復原，可能影響網站運作。",
+        "secret_badge": "敏感",
+        "secret_masked": "已設定（敏感值已隱藏）",
+        "secret_empty": "未設定（敏感）",
+        "secret_label": "敏感設定項",
+        "secret_hint": "開啟後介面不再回傳明文值",
+        "secret_value_placeholder": "已設定敏感值，留空則僅儲存標記而不修改原值；輸入合法 JSON 可覆蓋"
       },
       "section_personalize": "個人化資源",
       "section_personalize_desc": "前台側邊欄與第三方腳本等資源，留空即隱藏對應元件",
@@ -1354,7 +1364,9 @@
       "search_reindex_started": "全站公開索引重建已在背景啟動，期間搜尋服務不會中斷",
       "search_reindex_running": "已有全站索引重建任務正在執行中",
       "search_reindex_failed": "觸發索引重建失敗",
-      "search_reindex_save_first": "已修改搜尋設定，請先儲存後再執行全站索引重建"
+      "search_reindex_save_first": "已修改搜尋設定，請先儲存後再執行全站索引重建",
+      "env_secret_configured": "已由環境變數設定（已隱藏）",
+      "secret_configured_placeholder": "已設定，留空保持不變"
     },
     "labels": {
       "title": "標籤管理",
@@ -1393,7 +1405,8 @@
       "types": {
         "oauth2": "OAuth2 / OIDC",
         "misskey": "Misskey"
-      }
+      },
+      "secret_configured_placeholder": "已設定，留空保持不變"
     },
     "personal": "個人",
     "posts": {
@@ -1477,7 +1490,12 @@
       "unpin_success": "已取消置頂",
       "unpin_action": "取消置頂",
       "pin_until": "至 {date}",
-      "only_pinned": "僅看置頂（最多 {max} 篇）"
+      "only_pinned": "僅看置頂（最多 {max} 篇）",
+      "empty": "還沒有文章，建立一篇吧！",
+      "empty_search": "沒有找到符合的文章",
+      "select_all": "全選本頁",
+      "selected_count": "已選 {count} 篇",
+      "batch_delete_description": "確定要刪除選中的 {count} 篇文章嗎？刪除後不可恢復。"
     },
     "storages": {
       "title": "儲存供應商",
@@ -1546,7 +1564,9 @@
           "files": "正在複製檔案",
           "pages": "正在複製 HTML 頁面"
         }
-      }
+      },
+      "loading": "載入中…",
+      "secret_configured_placeholder": "已設定，留空保持不變"
     },
     "users": {
       "title": "使用者管理",
@@ -1601,7 +1621,11 @@
       "invalid_email": "信箱格式不正確",
       "invalid_url": "請輸入有效的 http(s) 網址，或從資產庫選擇",
       "ai_badge": "AI",
-      "ai_badge_title": "AI 使用者，點擊查看"
+      "ai_badge_title": "AI 使用者，點擊查看",
+      "external_accounts": "外部帳號",
+      "external_empty": "未綁定外部帳號",
+      "external_provider": "平台",
+      "external_sub": "OpenID (sub)"
     },
     "user_profile": {
       "title": "個人設定",
@@ -2298,7 +2322,8 @@
       "upload_video_too_large": "「{name}」超過 {size}，無法上傳",
       "leave_uploading_title": "還有檔案正在上傳",
       "leave_uploading_description": "現在離開會取消上傳，尚未傳完的圖片或影片不會儲存到草稿。確定要離開嗎？",
-      "leave_uploading_confirm": "仍要離開"
+      "leave_uploading_confirm": "仍要離開",
+      "status_draft": "草稿"
     },
     "menu": {
       "notifications": "通知",
@@ -2491,6 +2516,7 @@
     },
     "visit_insights": {
       "title": "訪客統計",
+      "include_ai": "包含 AI 使用者",
       "range_1": "今日",
       "range_7": "近 7 天",
       "range_30": "近 30 天",
@@ -3834,7 +3860,9 @@
       "email_service_unavailable": "網站未設定郵件服務，暫時無法寄送驗證碼，請聯絡管理員",
       "meilisearch_url_required": "啟用 Meilisearch 時必須填寫合法的服務位址（http:// 或 https://）",
       "meilisearch_test_failed": "Meilisearch 連線測試失敗",
-      "meilisearch_not_enabled": "尚未啟用或設定 Meilisearch 服務"
+      "meilisearch_not_enabled": "尚未啟用或設定 Meilisearch 服務",
+      "csrf_origin_mismatch": "跨站請求驗證未通過，請重新整理頁面後再試",
+      "empty_file": "上傳的檔案內容為空"
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field}「{value}」不符合要求} resource {{resource}的參數不符合要求} other {請求參數不符合要求}}",

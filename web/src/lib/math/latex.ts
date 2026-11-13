@@ -31,6 +31,8 @@ function escapeHtml(text: string) {
  * 超出宏展开等限制时 KaTeX 仍会抛异常，此时显示原文
  */
 export function renderLatex(latex: string, displayMode: boolean, output: KatexOptions['output'] = 'htmlAndMathml'): string {
+  if (!latex.trim())
+    return ''
   try {
     return katex.renderToString(latex, { ...KATEX_OPTIONS, displayMode, output })
   }
@@ -42,8 +44,13 @@ export function renderLatex(latex: string, displayMode: boolean, output: KatexOp
 /** 浏览器中渲染容器内的公式节点 */
 export function renderMathInElement(root: ParentNode) {
   root.querySelectorAll<HTMLElement>(MATH_SELECTOR).forEach((el) => {
+    const latex = el.dataset.latex ?? ''
+    if (!latex.trim()) {
+      el.innerHTML = ''
+      return
+    }
     const display = el.dataset.type === BLOCK_MATH_TYPE
-    el.innerHTML = renderLatex(el.dataset.latex ?? '', display)
+    el.innerHTML = renderLatex(latex, display)
   })
 }
 

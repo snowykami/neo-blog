@@ -4,6 +4,7 @@ import { getLocale, getTranslations } from 'next-intl/server'
 import { Suspense } from 'react'
 import { PostList } from '@/components/blog-home/post-list'
 import BlogSidebar from '@/components/blog-sidebar'
+import { getCachedSidebarData } from '@/components/blog-sidebar/sidebar-data'
 import { SectionTitle, SiteShell } from '@/components/layout/site-shell'
 import {
   Pagination,
@@ -45,13 +46,16 @@ export default async function CategoryDetailPage({
   // 地址参数只在页面里读（loading.tsx 的骨架里面）：layout 与骨架属于所有分类页共用的 App Shell。
   // 先判定分类是否存在、再读 ?page=：不存在时生成页面的过程中就 404，状态码才是真正的 404
   const { slug } = await params
-  const category = await findCategoryOr404(slug)
-  const archiveT = await getTranslations('Archive')
+  const [category, sidebarData, archiveT] = await Promise.all([
+    findCategoryOr404(slug),
+    getCachedSidebarData(),
+    getTranslations('Archive'),
+  ])
 
   return (
     <SiteShell
       sidebar={(
-        <BlogSidebar />
+        <BlogSidebar initialData={sidebarData} />
       )}
     >
       <div className="grid gap-1 px-4 md:px-2">

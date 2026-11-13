@@ -6,6 +6,7 @@ import { getLocale, getTranslations } from 'next-intl/server'
 import { cacheLife, cacheTag } from 'next/cache'
 import { Suspense } from 'react'
 import { listPosts } from '@/api/post'
+import { getCachedSidebarData } from '@/components/blog-sidebar/sidebar-data'
 import { BlogSidebarSkeleton } from '@/components/blog-sidebar/sidebar-skeleton'
 import { SiteShell } from '@/components/layout/site-shell'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -69,8 +70,11 @@ async function ArchiveContent({ searchParams }: { searchParams: Promise<{ label?
   // 支持 ?label=xxx / ?category=xxx 只看某个标签或分类的归档
   const { label = '', category = '' } = await searchParams
   skipBackendAtBuild()
-  const posts = await (label || category ? fetchArchivePosts(label, category) : loadAllPosts()).catch(() => [])
-  return <Archive groups={groupByYear(posts)} filter={{ label, category }} />
+  const [posts, sidebarData] = await Promise.all([
+    (label || category ? fetchArchivePosts(label, category) : loadAllPosts()).catch(() => []),
+    getCachedSidebarData(),
+  ])
+  return <Archive groups={groupByYear(posts)} filter={{ label, category }} sidebarData={sidebarData} />
 }
 
 // 归档到达前的占位：时间线卡片里画几行

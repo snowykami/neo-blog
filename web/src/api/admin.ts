@@ -10,7 +10,7 @@ import type { PageModel } from '@/models/page'
 import type { Post } from '@/models/post'
 import type { BaseResponse } from '@/models/resp'
 import type { ReindexSearchResult, TestMeilisearchParams, TestMeilisearchResult } from '@/models/search'
-import type { Role, User } from '@/models/user'
+import type { OpenIdDto, Role, User } from '@/models/user'
 import type { VisitDetail, VisitInsights, VisitLog, Visitor, VisitStats, VisitTrust } from '@/models/visit'
 import axiosClient from './client'
 
@@ -46,6 +46,7 @@ export interface AdminUserDetail {
   postCount: number
   pageCount: number
   commentCount: number
+  openIds?: OpenIdDto[]
 }
 
 export async function getUserAdmin(id: number): Promise<BaseResponse<AdminUserDetail>> {
@@ -157,6 +158,15 @@ export async function setPostPin({ id, pinned, pinnedUntil = null }: { id: numbe
 export interface KVItem {
   key: string
   value: unknown
+  secret?: boolean
+  hasValue?: boolean
+}
+
+export interface SetKVParams {
+  key: string
+  value?: unknown
+  secret?: boolean
+  updateValue?: boolean
 }
 
 export async function listKV(query = ''): Promise<BaseResponse<{ items: KVItem[] }>> {
@@ -204,14 +214,14 @@ export async function reindexSearch(): Promise<BaseResponse<ReindexSearchResult>
   return res.data
 }
 
-export async function setKV(item: KVItem): Promise<BaseResponse<null>> {
+export async function setKV(item: SetKVParams): Promise<BaseResponse<null>> {
   const res = item.key
     ? await axiosClient.put(`/admin/kv/${encodeURIComponent(item.key)}`, item)
     : await axiosClient.post('/admin/kv', item)
   return res.data
 }
 
-export async function createKV(item: KVItem): Promise<BaseResponse<null>> {
+export async function createKV(item: SetKVParams): Promise<BaseResponse<null>> {
   const res = await axiosClient.post('/admin/kv', item)
   return res.data
 }
@@ -252,6 +262,7 @@ export async function listVisitsAdmin({
   trust,
   country,
   device,
+  includeAi,
   ...pagination
 }: {
   kind?: 'all' | 'user' | 'anonymous'
@@ -264,8 +275,9 @@ export async function listVisitsAdmin({
   trust?: VisitTrust // 按可信度结论筛选
   country?: string // 按推断国家筛选
   device?: string // 按设备类型筛选
+  includeAi?: boolean // 是否包含站内 AI 用户账号，默认 true
 } & PaginationParams): Promise<BaseResponse<{ visits: VisitLog[], total: number }>> {
-  const res = await axiosClient.get('/admin/visits', { params: { ...pagination, kind, action, visitorId, targetType, targetId, source, sourceHost, trust, country, device } })
+  const res = await axiosClient.get('/admin/visits', { params: { ...pagination, kind, action, visitorId, targetType, targetId, source, sourceHost, trust, country, device, includeAi } })
   return res.data
 }
 
@@ -275,13 +287,13 @@ export async function getVisitDetailAdmin(id: number): Promise<BaseResponse<Visi
 }
 
 // days：1 为今日（按小时），7 / 30 按天
-export async function getVisitInsightsAdmin(days: 1 | 7 | 30): Promise<BaseResponse<VisitInsights>> {
-  const res = await axiosClient.get('/admin/visits/insights', { params: { days } })
+export async function getVisitInsightsAdmin(days: 1 | 7 | 30, includeAi?: boolean): Promise<BaseResponse<VisitInsights>> {
+  const res = await axiosClient.get('/admin/visits/insights', { params: { days, includeAi } })
   return res.data
 }
 
-export async function getVisitStatsAdmin(): Promise<BaseResponse<VisitStats>> {
-  const res = await axiosClient.get('/admin/visits/stats')
+export async function getVisitStatsAdmin(includeAi?: boolean): Promise<BaseResponse<VisitStats>> {
+  const res = await axiosClient.get('/admin/visits/stats', { params: { includeAi } })
   return res.data
 }
 

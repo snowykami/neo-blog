@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { createKV, deleteKV, listKV, setKV } from '@/api/admin'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { STICKY_ACTIONS_CLASS } from '@/components/console/common/sticky-actions'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -19,6 +20,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
+import { Switch } from '@/components/ui/switch'
 import {
   Table,
   TableBody,
@@ -42,6 +44,7 @@ export default function GlobalPage() {
   const [selectedKey, setSelectedKey] = useState('')
   const [keyInput, setKeyInput] = useState('')
   const [valueInput, setValueInput] = useState('null')
+  const [secretInput, setSecretInput] = useState(false)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [queryInput, setQueryInput, debouncedQuery] = useDebouncedState('', 200)
@@ -75,12 +78,15 @@ export default function GlobalPage() {
     if (!selectedItem)
       return
     setKeyInput(selectedItem.key)
-    setValueInput(JSON.stringify(selectedItem.value, null, 2))
+    setSecretInput(Boolean(selectedItem.secret))
+    // 敏感项后端不回传明文，留空表示仅修改敏感标记或保持原值不变
+    setValueInput(selectedItem.secret ? '' : JSON.stringify(selectedItem.value, null, 2))
   }, [selectedItem])
 
   const handleNew = (key = '') => {
     setSelectedKey('')
     setKeyInput(key)
+    setSecretInput(false)
     setValueInput('null')
   }
 
@@ -91,23 +97,33 @@ export default function GlobalPage() {
       return
     }
 
+    const trimmedValue = valueInput.trim()
+    // 编辑已标记为敏感的项且未输入新值时，只更新敏感布尔标记，不覆盖已有值
+    const keepExistingSecretValue = Boolean(selectedKey && selectedItem?.secret && trimmedValue === '')
     let value: unknown
-    try {
-      value = JSON.parse(valueInput)
-    }
-    catch {
-      toast.error(t('value_invalid_json'))
-      return
+    if (!keepExistingSecretValue) {
+      try {
+        value = JSON.parse(valueInput)
+      }
+      catch {
+        toast.error(t('value_invalid_json'))
+        return
+      }
     }
 
     setSaving(true)
     try {
       if (selectedKey) {
-        await setKV({ key: selectedKey, value })
+        await setKV({
+          key: selectedKey,
+          value,
+          secret: secretInput,
+          updateValue: !keepExistingSecretValue,
+        })
         setSelectedKey(key)
       }
       else {
-        await createKV({ key, value })
+        await createKV({ key, value, secret: secretInput })
         setSelectedKey(key)
       }
       toast.success(operationT('save_success'))
@@ -168,9 +184,16 @@ export default function GlobalPage() {
             )}
             {!loading && items.map(item => (
               <TableRow key={item.key}>
-                <TableCell className="font-mono">{item.key}</TableCell>
+                <TableCell className="font-mono">
+                  <span>{item.key}</span>
+                  {item.secret && (
+                    <Badge variant="secondary" className="ml-2 font-sans text-[11px]">{t('secret_badge')}</Badge>
+                  )}
+                </TableCell>
                 <TableCell className="max-w-[28rem] truncate font-mono text-xs text-muted-foreground">
-                  {JSON.stringify(item.value)}
+                  {item.secret
+                    ? <span className="font-sans italic">{item.hasValue ? t('secret_masked') : t('secret_empty')}</span>
+                    : JSON.stringify(item.value)}
                 </TableCell>
                 <TableCell className={`text-right ${STICKY_ACTIONS_CLASS}`}>
                   <div className="flex justify-end gap-2">
@@ -210,11 +233,23 @@ export default function GlobalPage() {
                 disabled={Boolean(selectedKey)}
               />
             </div>
+            <div className="flex items-center justify-between gap-3 rounded-md border p-3">
+              <div className="grid gap-1">
+                <Label htmlFor="kv-secret">{t('secret_label')}</Label>
+                <span className="text-xs text-muted-foreground">{t('secret_hint')}</span>
+              </div>
+              <Switch
+                id="kv-secret"
+                checked={secretInput}
+                onCheckedChange={setSecretInput}
+              />
+            </div>
             <div className="grid gap-2">
               <Label htmlFor="kv-value">{t('value')}</Label>
               <Textarea
                 id="kv-value"
                 className="min-h-60 font-mono text-xs"
+                placeholder={selectedItem?.secret && selectedItem.hasValue ? t('secret_value_placeholder') : undefined}
                 value={valueInput}
                 onChange={e => setValueInput(e.target.value)}
               />

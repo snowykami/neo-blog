@@ -22,9 +22,11 @@ export function renderMathHtml(html: string, output: KatexOptions['output'] = 'h
   nodes.each((_, el) => {
     const $el = $(el)
     const latex = $el.attr('data-latex') ?? ''
+    if (!latex.trim())
+      return
     $el.html(renderLatex(latex, $el.attr('data-type') === BLOCK_MATH_TYPE, output))
     if (output === 'html')
-      $el.attr({ 'role': 'math', 'aria-label': latex })
+      $el.attr({ 'role': 'math', 'aria-label': latex.trim() })
   })
   return $.html()
 }

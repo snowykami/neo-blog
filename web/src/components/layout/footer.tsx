@@ -23,7 +23,7 @@ export default function Footer() {
   const footerText = siteInfo.footer?.text?.trim()
   const footerLinks = (siteInfo.footer?.links ?? []).filter(link => link.text && link.href)
   return (
-    <footer className="mx-auto w-full max-w-[var(--page-w)] px-4 pb-10">
+    <footer className="mx-auto w-full max-w-[var(--page-w)] px-4 pb-[calc(5rem+env(safe-area-inset-bottom,0px))] md:pb-10">
       {/* 虚线分隔，与正文区隔开 */}
       <div className="mx-auto mb-8 w-full max-w-2xl border-t border-dashed border-foreground/10" />
       {/* 各段之间用间距分隔，不再用「·」拼接 */}

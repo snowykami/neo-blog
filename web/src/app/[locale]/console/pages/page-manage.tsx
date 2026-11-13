@@ -4,7 +4,7 @@ import type { PageModel } from '@/models/page'
 import type { BaseResponseError } from '@/models/resp'
 import { CodeXmlIcon, Ellipsis, Eye, LinkIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { parseAsBoolean, useQueryState } from 'nuqs'
+import { parseAsBoolean, parseAsInteger, useQueryState } from 'nuqs'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { listPagesAdmin } from '@/api/admin'
@@ -57,8 +57,14 @@ export function PageManage() {
   const t = useTranslations('Console.pages')
   const errorMessageT = useErrorMessageT()
   const operationT = useOperationT()
-  const [page, setPage] = useState(1)
-  const [size, setSize] = useState(PAGE_SIZE)
+  const [page, setPage] = useQueryState(
+    'page',
+    parseAsInteger.withDefault(1).withOptions({ history: 'replace', clearOnDefault: true }),
+  )
+  const [size, setSize] = useQueryState(
+    'size',
+    parseAsInteger.withDefault(PAGE_SIZE).withOptions({ history: 'replace', clearOnDefault: true }),
+  )
   const [queryInput, setQueryInput, debouncedQueryInput] = useDebouncedState('', 200)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [onlyMine, setOnlyMine] = useQueryState(
@@ -86,8 +92,8 @@ export function PageManage() {
     if (prevQueryRef.current === debouncedQueryInput)
       return
     prevQueryRef.current = debouncedQueryInput
-    setPage(1)
-  }, [debouncedQueryInput])
+    void setPage(1)
+  }, [debouncedQueryInput, setPage])
 
   // 已有页面就地更新；新建页面需要后端的排序与分页结果，重新拉取列表
   const onPageChange = useCallback(({ page }: { page: Partial<PageModel> & Pick<PageModel, 'id'> }) => {
@@ -177,6 +183,7 @@ function PageItem({
 }) {
   const [metaDialogOpen, setMetaDialogOpen] = useState(false)
   const t = useTranslations('Console.pages')
+  const editorT = useTranslations('Console.editor')
   const stateT = useTranslations('State')
   const operationT = useOperationT()
   return (
@@ -203,16 +210,26 @@ function PageItem({
             </Badge>
           )}
           {page.fullscreen && <Badge variant="outline">{t('fullscreen_badge')}</Badge>}
-          <Badge className={page.isPrivate ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'}>
+          {page.hasDraft && (
+            <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
+              {editorT('status_unpublished_changes')}
+            </Badge>
+          )}
+          <Badge
+            variant="secondary"
+            className={page.isPrivate
+              ? 'bg-orange-100 text-orange-800 dark:bg-orange-500/15 dark:text-orange-300'
+              : 'bg-green-100 text-green-800 dark:bg-green-500/15 dark:text-green-300'}
+          >
             {page.isPrivate ? stateT('private') : stateT('public')}
           </Badge>
           {page.showInNav && (
-            <Badge className="bg-blue-100 text-blue-800">
+            <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300">
               {t('nav_order', { order: page.navOrder })}
             </Badge>
           )}
           {showAuthor && page.user && (
-            <Badge className="bg-teal-100 text-teal-800">
+            <Badge variant="secondary" className="bg-teal-100 text-teal-800 dark:bg-teal-500/15 dark:text-teal-300">
               {t('author', { name: page.user.nickname || page.user.username })}
             </Badge>
           )}

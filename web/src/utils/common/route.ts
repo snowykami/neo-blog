@@ -69,9 +69,9 @@ export function getPostPreviewUrl<T extends { id: string | number }>(post: T): s
   return `${consolePath.postPreview}/${String(post.id)}`
 }
 
-/** 在后台查看文章：私密文章前台 404，转到后台预览；公开文章打开前台文章页 */
-export function getPostViewUrl<T extends { slug?: string | null, id: string | number, isPrivate?: boolean }>(post: T): string {
-  return post.isPrivate ? getPostPreviewUrl(post) : getPostUrl({ post })
+/** 在后台查看文章：私密文章或尚未首次发布的草稿前台 404，转到后台预览；公开已发布文章打开前台文章页 */
+export function getPostViewUrl<T extends { slug?: string | null, id: string | number, isPrivate?: boolean, isDraft?: boolean }>(post: T): string {
+  return post.isPrivate || post.isDraft ? getPostPreviewUrl(post) : getPostUrl({ post })
 }
 
 /*

@@ -4,6 +4,7 @@ import { getLocale, getTranslations } from 'next-intl/server'
 import { cacheLife, cacheTag } from 'next/cache'
 import { getLabels } from '@/api/label'
 import BlogSidebar from '@/components/blog-sidebar'
+import { getCachedSidebarData } from '@/components/blog-sidebar/sidebar-data'
 import { SectionTitle, SiteShell } from '@/components/layout/site-shell'
 import { localeAlternates } from '@/i18n/alternates'
 import { Link } from '@/i18n/navigation'
@@ -26,14 +27,18 @@ async function loadLabels(): Promise<Label[]> {
 export default async function LabelPage() {
   // 取不到时抛错，不把空列表缓存成页面：错误时 Next 继续提供上一份成功生成的页面（见 api/misc.server.ts）
   skipBackendAtBuild()
-  // 没有公开文章的标签点进去是空列表，不显示（与侧栏标签云一致）
-  const labels = (await loadLabels()).filter(label => label.postCount === undefined || label.postCount > 0)
+  const [rawLabels, sidebarData] = await Promise.all([
+    loadLabels(),
+    getCachedSidebarData(['labels']),
+  ])
   const t = await getTranslations()
+  // 没有公开文章的标签点进去是空列表，不显示（与侧栏标签云一致）
+  const labels = rawLabels.filter(label => label.postCount === undefined || label.postCount > 0)
 
   return (
     <SiteShell
       // 本页就是完整的标签列表，侧栏不再重复一份标签云
-      sidebar={<BlogSidebar exclude={['labels']} />}
+      sidebar={<BlogSidebar exclude={['labels']} initialData={sidebarData} />}
     >
       <SectionTitle as="h1" className="mx-4 text-xl md:mx-2 md:text-2xl">
         {t('Route.label')}

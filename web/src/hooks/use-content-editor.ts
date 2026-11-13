@@ -464,8 +464,9 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
     baseDocRef.current = ed.state.doc
     const html = ed.getHTML()
     setSavedHtml(html)
-    // 草稿与正文一致时视为已发布；否则记录服务端正文用于比较
-    setPublishedHtml(!next.draftContent || next.draftContent === next.content ? html : next.content)
+    // 尚未首次发布的草稿没有已发布正文；否则草稿与正文一致时视为已发布
+    const isPostDraft = 'isDraft' in next && Boolean(next.isDraft)
+    setPublishedHtml(isPostDraft ? '' : (!next.draftContent || next.draftContent === next.content ? html : next.content))
     const nextMeta = adapter.toMeta(next)
     setMetaState(nextMeta)
     setSavedMeta(nextMeta)
@@ -861,7 +862,8 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
           const remoteHtml = result.localChanged ? getHTMLFromFragment(result.remoteDoc.content, editor.schema) : editor.getHTML()
           setSavedHtml(remoteHtml)
           savedHtmlRef.current = remoteHtml
-          setPublishedHtml(!latest.draftContent || latest.draftContent === latest.content ? remoteHtml : latest.content)
+          const isPostDraft = 'isDraft' in latest && Boolean(latest.isDraft)
+          setPublishedHtml(isPostDraft ? '' : (!latest.draftContent || latest.draftContent === latest.content ? remoteHtml : latest.content))
           setContentDirty(result.localChanged || result.conflicts > 0)
           if (result.localChanged)
             pendingSaveRef.current = true
@@ -948,7 +950,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
         setSavedMeta(prev => ({ ...prev, ...appliedPatch }))
         setDoc(prev => (prev ? adapter.mergeMeta(prev, appliedPatch) : prev))
       }
-      setDoc(prev => (prev ? { ...prev, content: html, draftContent: html } : prev))
+      setDoc(prev => (prev ? { ...prev, content: html, draftContent: html, ...('isDraft' in prev ? { isDraft: false } : {}) } : prev))
       failedMetaRef.current = null
       setSaveError(null)
       setLastSavedAt(new Date())
@@ -1065,7 +1067,8 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
   else if (lastSavedAt)
     saveState = 'saved'
 
-  const hasUnpublishedChanges = contentDirty || (savedHtml !== null && publishedHtml !== null && savedHtml !== publishedHtml)
+  const isUnpublished = kind === 'post' && Boolean(doc && 'isDraft' in doc && doc.isDraft)
+  const hasUnpublishedChanges = isUnpublished || contentDirty || (savedHtml !== null && publishedHtml !== null && savedHtml !== publishedHtml)
 
   return {
     kind,
@@ -1084,10 +1087,11 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
     hasActiveUploads,
     publish,
     publishing,
+    isUnpublished,
     hasUnpublishedChanges,
     // 版本
     canRevertSession: Boolean(baseRevisionId) && (changedSinceOpen || isDirty) && !readOnly,
-    canDiscardUnpublished: hasUnpublishedChanges && Boolean(doc?.content) && !readOnly,
+    canDiscardUnpublished: !isUnpublished && hasUnpublishedChanges && Boolean(doc?.content) && !readOnly,
     revertSession,
     discardUnpublished,
     restoreToRevision,
