@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/snowykami/neo-blog/internal/llmclient"
 	"github.com/snowykami/neo-blog/internal/tools"
 )
 
@@ -68,7 +69,7 @@ func TestLyricAnnotationPipelineDrawsSprites(t *testing.T) {
 	var sprites atomic.Int32
 	var spriteUser atomic.Value
 	service := &lyricAnnotationService{
-		limiter:     &aiLimiter{},
+		limiter:     &llmclient.Limiter{},
 		concurrency: func() int { return 3 },
 		complete: func(_ context.Context, _ tools.AIConfig, system, user string) (string, error) {
 			switch system {

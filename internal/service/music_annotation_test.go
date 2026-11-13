@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/internal/llmclient"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/tools"
@@ -91,7 +92,7 @@ func TestLyricAnnotationJob(t *testing.T) {
 	var lastUser atomic.Value
 	done := make(chan struct{}, 4)
 	service := &lyricAnnotationService{
-		limiter:     &aiLimiter{},
+		limiter:     &llmclient.Limiter{},
 		concurrency: func() int { return 1 },
 		// 只数全曲规划的请求（每次生成一次）；逐段标注返回同样的短语
 		complete: func(_ context.Context, _ tools.AIConfig, system, user string) (string, error) {
@@ -323,32 +324,24 @@ func TestSanitizeLyricAnnotationsConsistency(t *testing.T) {
 	}
 }
 
-func TestSanitizeLyricAnnotationsPace(t *testing.T) {
+func TestLegacyLyricAnnotationPaceIgnored(t *testing.T) {
 	lines := []string{"心跳加速", "慢慢地说"}
+	// 模型或旧版数据库记录含有已废弃的 pace 字段时，反序列化与校验都不报错且忽略该字段
 	raw := `{"pace":"slow","lines":[
 		{"i":0,"phrases":[{"text":"心跳","effect":"heartbeat","pace":"fast"}]},
-		{"i":1,"phrases":[{"text":"慢慢","effect":"glow","pace":"slow"},{"text":"地说","effect":"glow","pace":"warp"}]}]}`
+		{"i":1,"phrases":[{"text":"慢慢","effect":"glow","pace":"slow"}]}]}`
 	got, err := sanitizeLyricAnnotations(lines, nil, raw)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// 模型给的全曲节奏不保存（默认跟随节拍）；短语与模型的全曲节奏相同或无效时不保存（沿用全曲）
-	if got.Pace != "" {
-		t.Fatalf("song pace = %q", got.Pace)
+	if len(got.Lines) != 2 || got.Lines[0].Phrases[0].Effect != "heartbeat" {
+		t.Fatalf("unexpected sanitized lines = %+v", got.Lines)
 	}
-	paces := map[string]string{}
-	for _, line := range got.Lines {
-		for _, phrase := range line.Phrases {
-			paces[phrase.Text] = phrase.Pace
-		}
-	}
-	if paces["心跳"] != "fast" || paces["慢慢"] != "" || paces["地说"] != "" {
-		t.Fatalf("phrase paces = %v", paces)
-	}
-	// 短语只采用 slow / fast
-	got, _ = sanitizeLyricAnnotations(lines, nil, `{"lines":[{"i":0,"phrases":[{"text":"心跳","effect":"heartbeat","pace":"beat"}]}]}`)
-	if p := got.Lines[0].Phrases[0].Pace; p != "" {
-		t.Fatalf("model phrase pace beat = %q", p)
+
+	legacyDB := `{"font":"song","pace":"medium","lines":[{"text":"心跳加速","phrases":[{"text":"心跳","effect":"heartbeat","pace":"slow"}]}]}`
+	parsed := parseLyricAnnotationData(legacyDB)
+	if parsed.Font != "song" || len(parsed.Lines) != 1 || parsed.Lines[0].Phrases[0].Text != "心跳" {
+		t.Fatalf("unexpected legacy db parse = %+v", parsed)
 	}
 }
 

@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -16,6 +18,7 @@ import (
 	"github.com/snowykami/neo-blog/pkg/cache"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/sharedstate"
+	"github.com/snowykami/neo-blog/pkg/telemetry"
 	"github.com/snowykami/neo-blog/pkg/utils"
 )
 
@@ -23,9 +26,38 @@ import (
 // 合计不超过 Kubernetes 配置的 35 秒退出宽限期
 const aiAgentDrainTimeout = 15 * time.Second
 
+func runHealthcheck() int {
+	port := strings.TrimSpace(utils.Env.Get("PORT", "8888"))
+	if port == "" {
+		port = "8888"
+	}
+	client := &http.Client{
+		Timeout:   2 * time.Second,
+		Transport: &http.Transport{Proxy: nil},
+	}
+	resp, err := client.Get("http://127.0.0.1:" + port + "/healthz")
+	if err != nil {
+		return 1
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode == http.StatusOK {
+		return 0
+	}
+	return 1
+}
+
 func main() {
+	if len(os.Args) > 1 && (os.Args[1] == "-healthcheck" || os.Args[1] == "--healthcheck") {
+		os.Exit(runHealthcheck())
+	}
+
+	otelShutdown, err := telemetry.Init(context.Background(), "neo-blog-backend")
+	if err != nil {
+		logrus.Warnf("OpenTelemetry 初始化失败，已回退为无追踪模式: %v", err)
+	}
+
 	// 共享状态：未配置 Redis 时为进程内存（单实例）；配置了但连不上时直接退出，避免多副本各自为政
-	err := sharedstate.Init(utils.Env.Get(constant.EnvKeyRedisURL), utils.Env.Get(constant.EnvKeyRedisKeyPrefix))
+	err = sharedstate.Init(utils.Env.Get(constant.EnvKeyRedisURL), utils.Env.Get(constant.EnvKeyRedisKeyPrefix))
 	if err != nil {
 		panic(err)
 	}
@@ -102,9 +134,17 @@ func main() {
 	tasks.StartSearchSync()
 
 	err = router.Run(ctx)
-	service.FlushPendingViews()
+	service.FlushPostViewCounts()
+	searchShutdownCtx, cancelSearchShutdown := context.WithTimeout(context.Background(), 5*time.Second)
+	_ = service.ShutdownSearchIndex(searchShutdownCtx)
+	cancelSearchShutdown()
 	// 已领取的 AI 用户任务尽量执行完，来不及的立即放回队列由其他实例接着执行
 	tasks.DrainAIAgentWorkers(aiAgentDrainTimeout)
+	if otelShutdown != nil {
+		otelCtx, cancelOtel := context.WithTimeout(context.Background(), 5*time.Second)
+		_ = otelShutdown(otelCtx)
+		cancelOtel()
+	}
 	if err != nil {
 		panic(err)
 	}

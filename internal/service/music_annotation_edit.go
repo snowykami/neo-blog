@@ -21,7 +21,7 @@ import (
 )
 
 // 后台手动编辑歌词标注（见 docs/music-player-spec.md 7.2b「手动编辑」）：管理员在后台的歌词特效页查看与修改 AI 生成的标注，
-// 只能改短语（选区与特效、颜色、字体、字形、节奏）、各行的情绪、副歌与粒子场景，以及全曲字体、节奏、导语与聚光灯，不能改歌词文本与时间轴；
+// 只能改短语（选区与特效、颜色、字体、字形）、各行的情绪、副歌与粒子场景，以及全曲字体、导语与聚光灯，不能改歌词文本与时间轴；
 // 时刻与尾奏热评保持原样。编辑过的标注记下 edited_at，不再因过期自动重新生成（管理员手动刷新时覆盖）。
 // 正在生成时不能保存（409，避免与生成结果互相覆盖）；生成写回只覆盖没有手动编辑过的标注（见 lyricAnnotationService.saveGenerated），
 // 生成期间保存的编辑不会被生成结果覆盖。已移出歌单的歌曲仍可打开编辑器（只是不再由 AI 生成，见 editorLines）
@@ -73,7 +73,7 @@ func (s *MusicService) GetLyricAnnotationEditor(ctx context.Context, id int64) (
 		return nil, errs.Internal("failed_to_get_target", err)
 	}
 	data := parseLyricAnnotationData(record.Data)
-	result.Annotation = &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Pace: data.Pace, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Spotlights: data.spotlightsFor(lines), Accent: data.Accent, Lines: data.Lines, Sprites: data.Sprites, Edited: record.EditedAt != nil}
+	result.Annotation = &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Spotlights: data.spotlightsFor(lines), Accent: data.Accent, Lines: data.Lines, Sprites: data.Sprites, Edited: record.EditedAt != nil}
 	result.EditedAt = record.EditedAt
 	result.GeneratedAt = &record.CreatedAt
 	result.Model = record.Model
@@ -263,7 +263,7 @@ func (a *lyricAnnotationService) running(key string) bool {
 }
 
 // sanitizeEditedLyricAnnotations 校验手动编辑的标注：行必须是歌词中的原文（同一文本只能有一条），短语必须是该行的连续片段且不重复，
-// 情绪、特效、颜色、字体、字形、节奏与场景（内置场景或这首歌已有的自定义粒子）只能取允许的值，导语不超过上限，聚光灯必须指向存在的行；不合法时返回 false（不做静默修正，
+// 情绪、特效、颜色、字体、字形与场景（内置场景或这首歌已有的自定义粒子）只能取允许的值，导语不超过上限，聚光灯必须指向存在的行；不合法时返回 false（不做静默修正，
 // 让管理员看到保存失败）。与模型输出的校验不同，手动编辑不限制特殊特效与场景的数量
 func sanitizeEditedLyricAnnotations(lines []string, req *dto.MusicLyricAnnotationsEditReq, sprites []dto.MusicLyricSprite) (lyricAnnotationData, bool) {
 	counts := map[string]int{}
@@ -275,13 +275,6 @@ func sanitizeEditedLyricAnnotations(lines []string, req *dto.MusicLyricAnnotatio
 		return data, false
 	}
 	data.Font = req.Font
-	if req.Pace != "" && !lyricAnnotationPaces[req.Pace] {
-		return data, false
-	}
-	// 跟随节拍是默认值，存为空
-	if req.Pace != "beat" {
-		data.Pace = req.Pace
-	}
 	intro := strings.TrimSpace(req.Intro)
 	if utf8.RuneCountInString(intro) > lyricAnnotationMaxIntroRunes {
 		return data, false
@@ -361,13 +354,6 @@ func sanitizeEditedLyricAnnotations(lines []string, req *dto.MusicLyricAnnotatio
 				if !slices.Contains(annotated.Styles, style) {
 					annotated.Styles = append(annotated.Styles, style)
 				}
-			}
-			if phrase.Pace != "" && !lyricAnnotationPaces[phrase.Pace] {
-				return data, false
-			}
-			// 与全曲节奏相同时不单独保存
-			if phrase.Pace != "" && phrase.Pace != songLyricPace(data.Pace) {
-				annotated.Pace = phrase.Pace
 			}
 			line.Phrases = append(line.Phrases, annotated)
 		}

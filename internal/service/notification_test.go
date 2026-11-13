@@ -212,7 +212,7 @@ func TestEmitNotificationThreadAggregate(t *testing.T) {
 	if len(rows) != 1 {
 		t.Fatalf("folded rows = %d, want 1", len(rows))
 	}
-	if rows[0].AggregateCount != 2 || rows[0].AggregateActors != "first,second" {
+	if rows[0].AggregateCount != 2 || rows[0].AggregateActors != "second,first" || rows[0].ActorID != second.ID {
 		t.Fatalf("folded row = %+v", rows[0])
 	}
 	if rows[0].EmailState != constant.NotificationEmailStateAttached && rows[0].EmailState != constant.NotificationEmailStateSkipped {
@@ -804,4 +804,81 @@ func TestDeleteCommentCleansNotifications(t *testing.T) {
 	if after != 0 {
 		t.Fatalf("notifications after delete = %d, want 0", after)
 	}
+}
+
+// 同日多人点赞同一文章：未读组数保持 1，但 Seq 单调递增、Latest.AggregateCount 递增、Latest.Actor 更新为最新点赞者；
+// 标记已读后 Latest 绝不返回已读通知
+func TestUnreadCountPreviewAndSameDayLikes(t *testing.T) {
+	sharedstate.UseMemory()
+	author, admin, other, _, _ := setupEditTest(t)
+	authorID, _ := ctxutils.GetCurrentUserID(author)
+	thirdUser := createNotificationUser(t, "thirdfan", func(u *model.User) { u.Nickname = "第三粉丝" })
+	thirdCtx := context.WithValue(context.Background(), "user_id", thirdUser.ID)
+	postID := createPublicPost(t, author, nil)
+	ns := NewNotificationService()
+
+	initial, svcerr := ns.GetUnreadCount(author)
+	if svcerr != nil {
+		t.Fatalf("initial unread count: %v", svcerr)
+	}
+	if initial.Total != 0 || initial.Latest != nil {
+		t.Fatalf("initial = %+v, want empty", initial)
+	}
+
+	// 第 1 人点赞
+	if liked, svcerr := NewLikeService().ToggleLike(other, postID, constant.TargetTypePost, nil); svcerr != nil || !liked {
+		t.Fatalf("first like: %v", svcerr)
+	}
+	snap1, svcerr := ns.GetUnreadCount(author)
+	if svcerr != nil {
+		t.Fatalf("snap1: %v", svcerr)
+	}
+	if snap1.Total != 1 || snap1.Seq <= initial.Seq || snap1.Latest == nil {
+		t.Fatalf("snap1 = %+v", snap1)
+	}
+	if snap1.Latest.AggregateCount != 1 || snap1.Latest.IsRead || snap1.Latest.SubjectTitle != "public" {
+		t.Fatalf("snap1 latest = %+v", snap1.Latest)
+	}
+
+	// 同日第 2 人、第 3 人点赞同一文章：Total 仍为 1，但 Seq 单调递增、AggregateCount=3、Actor 为第三位点赞者
+	if liked, svcerr := NewLikeService().ToggleLike(admin, postID, constant.TargetTypePost, nil); svcerr != nil || !liked {
+		t.Fatalf("second like: %v", svcerr)
+	}
+	snap2, svcerr := ns.GetUnreadCount(author)
+	if svcerr != nil {
+		t.Fatalf("snap2: %v", svcerr)
+	}
+	if snap2.Total != 1 || snap2.Seq <= snap1.Seq || snap2.Latest == nil || snap2.Latest.AggregateCount != 2 {
+		t.Fatalf("snap2 = %+v, latest = %+v", snap2, snap2.Latest)
+	}
+
+	if liked, svcerr := NewLikeService().ToggleLike(thirdCtx, postID, constant.TargetTypePost, nil); svcerr != nil || !liked {
+		t.Fatalf("third like: %v", svcerr)
+	}
+	snap3, svcerr := ns.GetUnreadCount(author)
+	if svcerr != nil {
+		t.Fatalf("snap3: %v", svcerr)
+	}
+	if snap3.Total != 1 || snap3.Seq <= snap2.Seq || snap3.Latest == nil {
+		t.Fatalf("snap3 = %+v", snap3)
+	}
+	if snap3.Latest.AggregateCount != 3 || snap3.Latest.Actor == nil || snap3.Latest.Actor.ID != thirdUser.ID {
+		t.Fatalf("snap3 latest = %+v", snap3.Latest)
+	}
+	if len(snap3.Latest.ActorNames) != 2 || snap3.Latest.ActorNames[0] != "第三粉丝" {
+		t.Fatalf("snap3 actor_names = %v, want MRU starting with 第三粉丝", snap3.Latest.ActorNames)
+	}
+
+	// 整组标已读后：Total 归零，Latest 必须为 nil（不能把刚标已读的通知当作 Latest 返回）
+	if _, svcerr := ns.MarkNotificationRead(author, snap3.Latest.ID); svcerr != nil {
+		t.Fatalf("mark like group read: %v", svcerr)
+	}
+	snapRead, svcerr := ns.GetUnreadCount(author)
+	if svcerr != nil {
+		t.Fatalf("snapRead: %v", svcerr)
+	}
+	if snapRead.Total != 0 || snapRead.Latest != nil || snapRead.Seq <= snap3.Seq {
+		t.Fatalf("snapRead = %+v, want Total=0 and Latest=nil", snapRead)
+	}
+	_ = authorID
 }

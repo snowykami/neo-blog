@@ -40,14 +40,37 @@ type ListNotificationsReq struct {
 	Type   string `query:"type"`
 }
 
+// NotificationPreviewDto 最新一条未读通知的轻量预览（用于 SSE 实时推送与顶栏灵动岛展示）
+type NotificationPreviewDto struct {
+	ID             uint           `json:"id"`
+	Type           string         `json:"type"`
+	Actor          *UserAvatarDto `json:"actor,omitempty"`
+	ActorIsAI      bool           `json:"actor_is_ai,omitempty"`
+	ActorNames     []string       `json:"actor_names,omitempty"`
+	AggregateCount int            `json:"aggregate_count"`
+	SubjectType    string         `json:"subject_type,omitempty"`
+	SubjectID      uint           `json:"subject_id,omitempty"`
+	SubjectTitle   string         `json:"subject_title,omitempty"`
+	SubjectSlug    string         `json:"subject_slug,omitempty"`
+	TargetType     string         `json:"target_type"`
+	TargetID       uint           `json:"target_id"`
+	CommentID      uint           `json:"comment_id,omitempty"`
+	Excerpt        string         `json:"excerpt,omitempty"`
+	QuotedExcerpt  string         `json:"quoted_excerpt,omitempty"`
+	IsRead         bool           `json:"is_read"`
+	ActivityAt     time.Time      `json:"activity_at"`
+}
+
 // NotificationUnreadCountDto 未读徽标：总数与分类型都是「聚合组」的数量
 type NotificationUnreadCountDto struct {
 	Total  int64            `json:"total"`
 	ByType map[string]int64 `json:"by_type"`
-	// LatestID / LatestAt 最近一条通知（按最近活动时间）：前端在它变新时提示「来了新通知」。
-	// 未读组数不变的情况（点赞并入已有未读组、折叠行有新回复）只靠组数是看不出来的
-	LatestID uint       `json:"latest_id"`
-	LatestAt *time.Time `json:"latest_at"`
+	// LatestID / LatestAt 最近一条通知（按最近活动时间）：向后兼容旧版前端与全部已读上界
+	LatestID  uint                    `json:"latest_id"`
+	LatestAt  *time.Time              `json:"latest_at"`
+	Seq       int64                   `json:"seq"`              // 单调递增通知事件序号
+	UpdatedAt time.Time               `json:"updated_at"`       // 本次快照生成时间
+	Latest    *NotificationPreviewDto `json:"latest,omitempty"` // 最新一条未读通知（含同日聚合信息）
 }
 
 // MarkAllNotificationsReadReq 一键已读；before_id 避免把请求期间新到的通知也标掉

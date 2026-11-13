@@ -43,7 +43,6 @@ type lyricAnnotationPlan struct {
 	Theme     string `json:"theme"`
 	Direction string `json:"direction"`
 	Font      string `json:"font"`
-	Pace      string `json:"pace"`
 	// 聚光灯的行号（选定的那几次出现）：逐段标注时在这些行上标 spotlight，让模型少给它们叠特效
 	Spotlights []int `json:"spotlights"`
 	Imagery    []struct {
@@ -87,8 +86,8 @@ func extractJSONObject(raw string) (string, error) {
 
 // call 排队等待全局 AI 并发名额（与 AI 摘要共用），拿到后才开始计算超时
 func (a *lyricAnnotationService) call(cfg tools.AIConfig, system, user string) (string, error) {
-	_ = a.limiter.acquire(context.Background(), a.concurrency, false, nil)
-	defer a.limiter.release()
+	_ = a.limiter.Acquire(context.Background(), a.concurrency, false, nil)
+	defer a.limiter.Release()
 	// 歌词标注由访客打开歌词触发，不记触发用户
 	ctx, cancel := context.WithTimeout(withLLMPurpose(context.Background(), constant.LLMPurposeLyricAnnotation, 0), lyricAnnotationTimeout)
 	defer cancel()
@@ -288,9 +287,6 @@ func buildLyricAnnotationLinesPrompt(info lyricAnnotationInfo, lines []string, p
 	}
 	if plan.Font != "" {
 		b.WriteString(text.Font + plan.Font + "\n")
-	}
-	if plan.Pace != "" {
-		b.WriteString(text.Pace + plan.Pace + "\n")
 	}
 	if len(plan.Imagery) > 0 {
 		b.WriteString(text.Imagery)

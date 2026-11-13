@@ -58,7 +58,7 @@ func (s *NotificationService) ListNotifications(ctx context.Context, req *dto.Li
 	return items, total, nil
 }
 
-// GetUnreadCount 未读徽标：未读的聚合组数
+// GetUnreadCount 未读徽标与最新未读通知快照（供轮询与 SSE 推送复用）
 func (s *NotificationService) GetUnreadCount(ctx context.Context) (*dto.NotificationUnreadCountDto, *errs.ServiceError) {
 	currentUser, ok := ctxutils.GetCurrentUser(ctx)
 	if !ok {
@@ -75,7 +75,25 @@ func (s *NotificationService) GetUnreadCount(ctx context.Context) (*dto.Notifica
 	if err != nil {
 		return nil, errs.Internal("failed_to_get_target", err).WithResource("notification")
 	}
-	return &dto.NotificationUnreadCountDto{Total: total, ByType: byType, LatestID: latestID, LatestAt: latestAt}, nil
+	var latestPreview *dto.NotificationPreviewDto
+	if total > 0 {
+		previewGroup, err := repo.Notification.LatestUnreadPreview(currentUser.ID, currentUser.TimeZone)
+		if err != nil {
+			return nil, errs.Internal("failed_to_get_target", err).WithResource("notification")
+		}
+		if previewGroup != nil {
+			latestPreview = toNotificationPreviewDto(previewGroup)
+		}
+	}
+	return &dto.NotificationUnreadCountDto{
+		Total:     total,
+		ByType:    byType,
+		LatestID:  latestID,
+		LatestAt:  latestAt,
+		Seq:       NotificationHub.CurrentSeq(currentUser.ID),
+		UpdatedAt: time.Now(),
+		Latest:    latestPreview,
+	}, nil
 }
 
 // MarkNotificationRead 单条已读，幂等；聚合行会整组置已读
@@ -315,6 +333,42 @@ func toNotificationItemDto(group *repo.NotificationGroup) dto.NotificationItemDt
 		ActivityAt:     notification.ActivityAt,
 	}
 	return item
+}
+
+// toNotificationPreviewDto 仓储未读预览分组 → 实时推送轻量 DTO
+func toNotificationPreviewDto(group *repo.NotificationGroup) *dto.NotificationPreviewDto {
+	if group == nil {
+		return nil
+	}
+	notification := group.Notification
+	count := int(group.Count)
+	if count <= 0 {
+		count = 1
+	}
+	var actor *dto.UserAvatarDto
+	if notification.Actor.ID > 0 {
+		avatar := notification.Actor.ToAvatarDto()
+		actor = &avatar
+	}
+	return &dto.NotificationPreviewDto{
+		ID:             notification.ID,
+		Type:           notification.Type,
+		Actor:          actor,
+		ActorIsAI:      notification.Actor.IsAI,
+		ActorNames:     group.ActorNames,
+		AggregateCount: count,
+		SubjectType:    notification.SubjectType,
+		SubjectID:      notification.SubjectID,
+		SubjectTitle:   notification.SubjectTitle,
+		SubjectSlug:    notification.SubjectSlug,
+		TargetType:     notification.TargetType,
+		TargetID:       notification.TargetID,
+		CommentID:      notification.CommentID,
+		Excerpt:        notification.Excerpt,
+		QuotedExcerpt:  notification.QuotedExcerpt,
+		IsRead:         notification.ReadAt != nil,
+		ActivityAt:     notification.ActivityAt,
+	}
 }
 
 // ListNotificationGroupMembers 展开聚合行：点赞组列出具体是谁，折叠行只有它自己

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/internal/llmclient"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/tools"
@@ -35,7 +36,7 @@ func newBatchFixture(t *testing.T, concurrency int, failSongs map[int64]bool, ed
 	f := &batchFixture{finished: make(chan struct{}, 8), plans: map[string]int{}}
 	annotations := &lyricAnnotationService{
 		name:        "batch_test_annotation",
-		limiter:     &aiLimiter{},
+		limiter:     &llmclient.Limiter{},
 		concurrency: func() int { return 4 },
 		complete: func(_ context.Context, _ tools.AIConfig, system, user string) (string, error) {
 			if system == lyricAnnotationText.PlanPrompt {

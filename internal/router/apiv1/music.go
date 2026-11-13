@@ -54,6 +54,8 @@ func registerMusicRoutes(group *route.RouterGroup) {
 		musicGroupWithAdmin.PUT("/song/:id/lyric/offset", controller.Music.SaveLyricOffset)
 		// 全站默认歌词来源：所有读者默认显示这一来源（并按它重新选出全站歌词版本、生成歌词特效），仅管理员可以设置
 		musicGroupWithAdmin.PUT("/song/:id/lyric/pin", controller.Music.SaveLyricPin)
+		// 手动清空自定义与 AMLL TTML 缓存（含 72 小时未命中负缓存），仅管理员可用
+		musicGroupWithAdmin.POST("/lyric/ttml-cache/clear", controller.Music.ClearTTMLCache)
 		// 请求体中含 Cookie，使用 POST 避免出现在地址中
 		musicGroupWithAdmin.POST("/ncm/playlists", controller.Music.NCMPlaylists)
 	}

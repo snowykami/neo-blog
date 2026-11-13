@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/internal/llmclient"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/tools"
@@ -18,7 +19,7 @@ import (
 func blockingAnnotationService(release <-chan struct{}) (svc *lyricAnnotationService, started, done chan struct{}) {
 	started, done = make(chan struct{}, 4), make(chan struct{}, 4)
 	svc = &lyricAnnotationService{
-		limiter:     &aiLimiter{},
+		limiter:     &llmclient.Limiter{},
 		concurrency: func() int { return 1 },
 		complete: func(_ context.Context, _ tools.AIConfig, system, _ string) (string, error) {
 			if system == lyricAnnotationText.PlanPrompt {

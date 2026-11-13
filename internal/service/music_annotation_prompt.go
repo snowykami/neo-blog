@@ -29,8 +29,8 @@ type lyricAnnotationLocale struct {
 	DurationNote, Duration, RepeatNote, Repeat, RepeatVaried, CreditNote, Credit string
 	SingerNote, SingerSecond, SingerTogether, BackgroundNote, Background         string
 	GapNote, Intro, Break, Outro                                                 string
-	// 逐段标注：全曲规划的开始与结束标签、主题、方向、全曲字体、全曲节奏、意象标题、一个意象（原文、特效、颜色）、不上色
-	Plan, PlanEnd, Theme, Direction, Font, Pace, Imagery, ImageryItem, NoColor string
+	// 逐段标注：全曲规划的开始与结束标签、主题、方向、全曲字体、意象标题、一个意象（原文、特效、颜色）、不上色
+	Plan, PlanEnd, Theme, Direction, Font, Imagery, ImageryItem, NoColor string
 	// 本段已标注的行（标题、一行：行号与标注）、副歌起点、副歌、情绪、聚光灯
 	Marks, Mark, ChorusStart, ChorusLine, Mood, Spotlight string
 	// 本次标注范围（放在用户消息最后，作为要做的事）：起止行号、段数、本段换字体的上限
@@ -60,7 +60,7 @@ var lyricAnnotationEN = lyricAnnotationLocale{
 	BackgroundNote: "〔bg: …〕: a background vocal sung with the line; it is not part of the line's text.\n", Background: "　〔bg: \"%s\"〕",
 	GapNote: "Unnumbered 〔intro / instrumental break / outro: Ns〕 lines mark stretches with no singing.\n",
 	Intro:   "〔intro: %ds〕\n", Break: "〔instrumental break: %ds〕\n", Outro: "〔outro: %ds〕\n",
-	Plan: "\n<plan>\n", PlanEnd: "</plan>\n", Theme: "Theme: ", Direction: "Direction: ", Font: "Song font: ", Pace: "Song pace: ",
+	Plan: "\n<plan>\n", PlanEnd: "</plan>\n", Theme: "Theme: ", Direction: "Direction: ", Font: "Song font: ",
 	Imagery: "Imagery:\n", ImageryItem: "- %s: %s, %s\n", NoColor: "no color",
 	Marks: "Marked lines in this chunk:\n", Mark: "line %d: %s\n", ChorusStart: "chorus start", ChorusLine: "chorus", Mood: "mood ", Spotlight: "spotlight",
 	Range: "\nAnnotate lines %d-%d (the song is split into %d chunks annotated in parallel; at most %d font changes in this chunk).\n",
@@ -105,7 +105,6 @@ Task: plan the whole song. Phrases are annotated afterwards, chunk by chunk in p
 - font: song-wide font, optional (default sans).
 - spotlights: indices i of the moments that sum up the song — its title line or deepest confession, sung for at least ~2 seconds (see 〔Ns〕); at most 3 different lines and 6 indices in all. While one is sung it moves alone to the center, enlarged, with a warm light behind it and the other lines dimmed. Only the listed indices are lit: when the line repeats, pick the repeats where it lands hardest (often the final chorus or the last time it is sung), not every one, because a spotlight that comes every chorus stops feeling special. Add a second or third line only when it is just as essential; give [] if no line clearly stands out.
 - accent: the song's theme color as #rrggbb, chosen freely from the song's feeling and imagery (not from the album cover). It tints the lyric glow and the breathing light behind the lyrics on a dark screen, so pick a color that glows well there.
-- pace: how fast the effects move, from the song's tempo and lightness — fast for upbeat, bouncy, energetic songs; slow for ballads, lyrical, tender or heavy songs; medium otherwise. It sets the speed of shake, wave, heartbeat, shimmer, dissolve and the held-note vibrato.
 - lines: mood (calm / bright / sad / intense) on emotionally clear lines; scene on lines describing a concrete image or starting a chorus (up to 6 per song), with optional scene_color (a color value, e.g. bauhinia for bauhinia petals) and scene_until: the index of the last line the scene should stay on — the end of the image's passage or of that chorus, so the scene fades as the image leaves the lyrics (a passing image may last 1-3 lines; a scene that opens a chorus usually lasts through it; at most 16 lines). The next scene also ends the previous one.
 scene:
 {{scenes}}
@@ -113,7 +112,7 @@ scene:
 icons:
 {{icons}}
 
-Output: {"theme":"","direction":"","intro":"","outro_comment":1,"moments":[{"i":0,"comment":2},{"i":0,"text":""}],"font":"song","pace":"medium","spotlights":[0],"accent":"#ffb37a","imagery":[{"text":"","effect":"glow","color":"rain"}],"sprites":[{"name":"doll","image":"plush toy","icon":"","motion":"fall","size":"m","spin":true,"color":"peach","fallback":"hearts"}],"lines":[{"i":0,"mood":"sad","chorus":true,"chorus_start":true,"scene":"rain","scene_color":"rain","scene_until":7}]}; list only lines with marks.`
+Output: {"theme":"","direction":"","intro":"","outro_comment":1,"moments":[{"i":0,"comment":2},{"i":0,"text":""}],"font":"song","spotlights":[0],"accent":"#ffb37a","imagery":[{"text":"","effect":"glow","color":"rain"}],"sprites":[{"name":"doll","image":"plush toy","icon":"","motion":"fall","size":"m","spin":true,"color":"peach","fallback":"hearts"}],"lines":[{"i":0,"mood":"sad","chorus":true,"chorus_start":true,"scene":"rain","scene_color":"rain","scene_until":7}]}; list only lines with marks.`
 
 // lyricAnnotationENSprite 画自定义粒子图标的系统提示词（规划中没有合适的图标库图标时使用）
 const lyricAnnotationENSprite = `You design one tiny sprite for a particle effect in a music player: many copies of it drift across the screen behind the lyrics, each drawn 12-28 px tall and semi-transparent. Draw a simple, instantly recognizable flat silhouette of the image, like a bold emoji glyph: one solid main shape plus at most a few small details. At that size the outline carries the meaning and inner lines disappear, so give the silhouette its most distinctive features (a teddy bear's round ears, a kite's diamond and tail).
@@ -134,11 +133,10 @@ Task: annotate phrases line by line for the lines named at the end, following th
 - dissolve, shatter, shimmer and heartbeat are highlights: use each only where the meaning fits, at most once per chunk, so they stay special.
 - A line marked spotlight is already enlarged, centered and lit by the player: give it at most 2 simple phrases (color, bold, one swell or glow). Heartbeat, shimmer or stacked glows blur once the line is enlarged.
 - Change fonts for contrast (kai for a memory, mono for electronic sounds); constant switching looks noisy.
-- pace (optional): set it when a phrase's feel differs from the song pace in <plan> — fast for a light, bouncy, excited or racing-heart phrase; slow for a lingering, heavy or tender one. Otherwise leave it out.
 styles (combinable): bold declaration, strength | italic whisper, memory, quotation | underline vow, promise (forever, surely)
 
 Before output, check: every 〔held〕 line in your range has its shake phrase; every text is a contiguous substring of its line.
-Output: {"lines":[{"i":0,"phrases":[{"text":"original fragment","effect":"swell","color":"gold","font":"kai","styles":["bold"],"pace":"fast"}]}]}; list only annotated lines in your range.`
+Output: {"lines":[{"i":0,"phrases":[{"text":"original fragment","effect":"swell","color":"gold","font":"kai","styles":["bold"]}]}]}; list only annotated lines in your range.`
 
 // fillLyricAnnotationPrompt 填入色板、粒子场景与字体：每项一行「名称: 适合的意象」
 func fillLyricAnnotationPrompt(prompt string) string {

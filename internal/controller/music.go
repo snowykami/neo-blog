@@ -423,6 +423,12 @@ func (m *musicType) SongLyricCache(ctx context.Context, c *app.RequestContext) {
 	resps.Ok(c, resps.Success, result)
 }
 
+// ClearTTMLCache 清空 TTML 歌词缓存（含未命中负缓存，仅管理员）
+func (m *musicType) ClearTTMLCache(_ context.Context, c *app.RequestContext) {
+	m.service.ClearTTMLCache()
+	resps.Ok(c, resps.Success, nil)
+}
+
 // NCMPlaylists 获取网易云账号的歌单，供后台选择博客歌单
 func (m *musicType) NCMPlaylists(ctx context.Context, c *app.RequestContext) {
 	var req dto.NCMPlaylistsReq

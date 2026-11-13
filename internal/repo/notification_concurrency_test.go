@@ -88,8 +88,11 @@ func TestThreadAggregateInterleavedReplies(t *testing.T) {
 		if row.AggregateCount != 2 {
 			t.Fatalf("aggregate count = %d, want 2", row.AggregateCount)
 		}
-		if row.AggregateActors != "甲,乙" {
-			t.Fatalf("aggregate actors = %q, want 甲,乙", row.AggregateActors)
+		if row.AggregateActors != "乙,甲" {
+			t.Fatalf("aggregate actors = %q, want 乙,甲", row.AggregateActors)
+		}
+		if row.ActorID != bob.ID {
+			t.Fatalf("actor_id = %d, want latest actor %d", row.ActorID, bob.ID)
 		}
 		var events int64
 		db.Model(&model.InteractionEvent{}).Where("dedupe_key = ?", dedupeKey).Count(&events)

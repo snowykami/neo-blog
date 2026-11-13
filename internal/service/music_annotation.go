@@ -18,6 +18,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/internal/llmclient"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/tools"
@@ -190,21 +191,9 @@ var (
 		}
 		return fonts
 	}()
-	// 特效节奏（动效的快慢）：beat 跟随音乐节拍（前端分析音频得到拍点）/ fast / medium / slow。
-	// 全曲为空表示 beat（默认）；短语为空表示沿用全曲。模型给出的全曲节奏不保存（默认跟随节拍），短语只采用 slow / fast
-	lyricAnnotationPaces      = map[string]bool{"beat": true, "slow": true, "medium": true, "fast": true}
-	lyricAnnotationModelPaces = map[string]bool{"slow": true, "fast": true}
 	// 短语字形：粗体、斜体、下划线（下划线在演唱时逐字画出）；删除线已去掉（被否定、放弃的词改用 dissolve 消散），旧标注中的 strike 校验时丢弃
 	lyricAnnotationStyles = map[string]bool{"bold": true, "italic": true, "underline": true}
 )
-
-// songLyricPace 全曲节奏的实际取值：为空时跟随节拍
-func songLyricPace(pace string) string {
-	if pace == "" {
-		return "beat"
-	}
-	return pace
-}
 
 // normalizeLyricColor 规范化颜色名：旧版名称映射到新色板，不在色板中的返回空字符串（不上色）
 func normalizeLyricColor(color string) string {
@@ -223,7 +212,7 @@ type lyricAnnotationService struct {
 	name     string // 任务状态的键前缀；为空时使用随机前缀（测试中各个实例互不影响）
 	initOnce sync.Once
 	mu       sync.Mutex // 本实例内「检查是否在生成 → 开始生成」串行；跨实例由租约保证只有一个在生成
-	limiter  *aiLimiter
+	limiter  *llmclient.Limiter
 	// complete 调用大模型，测试时可替换
 	complete func(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error)
 	// hotComments / chorus 生成时拉取热评与网易云副歌片段，可为 nil（测试时不拉取）
@@ -238,7 +227,7 @@ type lyricAnnotationService struct {
 
 var lyricAnnotations = &lyricAnnotationService{
 	name:    "lyric_annotation",
-	limiter: aiCallLimiter,
+	limiter: llmclient.DefaultLimiter,
 	complete: func(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error) {
 		return chatCompletionWithReasoning(ctx, cfg, system, user, lyricAnnotationTemperature, lyricAnnotationReasoningEffort)
 	},
@@ -405,7 +394,7 @@ func (a *lyricAnnotationService) get(id int64, lines []string, info lyricAnnotat
 
 	if found {
 		data := parseLyricAnnotationData(record.Data)
-		result := &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Pace: data.Pace, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Spotlights: data.spotlightsFor(lines), Accent: data.Accent, Lines: data.Lines, Sprites: data.Sprites, Edited: record.EditedAt != nil}
+		result := &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Spotlights: data.spotlightsFor(lines), Accent: data.Accent, Lines: data.Lines, Sprites: data.Sprites, Edited: record.EditedAt != nil}
 		// 已过期：先返回旧结果，在后台重新生成（失败冷却期内不重试，继续使用旧结果）；管理员手动编辑过的不自动重新生成
 		// 全站 AI 预算已用完时不重新生成，继续使用旧结果
 		if !running && !coolingDown && record.EditedAt == nil && time.Since(record.CreatedAt) > ttl && checkSiteAIBudget(time.Now()) == nil {
@@ -678,7 +667,6 @@ func (a *lyricAnnotationService) regenerate(ctx context.Context, id int64, lines
 // lyricAnnotationData 保存到数据库的标注结果（旧版记录只有 lines 数组，读取时兼容）
 type lyricAnnotationData struct {
 	Font       string                              `json:"font,omitempty"`
-	Pace       string                              `json:"pace,omitempty"`
 	Intro      string                              `json:"intro,omitempty"`
 	Outro      *dto.MusicLyricAnnotationComment    `json:"outro,omitempty"`
 	Moments    []dto.MusicLyricAnnotationMoment    `json:"moments,omitempty"`
@@ -805,7 +793,6 @@ func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment,
 	// theme 与 direction 是 SOP 中先写下的分析，只用于引导模型，不保存
 	var parsed struct {
 		Font         string               `json:"font"`
-		Pace         string               `json:"pace"`
 		Spotlights   []int                `json:"spotlights"` // 聚光灯的行号（选定的那几次出现）
 		Accent       string               `json:"accent"`     // 主题色 #rrggbb
 		Sprites      []lyricSpriteRequest `json:"sprites"`
@@ -835,7 +822,6 @@ func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment,
 				Color  string   `json:"color"`
 				Font   string   `json:"font"`
 				Styles []string `json:"styles"`
-				Pace   string   `json:"pace"`
 			} `json:"phrases"`
 		} `json:"lines"`
 	}
@@ -918,10 +904,6 @@ func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment,
 				styles[normalized] = dto.MusicLyricAnnotationPhrase{Effect: effect, Color: color}
 			}
 			annotated := dto.MusicLyricAnnotationPhrase{Text: phraseText, Effect: effect, Color: color}
-			// 与模型给的全曲节奏相同时视为沿用全曲（跟随节拍）
-			if lyricAnnotationModelPaces[phrase.Pace] && phrase.Pace != parsed.Pace {
-				annotated.Pace = phrase.Pace
-			}
 			if lyricAnnotationFonts[phrase.Font] && phraseFontCount < lyricAnnotationMaxPhraseFonts {
 				annotated.Font = phrase.Font
 				phraseFontCount++

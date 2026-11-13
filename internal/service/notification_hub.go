@@ -37,7 +37,30 @@ func CloseNotificationStreams() {
 	})
 }
 
-const notificationChannel = "notification"
+const (
+	notificationChannel = "notification"
+	notificationSeqTTL  = 24 * time.Hour
+)
+
+func notifySeqKey(userID uint) string {
+	return fmt.Sprintf("notify:seq:%d", userID)
+}
+
+// CurrentSeq 读取用户当前的通知事件序号（未写入过时为 0）
+func (h *notificationHub) CurrentSeq(userID uint) int64 {
+	if userID == 0 {
+		return 0
+	}
+	raw, ok, err := sharedstate.Current().Get(notifySeqKey(userID))
+	if err != nil || !ok || raw == "" {
+		return 0
+	}
+	seq, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		return 0
+	}
+	return seq
+}
 
 // Subscribe 订阅某个用户的通知；返回的通道在每次有新通知时收到一个信号，取消订阅函数必须调用。
 // 取消订阅只从订阅表里移除、不关闭通道：publish 解锁后才逐个发送，期间关闭的通道会让发送 panic；
@@ -96,8 +119,11 @@ func (h *notificationHub) publishAll() {
 	}
 }
 
-// Notify 通知某个用户有新通知：本实例立即唤醒，其他实例通过共享状态广播
+// Notify 通知某个用户有新通知：递增单调序号，本实例立即唤醒，其他实例通过共享状态广播
 func (h *notificationHub) Notify(userID uint) {
+	if userID > 0 {
+		_, _ = sharedstate.Current().Incr(notifySeqKey(userID), notificationSeqTTL)
+	}
 	h.publish(userID)
 	sharedstate.Notify(notificationChannel, strconv.FormatUint(uint64(userID), 10))
 }

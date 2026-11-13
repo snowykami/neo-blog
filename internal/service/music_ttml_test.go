@@ -352,3 +352,19 @@ func TestTTMLLyricRevalidateErrorKeepsCache(t *testing.T) {
 		t.Fatalf("cache should be kept, entry = %+v", entry)
 	}
 }
+
+func TestClearTTMLCache(t *testing.T) {
+	missKey := ttmlCacheKey(musicTTMLSourceCustom, 88)
+	storeTTMLCache(musicTTMLCache, missKey, musicTTMLCacheEntry{MissUntil: time.Now().Add(musicTTMLMissTTL).Unix()})
+	storeTTMLCache(musicQQTTMLCache, 99, musicTTMLCacheEntry{MissUntil: time.Now().Add(musicTTMLMissTTL).Unix()})
+
+	if !loadTTMLCacheEntry(musicTTMLCache, missKey).ok || !loadTTMLCacheEntry(musicQQTTMLCache, 99).ok {
+		t.Fatal("expected negative cache entries to be stored")
+	}
+
+	NewMusicService().ClearTTMLCache()
+
+	if loadTTMLCacheEntry(musicTTMLCache, missKey).ok || loadTTMLCacheEntry(musicQQTTMLCache, 99).ok {
+		t.Fatal("expected TTML negative caches to be cleared")
+	}
+}

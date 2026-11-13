@@ -89,6 +89,7 @@ func (r *notificationRepo) UpsertThreadAggregate(tx *gorm.DB, notification *mode
 	if err := tx.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "dedupe_key"}, {Name: "user_id"}},
 		DoUpdates: clause.Assignments(map[string]any{
+			"actor_id":        notification.ActorID,
 			"aggregate_count": gorm.Expr("notifications.aggregate_count + 1"),
 			"updated_at":      now,
 			// 列表按最近活动排序：有新回复的折叠行回到顶部
@@ -115,13 +116,14 @@ func (r *notificationRepo) UpsertThreadAggregate(tx *gorm.DB, notification *mode
 	return tx.Model(&model.Notification{}).Where("id = ?", existing.ID).UpdateColumn("aggregate_actors", merged).Error
 }
 
-// mergeAggregateActors 折叠行只保留前两个昵称，其余折成「和另外 N 人」
+// mergeAggregateActors 折叠行保留最近两个昵称（最新触发者置顶，与点赞聚合顺序一致），其余折成「和另外 N 人」
 func mergeAggregateActors(existing, incoming string) string {
-	names := splitAggregateActors(existing)
-	if len(names) >= 2 || incoming == "" {
+	if incoming == "" {
 		return existing
 	}
-	for _, name := range splitAggregateActors(incoming) {
+	candidates := append(splitAggregateActors(incoming), splitAggregateActors(existing)...)
+	names := make([]string, 0, 2)
+	for _, name := range candidates {
 		if len(names) >= 2 {
 			break
 		}
@@ -281,7 +283,7 @@ func (r *notificationRepo) hydrate(rows []notificationGroupRow, filter *Notifica
 	}
 	var notifications []model.Notification
 	if err := GetDB().Preload("Actor", func(db *gorm.DB) *gorm.DB {
-		return db.Select("id, username, nickname, avatar_url, is_ai")
+		return db.Select("id, username, nickname, avatar_url, email, is_ai")
 	}).Where("id IN ?", ids).Find(&notifications).Error; err != nil {
 		return nil, err
 	}
@@ -296,7 +298,10 @@ func (r *notificationRepo) hydrate(rows []notificationGroupRow, filter *Notifica
 			continue
 		}
 		group := NotificationGroup{Notification: notification, Count: row.Count, UnreadCount: row.UnreadCount}
-		if isLikeGroupType(notification.Type) {
+		if notification.AggregateCount > 0 {
+			group.Count = int64(notification.AggregateCount)
+			group.ActorNames = splitAggregateActors(notification.AggregateActors)
+		} else if isLikeGroupType(notification.Type) {
 			names, err := r.likeGroupActorNames(&notification, filter)
 			if err != nil {
 				return nil, err
@@ -792,8 +797,7 @@ func (r *notificationRepo) GetEmailDelivery(id uint) (*model.Notification, error
 	return &notification, nil
 }
 
-// LatestActivity 收件人最近一条通知的 id 与活动时间：实时推送带上它，前端据此判断「来了新通知」。
-// 只看未读组数会漏掉点赞并入已有未读组、折叠行有新回复这类组数不变的情况
+// LatestActivity 收件人最近一条通知的 id 与活动时间：用于全部已读上界与向后兼容
 func (r *notificationRepo) LatestActivity(userID uint) (uint, *time.Time, error) {
 	var latest model.Notification
 	err := GetDB().Select("id", "activity_at").Where("user_id = ?", userID).
@@ -803,4 +807,45 @@ func (r *notificationRepo) LatestActivity(userID uint) (uint, *time.Time, error)
 	}
 	at := latest.ActivityAt
 	return latest.ID, &at, nil
+}
+
+// LatestUnreadPreview 收件人最新一条未读通知（严格过滤 read_at IS NULL）及其同日聚合信息，用于灵动岛实时通知预览
+func (r *notificationRepo) LatestUnreadPreview(userID uint, timeZone string) (*NotificationGroup, error) {
+	var latest model.Notification
+	err := GetDB().Preload("Actor", func(db *gorm.DB) *gorm.DB {
+		return db.Select("id, username, nickname, avatar_url, email, is_ai")
+	}).Where("user_id = ? AND read_at IS NULL", userID).
+		Order("activity_at DESC, id DESC").Limit(1).Find(&latest).Error
+	if err != nil || latest.ID == 0 {
+		return nil, err
+	}
+	group := &NotificationGroup{
+		Notification: latest,
+		Count:        1,
+		UnreadCount:  1,
+	}
+	if latest.AggregateCount > 0 {
+		group.Count = int64(latest.AggregateCount)
+		group.ActorNames = splitAggregateActors(latest.AggregateActors)
+		return group, nil
+	}
+	if isLikeGroupType(latest.Type) {
+		var count int64
+		if err := notificationDayScope(GetDB(), latest.CreatedAt, timeZone).
+			Model(&model.Notification{}).
+			Where("user_id = ? AND type = ? AND target_type = ? AND target_id = ?",
+				userID, latest.Type, latest.TargetType, latest.TargetID).
+			Count(&count).Error; err != nil {
+			return nil, err
+		}
+		if count > 0 {
+			group.Count = count
+		}
+		names, err := r.likeGroupActorNames(&latest, &NotificationFilter{UserID: userID, TimeZone: timeZone})
+		if err != nil {
+			return nil, err
+		}
+		group.ActorNames = names
+	}
+	return group, nil
 }

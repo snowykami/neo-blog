@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/internal/llmclient"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/tools"
@@ -80,12 +81,12 @@ func TestLyricPin(t *testing.T) {
 func TestSanitizeEditedLyricAnnotations(t *testing.T) {
 	lines := []string{"樱花飘落的季节", "我们说再见", "樱花飘落的季节"}
 	req := &dto.MusicLyricAnnotationsEditReq{
-		Font: "kai", Pace: "slow", Intro: "  春天的告别  ", Accent: "#FFB37A",
+		Font: "kai", Intro: "  春天的告别  ", Accent: "#FFB37A",
 		Spotlights: []dto.MusicLyricAnnotationSpotlight{{Text: "樱花飘落的季节", Occurrence: 1}, {Text: "我们说再见"}},
 		Lines: []dto.MusicLyricAnnotationLine{
 			{Text: "樱花飘落的季节", ChorusStart: true, Scene: "petals", SceneColor: "pink", SceneLines: 4, Phrases: []dto.MusicLyricAnnotationPhrase{
-				{Text: "樱花", Effect: "glow", Color: "cherry-blossom", Styles: []string{"bold", "bold"}, Pace: "slow"},
-				{Text: "季节", Effect: "shatter", Pace: "fast"},
+				{Text: "樱花", Effect: "glow", Color: "cherry-blossom", Styles: []string{"bold", "bold"}},
+				{Text: "季节", Effect: "shatter"},
 			}},
 			{Text: "我们说再见", Mood: "sad", Phrases: []dto.MusicLyricAnnotationPhrase{{Text: "再见", Effect: "dissolve"}}},
 		},
@@ -95,29 +96,19 @@ func TestSanitizeEditedLyricAnnotations(t *testing.T) {
 		t.Fatal("valid annotation rejected")
 	}
 	want := lyricAnnotationData{
-		Font: "kai", Pace: "slow", Intro: "春天的告别", Accent: "#ffb37a",
+		Font: "kai", Intro: "春天的告别", Accent: "#ffb37a",
 		Spotlights: []dto.MusicLyricAnnotationSpotlight{{Text: "樱花飘落的季节", Occurrence: 1}, {Text: "我们说再见"}},
 		Lines: []dto.MusicLyricAnnotationLine{
-			// 副歌起点也是副歌；旧版颜色名映射到新色板；与全曲节奏相同的不单独保存；重复的字形去掉
+			// 副歌起点也是副歌；旧版颜色名映射到新色板；重复的字形去掉
 			{Text: "樱花飘落的季节", Chorus: true, ChorusStart: true, Scene: "petals", SceneColor: "cherry-blossom", SceneLines: 4, Phrases: []dto.MusicLyricAnnotationPhrase{
 				{Text: "樱花", Effect: "glow", Color: "cherry-blossom", Styles: []string{"bold"}},
-				{Text: "季节", Effect: "shatter", Pace: "fast"},
+				{Text: "季节", Effect: "shatter"},
 			}},
 			{Text: "我们说再见", Mood: "sad", Phrases: []dto.MusicLyricAnnotationPhrase{{Text: "再见", Effect: "dissolve"}}},
 		},
 	}
 	if !reflect.DeepEqual(data, want) {
 		t.Fatalf("data = %+v\nwant %+v", data, want)
-	}
-
-	// 跟随节拍是默认值存为空；medium 显式保存；短语与全曲（为空即跟随节拍）不同时保存
-	beatReq := &dto.MusicLyricAnnotationsEditReq{Pace: "beat", Lines: []dto.MusicLyricAnnotationLine{{Text: "我们说再见", Phrases: []dto.MusicLyricAnnotationPhrase{{Text: "再见", Effect: "glow", Pace: "beat"}, {Text: "我们", Effect: "glow", Pace: "medium"}}}}}
-	if data, ok := sanitizeEditedLyricAnnotations(lines, beatReq, nil); !ok || data.Pace != "" || data.Lines[0].Phrases[0].Pace != "" || data.Lines[0].Phrases[1].Pace != "medium" {
-		t.Fatalf("beat pace edit = %+v ok=%v", data, ok)
-	}
-	beatReq.Pace = "medium"
-	if data, ok := sanitizeEditedLyricAnnotations(lines, beatReq, nil); !ok || data.Pace != "medium" || data.Lines[0].Phrases[0].Pace != "beat" || data.Lines[0].Phrases[1].Pace != "" {
-		t.Fatalf("medium pace edit = %+v ok=%v", data, ok)
 	}
 
 	// 不合法的编辑整体拒绝（不静默修正）
@@ -164,7 +155,7 @@ func TestEditedLyricAnnotationLocked(t *testing.T) {
 	calls := 0
 	done := make(chan struct{}, 2)
 	service := &lyricAnnotationService{
-		limiter:     &aiLimiter{},
+		limiter:     &llmclient.Limiter{},
 		concurrency: func() int { return 1 },
 		complete: func(_ context.Context, _ tools.AIConfig, system, _ string) (string, error) {
 			if system == lyricAnnotationText.PlanPrompt {

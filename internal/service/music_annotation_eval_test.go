@@ -16,6 +16,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/snowykami/neo-blog/internal/llmclient"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/tools"
 )
@@ -260,11 +261,11 @@ func evalGenerate(variant string, run int, song evalSong, cfg tools.AIConfig) ev
 	result := evalResult{Variant: variant, Run: run, Song: song.id, Title: song.info.Title, Lines: len(song.lines), Effects: map[string]int{}}
 	var calls, prompt, completion atomic.Int64
 	service := &lyricAnnotationService{
-		limiter:     &aiLimiter{},
+		limiter:     &llmclient.Limiter{},
 		concurrency: func() int { return 6 },
 		complete: func(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error) {
-			resp, err := postChatCompletions(ctx, cfg, map[string]any{
-				"model": cfg.Model, "messages": chatMessages(system, user), "temperature": lyricAnnotationTemperature,
+			resp, err := llmclient.PostChatCompletions(ctx, cfg, map[string]any{
+				"model": cfg.Model, "messages": llmclient.ChatMessages(system, user), "temperature": lyricAnnotationTemperature,
 				"stream": false, "reasoning_effort": lyricAnnotationReasoningEffort,
 			})
 			if err != nil {
@@ -282,7 +283,7 @@ func evalGenerate(variant string, run int, song evalSong, cfg tools.AIConfig) ev
 			calls.Add(1)
 			prompt.Add(parsed.Usage.PromptTokens)
 			completion.Add(parsed.Usage.CompletionTokens)
-			return parseChatCompletion(data)
+			return llmclient.ParseChatCompletion(data)
 		},
 	}
 	start := time.Now()

@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/snowykami/neo-blog/internal/llmclient"
 	"github.com/snowykami/neo-blog/internal/tools"
 )
 
@@ -39,7 +40,7 @@ func TestLyricAnnotationPipeline(t *testing.T) {
 	rangeRe := regexp.MustCompile(`Annotate lines (\d+)-(\d+)`)
 	var inFlight, peak, chunkCalls atomic.Int32
 	service := &lyricAnnotationService{
-		limiter:     &aiLimiter{},
+		limiter:     &llmclient.Limiter{},
 		concurrency: func() int { return 3 },
 		complete: func(_ context.Context, _ tools.AIConfig, system, user string) (string, error) {
 			if system == lyricAnnotationText.PlanPrompt {
@@ -117,7 +118,7 @@ func TestLyricAnnotationPlanRetry(t *testing.T) {
 	newService := func(planReplies []func() (string, error)) (*lyricAnnotationService, *atomic.Int32, *atomic.Int32) {
 		var planCalls, chunkCalls atomic.Int32
 		return &lyricAnnotationService{
-			limiter:     &aiLimiter{},
+			limiter:     &llmclient.Limiter{},
 			concurrency: func() int { return 2 },
 			complete: func(_ context.Context, _ tools.AIConfig, system, _ string) (string, error) {
 				if system == lyricAnnotationText.PlanPrompt {

@@ -97,6 +97,12 @@ func ttmlTargets(id int64, sources []string) []ttmlTarget {
 	return targets
 }
 
+// ClearTTMLCache 清空所有 TTML 探测缓存（含 72 小时确定未命中的负缓存与 QQ 歌曲 TTML 缓存），多副本同步失效
+func (s *MusicService) ClearTTMLCache() {
+	musicTTMLCache.Clear()
+	musicQQTTMLCache.Clear()
+}
+
 // GetTTMLLyric 按网易云歌曲 id 取 TTML 歌词。source 为空时自动选择（自定义源优先），也可只取某一来源（用于手动切换，custom 为全部自定义源）
 func (s *MusicService) GetTTMLLyric(ctx context.Context, id int64, source string) (*dto.MusicTTMLDto, *errs.ServiceError) {
 	if id <= 0 || (source != "" && source != musicTTMLSourceCustom && source != musicTTMLSourceAMLL) {

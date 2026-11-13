@@ -222,6 +222,7 @@ func TestNotificationThreadAggregateUpsert(t *testing.T) {
 		owner := notificationTestUser(t, "owner")
 		// actor_id 在 Postgres 上有外键，必须指向真实用户
 		actor := notificationTestUser(t, "actor")
+		latestActor := notificationTestUser(t, "latest_actor")
 		now := time.Now().Truncate(time.Second)
 		readAt := now.Add(-time.Hour)
 		first := &model.Notification{
@@ -255,16 +256,16 @@ func TestNotificationThreadAggregateUpsert(t *testing.T) {
 		if row.AggregateCount != 3 {
 			t.Fatalf("aggregate count = %d, want 3", row.AggregateCount)
 		}
-		if row.AggregateActors != "甲,乙" {
-			t.Fatalf("aggregate actors = %q, want only the first two", row.AggregateActors)
+		if row.AggregateActors != "丙,乙" {
+			t.Fatalf("aggregate actors = %q, want MRU 丙,乙", row.AggregateActors)
 		}
 
-		// 已读之后又来一条：read_at 置回 NULL，重新变未读
+		// 已读之后又来一条：read_at 置回 NULL，重新变未读，且最新 actor_id 同步更新
 		if err := db.Model(&model.Notification{}).Where("id = ?", row.ID).Update("read_at", readAt).Error; err != nil {
 			t.Fatal(err)
 		}
 		again := &model.Notification{
-			UserID: owner.ID, ActorID: actor.ID, Type: constant.NotificationTypeCommentThreadReplied,
+			UserID: owner.ID, ActorID: latestActor.ID, Type: constant.NotificationTypeCommentThreadReplied,
 			TargetType: constant.TargetTypeComment, TargetID: 5, CommentID: 5,
 			DedupeKey: first.DedupeKey, AggregateActors: "丁",
 		}
@@ -280,6 +281,9 @@ func TestNotificationThreadAggregateUpsert(t *testing.T) {
 		}
 		if reloaded.AggregateCount != 4 {
 			t.Fatalf("aggregate count = %d, want 4", reloaded.AggregateCount)
+		}
+		if reloaded.ActorID != latestActor.ID || reloaded.AggregateActors != "丁,丙" {
+			t.Fatalf("reloaded actor = %d (%q), want %d (丁,丙)", reloaded.ActorID, reloaded.AggregateActors, latestActor.ID)
 		}
 	})
 }
