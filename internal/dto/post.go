@@ -27,6 +27,7 @@ type PostBaseDto struct {
 	Labels       []LabelDto        `json:"labels"`
 	LabelIds     []uint            `json:"label_ids"`
 	IsPrivate    bool              `json:"is_private"`
+	IsDraft      bool              `json:"is_draft"`
 }
 
 type PostDto struct {
@@ -35,7 +36,8 @@ type PostDto struct {
 	User          UserDto   `json:"user"`          // 发布者信息
 	Collaborators []UserDto `json:"collaborators"` // 协作者列表
 	PostBaseDto
-	IsLiked bool `json:"is_liked"` // 当前用户是否点赞
+	HasDraft bool `json:"has_draft,omitempty"` // 后台列表提示是否存在未发布的草稿改动
+	IsLiked  bool `json:"is_liked"`            // 当前用户是否点赞
 	// Excerpt 已发布正文的纯文本摘要（最多 200 字，截断时带省略号）：列表不返回正文，摘要与 meta description 用它
 	Excerpt string `json:"excerpt"`
 	// 搜索命中增强（仅在前台关键词检索命中 Meilisearch 时返回）：裁剪后的命中上下文片段与实际命中的原文词
@@ -169,4 +171,15 @@ type SetPostPinReq struct {
 	ID          uint       `path:"id" json:"-"`
 	Pinned      bool       `json:"pinned"`
 	PinnedUntil *time.Time `json:"pinned_until"` // 到期时间，空表示不自动取消；只在置顶时使用
+}
+
+// BatchDeletePostReq 批量删除文章
+type BatchDeletePostReq struct {
+	IDs []uint `json:"ids"`
+}
+
+// BatchPostVisibilityReq 批量设置文章私密/公开状态
+type BatchPostVisibilityReq struct {
+	IDs       []uint `json:"ids"`
+	IsPrivate bool   `json:"is_private"`
 }

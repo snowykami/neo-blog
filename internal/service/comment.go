@@ -269,6 +269,47 @@ func (cs *CommentService) DeleteComment(ctx context.Context, commentID uint) *er
 	return nil
 }
 
+// BatchDeleteComments 批量删除评论：先统一校验权限（任意一条无权则整批拒绝），再逐条执行级联删除（父评论级联删除过的子评论自动跳过）
+func (cs *CommentService) BatchDeleteComments(ctx context.Context, ids []uint) (int, *errs.ServiceError) {
+	if _, ok := ctxutils.GetCurrentUser(ctx); !ok {
+		return 0, errs.NewUnauthorized("login_required")
+	}
+	unique, svcerr := normalizeBatchIDs(ids)
+	if svcerr != nil {
+		return 0, svcerr
+	}
+	existing := make([]uint, 0, len(unique))
+	for _, id := range unique {
+		comment, err := repo.Comment.GetComment(id)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				continue
+			}
+			return 0, errs.Internal("failed_to_get_target", err).WithResource("comment")
+		}
+		var targetOwnerID uint
+		if target, svcerr := cs.getTarget(comment.TargetID, comment.TargetType); svcerr == nil {
+			targetOwnerID = target.ownerID
+		}
+		if !(ctxutils.IsAdmin(ctx) || (targetOwnerID != 0 && ctxutils.IsOwnerOfTarget(ctx, targetOwnerID)) || ctxutils.IsOwnerOfTarget(ctx, comment.UserID)) {
+			return 0, errs.NewForbidden("permission_denied")
+		}
+		existing = append(existing, id)
+	}
+	deleted := 0
+	for _, id := range existing {
+		if svcerr := cs.DeleteComment(ctx, id); svcerr != nil {
+			if svcerr.Code == 404 {
+				// 已被同一批前面的父评论级联删除
+				continue
+			}
+			return deleted, svcerr
+		}
+		deleted++
+	}
+	return deleted, nil
+}
+
 func (cs *CommentService) GetComment(ctx context.Context, commentID uint) (*dto.CommentDto, *errs.ServiceError) {
 	comment, svcerr := cs.loadVisibleComment(ctx, commentID)
 	if svcerr != nil {
@@ -561,7 +602,7 @@ func (cs *CommentService) getTarget(targetID uint, targetType string) (*commentT
 		logrus.Errorf("getTarget error: %s", err.Error())
 		return nil, errs.Internal("failed_to_get_target", err).WithResource("comment")
 	}
-	return &commentTarget{ownerID: meta.UserID, isPrivate: meta.IsPrivate}, nil
+	return &commentTarget{ownerID: meta.UserID, isPrivate: !meta.IsPublic()}, nil
 }
 
 // canViewComment 公开评论所有人可见；私密评论对管理员、目标作者、评论作者和参与过该评论树的用户可见

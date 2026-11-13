@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/sirupsen/logrus"
@@ -33,7 +34,7 @@ func (ls *LikeService) ToggleLike(ctx context.Context, targetID uint, targetType
 	switch targetType {
 	case constant.TargetTypePost:
 		post, err := repo.Post.GetPostMeta(targetID)
-		if err != nil || (post.IsPrivate && !(ctxutils.IsOwnerOfTarget(ctx, post.UserID) || ctxutils.IsAdmin(ctx))) {
+		if err != nil || (!post.IsPublic() && !(ctxutils.IsOwnerOfTarget(ctx, post.UserID) || ctxutils.IsAdmin(ctx))) {
 			return false, errs.NewNotFound("operation_target_not_found")
 		}
 		ownerID = post.UserID
@@ -63,27 +64,24 @@ func (ls *LikeService) ToggleLike(ctx context.Context, targetID uint, targetType
 	default:
 		return false, errs.NewBadRequest("invalid_target_type")
 	}
-	if desired != nil {
-		current, err := repo.Like.IsLiked(currentUser.ID, targetID, targetType)
-		if err != nil {
-			return false, errs.Internal("failed_to_toggle_like", err)
-		}
-		if current == *desired {
-			return current, nil
-		}
-	}
 	owner, err := repo.User.GetUserByID(ownerID)
 	if err != nil {
 		return false, errs.FromDB(err, "user", "failed_to_get_target")
 	}
-	// 点赞与互动通知写在同一个事务里：点赞成功就必须有通知，取消点赞必须撤掉通知
-	var state bool
-	var notified uint // 事务提交后需要推送的收件人：点赞时是新通知的收件人，取消点赞时是被撤掉通知的收件人
+	// 点赞与互动通知写在同一个事务里（desired 状态判定也在目标行锁下原子执行）：点赞成功就必须有通知，取消点赞必须撤掉通知
+	var (
+		state    bool
+		changed  bool
+		notified uint // 事务提交后需要推送的收件人：点赞时是新通知的收件人，取消点赞时是被撤掉通知的收件人
+	)
 	err = repo.GetDB().Transaction(func(tx *gorm.DB) error {
 		var toggleErr error
-		state, toggleErr = repo.Like.ToggleLike(currentUser.ID, targetID, targetType, tx)
+		state, changed, toggleErr = repo.Like.SetOrToggleLike(currentUser.ID, targetID, targetType, desired, tx)
 		if toggleErr != nil {
 			return toggleErr
+		}
+		if !changed {
+			return nil
 		}
 		notifications := NewNotificationService()
 		if !state {
@@ -116,7 +114,13 @@ func (ls *LikeService) ToggleLike(ctx context.Context, targetID uint, targetType
 		return nil
 	})
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, errs.NewNotFound("operation_target_not_found")
+		}
 		return state, errs.Internal("failed_to_toggle_like", err)
+	}
+	if !changed {
+		return state, nil
 	}
 	// 事务提交后再唤醒前端的实时连接，回滚时不会亮起未读（也不会提前熄灭）
 	if notified != 0 {
@@ -170,7 +174,7 @@ func checkLikeTargetVisible(ctx context.Context, targetID uint, targetType strin
 	switch targetType {
 	case constant.TargetTypePost:
 		post, err := repo.Post.GetPostMeta(targetID)
-		if err != nil || (post.IsPrivate && !(ctxutils.IsOwnerOfTarget(ctx, post.UserID) || ctxutils.IsAdmin(ctx))) {
+		if err != nil || (!post.IsPublic() && !(ctxutils.IsOwnerOfTarget(ctx, post.UserID) || ctxutils.IsAdmin(ctx))) {
 			return errs.NewNotFound("operation_target_not_found")
 		}
 	case constant.TargetTypeComment:

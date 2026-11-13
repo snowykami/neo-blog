@@ -3,6 +3,7 @@ package repo
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 
 	"github.com/snowykami/neo-blog/internal/dto"
@@ -142,6 +143,9 @@ func updatePageTx(tx *gorm.DB, page *model.Page, columns []string) error {
 		return nil
 	}
 	selected, omitted := savedColumns(columns, false)
+	if slices.Contains(columns, "content") || slices.Contains(columns, "draft_content") {
+		selected = append(selected, "has_draft")
+	}
 	return tx.Model(page).Omit(omitted...).Select(selected).Updates(page).Error
 }
 

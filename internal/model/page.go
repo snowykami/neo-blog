@@ -57,6 +57,13 @@ type Page struct {
 	PageBase
 	// DraftVersion 草稿版本号：每次写入正文（保存草稿或发布）加一，保存时据此校验是否基于最新草稿，避免覆盖他人的修改
 	DraftVersion uint64 `gorm:"not null;default:0"`
+	// HasDraft 是否存在尚未发布的草稿改动，保存时自动计算
+	HasDraft bool `gorm:"not null;default:false"`
+}
+
+func (p *Page) BeforeSave(tx *gorm.DB) error {
+	p.HasDraft = p.DraftContent != nil && *p.DraftContent != "" && *p.DraftContent != p.Content
+	return nil
 }
 
 type PageBase struct {
@@ -111,6 +118,7 @@ func (p *Page) ToDto() *dto.PageDto {
 		CreatedAt:    p.CreatedAt,
 		UpdatedAt:    p.UpdatedAt,
 		DraftVersion: p.DraftVersion,
+		HasDraft:     p.HasDraft || (p.DraftContent != nil && *p.DraftContent != "" && *p.DraftContent != p.Content),
 	}
 }
 
@@ -118,6 +126,7 @@ func (p *Page) ToDtoWithShortContent(contentLength int) *dto.PageDto {
 	pageDto := p.ToDto()
 	pageDto.DraftContent = nil // 列表等公开场景不返回草稿内容
 	pageDto.DraftVersion = 0
+	pageDto.HasDraft = false
 	if contentLength <= 0 {
 		pageDto.Content = ""
 		return pageDto

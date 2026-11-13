@@ -747,3 +747,117 @@ func TestMigrateRelativeFileLinks(t *testing.T) {
 		}
 	})
 }
+
+// P1 结构与索引升级：清理 user_open_ids 软删除与重复绑定后建立联合唯一索引，
+// 回填 posts/pages 的 has_draft、kvs 的 secret 标记、agent_runs 的 lease_token，并补齐查询组合索引
+func TestMigrateP1SchemaAndIndexes(t *testing.T) {
+	forEachDialect(t, func(t *testing.T) {
+		seedLegacyDatabase(t)
+		if err := db.AutoMigrate(&model.Page{}, &model.UserOpenID{}, &model.AgentRun{}, &model.VisitLog{}); err != nil {
+			t.Fatalf("create extra legacy tables: %v", err)
+		}
+		if db.Migrator().HasIndex(&model.UserOpenID{}, "idx_user_openid_issuer_sub") {
+			if err := db.Migrator().DropIndex(&model.UserOpenID{}, "idx_user_openid_issuer_sub"); err != nil {
+				t.Fatalf("drop user_open_ids unique index: %v", err)
+			}
+		}
+		for _, drop := range []struct {
+			dst any
+			col string
+		}{
+			{&model.Post{}, "is_draft"},
+			{&model.Post{}, "has_draft"},
+			{&model.Page{}, "has_draft"},
+			{&model.KV{}, "secret"},
+			{&model.AgentRun{}, "lease_token"},
+		} {
+			if db.Migrator().HasColumn(drop.dst, drop.col) {
+				if err := db.Migrator().DropColumn(drop.dst, drop.col); err != nil {
+					t.Fatalf("drop %s: %v", drop.col, err)
+				}
+			}
+		}
+
+		now := time.Now()
+		// 文章 1 草稿与正文不同 -> has_draft 应回填为 true；文章 2 草稿为空 -> false
+		if err := db.Exec("UPDATE posts SET draft_content = ? WHERE id = ?", "<p>modified</p>", 1).Error; err != nil {
+			t.Fatalf("seed post draft: %v", err)
+		}
+		if err := db.Exec("INSERT INTO pages (id, user_id, title, slug, content, draft_content, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+			1, 1, "关于", "about", "<p>old</p>", "<p>new</p>", now, now).Error; err != nil {
+			t.Fatalf("seed page: %v", err)
+		}
+		// 重复与软删除的 OIDC 绑定
+		for _, stmt := range []struct {
+			sql  string
+			args []any
+		}{
+			{"INSERT INTO user_open_ids (user_id, issuer, sub, created_at, updated_at) VALUES (?, ?, ?, ?, ?)", []any{1, "https://idp.example", "sub-1", now, now}},
+			{"INSERT INTO user_open_ids (user_id, issuer, sub, created_at, updated_at) VALUES (?, ?, ?, ?, ?)", []any{1, "https://idp.example", "sub-1", now, now}},
+			{"INSERT INTO user_open_ids (user_id, issuer, sub, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?)", []any{1, "https://idp.example", "sub-2", now, now, now}},
+			{"INSERT INTO kvs (key, value) VALUES (?, ?)", []any{"email_password", `{"value":"s3cr3t"}`}},
+			{"INSERT INTO kvs (key, value) VALUES (?, ?)", []any{"custom_public", `{"value":"hello"}`}},
+		} {
+			if err := db.Exec(stmt.sql, stmt.args...).Error; err != nil {
+				t.Fatalf("seed legacy row: %v", err)
+			}
+		}
+
+		if err := migrate(); err != nil {
+			t.Fatalf("migrate: %v", err)
+		}
+
+		var p1, p2 model.Post
+		if err := db.First(&p1, 1).Error; err != nil {
+			t.Fatalf("load post 1: %v", err)
+		}
+		if err := db.First(&p2, 2).Error; err != nil {
+			t.Fatalf("load post 2: %v", err)
+		}
+		if !p1.HasDraft || p1.IsDraft {
+			t.Errorf("post 1: has_draft=%v is_draft=%v, want true/false", p1.HasDraft, p1.IsDraft)
+		}
+		if p2.HasDraft || p2.IsDraft {
+			t.Errorf("post 2: has_draft=%v is_draft=%v, want false/false", p2.HasDraft, p2.IsDraft)
+		}
+
+		var page model.Page
+		if err := db.First(&page, 1).Error; err != nil || !page.HasDraft {
+			t.Errorf("page 1 has_draft=%v err=%v, want true", page.HasDraft, err)
+		}
+
+		var openIDCount int64
+		db.Unscoped().Model(&model.UserOpenID{}).Count(&openIDCount)
+		if openIDCount != 1 {
+			t.Errorf("user_open_ids count = %d, want 1", openIDCount)
+		}
+		if !db.Migrator().HasIndex(&model.UserOpenID{}, "idx_user_openid_issuer_sub") {
+			t.Errorf("missing unique index idx_user_openid_issuer_sub")
+		}
+
+		var secretKV, publicKV model.KV
+		if err := db.First(&secretKV, "key = ?", "email_password").Error; err != nil || !secretKV.Secret {
+			t.Errorf("email_password secret = %v, err = %v, want true", secretKV.Secret, err)
+		}
+		if err := db.First(&publicKV, "key = ?", "custom_public").Error; err != nil || publicKV.Secret {
+			t.Errorf("custom_public secret = %v, err = %v, want false", publicKV.Secret, err)
+		}
+
+		for _, idx := range []struct {
+			table string
+			name  string
+		}{
+			{"visit_logs", "idx_visit_logs_action_created"},
+			{"visit_logs", "idx_visit_logs_visitor_created"},
+			{"likes", "idx_likes_user_created"},
+			{"likes", "idx_likes_created"},
+			{"comments", "idx_comments_user_created"},
+			{"comments", "idx_comments_root_depth"},
+			{"comments", "idx_comments_created"},
+		} {
+			if !db.Migrator().HasIndex(idx.table, idx.name) {
+				t.Errorf("missing index %s on %s", idx.name, idx.table)
+			}
+		}
+	})
+}

@@ -14,6 +14,7 @@ func registerCommentRoutes(group *route.RouterGroup) {
 		commentGroup.POST("/c", commentController.CreateComment)
 		commentGroup.PUT("/c/:id", commentController.UpdateComment)
 		commentGroup.DELETE("/c/:id", commentController.DeleteComment)
+		commentGroup.POST("/batch-delete", commentController.BatchDeleteComments)
 		commentGroupWithoutAuth.GET("/c/:id", commentController.GetComment)
 		commentGroupWithoutAuth.POST("/c/:id/translate", commentController.TranslateComment) // 访客也可翻译自己看得到的评论，按用户或 IP 限流
 		commentGroupWithoutAuth.GET("/list", commentController.GetCommentList)

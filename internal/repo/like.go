@@ -20,54 +20,104 @@ var Like = &likeRepo{}
 // 先锁住被点赞的目标行，同一目标上的点赞 / 取消依次进行：重新统计时能看到其它事务已提交的点赞，
 // 也不会出现两个事务同时插入同一条点赞
 func (l *likeRepo) ToggleLike(userID, targetID uint, targetType string, tx *gorm.DB) (bool, error) {
-	err := l.checkTargetType(targetType)
-	if err != nil {
-		return false, err
+	state, _, err := l.SetOrToggleLike(userID, targetID, targetType, nil, tx)
+	return state, err
+}
+
+// SetOrToggleLike 在目标行锁保护下原子切换或设置点赞状态（desired 非空时幂等设为 *desired），返回最终状态与是否发生变更
+func (l *likeRepo) SetOrToggleLike(userID, targetID uint, targetType string, desired *bool, tx *gorm.DB) (bool, bool, error) {
+	if err := l.checkTargetType(targetType); err != nil {
+		return false, false, err
 	}
-	var finalStatus bool
+	var (
+		finalStatus bool
+		changed     bool
+	)
 	toggle := func(tx *gorm.DB) error {
 		if err := lockLikeTarget(tx, targetType, targetID); err != nil {
 			return err
 		}
-		result := tx.Unscoped().Where("target_type = ? AND target_id = ? AND user_id = ?", targetType, targetID, userID).Delete(&model.Like{})
-		if result.Error != nil {
-			logrus.Error(result.Error)
-			return result.Error
-		}
-		if result.RowsAffected == 0 {
+		if desired == nil {
+			result := tx.Unscoped().Where("target_type = ? AND target_id = ? AND user_id = ?", targetType, targetID, userID).Delete(&model.Like{})
+			if result.Error != nil {
+				logrus.Error(result.Error)
+				return result.Error
+			}
+			changed = true
+			if result.RowsAffected == 0 {
+				like := &model.Like{
+					TargetType: targetType,
+					TargetID:   targetID,
+					UserID:     userID,
+				}
+				// 兜底：万一仍有并发写入，冲突由 ON CONFLICT DO NOTHING 吸收，不能让语句失败（Postgres 下会让整个事务作废）
+				res := tx.Clauses(clause.OnConflict{
+					Columns:   []clause.Column{{Name: "target_type"}, {Name: "target_id"}, {Name: "user_id"}},
+					DoNothing: true,
+				}).Create(like)
+				if res.Error != nil {
+					return res.Error
+				}
+				changed = res.RowsAffected > 0
+				finalStatus = true
+			}
+		} else if *desired {
 			like := &model.Like{
 				TargetType: targetType,
 				TargetID:   targetID,
 				UserID:     userID,
 			}
-			// 兜底：万一仍有并发写入，冲突由 ON CONFLICT DO NOTHING 吸收，不能让语句失败（Postgres 下会让整个事务作废）
-			if err := tx.Clauses(clause.OnConflict{
+			res := tx.Clauses(clause.OnConflict{
 				Columns:   []clause.Column{{Name: "target_type"}, {Name: "target_id"}, {Name: "user_id"}},
 				DoNothing: true,
-			}).Create(like).Error; err != nil {
-				return err
+			}).Create(like)
+			if res.Error != nil {
+				return res.Error
 			}
 			finalStatus = true
+			changed = res.RowsAffected > 0
+		} else {
+			res := tx.Unscoped().Where("target_type = ? AND target_id = ? AND user_id = ?", targetType, targetID, userID).Delete(&model.Like{})
+			if res.Error != nil {
+				return res.Error
+			}
+			finalStatus = false
+			changed = res.RowsAffected > 0
+		}
+		if !changed {
+			return nil
 		}
 		return syncLikeCount(tx, targetType, targetID)
 	}
 	if tx != nil {
 		if err := toggle(tx); err != nil {
-			return finalStatus, err
+			return finalStatus, false, err
 		}
-		return finalStatus, nil
+		return finalStatus, changed, nil
 	}
-	err = GetDB().Transaction(toggle)
-	return finalStatus, err
+	err := GetDB().Transaction(toggle)
+	if err != nil {
+		return finalStatus, false, err
+	}
+	return finalStatus, changed, nil
 }
 
-// lockLikeTarget 用一条不改值的 UPDATE 锁住被点赞的文章 / 评论行，直到事务结束（SQLite 下即取得写锁）
+// lockLikeTarget 用一条不改值的 UPDATE 锁住被点赞的文章 / 评论行，直到事务结束（SQLite 下即取得写锁）；目标已删除时返回 gorm.ErrRecordNotFound
 func lockLikeTarget(tx *gorm.DB, targetType string, targetID uint) error {
+	var res *gorm.DB
 	switch targetType {
 	case constant.TargetTypePost:
-		return tx.Model(&model.Post{}).Where("id = ?", targetID).UpdateColumn("like_count", gorm.Expr("like_count")).Error
+		res = tx.Model(&model.Post{}).Where("id = ?", targetID).UpdateColumn("like_count", gorm.Expr("like_count"))
 	case constant.TargetTypeComment:
-		return tx.Model(&model.Comment{}).Where("id = ?", targetID).UpdateColumn("like_count", gorm.Expr("like_count")).Error
+		res = tx.Model(&model.Comment{}).Where("id = ?", targetID).UpdateColumn("like_count", gorm.Expr("like_count"))
+	default:
+		return nil
+	}
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
 	}
 	return nil
 }
@@ -151,17 +201,19 @@ func (l *likeRepo) GetLikedUsers(targetID uint, targetType string, limit int) ([
 		Find(&likes).Error; err != nil {
 		return nil, err
 	}
-	// 直接按 likes 顺序把 User 添加到列表（不用去重）
+	// 直接按 likes 顺序把仍存在的 User 添加到列表（过滤已删除用户的零值关联）
 	users = make([]model.User, 0, len(likes))
 	for _, lk := range likes {
-		users = append(users, lk.User)
+		if lk.User.ID != 0 {
+			users = append(users, lk.User)
+		}
 	}
 
 	return users, nil
 }
 
 // ListLikesByUser 列出某用户的点赞记录（用户主页使用），只保留目标仍存在且可见的记录，按点赞时间倒序
-// 私密文章只在后台可见：文章与文章下的评论一律只保留公开文章上的，不论谁在查看
+// 私密或尚未首次发布的文章只在后台可见：文章与文章下的评论一律只保留公开文章上的，不论谁在查看
 //   - viewAll：管理员查看，未删除的页面全部可见
 //   - isSelf：本人查看，页面需公开或本人所有；
 //     私密评论需本人参与过该评论树（含本人发表），或本人是评论所在文章/页面的作者
@@ -180,7 +232,7 @@ func (l *likeRepo) ListLikesByUser(userID uint, viewAll, isSelf bool, page, size
 		return sub
 	}
 	publicPosts := func() *gorm.DB {
-		return GetDB().Model(&model.Post{}).Select("id").Where("is_private = ?", false)
+		return GetDB().Model(&model.Post{}).Select("id").Where("is_private = ? AND is_draft = ?", false, false)
 	}
 	visibleComments := GetDB().Model(&model.Comment{}).Select("id").
 		Where("((target_type = ? AND target_id IN (?)) OR (target_type = ? AND target_id IN (?)))",

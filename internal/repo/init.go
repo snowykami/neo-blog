@@ -293,19 +293,26 @@ func migrate() error {
 // createQueryIndexes 为常用查询补充组合索引（gorm.Model 内的字段无法通过标签声明组合索引）
 func createQueryIndexes() error {
 	indexes := []string{
-		// 文章列表：按可见性过滤后按时间或热度排序（2026110504 迁移删掉了旧的含 top 列的同名索引）
-		"CREATE INDEX IF NOT EXISTS idx_posts_list_created ON posts (is_private, created_at)",
-		"CREATE INDEX IF NOT EXISTS idx_posts_list_heat ON posts (is_private, heat)",
-		// 评论列表：按目标与层级查询并按时间排序
+		// 文章列表：按可见性与发布状态过滤后按时间或热度排序
+		"CREATE INDEX IF NOT EXISTS idx_posts_list_created ON posts (is_private, is_draft, created_at)",
+		"CREATE INDEX IF NOT EXISTS idx_posts_list_heat ON posts (is_private, is_draft, heat)",
+		// 评论列表：按目标与层级查询并按时间排序、子回复线程汇总与按用户/全站时间查询
 		"CREATE INDEX IF NOT EXISTS idx_comments_target ON comments (target_type, target_id, depth, created_at)",
+		"CREATE INDEX IF NOT EXISTS idx_comments_user_created ON comments (user_id, created_at)",
+		"CREATE INDEX IF NOT EXISTS idx_comments_root_depth ON comments (root_id, depth, id)",
+		"CREATE INDEX IF NOT EXISTS idx_comments_created ON comments (created_at)",
+		// 点赞：按用户主页查询喜欢列表与按时间窗口统计
+		"CREATE INDEX IF NOT EXISTS idx_likes_user_created ON likes (user_id, created_at)",
+		"CREATE INDEX IF NOT EXISTS idx_likes_created ON likes (created_at)",
 		// 文件按哈希查找与引用计数
 		"CREATE INDEX IF NOT EXISTS idx_files_hash ON files (hash, provider_id)",
 		// 按用户吊销、查询会话
 		"CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id)",
-		// 访问去重：同一访客短时间内访问同一路径
+		// 访问去重、按行为时间窗口与按访客查询
 		"CREATE INDEX IF NOT EXISTS idx_visit_logs_dedup ON visit_logs (visitor_id, path, created_at)",
-		// 文章热度统计：按行为、目标类型与时间窗口扫描访问记录
 		"CREATE INDEX IF NOT EXISTS idx_visit_logs_heat ON visit_logs (action, target_type, created_at, target_id)",
+		"CREATE INDEX IF NOT EXISTS idx_visit_logs_action_created ON visit_logs (action, created_at)",
+		"CREATE INDEX IF NOT EXISTS idx_visit_logs_visitor_created ON visit_logs (visitor_id, created_at)",
 		// 标签关联反查：按 label_id 统计公开文章数与筛选文章（补充主键 (post_id, label_id) 的反向索引）
 		"CREATE INDEX IF NOT EXISTS idx_post_labels_label_post ON post_labels (label_id, post_id)",
 		// 通知：未读徽标与未读列表（read_at 为 NULL 时的等值查询走索引前缀）

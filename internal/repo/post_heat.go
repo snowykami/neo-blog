@@ -29,6 +29,42 @@ func (p *postRepo) IncreaseViewCount(postID uint) error {
 	return GetDB().Model(&model.Post{}).Where("id = ?", postID).UpdateColumn("view_count", gorm.Expr("view_count + 1")).Error
 }
 
+// AddViewCounts 批量累加多篇文章的浏览量（不更新 updated_at），减少高频访问时的逐行写锁竞争
+func (p *postRepo) AddViewCounts(deltas map[uint]uint64) error {
+	if len(deltas) == 0 {
+		return nil
+	}
+	ids := make([]uint, 0, len(deltas))
+	for id, delta := range deltas {
+		if id > 0 && delta > 0 {
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	slices.Sort(ids)
+
+	const batchSize = 200
+	for start := 0; start < len(ids); start += batchSize {
+		chunk := ids[start:min(start+batchSize, len(ids))]
+		var caseBuilder strings.Builder
+		caseBuilder.WriteString("CASE id")
+		args := make([]any, 0, len(chunk)*2)
+		for _, id := range chunk {
+			caseBuilder.WriteString(" WHEN ? THEN view_count + ?")
+			args = append(args, id, deltas[id])
+		}
+		caseBuilder.WriteString(" ELSE view_count END")
+		if err := GetDB().Model(&model.Post{}).
+			Where("id IN ?", chunk).
+			UpdateColumn("view_count", gorm.Expr(caseBuilder.String(), args...)).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func streamHeatQuery(q *gorm.DB, visit func(HeatEvent)) error {
 	rows, err := q.Rows()
 	if err != nil {

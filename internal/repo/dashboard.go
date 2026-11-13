@@ -144,9 +144,9 @@ func (d *dashboardRepo) CountVisitSources(r TimeRange, limit int) ([]dto.VisitSo
 	return sources, err
 }
 
-// 首页文章列表只取摘要字段，has_draft 表示草稿内容与已发布正文不同
-const dashboardPostColumns = "posts.id, posts.title, posts.slug, posts.is_private, " +
-	"(posts.draft_content IS NOT NULL AND posts.draft_content <> '' AND posts.draft_content <> posts.content) AS has_draft, " +
+// 首页文章列表只取摘要字段，has_draft 使用持久化布尔列以避免扫描正文大字段
+const dashboardPostColumns = "posts.id, posts.title, posts.slug, (posts.is_private OR posts.is_draft) AS is_private, " +
+	"(posts.is_draft OR posts.has_draft) AS has_draft, " +
 	"posts.view_count, posts.like_count, posts.comment_count, posts.heat, posts.created_at, posts.updated_at"
 
 // ListPosts 按指定字段倒序取前若干篇文章，orderBy 只能传代码中的固定列名
@@ -158,16 +158,21 @@ func (d *dashboardRepo) ListPosts(orderBy string, limit int) ([]dto.DashboardPos
 	return posts, err
 }
 
-// ListTopVisitedPosts 区间内访问次数最多的文章，已删除的文章不计入
+// ListTopVisitedPosts 区间内访问次数最多的文章，先按访问日志聚合 Top-N，再回表读取文章元数据（已删除的文章不计入）
 func (d *dashboardRepo) ListTopVisitedPosts(r TimeRange, limit int) ([]dto.DashboardPostDto, error) {
 	posts := []dto.DashboardPostDto{}
-	err := d.visits().
-		Select(dashboardPostColumns+", COUNT(*) AS period_views").
+	topSub := d.visits().
+		Select("visit_logs.target_id, COUNT(*) AS period_views").
 		Joins("JOIN posts ON posts.id = visit_logs.target_id AND posts.deleted_at IS NULL").
 		Where("visit_logs.target_type = ? AND visit_logs.created_at >= ? AND visit_logs.created_at < ?", constant.TargetTypePost, r.From, r.To).
-		// 按主键分组即可，PostgreSQL 允许选取与主键函数依赖的其他列
-		Group("posts.id").
-		Order("period_views DESC").Order("posts.id DESC").Limit(limit).
+		Group("visit_logs.target_id").
+		Order("period_views DESC, visit_logs.target_id DESC").
+		Limit(limit)
+
+	err := GetDB().Model(&model.Post{}).
+		Select(dashboardPostColumns+", top_visits.period_views AS period_views").
+		Joins("JOIN (?) AS top_visits ON top_visits.target_id = posts.id", topSub).
+		Order("top_visits.period_views DESC, posts.id DESC").
 		Scan(&posts).Error
 	return posts, err
 }
@@ -179,9 +184,9 @@ func (d *dashboardRepo) CountContent() (dto.DashboardContentDto, error) {
 	stale := "COALESCE(posts.ai_summary_source_hash, '') <> '' AND COALESCE(posts.content_hash, '') <> '' AND posts.ai_summary_source_hash <> posts.content_hash"
 	err := GetDB().Model(&model.Post{}).Select(strings.Join([]string{
 		"COUNT(*) AS posts",
-		"COALESCE(SUM(CASE WHEN posts.is_private THEN 0 ELSE 1 END), 0) AS public_posts",
+		"COALESCE(SUM(CASE WHEN NOT posts.is_private AND NOT posts.is_draft THEN 1 ELSE 0 END), 0) AS public_posts",
 		"COALESCE(SUM(CASE WHEN posts.is_private THEN 1 ELSE 0 END), 0) AS private_posts",
-		"COALESCE(SUM(CASE WHEN posts.draft_content IS NOT NULL AND posts.draft_content <> '' AND posts.draft_content <> posts.content THEN 1 ELSE 0 END), 0) AS draft_posts",
+		"COALESCE(SUM(CASE WHEN posts.is_draft OR posts.has_draft THEN 1 ELSE 0 END), 0) AS draft_posts",
 		fmt.Sprintf("COALESCE(SUM(CASE WHEN %s AND NOT (%s) THEN 1 ELSE 0 END), 0) AS ai_summary_ready", summary, stale),
 		fmt.Sprintf("COALESCE(SUM(CASE WHEN %s AND %s THEN 1 ELSE 0 END), 0) AS ai_summary_stale", summary, stale),
 		fmt.Sprintf("COALESCE(SUM(CASE WHEN %s THEN 0 ELSE 1 END), 0) AS ai_summary_missing", summary),

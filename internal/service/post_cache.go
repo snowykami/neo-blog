@@ -68,3 +68,35 @@ func postListCacheKey(req *dto.ListPostReq) string {
 	sum := sha256.Sum256(data)
 	return "list:" + hex.EncodeToString(sum[:12])
 }
+
+var pageGuestFlight singleflight.Group
+
+// pageCached 前台独立页面详情与列表的短时缓存（见 repo.PageGuestCache）
+func pageCached[T any](key string, load func() (T, *errs.ServiceError)) (T, *errs.ServiceError) {
+	if value, ok := cache.GetJSON[T](repo.PageGuestCache, key); ok {
+		return value, nil
+	}
+	raw, _, _ := pageGuestFlight.Do(key, func() (any, error) {
+		if value, ok := cache.GetJSON[T](repo.PageGuestCache, key); ok {
+			return cachedResult[T]{val: value}, nil
+		}
+		value, svcerr := load()
+		if svcerr == nil {
+			cache.SetJSON(repo.PageGuestCache, key, value, repo.PostGuestCacheTTL)
+		}
+		return cachedResult[T]{val: value, svcerr: svcerr}, nil
+	})
+	res := raw.(cachedResult[T])
+	return res.val, res.svcerr
+}
+
+type guestPageList struct {
+	Pages []*dto.PageDto `json:"pages"`
+	Total int64          `json:"total"`
+}
+
+func pageListCacheKey(req *dto.ListPageReq) string {
+	data, _ := json.Marshal(req)
+	sum := sha256.Sum256(data)
+	return "list:" + hex.EncodeToString(sum[:12])
+}

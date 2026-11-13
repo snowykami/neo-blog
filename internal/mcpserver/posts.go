@@ -118,7 +118,7 @@ func toSummary(post *dto.PostDto) postSummary {
 		Title:       post.Title,
 		Slug:        utils.Deref(post.Slug),
 		Description: post.Description,
-		IsPrivate:   post.IsPrivate,
+		IsPrivate:   post.IsPrivate || post.IsDraft,
 		Labels:      make([]taxonomyRef, 0, len(post.Labels)),
 		Author:      utils.Ternary(post.User.Nickname != "", post.User.Nickname, post.User.Username),
 		CreatedAt:   post.CreatedAt,
@@ -138,7 +138,7 @@ func writeResult(post *dto.PostDto, message string) *postWriteResult {
 	return &postWriteResult{
 		ID:           post.ID,
 		Title:        post.Title,
-		IsPrivate:    post.IsPrivate,
+		IsPrivate:    post.IsPrivate || post.IsDraft,
 		DraftVersion: post.DraftVersion,
 		URL:          postURL(post),
 		PreviewURL:   previewURL(post.ID),
@@ -515,7 +515,7 @@ func updatePost(ctx context.Context, _ *mcp.CallToolRequest, in updatePostInput)
 		return nil, nil, serviceError(errs.NewForbidden("permission_denied"))
 	}
 	// 元信息没有草稿，公开文章上的修改会立即对读者可见，因此视同发布
-	if in.hasMeta() && !post.IsPrivate {
+	if in.hasMeta() && !(post.IsPrivate || post.IsDraft) {
 		if err := requireScope(ctx, constant.ScopePostsPublish); err != nil {
 			return nil, nil, fmt.Errorf("post %d is public and metadata changes go live immediately, which needs the %q scope. Update only content (saved as a draft) or ask the user for a token with that scope", post.ID, constant.ScopePostsPublish)
 		}

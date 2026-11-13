@@ -133,15 +133,18 @@ func (p *PageService) GetPageSlugOrID(ctx context.Context, slugOrID string) (*dt
 	if slugOrID == "" {
 		return nil, errs.NewBadRequest("missing_request_parameters")
 	}
-	page, err := repo.Page.GetPageBySlugOrID(slugOrID)
-	if err != nil || page.IsPrivate {
-		return nil, errs.NewNotFound("target_not_found").WithResource("page")
-	}
-	pageDto := page.ToDto()
-	pageDto.DraftContent = nil
-	pageDto.DraftVersion = 0
-	pageDto.HTMLBundle = NewPageHTMLService().BundleForPage(page)
-	return pageDto, nil
+	return pageCached("detail:"+slugOrID, func() (*dto.PageDto, *errs.ServiceError) {
+		page, err := repo.Page.GetPageBySlugOrID(slugOrID)
+		if err != nil || page.IsPrivate {
+			return nil, errs.NewNotFound("target_not_found").WithResource("page")
+		}
+		pageDto := page.ToDto()
+		pageDto.DraftContent = nil
+		pageDto.DraftVersion = 0
+		pageDto.HasDraft = false
+		pageDto.HTMLBundle = NewPageHTMLService().BundleForPage(page)
+		return pageDto, nil
+	})
 }
 
 // GetPageForEdit 后台编辑器与预览读取页面：含私密页面与草稿（没有草稿时取已发布的正文），
@@ -309,7 +312,7 @@ func (p *PageService) UpdatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 	}
 	// 通知打开了编辑页的客户端：编辑页据此合并他人（外部 AI 工具）的修改
 	publishSavedEvent(ctx, constant.TargetTypePage, page.ID, page.DraftVersion)
-	if slices.ContainsFunc(columns, func(col string) bool { return col != "draft_content" }) {
+	if slices.ContainsFunc(columns, func(col string) bool { return col != "draft_content" && col != "has_draft" }) {
 		SyncSearchPage(page.ID, wasPrivate != page.IsPrivate || slices.Contains(columns, "title"))
 	}
 	return &dto.ContentSaveResult{ID: page.ID, DraftVersion: page.DraftVersion}, nil
@@ -370,7 +373,11 @@ func normalizeAspectRatio(raw string) (string, bool) {
 
 // ListPages 前台页面列表（导航等）：不看当前用户是谁，只返回公开页面
 func (p *PageService) ListPages(ctx context.Context, req *dto.ListPageReq) ([]*dto.PageDto, int64, *errs.ServiceError) {
-	return p.listPages(req, false)
+	res, svcerr := pageCached(pageListCacheKey(req), func() (guestPageList, *errs.ServiceError) {
+		pages, total, svcerr := p.listPages(req, false)
+		return guestPageList{Pages: pages, Total: total}, svcerr
+	})
+	return res.Pages, res.Total, svcerr
 }
 
 // ListMyPages 后台「我的页面」：当前用户自己的全部页面（含私密页面），要求编辑及以上角色（与路由一致）
@@ -413,7 +420,11 @@ func (p *PageService) listPages(req *dto.ListPageReq, includePrivate bool) ([]*d
 	}
 	pageDtos := make([]*dto.PageDto, 0, len(pages))
 	for _, page := range pages {
-		pageDtos = append(pageDtos, page.ToDtoWithShortContent(200))
+		dtoPage := page.ToDtoWithShortContent(200)
+		if includePrivate {
+			dtoPage.HasDraft = page.HasDraft
+		}
+		pageDtos = append(pageDtos, dtoPage)
 	}
 	return pageDtos, total, nil
 }

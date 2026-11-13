@@ -1004,7 +1004,7 @@ func (s *AdminService) TestMeilisearch(ctx context.Context, req *dto.TestMeilise
 				}
 			}
 		}
-		if req.APIKey != nil {
+		if req.APIKey != nil && strings.TrimSpace(*req.APIKey) != "" {
 			cfg.APIKey = strings.TrimSpace(*req.APIKey)
 		}
 		if req.IndexPrefix != nil {

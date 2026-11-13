@@ -28,6 +28,7 @@ type PageDto struct {
 	UserID uint    `json:"user_id"`
 	User   UserDto `json:"user"`
 	PageBaseDto
+	HasDraft   bool               `json:"has_draft,omitempty"`
 	HTMLBundle *PageHTMLBundleDto `json:"html_bundle,omitempty"` // HTML 页面当前生效的版本，仅单页详情返回，未上传时为空
 	CreatedAt  time.Time          `json:"created_at"`
 	UpdatedAt  time.Time          `json:"updated_at"`

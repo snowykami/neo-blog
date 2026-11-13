@@ -56,7 +56,9 @@ func (p *PostService) CreatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 			Content:             req.Content,
 			ContentTheme:        config.NormalizeContentTheme(utils.Deref(req.ContentTheme)),
 			Description:         utils.Deref(req.Description),
+			DraftContent:        req.DraftContent,
 			IsPrivate:           utils.Deref(req.IsPrivate),
+			IsDraft:             strings.TrimSpace(req.Content) == "",
 			Labels:              labels,
 			Slug:                slug,
 			Title:               req.Title,
@@ -69,8 +71,8 @@ func (p *PostService) CreatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 		}
 		return 0, errs.Internal("failed_to_create_target", err).WithResource("post")
 	}
-	// 直接以公开状态创建：曝光给感兴趣的 AI 用户，并写入公开搜索索引
-	if !post.IsPrivate {
+	// 直接以公开已发布状态创建时：曝光给感兴趣的 AI 用户，并写入公开搜索索引；空正文草稿待首次发布时再触发
+	if post.IsPublic() {
 		NotifyPostPublished(post.ID)
 		SyncSearchPost(post.ID, post.UserID, false)
 	}
@@ -167,12 +169,13 @@ func (p *PostService) GetPostSlugOrId(ctx context.Context, slugOrId string) (*dt
 // getPublicPost 不看当前用户是谁：is_liked 恒为 false，登录用户的点赞状态由浏览器另取（GET /like/status）
 func (p *PostService) getPublicPost(slugOrId string) (*dto.PostDto, *errs.ServiceError) {
 	post, err := repo.Post.GetPostBySlugOrID(slugOrId)
-	if err != nil || post.IsPrivate {
+	if err != nil || !post.IsPublic() {
 		return nil, errs.NewNotFound("target_not_found").WithResource("post")
 	}
 	postDto := post.ToDto()
 	postDto.DraftContent = nil
 	postDto.DraftVersion = 0
+	postDto.HasDraft = false
 	return postDto, nil
 }
 
@@ -236,6 +239,7 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 			return nil, svcerr
 		}
 	}
+	wasPublic := post.IsPublic()
 	// 只写入本次请求改动的列：post 是请求开始时读到的快照，整行写回会覆盖期间他人写入的正文、草稿与计数
 	var columns []string
 	if req.Title != "" {
@@ -249,6 +253,10 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 	if req.Content != "" {
 		post.Content = req.Content
 		columns = append(columns, "content")
+		if post.IsDraft {
+			post.IsDraft = false
+			columns = append(columns, "is_draft")
+		}
 	}
 	if req.Cover != nil {
 		post.Cover = *req.Cover
@@ -295,7 +303,6 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 		post.Category = nil
 		columns = append(columns, "category_id")
 	}
-	wasPrivate := post.IsPrivate
 	if req.IsPrivate != nil {
 		post.IsPrivate = *req.IsPrivate
 		columns = append(columns, "is_private")
@@ -332,12 +339,12 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 	}
 	// 通知打开了编辑页的客户端：编辑页据此合并他人（外部 AI 工具）的修改
 	publishSavedEvent(ctx, constant.TargetTypePost, post.ID, post.DraftVersion)
-	// 私密 → 公开：首次发布时曝光给感兴趣的 AI 用户（同一篇只曝光一次，由调度器去重）
-	if wasPrivate && !post.IsPrivate {
+	// 未公开（草稿或私密）→ 公开已发布：首次发布时曝光给感兴趣的 AI 用户（同一篇只曝光一次，由调度器去重）
+	if !wasPublic && post.IsPublic() {
 		NotifyPostPublished(post.ID)
 	}
-	if replaceLabels || slices.ContainsFunc(columns, func(col string) bool { return col != "draft_content" }) {
-		SyncSearchPost(post.ID, post.UserID, wasPrivate != post.IsPrivate || slices.Contains(columns, "title"))
+	if replaceLabels || slices.ContainsFunc(columns, func(col string) bool { return col != "draft_content" && col != "has_draft" }) {
+		SyncSearchPost(post.ID, post.UserID, wasPublic != post.IsPublic() || slices.Contains(columns, "title"))
 	}
 	return &dto.ContentSaveResult{ID: post.ID, DraftVersion: post.DraftVersion}, nil
 }
@@ -392,13 +399,104 @@ func (p *PostService) listPosts(ctx context.Context, req *dto.ListPostReq, inclu
 		return nil, total, errs.Internal("failed_to_get_target", err).WithResource("post")
 	}
 	for _, post := range posts {
-		postDtos = append(postDtos, post.ToDtoWithShortContent(200))
+		dtoPost := post.ToDtoWithShortContent(200)
+		if includePrivate {
+			dtoPost.HasDraft = post.HasDraft
+		}
+		postDtos = append(postDtos, dtoPost)
 	}
 	// 后台管理列表展示 AI 摘要任务的进行中 / 失败状态；前台列表对所有人一致，不带
 	if includePrivate {
 		NewAISummaryService().FillListStatus(postDtos)
 	}
 	return postDtos, total, nil
+}
+
+const maxBatchItemIDs = 100
+
+func normalizeBatchIDs(ids []uint) ([]uint, *errs.ServiceError) {
+	if len(ids) == 0 || len(ids) > maxBatchItemIDs {
+		return nil, errs.NewBadRequest("invalid_request_parameters")
+	}
+	unique := make([]uint, 0, len(ids))
+	seen := make(map[uint]struct{}, len(ids))
+	for _, id := range ids {
+		if id == 0 {
+			return nil, errs.NewBadRequest("invalid_request_parameters")
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		unique = append(unique, id)
+	}
+	return unique, nil
+}
+
+// BatchDeletePosts 批量删除文章：先统一校验权限（任意一篇无权则整批拒绝），再逐篇执行级联清理
+func (p *PostService) BatchDeletePosts(ctx context.Context, ids []uint) (int, *errs.ServiceError) {
+	unique, svcerr := normalizeBatchIDs(ids)
+	if svcerr != nil {
+		return 0, svcerr
+	}
+	existing := make([]uint, 0, len(unique))
+	for _, id := range unique {
+		meta, err := repo.Post.GetPostMeta(id)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				continue
+			}
+			return 0, errs.Internal("failed_to_get_target", err).WithResource("post")
+		}
+		if !(ctxutils.IsOwnerOfTarget(ctx, meta.UserID) || ctxutils.IsAdmin(ctx)) {
+			return 0, errs.NewForbidden("permission_denied")
+		}
+		existing = append(existing, id)
+	}
+	deleted := 0
+	for _, id := range existing {
+		if svcerr := p.DeletePost(ctx, id); svcerr != nil {
+			if svcerr.Code == 404 {
+				continue
+			}
+			return deleted, svcerr
+		}
+		deleted++
+	}
+	return deleted, nil
+}
+
+// BatchUpdateVisibility 批量设置文章私密/公开状态：尚未首次发布的草稿即使取消私密仍保持草稿状态，不会把空文章发到前台
+func (p *PostService) BatchUpdateVisibility(ctx context.Context, ids []uint, isPrivate bool) (int, *errs.ServiceError) {
+	unique, svcerr := normalizeBatchIDs(ids)
+	if svcerr != nil {
+		return 0, svcerr
+	}
+	existing := make([]uint, 0, len(unique))
+	for _, id := range unique {
+		meta, err := repo.Post.GetPostMeta(id)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				continue
+			}
+			return 0, errs.Internal("failed_to_get_target", err).WithResource("post")
+		}
+		if !(ctxutils.IsOwnerOfTarget(ctx, meta.UserID) || ctxutils.IsAdmin(ctx)) {
+			return 0, errs.NewForbidden("permission_denied")
+		}
+		existing = append(existing, id)
+	}
+	updated := 0
+	for _, id := range existing {
+		if _, svcerr := p.UpdatePost(ctx, &dto.CreateOrUpdatePostReq{ID: id, IsPrivate: &isPrivate}); svcerr != nil {
+			if svcerr.Code == 404 {
+				continue
+			}
+			return updated, svcerr
+		}
+		updated++
+	}
+	return updated, nil
 }
 
 // MaxPostCardIDs 一次批量查询的文章引用卡片数上限：一篇正文里的引用远少于这个数，超出说明请求异常

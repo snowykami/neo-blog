@@ -118,6 +118,10 @@ type TranslateCommentReq struct {
 	RemoteAddr string // 远程地址，用于未登录时限流
 }
 
+type BatchDeleteCommentReq struct {
+	IDs []uint `json:"ids"`
+}
+
 // CommentTranslationDto 评论的 AI 译文
 type CommentTranslationDto struct {
 	CommentID    uint   `json:"comment_id"`

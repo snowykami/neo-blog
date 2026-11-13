@@ -14,6 +14,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/service"
 	"github.com/snowykami/neo-blog/internal/tools"
+	"github.com/snowykami/neo-blog/pkg/cache"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/resps"
 )
@@ -93,11 +94,15 @@ func (mc *MiscController) GetPublicConfig(ctx context.Context, c *app.RequestCon
 }
 
 func (mc *MiscController) GetSitemapData(ctx context.Context, c *app.RequestContext) {
+	if cached, ok := cache.GetJSON[map[string]any](repo.SitemapGuestCache, "sitemap"); ok {
+		resps.Ok(c, "", cached)
+		return
+	}
 	// 此函数不加错误处理，能返回多少算多少
 	var posts []model.Post
 	repo.GetDB().Model(&model.Post{}).
 		Select("id, slug, created_at, updated_at").
-		Where("is_private = ?", false).
+		Where("is_private = ? AND is_draft = ?", false, false).
 		Order("created_at DESC").
 		Limit(tools.GetSitemapLimit()).
 		Find(&posts)
@@ -144,7 +149,7 @@ func (mc *MiscController) GetSitemapData(ctx context.Context, c *app.RequestCont
 		archives = append(archives, archive)
 	}
 
-	resps.Ok(c, "", utils.H{
+	payload := map[string]any{
 		"base_url": tools.GetBaseUrl(),
 		"archives": archives,
 		"pages": func() []map[string]any {
@@ -204,13 +209,15 @@ func (mc *MiscController) GetSitemapData(ctx context.Context, c *app.RequestCont
 			}
 			return m
 		}(),
-	})
+	}
+	cache.SetJSON(repo.SitemapGuestCache, "sitemap", payload, repo.PostGuestCacheTTL)
+	resps.Ok(c, "", payload)
 }
 
 func (mc *MiscController) GetRssData(ctx context.Context, c *app.RequestContext) {
 	var posts []model.Post
 	if err := repo.GetDB().Model(&model.Post{}).
-		Where("is_private = ?", false).
+		Where("is_private = ? AND is_draft = ?", false, false).
 		Order("created_at DESC").
 		Limit(tools.GetRssLimit()).
 		Omit("draft_content").

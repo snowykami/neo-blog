@@ -59,6 +59,34 @@ func (p *PostController) Delete(ctx context.Context, c *app.RequestContext) {
 	resps.Ok(c, resps.Success, nil)
 }
 
+func (p *PostController) BatchDelete(ctx context.Context, c *app.RequestContext) {
+	var req dto.BatchDeletePostReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	deleted, svcerr := p.service.BatchDeletePosts(ctx, req.IDs)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, utils.H{"deleted": deleted})
+}
+
+func (p *PostController) BatchVisibility(ctx context.Context, c *app.RequestContext) {
+	var req dto.BatchPostVisibilityReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	updated, svcerr := p.service.BatchUpdateVisibility(ctx, req.IDs, req.IsPrivate)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, utils.H{"updated": updated})
+}
+
 // Get 前台读取文章：只返回公开文章的已发布内容；私密文章对所有人 404，草稿在后台读取（见 GetForEdit）
 func (p *PostController) Get(ctx context.Context, c *app.RequestContext) {
 	slugOrId := c.Param("slug_or_id") // 此处不用ctxutils bind是因为允许slug string类型
@@ -102,22 +130,25 @@ func (p *PostController) GetForEdit(ctx context.Context, c *app.RequestContext) 
 }
 
 func (p *PostController) GetRandom(ctx context.Context, c *app.RequestContext) {
-	// 先只随机取 id，避免对整表正文排序
+	// 先只随机取公开已发布文章的 id，避免对整表正文排序，也不暴露未发布草稿
 	var ids []uint
-	if err := repo.GetDB().Model(&model.Post{}).Where("is_private = ?", false).Order("RANDOM()").Limit(1).Pluck("id", &ids).Error; err != nil {
+	if err := repo.GetDB().Model(&model.Post{}).Where("is_private = ? AND is_draft = ?", false, false).Order("RANDOM()").Limit(1).Pluck("id", &ids).Error; err != nil {
 		resps.InternalError(c, err)
 		return
 	}
+	if len(ids) == 0 {
+		resps.NotFound(c, "target_not_found")
+		return
+	}
 	var post model.Post
-	if len(ids) > 0 {
-		if err := repo.GetDB().Omit("draft_content").First(&post, ids[0]).Error; err != nil {
-			resps.InternalError(c, err)
-			return
-		}
+	if err := repo.GetDB().Omit("draft_content").First(&post, ids[0]).Error; err != nil {
+		resps.InternalError(c, err)
+		return
 	}
 	postDto := post.ToDto()
 	postDto.DraftContent = nil // 不返回草稿内容
 	postDto.DraftVersion = 0
+	postDto.HasDraft = false
 	resps.Ok(c, resps.Success, postDto)
 }
 

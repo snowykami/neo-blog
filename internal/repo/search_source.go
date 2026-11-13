@@ -21,13 +21,13 @@ func ListPublicPostsAfter(afterID uint, limit int) ([]model.Post, error) {
 	var posts []model.Post
 	err := GetDB().Model(&model.Post{}).
 		Preload("User").Preload("Category").Preload("Labels").
-		Where("is_private = ? AND id > ?", false, afterID).
+		Where("is_private = ? AND is_draft = ? AND id > ?", false, false, afterID).
 		Order("id ASC").Limit(limit).
 		Find(&posts).Error
 	return posts, err
 }
 
-// GetPublicPostForIndex 读取单篇用于索引的公开文章；已删除或为私密文章时返回 (nil, nil)
+// GetPublicPostForIndex 读取单篇用于索引的公开文章；已删除、私密或尚未首次发布时返回 (nil, nil)
 func GetPublicPostForIndex(postID uint) (*model.Post, error) {
 	if postID == 0 {
 		return nil, nil
@@ -35,7 +35,7 @@ func GetPublicPostForIndex(postID uint) (*model.Post, error) {
 	var post model.Post
 	err := GetDB().Model(&model.Post{}).
 		Preload("User").Preload("Category").Preload("Labels").
-		Where("id = ? AND is_private = ?", postID, false).
+		Where("id = ? AND is_private = ? AND is_draft = ?", postID, false, false).
 		First(&post).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
@@ -49,7 +49,7 @@ func GetPublicPostForIndex(postID uint) (*model.Post, error) {
 // ListPublicPostIDsByCategory 列出某分类下的全部公开文章 ID（分类改名或删除后刷新索引）
 func ListPublicPostIDsByCategory(categoryID uint) ([]uint, error) {
 	var ids []uint
-	err := GetDB().Model(&model.Post{}).Where("is_private = ? AND category_id = ?", false, categoryID).Pluck("id", &ids).Error
+	err := GetDB().Model(&model.Post{}).Where("is_private = ? AND is_draft = ? AND category_id = ?", false, false, categoryID).Pluck("id", &ids).Error
 	return ids, err
 }
 
@@ -58,7 +58,7 @@ func ListPublicPostIDsByLabel(labelID uint) ([]uint, error) {
 	var ids []uint
 	err := GetDB().Model(&model.Post{}).
 		Joins("JOIN post_labels ON post_labels.post_id = posts.id").
-		Where("posts.is_private = ? AND post_labels.label_id = ?", false, labelID).
+		Where("posts.is_private = ? AND posts.is_draft = ? AND post_labels.label_id = ?", false, false, labelID).
 		Pluck("posts.id", &ids).Error
 	return ids, err
 }
@@ -66,14 +66,14 @@ func ListPublicPostIDsByLabel(labelID uint) ([]uint, error) {
 // ListPublicPostIDsByUser 列出某作者的全部公开文章 ID（作者改昵称后刷新索引）
 func ListPublicPostIDsByUser(userID uint) ([]uint, error) {
 	var ids []uint
-	err := GetDB().Model(&model.Post{}).Where("is_private = ? AND user_id = ?", false, userID).Pluck("id", &ids).Error
+	err := GetDB().Model(&model.Post{}).Where("is_private = ? AND is_draft = ? AND user_id = ?", false, false, userID).Pluck("id", &ids).Error
 	return ids, err
 }
 
 // ListPublicPostIDs 全部公开文章的 ID 集合（用于周期对账）
 func ListPublicPostIDs() ([]uint, error) {
 	var ids []uint
-	err := GetDB().Model(&model.Post{}).Where("is_private = ?", false).Order("id ASC").Pluck("id", &ids).Error
+	err := GetDB().Model(&model.Post{}).Where("is_private = ? AND is_draft = ?", false, false).Order("id ASC").Pluck("id", &ids).Error
 	return ids, err
 }
 
@@ -145,7 +145,7 @@ func ListPagesByIDsForList(ids []uint, noContent bool) ([]model.Page, error) {
 
 // publicCommentsQuery 严格双重公开校验：评论本身公开，且所属宿主（文章或页面）存在、未软删除且公开
 func publicCommentsQuery() *gorm.DB {
-	publicPostIDs := GetDB().Model(&model.Post{}).Select("id").Where("is_private = ?", false)
+	publicPostIDs := GetDB().Model(&model.Post{}).Select("id").Where("is_private = ? AND is_draft = ?", false, false)
 	publicPageIDs := GetDB().Model(&model.Page{}).Select("id").Where("is_private = ?", false)
 	return GetDB().Model(&model.Comment{}).
 		Where("comments.is_private = ?", false).
@@ -178,7 +178,7 @@ func attachCommentTargets(comments []model.Comment) ([]PublicCommentWithTarget, 
 	postMap := make(map[uint]targetMeta, len(postIDs))
 	if len(postIDs) > 0 {
 		var posts []model.Post
-		if err := GetDB().Model(&model.Post{}).Select("id", "title", "slug").Where("is_private = ? AND id IN ?", false, postIDs).Find(&posts).Error; err != nil {
+		if err := GetDB().Model(&model.Post{}).Select("id", "title", "slug").Where("is_private = ? AND is_draft = ? AND id IN ?", false, false, postIDs).Find(&posts).Error; err != nil {
 			return nil, err
 		}
 		for i := range posts {
@@ -347,7 +347,7 @@ func UsersWithPublicPosts(userIDs []uint) (map[uint]bool, error) {
 	var authorIDs []uint
 	err := GetDB().Model(&model.Post{}).
 		Distinct("user_id").
-		Where("is_private = ? AND user_id IN ?", false, userIDs).
+		Where("is_private = ? AND is_draft = ? AND user_id IN ?", false, false, userIDs).
 		Pluck("user_id", &authorIDs).Error
 	if err != nil {
 		return nil, err
@@ -384,7 +384,7 @@ func SearchPublicCreatorsDB(keyword string, includeAllActive bool, excludeID uin
 		return User.SearchUsers(keyword, excludeID, limit)
 	}
 	like := "%" + likeEscaper.Replace(keyword) + "%"
-	publicAuthorIDs := GetDB().Model(&model.Post{}).Select("user_id").Where("is_private = ?", false)
+	publicAuthorIDs := GetDB().Model(&model.Post{}).Select("user_id").Where("is_private = ? AND is_draft = ?", false, false)
 	q := GetDB().Model(&model.User{}).
 		Where("disabled = ?", false).
 		Where("(role IN ? OR id IN (?))", []constant.Role{constant.RoleAdmin, constant.RoleEditor}, publicAuthorIDs).

@@ -23,7 +23,9 @@ func (p *postRepo) CreatePost(post *model.Post) error {
 	if err := GetDB().Create(post).Error; err != nil {
 		return err
 	}
-	InvalidatePostCache()
+	if post.IsPublic() {
+		InvalidatePostCache()
+	}
 	return nil
 }
 
@@ -68,7 +70,7 @@ func fetchLabelPostCounts(db *gorm.DB, labelIDs []uint) (map[uint]int64, error) 
 	// 只统计未删除的公开文章
 	if err := db.Table("post_labels").
 		Select("post_labels.label_id, COUNT(post_labels.post_id) as cnt").
-		Joins("JOIN posts ON posts.id = post_labels.post_id AND posts.deleted_at IS NULL AND posts.is_private = ?", false).
+		Joins("JOIN posts ON posts.id = post_labels.post_id AND posts.deleted_at IS NULL AND posts.is_private = ? AND posts.is_draft = ?", false, false).
 		Where("post_labels.label_id IN ?", labelIDs).
 		Group("post_labels.label_id").
 		Find(&counts).Error; err != nil {
@@ -118,12 +120,18 @@ type PostMeta struct {
 	ID        uint
 	UserID    uint
 	IsPrivate bool
+	IsDraft   bool
+}
+
+// IsPublic 文章是否已在前台公开发布（既非私密，也非尚未首次发布的草稿）
+func (m PostMeta) IsPublic() bool {
+	return !(m.IsPrivate || m.IsDraft)
 }
 
 // GetPostMeta 只读取权限判断需要的字段，供评论、点赞等流程使用，避免加载正文与关联
 func (p *postRepo) GetPostMeta(id uint) (*PostMeta, error) {
 	var meta PostMeta
-	if err := GetDB().Model(&model.Post{}).Select("id, user_id, is_private").Where("id = ?", id).Take(&meta).Error; err != nil {
+	if err := GetDB().Model(&model.Post{}).Select("id, user_id, is_private, is_draft").Where("id = ?", id).Take(&meta).Error; err != nil {
 		return nil, err
 	}
 	return &meta, nil
@@ -140,11 +148,11 @@ func (p *postRepo) ListPostsForAISummary() ([]model.Post, error) {
 	return posts, err
 }
 
-// GetPublicPostStats 公开文章的浏览量、点赞数、评论数：只读这三列；私密或不存在的文章返回 gorm.ErrRecordNotFound
+// GetPublicPostStats 公开文章的浏览量、点赞数、评论数：只读这三列；私密、未发布草稿或不存在的文章返回 gorm.ErrRecordNotFound
 func (p *postRepo) GetPublicPostStats(id uint) (*dto.PostStatsDto, error) {
 	var stats dto.PostStatsDto
 	err := GetDB().Model(&model.Post{}).Select("view_count", "like_count", "comment_count").
-		Where("id = ? AND is_private = ?", id, false).Take(&stats).Error
+		Where("id = ? AND is_private = ? AND is_draft = ?", id, false, false).Take(&stats).Error
 	if err != nil {
 		return nil, err
 	}
@@ -157,21 +165,21 @@ func (p *postRepo) GetPublicPostContentHash(id uint) (string, error) {
 		ContentHash string
 	}
 	err := GetDB().Model(&model.Post{}).Select("content_hash").
-		Where("id = ? AND is_private = ?", id, false).Take(&row).Error
+		Where("id = ? AND is_private = ? AND is_draft = ?", id, false, false).Take(&row).Error
 	if err != nil {
 		return "", err
 	}
 	return row.ContentHash, nil
 }
 
-// GetPublicPostContent 公开文章的正文与哈希，供外链预览白名单提取使用；私密或不存在时返回 gorm.ErrRecordNotFound
+// GetPublicPostContent 公开文章的正文与哈希，供外链预览白名单提取使用；私密、未发布草稿或不存在时返回 gorm.ErrRecordNotFound
 func (p *postRepo) GetPublicPostContent(id uint) (string, string, error) {
 	var row struct {
 		Content     string
 		ContentHash string
 	}
 	err := GetDB().Model(&model.Post{}).Select("content", "content_hash").
-		Where("id = ? AND is_private = ?", id, false).Take(&row).Error
+		Where("id = ? AND is_private = ? AND is_draft = ?", id, false, false).Take(&row).Error
 	if err != nil {
 		return "", "", err
 	}
@@ -226,7 +234,7 @@ func (p *postRepo) ListTopPosts(limit int) ([]model.Post, error) {
 	var posts []model.Post
 
 	// 这里假设已有查询逻辑填充 posts，并 preload 了 labels
-	if err := GetDB().Order("view_count desc").Limit(limit).Preload("Labels").Find(&posts).Error; err != nil {
+	if err := GetDB().Where("is_private = ? AND is_draft = ?", false, false).Order("view_count desc").Limit(limit).Preload("Labels").Find(&posts).Error; err != nil {
 		return nil, err
 	}
 
@@ -293,8 +301,8 @@ func (p *postRepo) SavePostWithDraftVersion(post *model.Post, expected uint64, c
 	return err
 }
 
-// draftOnlyContentColumns 只有后台编辑器看得到的列（草稿正文）：前台的文章、页面接口与缓存都不含它们
-var draftOnlyContentColumns = []string{"draft_content"}
+// draftOnlyContentColumns 只有后台编辑器和管理列表看得到的草稿状态列：前台的文章、页面接口与缓存都不含它们
+var draftOnlyContentColumns = []string{"draft_content", "has_draft"}
 
 // touchesPublicColumns 本次保存是否写入了前台可见的数据：改了标签，或写入了草稿之外的任何列。
 // 按「草稿列白名单」反向判断：以后新增的列默认当作公开字段，宁可多失效一次也不让前台停在旧数据上
@@ -335,6 +343,9 @@ func updatePostTx(tx *gorm.DB, post *model.Post, columns []string, replaceLabels
 		selected, omitted := savedColumns(columns, replaceLabels)
 		if slices.Contains(columns, "content") {
 			selected = append(selected, "content_hash", "excerpt")
+		}
+		if slices.Contains(columns, "content") || slices.Contains(columns, "draft_content") {
+			selected = append(selected, "has_draft")
 		}
 		// 关联字段不随更新写入，否则已加载的 Category 会把清空的 category_id 写回去
 		if err := tx.Model(post).Omit(omitted...).Select(selected).Updates(post).Error; err != nil {
@@ -423,7 +434,7 @@ func (p *postRepo) ListPosts(includePrivate bool, query []string, req *dto.ListP
 
 // postListColumns 文章列表需要的字段：不读正文与草稿（摘要另读 posts.excerpt）
 var postListColumns = []string{"posts.id", "posts.created_at", "posts.updated_at", "posts.deleted_at", "posts.user_id",
-	"posts.category_id", "posts.cover", "posts.description", "posts.is_private", "posts.slug", "posts.title",
+	"posts.category_id", "posts.cover", "posts.description", "posts.is_private", "posts.is_draft", "posts.has_draft", "posts.slug", "posts.title",
 	"posts.type", "posts.pinned_at", "posts.pinned_until", "posts.like_count", "posts.comment_count", "posts.view_count", "posts.heat",
 	"posts.content_hash", "posts.ai_summary", "posts.ai_summary_source_hash", "posts.ai_summary_at"}
 
@@ -453,7 +464,7 @@ func (p *postRepo) ListPostCardsByIDs(ids []uint) ([]model.Post, error) {
 // ListPublicContentsWithComponents 公开文章（不含私密与草稿）中带内容组件的正文，用于找出文章引用的网易云歌曲（见 service/music_whitelist.go）
 func (p *postRepo) ListPublicContentsWithComponents() ([]string, error) {
 	var contents []string
-	err := GetDB().Model(&model.Post{}).Where("is_private = ? AND content LIKE ?", false, "%data-component%").Pluck("content", &contents).Error
+	err := GetDB().Model(&model.Post{}).Where("is_private = ? AND is_draft = ? AND content LIKE ?", false, false, "%data-component%").Pluck("content", &contents).Error
 	return contents, err
 }
 
@@ -467,13 +478,13 @@ func (p *postRepo) ListCategories() ([]model.Category, error) {
 // activePinnedCondition 此刻置顶在首页：已置顶且没有到期（参数为当前时间）
 const activePinnedCondition = "posts.pinned_at IS NOT NULL AND (posts.pinned_until IS NULL OR posts.pinned_until > ?)"
 
-// visiblePosts 私密文章只在后台出现：前台查询（includePrivate 为 false）只留公开文章，不论当前用户是谁，
+// visiblePosts 私密与尚未首次发布的草稿文章只在后台出现：前台查询（includePrivate 为 false）只留公开文章，不论当前用户是谁，
 // 前台数据因此对所有人一致；后台管理视图不过滤
 func visiblePosts(q *gorm.DB, includePrivate bool) *gorm.DB {
 	if includePrivate {
 		return q
 	}
-	return q.Where("posts.is_private = ?", false)
+	return q.Where("posts.is_private = ? AND posts.is_draft = ?", false, false)
 }
 
 // ListPinnedPosts 此刻置顶在首页的文章，后置顶的在前；includePrivate 为 false（前台）时只含公开文章；只读取列表需要的字段（不含正文）

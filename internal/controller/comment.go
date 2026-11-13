@@ -64,6 +64,20 @@ func (cc *CommentController) DeleteComment(ctx context.Context, c *app.RequestCo
 	resps.Ok(c, resps.Success, nil)
 }
 
+func (cc *CommentController) BatchDeleteComments(ctx context.Context, c *app.RequestContext) {
+	var req dto.BatchDeleteCommentReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	deleted, svcerr := cc.service.BatchDeleteComments(ctx, req.IDs)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, utils.H{"deleted": deleted})
+}
+
 func (cc *CommentController) GetComment(ctx context.Context, c *app.RequestContext) {
 	id := ctxutils.GetIDParam(c).Uint
 	resp, svcerr := cc.service.GetComment(ctx, id)

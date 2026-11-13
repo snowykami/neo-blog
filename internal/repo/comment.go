@@ -391,8 +391,19 @@ func (cr *CommentRepo) ListCommentsAdmin(page, size uint64, orderBy string, desc
 //   - 其他访客：只能看到公开文章 / 页面下的公开评论
 func (cr *CommentRepo) ListCommentsByUser(userID uint, viewAll, isSelf bool, page, size uint64, orderBy string, desc bool) ([]model.Comment, int64, error) {
 	// 已删除（软删除）的目标会被模型默认作用域排除，评论不会指向不存在的文章
-	visibleTargets := func(m any) *gorm.DB {
-		sub := GetDB().Model(m).Select("id")
+	visiblePostTargets := func() *gorm.DB {
+		sub := GetDB().Model(&model.Post{}).Select("id")
+		switch {
+		case viewAll:
+		case isSelf:
+			sub = sub.Where("((is_private = ? AND is_draft = ?) OR user_id = ?)", false, false, userID)
+		default:
+			sub = sub.Where("is_private = ? AND is_draft = ?", false, false)
+		}
+		return sub
+	}
+	visiblePageTargets := func() *gorm.DB {
+		sub := GetDB().Model(&model.Page{}).Select("id")
 		switch {
 		case viewAll:
 		case isSelf:
@@ -406,8 +417,8 @@ func (cr *CommentRepo) ListCommentsByUser(userID uint, viewAll, isSelf bool, pag
 	query := GetDB().Model(&model.Comment{}).Preload("User").
 		Where("user_id = ?", userID).
 		Where("((target_type = ? AND target_id IN (?)) OR (target_type = ? AND target_id IN (?)))",
-			constant.TargetTypePost, visibleTargets(&model.Post{}),
-			constant.TargetTypePage, visibleTargets(&model.Page{}))
+			constant.TargetTypePost, visiblePostTargets(),
+			constant.TargetTypePage, visiblePageTargets())
 	if !(viewAll || isSelf) {
 		query = query.Where("is_private = ?", false)
 	}
@@ -458,7 +469,7 @@ func (cr *CommentRepo) CountComments(targetType string, targetID uint) (int64, e
 
 // visibleComments 评论的可见性规则（基于 root_id）：游客只看公开评论；管理员和目标作者可见全部；
 // 普通用户可见公开评论，以及自己参与过的评论树中的私密评论
-func visibleComments(query *gorm.DB, currentUserID uint, viewAll bool) *gorm.DB {
+func visibleComments(query *gorm.DB, currentUserID uint, viewAll bool, rootIDs ...[]uint) *gorm.DB {
 	switch {
 	case currentUserID == 0:
 		return query.Where("is_private = ?", false)
@@ -466,6 +477,9 @@ func visibleComments(query *gorm.DB, currentUserID uint, viewAll bool) *gorm.DB 
 		return query
 	}
 	sub := GetDB().Model(&model.Comment{}).Select("distinct root_id").Where("user_id = ?", currentUserID)
+	if len(rootIDs) > 0 && len(rootIDs[0]) > 0 {
+		sub = sub.Where("root_id IN ?", rootIDs[0])
+	}
 	return query.Where("(is_private = ? OR (is_private = ? AND root_id IN (?)))", false, true, sub)
 }
 
@@ -476,31 +490,35 @@ func (cr *CommentRepo) ThreadSummaries(rootIDs []uint, currentUserID uint, viewA
 	if len(rootIDs) == 0 {
 		return counts, repliers, nil
 	}
-	thread := func() *gorm.DB {
-		return visibleComments(GetDB().Model(&model.Comment{}), currentUserID, viewAll).Where("root_id IN ? AND depth > 0", rootIDs)
-	}
-	var countRows []struct {
-		RootID uint
-		Count  int64
-	}
-	if err := thread().Select("root_id, COUNT(*) AS count").Group("root_id").Scan(&countRows).Error; err != nil {
-		return nil, nil, err
-	}
-	for _, row := range countRows {
-		counts[row.RootID] = row.Count
-	}
-	// 每位用户在线程中的第一条回复（id 越小越早），按先后排列
+	// 单次 GROUP BY root_id, user_id 同时计算线程总回复数与每位用户最早回复顺序
 	var userRows []struct {
 		RootID  uint
 		UserID  uint
+		Count   int64
 		FirstID uint
 	}
-	if err := thread().Select("root_id, user_id, MIN(id) AS first_id").Group("root_id, user_id").Order("first_id").Scan(&userRows).Error; err != nil {
+	err := visibleComments(GetDB().Model(&model.Comment{}), currentUserID, viewAll, rootIDs).
+		Where("root_id IN ? AND depth > 0", rootIDs).
+		Select("root_id, user_id, COUNT(*) AS count, MIN(id) AS first_id").
+		Group("root_id, user_id").
+		Order("first_id").
+		Scan(&userRows).Error
+	if err != nil {
 		return nil, nil, err
 	}
-	userIDs := make([]uint, 0, len(userRows))
+
+	pickedByRoot := make(map[uint][]uint, len(rootIDs))
+	seenUsers := make(map[uint]struct{})
+	userIDs := make([]uint, 0)
 	for _, row := range userRows {
-		userIDs = append(userIDs, row.UserID)
+		counts[row.RootID] += row.Count
+		if limit > 0 && len(pickedByRoot[row.RootID]) < limit {
+			pickedByRoot[row.RootID] = append(pickedByRoot[row.RootID], row.UserID)
+			if _, ok := seenUsers[row.UserID]; !ok {
+				seenUsers[row.UserID] = struct{}{}
+				userIDs = append(userIDs, row.UserID)
+			}
+		}
 	}
 	var users []model.User
 	if len(userIDs) > 0 {
@@ -512,9 +530,11 @@ func (cr *CommentRepo) ThreadSummaries(rootIDs []uint, currentUserID uint, viewA
 	for _, user := range users {
 		byID[user.ID] = user
 	}
-	for _, row := range userRows {
-		if user, ok := byID[row.UserID]; ok && len(repliers[row.RootID]) < limit {
-			repliers[row.RootID] = append(repliers[row.RootID], user)
+	for rootID, uids := range pickedByRoot {
+		for _, uid := range uids {
+			if user, ok := byID[uid]; ok {
+				repliers[rootID] = append(repliers[rootID], user)
+			}
 		}
 	}
 	return counts, repliers, nil

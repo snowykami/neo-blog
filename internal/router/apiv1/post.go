@@ -24,9 +24,11 @@ func registerPostRoutes(group *route.RouterGroup) {
 		postGroupPublic.GET("/categories", postController.GetCategories) // 获取文章分类列表
 		postGroupPublic.GET("/random", postController.GetRandom)         // 获取随机文章ID
 		// 需要鉴权且有编辑权限
-		postGroupWithAuth.POST("/p", postController.Create)       // 创建文章
-		postGroupWithAuth.PUT("/p/:id", postController.Update)    // 更新文章
-		postGroupWithAuth.DELETE("/p/:id", postController.Delete) // 删除文章
+		postGroupWithAuth.POST("/p", postController.Create)                          // 创建文章
+		postGroupWithAuth.PUT("/p/:id", postController.Update)                       // 更新文章
+		postGroupWithAuth.DELETE("/p/:id", postController.Delete)                    // 删除文章
+		postGroupWithAuth.POST("/batch-delete", postController.BatchDelete)          // 批量删除文章
+		postGroupWithAuth.PATCH("/batch-visibility", postController.BatchVisibility) // 批量切换私密/公开
 		// 后台读取：编辑器与预览读取文章（含私密文章与草稿），作者本人的文章列表（含私密文章）
 		postGroupWithAuth.GET("/p/:id/draft", postController.GetForEdit)
 		postGroupWithAuth.GET("/mine", postController.ListMine)
