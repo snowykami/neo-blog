@@ -1,4 +1,4 @@
-import type { Post } from '@/models/post'
+import type { Post, PostNeighbors } from '@/models/post'
 import type { BaseResponse } from '@/models/resp'
 import getAuthHeaders from '@/utils/server/auth-headers'
 import axiosClient from './client'
@@ -9,6 +9,12 @@ import axiosClient from './client'
  */
 export async function getPostByIdServer({ id }: { id: string }): Promise<BaseResponse<Post | null>> {
   const res = await axiosClient.get(`/post/p/${id}`)
+  return res.data
+}
+
+/** 前台服务端读取公开文章的上一篇、下一篇与相关推荐（私密或草稿文章 404） */
+export async function getPostNeighborsServer({ id }: { id: number }): Promise<BaseResponse<PostNeighbors>> {
+  const res = await axiosClient.get(`/post/p/${id}/neighbors`)
   return res.data
 }
 

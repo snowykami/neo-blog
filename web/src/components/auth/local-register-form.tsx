@@ -70,12 +70,10 @@ export function LocalRegisterForm({
         setCaptchaProps(res.data)
       })
       .catch((error) => {
-        toast.error(
-          t('fetch_captcha_config_failed') + (error?.message ? `: ${error.message}` : ''),
-        )
+        toast.error(`${t('fetch_captcha_config_failed')}: ${translateErrorDetails(error)}`)
         setCaptchaProps(null)
       })
-  }, [refreshCaptchaKey, t])
+  }, [refreshCaptchaKey, t, translateErrorDetails])
 
   const handleCaptchaError = (error: string) => {
     toast.error(t('captcha_error') + (error ? `: ${error}` : ''))

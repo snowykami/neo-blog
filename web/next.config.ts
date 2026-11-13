@@ -31,15 +31,19 @@ export default (phase: string): NextConfig => {
     || (isDev ? '' : String(Date.now()))
   if (buildTime)
     process.env.NEXT_PUBLIC_BUILD_TIME = buildTime
+  // 可选静态资源 CDN 前缀（去掉末尾 /）；未配置或留空时为 undefined，保持与同源部署完全一致
+  const assetPrefix = process.env.NEXT_PUBLIC_ASSET_PREFIX?.trim().replace(/\/+$/, '') || undefined
 
   const nextConfig: NextConfig = {
     output: 'standalone',
+    ...(assetPrefix ? { assetPrefix } : {}),
     // 开发模式下关闭 Node 层 gzip 压缩与 ETag 304 协商缓存，避免流式响应缓冲与条件缓存干扰调试
     compress: !isDev,
     generateEtags: !isDev,
     env: {
       NEXT_PUBLIC_APP_VERSION: appVersion,
       NEXT_PUBLIC_BUILD_TIME: buildTime,
+      NEXT_PUBLIC_ASSET_PREFIX: assetPrefix ?? '',
     },
     // Cache Components：页面默认按请求渲染，用 'use cache' + cacheLife + cacheTag 声明哪些数据 / 组件跨请求缓存（取代路由段的
     // dynamic、revalidate 与 unstable_cache），每个路由先预渲染出静态外壳（App Shell），读地址参数的部分在 Suspense 里流式补上。
@@ -110,16 +114,30 @@ export default (phase: string): NextConfig => {
       if (isDev)
         return []
       return [
-        // /_next/static 不用在这里配：生产环境 Next 自己就会给它加 `public, max-age=31536000, immutable`（文档说明不可覆盖），
-        // 开发环境则有意用 no-cache 让改动生效；在这里写反而会让开发时的 chunk 被浏览器长期缓存
+        // /_next/static 生产环境缓存头由 Next 自行设置（public, max-age=31536000, immutable），
+        // 这里仅补充跨域字体与静态资源访问头，确保开启回源型 CDN assetPrefix 时 @font-face 不被 CORS 拦截
+        {
+          source: '/_next/static/:path*',
+          headers: [{ key: 'Access-Control-Allow-Origin', value: '*' }],
+        },
         // 文章网页字体（scripts/gen-webfonts.mjs 生成）：分片目录带字体包版本号，可以长期缓存；字体 CSS 地址固定，缓存一天
         {
           source: '/fonts/:font/:version/:file',
-          headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+          headers: [
+            { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+            { key: 'Access-Control-Allow-Origin', value: '*' },
+          ],
         },
         {
           source: '/fonts/:file',
-          headers: [{ key: 'Cache-Control', value: 'public, max-age=86400, stale-while-revalidate=604800' }],
+          headers: [
+            { key: 'Cache-Control', value: 'public, max-age=86400, stale-while-revalidate=604800' },
+            { key: 'Access-Control-Allow-Origin', value: '*' },
+          ],
+        },
+        {
+          source: '/fonts/:path*',
+          headers: [{ key: 'Access-Control-Allow-Origin', value: '*' }],
         },
       ]
     },

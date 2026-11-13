@@ -1,4 +1,6 @@
+import type { Category } from './category'
 import type { EditSessionTarget } from './edit-session'
+import type { Label } from './label'
 
 // AI 写作模式：帮写（在光标处生成）/ 润色（改写选区）
 export type AIWriteMode = 'write' | 'rewrite'
@@ -39,3 +41,26 @@ export type AIWriteEvent
   = | { event: 'queued' | 'thinking' | 'done' | 'ping' }
     | { event: 'delta', text: string }
     | { event: 'error', message: string }
+
+export interface AITitlesPayload {
+  title?: string
+  description?: string
+  document?: string
+}
+
+export interface AITaxonomyPayload {
+  title?: string
+  description?: string
+  document?: string
+}
+
+export interface AITaxonomyNewItem {
+  name: string
+  slug: string
+}
+
+export interface AITaxonomySuggestion {
+  category?: Category | null
+  labels: Label[]
+  newLabels: AITaxonomyNewItem[]
+}

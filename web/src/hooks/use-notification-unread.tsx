@@ -7,17 +7,24 @@ import { BellRing } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 import { toast } from 'sonner'
-import { getUnreadNotificationCount } from '@/api/notification'
+import { getUnreadNotificationCount, markNotificationRead } from '@/api/notification'
+import { UserAvatar } from '@/components/common/avatar'
+import { formatNotificationAlertText, getNotificationTargetHref } from '@/components/notification/notification-format'
 import { useAuth } from '@/contexts/auth-context'
 import { pushIslandAlert } from '@/contexts/topbar-island'
-import { isNewerNotificationMarker, toNotificationMarker } from './notification-unread-marker'
+import { usePathname, useRouter } from '@/i18n/navigation'
+import { mainPath } from '@/utils/common/route'
+import { advanceNotificationMarker, isNewerNotificationMarker, toNotificationMarker } from './notification-unread-marker'
 import {
+  decreaseUnreadSnapshot,
   getUnreadSnapshot,
   nextSseRetryDelay,
   registerUnreadRefresher,
+  requestUnreadRefresh,
   setUnreadSnapshot,
   subscribeUnreadSnapshot,
 } from './notification-unread-store'
+import { getIslandNotificationEnabled } from './use-island-notification-pref'
 
 // 兜底轮询间隔：只在 SSE 断开或连不上（代理不支持长连接、连接数超限）时启用
 const POLL_INTERVAL_MS = 60_000
@@ -40,6 +47,12 @@ export function useUnreadNotificationCount() {
   // 只跟随账号变化：用户对象在改配色、改资料时也会换新，不能因此重连
   const userId = user?.id ?? null
   const t = useTranslations('Notifications')
+  const router = useRouter()
+  const pathname = usePathname()
+  const pathnameRef = useRef(pathname)
+  useEffect(() => {
+    pathnameRef.current = pathname
+  }, [pathname])
   const payload = useUnreadNotificationSnapshot()
   // undefined = 还没有基线：第一次拿到的值只记下来不提示
   const latest = useRef<NotificationMarker | null | undefined>(undefined)
@@ -52,26 +65,51 @@ export function useUnreadNotificationCount() {
     setUnreadSnapshot({ userId: forUser, payload: next })
     const marker = toNotificationMarker(next)
     const isNew = isNewerNotificationMarker(latest.current, marker)
-    // 只往前走：旧请求晚到、取消点赞让最新一条变旧时不回退基线，避免之后重复提示
-    if (latest.current === undefined || isNew)
-      latest.current = marker
+    // 单调推进基线：标已读或取消点赞回退最新项时不回退最大已见水位，同时更新当前未读快照
+    latest.current = advanceNotificationMarker(latest.current, marker)
     if (!isNew)
       return
-    // 在灵动岛上提一句（后台页没有顶栏时不显示，交给 toast）
-    // 消息类提示（layer: notice）：不插队、会被点赞/评论等反馈盖掉，被盖掉后回到队首重新计时
-    // TODO(通知内容化)：SSE 目前只推未读组数与最近一条的标记，提示还不知道是什么也不能点；
-    // 改成推事件明细后这里换成「小明等 3 人赞了《x》」并补上 onPress（跳 /notifications）
+    // 用户个人关闭了顶栏灵动岛通知提醒时：仅静默更新未读徽标，不弹岛也不弹 toast
+    if (!getIslandNotificationEnabled())
+      return
+    // 已经在通知列表页时不重复弹岛（列表页本身会展示最新通知）
+    if (pathnameRef.current === mainPath.notifications)
+      return
+
+    const preview = next.latest && !next.latest.isRead ? next.latest : null
+    const alertText = preview ? formatNotificationAlertText(t, preview) : t('new_notification')
+    const targetHref = preview ? getNotificationTargetHref(preview) : null
+    const handleOpenAlert = () => {
+      if (preview?.id) {
+        decreaseUnreadSnapshot(forUser, 1)
+        markNotificationRead(preview.id)
+          .catch(() => {})
+          .finally(() => requestUnreadRefresh())
+      }
+      router.push(targetHref || mainPath.notifications)
+    }
+
     const shown = pushIslandAlert({
-      key: 'notification',
+      key: preview ? `notification:${preview.type}:${preview.targetType}:${preview.targetId}` : 'notification',
       feature: 'feedback',
       layer: 'notice',
       resume: 'restart',
-      icon: <BellRing aria-hidden className="text-sky-400" />,
-      text: t('new_notification'),
+      duration: 4200,
+      icon: preview?.actor
+        ? <UserAvatar user={preview.actor} size={48} className="size-6 rounded-full" />
+        : <BellRing aria-hidden className="text-sky-400" />,
+      text: alertText,
+      onPress: handleOpenAlert,
     })
-    if (!shown)
-      toast.info(t('new_notification'))
-  }, [t])
+    if (!shown) {
+      toast.info(alertText, {
+        action: {
+          label: t('title'),
+          onClick: handleOpenAlert,
+        },
+      })
+    }
+  }, [router, t])
 
   const refresh = useCallback(async () => {
     const forUser = activeUser.current
@@ -135,6 +173,9 @@ export function useUnreadNotificationCount() {
               byType: data.byType ?? {},
               latestId: data.latestId ?? 0,
               latestAt: data.latestAt ?? null,
+              seq: data.seq ?? 0,
+              updatedAt: data.updatedAt,
+              latest: data.latest ?? null,
             })
           }
         }

@@ -14,6 +14,7 @@ import { ContentHoverCard } from '@/components/blog-post/content-hover-card'
 import { ContentImageFallback } from '@/components/blog-post/content-image-fallback'
 import { ContentImageViewer } from '@/components/blog-post/content-image-viewer'
 import { PostBackground } from '@/components/blog-post/post-background.client'
+import { PostContinuation } from '@/components/blog-post/post-continuation'
 import { PostEditButton } from '@/components/blog-post/post-edit-button.client'
 import { PostLiveStats } from '@/components/blog-post/post-live-stats.client'
 import { PostMeta } from '@/components/blog-post/post-meta'
@@ -33,6 +34,7 @@ import { contentWebFonts, resolveContentTheme } from '@/lib/content-theme'
 import { TargetType } from '@/models/types'
 import { calculateReadingTime, countWords } from '@/utils/common/post'
 import { renderContentHtml } from '@/utils/server/render-content'
+import { getCachedPostNeighbors } from './post-data'
 import '@/app/styles/content-themes/index.scss'
 import '@/components/tiptap-node/image-node/image-figure.scss'
 import '@/components/tiptap-node/video-node/video-figure.scss'
@@ -190,7 +192,10 @@ export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?
   const content = (isDraft ? post.draftContent : post.content) || ''
   // 正文为空时显示一句提示（用段落而不是标题，不进目录）；渲染时照常经过净化
   const emptyContent = content ? '' : `<p>${(await getTranslations('Common'))('empty_content')}</p>`
-  const { html, headings } = await renderContentHtml(content || emptyContent)
+  const [{ html, headings }, neighbors] = await Promise.all([
+    renderContentHtml(content || emptyContent),
+    isDraft ? Promise.resolve(null) : getCachedPostNeighbors(post.id),
+  ])
   return (
     <>
       {/* 顶栏灵动岛的阅读进度与迷你目录 */}
@@ -212,6 +217,7 @@ export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?
         )}
       >
         <PostArticle post={post} html={html} isDraft={isDraft} />
+        {!isDraft && neighbors && <PostContinuation neighbors={neighbors} />}
         {/* Comments section wrapped in Suspense for better performance；id 供顶栏迷你目录「去评论区」跳转 */}
         <div id="comments" className="scroll-mt-[calc(var(--nav-h)+1rem)] rounded-2xl bg-card px-6 py-6 md:px-9 md:py-8">
           <Suspense fallback={<CommentsSkeleton />}>

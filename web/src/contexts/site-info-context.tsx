@@ -1,7 +1,7 @@
 'use client'
 
 import type { SiteInfo } from '@/utils/common/siteinfo'
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { fallbackSiteInfo } from '@/utils/common/siteinfo'
 
 interface SiteInfoContextValue {
@@ -55,6 +55,7 @@ export const SiteInfoProvider: React.FC<{
 
   const [siteInfo, setSiteInfo] = useState<SiteInfo>(mergedInitialData)
   const [isLoaded, setIsLoaded] = useState<boolean>(Boolean(initialData))
+  const prevInitialDataRef = useRef(initialData)
 
   useEffect(() => {
     if (initialData)
@@ -87,6 +88,9 @@ export const SiteInfoProvider: React.FC<{
   }, [initialData])
 
   useEffect(() => {
+    if (prevInitialDataRef.current === initialData)
+      return
+    prevInitialDataRef.current = initialData
     if (initialData) {
       const mergedData = mergeWithFallback(initialData, fallbackSiteInfo)
       setSiteInfo(mergedData)
@@ -94,18 +98,22 @@ export const SiteInfoProvider: React.FC<{
     }
   }, [initialData])
 
+  const updateSiteInfo = useCallback((info: SiteInfo) => {
+    // 当手动设置 siteInfo 时也进行合并
+    setSiteInfo(mergeWithFallback(info, fallbackSiteInfo))
+  }, [])
+
+  const value = useMemo(
+    () => ({
+      siteInfo,
+      setSiteInfo: updateSiteInfo,
+      isLoaded,
+    }),
+    [siteInfo, updateSiteInfo, isLoaded],
+  )
+
   return (
-    <SiteInfoContext.Provider
-      value={{
-        siteInfo,
-        setSiteInfo: (info: SiteInfo) => {
-          // 当手动设置 siteInfo 时也进行合并
-          const mergedInfo = mergeWithFallback(info, fallbackSiteInfo)
-          setSiteInfo(mergedInfo)
-        },
-        isLoaded,
-      }}
-    >
+    <SiteInfoContext.Provider value={value}>
       {children}
     </SiteInfoContext.Provider>
   )

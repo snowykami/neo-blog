@@ -97,10 +97,6 @@
     "list": "List",
     "card": "Large cards"
   },
-  "HomePage": {
-    "title": "Hello world!",
-    "already_in_love_n_day": "{n, plural, one {In love for # day} other {In love for # days}}"
-  },
   "BlogHome": {
     "hottest": "Popular",
     "hottest_posts": "Popular Posts",
@@ -252,7 +248,10 @@
     "sidebar_description": "Sidebar navigation",
     "toggle_sidebar": "Toggle sidebar",
     "empty_content": "This post has no content yet",
-    "untitled": "Untitled"
+    "untitled": "Untitled",
+    "prev_post": "Previous",
+    "next_post": "Next",
+    "related_posts": "Related Posts"
   },
   "Components": {
     "image_cropper": {
@@ -1214,6 +1213,10 @@
       "ttml_source_name": "Name",
       "ttml_source_url": "URL",
       "ttml_source_url_invalid": "Enter a lyrics source URL starting with http:// or https://",
+      "ttml_cache_clear": "Clear TTML Cache",
+      "ttml_cache_clear_hint": "Clear cached TTML hits and 72h misses for all songs so they are re-probed immediately",
+      "ttml_cache_cleared": "TTML lyric cache cleared",
+      "ttml_cache_clear_failed": "Failed to clear TTML cache",
       "move_up": "Move up",
       "move_down": "Move down",
       "env_override_note": "Set by the environment variable {name}, which takes precedence over this setting. Remove the variable to edit it here",
@@ -1366,7 +1369,9 @@
       "search_reindex_failed": "Failed to start reindex",
       "search_reindex_save_first": "Save your search configuration changes before rebuilding indexes",
       "env_secret_configured": "Configured via environment variable (hidden)",
-      "secret_configured_placeholder": "Configured, leave blank to keep unchanged"
+      "secret_configured_placeholder": "Configured, leave blank to keep unchanged",
+      "enable_email_verify": "Enable email verification",
+      "enable_email_verify_desc": "Require email verification codes when registering, resetting passwords, or changing email addresses"
     },
     "labels": {
       "title": "Tags",
@@ -1406,7 +1411,19 @@
         "oauth2": "OAuth2 / OIDC",
         "misskey": "Misskey"
       },
-      "secret_configured_placeholder": "Configured, leave blank to keep unchanged"
+      "secret_configured_placeholder": "Configured, leave blank to keep unchanged",
+      "client_id": "Client ID",
+      "client_secret": "Client Secret",
+      "discovery_url": "Discovery URL",
+      "issuer": "Issuer",
+      "authorization_endpoint": "Authorization Endpoint",
+      "token_endpoint": "Token Endpoint",
+      "userinfo_endpoint": "Userinfo Endpoint",
+      "jwks_uri": "JWKS URI",
+      "token_auth_methods": {
+        "client_secret_post": "Form body (client_secret_post)",
+        "client_secret_basic": "HTTP Basic Auth (client_secret_basic)"
+      }
     },
     "personal": "Personal",
     "posts": {
@@ -1495,7 +1512,20 @@
       "empty_search": "No matching posts found",
       "select_all": "Select all on page",
       "selected_count": "Selected {count}",
-      "batch_delete_description": "Delete {count} selected posts? This action cannot be undone."
+      "batch_delete_description": "Delete {count} selected posts? This action cannot be undone.",
+      "ai_suggest_titles": "AI Title Suggestions",
+      "ai_suggest_titles_short": "AI Titles",
+      "ai_titles_generating": "Drafting title ideas from content…",
+      "ai_titles_regenerate": "Regenerate",
+      "ai_titles_hint": "Click any suggestion to apply it",
+      "ai_recommend_taxonomy": "AI Category & Labels",
+      "ai_taxonomy_generating": "Analyzing post topics…",
+      "ai_taxonomy_apply_all": "Apply all",
+      "ai_taxonomy_category": "Suggested category",
+      "ai_taxonomy_labels": "Matched existing labels",
+      "ai_taxonomy_new_labels": "Suggested new labels (click to create & add)",
+      "ai_taxonomy_create_and_add": "Create and add label \"{name}\"",
+      "ai_taxonomy_empty": "No matching category or labels found yet"
     },
     "storages": {
       "title": "Storage providers",
@@ -2383,15 +2413,12 @@
       "color_none": "No color",
       "phrase_font": "Font",
       "phrase_font_default": "Default font",
-      "phrase_pace": "Pace",
-      "phrase_pace_default": "Song pace",
       "add_effect": "Add effect",
       "phrase_delete": "Remove effect",
       "close": "Close",
       "song_settings": "Song settings",
       "font": "Song font",
       "font_default": "Default font",
-      "pace": "Effect pace",
       "intro": "Intro line",
       "intro_placeholder": "Shown during the intro; optional",
       "accent": "Theme color",
@@ -3242,7 +3269,16 @@
     "empty_title": "Nothing to fix",
     "empty_desc": "Rows appear here only when delivery needs attention",
     "prev": "Previous",
-    "next": "Next"
+    "next": "Next",
+    "types": {
+      "comment_created": "New comment",
+      "comment_replied": "Comment reply",
+      "comment_mentioned": "Mention in comment",
+      "comment_thread_replied": "Thread reply",
+      "post_liked": "Post liked",
+      "comment_liked": "Comment liked",
+      "system_test": "System test"
+    }
   },
   "Copyright": {
     "author": "Author",
@@ -3284,7 +3320,9 @@
     "list_separator": ", ",
     "type_comment_created": "comments",
     "type_comment_replied": "replies",
-    "type_comment_mentioned": "mentions"
+    "type_comment_mentioned": "mentions",
+    "switch_island_alert": "Top-bar island alerts",
+    "switch_island_alert_desc": "Show a compact preview in the top bar when new notifications arrive; when off, only the unread badge updates (saved in this browser)"
   },
   "Notifications": {
     "title": "Notifications",
@@ -3326,7 +3364,22 @@
     "attachment_image": "[Image]",
     "attachment_images": "[{count} images]",
     "attachment_file": "[Attachment]",
-    "attachment_files": "[{count} attachments]"
+    "attachment_files": "[{count} attachments]",
+    "settings": "Settings",
+    "island_alert_switch": "Top-bar island alerts",
+    "island_alert_desc": "Show a brief preview in the top bar when new notifications arrive (saved in this browser)",
+    "island_and_others": " ({count} people)",
+    "island_types": {
+      "comment_created": "{actors} on \"{subject}\": \"{excerpt}\"",
+      "comment_created_page": "{actors} on page \"{subject}\": \"{excerpt}\"",
+      "comment_replied": "{actors} replied: \"{excerpt}\"",
+      "post_liked": "{actors} liked \"{subject}\"",
+      "comment_liked": "{actors} liked your comment \"{quoted}\"",
+      "comment_liked_without_quote": "{actors} liked your comment",
+      "comment_thread_replied": "{actors} replied in \"{subject}\"",
+      "comment_mentioned": "{actors} mentioned you: \"{excerpt}\"",
+      "system_test": "Test notification received"
+    }
   },
   "Login": {
     "captcha_error": "Captcha error, try again.",
@@ -3443,7 +3496,9 @@
     "sort_by": "Sort by",
     "direction": "Direction",
     "desc": "Descending",
-    "asc": "Ascending"
+    "asc": "Ascending",
+    "id": "ID",
+    "username": "Username"
   },
   "Random": {
     "title": "Random post",
@@ -3535,13 +3590,6 @@
   "State": {
     "private": "Private",
     "public": "Public"
-  },
-  "FileSelector": {
-    "select_file": "Select File",
-    "select_n_files": "{n, plural, one {Select # file} other {Select # files}}",
-    "select_files": "Select Files",
-    "upload_file": "Upload File",
-    "uploading": "Uploading..."
   },
   "MusicPlayer": {
     "loading_lyric": "Loading Lyrics...",
@@ -3862,7 +3910,8 @@
       "meilisearch_test_failed": "Meilisearch connection test failed",
       "meilisearch_not_enabled": "Meilisearch is not enabled",
       "csrf_origin_mismatch": "Cross-origin request verification failed. Please refresh and try again.",
-      "empty_file": "The uploaded file is empty"
+      "empty_file": "The uploaded file is empty",
+      "content_too_short": "Content is too short. Write a few sentences first."
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field} \"{value}\" is invalid} resource {Invalid {resource} parameters} other {Invalid request parameters}}",
@@ -4734,12 +4783,6 @@
       "bright": "Bright",
       "sad": "Sad",
       "intense": "Intense"
-    },
-    "paces": {
-      "beat": "Follow the beat (recommended)",
-      "slow": "Slow",
-      "medium": "Medium",
-      "fast": "Fast"
     },
     "styles": {
       "bold": "Bold",

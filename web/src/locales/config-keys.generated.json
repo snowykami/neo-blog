@@ -103,6 +103,8 @@
     "email_ssl_desc",
     "email_username",
     "empty_to_hide",
+    "enable_email_verify",
+    "enable_email_verify_desc",
     "enable_register",
     "enable_register_desc",
     "enable_register_from_oidc",

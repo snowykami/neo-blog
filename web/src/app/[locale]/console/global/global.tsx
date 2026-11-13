@@ -4,6 +4,7 @@ import type { KVItem } from '@/api/admin'
 import { Search } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { createKV, deleteKV, listKV, setKV } from '@/api/admin'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
@@ -17,8 +18,16 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import {
@@ -34,6 +43,12 @@ import { useDebouncedState } from '@/hooks/use-debounce'
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { useStandaloneConfigKeys } from './settings-form'
 
+interface KVFormValues {
+  key: string
+  secret: boolean
+  value: string
+}
+
 export default function GlobalPage() {
   const operationT = useOperationT()
   const errorMessageT = useErrorMessageT()
@@ -42,12 +57,15 @@ export default function GlobalPage() {
   const t = useTranslations('Console.global.kv')
   const [items, setItems] = useState<KVItem[]>([])
   const [selectedKey, setSelectedKey] = useState('')
-  const [keyInput, setKeyInput] = useState('')
-  const [valueInput, setValueInput] = useState('null')
-  const [secretInput, setSecretInput] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [saving, setSaving] = useState(false)
   const [queryInput, setQueryInput, debouncedQuery] = useDebouncedState('', 200)
+  const form = useForm<KVFormValues>({
+    defaultValues: {
+      key: '',
+      secret: false,
+      value: 'null',
+    },
+  })
 
   const selectedItem = useMemo(
     () => items.find(item => item.key === selectedKey) || null,
@@ -68,7 +86,7 @@ export default function GlobalPage() {
     finally {
       setLoading(false)
     }
-  }, [debouncedQuery, operationT, selectedKey])
+  }, [debouncedQuery, errorMessageT, operationT, selectedKey])
 
   useEffect(() => {
     fetchItems()
@@ -77,53 +95,42 @@ export default function GlobalPage() {
   useEffect(() => {
     if (!selectedItem)
       return
-    setKeyInput(selectedItem.key)
-    setSecretInput(Boolean(selectedItem.secret))
     // 敏感项后端不回传明文，留空表示仅修改敏感标记或保持原值不变
-    setValueInput(selectedItem.secret ? '' : JSON.stringify(selectedItem.value, null, 2))
-  }, [selectedItem])
+    form.reset({
+      key: selectedItem.key,
+      secret: Boolean(selectedItem.secret),
+      value: selectedItem.secret ? '' : JSON.stringify(selectedItem.value, null, 2),
+    })
+  }, [form, selectedItem])
 
   const handleNew = (key = '') => {
     setSelectedKey('')
-    setKeyInput(key)
-    setSecretInput(false)
-    setValueInput('null')
+    form.reset({
+      key,
+      secret: false,
+      value: 'null',
+    })
   }
 
-  const handleSave = async () => {
-    const key = keyInput.trim()
-    if (!key) {
-      toast.error(t('key_required'))
-      return
-    }
-
-    const trimmedValue = valueInput.trim()
+  const onSubmit = async (values: KVFormValues) => {
+    const key = values.key.trim()
+    const trimmedValue = values.value.trim()
     // 编辑已标记为敏感的项且未输入新值时，只更新敏感布尔标记，不覆盖已有值
     const keepExistingSecretValue = Boolean(selectedKey && selectedItem?.secret && trimmedValue === '')
-    let value: unknown
-    if (!keepExistingSecretValue) {
-      try {
-        value = JSON.parse(valueInput)
-      }
-      catch {
-        toast.error(t('value_invalid_json'))
-        return
-      }
-    }
+    const value = keepExistingSecretValue ? undefined : JSON.parse(values.value)
 
-    setSaving(true)
     try {
       if (selectedKey) {
         await setKV({
           key: selectedKey,
           value,
-          secret: secretInput,
+          secret: values.secret,
           updateValue: !keepExistingSecretValue,
         })
         setSelectedKey(key)
       }
       else {
-        await createKV({ key, value, secret: secretInput })
+        await createKV({ key, value, secret: values.secret })
         setSelectedKey(key)
       }
       toast.success(operationT('save_success'))
@@ -131,9 +138,6 @@ export default function GlobalPage() {
     }
     catch (error) {
       toast.error(`${operationT('save_failed')}: ${errorMessageT(error)}`)
-    }
-    finally {
-      setSaving(false)
     }
   }
 
@@ -223,41 +227,76 @@ export default function GlobalPage() {
             <CardTitle>{selectedKey ? t('edit_item') : t('new_item')}</CardTitle>
             <CardDescription>{t('value_hint')}</CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="kv-key">{t('key')}</Label>
-              <Input
-                id="kv-key"
-                value={keyInput}
-                onChange={e => setKeyInput(e.target.value)}
-                disabled={Boolean(selectedKey)}
-              />
-            </div>
-            <div className="flex items-center justify-between gap-3 rounded-md border p-3">
-              <div className="grid gap-1">
-                <Label htmlFor="kv-secret">{t('secret_label')}</Label>
-                <span className="text-xs text-muted-foreground">{t('secret_hint')}</span>
-              </div>
-              <Switch
-                id="kv-secret"
-                checked={secretInput}
-                onCheckedChange={setSecretInput}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="kv-value">{t('value')}</Label>
-              <Textarea
-                id="kv-value"
-                className="min-h-60 font-mono text-xs"
-                placeholder={selectedItem?.secret && selectedItem.hasValue ? t('secret_value_placeholder') : undefined}
-                value={valueInput}
-                onChange={e => setValueInput(e.target.value)}
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button onClick={handleSave} disabled={saving}>{saving ? t('saving') : operationT('save')}</Button>
-              <Button type="button" variant="outline" onClick={() => handleNew()}>{t('clear')}</Button>
-            </div>
+          <CardContent>
+            <Form {...form}>
+              <form className="grid gap-4" onSubmit={form.handleSubmit(onSubmit)}>
+                <FormField
+                  control={form.control}
+                  name="key"
+                  rules={{ validate: v => !!v.trim() || t('key_required') }}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('key')}</FormLabel>
+                      <FormControl>
+                        <Input {...field} disabled={Boolean(selectedKey)} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="secret"
+                  render={({ field }) => (
+                    <FormItem className="flex items-center justify-between gap-3 rounded-md border p-3">
+                      <div className="grid gap-1">
+                        <FormLabel>{t('secret_label')}</FormLabel>
+                        <FormDescription className="text-xs">{t('secret_hint')}</FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch checked={field.value} onCheckedChange={field.onChange} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="value"
+                  rules={{
+                    validate: (v) => {
+                      if (selectedKey && selectedItem?.secret && v.trim() === '')
+                        return true
+                      try {
+                        JSON.parse(v)
+                        return true
+                      }
+                      catch {
+                        return t('value_invalid_json')
+                      }
+                    },
+                  }}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('value')}</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          {...field}
+                          className="min-h-60 font-mono text-xs"
+                          placeholder={selectedItem?.secret && selectedItem.hasValue ? t('secret_value_placeholder') : undefined}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="flex gap-2">
+                  <Button type="submit" disabled={form.formState.isSubmitting}>
+                    {form.formState.isSubmitting ? t('saving') : operationT('save')}
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => handleNew()}>{t('clear')}</Button>
+                </div>
+              </form>
+            </Form>
           </CardContent>
         </Card>
         <Card className="rounded-lg">

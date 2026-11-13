@@ -4,14 +4,22 @@ import type { SearchSelectOption } from './shared'
 import type { AgentRun } from '@/models/ai-agent'
 import { FlaskConical, Info, Loader2, Square } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
+import { useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 import { listPostsAdmin } from '@/api/admin'
 import { dryRunAIAgent, getAgentRun, getAIAgentStats } from '@/api/ai-agent'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { RunDetailBody } from './run-list'
@@ -24,14 +32,28 @@ const FINISHED = new Set<AgentRun['status']>(['done', 'failed', 'skipped'])
 
 type TargetType = 'post' | 'comment'
 
+interface DryRunFormValues {
+  targetType: TargetType
+  post: SearchSelectOption | null
+  commentId: string
+}
+
 // 试运行：用指定文章或评论预演一次，只输出操作列表不执行
 export function DryRunCard({ agentId }: { agentId: number }) {
   const t = useAIAgentT()
   const operationT = useOperationT()
   const errorMessageT = useErrorMessageT()
-  const [targetType, setTargetType] = useState<TargetType>('post')
-  const [post, setPost] = useState<SearchSelectOption | null>(null)
-  const [commentId, setCommentId] = useState('')
+  const form = useForm<DryRunFormValues>({
+    defaultValues: {
+      targetType: 'post',
+      post: null,
+      commentId: '',
+    },
+  })
+  const [targetType, post, commentId] = useWatch({
+    control: form.control,
+    name: ['targetType', 'post', 'commentId'],
+  })
   const [run, setRun] = useState<AgentRun | null>(null)
   const [polling, setPolling] = useState(false)
   const [starting, setStarting] = useState(false)
@@ -83,14 +105,15 @@ export function DryRunCard({ agentId }: { agentId: number }) {
   const targetId = targetType === 'post' ? post?.value ?? 0 : Number(commentId)
   const canStart = Number.isInteger(targetId) && targetId > 0 && !starting && !polling
 
-  const start = async () => {
-    if (!canStart)
+  const start = async (values: DryRunFormValues) => {
+    const resolvedId = values.targetType === 'post' ? values.post?.value ?? 0 : Number(values.commentId)
+    if (!Number.isInteger(resolvedId) || resolvedId <= 0 || starting || polling)
       return
     setPolling(false)
     setStarting(true)
     setRun(null)
     try {
-      const res = await dryRunAIAgent(agentId, { targetType, targetId })
+      const res = await dryRunAIAgent(agentId, { targetType: values.targetType, targetId: resolvedId })
       setRun(res.data)
       const time = Date.now()
       setStartedAt(time)
@@ -118,53 +141,94 @@ export function DryRunCard({ agentId }: { agentId: number }) {
         <CardDescription>{t('dry_run.description')}</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
-        <div className="grid gap-2">
-          <Label>{t('dry_run.target')}</Label>
-          <ToggleGroup type="single" variant="segmented" value={targetType} onValueChange={v => v && setTargetType(v as TargetType)} className="w-full">
-            <ToggleGroupItem value="post">{t('target_type.post')}</ToggleGroupItem>
-            <ToggleGroupItem value="comment">{t('target_type.comment')}</ToggleGroupItem>
-          </ToggleGroup>
-          {targetType === 'post'
-            ? (
-                <SearchSelect
-                  className="w-full"
-                  selected={post}
-                  placeholder={t('dry_run.select_post')}
-                  emptyText={t('dry_run.no_post')}
-                  search={searchPosts}
-                  onSelect={setPost}
-                />
-              )
-            : (
-                <Input
-                  type="number"
-                  min={1}
-                  value={commentId}
-                  placeholder={t('dry_run.comment_id')}
-                  aria-label={t('dry_run.comment_id')}
-                  onChange={e => setCommentId(e.target.value)}
-                />
+        <Form {...form}>
+          <form className="grid gap-4" onSubmit={form.handleSubmit(start)}>
+            <div className="grid gap-2">
+              <FormField
+                control={form.control}
+                name="targetType"
+                render={({ field }) => (
+                  <FormItem className="grid gap-2">
+                    <FormLabel>{t('dry_run.target')}</FormLabel>
+                    <FormControl>
+                      <ToggleGroup
+                        type="single"
+                        variant="segmented"
+                        value={field.value}
+                        onValueChange={v => v && field.onChange(v as TargetType)}
+                        className="w-full"
+                      >
+                        <ToggleGroupItem value="post">{t('target_type.post')}</ToggleGroupItem>
+                        <ToggleGroupItem value="comment">{t('target_type.comment')}</ToggleGroupItem>
+                      </ToggleGroup>
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              {targetType === 'post'
+                ? (
+                    <FormField
+                      control={form.control}
+                      name="post"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <SearchSelect
+                              className="w-full"
+                              selected={field.value}
+                              placeholder={t('dry_run.select_post')}
+                              emptyText={t('dry_run.no_post')}
+                              search={searchPosts}
+                              onSelect={field.onChange}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )
+                : (
+                    <FormField
+                      control={form.control}
+                      name="commentId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              type="number"
+                              min={1}
+                              placeholder={t('dry_run.comment_id')}
+                              aria-label={t('dry_run.comment_id')}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+            </div>
+            {runnerOnline === false && (
+              <Alert>
+                <Info />
+                <AlertDescription>{t('dry_run.runner_offline')}</AlertDescription>
+              </Alert>
+            )}
+            <div className="flex flex-wrap items-center gap-3">
+              <Button type="submit" disabled={!canStart}>
+                {starting ? <Loader2 className="animate-spin" /> : <FlaskConical />}
+                {t('dry_run.start')}
+              </Button>
+              {polling && (
+                <Button type="button" variant="outline" onClick={() => setPolling(false)}>
+                  <Square />
+                  {t('dry_run.stop')}
+                </Button>
               )}
-        </div>
-        {runnerOnline === false && (
-          <Alert>
-            <Info />
-            <AlertDescription>{t('dry_run.runner_offline')}</AlertDescription>
-          </Alert>
-        )}
-        <div className="flex flex-wrap items-center gap-3">
-          <Button type="button" onClick={start} disabled={!canStart}>
-            {starting ? <Loader2 className="animate-spin" /> : <FlaskConical />}
-            {t('dry_run.start')}
-          </Button>
-          {polling && (
-            <Button type="button" variant="outline" onClick={() => setPolling(false)}>
-              <Square />
-              {t('dry_run.stop')}
-            </Button>
-          )}
-          {run && <RunStatusBadge status={run.status} />}
-        </div>
+              {run && <RunStatusBadge status={run.status} />}
+            </div>
+          </form>
+        </Form>
         {waitingTooLong && (
           <Alert>
             <Info />

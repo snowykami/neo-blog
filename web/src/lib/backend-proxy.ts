@@ -1,4 +1,5 @@
 import type { NextRequest } from 'next/server'
+import { context, propagation } from '@opentelemetry/api'
 
 // 逐跳头不能转发；浏览器的 accept-encoding 也不转发，见 backendRequestHeaders
 const REQUEST_SKIP_HEADERS = ['host', 'connection', 'keep-alive', 'proxy-connection', 'transfer-encoding', 'te', 'trailer', 'upgrade', 'expect', 'accept-encoding']
@@ -41,6 +42,14 @@ export function backendRequestHeaders(request: NextRequest) {
   if (!headers.has('x-forwarded-proto'))
     headers.set('x-forwarded-proto', request.nextUrl.protocol.replace(':', ''))
   headers.set(REQUEST_ID_HEADER, requestIdOf(request.headers.get(REQUEST_ID_HEADER)))
+  if (!headers.has('traceparent')) {
+    const carrier: Record<string, string> = {}
+    propagation.inject(context.active(), carrier)
+    for (const [k, v] of Object.entries(carrier)) {
+      if (!headers.has(k))
+        headers.set(k, v)
+    }
+  }
   return headers
 }
 

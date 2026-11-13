@@ -97,10 +97,6 @@
     "list": "列表",
     "card": "卡片"
   },
-  "HomePage": {
-    "title": "Hello world!",
-    "already_in_love_n_day": "已相戀 {n} 天"
-  },
   "BlogHome": {
     "hottest": "熱門",
     "hottest_posts": "熱門文章",
@@ -252,7 +248,10 @@
     "sidebar_description": "側邊欄導覽",
     "toggle_sidebar": "展開或收合側邊欄",
     "empty_content": "這篇文章還沒有內文",
-    "untitled": "無標題"
+    "untitled": "無標題",
+    "prev_post": "上一篇",
+    "next_post": "下一篇",
+    "related_posts": "相關閱讀"
   },
   "Components": {
     "image_cropper": {
@@ -1214,6 +1213,10 @@
       "ttml_source_name": "名稱",
       "ttml_source_url": "網址",
       "ttml_source_url_invalid": "請填寫以 http:// 或 https:// 開頭的歌詞來源網址",
+      "ttml_cache_clear": "清除 TTML 快取",
+      "ttml_cache_clear_hint": "清除所有歌曲的 TTML 命中與未命中快取，立即重新探測",
+      "ttml_cache_cleared": "已清除 TTML 歌詞快取",
+      "ttml_cache_clear_failed": "清除 TTML 快取失敗",
       "move_up": "上移",
       "move_down": "下移",
       "env_override_note": "已由環境變數 {name} 設定，優先於這裡的設定；如需在這裡修改，請先移除該環境變數",
@@ -1366,7 +1369,9 @@
       "search_reindex_failed": "觸發索引重建失敗",
       "search_reindex_save_first": "已修改搜尋設定，請先儲存後再執行全站索引重建",
       "env_secret_configured": "已由環境變數設定（已隱藏）",
-      "secret_configured_placeholder": "已設定，留空保持不變"
+      "secret_configured_placeholder": "已設定，留空保持不變",
+      "enable_email_verify": "啟用信箱驗證碼",
+      "enable_email_verify_desc": "開啟後註冊帳號、重設密碼與修改信箱均需驗證信箱驗證碼；關閉後將略過信箱驗證碼步驟"
     },
     "labels": {
       "title": "標籤管理",
@@ -1406,7 +1411,19 @@
         "oauth2": "OAuth2 / OIDC",
         "misskey": "Misskey"
       },
-      "secret_configured_placeholder": "已設定，留空保持不變"
+      "secret_configured_placeholder": "已設定，留空保持不變",
+      "client_id": "Client ID",
+      "client_secret": "Client Secret",
+      "discovery_url": "自動探索網址（Discovery URL）",
+      "issuer": "簽發方（Issuer）",
+      "authorization_endpoint": "授權端點（Authorization Endpoint）",
+      "token_endpoint": "權杖端點（Token Endpoint）",
+      "userinfo_endpoint": "使用者資訊端點（Userinfo Endpoint）",
+      "jwks_uri": "金鑰集網址（JWKS URI）",
+      "token_auth_methods": {
+        "client_secret_post": "請求主體傳參（client_secret_post）",
+        "client_secret_basic": "Basic 驗證標頭（client_secret_basic）"
+      }
     },
     "personal": "個人",
     "posts": {
@@ -1495,7 +1512,20 @@
       "empty_search": "沒有找到符合的文章",
       "select_all": "全選本頁",
       "selected_count": "已選 {count} 篇",
-      "batch_delete_description": "確定要刪除選中的 {count} 篇文章嗎？刪除後不可恢復。"
+      "batch_delete_description": "確定要刪除選中的 {count} 篇文章嗎？刪除後不可恢復。",
+      "ai_suggest_titles": "AI 產生候選標題",
+      "ai_suggest_titles_short": "AI 擬標題",
+      "ai_titles_generating": "正在根據內文構思標題…",
+      "ai_titles_regenerate": "換一批",
+      "ai_titles_hint": "點擊任一候選即可填入標題欄",
+      "ai_recommend_taxonomy": "AI 推薦分類與標籤",
+      "ai_taxonomy_generating": "正在分析內文主題…",
+      "ai_taxonomy_apply_all": "一鍵採用",
+      "ai_taxonomy_category": "推薦分類",
+      "ai_taxonomy_labels": "符合既有標籤",
+      "ai_taxonomy_new_labels": "建議新增標籤（點擊建立並選用）",
+      "ai_taxonomy_create_and_add": "建立並加入標籤「{name}」",
+      "ai_taxonomy_empty": "暫未識別出更合適的分類或標籤"
     },
     "storages": {
       "title": "儲存供應商",
@@ -2383,15 +2413,12 @@
       "color_none": "不上色",
       "phrase_font": "字型",
       "phrase_font_default": "預設字型",
-      "phrase_pace": "節奏",
-      "phrase_pace_default": "跟隨全曲",
       "add_effect": "新增特效",
       "phrase_delete": "刪除特效",
       "close": "關閉",
       "song_settings": "全曲設定",
       "font": "全曲字型",
       "font_default": "預設字型",
-      "pace": "特效節奏",
       "intro": "前奏導語",
       "intro_placeholder": "前奏時顯示的一句話，可留空",
       "accent": "主題色",
@@ -3242,7 +3269,16 @@
     "empty_title": "沒有需要處理的投遞",
     "empty_desc": "郵件寄送正常時這裡不會出現記錄",
     "prev": "上一頁",
-    "next": "下一頁"
+    "next": "下一頁",
+    "types": {
+      "comment_created": "新留言",
+      "comment_replied": "留言回覆",
+      "comment_mentioned": "留言提及",
+      "comment_thread_replied": "討論串回覆",
+      "post_liked": "文章獲讚",
+      "comment_liked": "留言獲讚",
+      "system_test": "系統測試"
+    }
   },
   "Copyright": {
     "author": "作者",
@@ -3284,7 +3320,9 @@
     "list_separator": "、",
     "type_comment_created": "留言",
     "type_comment_replied": "回覆",
-    "type_comment_mentioned": "提及"
+    "type_comment_mentioned": "提及",
+    "switch_island_alert": "頂欄動態島即時提醒",
+    "switch_island_alert_desc": "開啟後收到新通知時在頂欄彈出摘要預覽，關閉後僅靜默更新未讀紅點（儲存在目前瀏覽器）"
   },
   "Notifications": {
     "title": "通知",
@@ -3326,7 +3364,22 @@
     "attachment_image": "[圖片]",
     "attachment_images": "[圖片 ×{count}]",
     "attachment_file": "[附件]",
-    "attachment_files": "[附件 ×{count}]"
+    "attachment_files": "[附件 ×{count}]",
+    "settings": "通知設定",
+    "island_alert_switch": "新通知頂欄動態島提醒",
+    "island_alert_desc": "收到新互動時在頂欄彈出簡短預覽（僅儲存在目前瀏覽器）",
+    "island_and_others": "等 {count} 人",
+    "island_types": {
+      "comment_created": "{actors} 留言於《{subject}》：「{excerpt}」",
+      "comment_created_page": "{actors} 留言於頁面《{subject}》：「{excerpt}」",
+      "comment_replied": "{actors} 回覆了你：「{excerpt}」",
+      "post_liked": "{actors} 讚了《{subject}》",
+      "comment_liked": "{actors} 讚了你的留言「{quoted}」",
+      "comment_liked_without_quote": "{actors} 讚了你的留言",
+      "comment_thread_replied": "{actors} 在《{subject}》下繼續回覆了",
+      "comment_mentioned": "{actors} 提及了你：「{excerpt}」",
+      "system_test": "收到一則站內測試通知"
+    }
   },
   "Login": {
     "captcha_error": "驗證碼錯誤，請重試。",
@@ -3443,7 +3496,9 @@
     "sort_by": "排序依據",
     "direction": "順序",
     "desc": "降冪",
-    "asc": "升冪"
+    "asc": "升冪",
+    "id": "編號",
+    "username": "使用者名稱"
   },
   "Random": {
     "title": "隨機文章",
@@ -3535,13 +3590,6 @@
   "State": {
     "private": "私密",
     "public": "公開"
-  },
-  "FileSelector": {
-    "select_file": "選擇檔案",
-    "select_n_files": "選擇 {n} 個檔案",
-    "select_files": "選擇檔案",
-    "upload_file": "上傳檔案",
-    "uploading": "上傳中..."
   },
   "MusicPlayer": {
     "loading_lyric": "載入歌詞中...",
@@ -3862,7 +3910,8 @@
       "meilisearch_test_failed": "Meilisearch 連線測試失敗",
       "meilisearch_not_enabled": "尚未啟用或設定 Meilisearch 服務",
       "csrf_origin_mismatch": "跨站請求驗證未通過，請重新整理頁面後再試",
-      "empty_file": "上傳的檔案內容為空"
+      "empty_file": "上傳的檔案內容為空",
+      "content_too_short": "內文過短，請先寫幾句再試"
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field}「{value}」不符合要求} resource {{resource}的參數不符合要求} other {請求參數不符合要求}}",
@@ -4734,12 +4783,6 @@
       "bright": "明亮",
       "sad": "感傷",
       "intense": "激昂"
-    },
-    "paces": {
-      "beat": "跟隨節拍（推薦）",
-      "slow": "慢",
-      "medium": "中",
-      "fast": "快"
     },
     "styles": {
       "bold": "粗體",

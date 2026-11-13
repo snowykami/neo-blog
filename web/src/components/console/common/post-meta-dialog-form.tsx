@@ -31,6 +31,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { useCommonT, useErrorMessageT, useOperationT, useResponseErrorDetailsT } from '@/hooks/use-translations'
 import { useRouter } from '@/i18n/navigation'
 import { getPostEditUrl } from '@/utils/common/route'
+import { AITitleSuggester } from './ai-title-suggester'
+import { PostAITaxonomyRecommender } from './post-ai-taxonomy-recommender'
 import { PostCategorySelector, PostLabelSelector } from './post-meta-category-and-label-selector'
 
 interface PostMetaForm {
@@ -174,7 +176,22 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
               rules={{ validate: value => !!value.trim() || t('title_required') }}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('post_title')}</FormLabel>
+                  <div className="flex items-center justify-between gap-2">
+                    <FormLabel>{t('post_title')}</FormLabel>
+                    {post && (
+                      <AITitleSuggester
+                        compact
+                        target="post"
+                        targetId={post.id}
+                        currentTitle={field.value}
+                        getPayload={() => ({
+                          title: form.getValues('title'),
+                          description: form.getValues('description'),
+                        })}
+                        onSelectTitle={candidate => form.setValue('title', candidate, { shouldDirty: true, shouldValidate: true })}
+                      />
+                    )}
+                  </div>
                   <FormControl>
                     <Input autoFocus={false} {...field} />
                   </FormControl>
@@ -224,15 +241,19 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
               )}
             />
 
-            <PostCategorySelector
-              category={form.watch('category')}
-              onCategoryChange={category => form.setValue('category', category)}
-            />
+            {post && (
+              <PostAITaxonomyRecommender
+                postId={post.id}
+                getPayload={() => ({
+                  title: form.getValues('title'),
+                  description: form.getValues('description'),
+                })}
+              />
+            )}
 
-            <PostLabelSelector
-              labels={form.watch('labels')}
-              onSelectedLabelsChange={labels => form.setValue('labels', labels)}
-            />
+            <PostCategorySelector />
+
+            <PostLabelSelector />
 
             <DialogFooter>
               <div className="flex gap-3">

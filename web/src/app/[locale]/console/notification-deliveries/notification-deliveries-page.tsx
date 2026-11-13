@@ -132,31 +132,34 @@ export default function NotificationDeliveriesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {rows.map(row => (
-                      <TableRow key={row.id}>
-                        <TableCell className="max-w-48 truncate text-xs">{row.userEmail || `#${row.userId}`}</TableCell>
-                        <TableCell className="text-xs">
-                          <div>{row.type}</div>
-                          <div className="text-muted-foreground max-w-48 truncate">{row.subjectTitle}</div>
-                        </TableCell>
-                        <TableCell className="text-xs">{t(`state_${row.emailState}`)}</TableCell>
-                        <TableCell className="text-xs tabular-nums">{row.attempts}</TableCell>
-                        <TableCell className="text-muted-foreground max-w-64 truncate text-xs" title={row.lastError}>{row.lastError || '—'}</TableCell>
-                        <TableCell className={`text-right ${STICKY_ACTIONS_CLASS}`}>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            // 后端只接受失败与超时未结束的发送中（sending 未超时时返回 409），待发 / 已跳过 / 已发送的没有可重试的
-                            disabled={retrying === row.id || !(row.emailState === 'failed' || row.emailState === 'sending')}
-                            onClick={() => void retry(row.id)}
-                          >
-                            {retrying === row.id && <Loader2 className="animate-spin" />}
-                            {t('retry')}
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {rows.map((row) => {
+                      const typeKey = `types.${row.type.replace('.', '_')}`
+                      return (
+                        <TableRow key={row.id}>
+                          <TableCell className="max-w-48 truncate text-xs">{row.userEmail || `#${row.userId}`}</TableCell>
+                          <TableCell className="text-xs">
+                            <div>{t.has(typeKey) ? t(typeKey) : row.type}</div>
+                            <div className="text-muted-foreground max-w-48 truncate">{row.subjectTitle}</div>
+                          </TableCell>
+                          <TableCell className="text-xs">{t(`state_${row.emailState}`)}</TableCell>
+                          <TableCell className="text-xs tabular-nums">{row.attempts}</TableCell>
+                          <TableCell className="text-muted-foreground max-w-64 truncate text-xs" title={row.lastError}>{row.lastError || '—'}</TableCell>
+                          <TableCell className={`text-right ${STICKY_ACTIONS_CLASS}`}>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              // 后端只接受失败与超时未结束的发送中（sending 未超时时返回 409），待发 / 已跳过 / 已发送的没有可重试的
+                              disabled={retrying === row.id || !(row.emailState === 'failed' || row.emailState === 'sending')}
+                              onClick={() => void retry(row.id)}
+                            >
+                              {retrying === row.id && <Loader2 className="animate-spin" />}
+                              {t('retry')}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
                   </TableBody>
                 </Table>
               </div>

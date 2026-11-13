@@ -4,7 +4,7 @@ import type { SearchSelectOption } from './shared'
 import type { AIAgent, AIAgentTier } from '@/models/ai-agent'
 import { Info, Loader2, TriangleAlert } from 'lucide-react'
 import { useCallback } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 import { listUsers } from '@/api/admin'
 import { convertUserToAIAgent, createAIAgent } from '@/api/ai-agent'
@@ -80,7 +80,7 @@ function CreateAgentFormBody({ onCancel, onCreated }: { onCancel: () => void, on
   const form = useForm<CreateAgentForm>({
     defaultValues: { mode: 'new', username: '', nickname: '', avatarUrl: '', tier: 'ambient', user: null },
   })
-  const mode = form.watch('mode')
+  const mode = useWatch({ control: form.control, name: 'mode' })
 
   // 只能选择角色为普通用户、且还不是 AI 的账号
   const searchUsers = useCallback(async (keyword: string): Promise<SearchSelectOption[]> => {
@@ -116,12 +116,22 @@ function CreateAgentFormBody({ onCancel, onCreated }: { onCancel: () => void, on
   return (
     <Form {...form}>
       <form className="grid gap-4" onSubmit={form.handleSubmit(onSubmit)}>
-        <Tabs value={mode} onValueChange={v => form.setValue('mode', v as CreateMode)}>
-          <TabsList className="w-full">
-            <TabsTrigger value="new">{t('create.mode_new')}</TabsTrigger>
-            <TabsTrigger value="convert">{t('create.mode_convert')}</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <FormField
+          control={form.control}
+          name="mode"
+          render={({ field }) => (
+            <FormItem>
+              <FormControl>
+                <Tabs value={field.value} onValueChange={v => field.onChange(v as CreateMode)}>
+                  <TabsList className="w-full">
+                    <TabsTrigger value="new">{t('create.mode_new')}</TabsTrigger>
+                    <TabsTrigger value="convert">{t('create.mode_convert')}</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </FormControl>
+            </FormItem>
+          )}
+        />
         {mode === 'new'
           ? (
               <>

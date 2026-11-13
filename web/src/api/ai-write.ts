@@ -1,4 +1,12 @@
-import type { AIWriteEvent, AIWriteRequest, AIWriteTarget } from '@/models/ai-write'
+import type {
+  AITaxonomyPayload,
+  AITaxonomySuggestion,
+  AITitlesPayload,
+  AIWriteEvent,
+  AIWriteRequest,
+  AIWriteTarget,
+} from '@/models/ai-write'
+import type { BaseResponse } from '@/models/resp'
 import { isAxiosError } from 'axios'
 import { snakeToCamelObj } from 'field-conv'
 import axiosClient from './client'
@@ -90,4 +98,38 @@ export async function streamAIWrite({ target, id, request, signal, onEvent }: {
       index = buffer.indexOf('\n\n')
     }
   }
+}
+
+/** 为文章或独立页面一键生成候选标题（document 留空时后端回退读取库中草稿/正文） */
+export async function suggestAITitles({
+  target,
+  id,
+  payload,
+}: {
+  target: AIWriteTarget
+  id: number
+  payload?: AITitlesPayload
+}): Promise<BaseResponse<{ titles: string[] }>> {
+  const res = await axiosClient.post<BaseResponse<{ titles: string[] }>>(
+    `/${target}/p/${id}/ai-titles`,
+    payload ?? {},
+    { timeout: 60_000 },
+  )
+  return res.data
+}
+
+/** 为文章推荐已有分类、已有标签及建议新建标签 */
+export async function suggestPostTaxonomy({
+  postId,
+  payload,
+}: {
+  postId: number
+  payload?: AITaxonomyPayload
+}): Promise<BaseResponse<AITaxonomySuggestion>> {
+  const res = await axiosClient.post<BaseResponse<AITaxonomySuggestion>>(
+    `/post/p/${postId}/ai-taxonomy`,
+    payload ?? {},
+    { timeout: 60_000 },
+  )
+  return res.data
 }

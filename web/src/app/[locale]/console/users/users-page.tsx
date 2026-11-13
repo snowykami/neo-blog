@@ -2,7 +2,7 @@
 
 import type { UserStatusFilter } from '@/api/admin'
 import type { User } from '@/models/user'
-import { Ban, Bot, CircleCheck, Eye, KeyRound, MoreHorizontal, Pencil, Plus, ShieldUser, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, Ban, Bot, CircleCheck, Eye, KeyRound, MoreHorizontal, Pencil, Plus, ShieldUser, Trash2 } from 'lucide-react'
 import { useFormatter, useTranslations } from 'next-intl'
 import {
   parseAsBoolean,
@@ -66,9 +66,8 @@ import {
 
 const PAGE_SIZE = 15
 const MOBILE_PAGE_SIZE = 10
-const COLUMN_COUNT = 8
-// 后端用户列表支持的排序字段（另有 id / username，前端 OrderBy 暂未定义）
-const USER_ORDER_BYS = [OrderBy.CreatedAt, OrderBy.UpdatedAt]
+const COLUMN_COUNT = 9
+const USER_ORDER_BYS = [OrderBy.CreatedAt, OrderBy.UpdatedAt, OrderBy.Id, OrderBy.Username]
 
 const ROLE_BADGE_VARIANT: Record<Role, 'default' | 'secondary' | 'outline'> = {
   [Role.ADMIN]: 'default',
@@ -186,6 +185,26 @@ export function UserManagePage() {
     [setOrderBy, setDesc, setPage],
   )
 
+  const toggleColumnSort = useCallback(
+    (col: OrderBy, defaultDesc = false) => {
+      if (orderBy === col) {
+        onOrderChange({ orderBy: col, desc: !desc })
+      }
+      else {
+        onOrderChange({ orderBy: col, desc: defaultDesc })
+      }
+    },
+    [orderBy, desc, onOrderChange],
+  )
+
+  const renderSortIcon = (col: OrderBy) => {
+    if (orderBy !== col)
+      return <ArrowUpDown className="size-3.5 text-muted-foreground/60" aria-hidden />
+    return desc
+      ? <ArrowDown className="size-3.5 text-foreground" aria-hidden />
+      : <ArrowUp className="size-3.5 text-foreground" aria-hidden />
+  }
+
   return (
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -248,19 +267,48 @@ export function UserManagePage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>{commonT('username')}</TableHead>
+              <TableHead className="w-16">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 font-medium hover:text-foreground"
+                  onClick={() => toggleColumnSort(OrderBy.Id, false)}
+                >
+                  {commonT('id')}
+                  {renderSortIcon(OrderBy.Id)}
+                </button>
+              </TableHead>
+              <TableHead>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 font-medium hover:text-foreground"
+                  onClick={() => toggleColumnSort(OrderBy.Username, false)}
+                >
+                  {commonT('username')}
+                  {renderSortIcon(OrderBy.Username)}
+                </button>
+              </TableHead>
               <TableHead>{t('nickname')}</TableHead>
               <TableHead>{commonT('email')}</TableHead>
               <TableHead>{t('external_accounts')}</TableHead>
               <TableHead>{t('role')}</TableHead>
               <TableHead>{t('status')}</TableHead>
-              <TableHead>{commonT('created_at')}</TableHead>
+              <TableHead>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 font-medium hover:text-foreground"
+                  onClick={() => toggleColumnSort(OrderBy.CreatedAt, true)}
+                >
+                  {commonT('created_at')}
+                  {renderSortIcon(OrderBy.CreatedAt)}
+                </button>
+              </TableHead>
               <TableHead className={`text-right ${STICKY_ACTIONS_CLASS}`}>{t('actions')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading && Array.from({ length: 5 }, (_, i) => (
               <TableRow key={`skeleton-${i}`}>
+                <TableCell><Skeleton className="h-4 w-8" /></TableCell>
                 <TableCell>
                   <div className="flex items-center gap-3">
                     <Skeleton className="size-8 rounded-full" />
@@ -300,6 +348,10 @@ export function UserManagePage() {
               const isSelf = currentUser?.id === user.id
               return (
                 <TableRow key={user.id} className={user.disabled ? 'text-muted-foreground' : undefined}>
+                  <TableCell className="whitespace-nowrap font-mono text-xs text-muted-foreground tabular-nums">
+                    #
+                    {user.id}
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <button

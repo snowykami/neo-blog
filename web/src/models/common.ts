@@ -6,6 +6,8 @@ export interface PaginationParams {
 }
 
 export enum OrderBy {
+  Id = 'id',
+  Username = 'username',
   Name = 'name', // 文章不能用 name 排序
   CreatedAt = 'created_at',
   UpdatedAt = 'updated_at',

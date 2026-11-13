@@ -3,7 +3,7 @@
 import type { SVGProps } from 'react'
 import type { ThemeDefinition, ThemeIconSlot } from '@/themes/types'
 import { EyeIcon, HeartIcon, MessageCircleIcon, PinIcon, Share2Icon } from 'lucide-react'
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/contexts/auth-context'
 import { resolveActiveTheme } from '@/themes'
 import { applyThemeToDocument } from '@/themes/apply'
@@ -105,8 +105,13 @@ export function ThemeProvider({
     window.dispatchEvent(new Event(THEME_PACK_EVENT))
   }, [activeTheme])
 
+  const value = useMemo(
+    () => ({ theme: activeTheme, enabled, setEnabled, refreshTheme }),
+    [activeTheme, enabled, setEnabled, refreshTheme],
+  )
+
   return (
-    <ThemeContext.Provider value={{ theme: activeTheme, enabled, setEnabled, refreshTheme }}>
+    <ThemeContext.Provider value={value}>
       {children}
     </ThemeContext.Provider>
   )

@@ -836,7 +836,7 @@ function AlertContent({ alert }: { alert: QueuedIslandAlert }) {
   return (
     <>
       {alert.icon && <IslandSlot>{alert.icon}</IslandSlot>}
-      <IslandText>{alert.text}</IslandText>
+      <IslandText className="max-w-[min(360px,calc(100vw-5.5rem))]">{alert.text}</IslandText>
       {alert.countable && alert.count > 1 && <IslandText className="shrink-0 text-white/60 tabular-nums">{`×${alert.count}`}</IslandText>}
     </>
   )

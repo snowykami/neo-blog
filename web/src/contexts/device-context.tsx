@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import {
   clearModeOverride,
   readBoundThemeMode,
@@ -19,13 +19,6 @@ interface DeviceContextProps {
   mode: Mode
   isDark: boolean
   setMode: (mode: Mode) => void
-  toggleMode: () => void
-  viewport: {
-    width: number
-    height: number
-  }
-  navbarAdditionalClassName?: string // 可选属性，允许传入额外的类名
-  setNavbarAdditionalClassName?: (className: string) => void // 可选方法，允许设置额外的类名
 }
 
 const DeviceContext = createContext<DeviceContextProps>({
@@ -33,24 +26,12 @@ const DeviceContext = createContext<DeviceContextProps>({
   mode: 'system',
   isDark: false,
   setMode: () => {},
-  toggleMode: () => {},
-  viewport: {
-    width: 0,
-    height: 0,
-  },
-  navbarAdditionalClassName: '',
-  setNavbarAdditionalClassName: () => {},
 })
 
 export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isMobile, setIsMobile] = useState(false)
   const [isDark, setIsDark] = useState(false)
   const [mode, setModeState] = useState<Mode>('system')
-  const [viewport, setViewport] = useState({
-    width: typeof window !== 'undefined' ? window.innerWidth : 0,
-    height: typeof window !== 'undefined' ? window.innerHeight : 0,
-  })
-  const [navbarAdditionalClassName, setNavbarAdditionalClassName] = useState<string>('')
 
   // 检查系统主题
   const getSystemTheme = () =>
@@ -71,24 +52,13 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [])
 
   useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth <= 768)
-    checkMobile()
-    window.addEventListener('resize', checkMobile)
-    return () => window.removeEventListener('resize', checkMobile)
-  }, [])
-
-  useEffect(() => {
-    // 更新检测函数以同时更新视窗尺寸
-    const handleResize = () => {
-      const width = window.innerWidth
-      const height = window.innerHeight
-      setIsMobile(width <= 768)
-      setViewport({ width, height })
-    }
-
-    handleResize() // 初始化
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
+    if (typeof window === 'undefined')
+      return
+    const mql = window.matchMedia('(max-width: 768px)')
+    setIsMobile(mql.matches)
+    const handleChange = (event: MediaQueryListEvent) => setIsMobile(event.matches)
+    mql.addEventListener('change', handleChange)
+    return () => mql.removeEventListener('change', handleChange)
   }, [])
 
   /**
@@ -158,38 +128,13 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     [applyTheme],
   )
 
-  // 支持三种状态的切换：light -> dark -> system -> light ...
-  const toggleMode = useCallback(() => {
-    setModeState((prev) => {
-      let newMode: Mode
-      if (prev === 'light')
-        newMode = 'dark'
-      else if (prev === 'dark')
-        newMode = 'system'
-      else newMode = 'light'
-      applyTheme(newMode)
-      const bound = readBoundThemeMode()
-      if (bound)
-        writeModeOverride(bound.id, newMode)
-      else
-        writeUserModePreference(newMode)
-      return newMode
-    })
-  }, [applyTheme])
+  const value = useMemo(
+    () => ({ isMobile, isDark, mode, setMode }),
+    [isMobile, isDark, mode, setMode],
+  )
 
   return (
-    <DeviceContext.Provider
-      value={{
-        isMobile,
-        isDark,
-        mode,
-        setMode,
-        toggleMode,
-        viewport,
-        navbarAdditionalClassName,
-        setNavbarAdditionalClassName,
-      }}
-    >
+    <DeviceContext.Provider value={value}>
       {children}
     </DeviceContext.Provider>
   )

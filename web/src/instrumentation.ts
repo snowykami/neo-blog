@@ -5,6 +5,11 @@ export async function register() {
   // 本文件也会按 Edge 运行时打包，那里没有 node:process，只能读全局的 process.env
   // eslint-disable-next-line node/prefer-global/process
   if (process.env.NEXT_RUNTIME === 'nodejs') {
+    // eslint-disable-next-line node/prefer-global/process
+    if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT?.trim()) {
+      const { registerOTel } = await import('@/lib/telemetry/otel.node')
+      registerOTel()
+    }
     const { startServerMetrics } = await import('@/lib/server-metrics')
     startServerMetrics()
   }

@@ -66,6 +66,16 @@ export function PostEditor() {
           {...panel}
           meta={meta}
           onChange={controller.updateMeta}
+          aiRecommend={post && !controller.readOnly
+            ? {
+                postId: post.id,
+                getPayload: () => ({
+                  title: controller.meta.title,
+                  description: controller.meta.description,
+                  document: controller.editor?.getHTML() ?? '',
+                }),
+              }
+            : undefined}
           pin={canPin && post && pin ? { postId: post.id, state: pin, onChange: state => setChangedPin({ postId: post.id, state }) } : undefined}
         />
       )}

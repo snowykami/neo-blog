@@ -9,12 +9,13 @@ import { getRandomPost } from '@/api/post'
 import { SafeImage } from '@/components/common/safe-image'
 import { SiteShell } from '@/components/layout/site-shell'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useOperationT } from '@/hooks/use-translations'
+import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { useRouter } from '@/i18n/navigation'
 import { getPostUrl } from '@/utils/common/route'
 
 export function RandomPost() {
   const t = useTranslations('Random')
+  const errorMessageT = useErrorMessageT()
   const operationT = useOperationT()
   const router = useRouter()
   const [post, setPost] = useState<Post | null>(null)
@@ -28,7 +29,7 @@ export function RandomPost() {
         }, 300)
       })
       .catch((err) => {
-        toast.error(err.message || operationT('fetch_failed'))
+        toast.error(errorMessageT(err, operationT('fetch_failed')))
       })
   }, [])
 

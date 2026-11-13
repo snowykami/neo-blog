@@ -10,7 +10,10 @@ vi.mock('@/contexts/auth-context', () => ({ useAuth: () => auth }))
 vi.mock('@/components/auth/login-dialog', () => ({ useRequireLogin: () => (fn: () => void) => fn() }))
 vi.mock('@/components/layout/topbar-island/island-feedback', () => ({ notifySuccess: vi.fn() }))
 vi.mock('@/contexts/theme-context', () => ({ LikeIcon: () => null }))
-vi.mock('@/hooks/use-translations', () => ({ useOperationT: () => (key: string) => key }))
+vi.mock('@/hooks/use-translations', () => ({
+  useErrorMessageT: () => () => 'err',
+  useOperationT: () => (key: string) => key,
+}))
 
 // React 19 的 act 需要这个标记，happy-dom 环境里没有测试框架自动设置
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })

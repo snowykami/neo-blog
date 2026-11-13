@@ -110,7 +110,7 @@ export default function OidcManage() {
     finally {
       setLoading(false)
     }
-  }, [operationT])
+  }, [errorMessageT, operationT])
 
   useEffect(() => {
     fetchConfigs()
@@ -151,7 +151,7 @@ export default function OidcManage() {
           <TableRow>
             <TableHead>{t('name')}</TableHead>
             <TableHead>{t('type')}</TableHead>
-            <TableHead>Issuer</TableHead>
+            <TableHead>{t('issuer')}</TableHead>
             <TableHead>{t('status')}</TableHead>
             <TableHead className={`text-right ${STICKY_ACTIONS_CLASS}`}>{t('actions')}</TableHead>
           </TableRow>
@@ -173,7 +173,7 @@ export default function OidcManage() {
                 <div className="font-medium">{config.displayName || config.name}</div>
                 <div className="text-xs text-muted-foreground">{config.name}</div>
               </TableCell>
-              <TableCell>{config.type || 'oauth2'}</TableCell>
+              <TableCell>{t(`types.${config.type === 'misskey' ? 'misskey' : 'oauth2'}`)}</TableCell>
               <TableCell className="max-w-80 truncate">{config.issuer || config.oidcDiscoveryUrl || '-'}</TableCell>
               <TableCell>{config.enabled ? t('enabled') : t('disabled')}</TableCell>
               <TableCell className={`text-right ${STICKY_ACTIONS_CLASS}`}>
@@ -292,8 +292,8 @@ function OidcConfigForm({
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {textField('name', t('name'), { required: true })}
           {textField('displayName', t('display_name'))}
-          {textField('clientId', 'Client ID', { required: true })}
-          {textField('clientSecret', 'Client Secret', {
+          {textField('clientId', t('client_id'), { required: true })}
+          {textField('clientSecret', t('client_secret'), {
             type: 'password',
             required: !initialValues.id && !initialValues.hasClientSecret,
             placeholder: initialValues.hasClientSecret ? t('secret_configured_placeholder') : undefined,
@@ -312,7 +312,7 @@ function OidcConfigForm({
                   </FormControl>
                   <SelectContent>
                     {TOKEN_AUTH_METHODS.map(method => (
-                      <SelectItem key={method} value={method}>{method}</SelectItem>
+                      <SelectItem key={method} value={method}>{t(`token_auth_methods.${method}`)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -356,13 +356,13 @@ function OidcConfigForm({
             )}
           />
         </div>
-        {textField('oidcDiscoveryUrl', 'Discovery URL')}
+        {textField('oidcDiscoveryUrl', t('discovery_url'))}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {textField('issuer', 'Issuer')}
-          {textField('authorizationEndpoint', 'Authorization Endpoint')}
-          {textField('tokenEndpoint', 'Token Endpoint')}
-          {textField('userinfoEndpoint', 'Userinfo Endpoint')}
-          {textField('jwksUri', 'JWKS URI')}
+          {textField('issuer', t('issuer'))}
+          {textField('authorizationEndpoint', t('authorization_endpoint'))}
+          {textField('tokenEndpoint', t('token_endpoint'))}
+          {textField('userinfoEndpoint', t('userinfo_endpoint'))}
+          {textField('jwksUri', t('jwks_uri'))}
           <FormField
             control={control}
             name="enabled"

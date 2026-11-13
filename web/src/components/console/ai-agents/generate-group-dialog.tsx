@@ -4,7 +4,7 @@ import type { AIAgentGroup, AIAgentPreview, AIAgentTier } from '@/models/ai-agen
 import { Eye, Loader2, Plus, Trash2, Wand } from 'lucide-react'
 import { useLocale } from 'next-intl'
 import { useMemo, useState } from 'react'
-import { useFieldArray, useForm } from 'react-hook-form'
+import { useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 import { generateAIAgentGroup } from '@/api/ai-agent'
 import { Badge } from '@/components/ui/badge'
@@ -108,7 +108,7 @@ function GenerateFormBody({ onCancel, onGenerated }: { onCancel: () => void, onG
     },
   })
   const archetypes = useFieldArray({ control: form.control, name: 'archetypes' })
-  const count = form.watch('count')
+  const count = useWatch({ control: form.control, name: 'count' })
 
   const submit = (previewOnly: boolean) => form.handleSubmit(async (values) => {
     setPending(previewOnly ? 'preview' : 'generate')

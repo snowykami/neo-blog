@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/contexts/auth-context'
+import { useErrorMessageT } from '@/hooks/use-translations'
 
 // 邮件里的免登录凭据：只从地址栏读一次，不写进任何全局状态
 function readTokenFromUrl(): string {
@@ -26,6 +27,7 @@ function readTokenFromUrl(): string {
  */
 export function NotificationSettingsPage() {
   const t = useTranslations('NotificationSettings')
+  const errorMessageT = useErrorMessageT()
   const { user, loading: authLoading } = useAuth()
   const openLogin = useLoginDialog()
   const [token, setToken] = useState('')
@@ -54,17 +56,17 @@ export function NotificationSettingsPage() {
         return
       setPreferences(res.data)
       setStatus('ready')
-    }).catch(() => {
+    }).catch((error) => {
       if (cancelled)
         return
       // 凭据过期或被改坏：提示登录后继续，不把页面顶到登录页
       setStatus(user ? 'anonymous' : 'expired')
-      toast.error(t('load_failed'))
+      toast.error(`${t('load_failed')}: ${errorMessageT(error)}`)
     })
     return () => {
       cancelled = true
     }
-  }, [authLoading, user, token, t])
+  }, [authLoading, errorMessageT, user, token, t])
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-8">

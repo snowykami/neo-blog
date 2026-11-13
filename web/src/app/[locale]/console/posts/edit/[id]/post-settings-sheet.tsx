@@ -2,6 +2,7 @@
 
 import type { PostPinState } from '../../post-pin'
 import type { ContentMeta } from '@/hooks/use-content-editor'
+import type { AITaxonomyPayload } from '@/models/ai-write'
 import type { Category } from '@/models/category'
 import type { Label } from '@/models/label'
 import { FileTextIcon, FolderIcon, SendIcon, TypeIcon } from 'lucide-react'
@@ -9,6 +10,7 @@ import { useTranslations } from 'next-intl'
 import { useForm } from 'react-hook-form'
 import { InfoTooltip, LabelWithInfo } from '@/components/common/info-tooltip'
 import { ColorField } from '@/components/console/common/color-field'
+import { PostAITaxonomyRecommender } from '@/components/console/common/post-ai-taxonomy-recommender'
 import { PostCategorySelector, PostLabelSelector } from '@/components/console/common/post-meta-category-and-label-selector'
 import {
   ContentSettingsSheet,
@@ -76,12 +78,14 @@ export function PostSettingsSheet({
   onOpenChange,
   meta,
   onChange,
+  aiRecommend,
   pin,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   meta: ContentMeta
   onChange: (patch: Partial<ContentMeta>) => void
+  aiRecommend?: { postId: number, getPayload: () => AITaxonomyPayload }
   pin?: { postId: number, state: PostPinState, onChange: (state: PostPinState) => void } // 管理员才传
 }) {
   const t = useTranslations('Console.editor')
@@ -184,14 +188,11 @@ export function PostSettingsSheet({
           </SettingsSection>
 
           <SettingsSection icon={FolderIcon} title={t('settings_classify')}>
-            <PostCategorySelector
-              category={form.watch('category')}
-              onCategoryChange={category => form.setValue('category', category, { shouldDirty: true })}
-            />
-            <PostLabelSelector
-              labels={form.watch('labels')}
-              onSelectedLabelsChange={labels => form.setValue('labels', labels, { shouldDirty: true })}
-            />
+            {aiRecommend && (
+              <PostAITaxonomyRecommender postId={aiRecommend.postId} getPayload={aiRecommend.getPayload} />
+            )}
+            <PostCategorySelector />
+            <PostLabelSelector />
           </SettingsSection>
 
           <SettingsSection icon={SendIcon} title={t('settings_publish')}>

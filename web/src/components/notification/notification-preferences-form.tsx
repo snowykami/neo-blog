@@ -10,7 +10,9 @@ import { unsubscribeAllNotifications, updateNotificationPreferences } from '@/ap
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { FormControl, FormField, FormItem, FormLabel } from '@/components/ui/form'
+import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { useIslandNotificationPref } from '@/hooks/use-island-notification-pref'
 import { useErrorMessageT } from '@/hooks/use-translations'
 
 // 偏好页上的站内开关按「分组」呈现：一个开关对应一组事件类型（线程活动并入回复）
@@ -41,6 +43,7 @@ export function NotificationPreferencesForm({ initial, token }: {
 }) {
   const t = useTranslations('NotificationSettings')
   const errorMessageT = useErrorMessageT()
+  const [islandEnabled, setIslandEnabled] = useIslandNotificationPref()
   const [saving, setSaving] = useState(false)
   const [preferences, setPreferences] = useState(initial)
 
@@ -143,6 +146,21 @@ export function NotificationPreferencesForm({ initial, token }: {
                 </FormItem>
               )}
             />
+            {!token && (
+              <div className="flex flex-row items-center justify-between gap-4 border-t pt-3">
+                <div className="grid gap-1">
+                  <Label htmlFor="pref-island-notification-switch" className="cursor-pointer font-normal">
+                    {t('switch_island_alert')}
+                  </Label>
+                  <p className="text-muted-foreground text-xs text-balance">{t('switch_island_alert_desc')}</p>
+                </div>
+                <Switch
+                  id="pref-island-notification-switch"
+                  checked={islandEnabled}
+                  onCheckedChange={setIslandEnabled}
+                />
+              </div>
+            )}
           </CardContent>
         </Card>
 

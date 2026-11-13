@@ -6,7 +6,8 @@ import { ArrowDownIcon, ArrowUpIcon, EyeIcon, EyeOffIcon, ListMusicIcon, PlusIco
 import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useFormContext, useWatch } from 'react-hook-form'
-import { listNCMPlaylists } from '@/api/music'
+import { toast } from 'sonner'
+import { clearMusicTTMLCache, listNCMPlaylists } from '@/api/music'
 import { AssetField } from '@/components/common/asset-picker'
 import { LabelWithInfo } from '@/components/common/info-tooltip'
 import { ColorField } from '@/components/console/common/color-field'
@@ -367,12 +368,13 @@ function ImageField({ item, label, description }: FieldProps) {
 }
 
 // 可增删的列表，renderItem 负责单项的输入控件；reorderable 时每项可以上移、下移
-function ListEditor<T>({ items, onChange, createItem, renderItem, reorderable }: {
+function ListEditor<T>({ items, onChange, createItem, renderItem, reorderable, extraAction }: {
   items: T[]
   onChange: (items: T[]) => void
   createItem: () => T
   renderItem: (item: T, update: (item: T) => void) => React.ReactNode
   reorderable?: boolean
+  extraAction?: React.ReactNode
 }) {
   const t = useTranslations('Console.global')
   const move = (from: number, to: number) => {
@@ -401,10 +403,13 @@ function ListEditor<T>({ items, onChange, createItem, renderItem, reorderable }:
           </Button>
         </div>
       ))}
-      <Button type="button" variant="outline" size="sm" className="justify-self-start" onClick={() => onChange([...items, createItem()])}>
-        <PlusIcon className="size-4" />
-        {t('add')}
-      </Button>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={() => onChange([...items, createItem()])}>
+          <PlusIcon className="size-4" />
+          {t('add')}
+        </Button>
+        {extraAction}
+      </div>
     </div>
   )
 }
@@ -492,12 +497,27 @@ const HTTP_URL_RE = /^https?:\/\/[^/?#\s]+/i
 // 自定义 TTML 歌词源：按列表顺序探测，先命中的采用；名称显示在播放器的歌词来源标签上。名称与地址都为空的项保存时去掉
 function TTMLSourcesField({ item, label, description }: FieldProps) {
   const t = useTranslations('Console.global')
+  const errorMessageT = useErrorMessageT()
   const { control } = useFormContext<ConfigValues>()
   const placeholder = usePlaceholder(item)
+  const [clearing, setClearing] = useState(false)
   const validate = (value: unknown) => {
     const sources = (value as TTMLSource[] | undefined) ?? []
     const valid = sources.every(source => (!source.name.trim() && !source.url.trim()) || HTTP_URL_RE.test(source.url.trim()))
     return valid || t('ttml_source_url_invalid')
+  }
+  const handleClearCache = async () => {
+    setClearing(true)
+    try {
+      await clearMusicTTMLCache()
+      toast.success(t('ttml_cache_cleared'))
+    }
+    catch (err) {
+      toast.error(errorMessageT(err, t('ttml_cache_clear_failed')))
+    }
+    finally {
+      setClearing(false)
+    }
   }
   return (
     <FormField
@@ -512,6 +532,19 @@ function TTMLSourcesField({ item, label, description }: FieldProps) {
             onChange={field.onChange}
             createItem={() => ({ name: '', url: '' })}
             reorderable
+            extraAction={(
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={clearing}
+                title={t('ttml_cache_clear_hint')}
+                onClick={() => void handleClearCache()}
+              >
+                {clearing ? <Spinner className="size-4" /> : <RefreshCwIcon className="size-4" />}
+                {t('ttml_cache_clear')}
+              </Button>
+            )}
             renderItem={(source, update) => (
               <div className="grid grid-cols-[1fr_2fr] gap-2">
                 <Input aria-label={t('ttml_source_name')} placeholder={t('ttml_source_name')} value={source.name} onChange={e => update({ ...source, name: e.target.value })} />

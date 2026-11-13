@@ -97,10 +97,6 @@
     "list": "列表",
     "card": "大卡片"
   },
-  "HomePage": {
-    "title": "Hello world!",
-    "already_in_love_n_day": "已相恋 {n} 天"
-  },
   "BlogHome": {
     "hottest": "热门",
     "hottest_posts": "热门文章",
@@ -252,7 +248,10 @@
     "sidebar_description": "侧栏导航",
     "toggle_sidebar": "展开或收起侧栏",
     "empty_content": "这篇文章还没有正文",
-    "untitled": "无标题"
+    "untitled": "无标题",
+    "prev_post": "上一篇",
+    "next_post": "下一篇",
+    "related_posts": "相关阅读"
   },
   "Components": {
     "image_cropper": {
@@ -1214,6 +1213,10 @@
       "ttml_source_name": "名称",
       "ttml_source_url": "地址",
       "ttml_source_url_invalid": "请填写以 http:// 或 https:// 开头的歌词源地址",
+      "ttml_cache_clear": "清除 TTML 缓存",
+      "ttml_cache_clear_hint": "清除所有歌曲的 TTML 命中与未命中缓存，立即重新探测",
+      "ttml_cache_cleared": "已清除 TTML 歌词缓存",
+      "ttml_cache_clear_failed": "清除 TTML 缓存失败",
       "move_up": "上移",
       "move_down": "下移",
       "env_override_note": "已由环境变量 {name} 设置，优先于这里的配置；如需在这里修改，请先去掉该环境变量",
@@ -1366,7 +1369,9 @@
       "search_reindex_failed": "触发索引重建失败",
       "search_reindex_save_first": "修改了搜索配置，请先保存后再执行全站索引重建",
       "env_secret_configured": "已由环境变量设置（已隐藏）",
-      "secret_configured_placeholder": "已配置，留空保持不变"
+      "secret_configured_placeholder": "已配置，留空保持不变",
+      "enable_email_verify": "启用邮箱验证码",
+      "enable_email_verify_desc": "开启后注册账号、重置密码与修改邮箱均需校验邮箱验证码；关闭后将跳过邮件验证码步骤"
     },
     "labels": {
       "title": "标签管理",
@@ -1406,7 +1411,19 @@
         "oauth2": "OAuth2 / OIDC",
         "misskey": "Misskey"
       },
-      "secret_configured_placeholder": "已配置，留空保持不变"
+      "secret_configured_placeholder": "已配置，留空保持不变",
+      "client_id": "Client ID",
+      "client_secret": "Client Secret",
+      "discovery_url": "自动发现地址（Discovery URL）",
+      "issuer": "签发方（Issuer）",
+      "authorization_endpoint": "授权端点（Authorization Endpoint）",
+      "token_endpoint": "令牌端点（Token Endpoint）",
+      "userinfo_endpoint": "用户信息端点（Userinfo Endpoint）",
+      "jwks_uri": "公钥集地址（JWKS URI）",
+      "token_auth_methods": {
+        "client_secret_post": "请求体传参（client_secret_post）",
+        "client_secret_basic": "Basic 认证头（client_secret_basic）"
+      }
     },
     "personal": "个人",
     "posts": {
@@ -1495,7 +1512,20 @@
       "empty_search": "没有找到匹配的文章",
       "select_all": "全选本页",
       "selected_count": "已选 {count} 篇",
-      "batch_delete_description": "确定要删除选中的 {count} 篇文章吗？删除后不可恢复。"
+      "batch_delete_description": "确定要删除选中的 {count} 篇文章吗？删除后不可恢复。",
+      "ai_suggest_titles": "AI 生成候选标题",
+      "ai_suggest_titles_short": "AI 起标题",
+      "ai_titles_generating": "正在根据正文构思标题…",
+      "ai_titles_regenerate": "换一批",
+      "ai_titles_hint": "点击任一候选即可填入标题栏",
+      "ai_recommend_taxonomy": "AI 推荐分类与标签",
+      "ai_taxonomy_generating": "正在分析正文主题…",
+      "ai_taxonomy_apply_all": "一键采纳",
+      "ai_taxonomy_category": "推荐分类",
+      "ai_taxonomy_labels": "匹配已有标签",
+      "ai_taxonomy_new_labels": "建议新建标签（点击创建并选用）",
+      "ai_taxonomy_create_and_add": "创建并添加标签「{name}」",
+      "ai_taxonomy_empty": "暂未识别出更合适的分类或标签"
     },
     "storages": {
       "title": "存储供应商",
@@ -2383,15 +2413,12 @@
       "color_none": "不上色",
       "phrase_font": "字体",
       "phrase_font_default": "默认字体",
-      "phrase_pace": "节奏",
-      "phrase_pace_default": "跟随全曲",
       "add_effect": "添加特效",
       "phrase_delete": "删除特效",
       "close": "关闭",
       "song_settings": "全曲设置",
       "font": "全曲字体",
       "font_default": "默认字体",
-      "pace": "特效节奏",
       "intro": "前奏导语",
       "intro_placeholder": "前奏时显示的一句话，可留空",
       "accent": "主题色",
@@ -3242,7 +3269,16 @@
     "empty_title": "没有需要处理的投递",
     "empty_desc": "邮件发送正常时这里不会出现记录",
     "prev": "上一页",
-    "next": "下一页"
+    "next": "下一页",
+    "types": {
+      "comment_created": "新评论",
+      "comment_replied": "评论回复",
+      "comment_mentioned": "评论提及",
+      "comment_thread_replied": "讨论串回复",
+      "post_liked": "文章获赞",
+      "comment_liked": "评论获赞",
+      "system_test": "系统测试"
+    }
   },
   "Copyright": {
     "author": "作者",
@@ -3255,13 +3291,6 @@
     "original_link": "原文链接",
     "post_at": "发布于",
     "unknown_date": "未知日期"
-  },
-  "FileSelector": {
-    "select_file": "选择文件",
-    "select_n_files": "选择 {n} 个文件",
-    "select_files": "选择文件",
-    "upload_file": "上传文件",
-    "uploading": "上传中..."
   },
   "NotificationSettings": {
     "title": "通知设置",
@@ -3291,7 +3320,9 @@
     "list_separator": "、",
     "type_comment_created": "评论",
     "type_comment_replied": "回复",
-    "type_comment_mentioned": "提及"
+    "type_comment_mentioned": "提及",
+    "switch_island_alert": "顶栏灵动岛实时提醒",
+    "switch_island_alert_desc": "开启后收到新通知时在顶栏弹出摘要预览，关闭后仅静默更新未读红点（保存在当前浏览器）"
   },
   "Notifications": {
     "title": "通知",
@@ -3333,7 +3364,22 @@
     "attachment_image": "[图片]",
     "attachment_images": "[图片 ×{count}]",
     "attachment_file": "[附件]",
-    "attachment_files": "[附件 ×{count}]"
+    "attachment_files": "[附件 ×{count}]",
+    "settings": "通知设置",
+    "island_alert_switch": "新通知顶栏灵动岛提醒",
+    "island_alert_desc": "收到新互动时在顶栏弹出简短预览（仅保存在当前浏览器）",
+    "island_and_others": "等 {count} 人",
+    "island_types": {
+      "comment_created": "{actors} 评论了《{subject}》：「{excerpt}」",
+      "comment_created_page": "{actors} 评论了页面《{subject}》：「{excerpt}」",
+      "comment_replied": "{actors} 回复了你：「{excerpt}」",
+      "post_liked": "{actors} 赞了《{subject}》",
+      "comment_liked": "{actors} 赞了你的评论「{quoted}」",
+      "comment_liked_without_quote": "{actors} 赞了你的评论",
+      "comment_thread_replied": "{actors} 在《{subject}》下继续回复了",
+      "comment_mentioned": "{actors} 提及了你：「{excerpt}」",
+      "system_test": "收到一条站内测试通知"
+    }
   },
   "Login": {
     "continue_bind_oidc": "继续绑定第三方账号，或退出登录",
@@ -3568,7 +3614,9 @@
     "sort_by": "排序依据",
     "direction": "顺序",
     "desc": "降序",
-    "asc": "升序"
+    "asc": "升序",
+    "id": "编号",
+    "username": "用户名"
   },
   "Random": {
     "title": "随机文章",
@@ -3823,7 +3871,8 @@
       "meilisearch_test_failed": "Meilisearch 连接测试失败",
       "meilisearch_not_enabled": "尚未启用或配置 Meilisearch 服务",
       "csrf_origin_mismatch": "跨站请求校验未通过，请刷新页面后重试",
-      "empty_file": "上传的文件内容为空"
+      "empty_file": "上传的文件内容为空",
+      "content_too_short": "正文内容过短，请先写几句再试"
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field}「{value}」不符合要求} resource {{resource}的参数不符合要求} other {请求参数不符合要求}}",
@@ -4734,12 +4783,6 @@
       "bright": "明亮",
       "sad": "伤感",
       "intense": "激昂"
-    },
-    "paces": {
-      "beat": "跟随节拍（推荐）",
-      "slow": "慢",
-      "medium": "中",
-      "fast": "快"
     },
     "styles": {
       "bold": "粗体",

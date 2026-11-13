@@ -97,10 +97,6 @@
     "list": "リスト",
     "card": "カード"
   },
-  "HomePage": {
-    "title": "Hello world!",
-    "already_in_love_n_day": "交際 {n} 日目"
-  },
   "BlogHome": {
     "hottest": "人気",
     "hottest_posts": "人気の記事",
@@ -252,7 +248,10 @@
     "sidebar_description": "サイドバーのナビゲーション",
     "toggle_sidebar": "サイドバーの表示を切り替え",
     "empty_content": "この記事にはまだ本文がありません",
-    "untitled": "無題"
+    "untitled": "無題",
+    "prev_post": "前の記事",
+    "next_post": "次の記事",
+    "related_posts": "関連記事"
   },
   "Components": {
     "image_cropper": {
@@ -1214,6 +1213,10 @@
       "ttml_source_name": "名前",
       "ttml_source_url": "URL",
       "ttml_source_url_invalid": "http:// または https:// で始まる歌詞ソースの URL を入力してください",
+      "ttml_cache_clear": "TTML キャッシュを消去",
+      "ttml_cache_clear_hint": "全曲の TTML ヒット・未検出キャッシュを消去し、即座に再検索します",
+      "ttml_cache_cleared": "TTML 歌詞キャッシュを消去しました",
+      "ttml_cache_clear_failed": "TTML キャッシュの消去に失敗しました",
       "move_up": "上へ移動",
       "move_down": "下へ移動",
       "env_override_note": "環境変数 {name} で設定されており、この設定より優先されます。ここで変更するには環境変数を削除してください",
@@ -1366,7 +1369,9 @@
       "search_reindex_failed": "インデックス再構築の開始に失敗しました",
       "search_reindex_save_first": "検索設定が変更されています。保存してから再構築を実行してください",
       "env_secret_configured": "環境変数で設定済み（非表示）",
-      "secret_configured_placeholder": "設定済み（空欄で変更なし）"
+      "secret_configured_placeholder": "設定済み（空欄で変更なし）",
+      "enable_email_verify": "メール認証コードを有効化",
+      "enable_email_verify_desc": "有効にすると、新規登録・パスワード再設定・メールアドレス変更時に認証コードの確認が必要になります"
     },
     "labels": {
       "title": "タグ管理",
@@ -1406,7 +1411,19 @@
         "oauth2": "OAuth2 / OIDC",
         "misskey": "Misskey"
       },
-      "secret_configured_placeholder": "設定済み（空欄で変更なし）"
+      "secret_configured_placeholder": "設定済み（空欄で変更なし）",
+      "client_id": "クライアント ID",
+      "client_secret": "クライアントシークレット",
+      "discovery_url": "ディスカバリ URL",
+      "issuer": "発行者（Issuer）",
+      "authorization_endpoint": "認可エンドポイント",
+      "token_endpoint": "トークンエンドポイント",
+      "userinfo_endpoint": "ユーザー情報エンドポイント",
+      "jwks_uri": "JWKS URI",
+      "token_auth_methods": {
+        "client_secret_post": "リクエストボディ（client_secret_post）",
+        "client_secret_basic": "Basic 認証ヘッダー（client_secret_basic）"
+      }
     },
     "personal": "個人",
     "posts": {
@@ -1495,7 +1512,20 @@
       "empty_search": "一致する記事が見つかりませんでした",
       "select_all": "このページをすべて選択",
       "selected_count": "{count} 件選択中",
-      "batch_delete_description": "選択した {count} 件の記事を削除しますか？この操作は元に戻せません。"
+      "batch_delete_description": "選択した {count} 件の記事を削除しますか？この操作は元に戻せません。",
+      "ai_suggest_titles": "AI タイトル候補を生成",
+      "ai_suggest_titles_short": "AI タイトル",
+      "ai_titles_generating": "本文からタイトル案を考えています…",
+      "ai_titles_regenerate": "再生成",
+      "ai_titles_hint": "候補をクリックするとタイトルに反映されます",
+      "ai_recommend_taxonomy": "AI カテゴリ・タグ提案",
+      "ai_taxonomy_generating": "本文のトピックを分析しています…",
+      "ai_taxonomy_apply_all": "一括適用",
+      "ai_taxonomy_category": "おすすめカテゴリ",
+      "ai_taxonomy_labels": "一致した既存タグ",
+      "ai_taxonomy_new_labels": "新規タグ候補（クリックで作成して追加）",
+      "ai_taxonomy_create_and_add": "タグ「{name}」を作成して追加",
+      "ai_taxonomy_empty": "適切なカテゴリやタグが見つかりませんでした"
     },
     "storages": {
       "title": "ストレージプロバイダ",
@@ -2383,15 +2413,12 @@
       "color_none": "色なし",
       "phrase_font": "フォント",
       "phrase_font_default": "既定のフォント",
-      "phrase_pace": "テンポ",
-      "phrase_pace_default": "曲全体に合わせる",
       "add_effect": "エフェクトを追加",
       "phrase_delete": "エフェクトを削除",
       "close": "閉じる",
       "song_settings": "曲全体の設定",
       "font": "曲全体のフォント",
       "font_default": "既定のフォント",
-      "pace": "エフェクトのテンポ",
       "intro": "イントロの一言",
       "intro_placeholder": "イントロ中に表示する一言（省略可）",
       "accent": "テーマカラー",
@@ -3242,7 +3269,16 @@
     "empty_title": "対応が必要な配信はありません",
     "empty_desc": "配信が正常なときはここに表示されません",
     "prev": "前へ",
-    "next": "次へ"
+    "next": "次へ",
+    "types": {
+      "comment_created": "新しいコメント",
+      "comment_replied": "コメントへの返信",
+      "comment_mentioned": "コメントでのメンション",
+      "comment_thread_replied": "スレッド返信",
+      "post_liked": "記事へのいいね",
+      "comment_liked": "コメントへのいいね",
+      "system_test": "システムテスト"
+    }
   },
   "Copyright": {
     "author": "著者",
@@ -3284,7 +3320,9 @@
     "list_separator": "、",
     "type_comment_created": "コメント",
     "type_comment_replied": "返信",
-    "type_comment_mentioned": "メンション"
+    "type_comment_mentioned": "メンション",
+    "switch_island_alert": "トップバーのリアルタイム通知",
+    "switch_island_alert_desc": "オンにすると新着通知のプレビューをトップバーに表示します。オフの場合は未読バッジのみ更新されます（このブラウザに保存）"
   },
   "Notifications": {
     "title": "通知",
@@ -3326,7 +3364,22 @@
     "attachment_image": "[画像]",
     "attachment_images": "[画像 ×{count}]",
     "attachment_file": "[添付ファイル]",
-    "attachment_files": "[添付ファイル ×{count}]"
+    "attachment_files": "[添付ファイル ×{count}]",
+    "settings": "通知設定",
+    "island_alert_switch": "トップバーのアイランド通知",
+    "island_alert_desc": "新着通知のプレビューをトップバーに表示します（このブラウザのみに保存）",
+    "island_and_others": "ほか計 {count} 人",
+    "island_types": {
+      "comment_created": "{actors} が「{subject}」にコメント：「{excerpt}」",
+      "comment_created_page": "{actors} がページ「{subject}」にコメント：「{excerpt}」",
+      "comment_replied": "{actors} が返信：「{excerpt}」",
+      "post_liked": "{actors} が「{subject}」にいいねしました",
+      "comment_liked": "{actors} があなたのコメント「{quoted}」にいいねしました",
+      "comment_liked_without_quote": "{actors} があなたのコメントにいいねしました",
+      "comment_thread_replied": "{actors} が「{subject}」のスレッドに返信しました",
+      "comment_mentioned": "{actors} があなたをメンション：「{excerpt}」",
+      "system_test": "テスト通知を受信しました"
+    }
   },
   "Login": {
     "captcha_error": "CAPTCHA 認証に失敗しました。もう一度お試しください。",
@@ -3443,7 +3496,9 @@
     "sort_by": "並べ替え基準",
     "direction": "順序",
     "desc": "降順",
-    "asc": "昇順"
+    "asc": "昇順",
+    "id": "ID",
+    "username": "ユーザー名"
   },
   "Random": {
     "title": "ランダム記事",
@@ -3535,13 +3590,6 @@
   "State": {
     "private": "非公開",
     "public": "公開"
-  },
-  "FileSelector": {
-    "select_file": "ファイルを選択",
-    "select_n_files": "{n} 個のファイルを選択",
-    "select_files": "ファイルを選択",
-    "upload_file": "ファイルをアップロード",
-    "uploading": "アップロード中..."
   },
   "MusicPlayer": {
     "loading_lyric": "歌詞読み込み中...",
@@ -3862,7 +3910,8 @@
       "meilisearch_test_failed": "Meilisearch 接続テストに失敗しました",
       "meilisearch_not_enabled": "Meilisearch が有効になっていません",
       "csrf_origin_mismatch": "クロスオリジン検証に失敗しました。ページを再読み込みしてもう一度お試しください。",
-      "empty_file": "アップロードされたファイルが空です"
+      "empty_file": "アップロードされたファイルが空です",
+      "content_too_short": "本文が短すぎます。もう少し書いてからお試しください"
     },
     "reasons": {
       "invalid_argument": "{scope, select, field {{field}「{value}」が正しくありません} resource {{resource}のパラメーターが正しくありません} other {リクエストのパラメーターが正しくありません}}",
@@ -4734,12 +4783,6 @@
       "bright": "明るい",
       "sad": "切ない",
       "intense": "激しい"
-    },
-    "paces": {
-      "beat": "ビートに合わせる（おすすめ）",
-      "slow": "ゆっくり",
-      "medium": "普通",
-      "fast": "速い"
     },
     "styles": {
       "bold": "太字",

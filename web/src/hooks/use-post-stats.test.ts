@@ -11,7 +11,10 @@ vi.mock('@/contexts/auth-context', () => ({ useAuth: () => ({ user: null }) }))
 vi.mock('@/components/auth/login-dialog', () => ({ useRequireLogin: () => (fn: () => void) => fn() }))
 vi.mock('@/components/layout/topbar-island/island-feedback', () => ({ notifySuccess: vi.fn() }))
 vi.mock('@/contexts/theme-context', () => ({ LikeIcon: () => null }))
-vi.mock('@/hooks/use-translations', () => ({ useOperationT: () => (key: string) => key }))
+vi.mock('@/hooks/use-translations', () => ({
+  useErrorMessageT: () => () => 'err',
+  useOperationT: () => (key: string) => key,
+}))
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 

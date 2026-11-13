@@ -12,6 +12,7 @@ import { useAuth } from '@/contexts/auth-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { useTheme } from '@/contexts/theme-context'
 import { useColorSchemeName } from '@/hooks/use-color-scheme-name'
+import { useErrorMessageT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
 import {
   applyColorScheme,
@@ -31,6 +32,7 @@ export function useColorScheme() {
   const { siteInfo } = useSiteInfo()
   const { user, setUser } = useAuth()
   const t = useTranslations('ColorScheme')
+  const errorMessageT = useErrorMessageT()
 
   const colorSchemes = useMemo(
     () => (siteInfo.colorSchemes?.length ? siteInfo.colorSchemes : fallbackSiteInfo.colorSchemes),
@@ -73,10 +75,10 @@ export function useColorScheme() {
         applyColorScheme(previous)
         writeStoredColorScheme(previous)
         toast.error(t('update_failed'), {
-          description: error.message,
+          description: errorMessageT(error),
         })
       })
-  }, [color, t, user, setUser])
+  }, [color, errorMessageT, t, user, setUser])
 
   return { color, colorSchemes, selectColor }
 }

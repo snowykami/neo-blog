@@ -1,4 +1,5 @@
 import process from 'node:process'
+import { context, propagation } from '@opentelemetry/api'
 import axios from 'axios'
 import { camelToSnakeObj, snakeToCamelObj } from 'field-conv'
 
@@ -54,6 +55,15 @@ axiosClient.interceptors.request.use((config) => {
   }
   if (config.params && typeof config.params === 'object') {
     config.params = camelToSnakeObj(config.params)
+  }
+  if (isServer && config.headers) {
+    const carrier: Record<string, string> = {}
+    propagation.inject(context.active(), carrier)
+    for (const [k, v] of Object.entries(carrier)) {
+      if (!config.headers.has(k)) {
+        config.headers.set(k, v)
+      }
+    }
   }
   return config
 })

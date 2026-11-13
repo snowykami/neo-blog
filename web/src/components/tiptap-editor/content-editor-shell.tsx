@@ -9,6 +9,7 @@ import * as React from 'react'
 import { toast } from 'sonner'
 import { ContentFontLinks } from '@/components/blog-post/content-font-links'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
+import { AITitleSuggester } from '@/components/console/common/ai-title-suggester'
 import { EditSessionBanner } from '@/components/console/common/edit-session-banner'
 import { EditorSkeleton } from '@/components/console/route-skeleton'
 import { ComponentLibraryDialog } from '@/components/content-components/component-library-dialog'
@@ -427,6 +428,21 @@ function LoadedShell({
               titleLabel={titleLabel}
               descriptionLabel={descriptionLabel}
               readOnly={readOnly || controller.aiBusy}
+              titleAction={controller.doc && (
+                <AITitleSuggester
+                  target={controller.kind}
+                  targetId={controller.doc.id}
+                  currentTitle={meta.title}
+                  disabled={readOnly || controller.aiBusy}
+                  getPayload={() => ({
+                    title: metaRef.current.title,
+                    description: metaRef.current.description,
+                    document: editor.getHTML(),
+                  })}
+                  onSelectTitle={title => updateMeta({ title })}
+                  className="mt-1 shrink-0"
+                />
+              )}
               metaLine={metaLine}
             />
           </EditorContextMenu>

@@ -3,13 +3,22 @@
 import type { Post } from '@/models/post'
 import { PinIcon, PinOffIcon, TriangleAlertIcon } from 'lucide-react'
 import { useFormatter, useTranslations } from 'next-intl'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 import { listPinnedPostsAdmin, setPostPin } from '@/api/admin'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useErrorMessageT } from '@/hooks/use-translations'
@@ -64,15 +73,40 @@ function fromDateInput(value: string) {
 }
 const addDays = (days: number) => new Date(Date.now() + days * 86400_000)
 
+interface PostPinFormValues {
+  pinned: boolean
+  choice: ExpiryChoice
+  customDate: string
+}
+
+function toPinFormValues(state: PostPinState): PostPinFormValues {
+  return {
+    pinned: state.pinned,
+    choice: state.pinnedUntil ? 'custom' : 'forever',
+    customDate: state.pinnedUntil ? toDateInput(new Date(state.pinnedUntil)) : '',
+  }
+}
+
 /** 文章设置里的置顶：开关、到期时间；首页已满时直接列出已置顶的文章，取消一篇后置顶本文 */
 export function PostPinField({ postId, state, onChange }: { postId: number, state: PostPinState, onChange: (state: PostPinState) => void }) {
   const t = useTranslations('Console.post_edit')
   const format = useFormatter()
   const errorMessageT = useErrorMessageT()
   const [busy, setBusy] = useState(false)
-  const [choice, setChoice] = useState<ExpiryChoice>(state.pinnedUntil ? 'custom' : 'forever')
   // 首页已满时列出的置顶文章
   const [occupied, setOccupied] = useState<Post[] | null>(null)
+  const form = useForm<PostPinFormValues>({
+    defaultValues: toPinFormValues(state),
+  })
+  const choice = useWatch({ control: form.control, name: 'choice' })
+
+  useEffect(() => {
+    form.reset({
+      pinned: state.pinned,
+      choice: state.pinnedUntil ? 'custom' : 'forever',
+      customDate: state.pinnedUntil ? toDateInput(new Date(state.pinnedUntil)) : '',
+    })
+  }, [form, state.pinned, state.pinnedUntil])
 
   const apply = async (pinned: boolean, pinnedUntil: Date | null = null) => {
     setBusy(true)
@@ -95,18 +129,26 @@ export function PostPinField({ postId, state, onChange }: { postId: number, stat
   }
 
   const togglePinned = async (pinned: boolean) => {
-    if (await apply(pinned))
+    const ok = await apply(pinned)
+    if (ok) {
       toast.success(t(pinned ? 'pin_success' : 'unpin_success'))
-    if (!pinned)
-      setChoice('forever')
+      if (!pinned)
+        form.setValue('choice', 'forever')
+    }
+    else {
+      form.setValue('pinned', state.pinned)
+    }
   }
 
   const changeExpiry = (next: ExpiryChoice, date?: string) => {
-    setChoice(next)
+    const fallbackDate = toDateInput(state.pinnedUntil ? new Date(state.pinnedUntil) : addDays(7))
+    const resolvedDate = date || fallbackDate
+    if (next === 'custom' && !date)
+      form.setValue('customDate', resolvedDate)
     const until = next === 'forever'
       ? null
       : next === 'custom'
-        ? fromDateInput(date ?? toDateInput(state.pinnedUntil ? new Date(state.pinnedUntil) : addDays(7)))
+        ? fromDateInput(resolvedDate)
         : addDays(Number(next))
     void apply(true, until)
   }
@@ -127,80 +169,130 @@ export function PostPinField({ postId, state, onChange }: { postId: number, stat
   }
 
   const until = state.pinnedUntil ? new Date(state.pinnedUntil) : null
+  const minDate = toDateInput(addDays(1))
   return (
-    <div className="grid min-w-0 gap-3 rounded-lg border p-3">
-      <div className="flex items-start gap-3">
-        <div className="grid flex-1 gap-0.5">
-          <Label htmlFor="post-pin" className="flex items-center gap-1.5">
-            <PinIcon className="size-3.5 text-primary" aria-hidden />
-            {t('pin_to_home')}
-          </Label>
-          <span className="text-xs text-muted-foreground">
-            {state.pinned && state.pinnedAt
-              ? t('pin_status', { date: format.dateTime(new Date(state.pinnedAt), { dateStyle: 'medium' }) })
-              : t('pin_hint', { max: PINNED_POSTS_LIMIT })}
-          </span>
-        </div>
-        <Switch id="post-pin" checked={state.pinned} disabled={busy} onCheckedChange={togglePinned} />
-      </div>
-
-      {occupied && (
-        <Alert>
-          <TriangleAlertIcon className="text-amber-500" aria-hidden />
-          <AlertTitle>{t('pin_limit_title', { max: PINNED_POSTS_LIMIT })}</AlertTitle>
-          <AlertDescription className="min-w-0">
-            <ul className="grid w-full min-w-0 gap-1.5">
-              {occupied.map(post => (
-                <li key={post.id} className="flex min-w-0 items-center gap-2">
-                  <span className="min-w-0 flex-1 truncate" title={post.title}>{post.title}</span>
-                  <Button variant="outline" size="sm" disabled={busy} onClick={() => replace(post)}>
-                    <PinOffIcon aria-hidden />
-                    {t('unpin_action')}
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {state.pinned && (
-        <div className="grid gap-2 border-t border-dashed pt-3">
-          <span className="text-sm font-medium">{t('pin_expiry')}</span>
-          <ToggleGroup
-            type="single"
-            variant="segmented"
-            size="sm"
-            value={choice}
-            disabled={busy}
-            onValueChange={value => value && changeExpiry(value as ExpiryChoice)}
-            aria-label={t('pin_expiry')}
-            className="w-full"
-          >
-            {/* 四段等宽，占满一行 */}
-            <ToggleGroupItem value="forever" className="flex-1 px-2">{t('pin_expiry_forever')}</ToggleGroupItem>
-            <ToggleGroupItem value="7" className="flex-1 px-2">{t('pin_expiry_days', { days: 7 })}</ToggleGroupItem>
-            <ToggleGroupItem value="30" className="flex-1 px-2">{t('pin_expiry_days', { days: 30 })}</ToggleGroupItem>
-            <ToggleGroupItem value="custom" className="flex-1 px-2">{t('pin_expiry_custom')}</ToggleGroupItem>
-          </ToggleGroup>
-          {choice === 'custom' && (
-            <Input
-              type="date"
-              className="w-auto justify-self-start"
-              min={toDateInput(addDays(1))}
-              value={until ? toDateInput(until) : ''}
-              disabled={busy}
-              aria-label={t('pin_expiry_custom')}
-              onChange={e => e.target.value && changeExpiry('custom', e.target.value)}
-            />
+    <Form {...form}>
+      <div className="grid min-w-0 gap-3 rounded-lg border p-3">
+        <FormField
+          control={form.control}
+          name="pinned"
+          render={({ field }) => (
+            <FormItem className="flex items-start gap-3">
+              <div className="grid flex-1 gap-0.5">
+                <FormLabel className="flex items-center gap-1.5">
+                  <PinIcon className="size-3.5 text-primary" aria-hidden />
+                  {t('pin_to_home')}
+                </FormLabel>
+                <FormDescription className="text-xs">
+                  {state.pinned && state.pinnedAt
+                    ? t('pin_status', { date: format.dateTime(new Date(state.pinnedAt), { dateStyle: 'medium' }) })
+                    : t('pin_hint', { max: PINNED_POSTS_LIMIT })}
+                </FormDescription>
+              </div>
+              <FormControl>
+                <Switch
+                  checked={field.value}
+                  disabled={busy}
+                  onCheckedChange={(checked) => {
+                    field.onChange(checked)
+                    void togglePinned(checked)
+                  }}
+                />
+              </FormControl>
+            </FormItem>
           )}
-          <span className="text-xs text-muted-foreground">
-            {until
-              ? t('pin_expiry_result', { date: format.dateTime(until, { dateStyle: 'long', timeStyle: 'short' }) })
-              : t('pin_expiry_result_forever')}
-          </span>
-        </div>
-      )}
-    </div>
+        />
+
+        {occupied && (
+          <Alert>
+            <TriangleAlertIcon className="text-amber-500" aria-hidden />
+            <AlertTitle>{t('pin_limit_title', { max: PINNED_POSTS_LIMIT })}</AlertTitle>
+            <AlertDescription className="min-w-0">
+              <ul className="grid w-full min-w-0 gap-1.5">
+                {occupied.map(post => (
+                  <li key={post.id} className="flex min-w-0 items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate" title={post.title}>{post.title}</span>
+                    <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => replace(post)}>
+                      <PinOffIcon aria-hidden />
+                      {t('unpin_action')}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {state.pinned && (
+          <div className="grid gap-2 border-t border-dashed pt-3">
+            <FormField
+              control={form.control}
+              name="choice"
+              render={({ field }) => (
+                <FormItem className="grid gap-2">
+                  <FormLabel>{t('pin_expiry')}</FormLabel>
+                  <FormControl>
+                    <ToggleGroup
+                      type="single"
+                      variant="segmented"
+                      size="sm"
+                      value={field.value}
+                      disabled={busy}
+                      onValueChange={(value) => {
+                        if (!value)
+                          return
+                        const next = value as ExpiryChoice
+                        field.onChange(next)
+                        changeExpiry(next, form.getValues('customDate') || undefined)
+                      }}
+                      aria-label={t('pin_expiry')}
+                      className="w-full"
+                    >
+                      {/* 四段等宽，占满一行 */}
+                      <ToggleGroupItem value="forever" className="flex-1 px-2">{t('pin_expiry_forever')}</ToggleGroupItem>
+                      <ToggleGroupItem value="7" className="flex-1 px-2">{t('pin_expiry_days', { days: 7 })}</ToggleGroupItem>
+                      <ToggleGroupItem value="30" className="flex-1 px-2">{t('pin_expiry_days', { days: 30 })}</ToggleGroupItem>
+                      <ToggleGroupItem value="custom" className="flex-1 px-2">{t('pin_expiry_custom')}</ToggleGroupItem>
+                    </ToggleGroup>
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+            {choice === 'custom' && (
+              <FormField
+                control={form.control}
+                name="customDate"
+                render={({ field }) => (
+                  <FormItem className="grid gap-1">
+                    <FormControl>
+                      <Input
+                        type="date"
+                        className="w-auto justify-self-start"
+                        min={minDate}
+                        value={field.value}
+                        disabled={busy}
+                        aria-label={t('pin_expiry_custom')}
+                        onChange={(e) => {
+                          const v = e.target.value
+                          field.onChange(v)
+                          if (v && v >= minDate)
+                            changeExpiry('custom', v)
+                        }}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+            <span className="text-xs text-muted-foreground">
+              {until
+                ? t('pin_expiry_result', { date: format.dateTime(until, { dateStyle: 'long', timeStyle: 'short' }) })
+                : t('pin_expiry_result_forever')}
+            </span>
+          </div>
+        )}
+      </div>
+    </Form>
   )
 }

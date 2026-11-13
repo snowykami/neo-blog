@@ -1,25 +1,29 @@
 'use client'
 
 import type { NotificationItem as NotificationItemModel, NotificationType } from '@/models/notification'
-import { Bell, CheckCheck, Loader2 } from 'lucide-react'
+import { Bell, CheckCheck, Loader2, Settings2 } from 'lucide-react'
 import { useLocale, useTranslations } from 'next-intl'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { listNotificationGroupMembers, listNotifications, markAllNotificationsRead, markNotificationRead } from '@/api/notification'
 import { useLoginDialog } from '@/components/auth/login-dialog'
 import { UserAvatar } from '@/components/common/avatar'
-import { attachmentMarkerMessage, parseAttachmentMarker } from '@/components/notification/attachment-marker'
+import { formatNotificationActors, formatNotificationSummary, getNotificationTargetHref } from '@/components/notification/notification-format'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/contexts/auth-context'
 import { decreaseUnreadSnapshot, requestUnreadRefresh } from '@/hooks/notification-unread-store'
+import { useIslandNotificationPref } from '@/hooks/use-island-notification-pref'
 import { useUnreadNotificationSnapshot } from '@/hooks/use-notification-unread'
+import { useErrorMessageT } from '@/hooks/use-translations'
 import { Link } from '@/i18n/navigation'
 import { cn } from '@/lib/utils'
 import { formatDateTime } from '@/utils/common/datetime'
-import { getPostUrl, withCommentAnchor } from '@/utils/common/route'
+import { mainPath } from '@/utils/common/route'
 
 // 界面上把「评论了文章 / 页面、回复、线程活动」并成「回复」一组，点赞单独一组
 // 提及也是「有人在评论里跟我说话」，并入回复 tab
@@ -35,12 +39,14 @@ const PAGE_SIZE = 10
 
 export function NotificationsPage() {
   const t = useTranslations('Notifications')
+  const errorMessageT = useErrorMessageT()
   const { user, loading: authLoading } = useAuth()
   // 只跟随账号变化：用户对象在改资料、改配色时也会换新，不必因此重新拉列表
   const userId = user?.id ?? null
   const openLogin = useLoginDialog()
   // 真实的未读组数（顶栏实时连接维护）：「全部已读」是否可点按它，不按当前 tab 已加载的条目
   const unread = useUnreadNotificationSnapshot()
+  const [islandEnabled, setIslandEnabled] = useIslandNotificationPref()
   const [tab, setTab] = useState<TabKey>('all')
   const [items, setItems] = useState<NotificationItemModel[]>([])
   const [total, setTotal] = useState(0)
@@ -82,9 +88,9 @@ export function NotificationsPage() {
       setPage(nextPage)
       seen.current.maxId = Math.max(seen.current.maxId, unreadRef.current?.latestId ?? 0, ...res.data.notifications.map(item => item.id))
     }
-    catch {
+    catch (error) {
       if (seq === requestSeq.current)
-        toast.error(t('load_failed'))
+        toast.error(`${t('load_failed')}: ${errorMessageT(error)}`)
     }
     finally {
       if (seq === requestSeq.current) {
@@ -92,7 +98,7 @@ export function NotificationsPage() {
         setLoadingMore(false)
       }
     }
-  }, [query, t])
+  }, [errorMessageT, query, t])
 
   // 切换 tab 或账号变化时重新拉第一屏
   useEffect(() => {
@@ -136,8 +142,8 @@ export function NotificationsPage() {
       requestUnreadRefresh()
       await load(1, true)
     }
-    catch {
-      toast.error(t('mark_all_failed'))
+    catch (error) {
+      toast.error(`${t('mark_all_failed')}: ${errorMessageT(error)}`)
     }
     finally {
       setMarkingAll(false)
@@ -184,18 +190,40 @@ export function NotificationsPage() {
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6">
-      <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">{t('title')}</h1>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={markingAll || !hasUnread}
-          onClick={() => void handleMarkAll()}
-        >
-          {markingAll ? <Loader2 className="animate-spin" /> : <CheckCheck />}
-          {t('mark_all_read')}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button asChild type="button" variant="ghost" size="sm">
+            <Link href={mainPath.notificationSettings}>
+              <Settings2 className="size-4" />
+              {t('settings')}
+            </Link>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={markingAll || !hasUnread}
+            onClick={() => void handleMarkAll()}
+          >
+            {markingAll ? <Loader2 className="animate-spin" /> : <CheckCheck />}
+            {t('mark_all_read')}
+          </Button>
+        </div>
+      </div>
+
+      <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border bg-card px-3.5 py-2.5">
+        <div className="grid gap-0.5">
+          <Label htmlFor="island-notification-switch" className="cursor-pointer text-sm font-normal">
+            {t('island_alert_switch')}
+          </Label>
+          <p className="text-muted-foreground text-xs">{t('island_alert_desc')}</p>
+        </div>
+        <Switch
+          id="island-notification-switch"
+          checked={islandEnabled}
+          onCheckedChange={setIslandEnabled}
+        />
       </div>
 
       <Tabs value={tab} onValueChange={value => setTab(value as TabKey)}>
@@ -284,8 +312,8 @@ function NotificationRow({ item, onOpen }: { item: NotificationItemModel, onOpen
   const t = useTranslations('Notifications')
   const commonT = useTranslations('Common')
   const locale = useLocale()
-  const href = notificationLink(item)
-  const actors = actorLabel(t, item)
+  const href = getNotificationTargetHref(item)
+  const actors = formatNotificationActors(t, item)
 
   const body = (
     <div className={cn(
@@ -309,7 +337,7 @@ function NotificationRow({ item, onOpen }: { item: NotificationItemModel, onOpen
       </div>
       <div className="grid min-w-0 flex-1 gap-1">
         <p className="text-sm break-words">
-          {notificationText(t, item, actors)}
+          {formatNotificationSummary(t, item, actors)}
           {item.actorIsAi && (
             <span className="ml-1 rounded bg-muted px-1 py-0.5 align-middle text-[10px] font-medium">AI</span>
           )}
@@ -389,68 +417,6 @@ function NotificationRow({ item, onOpen }: { item: NotificationItemModel, onOpen
 // nameOnlyUser 聚合行的头像只有昵称可用（没有 avatar_url），其余字段留空走首字兜底
 function nameOnlyUser(name: string): AvatarUserShape {
   return { username: name, nickname: name, avatarUrl: '', gravatarHash: '' }
-}
-
-// notificationLink 深链：评论 / 回复 / 线程活动定位到那条评论，文章点赞回到文章页
-function notificationLink(item: NotificationItemModel): string | null {
-  const key = item.subjectSlug || item.subjectId
-  if (!key)
-    return null
-  const base = item.subjectType === 'page' ? `/page/${key}` : getPostUrl({ post: { slug: item.subjectSlug, id: item.subjectId } })
-  if (item.type === 'post.liked')
-    return base
-  const commentId = item.targetType === 'comment' && item.targetId ? item.targetId : item.commentId
-  return withCommentAnchor(base, commentId)
-}
-
-// actorLabel 聚合行的「A、B 和另外 N 人」，单条通知只有一个人
-function actorLabel(t: ReturnType<typeof useTranslations>, item: NotificationItemModel): string {
-  const names = item.actorNames && item.actorNames.length > 0
-    ? item.actorNames
-    : [item.actor.nickname || item.actor.username]
-  const rest = Math.max(0, item.aggregateCount - names.length)
-  const listed = names.join(t('actor_separator'))
-  return rest > 0 ? `${listed}${t('and_others', { count: rest })}` : listed
-}
-
-// excerptText 正文快照：纯附件评论存的是占位标记，按界面语言渲染成「[图片 ×3]」
-function excerptText(t: ReturnType<typeof useTranslations>, excerpt: string): string {
-  const marker = parseAttachmentMarker(excerpt)
-  if (!marker)
-    return excerpt
-  const { key, count } = attachmentMarkerMessage(marker)
-  return t(key, { count })
-}
-
-// notificationText 按类型拼一句话；缺字段时降级而不是显示空括号
-function notificationText(
-  t: ReturnType<typeof useTranslations>,
-  item: NotificationItemModel,
-  actors: string,
-): string {
-  const subject = item.subjectTitle || t('deleted_subject')
-  const quoted = excerptText(t, item.quotedExcerpt)
-  const excerpt = excerptText(t, item.excerpt)
-  switch (item.type) {
-    case 'comment.created':
-      return t(item.subjectType === 'page' ? 'types.comment_created_page' : 'types.comment_created', { actors, subject, excerpt })
-    case 'comment.replied':
-      return quoted
-        ? t('types.comment_replied', { actors, subject, quoted, excerpt })
-        : t('types.comment_replied_without_quote', { actors, excerpt })
-    case 'post.liked':
-      return t('types.post_liked', { actors, subject })
-    case 'comment.liked':
-      return quoted ? t('types.comment_liked', { actors, quoted }) : t('types.comment_liked_without_quote', { actors })
-    case 'comment.thread_replied':
-      return t('types.comment_thread_replied', { actors, subject })
-    case 'comment.mentioned':
-      return t('types.comment_mentioned', { actors, subject, excerpt })
-    case 'system.test':
-      return t('types.system_test')
-    default:
-      return `${actors} ${item.subjectTitle}`
-  }
 }
 
 // groupByDay 今天 / 昨天 / 更早，列表本身已按时间倒序。

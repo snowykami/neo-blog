@@ -8,7 +8,7 @@ import { useRequireLogin } from '@/components/auth/login-dialog'
 import { notifySuccess } from '@/components/layout/topbar-island/island-feedback'
 import { useAuth } from '@/contexts/auth-context'
 import { LikeIcon } from '@/contexts/theme-context'
-import { useOperationT } from '@/hooks/use-translations'
+import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { TargetType } from '@/models/types'
 
 interface PostLikeState {
@@ -74,6 +74,7 @@ export function syncPostLikeCount(id: number, count: number) {
 }
 
 export function usePostLike(post: Pick<Post, 'id' | 'isLiked' | 'likeCount'>) {
+  const errorMessageT = useErrorMessageT()
   const operationT = useOperationT()
   const requireLogin = useRequireLogin()
   const initial = useMemo<PostLikeState>(() => ({ liked: post.isLiked, count: post.likeCount || 0, pending: false, version: 0 }), [post.isLiked, post.likeCount])
@@ -129,11 +130,11 @@ export function usePostLike(post: Pick<Post, 'id' | 'isLiked' | 'likeCount'>) {
         setState(post.id, { liked: status, count: current.count + (status === current.liked ? 0 : status ? 1 : -1), pending: false, version: current.version + 1 })
       })
       .catch((error) => {
-        toast.error(`${operationT('like_failed')}: ${error.message}`)
+        toast.error(`${operationT('like_failed')}: ${errorMessageT(error)}`)
         if (generation === requestGeneration)
           setState(post.id, { ...current, pending: false })
       })
-  }, [initial, operationT, post.id])
+  }, [errorMessageT, initial, operationT, post.id])
 
   return {
     liked: state.liked,

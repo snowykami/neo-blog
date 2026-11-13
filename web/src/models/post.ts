@@ -84,6 +84,23 @@ export interface PostCard {
   updatedAt: string
 }
 
+export interface PostNeighborItem {
+  id: number
+  slug: string | null
+  title: string
+  description: string
+  excerpt: string
+  cover: string
+  category: Category | null
+  createdAt: string
+}
+
+export interface PostNeighbors {
+  prev: PostNeighborItem | null
+  next: PostNeighborItem | null
+  related: PostNeighborItem[]
+}
+
 export interface ListPostsParams {
   page?: number
   size?: number

@@ -7,12 +7,14 @@ import { updateUser } from '@/api/user'
 import { ColorSchemeSelector } from '@/components/console/common/color-scheme-selector'
 import { AIWritingHabitForm } from '@/components/tiptap-editor/ai-writing-habit-form'
 import { useAuth } from '@/contexts/auth-context'
+import { useErrorMessageT } from '@/hooks/use-translations'
 import { Link } from '@/i18n/navigation'
 import { isEditor } from '@/utils/common/permission'
 import { mainPath } from '@/utils/common/route'
 
 export function UserPreferencePage() {
   const t = useTranslations('Console.user_preference')
+  const errorMessageT = useErrorMessageT()
   const { user, setUser } = useAuth()
   const [color, setColor] = useState<string | null>(user?.preferredColor || null)
 
@@ -33,10 +35,10 @@ export function UserPreferencePage() {
       }
       setColor(previousColor || null)
       toast.error(t('update_color_scheme_failed'), {
-        description: error.message,
+        description: errorMessageT(error),
       })
     })
-  }, [color, user, setUser, t])
+  }, [color, errorMessageT, user, setUser, t])
 
   const onColorChange = useCallback((color: string) => {
     setColor(color)

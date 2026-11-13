@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl'
 import { useEffect, useRef, useState } from 'react'
 import { SidebarCard } from '@/components/blog-sidebar/sidebar-card'
 import { cn } from '@/lib/utils'
-import { getScrollOffset, getVisibleElementById } from '@/utils/client/dom'
+import { getScrollOffset, getVisibleElementById, isElementRendered } from '@/utils/client/dom'
 
 export { getScrollOffset }
 
@@ -16,6 +16,7 @@ export { getScrollOffset }
 export function PostToc({ headings, className }: { headings: TocHeading[], className?: string }) {
   const t = useTranslations('Common')
   const [activeId, setActiveId] = useState<string | null>(headings[0]?.id ?? null)
+  const navRef = useRef<HTMLElement>(null)
   // 点击目录后锁定高亮，直到平滑滚动停止，避免途经的标题依次闪烁
   const lockedRef = useRef(false)
   const unlockTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -23,22 +24,18 @@ export function PostToc({ headings, className }: { headings: TocHeading[], class
   useEffect(() => {
     if (headings.length < 2)
       return
-    const elements = headings
-      .map(heading => getVisibleElementById(heading.id))
-      .filter((el): el is HTMLElement => !!el)
-    if (elements.length === 0)
-      return
+
+    const mql = window.matchMedia('(min-width: 1024px)')
+    let elements: HTMLElement[] = []
+    let attached = false
+    let rafId = 0
 
     // 取最后一个已滚过视口顶部（含偏移）的标题作为当前项
     const update = () => {
-      if (lockedRef.current) {
-        // 滚动仍在进行，顺延解锁；停止滚动 150ms 后才恢复跟随
-        clearTimeout(unlockTimerRef.current)
-        unlockTimerRef.current = setTimeout(() => {
-          lockedRef.current = false
-        }, 150)
+      if (navRef.current && !isElementRendered(navRef.current))
         return
-      }
+      if (elements.length === 0)
+        return
       const offset = getScrollOffset()
       let current = elements[0].id
       for (const el of elements) {
@@ -47,22 +44,71 @@ export function PostToc({ headings, className }: { headings: TocHeading[], class
         else
           break
       }
-      setActiveId(current)
+      setActiveId(prev => (prev === current ? prev : current))
     }
+
+    const onScroll = () => {
+      if (lockedRef.current) {
+        // 滚动仍在进行，顺延解锁；停止滚动 150ms 后才恢复跟随
+        clearTimeout(unlockTimerRef.current)
+        unlockTimerRef.current = setTimeout(() => {
+          lockedRef.current = false
+        }, 150)
+        return
+      }
+      if (rafId !== 0)
+        return
+      rafId = requestAnimationFrame(() => {
+        rafId = 0
+        update()
+      })
+    }
+
     // 用户手动滚动时立即解除锁定，恢复跟随阅读位置
     const unlock = () => {
       lockedRef.current = false
     }
-    update()
-    window.addEventListener('scroll', update, { passive: true })
-    window.addEventListener('resize', update)
-    window.addEventListener('wheel', unlock, { passive: true })
-    window.addEventListener('touchstart', unlock, { passive: true })
-    return () => {
-      window.removeEventListener('scroll', update)
-      window.removeEventListener('resize', update)
+
+    const detach = () => {
+      if (!attached)
+        return
+      attached = false
+      if (rafId !== 0) {
+        cancelAnimationFrame(rafId)
+        rafId = 0
+      }
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
       window.removeEventListener('wheel', unlock)
       window.removeEventListener('touchstart', unlock)
+    }
+
+    const syncListeners = () => {
+      const visible = mql.matches && (!navRef.current || isElementRendered(navRef.current))
+      if (!visible) {
+        detach()
+        return
+      }
+      if (attached)
+        return
+      elements = headings
+        .map(heading => getVisibleElementById(heading.id))
+        .filter((el): el is HTMLElement => !!el)
+      if (elements.length === 0)
+        return
+      attached = true
+      update()
+      window.addEventListener('scroll', onScroll, { passive: true })
+      window.addEventListener('resize', onScroll, { passive: true })
+      window.addEventListener('wheel', unlock, { passive: true })
+      window.addEventListener('touchstart', unlock, { passive: true })
+    }
+
+    syncListeners()
+    mql.addEventListener('change', syncListeners)
+    return () => {
+      mql.removeEventListener('change', syncListeners)
+      detach()
       clearTimeout(unlockTimerRef.current)
     }
   }, [headings])
@@ -95,7 +141,7 @@ export function PostToc({ headings, className }: { headings: TocHeading[], class
     <SidebarCard title={t('table_of_contents')} className={className}>
       {/* 目录只上下滚动：grid 的隐式列默认按内容的最宽处撑开（长标题是一整段不换行的文本），列宽要显式夹在卡片内，
           否则整块目录能左右滑、长标题也省略不掉；触摸时横向的拖动不交给浏览器 */}
-      <nav aria-label={t('table_of_contents')} className="-mx-1 max-h-[calc(100dvh-var(--nav-h)-8rem)] touch-pan-y overflow-x-hidden overflow-y-auto overscroll-x-none px-1 hide-scrollbar">
+      <nav ref={navRef} aria-label={t('table_of_contents')} className="-mx-1 max-h-[calc(100dvh-var(--nav-h)-8rem)] touch-pan-y overflow-x-hidden overflow-y-auto overscroll-x-none px-1 hide-scrollbar">
         <ul className="grid grid-cols-[minmax(0,1fr)] gap-0.5 text-sm">
           {headings.map((heading) => {
             const isTop = heading.level === minLevel

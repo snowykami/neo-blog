@@ -1,9 +1,9 @@
-import type { Post } from '@/models/post'
+import type { Post, PostNeighbors } from '@/models/post'
 import { getLocale } from 'next-intl/server'
 import { cacheLife, cacheTag } from 'next/cache'
 import { notFound } from 'next/navigation'
 import { cache } from 'react'
-import { getPostByIdServer } from '@/api/post.server'
+import { getPostByIdServer, getPostNeighborsServer } from '@/api/post.server'
 import { permanentRedirect } from '@/i18n/navigation'
 import { CacheTag, skipBackendAtBuild } from '@/lib/cache-tags'
 import { isNotFoundLikeError } from '@/utils/common/error'
@@ -49,3 +49,25 @@ export async function getCanonicalPost(id: string): Promise<Post> {
     permanentRedirect({ href: getPostUrl({ post }), locale: await getLocale() })
   return post
 }
+
+const EMPTY_NEIGHBORS: PostNeighbors = { prev: null, next: null, related: [] }
+
+async function loadPostNeighbors(postId: number): Promise<PostNeighbors> {
+  'use cache'
+  cacheLife('detail')
+  cacheTag(CacheTag.Posts)
+  try {
+    return (await getPostNeighborsServer({ id: postId })).data ?? EMPTY_NEIGHBORS
+  }
+  catch (error) {
+    if (!isNotFoundLikeError(error))
+      throw error
+    cacheTag(CacheTag.NoStore)
+    return EMPTY_NEIGHBORS
+  }
+}
+
+export const getCachedPostNeighbors = cache((postId: number) => {
+  skipBackendAtBuild()
+  return loadPostNeighbors(postId)
+})

@@ -36,6 +36,8 @@ export interface EditorCanvasProps {
   titleLabel: string
   descriptionLabel: string
   readOnly: boolean
+  // 标题右侧的附加操作（如 AI 生成候选标题）
+  titleAction?: React.ReactNode
   // 标题下方的元信息行（分类 · 日期等）
   metaLine?: React.ReactNode
   className?: string
@@ -56,6 +58,7 @@ export function EditorCanvas({
   titleLabel,
   descriptionLabel,
   readOnly,
+  titleAction,
   metaLine,
   className,
 }: EditorCanvasProps) {
@@ -102,26 +105,29 @@ export function EditorCanvas({
         className,
       )}
     >
-      <textarea
-        ref={titleRef}
-        rows={1}
-        value={title}
-        readOnly={readOnly}
-        aria-label={titleLabel}
-        placeholder={titlePlaceholder}
-        onChange={e => onTitleChange(e.target.value.replace(/\n/g, ' '))}
-        onKeyDown={(event) => {
-          // 组字时的回车、方向键交给输入法（确认、切换候选词）
-          if (isComposingKey(event))
-            return
-          const el = event.currentTarget
-          if (event.key === 'Enter' || (event.key === 'ArrowDown' && el.selectionStart === el.value.length)) {
-            event.preventDefault()
-            descRef.current?.focus()
-          }
-        }}
-        className="block w-full resize-none overflow-hidden border-0 bg-transparent p-0 text-[1.75rem] leading-[1.3] font-bold tracking-tight text-foreground/90 outline-none placeholder:text-foreground/30 md:text-[2.25rem]"
-      />
+      <div className="flex items-start gap-2">
+        <textarea
+          ref={titleRef}
+          rows={1}
+          value={title}
+          readOnly={readOnly}
+          aria-label={titleLabel}
+          placeholder={titlePlaceholder}
+          onChange={e => onTitleChange(e.target.value.replace(/\n/g, ' '))}
+          onKeyDown={(event) => {
+            // 组字时的回车、方向键交给输入法（确认、切换候选词）
+            if (isComposingKey(event))
+              return
+            const el = event.currentTarget
+            if (event.key === 'Enter' || (event.key === 'ArrowDown' && el.selectionStart === el.value.length)) {
+              event.preventDefault()
+              descRef.current?.focus()
+            }
+          }}
+          className="block min-w-0 flex-1 resize-none overflow-hidden border-0 bg-transparent p-0 text-[1.75rem] leading-[1.3] font-bold tracking-tight text-foreground/90 outline-none placeholder:text-foreground/30 md:text-[2.25rem]"
+        />
+        {!readOnly && titleAction}
+      </div>
       <textarea
         ref={descRef}
         rows={1}

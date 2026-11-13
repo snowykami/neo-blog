@@ -68,17 +68,28 @@ function clip(line: string) {
   return line.length > MAX_LINE_LENGTH ? `${line.slice(0, MAX_LINE_LENGTH)}…` : line
 }
 
+/**
+ * 从栈帧 URL 中提取以 `/_next/static/` 开头的索引键：
+ * 兼容同源路径、独立 CDN 域名以及带子路径前缀的 CDN assetPrefix（如 https://cdn.example.com/neo-blog/_next/static/...）
+ */
+export function toStaticPath(rawUrl: string): string | null {
+  try {
+    const { pathname } = new URL(rawUrl, 'http://localhost')
+    const idx = pathname.indexOf('/_next/static/')
+    return idx >= 0 ? pathname.slice(idx) : null
+  }
+  catch {
+    return null
+  }
+}
+
 async function symbolicateFrame(frame: Frame, index: Record<string, string>) {
   const url = frame.abs_path || frame.filename
   if (!url || !frame.lineno || !frame.colno)
     return
-  let pathname: string
-  try {
-    pathname = new URL(url, 'http://localhost').pathname
-  }
-  catch {
+  const pathname = toStaticPath(url)
+  if (!pathname)
     return
-  }
   const file = index[pathname]
   if (!file)
     return

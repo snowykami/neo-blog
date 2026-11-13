@@ -1,5 +1,5 @@
 import type { TargetType } from './types'
-import type { User } from './user'
+import type { User, UserAvatarInfo } from './user'
 
 // 事件类型见后端 constant.NotificationType*；线程活动（comment.thread_replied）在界面上并入「回复」
 export type NotificationType
@@ -41,13 +41,39 @@ export interface NotificationItem {
   activityAt: string
 }
 
+// 最新一条未读通知的轻量预览（用于 SSE 实时推送与顶栏灵动岛展示）
+export interface NotificationPreview {
+  id: number
+  type: NotificationType
+  actor?: UserAvatarInfo
+  actorIsAi?: boolean
+  actorNames?: string[]
+  aggregateCount: number
+  subjectType?: 'post' | 'page'
+  subjectId?: number
+  subjectTitle?: string
+  subjectSlug?: string
+  targetType: TargetType
+  targetId: number
+  commentId?: number
+  excerpt?: string
+  quotedExcerpt?: string
+  isRead: boolean
+  activityAt: string
+}
+
 // 未读徽标：总数与分类型都是「聚合组」的数量
 export interface NotificationUnreadCount {
   total: number
   byType: Record<string, number>
-  // 最近一条通知（按最近活动时间）的 id 与时间；没有通知时为 0 / null，用于判断「来了新通知」
+  // 最近一条通知（按最近活动时间）的 id 与时间；没有通知时为 0 / null，用于向后兼容与全部已读上界
   latestId: number
   latestAt: string | null
+  // 单调递增通知事件序号
+  seq?: number
+  updatedAt?: string
+  // 最新一条未读通知预览（无未读时为 null / undefined）
+  latest?: NotificationPreview | null
 }
 
 // 通知偏好；站点级字段用于隐藏站点没开放的类型（用户只能关不能开）
