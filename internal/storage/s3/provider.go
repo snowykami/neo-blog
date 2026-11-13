@@ -133,28 +133,37 @@ func (p *S3StorageProvider) Save(ctx context.Context, filePath string, reader io
 
 // SaveWithContentType 保存文件并记录对象类型：配置了公开地址时浏览器直接从存储读取，类型决定浏览器怎样处理（为空时由存储默认为二进制）
 func (p *S3StorageProvider) SaveWithContentType(ctx context.Context, filePath string, reader io.Reader, contentType string) error {
-	// 读取所有数据
-	data, err := io.ReadAll(reader)
-	if err != nil {
-		return fmt.Errorf("failed to read data: %w", err)
-	}
-
 	key := p.fullKey(filePath)
-
 	input := &s3.PutObjectInput{
 		Bucket: aws.String(p.bucket),
 		Key:    aws.String(key),
-		Body:   bytes.NewReader(data),
 	}
 	if contentType != "" {
 		input.ContentType = aws.String(contentType)
 	}
-	_, err = p.client.PutObject(ctx, input)
-
-	if err != nil {
-		return fmt.Errorf("failed to upload file to S3: %w", err)
+	if rs, ok := reader.(io.ReadSeeker); ok {
+		cur, err := rs.Seek(0, io.SeekCurrent)
+		if err == nil {
+			if end, err := rs.Seek(0, io.SeekEnd); err == nil {
+				if _, err := rs.Seek(cur, io.SeekStart); err == nil {
+					input.Body = rs
+					input.ContentLength = aws.Int64(end - cur)
+				}
+			}
+		}
+	}
+	if input.Body == nil {
+		data, err := io.ReadAll(reader)
+		if err != nil {
+			return fmt.Errorf("failed to read data: %w", err)
+		}
+		input.Body = bytes.NewReader(data)
+		input.ContentLength = aws.Int64(int64(len(data)))
 	}
 
+	if _, err := p.client.PutObject(ctx, input); err != nil {
+		return fmt.Errorf("failed to upload file to S3: %w", err)
+	}
 	return nil
 }
 
@@ -167,7 +176,7 @@ func (p *S3StorageProvider) Create(ctx context.Context, filePath string) (storag
 	}, nil
 }
 
-// Open 打开文件进行读取
+// Open 打开文件进行流式读取
 func (p *S3StorageProvider) Open(ctx context.Context, filePath string) (storageprovider.ReadableFile, error) {
 	key := p.fullKey(filePath)
 
@@ -175,34 +184,36 @@ func (p *S3StorageProvider) Open(ctx context.Context, filePath string) (storagep
 		Bucket: aws.String(p.bucket),
 		Key:    aws.String(key),
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to get object from S3: %w", err)
 	}
 
-	// 读取所有数据到内存
-	data, err := io.ReadAll(result.Body)
-	result.Body.Close()
-	if err != nil {
-		return nil, fmt.Errorf("failed to read object data: %w", err)
-	}
-
-	// 获取文件信息
 	info := &S3FileInfo{
 		path:    filePath,
 		name:    path.Base(filePath),
-		size:    *result.ContentLength,
-		modTime: *result.LastModified,
+		size:    aws.ToInt64(result.ContentLength),
+		modTime: aws.ToTime(result.LastModified),
 		isDir:   false,
 	}
 
 	return &S3ReadableFile{
 		S3FileInfo: info,
-		reader:     bytes.NewReader(data),
+		body:       result.Body,
+		reopen: func(offset int64) (io.ReadCloser, error) {
+			ranged, err := p.client.GetObject(ctx, &s3.GetObjectInput{
+				Bucket: aws.String(p.bucket),
+				Key:    aws.String(key),
+				Range:  aws.String(fmt.Sprintf("bytes=%d-", offset)),
+			})
+			if err != nil {
+				return nil, fmt.Errorf("failed to get object range from S3: %w", err)
+			}
+			return ranged.Body, nil
+		},
 	}, nil
 }
 
-// OpenRange 打开文件的指定范围进行读取
+// OpenRange 打开文件的指定范围进行流式读取
 func (p *S3StorageProvider) OpenRange(ctx context.Context, filePath string, offset, length int64) (storageprovider.ReadableFile, error) {
 	key := p.fullKey(filePath)
 
@@ -216,30 +227,41 @@ func (p *S3StorageProvider) OpenRange(ctx context.Context, filePath string, offs
 		Key:    aws.String(key),
 		Range:  aws.String(rangeHeader),
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to get object range from S3: %w", err)
 	}
 
-	// 读取所有数据到内存
-	data, err := io.ReadAll(result.Body)
-	result.Body.Close()
-	if err != nil {
-		return nil, fmt.Errorf("failed to read object data: %w", err)
-	}
-
-	// 获取文件信息
 	info := &S3FileInfo{
 		path:    filePath,
 		name:    path.Base(filePath),
-		size:    int64(len(data)),
-		modTime: *result.LastModified,
+		size:    aws.ToInt64(result.ContentLength),
+		modTime: aws.ToTime(result.LastModified),
 		isDir:   false,
 	}
 
 	return &S3ReadableFile{
 		S3FileInfo: info,
-		reader:     bytes.NewReader(data),
+		body:       result.Body,
+		reopen: func(relOffset int64) (io.ReadCloser, error) {
+			absStart := offset + relOffset
+			hdr := fmt.Sprintf("bytes=%d-", absStart)
+			if length > 0 {
+				absEnd := offset + length - 1
+				if absStart > absEnd {
+					return io.NopCloser(bytes.NewReader(nil)), nil
+				}
+				hdr = fmt.Sprintf("bytes=%d-%d", absStart, absEnd)
+			}
+			ranged, err := p.client.GetObject(ctx, &s3.GetObjectInput{
+				Bucket: aws.String(p.bucket),
+				Key:    aws.String(key),
+				Range:  aws.String(hdr),
+			})
+			if err != nil {
+				return nil, fmt.Errorf("failed to get object range from S3: %w", err)
+			}
+			return ranged.Body, nil
+		},
 	}, nil
 }
 
@@ -259,8 +281,8 @@ func (p *S3StorageProvider) Stat(ctx context.Context, filePath string) (storagep
 	return &S3FileInfo{
 		path:    filePath,
 		name:    path.Base(filePath),
-		size:    *result.ContentLength,
-		modTime: *result.LastModified,
+		size:    aws.ToInt64(result.ContentLength),
+		modTime: aws.ToTime(result.LastModified),
 		isDir:   false,
 	}, nil
 }
@@ -348,7 +370,10 @@ func (p *S3StorageProvider) ListWithFilter(ctx context.Context, prefix string, f
 
 		for _, obj := range result.Contents {
 			// 计算相对路径
-			relativePath := *obj.Key
+			relativePath := aws.ToString(obj.Key)
+			if relativePath == "" {
+				continue
+			}
 			if p.prefix != "" {
 				relativePath = strings.TrimPrefix(relativePath, p.prefix)
 				relativePath = strings.TrimPrefix(relativePath, "/")
@@ -357,8 +382,8 @@ func (p *S3StorageProvider) ListWithFilter(ctx context.Context, prefix string, f
 			info := &S3FileInfo{
 				path:    relativePath,
 				name:    path.Base(relativePath),
-				size:    *obj.Size,
-				modTime: *obj.LastModified,
+				size:    aws.ToInt64(obj.Size),
+				modTime: aws.ToTime(obj.LastModified),
 				isDir:   false,
 			}
 

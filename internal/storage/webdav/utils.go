@@ -3,6 +3,7 @@ package webdav
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"os"
 	"time"
@@ -23,25 +24,66 @@ func (f *WebDAVFileInfo) Size() int64        { return f.size }
 func (f *WebDAVFileInfo) ModTime() time.Time { return f.modTime }
 func (f *WebDAVFileInfo) IsDir() bool        { return f.isDir }
 
-// WebDAVReadableFile WebDAV可读文件
+// WebDAVReadableFile WebDAV流式可读文件
 type WebDAVReadableFile struct {
 	*WebDAVFileInfo
-	reader   io.ReadSeeker
-	closer   func() error
-	provider *WebDAVStorageProvider
+	body   io.ReadCloser
+	offset int64
+	reopen func(offset int64) (io.ReadCloser, error)
 }
 
 func (f *WebDAVReadableFile) Read(p []byte) (int, error) {
-	return f.reader.Read(p)
+	if f.body == nil {
+		return 0, io.EOF
+	}
+	n, err := f.body.Read(p)
+	f.offset += int64(n)
+	return n, err
 }
 
 func (f *WebDAVReadableFile) Seek(offset int64, whence int) (int64, error) {
-	return f.reader.Seek(offset, whence)
+	var next int64
+	switch whence {
+	case io.SeekStart:
+		next = offset
+	case io.SeekCurrent:
+		next = f.offset + offset
+	case io.SeekEnd:
+		next = f.size + offset
+	default:
+		return 0, errors.New("webdav: invalid whence")
+	}
+	if next < 0 {
+		return 0, errors.New("webdav: negative seek position")
+	}
+	if next == f.offset {
+		return f.offset, nil
+	}
+	if f.body != nil {
+		_ = f.body.Close()
+		f.body = nil
+	}
+	if next >= f.size {
+		f.offset = next
+		return next, nil
+	}
+	if f.reopen == nil {
+		return 0, errors.New("webdav: stream is not seekable")
+	}
+	rc, err := f.reopen(next)
+	if err != nil {
+		return f.offset, err
+	}
+	f.body = rc
+	f.offset = next
+	return next, nil
 }
 
 func (f *WebDAVReadableFile) Close() error {
-	if f.closer != nil {
-		return f.closer()
+	if f.body != nil {
+		err := f.body.Close()
+		f.body = nil
+		return err
 	}
 	return nil
 }

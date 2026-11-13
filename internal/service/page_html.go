@@ -59,7 +59,8 @@ func (s *PageHTMLService) Upload(ctx context.Context, in *PageHTMLUploadInput) (
 	if model.NormalizePageKind(page.Kind) != model.PageKindHTML {
 		return nil, errs.NewBadRequest("page_not_html")
 	}
-	bundle, bundleErr := parseHTMLBundle(in.FileName, in.Src, in.Size, pageHTMLLimitsFromEnv())
+	limits := pageHTMLLimitsFromEnv()
+	bundle, bundleErr := parseHTMLBundle(in.FileName, in.Src, in.Size, limits)
 	if bundleErr != nil {
 		return nil, errs.New(http.StatusBadRequest, bundleErr.Code, bundleErr)
 	}
@@ -87,12 +88,12 @@ func (s *PageHTMLService) Upload(ctx context.Context, in *PageHTMLUploadInput) (
 	for _, f := range bundle.Files {
 		storagePath := pageHTMLStoragePath(page.ID, key, f.Path)
 		written = append(written, storagePath) // 写入失败时可能残留不完整的文件，一并清理
-		if svcerr := saveBundleFile(ctx, provider, storagePath, f); svcerr != nil {
+		actualSize, svcerr := saveBundleFile(ctx, provider, storagePath, f, limits, &totalSize)
+		if svcerr != nil {
 			deleteStoredFiles(ctx, provider, written)
 			return nil, svcerr
 		}
-		manifest = append(manifest, model.PageHTMLFile{Path: f.Path, Size: f.Size})
-		totalSize += f.Size
+		manifest = append(manifest, model.PageHTMLFile{Path: f.Path, Size: actualSize})
 	}
 
 	currentUserID, _ := ctxutils.GetCurrentUserID(ctx)
@@ -328,22 +329,57 @@ func deleteStoredFiles(ctx context.Context, provider storageprovider.StorageProv
 	}
 }
 
-// saveBundleFile 写入一个文件；读取包内数据失败（zip 损坏、大小与声明不符）视为上传内容有误，其余为存储错误
-func saveBundleFile(ctx context.Context, provider storageprovider.StorageProvider, storagePath string, f bundleFile) *errs.ServiceError {
+// saveBundleFile 写入一个文件，并在解压流上强制单文件与整包字节上限（防止伪造 ZIP 头部长度的解压炸弹）；
+// 读取包内数据失败（zip 损坏、大小与声明不符）视为上传内容有误，其余为存储错误
+func saveBundleFile(ctx context.Context, provider storageprovider.StorageProvider, storagePath string, f bundleFile, limits pageHTMLLimits, totalRead *int64) (int64, *errs.ServiceError) {
 	rc, err := f.open()
 	if err != nil {
-		return errs.New(http.StatusBadRequest, "page_html_invalid_zip", &PageHTMLBundleError{Code: "page_html_invalid_zip", Path: f.Path})
+		return 0, errs.New(http.StatusBadRequest, "page_html_invalid_zip", &PageHTMLBundleError{Code: "page_html_invalid_zip", Path: f.Path})
 	}
 	defer rc.Close()
-	reader := &readErrRecorder{r: rc}
+	limited := &bundleLimitReader{
+		r:         rc,
+		path:      f.Path,
+		fileMax:   limits.MaxFileSize,
+		totalMax:  limits.MaxTotalSize,
+		totalRead: totalRead,
+	}
+	reader := &readErrRecorder{r: limited}
 	if err := provider.Save(ctx, storagePath, reader); err != nil {
+		if berr, ok := reader.err.(*PageHTMLBundleError); ok {
+			return 0, errs.New(http.StatusBadRequest, berr.Code, berr)
+		}
 		if reader.err != nil {
-			return errs.New(http.StatusBadRequest, "page_html_invalid_zip", &PageHTMLBundleError{Code: "page_html_invalid_zip", Path: f.Path})
+			return 0, errs.New(http.StatusBadRequest, "page_html_invalid_zip", &PageHTMLBundleError{Code: "page_html_invalid_zip", Path: f.Path})
 		}
 		logrus.Errorf("save html file %s failed: %v", storagePath, err)
-		return errs.New(http.StatusInternalServerError, "failed_to_save_file", err)
+		return 0, errs.New(http.StatusInternalServerError, "failed_to_save_file", err)
 	}
-	return nil
+	return limited.fileRead, nil
+}
+
+type bundleLimitReader struct {
+	r         io.Reader
+	path      string
+	fileRead  int64
+	fileMax   int64
+	totalMax  int64
+	totalRead *int64
+}
+
+func (l *bundleLimitReader) Read(p []byte) (int, error) {
+	n, err := l.r.Read(p)
+	if n > 0 {
+		l.fileRead += int64(n)
+		*l.totalRead += int64(n)
+		if l.fileRead > l.fileMax {
+			return 0, &PageHTMLBundleError{Code: "page_html_file_too_large", Path: l.path}
+		}
+		if *l.totalRead > l.totalMax {
+			return 0, &PageHTMLBundleError{Code: "page_html_bundle_too_large"}
+		}
+	}
+	return n, err
 }
 
 // readErrRecorder 记录读取过程中的错误，用于区分是上传内容损坏还是存储写入失败

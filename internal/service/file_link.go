@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"mime"
 	"path"
 	"regexp"
 	"slices"
@@ -48,6 +49,7 @@ func fileStoragePath(hash string) string {
 type fileLoc struct {
 	providerID uint
 	hash       string
+	directSafe bool
 	checkedAt  time.Time
 }
 
@@ -108,7 +110,15 @@ func lookupFileLocs(ids []uint) map[uint]fileLoc {
 		result[id] = fileLoc{checkedAt: now}
 	}
 	for _, f := range files {
-		result[f.ID] = fileLoc{providerID: f.ProviderID, hash: f.Hash}
+		ct := f.MimeType
+		if ct == "" {
+			ct = mime.TypeByExtension(strings.ToLower(path.Ext(f.Name)))
+		}
+		result[f.ID] = fileLoc{
+			providerID: f.ProviderID,
+			hash:       f.Hash,
+			directSafe: utils.DirectSafeContentType(ct),
+		}
 	}
 	fileLocCacheMu.Lock()
 	if len(fileLocCache)+len(missing) > fileLocCacheLimit {
@@ -131,9 +141,9 @@ func hasDirectStorage() bool {
 	return false
 }
 
-// directURL 文件在可直连存储中的直链；存储需要代理时返回空字符串
+// directURL 文件在可直连存储中的直链；存储需要代理，或文件为附件 / SVG（需经后端附带下载头或 CSP 沙箱）时返回空字符串
 func directURL(loc fileLoc) string {
-	if loc.providerID == 0 {
+	if loc.providerID == 0 || !loc.directSafe {
 		return ""
 	}
 	provider, ok := storage.GetStorageProvider(loc.providerID)

@@ -130,7 +130,7 @@ func (f *FileController) GetFile(ctx context.Context, c *app.RequestContext) {
 	// 可直连的存储（配置了公开地址的 S3）：可直接显示的类型跳转到对象的公开地址，浏览器直接向存储（CDN）读取，不经后端转发；
 	// 跳转目标只在换存储时变化（迁移不删除源对象），可缓存一天。附件仍经后端返回（带下载文件名、按二进制下载），
 	// SVG 也经后端返回（附带禁止执行脚本的 CSP）
-	if inline && contentType != "image/svg+xml" {
+	if utils.DirectSafeContentType(contentType) {
 		if provider, ok := storage.GetStorageProvider(fileModel.ProviderID); ok && !provider.IsProxy() {
 			if url, err := provider.GetURL(ctx, filepath.Join(utils.FilePath(fileModel.Hash)), 0); err == nil {
 				c.Header("Cache-Control", "public, max-age=86400")
@@ -177,35 +177,41 @@ func (f *FileController) GetFile(ctx context.Context, c *app.RequestContext) {
 	}
 
 	filePath := filepath.Join(utils.FilePath(fileModel.Hash))
+
+	// 单段 Range 请求：先 Stat 获取总长度再按需范围读取，避免从头拉取大文件流
+	if rangeHeader != "" {
+		info, err := provider.Stat(ctx, filePath)
+		if err != nil {
+			resps.Error(c, errs.Internal("failed_to_open_file", err))
+			return
+		}
+		size := info.Size()
+		start, end, ok := parseByteRange(rangeHeader, size)
+		if !ok {
+			c.Header("Content-Range", fmt.Sprintf("bytes */%d", size))
+			c.SetStatusCode(416)
+			return
+		}
+		length := end - start + 1
+		rangeFile, err := provider.OpenRange(ctx, filePath, start, length)
+		if err != nil {
+			resps.Error(c, errs.Internal("failed_to_read_file", err))
+			return
+		}
+		setHeaders(length, "MISS")
+		c.Header("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, size))
+		c.SetStatusCode(206)
+		c.SetContentType(contentType)
+		c.SetBodyStream(&limitedReadCloser{Reader: io.LimitReader(rangeFile, length), Closer: rangeFile}, int(length))
+		return
+	}
+
 	readableFile, err := provider.Open(ctx, filePath)
 	if err != nil {
 		resps.Error(c, errs.Internal("failed_to_open_file", err))
 		return
 	}
 	size := readableFile.Size()
-
-	// 单段 Range 请求：音视频拖动进度、断点续传
-	if rangeHeader != "" {
-		start, end, ok := parseByteRange(rangeHeader, size)
-		if !ok {
-			readableFile.Close()
-			c.Header("Content-Range", fmt.Sprintf("bytes */%d", size))
-			c.SetStatusCode(416)
-			return
-		}
-		if _, err := readableFile.Seek(start, io.SeekStart); err != nil {
-			readableFile.Close()
-			resps.Error(c, errs.Internal("failed_to_read_file", err))
-			return
-		}
-		length := end - start + 1
-		setHeaders(length, "MISS")
-		c.Header("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, size))
-		c.SetStatusCode(206)
-		c.SetContentType(contentType)
-		c.SetBodyStream(&limitedReadCloser{Reader: io.LimitReader(readableFile, length), Closer: readableFile}, int(length))
-		return
-	}
 	setHeaders(size, "MISS")
 
 	// 大文件直接流式输出，不读入内存；流读取完毕后由框架关闭文件
@@ -272,11 +278,7 @@ func (f *FileController) DeleteFile(ctx context.Context, c *app.RequestContext) 
 		resps.BadRequest(c, "storage_provider_not_found")
 		return
 	}
-	if svcerr := repo.File.DeleteByID(fileId); svcerr != nil {
-		resps.Error(c, errs.Internal("failed_to_delete_target", svcerr).WithResource("file"))
-		return
-	}
-	if err := f.deleteObjectIfUnused(ctx, provider, &fileModel); err != nil {
+	if err := f.deleteFileRecordAndBlob(ctx, provider, &fileModel); err != nil {
 		resps.Error(c, errs.Internal("failed_to_delete_target", err).WithResource("file"))
 		return
 	}
@@ -386,17 +388,12 @@ func (f *FileController) BatchDeleteFiles(ctx context.Context, c *app.RequestCon
 			logrus.Error("获取文件信息失败: ", err)
 			continue
 		}
-		if err := repo.File.DeleteByID(id); err != nil {
-			logrus.Error("删除文件记录失败: ", err)
-			continue
-		}
-		// 删除实体文件
 		provider, ok := storage.GetStorageProvider(fileModel.ProviderID)
 		if !ok {
 			resps.BadRequest(c, "storage_provider_not_found")
 			return
 		}
-		if err := f.deleteObjectIfUnused(ctx, provider, &fileModel); err != nil {
+		if err := f.deleteFileRecordAndBlob(ctx, provider, &fileModel); err != nil {
 			logrus.Error("删除文件失败: ", err)
 			continue
 		}
@@ -497,6 +494,19 @@ func parseByteRange(header string, size int64) (start, end int64, ok bool) {
 		}
 	}
 	return start, end, true
+}
+
+// deleteFileRecordAndBlob 在对象锁保护下删除文件记录并在无其他引用时回收底层存储对象
+func (f *FileController) deleteFileRecordAndBlob(ctx context.Context, provider storageprovider.StorageProvider, fileModel *model.File) error {
+	unlock, err := service.LockFileBlob(ctx, fileModel.ProviderID, fileModel.Hash)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	if err := repo.File.DeleteByID(fileModel.ID); err != nil {
+		return err
+	}
+	return f.deleteObjectIfUnused(ctx, provider, fileModel)
 }
 
 // deleteObjectIfUnused 相同内容的文件共用一个存储对象，没有其他文件记录引用时才删除对象

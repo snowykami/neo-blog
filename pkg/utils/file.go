@@ -40,9 +40,14 @@ func InlineContentType(contentType string) bool {
 	return false
 }
 
-// ServedContentType 文件对外提供时的类型：可直接显示的保持原样，其他一律按二进制下载（上传的 HTML 等不会被当作网页渲染）
+// DirectSafeContentType 可跳过后端 CSP 沙箱直接由外部对象存储提供的类型：SVG 可内嵌脚本，必须经后端附带 sandbox CSP 返回
+func DirectSafeContentType(contentType string) bool {
+	return InlineContentType(contentType) && !strings.HasPrefix(strings.ToLower(strings.TrimSpace(contentType)), "image/svg+xml")
+}
+
+// ServedContentType 对象存储对外提供时的类型：可安全直连展示的保持原样，SVG 与其他类型一律按二进制存储（防止直链被当作网页或可执行 SVG 渲染）
 func ServedContentType(contentType string) string {
-	if InlineContentType(contentType) {
+	if DirectSafeContentType(contentType) {
 		return contentType
 	}
 	return "application/octet-stream"

@@ -180,13 +180,13 @@ func (f *FileRepo) DeleteStorageProvider(id uint) *errs.ServiceError {
 	return nil
 }
 
-// ListLocations 文件所在的存储与内容哈希（只查询这两列）
+// ListLocations 文件所在的存储、内容哈希与类型信息（用于判断是否可改写为直链）
 func (f *FileRepo) ListLocations(ids []uint) ([]model.File, error) {
 	var files []model.File
 	if len(ids) == 0 {
 		return files, nil
 	}
-	err := GetDB().Select("id", "provider_id", "hash").Where("id IN ?", ids).Find(&files).Error
+	err := GetDB().Select("id", "provider_id", "hash", "mime_type", "name").Where("id IN ?", ids).Find(&files).Error
 	return files, err
 }
 

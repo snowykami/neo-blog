@@ -53,100 +53,93 @@ func (p *WebDAVStorageProvider) fullPath(filePath string) string {
 	return path.Join(p.baseDir, filePath)
 }
 
-// Save 保存文件
+// Save 保存文件（流式上传，不整包读入内存）
 func (p *WebDAVStorageProvider) Save(ctx context.Context, filePath string, reader io.Reader) error {
-	data, err := io.ReadAll(reader)
-	if err != nil {
-		return fmt.Errorf("failed to read data: %w", err)
-	}
-
 	fullPath := p.fullPath(filePath)
-	err = p.client.Write(fullPath, data, 0644)
-	if err != nil {
+	if rs, ok := reader.(io.ReadSeeker); ok {
+		if cur, err := rs.Seek(0, io.SeekCurrent); err == nil {
+			if end, err := rs.Seek(0, io.SeekEnd); err == nil {
+				if _, err := rs.Seek(cur, io.SeekStart); err == nil {
+					if err := p.client.WriteStreamWithLength(fullPath, rs, end-cur, 0644); err != nil {
+						return fmt.Errorf("failed to write file %s: %w", fullPath, err)
+					}
+					return nil
+				}
+			}
+		}
+	}
+	if err := p.client.WriteStream(fullPath, reader, 0644); err != nil {
 		return fmt.Errorf("failed to write file %s: %w", fullPath, err)
 	}
-
 	return nil
 }
 
-// Open 打开文件进行读取
+// Open 打开文件进行流式读取
 func (p *WebDAVStorageProvider) Open(ctx context.Context, filePath string) (storageprovider.ReadableFile, error) {
 	fullPath := p.fullPath(filePath)
 
-	data, err := p.client.Read(fullPath)
+	info, err := p.Stat(ctx, filePath)
+	if err != nil {
+		return nil, err
+	}
+	stream, err := p.client.ReadStream(fullPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file %s: %w", fullPath, err)
 	}
-
-	// 获取文件信息
-	info, err := p.Stat(ctx, filePath)
-	if err != nil {
-		// 如果无法获取stat信息，创建基本信息
-		info = &WebDAVFileInfo{
-			path:    filePath,
-			name:    path.Base(filePath),
-			size:    int64(len(data)),
-			modTime: time.Now(),
-			isDir:   false,
-		}
-	}
-
-	reader := bytes.NewReader(data)
+	fileInfo := info.(*WebDAVFileInfo)
 
 	return &WebDAVReadableFile{
-		WebDAVFileInfo: info.(*WebDAVFileInfo),
-		reader:         reader,
-		provider:       p,
+		WebDAVFileInfo: fileInfo,
+		body:           stream,
+		reopen: func(offset int64) (io.ReadCloser, error) {
+			return p.client.ReadStreamRange(fullPath, offset, fileInfo.size-offset)
+		},
 	}, nil
 }
 
-// OpenRange 打开文件的指定范围进行读取
+// OpenRange 打开文件的指定范围进行流式读取
 func (p *WebDAVStorageProvider) OpenRange(ctx context.Context, filePath string, offset, length int64) (storageprovider.ReadableFile, error) {
-	// WebDAV 不直接支持范围读取，我们先读取整个文件然后进行范围切片
-	file, err := p.Open(ctx, filePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open file for range reading: %w", err)
-	}
-	defer file.Close()
+	fullPath := p.fullPath(filePath)
 
-	// 移动到指定偏移量
-	_, err = file.Seek(offset, io.SeekStart)
+	statInfo, err := p.Stat(ctx, filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to seek to offset %d: %w", offset, err)
+		return nil, err
 	}
-
-	// 如果指定了长度，只读取指定长度的数据
-	var data []byte
-	if length > 0 {
-		data = make([]byte, length)
-		n, err := io.ReadFull(file, data)
-		if err != nil && err != io.ErrUnexpectedEOF {
-			return nil, fmt.Errorf("failed to read range data: %w", err)
-		}
-		data = data[:n]
+	readLen := length
+	if readLen <= 0 || offset+readLen > statInfo.Size() {
+		readLen = statInfo.Size() - offset
+	}
+	if readLen < 0 {
+		readLen = 0
+	}
+	var stream io.ReadCloser
+	if readLen == 0 {
+		stream = io.NopCloser(bytes.NewReader(nil))
 	} else {
-		// 读取从偏移量到文件结尾的所有数据
-		data, err = io.ReadAll(file)
+		stream, err = p.client.ReadStreamRange(fullPath, offset, readLen)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read range data: %w", err)
+			return nil, fmt.Errorf("failed to read file range %s: %w", fullPath, err)
 		}
 	}
 
-	// 创建新的文件信息，更新大小
 	info := &WebDAVFileInfo{
 		path:    filePath,
 		name:    path.Base(filePath),
-		size:    int64(len(data)),
-		modTime: file.ModTime(),
+		size:    readLen,
+		modTime: statInfo.ModTime(),
 		isDir:   false,
 	}
 
-	reader := bytes.NewReader(data)
-
 	return &WebDAVReadableFile{
 		WebDAVFileInfo: info,
-		reader:         reader,
-		provider:       p,
+		body:           stream,
+		reopen: func(relOffset int64) (io.ReadCloser, error) {
+			rem := readLen - relOffset
+			if rem <= 0 {
+				return io.NopCloser(bytes.NewReader(nil)), nil
+			}
+			return p.client.ReadStreamRange(fullPath, offset+relOffset, rem)
+		},
 	}, nil
 }
 

@@ -100,6 +100,32 @@ func TestFileLinkMiddleware(t *testing.T) {
 	if want := `{"icon":"` + stable + `/a.png","other":"https://other.test` + stable + `"}`; stored != want {
 		t.Fatalf("stored = %s, want %s", stored, want)
 	}
+
+	// SVG 与附件必须保留站内稳定链接（经后端附带 CSP 沙箱或下载头），不能被改写为对象存储直链
+	svgFile := &model.File{Hash: strings.Repeat("cd", 32), UserID: 1, ProviderID: 7, Name: "xss.svg", MimeType: "image/svg+xml"}
+	zipFile := &model.File{Hash: strings.Repeat("ef", 32), UserID: 1, ProviderID: 7, Name: "bundle.zip", MimeType: "application/zip"}
+	if err := repo.File.Create(svgFile); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.File.Create(zipFile); err != nil {
+		t.Fatal(err)
+	}
+	mixedBody := `{"svg":"` + service.FileLink(svgFile.ID) + `","zip":"` + service.FileLink(zipFile.ID) + `","png":"` + stable + `"}`
+	resp, err = http.Post(base+"/echo", "application/json", strings.NewReader(mixedBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	resp, err = http.Get(base + "/echo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotMixed, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	wantMixed := `{"svg":"` + service.FileLink(svgFile.ID) + `","zip":"` + service.FileLink(zipFile.ID) + `","png":"` + direct + `"}`
+	if string(gotMixed) != wantMixed {
+		t.Fatalf("mixed get = %s, want %s", gotMixed, wantMixed)
+	}
 }
 
 // apiCall 发送 JSON 请求并解析响应中的 data

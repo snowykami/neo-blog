@@ -3,6 +3,7 @@ package s3
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"time"
 )
@@ -22,22 +23,67 @@ func (f *S3FileInfo) Size() int64        { return f.size }
 func (f *S3FileInfo) ModTime() time.Time { return f.modTime }
 func (f *S3FileInfo) IsDir() bool        { return f.isDir }
 
-// S3ReadableFile S3可读文件
+// S3ReadableFile S3流式可读文件（不把整个对象读入内存；Seek 时按偏移重新发起范围读取）
 type S3ReadableFile struct {
 	*S3FileInfo
-	reader io.ReadSeeker
+	body   io.ReadCloser
+	offset int64
+	reopen func(offset int64) (io.ReadCloser, error)
 }
 
 func (f *S3ReadableFile) Read(p []byte) (int, error) {
-	return f.reader.Read(p)
+	if f.body == nil {
+		return 0, io.EOF
+	}
+	n, err := f.body.Read(p)
+	f.offset += int64(n)
+	return n, err
 }
 
 func (f *S3ReadableFile) Seek(offset int64, whence int) (int64, error) {
-	return f.reader.Seek(offset, whence)
+	var next int64
+	switch whence {
+	case io.SeekStart:
+		next = offset
+	case io.SeekCurrent:
+		next = f.offset + offset
+	case io.SeekEnd:
+		next = f.size + offset
+	default:
+		return 0, errors.New("s3: invalid whence")
+	}
+	if next < 0 {
+		return 0, errors.New("s3: negative seek position")
+	}
+	if next == f.offset {
+		return f.offset, nil
+	}
+	if f.body != nil {
+		_ = f.body.Close()
+		f.body = nil
+	}
+	if next >= f.size {
+		f.offset = next
+		return next, nil
+	}
+	if f.reopen == nil {
+		return 0, errors.New("s3: stream is not seekable")
+	}
+	rc, err := f.reopen(next)
+	if err != nil {
+		return f.offset, err
+	}
+	f.body = rc
+	f.offset = next
+	return next, nil
 }
 
 func (f *S3ReadableFile) Close() error {
-	// bytes.Reader 不需要关闭
+	if f.body != nil {
+		err := f.body.Close()
+		f.body = nil
+		return err
+	}
 	return nil
 }
 

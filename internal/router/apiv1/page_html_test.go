@@ -143,6 +143,20 @@ func TestPageHTMLRoutes(t *testing.T) {
 		t.Fatalf("bad zip: %d %+v", resp.StatusCode, badResp)
 	}
 
+	// 单文件实际解压字节超出上限时立即中止并返回 400
+	t.Setenv(constant.EnvKeyPageHTMLMaxFileSize, "8")
+	resp = uploadRequest(t, uploadURL, loginCookie(t, admin), "site.zip", zipBuf.Bytes())
+	var limitResp struct {
+		Message string            `json:"message"`
+		Data    map[string]string `json:"data"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&limitResp)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest || limitResp.Message != "page_html_file_too_large" {
+		t.Fatalf("oversized entry: %d %+v", resp.StatusCode, limitResp)
+	}
+	t.Setenv(constant.EnvKeyPageHTMLMaxFileSize, "")
+
 	resp = uploadRequest(t, uploadURL, loginCookie(t, admin), "site.zip", zipBuf.Bytes())
 	var uploaded struct {
 		Data dto.PageHTMLVersionDto `json:"data"`

@@ -2,11 +2,13 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"path"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
@@ -16,6 +18,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/storage"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
+	"github.com/snowykami/neo-blog/pkg/sharedstate"
 	"github.com/snowykami/neo-blog/pkg/storageprovider"
 	"github.com/snowykami/neo-blog/pkg/utils"
 )
@@ -81,6 +84,11 @@ type SavedFile struct {
 	URL  string
 }
 
+// LockFileBlob 对同一存储对象的引用计数与物理读写加跨实例锁，防止秒传复用与并发删除之间产生孤儿记录
+func LockFileBlob(ctx context.Context, providerID uint, hash string) (func(), error) {
+	return sharedstate.Lock(ctx, fmt.Sprintf("file_blob:%d:%s", providerID, hash), 2*time.Minute)
+}
+
 // SaveFile 按内容哈希保存文件并建立索引：相同内容已存在时直接复用（哈希由服务端计算，不信任客户端传入）
 func (f *FileService) SaveFile(ctx context.Context, in *SaveFileInput) (*SavedFile, *errs.ServiceError) {
 	currentUser, ok := ctxutils.GetCurrentUser(ctx)
@@ -100,6 +108,12 @@ func (f *FileService) SaveFile(ctx context.Context, in *SaveFileInput) (*SavedFi
 		logrus.Error("计算文件哈希失败: ", err)
 		return nil, errs.New(http.StatusBadRequest, "failed_to_read_file", err)
 	}
+	unlock, err := LockFileBlob(ctx, providerID, hash)
+	if err != nil {
+		return nil, errs.Internal("failed_to_save_file", err)
+	}
+	defer unlock()
+
 	dir, fileNameHash := utils.FilePath(hash)
 	storagePath := path.Join(dir, fileNameHash)
 	if _, err := provider.Stat(ctx, storagePath); err != nil {
