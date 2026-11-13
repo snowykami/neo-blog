@@ -87,7 +87,7 @@ function beforeSend(event: ErrorEvent): ErrorEvent | null {
   return event
 }
 
-/** 初始化错误报告（instrumentation-client.ts 在页面脚本执行前调用一次） */
+/** 初始化错误报告（由 loader.ts 在浏览器空闲时或需要上报时调用一次） */
 export function startTelemetry() {
   if (started || typeof window === 'undefined')
     return
@@ -136,7 +136,12 @@ export function captureBoundaryError(error: Error & { digest?: string }) {
   })
 }
 
-/** 路由跳转记为面包屑（instrumentation-client.ts 的 onRouterTransitionStart） */
+/** SDK 加载前记下的未捕获异常（见 loader.ts）：按全局未捕获异常补报 */
+export function captureEarlyError(error: unknown) {
+  Sentry.captureException(error, { mechanism: { type: 'onerror', handled: false } })
+}
+
+/** 路由跳转记为面包屑（instrumentation-client.ts 的 onRouterTransitionStart，经 loader.ts） */
 export function recordNavigation(url: string, navigationType: string) {
   Sentry.addBreadcrumb({ category: 'navigation', data: { to: stripQuery(url), type: navigationType } })
 }

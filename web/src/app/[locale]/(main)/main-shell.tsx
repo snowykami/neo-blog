@@ -1,21 +1,26 @@
 'use client'
+import type { PageModel } from '@/models/page'
 import { MotionConfig } from 'motion/react'
 import { useTranslations } from 'next-intl'
 import { VisitReporter } from '@/components/common/visit-reporter'
 import { WebVitalsReporter } from '@/components/common/web-vitals-reporter'
 import Footer from '@/components/layout/footer'
+import { NavPagesProvider } from '@/components/layout/nav/nav-pages-context'
 import { SiteHeader } from '@/components/layout/nav/site-header'
 import { PageBackground } from '@/components/layout/page-background'
 import { useNav } from '@/contexts/nav-context'
 import { PageBackgroundProvider } from '@/contexts/page-background-context'
 
 // reportVisits：后台的文章预览也套这层外壳（见 console/posts/preview/[id]），预览不上报访问与性能数据
+// navPages：布局服务端预取的顶栏导航页面，没有时顶栏挂载后自己获取
 export function MainShell({
   children,
   reportVisits = true,
+  navPages,
 }: Readonly<{
   children: React.ReactNode
   reportVisits?: boolean
+  navPages?: PageModel[]
 }>) {
   const commonT = useTranslations('Common')
   // 全屏页面：顶栏收起为手势条、不显示页脚
@@ -43,7 +48,9 @@ export function MainShell({
             {commonT('skip_to_content')}
           </a>
 
-          <SiteHeader />
+          <NavPagesProvider pages={navPages}>
+            <SiteHeader />
+          </NavPagesProvider>
 
           <main id="main-content" className="w-full min-w-0 flex-1">
             {children}

@@ -15,9 +15,7 @@ import {
 } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
-import { COMPONENT_ROOT_SELECTOR } from '@/components/content-components/constants'
 import { cn } from '@/lib/utils'
-import { getVisibleElementById } from '@/utils/client/dom'
 import {
   applyEdgeResistance,
   clampTransform,
@@ -100,59 +98,10 @@ function toRect(domRect: DOMRect | null | undefined): Rect | null {
 }
 
 /**
- * 正文图片预览：点击正文图片全屏查看，全文图片作为列表
+ * 图片全屏预览（受控）：index 为当前查看的序号，为 null 时关闭；正文、独立页面（经 content-image-viewer-lazy.tsx）与评论附件共用
  * - 三槽位跟手滑轨、轻扫速度切换、首尾橡皮筋阻尼、键盘与宽热区翻页
  * - 定点滚轮/双指捏合缩放、Mac 触控板双指平移长图、智能双击阅读倍率、90° 旋转与边界保护
  * - 单指下滑渐隐关闭、开合共享元素（FLIP）过渡动画、多图底部缩略图导航与移动端返回键保护
- */
-export function ContentImageViewer({ containerId }: { containerId: string }) {
-  const [images, setImages] = useState<ViewerImage[]>([])
-  const [index, setIndex] = useState<number | null>(null)
-  const originElementsRef = useRef<HTMLImageElement[]>([])
-
-  // 点击正文图片打开预览，链接内与组件岛内的图片保持原有交互
-  useEffect(() => {
-    const container = getVisibleElementById(containerId)
-    if (!container)
-      return
-    const onClick = (event: MouseEvent) => {
-      const img = (event.target as Element | null)?.closest?.('img')
-      if (!(img instanceof HTMLImageElement) || !container.contains(img) || img.closest(`a, ${COMPONENT_ROOT_SELECTOR}`))
-        return
-      // 懒加载尚未加载的图片 currentSrc 为空，回退到 src 属性；组件岛内的图片（封面、头像）不参与预览
-      const list = Array.from(container.querySelectorAll('img')).filter(
-        item => !item.closest(`a, ${COMPONENT_ROOT_SELECTOR}`) && (item.currentSrc || item.getAttribute('src')),
-      )
-      const clicked = list.indexOf(img)
-      if (clicked < 0)
-        return
-      event.preventDefault()
-      originElementsRef.current = list
-      setImages(list.map(item => ({
-        src: item.currentSrc || item.src,
-        alt: item.alt,
-        caption: item.closest('figure')?.querySelector('figcaption')?.textContent?.trim() || item.alt,
-      })))
-      setIndex(clicked)
-    }
-    container.addEventListener('click', onClick)
-    return () => container.removeEventListener('click', onClick)
-  }, [containerId])
-
-  const getOriginElement = useCallback((i: number) => originElementsRef.current[i] ?? null, [])
-
-  return (
-    <ImageViewer
-      images={images}
-      index={index}
-      onIndexChange={setIndex}
-      getOriginElement={getOriginElement}
-    />
-  )
-}
-
-/**
- * 图片全屏预览（受控）：index 为当前查看的序号，为 null 时关闭；正文、独立页面与评论附件共用
  */
 export function ImageViewer({
   images,

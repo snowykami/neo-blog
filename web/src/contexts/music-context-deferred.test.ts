@@ -12,10 +12,14 @@ vi.mock('sonner', () => ({ toast: { error: vi.fn() } }))
 
 vi.mock('@/api/music', () => ({ fetchSongAudioURL: vi.fn(() => Promise.resolve('')) }))
 vi.mock('@/lib/lyrics/rhythm/source', () => ({ requestRhythm: vi.fn() }))
-vi.mock('./song-lyrics', () => ({
-  refreshSongLyrics: vi.fn(),
-  useResolvedSongLyrics: () => ({ lyrics: EMPTY_LYRICS, candidates: [], kind: null, pending: false, status: 'none', siteKind: null, isSiteVersion: true }),
-}))
+vi.mock('./song-lyrics', () => {
+  // 与真实实现一样返回稳定的对象（真实实现按依赖缓存），歌词引擎据此判断结果有没有变化
+  const empty = { lyrics: EMPTY_LYRICS, candidates: [], kind: null, pending: false, status: 'none', siteKind: null, isSiteVersion: true }
+  return {
+    refreshSongLyrics: vi.fn(),
+    useResolvedSongLyrics: () => empty,
+  }
+})
 vi.mock('./lyric-annotations', () => ({
   requestLyricAnnotations: vi.fn(),
   useLyricAnnotations: () => null,

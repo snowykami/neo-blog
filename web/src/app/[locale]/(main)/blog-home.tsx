@@ -1,7 +1,6 @@
 'use client'
 
 import type { BlogHomeInitialData } from './blog-home-query'
-import type { SidebarInitialData } from '@/components/blog-sidebar/sidebar-data'
 import type { Post } from '@/models/post'
 import { Clock, TrendingUp, XIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
@@ -9,9 +8,8 @@ import { parseAsInteger, useQueryState } from 'nuqs'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { listPosts } from '@/api/post'
 import { PostList } from '@/components/blog-home/post-list'
-import BlogSidebar from '@/components/blog-sidebar'
 import { PaginationController } from '@/components/common/pagination'
-import { SectionTitle, SiteShell } from '@/components/layout/site-shell'
+import { SectionTitle } from '@/components/layout/site-shell'
 import { Button } from '@/components/ui/button'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useSiteInfo } from '@/contexts/site-info-context'
@@ -20,7 +18,8 @@ import { OrderBy } from '@/models/common'
 import { parseHighlightTerms } from '@/utils/common/highlight'
 import { blogHomeQueryKey } from './blog-home-query'
 
-export default function BlogHome({ initialData, sidebarData }: { initialData?: BlogHomeInitialData, sidebarData?: SidebarInitialData }) {
+// 首页正文（标题、排序、文章列表、分页）；页面外壳与侧栏在 page.tsx（侧栏不依赖地址参数，属于静态外壳）
+export default function BlogHome({ initialData }: { initialData?: BlogHomeInitialData }) {
   // 从路由查询参数中获取页码和标签们
   const t = useTranslations('BlogHome')
   const { siteInfo } = useSiteInfo()
@@ -168,11 +167,7 @@ export default function BlogHome({ initialData, sidebarData }: { initialData?: B
   }
 
   return (
-    <SiteShell
-      sidebar={(
-        <BlogSidebar label={labelSlug} setLabel={setLabelSlug} initialData={sidebarData} />
-      )}
-    >
+    <>
       {/* 列表标题与排序 */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 md:px-2">
         <SectionTitle as="h1" className="flex min-w-0 flex-wrap items-center gap-x-2 text-xl md:text-2xl">
@@ -237,6 +232,7 @@ export default function BlogHome({ initialData, sidebarData }: { initialData?: B
         onRetry={() => setReloadKey(k => k + 1)}
         onClearFilter={filter ? clearFilter : undefined}
         highlight={highlightTerms}
+        prioritizeFirst
       />
 
       {totalPosts > 0 && !loadError && (
@@ -248,6 +244,6 @@ export default function BlogHome({ initialData, sidebarData }: { initialData?: B
           onPageChange={handlePageChange}
         />
       )}
-    </SiteShell>
+    </>
   )
 }

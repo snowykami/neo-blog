@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { BUILTIN_THEME_MAP, resolveActiveTheme, resolveScheduledTheme } from './index'
+import { parseThemeDefinition } from './schema'
 import { isWithinRange, matchesSchedule } from './triggers'
-import { parseThemeDefinition } from './types'
 
 /** 用固定时刻（北京时间的正午）构造时间，避免测试机器时区影响结果 */
 function beijingNoon(date: string) {

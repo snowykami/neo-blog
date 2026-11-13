@@ -4,10 +4,10 @@ import type { PickedAsset } from '@/components/common/asset-picker'
 import type { CommentAttachment } from '@/models/comment'
 import { Loader2, Paperclip, X } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import dynamic from 'next/dynamic'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { uploadFile } from '@/api/file'
-import { AssetPicker } from '@/components/common/asset-picker'
 import { SafeImage } from '@/components/common/safe-image'
 import { endIslandUpload, reportIslandUpload } from '@/components/layout/topbar-island/upload-island'
 import { Button } from '@/components/ui/button'
@@ -20,6 +20,9 @@ import { compressImage } from '@/utils/client/image-compress'
 import { formatDataSize } from '@/utils/common/datasize'
 import { isEditor } from '@/utils/common/permission'
 import { attachmentKind, attachmentName, MAX_COMMENT_ATTACHMENTS } from './comment-attachments'
+
+// 资产库弹窗（文件列表、上传、手机上的抽屉）第一次点开时才加载：评论框在每篇文章里，访客多半用不到
+const AssetPicker = dynamic(() => import('@/components/common/asset-picker/asset-picker').then(m => m.AssetPicker), { ssr: false })
 
 /** 普通用户只能上传图片（不含 SVG），单个不超过 10 MiB，与后端上传限制一致；编辑和管理员不受限 */
 const USER_UPLOAD_MAX_SIZE = 10 * 1024 * 1024
@@ -132,18 +135,10 @@ export type CommentAttachmentsState = ReturnType<typeof useCommentAttachments>
 export function CommentAttachmentButton({ state }: { state: CommentAttachmentsState }) {
   const t = useTranslations('Comment')
   const remaining = MAX_COMMENT_ATTACHMENTS - state.items.length
+  // 打开过一次后保持挂载：关闭动画照常播放，再次打开不用重新加载
+  const [everOpened, setEverOpened] = useState(false)
   return (
-    <AssetPicker
-      open={state.pickerOpen}
-      onOpenChange={state.setPickerOpen}
-      title={t('add_attachment')}
-      accept={state.accept}
-      maxSize={state.maxSize}
-      multiple
-      // 名额用完时按钮禁用；max 为 0 表示不限，因此至少传 1
-      max={Math.max(1, remaining)}
-      onSelect={state.addAssets}
-    >
+    <>
       <Button
         type="button"
         variant="ghost"
@@ -151,12 +146,33 @@ export function CommentAttachmentButton({ state }: { state: CommentAttachmentsSt
         disabled={remaining <= 0}
         title={remaining <= 0 ? t('attachments_max', { count: MAX_COMMENT_ATTACHMENTS }) : t('add_attachment_hint')}
         aria-label={t('add_attachment')}
+        aria-haspopup="dialog"
+        aria-expanded={state.pickerOpen}
         className="h-7 rounded-full px-2.5 text-xs font-normal text-muted-foreground max-sm:h-9 max-sm:px-3"
+        // 悬停 / 按下时先下载弹窗代码
+        onPointerEnter={() => void import('@/components/common/asset-picker/asset-picker')}
+        onClick={() => {
+          setEverOpened(true)
+          state.setPickerOpen(true)
+        }}
       >
         <Paperclip className="size-3.5" />
         {state.items.length > 0 && <span className="tabular-nums">{`${state.items.length}/${MAX_COMMENT_ATTACHMENTS}`}</span>}
       </Button>
-    </AssetPicker>
+      {everOpened && (
+        <AssetPicker
+          open={state.pickerOpen}
+          onOpenChange={state.setPickerOpen}
+          title={t('add_attachment')}
+          accept={state.accept}
+          maxSize={state.maxSize}
+          multiple
+          // 名额用完时按钮禁用；max 为 0 表示不限，因此至少传 1
+          max={Math.max(1, remaining)}
+          onSelect={state.addAssets}
+        />
+      )}
+    </>
   )
 }
 

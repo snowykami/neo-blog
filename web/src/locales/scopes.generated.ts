@@ -4,7 +4,7 @@
 // 更深的路径只来自键表（scripts/i18n-scopes.mjs 的 KEY_TABLES，如控制台菜单标题）
 
 /** 按子命名空间拆分下发的顶层命名空间（运行时据此判断缺失的文案属于哪个下发单元） */
-export const SPLIT_NAMESPACES = ['Console'] as const
+export const SPLIT_NAMESPACES = ['Console', 'ContentComponents'] as const
 
 export const SCOPES = {
   'root': [
@@ -25,7 +25,12 @@ export const SCOPES = {
     'ColorScheme',
     'Components',
     'ContentCard',
-    'ContentComponents',
+    'ContentComponents.callout',
+    'ContentComponents.githubRepo',
+    'ContentComponents.lyricQuote',
+    'ContentComponents.neteaseSong',
+    'ContentComponents.postRef',
+    'ContentComponents.weatherCard',
     'Copyright',
     'Metrics',
     'Nav',
@@ -81,7 +86,7 @@ export const SCOPES = {
   ],
   '(player)': [
     'ColorScheme',
-    'ContentComponents',
+    'ContentComponents.weatherCard',
     'Nav',
     'Notifications',
     'Route',
@@ -235,7 +240,12 @@ export const SCOPES = {
     'CodeBlock',
     'ColorScheme',
     'ContentCard',
-    'ContentComponents',
+    'ContentComponents.callout',
+    'ContentComponents.githubRepo',
+    'ContentComponents.lyricQuote',
+    'ContentComponents.neteaseSong',
+    'ContentComponents.postRef',
+    'ContentComponents.weatherCard',
     'Copyright',
     'HtmlPage',
     'ImageViewer',
@@ -271,7 +281,12 @@ export const SCOPES = {
     'ColorScheme',
     'Comment',
     'ContentCard',
-    'ContentComponents',
+    'ContentComponents.callout',
+    'ContentComponents.githubRepo',
+    'ContentComponents.lyricQuote',
+    'ContentComponents.neteaseSong',
+    'ContentComponents.postRef',
+    'ContentComponents.weatherCard',
     'Copyright',
     'ImageViewer',
     'Nav',

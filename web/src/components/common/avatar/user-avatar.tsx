@@ -25,6 +25,8 @@ export function UserAvatar({
       alt={props.alt ?? (user.nickname || user.username)}
       fallback={getFirstCharFromUser(user)}
       fallbackStyle={getFallbackAvatarStyle(user.username || user.nickname || '')}
+      // size 按 2 倍屏请求，显示宽度约为它的一半；站内图片据此取缩小后的尺寸
+      sizes={`${Math.ceil(size / 2)}px`}
       {...props}
       className={cn('@container', props.className)}
       fallbackClassName={cn('text-[length:40cqw] font-semibold text-white', props.fallbackClassName)}

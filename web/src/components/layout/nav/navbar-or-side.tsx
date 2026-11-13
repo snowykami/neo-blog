@@ -1,6 +1,6 @@
 'use client'
 
-import type { LucideIcon } from 'lucide-react'
+import type { NavMenuItem } from './nav-shared'
 import type { PageModel } from '@/models/page'
 import {
   ArchiveIcon,
@@ -17,15 +17,10 @@ import {
 } from 'lucide-react'
 
 import { useTranslations } from 'next-intl'
-import * as React from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import dynamic from 'next/dynamic'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { listPages } from '@/api/page'
-import {
-  ColorSchemeCircles,
-  ColorSchemePicker,
-  ThemePackSection,
-  useColorScheme,
-} from '@/components/common/color-scheme-picker'
+import { ColorSchemePicker } from '@/components/common/color-scheme-picker'
 import { ThemeModeToggle } from '@/components/common/theme-toggle'
 import { AvatarWithDropdownMenu } from '@/components/layout/nav/avatar-with-dropdown-menu'
 import { NavSearch } from '@/components/layout/nav/nav-search'
@@ -38,36 +33,15 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
 } from '@/components/ui/navigation-menu'
-import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { Link, usePathname } from '@/i18n/navigation'
 import { cn } from '@/lib/utils'
+import { NAV_PAGES_QUERY, toNavPages } from '@/utils/common/nav-pages'
 import { getPageUrl, mainPath } from '@/utils/common/route'
-
-// 菜单项：title 为 Route 命名空间下的翻译键；label 为已确定的显示文本（如自定义页面标题），优先于 title
-interface NavLinkItem {
-  title: string
-  label?: string
-  href: string
-  icon: LucideIcon
-  // 站外链接：新窗口打开
-  external?: boolean
-}
-
-/** 菜单中的链接：站内路径用 Next 的路由切换，站外地址在新窗口打开 */
-function NavItemLink({ href, external, ...props }: React.ComponentProps<typeof Link> & { href: string, external?: boolean }) {
-  if (external)
-    return <a href={href} target="_blank" rel="noopener noreferrer" {...(props as React.ComponentProps<'a'>)} />
-  return <Link href={href} {...props} />
-}
+import { useInitialNavPages } from './nav-pages-context'
+import { isActivePath, navIconButtonClass, NavItemLink } from './nav-shared'
 
 /** 站外地址：http(s) 绝对地址（链接页面的站内路径以 / 开头） */
 const isExternalHref = (href: string) => /^https?:\/\//i.test(href)
-
-// 一级菜单：带 href 的直接跳转，带 children 的展开子菜单
-interface NavMenuItem extends Omit<NavLinkItem, 'href'> {
-  href?: string
-  children?: NavLinkItem[]
-}
 
 const staticMenuItems: NavMenuItem[] = [
   {
@@ -103,21 +77,19 @@ const staticMenuItems: NavMenuItem[] = [
   },
 ]
 
-// 导航中展示的自定义页面：只取公开且勾选了「导航展示」的页面，按导航排序升序
-// 顶栏挂载时获取；标签页重新可见时再取一次，在其他标签页（如后台）修改了页面设置后切回来即可看到
+// 导航中展示的自定义页面（只取公开且勾选了「导航展示」的页面，按导航排序升序）：布局在服务端预取并随顶栏渲染（见 api/nav-pages.server.ts）；
+// 没有预取到时挂载后获取。标签页重新可见时再取一次，在其他标签页（如后台）修改了页面设置后切回来即可看到
 function useNavPages() {
-  const [pages, setPages] = useState<PageModel[]>([])
+  const initialPages = useInitialNavPages()
+  const [pages, setPages] = useState<PageModel[]>(initialPages ?? [])
+  const hasInitial = initialPages !== undefined
   useEffect(() => {
     let cancelled = false
     const load = () => {
-      listPages({ onlyNav: true, noContent: true, page: 1, size: 50 })
+      listPages(NAV_PAGES_QUERY)
         .then((res) => {
-          if (cancelled)
-            return
-          const navPages = (res.data.pages || [])
-            .filter(page => page.showInNav && !page.isPrivate)
-            .sort((a, b) => a.navOrder - b.navOrder || a.id - b.id)
-          setPages(navPages)
+          if (!cancelled)
+            setPages(toNavPages(res.data.pages))
         })
         .catch(() => { })
     }
@@ -125,13 +97,21 @@ function useNavPages() {
       if (document.visibilityState === 'visible')
         load()
     }
-    load()
+    if (!hasInitial)
+      load()
     document.addEventListener('visibilitychange', onVisibilityChange)
     return () => {
       cancelled = true
       document.removeEventListener('visibilitychange', onVisibilityChange)
     }
-  }, [])
+  }, [hasInitial])
+  // 服务端给了新的预取结果（站内跳转后布局重新渲染、router.refresh）时换上
+  const [syncedInitial, setSyncedInitial] = useState(initialPages)
+  if (initialPages !== syncedInitial) {
+    setSyncedInitial(initialPages)
+    if (initialPages)
+      setPages(initialPages)
+  }
   return pages
 }
 
@@ -163,19 +143,9 @@ function useNavMenuItems(): NavMenuItem[] {
   }, [pages])
 }
 
-// 导航中的图标按钮：移动端点击区域 ≥ 44px，悬停浅主色底
-const navIconButtonClass = 'inline-flex size-11 shrink-0 items-center justify-center rounded-lg text-foreground/75 transition-[color,background-color,transform] duration-150 hover:bg-primary/10 hover:text-primary active:scale-[.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer'
-
 // 一级菜单项：当前路由高亮
 const navItemClass = 'inline-flex h-11 items-center gap-2 rounded-lg px-4 font-medium text-foreground/75 transition-[color,background-color,transform] duration-150 hover:bg-primary/10 hover:text-primary active:scale-[.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer'
 const navItemActiveClass = 'bg-primary/10 text-primary'
-
-// 判断菜单项是否对应当前路由：首页精确匹配，其余按路径前缀匹配
-function isActivePath(pathname: string, href: string) {
-  if (href === '/')
-    return pathname === '/'
-  return pathname === href || pathname.startsWith(`${href}/`)
-}
 
 // 页面滚动后导航卡片加一点阴影，与正文区分
 function useScrolled(threshold = 8) {
@@ -301,88 +271,34 @@ function NavMenuCenter({ items }: { items: NavMenuItem[] }) {
   )
 }
 
+// 移动端侧边菜单的抽屉第一次点开时才加载（见 mobile-nav-sheet.tsx）
+const MobileNavSheet = dynamic(() => import('./mobile-nav-sheet').then(m => m.MobileNavSheet), { ssr: false })
+
 function SidebarMenu({ items }: { items: NavMenuItem[] }) {
-  const [open, setOpen] = useState(false)
   const routeT = useTranslations('Route')
-  const pathname = usePathname() || '/'
-  const linkClass = (href: string) => cn(
-    'flex h-11 items-center gap-3 rounded-lg px-3 font-medium text-foreground/75 transition-colors hover:bg-primary/10 hover:text-primary',
-    isActivePath(pathname, href) && 'bg-primary/10 text-primary',
-  )
+  const [open, setOpen] = useState(false)
+  const [everOpened, setEverOpened] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   return (
     <div className="flex md:hidden">
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetTrigger asChild>
-          <button
-            type="button"
-            aria-label={routeT('menu')}
-            title={routeT('menu')}
-            className={navIconButtonClass}
-          >
-            <MenuIcon aria-hidden className="size-5" />
-          </button>
-        </SheetTrigger>
-        <SheetContent side="right" className="z-999999 w-72 gap-0 pt-6">
-          <SheetTitle className="px-5 pb-2 text-lg font-bold">{routeT('menu')}</SheetTitle>
-          <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3">
-            {items.map(item =>
-              item.href
-                ? (
-                    <Link
-                      key={item.title}
-                      href={item.href}
-                      aria-current={isActivePath(pathname, item.href) ? 'page' : undefined}
-                      className={linkClass(item.href)}
-                      onClick={() => setOpen(false)}
-                    >
-                      <item.icon aria-hidden className="size-5" />
-                      {item.label ?? routeT(item.title)}
-                    </Link>
-                  )
-                : item.children
-                  ? (
-                      <div key={item.title} className="mt-2 grid gap-1">
-                        <div className="px-3 py-1 text-sm font-medium text-muted-foreground">{item.label ?? routeT(item.title)}</div>
-                        {item.children.map(child => (
-                          <NavItemLink
-                            key={child.title}
-                            href={child.href}
-                            external={child.external}
-                            aria-current={isActivePath(pathname, child.href) ? 'page' : undefined}
-                            className={linkClass(child.href)}
-                            onClick={() => setOpen(false)}
-                          >
-                            <child.icon aria-hidden className="size-5" />
-                            <span className="truncate">{child.label ?? routeT(child.title)}</span>
-                          </NavItemLink>
-                        ))}
-                      </div>
-                    )
-                  : null,
-            )}
-          </nav>
-
-          <div className="grid gap-4 border-t p-4">
-            <SidebarColorSchemes />
-            <div className="flex items-center justify-center">
-              <ThemeModeToggle showSegmented={true} />
-            </div>
-          </div>
-        </SheetContent>
-      </Sheet>
-    </div>
-  )
-}
-
-// 移动端侧边菜单内的配色切换：直接展示圆形色块，避免弹层套弹层
-function SidebarColorSchemes() {
-  const t = useTranslations('ColorScheme')
-  const { color, colorSchemes, selectColor } = useColorScheme()
-  return (
-    <div className="grid gap-2">
-      <div className="text-xs font-medium text-muted-foreground">{t('title')}</div>
-      <ColorSchemeCircles color={color} colorSchemes={colorSchemes} onSelect={selectColor} />
-      <ThemePackSection />
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label={routeT('menu')}
+        title={routeT('menu')}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        className={navIconButtonClass}
+        // 按下时就开始下载抽屉代码，松手时通常已经就绪
+        onPointerDown={() => void import('./mobile-nav-sheet')}
+        onClick={() => {
+          setEverOpened(true)
+          setOpen(true)
+        }}
+      >
+        <MenuIcon aria-hidden className="size-5" />
+      </button>
+      {everOpened && <MobileNavSheet items={items} open={open} setOpen={setOpen} triggerRef={triggerRef} />}
     </div>
   )
 }

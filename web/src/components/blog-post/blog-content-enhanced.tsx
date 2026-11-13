@@ -8,6 +8,7 @@ import { COMPONENT_ROOT_SELECTOR } from '@/components/content-components/constan
 import { notifySuccess } from '@/components/layout/topbar-island/island-feedback'
 import copyToClipboard from '@/lib/clipboard'
 import { getVisibleElementById } from '@/utils/client/dom'
+import { CODE_BLOCK_ATTR, CODE_COPY_ATTR } from '@/utils/common/code-block'
 import { languageMap } from '@/utils/common/post-render'
 import 'highlight.js/styles/github-dark.css'
 
@@ -15,7 +16,8 @@ import 'highlight.js/styles/github-dark.css'
  * HtmlEnhancer
  * - containerId: 传入渲染原始 HTML 的父容器 id（backend 存的原始 HTML 放在这个容器内）
  * 功能：
- * - 把 <pre><code class="language-..."> 包装成带工具栏和复制按钮的样式（与 markdown-codeblock 保持一致），并按需懒加载 highlight.js
+ * - 代码块的工具栏与着色一般已在服务端完成（见 utils/server/render-code.ts），这里只用事件委托处理复制按钮
+ * - 没经过服务端包装的 <pre><code class="language-...">（后续动态注入的等）在这里包装成同样的样式，并按需懒加载 highlight.js
  * - 使用容器级 MutationObserver 处理后续动态注入的代码块，卸载时统一回收事件与定时器
  */
 
@@ -55,9 +57,53 @@ export default function HtmlEnhancer({ containerId }: { containerId: string }) {
       })
     }
 
+    const resetLabelLater = (btn: HTMLElement) => {
+      const timer = window.setTimeout(() => {
+        timers.delete(timer)
+        if (!disposed)
+          btn.textContent = t('copy')
+      }, 1200)
+      timers.add(timer)
+    }
+
+    const copyCode = async (btn: HTMLElement, pre: HTMLElement) => {
+      try {
+        const text = pre.textContent
+        const ok = await copyToClipboard(text)
+        if (ok) {
+          notifySuccess(t('copy_success'), { key: 'copy', icon: <CopyCheckIcon aria-hidden className="text-emerald-400" />, countable: true })
+          btn.textContent = t('copied')
+          resetLabelLater(btn)
+        }
+        else {
+          toast.error(t('copy_failed'))
+          btn.textContent = t('failed')
+          resetLabelLater(btn)
+        }
+      }
+      catch (e) {
+        console.error(e)
+        toast.error(t('copy_failed'))
+        btn.textContent = t('failed')
+        resetLabelLater(btn)
+      }
+    }
+
+    // 复制按钮的点击统一按事件委托处理（服务端渲染的与这里包装的都带 CODE_COPY_ATTR）
+    const onContainerClick = (event: MouseEvent) => {
+      const btn = (event.target as Element | null)?.closest?.(`[${CODE_COPY_ATTR}]`)
+      if (!(btn instanceof HTMLElement) || !container.contains(btn))
+        return
+      const pre = btn.closest(`[${CODE_BLOCK_ATTR}]`)?.querySelector('pre')
+      if (pre)
+        void copyCode(btn, pre)
+    }
+    container.addEventListener('click', onContainerClick)
+    cleanups.push(() => container.removeEventListener('click', onContainerClick))
+
     const wrapCodeBlock = (pre: HTMLElement) => {
-      // 组件岛内的代码块由组件自己渲染（React 管理的 DOM 不能被改动）
-      if (pre.__enhanced || pre.closest(COMPONENT_ROOT_SELECTOR))
+      // 组件岛内的代码块由组件自己渲染（React 管理的 DOM 不能被改动）；服务端已包装过的不再处理
+      if (pre.__enhanced || pre.closest(COMPONENT_ROOT_SELECTOR) || pre.parentElement?.hasAttribute(CODE_BLOCK_ATTR))
         return
       const codeEl = pre.querySelector('code')
       if (!codeEl)
@@ -73,6 +119,7 @@ export default function HtmlEnhancer({ containerId }: { containerId: string }) {
       const wrapper = document.createElement('div')
       wrapper.className
         = 'not-prose relative my-6 rounded-xl overflow-hidden bg-(--code-bg) border border-white/10 group'
+      wrapper.setAttribute(CODE_BLOCK_ATTR, '')
 
       const toolbar = document.createElement('div')
       toolbar.className
@@ -89,6 +136,7 @@ export default function HtmlEnhancer({ containerId }: { containerId: string }) {
       btn.className
         = 'px-2 py-1 rounded-md text-xs text-white/70 hover:text-white hover:bg-white/10 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100 max-sm:h-9 max-sm:px-3 max-sm:-mr-2'
       btn.textContent = t('copy')
+      btn.setAttribute(CODE_COPY_ATTR, '')
       toolbar.appendChild(btn)
 
       // move pre into wrapper
@@ -113,41 +161,6 @@ export default function HtmlEnhancer({ containerId }: { containerId: string }) {
       )
       pre.style.margin = '0'
       codeEl.classList.add('!p-0', '!bg-transparent')
-
-      const resetLabelLater = () => {
-        const timer = window.setTimeout(() => {
-          timers.delete(timer)
-          if (!disposed)
-            btn.textContent = t('copy')
-        }, 1200)
-        timers.add(timer)
-      }
-
-      // copy handler
-      const onClick = async () => {
-        try {
-          const text = pre.textContent
-          const ok = await copyToClipboard(text)
-          if (ok) {
-            notifySuccess(t('copy_success'), { key: 'copy', icon: <CopyCheckIcon aria-hidden className="text-emerald-400" />, countable: true })
-            btn.textContent = t('copied')
-            resetLabelLater()
-          }
-          else {
-            toast.error(t('copy_failed'))
-            btn.textContent = t('failed')
-            resetLabelLater()
-          }
-        }
-        catch (e) {
-          console.error(e)
-          toast.error(t('copy_failed'))
-          btn.textContent = t('failed')
-          resetLabelLater()
-        }
-      }
-      btn.addEventListener('click', onClick)
-      cleanups.push(() => btn.removeEventListener('click', onClick))
     }
 
     // initial: only handle pre > code

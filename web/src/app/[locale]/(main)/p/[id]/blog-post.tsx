@@ -12,7 +12,7 @@ import { ContentFontLinks } from '@/components/blog-post/content-font-links'
 import { ContentHdrText } from '@/components/blog-post/content-hdr-text'
 import { ContentHoverCard } from '@/components/blog-post/content-hover-card'
 import { ContentImageFallback } from '@/components/blog-post/content-image-fallback'
-import { ContentImageViewer } from '@/components/blog-post/content-image-viewer'
+import { ContentImageViewer } from '@/components/blog-post/content-image-viewer-lazy'
 import { PostBackground } from '@/components/blog-post/post-background.client'
 import { PostContinuation } from '@/components/blog-post/post-continuation'
 import { PostEditButton } from '@/components/blog-post/post-edit-button.client'
@@ -20,7 +20,7 @@ import { PostLiveStats } from '@/components/blog-post/post-live-stats.client'
 import { PostMeta } from '@/components/blog-post/post-meta'
 import { PostToc } from '@/components/blog-post/post-toc.client'
 import { BlogSidebarAbout } from '@/components/blog-sidebar/blog-sidebar-card'
-import { CommentSection } from '@/components/comment'
+import { DeferredCommentSection } from '@/components/comment/deferred-comment-section'
 import { LinkPreviewScopeProvider } from '@/components/common/link-preview-context'
 import { SafeImage } from '@/components/common/safe-image'
 import { VisitReporter } from '@/components/common/visit-reporter'
@@ -168,32 +168,14 @@ function LikeButtonSkeleton() {
   )
 }
 
-// Skeleton for comments section
-const COMMENT_SKELETON_ITEMS = Array.from({ length: 2 })
-function CommentsSkeleton() {
-  return (
-    <div className="space-y-6">
-      <Skeleton className="h-8 w-48 mb-6" />
-      {COMMENT_SKELETON_ITEMS.map((_, i) => (
-        <div key={i} className="flex gap-3">
-          <Skeleton className="w-10 h-10 rounded-full" />
-          <div className="flex-1 space-y-2">
-            <Skeleton className="h-4 w-1/4" />
-            <Skeleton className="h-4 w-3/4" />
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
 // isDraft：后台预览（/console/posts/preview/[id]）渲染草稿正文，不上报访问、不显示分享；前台文章页不传
 export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?: boolean }) {
   const content = (isDraft ? post.draftContent : post.content) || ''
   // 正文为空时显示一句提示（用段落而不是标题，不进目录）；渲染时照常经过净化
   const emptyContent = content ? '' : `<p>${(await getTranslations('Common'))('empty_content')}</p>`
+  const copyLabel = (await getTranslations('CodeBlock'))('copy')
   const [{ html, headings }, neighbors] = await Promise.all([
-    renderContentHtml(content || emptyContent),
+    renderContentHtml(content || emptyContent, { copyLabel }),
     isDraft ? Promise.resolve(null) : getCachedPostNeighbors(post.id),
   ])
   return (
@@ -218,23 +200,21 @@ export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?
       >
         <PostArticle post={post} html={html} isDraft={isDraft} />
         {!isDraft && neighbors && <PostContinuation neighbors={neighbors} />}
-        {/* Comments section wrapped in Suspense for better performance；id 供顶栏迷你目录「去评论区」跳转 */}
+        {/* 评论区接近视口时才加载（见 DeferredCommentSection）；id 供顶栏迷你目录「去评论区」跳转 */}
         <div id="comments" className="scroll-mt-[calc(var(--nav-h)+1rem)] rounded-2xl bg-card px-6 py-6 md:px-9 md:py-8">
-          <Suspense fallback={<CommentsSkeleton />}>
-            <CommentSection
-              targetType={TargetType.Post}
-              ownerId={post.user.id}
-              owner={{
-                id: post.user.id,
-                username: post.user.username,
-                nickname: post.user.nickname,
-                avatarUrl: post.user.avatarUrl,
-                gravatarHash: post.user.gravatarHash,
-              }}
-              targetId={post.id}
-              totalCount={post.commentCount}
-            />
-          </Suspense>
+          <DeferredCommentSection
+            targetType={TargetType.Post}
+            ownerId={post.user.id}
+            owner={{
+              id: post.user.id,
+              username: post.user.username,
+              nickname: post.user.nickname,
+              avatarUrl: post.user.avatarUrl,
+              gravatarHash: post.user.gravatarHash,
+            }}
+            targetId={post.id}
+            totalCount={post.commentCount}
+          />
         </div>
       </SiteShell>
     </>

@@ -63,12 +63,13 @@ function collectStringLiterals(node) {
 
 /**
  * 按「下发单元」切分时，哪些顶层命名空间要再往下拆一层：
- * Console 有 40+ KB，各控制台页面只用其中一两棵子树，所以按 Console.<子命名空间> 整棵下发；
+ * Console 与 ContentComponents 体积较大，具体页面只用其中一部分子树（如前台只用少量展示组件，不用编辑器/组件库文案），
+ * 因此按 `<命名空间>.<子命名空间>` 拆成两层按需下发；
  * 其余命名空间都不大，整棵下发即可（与按单条键下发相比只多几 KB，却不再怕动态键漏掉）
  */
-export const SPLIT_NAMESPACES = ['Console']
+export const SPLIT_NAMESPACES = ['Console', 'ContentComponents']
 
-/** 下发单元的层数：Console 下是两层（Console.global），其余一层（Comment） */
+/** 下发单元的层数：SPLIT_NAMESPACES 下是两层（Console.global、ContentComponents.weatherCard），其余一层（Comment） */
 const unitDepth = path => (SPLIT_NAMESPACES.includes(path.split('.')[0]) ? 2 : 1)
 
 /** 某条路径所在的下发单元：顶层命名空间，或 Console.<子命名空间> */

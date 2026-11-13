@@ -46,8 +46,9 @@ function Highlighted({ text, terms }: { text: string, terms?: string[] }) {
 /**
  * pinned：作为首页置顶文章显示（带置顶徽标）；文章在其他列表里按正常顺序出现时不显示
  * highlight：搜索结果中要高亮的关键词（标题与摘要）
+ * priority：首屏第一篇的封面（手机上在卡片顶部，常是最大内容绘制的元素）：预加载、高优先级、不懒加载
  */
-export function PostListItem({ post, showAuthor = true, pinned = false, highlight }: { post: Post, showAuthor?: boolean, pinned?: boolean, highlight?: string[] }) {
+export function PostListItem({ post, showAuthor = true, pinned = false, highlight, priority = false }: { post: Post, showAuthor?: boolean, pinned?: boolean, highlight?: string[], priority?: boolean }) {
   const t = useTranslations()
   const url = getPostUrl({ post })
   const hasCover = !!post.cover
@@ -127,6 +128,9 @@ export function PostListItem({ post, showAuthor = true, pinned = false, highligh
             fill
             className="object-cover"
             sizes="(max-width: 768px) 100vw, 320px"
+            preload={priority}
+            loading={priority ? 'eager' : undefined}
+            fetchPriority={priority ? 'high' : undefined}
           />
           {/* 悬停遮罩 + 箭头 */}
           <span className="pointer-events-none absolute inset-0 z-10 bg-black/0 transition-colors duration-150 group-hover/cover:bg-black/30" />
@@ -162,6 +166,7 @@ export function PostListItemSkeleton() {
  * - onClearFilter：空列表时提供「清除筛选」操作
  * - showAuthor：显示作者头像与昵称（用户主页中均为同一作者，可关闭）
  * - highlight：搜索结果中要高亮的关键词
+ * - prioritizeFirst：列表就是页面的首屏内容（首页、分类页）时，第一篇的封面按首屏大图加载
  */
 export function PostList({
   posts,
@@ -174,6 +179,7 @@ export function PostList({
   onRetry,
   onClearFilter,
   highlight,
+  prioritizeFirst = false,
   className,
 }: {
   posts: Post[]
@@ -186,6 +192,7 @@ export function PostList({
   onRetry?: () => void
   onClearFilter?: () => void
   highlight?: string[]
+  prioritizeFirst?: boolean
   className?: string
 }) {
   const t = useTranslations('BlogHome')
@@ -243,7 +250,7 @@ export function PostList({
       {pinnedPosts.map((post, index) => (
         <Fragment key={post.id}>
           {index > 0 && <RowDivider />}
-          <div className={PINNED_ITEM_CLASS}><PostListItem post={post} showAuthor={showAuthor} pinned highlight={highlight} /></div>
+          <div className={PINNED_ITEM_CLASS}><PostListItem post={post} showAuthor={showAuthor} pinned highlight={highlight} priority={prioritizeFirst && index === 0} /></div>
         </Fragment>
       ))}
       {pinnedPosts.length > 0 && posts.length > 0 && (
@@ -254,7 +261,7 @@ export function PostList({
       {posts.map((post, index) => (
         <Fragment key={post.id}>
           {index > 0 && <RowDivider />}
-          <div className={ITEM_CLASS}><PostListItem post={post} showAuthor={showAuthor} highlight={highlight} /></div>
+          <div className={ITEM_CLASS}><PostListItem post={post} showAuthor={showAuthor} highlight={highlight} priority={prioritizeFirst && pinnedPosts.length === 0 && index === 0} /></div>
         </Fragment>
       ))}
     </div>

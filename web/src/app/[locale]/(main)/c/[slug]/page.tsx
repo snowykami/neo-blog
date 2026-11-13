@@ -98,7 +98,7 @@ async function CategoryPosts({ slug, baseUrl, searchParams }: { slug: string, ba
 
   return (
     <>
-      <PostList posts={posts} />
+      <PostList posts={posts} prioritizeFirst />
       {totalPages > 1 && (
         <Pagination className="pt-2">
           <PaginationContent>

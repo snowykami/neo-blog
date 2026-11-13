@@ -39,12 +39,15 @@ export function BlogSidebarAbout() {
         ? (
             <div className="mb-3">
               <div className="relative aspect-[2/1] w-full overflow-hidden rounded-xl bg-muted">
-                <SafeImage src={aboutBackground} alt="" fill sizes="280px" className="object-cover" />
+                {/* 桌面端侧栏在首屏内：设为 eager 在 HTML 阶段尽早开始下载，但不设 fetchPriority="high"，把最高带宽优先级留给首屏第一篇封面 */}
+                <SafeImage src={aboutBackground} alt="" fill sizes="280px" loading="eager" className="object-cover" />
               </div>
               <ImageAvatar
                 src={avatarSrc}
                 alt={name}
                 fallback={getFallbackAvatarFromUsername(name)}
+                sizes="80px"
+                eager
                 className="relative mx-auto -mt-10 size-20 ring-4 ring-card"
                 fallbackClassName="bg-secondary text-2xl font-bold text-secondary-foreground"
               />
@@ -55,6 +58,9 @@ export function BlogSidebarAbout() {
               src={avatarSrc}
               alt={name}
               fallback={getFallbackAvatarFromUsername(name)}
+              // 没有横幅时头像铺满侧栏宽度，常是桌面端首页最大的图片
+              sizes="(max-width: 1024px) 192px, 280px"
+              eager
               className="mx-auto mb-3 aspect-square size-auto w-full max-w-48 rounded-xl lg:max-w-none"
               fallbackClassName="bg-secondary text-5xl font-bold text-secondary-foreground"
             />

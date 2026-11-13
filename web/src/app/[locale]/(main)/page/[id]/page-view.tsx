@@ -1,5 +1,5 @@
 import type { PageModel } from '@/models/page'
-import { getLocale } from 'next-intl/server'
+import { getLocale, getTranslations } from 'next-intl/server'
 import { redirect } from 'next/navigation'
 import { getCachedSiteInfo } from '@/api/misc.server'
 import HtmlEnhancer from '@/components/blog-post/blog-content-enhanced'
@@ -7,7 +7,7 @@ import { ContentFontLinks } from '@/components/blog-post/content-font-links'
 import { ContentHdrText } from '@/components/blog-post/content-hdr-text'
 import { ContentHoverCard } from '@/components/blog-post/content-hover-card'
 import { ContentImageFallback } from '@/components/blog-post/content-image-fallback'
-import { ContentImageViewer } from '@/components/blog-post/content-image-viewer'
+import { ContentImageViewer } from '@/components/blog-post/content-image-viewer-lazy'
 import { PageInfoCard } from '@/components/blog-post/page-info-card'
 import { PostToc } from '@/components/blog-post/post-toc.client'
 import { LinkPreviewScopeProvider } from '@/components/common/link-preview-context'
@@ -49,7 +49,7 @@ export async function PageView({ page, isDraft = false }: { page: PageModel, isD
   }
 
   const content = (isDraft ? page.draftContent : page.content) || ''
-  const { html, headings } = await renderContentHtml(content)
+  const { html, headings } = await renderContentHtml(content, { copyLabel: (await getTranslations('CodeBlock'))('copy') })
   // 页面正文使用站点默认的内容主题
   const theme = resolveContentTheme(null, (await getCachedSiteInfo()).contentTheme)
   // 代码块工具栏 / 高亮、链接卡片、图片失效兜底与预览，与文章正文复用同一套增强

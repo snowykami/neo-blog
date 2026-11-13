@@ -48,7 +48,7 @@ export function scopeOwnPaths(scope: I18nScope): readonly string[] {
 
 /**
  * 文案路径所在的下发单元：顶层命名空间（`Comment.reply` → `Comment`），
- * 按子命名空间拆分的 Console 取两层（`Console.global.title` → `Console.global`）。与 scripts/i18n-graph.mjs 的 unitOf 一致
+ * 按子命名空间拆分的命名空间（见 `SPLIT_NAMESPACES`）取两层（如 `Console.global.title` → `Console.global`）。与 scripts/i18n-graph.mjs 的 unitOf 一致
  */
 export function unitOfPath(path: string): string {
   const segments = path.split('.')

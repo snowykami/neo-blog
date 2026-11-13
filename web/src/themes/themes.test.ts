@@ -3,7 +3,8 @@ import { themeAttributes, themeCssVars } from './apply'
 import { getThemeDecor, THEME_DECOR } from './decor'
 import { getThemeIcon, THEME_ICONS } from './icons'
 import { BUILTIN_THEMES } from './index'
-import { parseThemeDefinition, THEME_ICON_NAMES, THEME_ICON_SLOTS } from './types'
+import { parseThemeDefinition } from './schema'
+import { THEME_ICON_NAMES, THEME_ICON_SLOTS } from './types'
 
 describe('内置主题数据', () => {
   it('图标槽位与装饰数据都指向真实存在的图元', () => {

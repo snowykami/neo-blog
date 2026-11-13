@@ -1,12 +1,14 @@
 import type { Metadata } from 'next'
 import type { WebSite, WithContext } from 'schema-dts'
 import type { BlogHomeInitialData } from './blog-home-query'
+import type { Post } from '@/models/post'
 import { getLocale, getTranslations } from 'next-intl/server'
 import { cacheLife, cacheTag } from 'next/cache'
 import { Suspense } from 'react'
 import { getCachedSiteInfo } from '@/api/misc.server'
 import { listPosts } from '@/api/post'
 import { PostList } from '@/components/blog-home/post-list'
+import BlogSidebar from '@/components/blog-sidebar'
 import { getCachedSidebarData } from '@/components/blog-sidebar/sidebar-data'
 import { BlogSidebarSkeleton } from '@/components/blog-sidebar/sidebar-skeleton'
 import { SiteShell } from '@/components/layout/site-shell'
@@ -68,6 +70,12 @@ async function loadDefaultPosts(pageSize: number) {
   return listPosts({ page: 1, orderBy: OrderBy.CreatedAt, size: pageSize, desc: true, withPinned: true }).then(res => res.data)
 }
 
+// 列表只展示摘要（作者描述 → 后端纯文本摘要 → 正文兜底，见 post-list.tsx）：已经有描述或摘要时去掉截断的正文 HTML，
+// 首屏数据在 HTML 与 RSC 里各出现一次，少带一份用不到的字段
+function slimPost(post: Post): Post {
+  return post.description || post.excerpt ? { ...post, content: '' } : post
+}
+
 // 服务端预取首屏文章（默认按最新排序），客户端参数一致时直接复用；不带登录身份，只含公开文章
 async function getInitialPosts(searchParams: HomeSearchParams, pageSize: number): Promise<BlogHomeInitialData | undefined> {
   const pick = (key: string) => (typeof searchParams[key] === 'string' ? searchParams[key] as string : undefined)
@@ -80,7 +88,7 @@ async function getInitialPosts(searchParams: HomeSearchParams, pageSize: number)
     const data = isDefault
       ? await loadDefaultPosts(size)
       : await listPosts({ ...params, size, desc: true, withPinned: true }).then(res => res.data)
-    return { key: blogHomeQueryKey(params), posts: data.posts, total: data.total, pinned: data.pinned ?? [] }
+    return { key: blogHomeQueryKey(params), posts: data.posts.map(slimPost), total: data.total, pinned: (data.pinned ?? []).map(slimPost) }
   }
   catch {
     return undefined // 预取失败时交给客户端加载
@@ -89,22 +97,25 @@ async function getInitialPosts(searchParams: HomeSearchParams, pageSize: number)
 
 // 读地址查询参数（分页、标签、搜索）的部分：放在 Suspense 里按请求渲染，外面的部分属于首页的 App Shell 与页面缓存
 async function HomePosts({ searchParams }: { searchParams: Promise<HomeSearchParams> }) {
-  const [query, siteInfo, sidebarData] = await Promise.all([searchParams, getCachedSiteInfo(), getCachedSidebarData()])
-  return <BlogHome initialData={await getInitialPosts(query, siteInfo.postsPerPage)} sidebarData={sidebarData} />
+  const [query, siteInfo] = await Promise.all([searchParams, getCachedSiteInfo()])
+  return <BlogHome initialData={await getInitialPosts(query, siteInfo.postsPerPage)} />
 }
 
-// 文章列表到达前的占位：与列表加载态相同的文章行，侧栏只画占位卡片
-function HomeSkeleton() {
+// 侧栏不读地址参数（标签云的选中状态在客户端读，见 BlogSidebar 的 labelFromQuery），数据跨请求缓存，属于首页的静态外壳：
+// 首屏第一批 HTML 里就有侧栏，不再跟着文章列表一起等
+async function HomeSidebar() {
+  return <BlogSidebar labelFromQuery initialData={await getCachedSidebarData()} />
+}
+
+// 文章列表到达前的占位：与列表加载态相同的文章行
+function HomePostsSkeleton() {
   return (
-    <SiteShell
-      skeleton
-      sidebar={<BlogSidebarSkeleton />}
-    >
+    <>
       <div className="grid gap-1 px-4 md:px-2" aria-busy="true">
         <Skeleton className="h-7 w-48 md:h-8" />
       </div>
       <PostList posts={[]} isLoading />
-    </SiteShell>
+    </>
   )
 }
 
@@ -133,9 +144,17 @@ export default async function Page({ searchParams }: { searchParams: Promise<Hom
   }
   return (
     <>
-      <Suspense fallback={<HomeSkeleton />}>
-        <HomePosts searchParams={searchParams} />
-      </Suspense>
+      <SiteShell
+        sidebar={(
+          <Suspense fallback={<BlogSidebarSkeleton />}>
+            <HomeSidebar />
+          </Suspense>
+        )}
+      >
+        <Suspense fallback={<HomePostsSkeleton />}>
+          <HomePosts searchParams={searchParams} />
+        </Suspense>
+      </SiteShell>
       {/* 结构化数据直接输出在 SSR 的 HTML 里，不依赖 JS 注入 */}
       <script
         id="json-ld"

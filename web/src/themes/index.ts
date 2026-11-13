@@ -13,7 +13,7 @@ import { resolveScheduledTheme } from './triggers'
  *   3. 明暗模式 .dark —— 决定上面两层的取值
  *
  * 主题是纯数据，因此将来「用户自定义主题」只需要换一个数据来源（接口 / localStorage），
- * 用 parseThemeDefinition() 校验后原样传给 <ThemeProvider>，渲染与触发逻辑完全复用。
+ * 用 parseThemeDefinition()（见 ./schema）校验后原样传给 <ThemeProvider>，渲染与触发逻辑完全复用。
  */
 export const BUILTIN_THEMES: ThemeDefinition[] = [
   ...CHINESE_FESTIVAL_THEMES,
@@ -37,11 +37,11 @@ export function resolveActiveTheme(
 // 图标表是客户端模块（含手绘 SVG 与 lucide 组件），不从入口再导出，避免服务端组件被迫进入客户端包
 export { applyThemeToDocument, THEME_VAR_KEYS, themeAttributes, themeCssVars } from './apply'
 export { isWithinRange, matchesSchedule, resolveScheduledTheme } from './triggers'
+// 校验 schema（parseThemeDefinition / themeDefinitionSchema）在 ./schema，需要时直接从那里引用：
+// 入口被根布局用到，从这里再导出会把 zod 带进所有页面的首屏包
 export {
-  parseThemeDefinition,
   THEME_EFFECTS,
   THEME_ICON_SLOTS,
-  themeDefinitionSchema,
 } from './types'
 export type {
   MonthDay,

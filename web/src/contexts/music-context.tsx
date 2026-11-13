@@ -1,6 +1,6 @@
 'use client'
+import type { MusicLyricsState } from './music-lyrics-engine-state'
 import type { LyricCandidate, LyricSourceKind } from '@/lib/lyrics/resolve'
-import type { LyricTrackInfo } from '@/lib/lyrics/strip-credits'
 import type { LyricLine, ResolvedLyrics } from '@/lib/lyrics/types'
 import type { MusicTrack } from '@/models/music'
 import { useTranslations } from 'next-intl'
@@ -16,17 +16,19 @@ import React, {
 } from 'react'
 import { toast } from 'sonner'
 import { fetchSongAudioURL } from '@/api/music'
-import { applyEmphasis } from '@/lib/lyrics/emphasis'
 import {
   findActiveLyricLineIndex,
   getLyricLineText,
   getVocalLyricLines,
   LYRIC_PLACEHOLDERS,
 } from '@/lib/lyrics/line-utils'
-import { requestRhythm } from '@/lib/lyrics/rhythm/source'
 import { registerTelemetryContext } from '@/lib/telemetry/context'
-import { requestLyricAnnotations, useLyricAnnotations, useLyricAnnotationsGenerating } from './lyric-annotations'
-import { refreshSongLyrics, useResolvedSongLyrics } from './song-lyrics'
+import { EMPTY_MUSIC_LYRICS_STATE } from './music-lyrics-engine-state'
+
+// 歌词引擎（来源选择、平台歌词解析、音译对齐、强调标注）与节拍分析按需加载：MusicProvider 在根布局里，
+// 静态引用会把它们连同 wanakana、Worker 调度一起打进每一页的首屏包（见 music-lyrics-engine.tsx）
+const loadLyricsEngine = () => import('./music-lyrics-engine')
+const loadRhythm = () => import('@/lib/lyrics/rhythm/source')
 
 export type PlayMode = 'repeat-all' | 'repeat-one' | 'shuffle'
 
@@ -266,14 +268,6 @@ export function useMusicLyrics(): MusicLyricsValue {
   return ctx
 }
 
-/**
- * 按歌曲 id 取最终显示的歌词（与播放器、导航栏同一套来源与选择规则，读者不参与来源选择，一律按全站版本）；
- * id 为空时不请求。track 用于去掉「歌名 - 歌手」等署名行
- */
-export function useSongLyrics(id: number | null, track?: LyricTrackInfo | null) {
-  return useResolvedSongLyrics(id, track)
-}
-
 /** 播放时钟本身：需要在回调中读取进度（如定期保存进度）而不想因此重渲染时使用 */
 export function useMusicClockStore(): MusicClock {
   const clock = useContext(MusicClockContext)
@@ -416,6 +410,27 @@ function updateMediaSessionMetadata(
     catch { }
   }
   ms.playbackState = playing ? 'playing' : 'paused'
+}
+
+/**
+ * 按需加载一个模块：enabled 后才开始下载，加载完返回模块本身（之后一直保留），之前为 null；
+ * 加载失败（离线、发版后旧代码块被清理）时保持 null，下次 enabled 变化时重试
+ */
+function useLazyModule<T>(load: () => Promise<T>, enabled: boolean): T | null {
+  const [loaded, setLoaded] = useState<T | null>(null)
+  useEffect(() => {
+    if (!enabled || loaded)
+      return
+    let cancelled = false
+    load().then((mod) => {
+      if (!cancelled)
+        setLoaded(mod)
+    }, () => {})
+    return () => {
+      cancelled = true
+    }
+  }, [enabled, load, loaded])
+  return loaded
 }
 
 export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -619,8 +634,14 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return
     const controller = new AbortController()
     const request = () => {
-      if (!audio.paused && audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA && document.visibilityState === 'visible')
-        requestRhythm(currentTrackId, currentTrackAudio, controller.signal)
+      if (!audio.paused && audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA && document.visibilityState === 'visible') {
+        void loadRhythm().then(({ requestRhythm }) => {
+          if (!controller.signal.aborted)
+            requestRhythm(currentTrackId, currentTrackAudio, controller.signal)
+        }, () => {
+          // 代码块加载失败（离线、发版后旧代码块被清理）时不分析节拍，动效回退到固定快慢
+        })
+      }
     }
     request()
     audio.addEventListener('playing', request)
@@ -940,29 +961,23 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [clock, flushTrackPlayTimer, getPlayedMs, resetCircuitBreaker, resetTrackPlayStats, step, tripCircuitBreaker])
 
-  // 当前曲目的歌词：与文章内的单曲卡、歌词摘录共用同一份来源与选择结果（见 contexts/song-lyrics.ts）
-  const songLyrics = useResolvedSongLyrics(currentTrackId, currentTrack)
-  const wantsAnnotations = isPlaying && showLyricEffects && songLyrics.lyrics.wordTimed && songLyrics.isSiteVersion && currentTrackId != null && currentTrackId > 0
-  useEffect(() => {
-    if (wantsAnnotations && currentTrackId != null)
-      requestLyricAnnotations(currentTrackId)
-  }, [currentTrackId, wantsAnnotations])
-  const storedAnnotations = useLyricAnnotations(currentTrackId)
-  const annotations = storedAnnotations?.source === songLyrics.lyrics.source ? storedAnnotations : null
-  const lyrics = useMemo(() => applyEmphasis(songLyrics.lyrics, annotations), [annotations, songLyrics.lyrics])
+  // 当前曲目的歌词：由按需加载的歌词引擎算出后交回（见 music-lyrics-engine.tsx）；有过曲目才加载，之前与没有曲目时为空
+  const lyricsEngine = useLazyModule(loadLyricsEngine, currentTrackId != null)
+  const [lyricsState, setLyricsState] = useState<MusicLyricsState>(EMPTY_MUSIC_LYRICS_STATE)
+  const lyrics = lyricsState.lyrics
   const refreshLyrics = useCallback(() => {
     const id = playlistRef.current[currentIndexRef.current ?? -1]?.id
     if (id != null)
-      refreshSongLyrics(id)
+      void import('./song-lyrics').then(({ refreshSongLyrics }) => refreshSongLyrics(id), () => {})
   }, [])
-  const lyricAnnotationsGenerating = useLyricAnnotationsGenerating(showLyricEffects && songLyrics.lyrics.wordTimed && songLyrics.isSiteVersion ? currentTrackId : null)
-  const lyricAnnotated = showLyricEffects && songLyrics.lyrics.wordTimed && (annotations?.lines.length ?? 0) > 0
-  const lyricCandidates = songLyrics.candidates
-  const lyricKind = songLyrics.kind
-  const lyricSiteKind = songLyrics.siteKind
-  const lyricIsSiteVersion = songLyrics.isSiteVersion
-  const lyricsPending = songLyrics.pending
-  const lyricStatus = songLyrics.status
+  const lyricAnnotationsGenerating = lyricsState.annotationsGenerating
+  const lyricAnnotated = lyricsState.annotated
+  const lyricCandidates = lyricsState.candidates
+  const lyricKind = lyricsState.kind
+  const lyricSiteKind = lyricsState.siteKind
+  const lyricIsSiteVersion = lyricsState.isSiteVersion
+  const lyricsPending = lyricsState.pending
+  const lyricStatus = lyricsState.status
 
   // 当前歌词主唱行（标准 LyricLine[]）：订阅播放时钟，只在换行时更新外部 store
   const lyricLines = useMemo(() => getVocalLyricLines(lyrics.lines), [lyrics.lines])
@@ -1421,7 +1436,18 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           <MusicVolumeContext value={volumeValue}>
             <MusicPreferencesContext value={preferencesValue}>
               <MusicLyricsContext value={lyricsValue}>
-                <MusicContext value={combinedValue}>{children}</MusicContext>
+                <MusicContext value={combinedValue}>
+                  {lyricsEngine && (
+                    <lyricsEngine.MusicLyricsEngine
+                      trackId={currentTrackId}
+                      track={currentTrack}
+                      isPlaying={isPlaying}
+                      showLyricEffects={showLyricEffects}
+                      onChange={setLyricsState}
+                    />
+                  )}
+                  {children}
+                </MusicContext>
               </MusicLyricsContext>
             </MusicPreferencesContext>
           </MusicVolumeContext>
