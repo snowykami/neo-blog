@@ -48,7 +48,7 @@ describe('逐字音译', () => {
 
   it('来源自带逐字时间的音译按开始时间归到原文音节', () => {
     const words = [{ text: '初', start: 20699, end: 21133 }, { text: 'め', start: 21133, end: 21302 }]
-    const parts = romanWordsFromTimed([{ text: 'ha ', startTime: 20699, duration: 19 }, { text: 'ji ', startTime: 20718, duration: 415 }, { text: 'me ', startTime: 21133, duration: 169 }], words)
+    const parts = romanWordsFromTimed([{ text: 'ha ', start: 20699, end: 20718 }, { text: 'ji ', start: 20718, end: 21133 }, { text: 'me ', start: 21133, end: 21302 }], words)
     expect(parts?.map(part => [part.text, part.word])).toEqual([['ha ', 0], ['ji ', 0], ['me ', 1]])
   })
 

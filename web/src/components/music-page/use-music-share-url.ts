@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useMusic, useMusicClockStore } from '@/contexts/music-context'
+import { useMusicActions, useMusicClockStore, useMusicPlayback } from '@/contexts/music-context'
 import { buildMusicShareSearch, parseMusicShareParams } from './music-share-params'
 
 // 播放中写地址的最短间隔；停下后最后一次进度仍会写入
@@ -16,7 +16,8 @@ const SEEK_TOLERANCE_S = 1
  * - 之后实时把当前曲目与进度写进地址（replaceState，不产生历史记录），方便复制分享
  */
 export function useMusicShareUrl() {
-  const { playlist, playlistComplete, currentTrack, replacePlaylist, seek } = useMusic()
+  const { playlist, playlistComplete, currentTrack } = useMusicPlayback()
+  const { replacePlaylist, seek } = useMusicActions()
   const clock = useMusicClockStore()
   const appliedRef = useRef(false)
   const [ready, setReady] = useState(false)

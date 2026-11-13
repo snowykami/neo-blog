@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useSyncExternalStore } from 'react'
-import { useMusic } from '@/contexts/music-context'
+import { useMusicPreferences } from '@/contexts/music-context'
 import { hdrColorUrl } from '@/lib/hdr-color'
 
 const HDR_QUERY = '(dynamic-range: high)'
@@ -19,7 +19,7 @@ export function useHdrDisplay() {
 
 /** 音乐播放器的 HDR 高光是否生效：读者开着 HDR 高光，且屏幕支持 HDR */
 export function useHdrEnabled() {
-  const { hdr } = useMusic()
+  const { hdr } = useMusicPreferences()
   return useHdrDisplay() && hdr
 }
 

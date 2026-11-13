@@ -3,10 +3,18 @@
  * 逐词音译、注音等 TTML 特有字段在第三期加入
  */
 
+export interface LyricRuby {
+  text: string
+  start: number
+  end: number
+}
+
 export interface LyricWord {
   text: string
   start: number
   end: number
+  // 日文汉字上方的逐字振假名注音（见 spec 8.5）
+  ruby?: LyricRuby[]
 }
 
 export interface LyricLine {

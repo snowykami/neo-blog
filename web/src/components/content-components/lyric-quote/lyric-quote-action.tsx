@@ -2,15 +2,14 @@
 
 import type { ContentEditorActionProps } from '../types'
 import type { LyricQuoteInput } from './schema'
-import type { MusicLyricLine } from '@/utils/music-lyric'
+import type { LyricLine } from '@/lib/lyrics/types'
 import { QuoteIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useMemo } from 'react'
 import { Spinner } from '@/components/ui/spinner'
 import { useSongLyrics } from '@/contexts/music-context'
-import { toSingleLineLyrics } from '@/lib/lyrics/from-platform'
+import { getLyricLineText, getLyricLineVocalStart } from '@/lib/lyrics/line-utils'
 import { cn } from '@/lib/utils'
-import { getExtraLyricLine } from '@/utils/music-lyric'
 import { NeteaseSongSearch } from '../netease-song/netease-song-search'
 import { buildQuoteLyrics } from './quote-lines'
 
@@ -40,8 +39,8 @@ export default function LyricQuoteAction({ values, setValues }: ContentEditorAct
   // 网易云模式：作者未填写歌词且已选择歌曲时，取在线歌词用于选句（与文章内展示、播放器同一来源与选择结果）
   const fetchLyric = source === 'netease' && id > 0 && !authorLyric
   const songLyrics = useSongLyrics(fetchLyric ? id : null)
-  const online = useMemo(() => (songLyrics.status === 'ready' ? toSingleLineLyrics(songLyrics.lyrics) : null), [songLyrics])
-  const { lines, translationLines, romajiLines } = useMemo(
+  const online = songLyrics.status === 'ready' ? songLyrics.lyrics : null
+  const { lines } = useMemo(
     () => buildQuoteLyrics({ online, authorLyric, translation: authorTranslation, romaji: authorRomaji }),
     [authorLyric, authorRomaji, authorTranslation, online],
   )
@@ -51,26 +50,28 @@ export default function LyricQuoteAction({ values, setValues }: ContentEditorAct
   // 第一句可能正好在 0 毫秒，用歌词文本快照判断是否已经选择过
   const hasSelection = start > 0 || Boolean(values.text?.trim())
 
-  const selectLine = (line: MusicLyricLine) => {
+  const selectLine = (line: LyricLine) => {
+    const lineStart = getLyricLineVocalStart(line)
+    const lineText = getLyricLineText(line).trim()
     // 没有选择，或已经选完一段时，点击都表示重新选择起始句
     if (!hasSelection || end > 0) {
-      setValues({ start: line.startTime, end: 0, text: line.originalText })
+      setValues({ start: lineStart, end: 0, text: lineText })
       return
     }
 
     // 已选起始句：后面的句子作为结束句
-    if (line.startTime > start) {
-      const startIndex = lines.findIndex(item => item.startTime === start)
-      const endIndex = lines.findIndex(item => item.startTime === line.startTime)
+    if (lineStart > start) {
+      const startIndex = lines.findIndex(item => getLyricLineVocalStart(item) === start)
+      const endIndex = lines.findIndex(item => getLyricLineVocalStart(item) === lineStart)
       const selectedText = startIndex >= 0 && endIndex >= startIndex
-        ? lines.slice(startIndex, endIndex + 1).map(item => item.originalText).join('\n')
-        : line.originalText
-      setValues({ end: line.startTime, text: selectedText })
+        ? lines.slice(startIndex, endIndex + 1).map(item => getLyricLineText(item).trim()).join('\n')
+        : lineText
+      setValues({ end: lineStart, text: selectedText })
       return
     }
 
     // 第二次点在更早的句子上：把它作为新的起始句
-    setValues({ start: line.startTime, end: 0, text: line.originalText })
+    setValues({ start: lineStart, end: 0, text: lineText })
   }
 
   // 歌词列表的占位提示：优先说明缺少的前置条件，再显示加载 / 失败状态
@@ -117,14 +118,15 @@ export default function LyricQuoteAction({ values, setValues }: ContentEditorAct
               <>
                 <ul className="grid max-h-64 gap-0.5 overflow-y-auto" aria-label={t('title')}>
                   {lines.map((line, index) => {
-                    const isStart = hasSelection && line.startTime === start
-                    const isEnd = end > 0 && line.startTime === end
-                    const inRange = hasSelection && (isStart || (end > 0 && line.startTime > start && line.startTime <= end))
-                    const translation = getExtraLyricLine(translationLines, line.startTime)?.originalText
-                    const translatedText = translation && translation !== line.originalText ? translation : ''
-                    const romaji = getExtraLyricLine(romajiLines, line.startTime)?.originalText
+                    const lineStart = getLyricLineVocalStart(line)
+                    const lineText = getLyricLineText(line).trim()
+                    const isStart = hasSelection && lineStart === start
+                    const isEnd = end > 0 && lineStart === end
+                    const inRange = hasSelection && (isStart || (end > 0 && lineStart > start && lineStart <= end))
+                    const translatedText = line.translation && line.translation !== lineText ? line.translation : ''
+                    const romaji = line.romanization ?? ''
                     return (
-                      <li key={`${line.startTime}-${index}`}>
+                      <li key={`${lineStart}-${index}`}>
                         <button
                           type="button"
                           aria-pressed={isStart}
@@ -134,10 +136,10 @@ export default function LyricQuoteAction({ values, setValues }: ContentEditorAct
                           )}
                           onClick={() => selectLine(line)}
                         >
-                          <span className="w-11 shrink-0 text-xs text-muted-foreground tabular-nums">{formatTimestamp(line.startTime)}</span>
+                          <span className="w-11 shrink-0 text-xs text-muted-foreground tabular-nums">{formatTimestamp(lineStart)}</span>
                           <span className="grid min-w-0 flex-1 gap-0.5">
                             <span className={cn('truncate', isStart || isEnd ? 'font-medium text-primary' : 'text-foreground/85')}>
-                              {line.originalText || '—'}
+                              {lineText || '—'}
                             </span>
                             {/* 外文歌词在选句时一并展示翻译/发音，方便作者确认引用内容 */}
                             {translatedText && (

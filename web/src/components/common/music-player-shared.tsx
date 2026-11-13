@@ -3,7 +3,7 @@
 import { MusicIcon } from 'lucide-react'
 import React, { useEffect, useRef, useState } from 'react'
 import { SafeImage } from '@/components/common/safe-image'
-import { useMusic } from '@/contexts/music-context'
+import { useMusicPlayback } from '@/contexts/music-context'
 import { cn } from '@/lib/utils'
 
 /**
@@ -117,7 +117,7 @@ export function CrossfadeAlbumImage({
  * 组件内部自行读取播放状态，暂停时停转，曲目切换时交叉淡入新封面
  */
 export function AlbumNavIcon() {
-  const { currentTrack, isPlaying } = useMusic()
+  const { currentTrack, isPlaying } = useMusicPlayback()
 
   // 没有封面时回退为音乐图标，避免导航栏出现占位块
   if (!currentTrack?.albumPic) {

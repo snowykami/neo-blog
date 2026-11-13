@@ -15,7 +15,7 @@ import { readMusicShareParamsFromLocation } from '@/components/music-page/music-
 import { MusicStageEffects } from '@/components/music-page/music-stage-effects'
 import { useSongAccent } from '@/components/music-page/use-cover-accent'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { useCurrentLyric, useMusic, useMusicClockStore } from '@/contexts/music-context'
+import { useCurrentLyric, useMusicActions, useMusicClockStore, useMusicPlayback } from '@/contexts/music-context'
 import { Link, usePathname } from '@/i18n/navigation'
 import { isConsolePath } from '@/i18n/routing'
 import { readPlaylistCache, touchPlaylistCache, writePlaylistCache } from '@/lib/music-playlist-cache'
@@ -255,13 +255,15 @@ export function MusicPlayer() {
   const t = useTranslations('MusicPlayer')
   const {
     currentTrack,
-    replacePlaylist,
-    deferPlaylist,
-    markPlaylistFailed,
     currentIndex,
     duration,
     isPlaying,
-  } = useMusic()
+  } = useMusicPlayback()
+  const {
+    replacePlaylist,
+    deferPlaylist,
+    markPlaylistFailed,
+  } = useMusicActions()
   const clock = useMusicClockStore()
   // 播放器页（/music）本身就是完整的播放器：不显示悬浮球，但歌单加载与进度保存照常进行
   const pathname = usePathname()
@@ -471,7 +473,8 @@ function LyricLineStandIn() {
  */
 export function MiniPlayer({ onOpenPage }: { onOpenPage?: () => void }) {
   const t = useTranslations('MusicPlayer')
-  const { currentTrack, isPlaying, ensurePlaylist } = useMusic()
+  const { currentTrack, isPlaying } = useMusicPlayback()
+  const { ensurePlaylist } = useMusicActions()
   // 打开悬浮播放器时补全歌单（恢复播放时可能只取了一首），歌单浮层与上一首 / 下一首都要用
   useEffect(() => {
     void ensurePlaylist()

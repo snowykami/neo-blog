@@ -9,7 +9,7 @@ import { AlbumNavIcon, useMiniPlayerHolding } from '@/components/common/music-pl
 import { MusicBackground } from '@/components/music-page/music-background'
 import { MusicStageEffects } from '@/components/music-page/music-stage-effects'
 import { useSongAccent } from '@/components/music-page/use-cover-accent'
-import { useMusic } from '@/contexts/music-context'
+import { useMusicActions, useMusicLyrics, useMusicPlayback } from '@/contexts/music-context'
 import { useHdrHighlight } from '@/hooks/use-hdr-highlight'
 import { HDR_BRIGHTNESS } from '@/lib/hdr-color'
 import { backgroundLevel, rhythmContext } from '@/lib/lyrics/rhythm/effects'
@@ -33,7 +33,8 @@ const MusicLyricStage = dynamic(() => import('@/components/music-page/music-lyri
  * 单行条只是藏起来、不卸载（暂停时引擎本来就静止），继续播放时直接露出，不用重新排版；特效淡出并停在此刻
  */
 export function MusicCompact({ beat, title, paused = false, text }: { beat: boolean, title: string, paused?: boolean, text?: string }) {
-  const { currentTrack, lyricLines, lyrics } = useMusic()
+  const { currentTrack } = useMusicPlayback()
+  const { lyricLines, lyrics } = useMusicLyrics()
   const accent = useSongAccent(currentTrack?.albumPic)
   const hasLyric = lyricLines.length > 0 || lyrics.instrumental
   // 悬浮播放器（悬浮球或灵动岛的弹层）开着时胶囊不露面（悬浮球的弹层开着时音乐活动待命，灵动岛的面板盖在胶囊上），
@@ -86,7 +87,8 @@ const BEAT_TINT_OPACITY = 0.22
  * paused 时（悬浮播放器开着）停在此刻
  */
 function BeatBars({ tintRef, paused, barStyle }: { tintRef: React.RefObject<HTMLSpanElement | null>, paused: boolean, barStyle?: React.CSSProperties }) {
-  const { getAudio, isPlaying, currentTrack } = useMusic()
+  const { isPlaying, currentTrack } = useMusicPlayback()
+  const { getAudio } = useMusicActions()
   const reducedMotion = useReducedMotion()
   const rootRef = useRef<HTMLSpanElement>(null)
   const stateRef = useRef({ trackId: currentTrack?.id ?? null })

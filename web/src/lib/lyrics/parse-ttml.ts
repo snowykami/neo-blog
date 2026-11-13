@@ -1,4 +1,4 @@
-import type { LyricLine, LyricSource, LyricWord, ResolvedLyrics } from './types'
+import type { LyricLine, LyricRuby, LyricSource, LyricWord, ResolvedLyrics } from './types'
 import { preprocessLyricLines } from './preprocess'
 import { romanWordsFromSpans } from './romanization'
 
@@ -119,19 +119,103 @@ interface ParsedLineContent {
   background?: ParsedLineContent
 }
 
-/** 读取一行（或背景人声）的内容：音节、翻译、音译，以及嵌套的背景人声 */
+function splitRubyGraphemes(text: string): string[] {
+  if (typeof Intl !== 'undefined' && 'Segmenter' in Intl)
+    return [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text)].map(part => part.segment)
+  return Array.from(text)
+}
+
+/** 提取节点中的正文文本，排除角色副轨（x-translation/x-roman/x-bg）与振假名注音/分隔符（tts:ruby="text|textContainer|delimiter"） */
+function extractBaseText(node: Node): string {
+  if (node.nodeType === 3)
+    return node.textContent ?? ''
+  if (node.nodeType !== 1)
+    return ''
+  const el = node as Element
+  if (attr(el, 'role'))
+    return ''
+  const rubyRole = attr(el, 'ruby')
+  if (rubyRole === 'text' || rubyRole === 'textContainer' || rubyRole === 'delimiter')
+    return ''
+  return Array.from(el.childNodes, extractBaseText).join('')
+}
+
+/** 解析 <span tts:ruby="container">：提取底字（base）与逐假名注音（text），不把注音拼进底字文本 */
+function parseRubyContainer(container: Element): { text: string, start: number | null, end: number | null, ruby?: LyricRuby[] } {
+  const baseEls = childElements(container, 'span').filter(el => attr(el, 'ruby') === 'base')
+  const baseText = baseEls.length > 0
+    ? baseEls.map(el => el.textContent ?? '').join('')
+    : extractBaseText(container)
+  const baseStarts = baseEls.map(el => parseTtmlTime(attr(el, 'begin'))).filter((v): v is number => v != null)
+  const baseEnds = baseEls.map(el => parseTtmlTime(attr(el, 'end'))).filter((v): v is number => v != null)
+  const start = baseStarts.length > 0 ? Math.min(...baseStarts) : parseTtmlTime(attr(container, 'begin'))
+  const end = baseEnds.length > 0 ? Math.max(...baseEnds) : parseTtmlTime(attr(container, 'end'))
+
+  const textEls = childElements(container, 'span').filter(el => attr(el, 'ruby') === 'text')
+  const rubies: LyricRuby[] = []
+  const wordStart = start ?? 0
+  const wordEnd = end != null && start != null ? Math.max(start, end) : 0
+  for (const textEl of textEls) {
+    const rText = textEl.textContent?.replace(/\s+/g, ' ').trim() ?? ''
+    if (!rText)
+      continue
+    const rStart = parseTtmlTime(attr(textEl, 'begin'))
+    const rEnd = parseTtmlTime(attr(textEl, 'end'))
+    if (rStart != null && rEnd != null) {
+      rubies.push({ text: rText, start: rStart, end: Math.max(rStart, rEnd) })
+    }
+    else if (start != null && end != null) {
+      const chars = splitRubyGraphemes(rText).filter(ch => ch.trim() !== '')
+      if (chars.length > 0) {
+        const step = (wordEnd - wordStart) / chars.length
+        chars.forEach((ch, idx) => {
+          rubies.push({
+            text: ch,
+            start: Math.round(wordStart + step * idx),
+            end: Math.round(wordStart + step * (idx + 1)),
+          })
+        })
+      }
+    }
+  }
+  if (start != null && rubies.length > 0)
+    fixPlaceholderTimes(rubies, start)
+  return {
+    text: baseText,
+    start,
+    end,
+    ...(rubies.length > 0 && { ruby: rubies }),
+  }
+}
+
+/** 读取一行（或背景人声）的内容：音节、翻译、音译、振假名，以及嵌套的背景人声 */
 function readLineContent(el: Element): ParsedLineContent {
   const content: ParsedLineContent = { words: [] }
+  let pendingSpace = false
+  const flushSpace = () => {
+    if (!pendingSpace)
+      return
+    pendingSpace = false
+    const last = content.words.at(-1)
+    if (last)
+      last.text += ' '
+  }
   const appendText = (text: string) => {
+    if (!text)
+      return
+    flushSpace()
     const last = content.words.at(-1)
     if (last)
       last.text += text
   }
   for (const node of Array.from(el.childNodes)) {
     if (node.nodeType === 3) {
-      // span 之间的文字：空白作为词间空格挂到前一个音节；不在 span 内的文字也挂到前一个音节
+      // span 之间的空白作为词间空格挂到前一个音节（行尾或副轨前的缩进空白不追加）；非空白文字直接挂到前一个音节
       const text = node.textContent ?? ''
-      appendText(/^\s+$/.test(text) ? ' ' : text)
+      if (/^\s+$/.test(text))
+        pendingSpace = content.words.length > 0
+      else
+        appendText(text)
       continue
     }
     if (node.nodeType !== 1)
@@ -152,20 +236,41 @@ function readLineContent(el: Element): ParsedLineContent {
       content.background = readLineContent(child)
       continue
     }
+    const rubyRole = attr(child, 'ruby')
+    if (rubyRole === 'delimiter' || rubyRole === 'text' || rubyRole === 'textContainer')
+      continue
+    if (rubyRole === 'container') {
+      const parsed = parseRubyContainer(child)
+      if (parsed.start == null || parsed.end == null) {
+        appendText(parsed.text)
+        continue
+      }
+      if (parsed.text)
+        flushSpace()
+      content.words.push({
+        text: parsed.text,
+        start: parsed.start,
+        end: Math.max(parsed.start, parsed.end),
+        ...(parsed.ruby && { ruby: parsed.ruby }),
+      })
+      continue
+    }
     const start = parseTtmlTime(attr(child, 'begin'))
     const end = parseTtmlTime(attr(child, 'end'))
-    const text = child.textContent ?? ''
+    const text = extractBaseText(child)
     if (start == null || end == null) {
       appendText(text)
       continue
     }
+    if (text)
+      flushSpace()
     content.words.push({ text, start, end: Math.max(start, end) })
   }
   return content
 }
 
 /** AMLL 导出的 00:00.000 占位：一串占位音节结束于下一个有时间的音节开始，时长取那个音节的时长；在行尾时取前一个音节的时长 */
-function fixPlaceholderTimes(words: LyricWord[], lineStart: number) {
+function fixPlaceholderTimes<T extends { start: number, end: number }>(words: T[], lineStart: number) {
   if (lineStart <= 0)
     return
   for (let i = words.length - 1; i >= 0; i--) {
@@ -183,6 +288,16 @@ function fixPlaceholderTimes(words: LyricWord[], lineStart: number) {
 
 function toLine(content: ParsedLineContent, start: number, end: number, singer: Singer, isBackground: boolean): LyricLine | null {
   fixPlaceholderTimes(content.words, start)
+  for (const word of content.words) {
+    if (word.ruby?.length && word.ruby.every(r => r.start === 0 && r.end === 0) && word.end > word.start) {
+      const step = (word.end - word.start) / word.ruby.length
+      word.ruby = word.ruby.map((r, idx) => ({
+        ...r,
+        start: Math.round(word.start + step * idx),
+        end: Math.round(word.start + step * (idx + 1)),
+      }))
+    }
+  }
   const words = content.words.length > 0 ? content.words : []
   if (words.every(word => word.text.trim() === ''))
     return null
@@ -216,12 +331,9 @@ export function parseTtml(text: string, source: Extract<LyricSource, 'ttml-custo
     const begin = parseTtmlTime(attr(p, 'begin'))
     const end = parseTtmlTime(attr(p, 'end'))
     const content = readLineContent(p)
-    // 没有音节时间的行：整行为一个词
+    // 没有音节时间的行：整行为一个词（排除角色副轨与振假名注音文本）
     if (content.words.length === 0) {
-      const lineText = Array.from(p.childNodes)
-        .filter(node => node.nodeType === 3 || (node.nodeType === 1 && !attr(node as Element, 'role')))
-        .map(node => node.textContent ?? '')
-        .join('')
+      const lineText = extractBaseText(p)
         .replace(/\s+/g, ' ')
         .trim()
       if (lineText && begin != null && end != null)

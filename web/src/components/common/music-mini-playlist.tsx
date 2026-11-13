@@ -8,7 +8,7 @@ import { MusicPlaylistItem, PlaylistPendingState } from '@/components/music-page
 import { filterPlaylist } from '@/components/music-page/playlist-filter'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { useMusic } from '@/contexts/music-context'
+import { useMusicActions, useMusicPlayback } from '@/contexts/music-context'
 import { cn } from '@/lib/utils'
 
 /**
@@ -17,7 +17,8 @@ import { cn } from '@/lib/utils'
  */
 export function MusicMiniPlaylist() {
   const t = useTranslations('MusicPage')
-  const { playlist, playlistComplete, currentIndex, isPlaying, playTrack, ensurePlaylist } = useMusic()
+  const { playlist, playlistComplete, currentIndex, isPlaying } = useMusicPlayback()
+  const { playTrack, ensurePlaylist } = useMusicActions()
   const [open, setOpen] = useState(false)
   const [keyword, setKeyword] = useState('')
   const listRef = useRef<HTMLOListElement>(null)

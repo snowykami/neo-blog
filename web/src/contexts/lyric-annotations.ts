@@ -75,7 +75,7 @@ export function requestLyricAnnotations(id: number) {
       }
       const generating = result.status === 'pending' || !!result.stale
       if (result.status === 'ready')
-        settle(entry, { font: result.font, pace: result.pace, intro: result.intro, outro: result.outro, moments: result.moments, spotlights: result.spotlights, accent: result.accent, lines: result.lines, sprites: result.sprites, edited: result.edited, source: result.source }, generating)
+        settle(entry, { font: result.font, intro: result.intro, outro: result.outro, moments: result.moments, spotlights: result.spotlights, accent: result.accent, lines: result.lines, sprites: result.sprites, edited: result.edited, source: result.source }, generating)
       else
         setGenerating(entry, generating)
       if (!generating)

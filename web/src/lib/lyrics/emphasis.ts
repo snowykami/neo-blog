@@ -1,4 +1,3 @@
-import type { LyricPace } from './pace'
 import type { LyricColor, LyricEffect, LyricEmphasis, LyricFont, LyricLine, LyricMood, LyricNote, LyricOutro, LyricSceneName, LyricSprite, LyricTextStyle, ResolvedLyrics } from './types'
 import { normalizeForMatch } from './strip-credits'
 
@@ -18,8 +17,6 @@ export interface LyricAnnotationPhrase {
   color?: LyricColor
   font?: LyricFont
   styles?: LyricTextStyle[]
-  // 短语自己的特效节奏：后端仍会下发（AI 与后台编辑器均可标），前端已不再参与动效，等后端清理后一并删
-  pace?: LyricPace
 }
 
 export interface LyricAnnotationLine {
@@ -51,8 +48,6 @@ export interface LyricAnnotationSpotlight {
 
 export interface LyricAnnotations {
   font?: LyricFont
-  // 全曲的特效节奏：同上，已不再参与动效
-  pace?: LyricPace
   intro?: string
   outro?: LyricOutro
   moments?: LyricAnnotationMoment[]

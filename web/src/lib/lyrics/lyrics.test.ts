@@ -1,7 +1,10 @@
-import type { LyricLine, ResolvedLyrics } from './types'
+import type { LyricMarqueeWordBox } from './marquee'
+import type { LyricLine, LyricWord, ResolvedLyrics } from './types'
 import { describe, expect, it } from 'vitest'
-import { parseMusicLyrics, parseQqLyrics } from '@/utils/music-lyric'
 import { platformToLyrics } from './from-platform'
+import { alignTimedTexts, getLyricLineText } from './line-utils'
+import { getLyricMarqueeOffset, LYRIC_MARQUEE_ANCHOR_RATIO, LYRIC_MARQUEE_SMOOTH_WINDOW_MS } from './marquee'
+import { parseNcmLyrics, parseQqLyrics } from './parse-platform'
 import { preprocessLyricLines } from './preprocess'
 import { lyricTier, resolveLyrics } from './resolve'
 import { Spring } from './spring'
@@ -118,7 +121,7 @@ describe('弹簧', () => {
 
 describe('平台歌词转换', () => {
   it('逐字歌词带翻译与音译，行级歌词整行为一个词', () => {
-    const wordTimed = platformToLyrics(parseMusicLyrics({
+    const wordTimed = platformToLyrics(parseNcmLyrics({
       yrc: { lyric: '[1000,1000](1000,500,0)一(1500,500,0)句\n[3000,1000](3000,1000,0)二', version: 1 },
       tlyric: { lyric: '[00:01.00]one', version: 1 },
     }), 'ncm')
@@ -126,13 +129,13 @@ describe('平台歌词转换', () => {
     expect(wordTimed.lines[0].words.map(word => [word.text, word.start, word.end])).toEqual([['一', 1000, 1500], ['句', 1500, 2000]])
     expect(wordTimed.lines.map(item => item.translation)).toEqual(['one', undefined])
 
-    const lineTimed = platformToLyrics(parseMusicLyrics({ lrc: { lyric: '[00:01.00]甲\n[00:04.00]乙', version: 1 } }), 'ncm')
+    const lineTimed = platformToLyrics(parseNcmLyrics({ lrc: { lyric: '[00:01.00]甲\n[00:04.00]乙', version: 1 } }), 'ncm')
     expect(lineTimed.wordTimed).toBe(false)
     expect(lineTimed.lines[0].words).toEqual([{ text: '甲', start: 1000, end: 4000 }])
   })
 
   it('纯音乐占位', () => {
-    const result = platformToLyrics(parseMusicLyrics({ lrc: { lyric: '[00:00.00]pure_music_without_lyric', version: 1 } }), 'ncm')
+    const result = platformToLyrics(parseNcmLyrics({ lrc: { lyric: '[00:00.00]pure_music_without_lyric', version: 1 } }), 'ncm')
     expect(result.instrumental).toBe(true)
     expect(result.lines).toEqual([])
   })
@@ -141,7 +144,7 @@ describe('平台歌词转换', () => {
 describe('多来源选择', () => {
   const ttmlLine = (start: number, text: string): LyricLine => ({ words: [{ text, start, end: start + 1000 }], start, end: start + 1000, isDuet: false, isBackground: false })
   const ttml: ResolvedLyrics = { source: 'ttml-amll', wordTimed: true, instrumental: false, lines: [ttmlLine(1000, '一'), ttmlLine(3000, '二')] }
-  const ncmParsed = parseMusicLyrics({
+  const ncmParsed = parseNcmLyrics({
     lrc: { lyric: '[00:01.10]一\n[00:03.20]二', version: 1 },
     tlyric: { lyric: '[00:01.10]one\n[00:03.20]two', version: 1 },
     romalrc: { lyric: '[00:01.10]ichi\n[00:03.20]罗马音由AI生成', version: 1 },
@@ -186,11 +189,11 @@ describe('歌词来源：QQ 音乐', () => {
   it('qRC：字在时间标签之前，非数字的括号保留为文字，元信息行不是歌词', () => {
     const parsed = parseQqLyrics(qqInput)
     expect(parsed.sourceType).toBe('qrc')
-    expect(parsed.lines.map(line => line.originalText)).toEqual(['歌 - 歌手', '你好', '(这)', '再见'])
-    expect(parsed.lines[1].items).toEqual([{ text: '你', startTime: 1000, duration: 500 }, { text: '好', startTime: 1500, duration: 500 }])
+    expect(parsed.lines.map(line => getLyricLineText(line))).toEqual(['歌 - 歌手', '你好', '(这)', '再见'])
+    expect(parsed.lines[1].words).toEqual([{ text: '你', start: 1000, end: 1500 }, { text: '好', start: 1500, end: 2000 }])
     // 「//」表示没有翻译；含中日文字符的音译不挂
-    expect(parsed.translationLines.map(line => line.originalText)).toEqual(['hello'])
-    expect(parsed.romajiLines.map(line => line.originalText)).toEqual(['ni hao'])
+    expect(parsed.translations.map(line => line.text)).toEqual(['hello'])
+    expect(parsed.romanizations.map(line => line.text)).toEqual(['ni hao'])
   })
 
   it('转换时去掉「歌名 - 歌手」行，逐字歌词为 qq-qrc', () => {
@@ -209,8 +212,8 @@ describe('歌词来源：QQ 音乐', () => {
   })
 
   it('按质量选择：等级优先；同一等级比自带的翻译与音译，仍相同时网易云优先；固定来源时使用它', () => {
-    const ncmLine = platformToLyrics(parseMusicLyrics({ lrc: { lyric: '[00:01.00]你好\n[00:03.00]再见', version: 1 } }), 'ncm')
-    const ncmWordParsed = parseMusicLyrics({ yrc: { lyric: '[1000,1000](1000,500,0)你(1500,500,0)好\n[3000,1000](3000,500,0)再(3500,500,0)见', version: 1 } })
+    const ncmLine = platformToLyrics(parseNcmLyrics({ lrc: { lyric: '[00:01.00]你好\n[00:03.00]再见', version: 1 } }), 'ncm')
+    const ncmWordParsed = parseNcmLyrics({ yrc: { lyric: '[1000,1000](1000,500,0)你(1500,500,0)好\n[3000,1000](3000,500,0)再(3500,500,0)见', version: 1 } })
     const ncmWord = platformToLyrics(ncmWordParsed, 'ncm')
     const ncmFull = {
       ...ncmWord,
@@ -229,7 +232,7 @@ describe('歌词来源：QQ 音乐', () => {
   })
 
   it('每个来源缺翻译时都向其余平台借，借来的不影响排序', () => {
-    const ncmWordParsed = parseMusicLyrics({ yrc: { lyric: '[1000,1000](1000,500,0)你(1500,500,0)好\n[3000,1000](3000,500,0)再(3500,500,0)见', version: 1 } })
+    const ncmWordParsed = parseNcmLyrics({ yrc: { lyric: '[1000,1000](1000,500,0)你(1500,500,0)好\n[3000,1000](3000,500,0)再(3500,500,0)见', version: 1 } })
     const ncmWord = platformToLyrics(ncmWordParsed, 'ncm')
     const qqParsed = parseQqLyrics(qqInput)
     const qq = platformToLyrics(qqParsed, 'qq')
@@ -237,6 +240,135 @@ describe('歌词来源：QQ 音乐', () => {
     const borrowed = candidates.find(candidate => candidate.kind === 'ncm')!.lyrics
     expect(candidates.map(candidate => candidate.kind)).toEqual(['qq', 'ncm'])
     expect(borrowed.lines[0].translation).toBe(qq.lines.find(line => line.words.map(word => word.text).join('') === '你好')?.translation)
+  })
+})
+
+describe('翻译 / 音译挂载（宁缺勿错）', () => {
+  const baseStarts = [0, 2000, 4000, 6000]
+
+  it('只挂到时间相近的主行，没有翻译的行不借用相邻行', () => {
+    // B、D 没有翻译：不应挂上 A、C 的翻译
+    const aligned = alignTimedTexts(baseStarts, [{ start: 10, text: 'a' }, { start: 3990, text: 'c' }])
+    expect(baseStarts.map((_, index) => aligned.get(index) ?? null)).toEqual(['a', null, 'c', null])
+  })
+
+  it('一行翻译只挂一行主歌词，时间差超出上限的丢弃', () => {
+    const aligned = alignTimedTexts(baseStarts, [{ start: 1000, text: 'between' }, { start: 9000, text: 'far' }])
+    // 1000ms 处与 A、B 等距：只挂一行
+    expect(aligned.size).toBe(1)
+    expect(aligned.get(3)).toBeUndefined()
+  })
+
+  it('同一主行有多个候选时取时间最近的', () => {
+    const aligned = alignTimedTexts(baseStarts, [{ start: 1800, text: 'near' }, { start: 2600, text: 'farther' }])
+    expect(aligned.get(1)).toBe('near')
+    // 次近的那行离 C 也超过上限，被丢弃
+    expect(aligned.get(2)).toBeUndefined()
+  })
+
+  it('解析网易云歌词时翻译与逐字主行对齐', () => {
+    const parsed = parseNcmLyrics({
+      yrc: { lyric: '[1000,1000](1000,500,0)一(1500,500,0)句\n[3000,1000](3000,1000,0)二', version: 1 },
+      tlyric: { lyric: '[00:01.05]line one', version: 1 },
+    })
+    expect(parsed.sourceType).toBe('yrc')
+    expect(parsed.translations).toEqual([{ start: 1000, text: 'line one' }])
+  })
+})
+
+describe('逐字歌词跑马灯（分段匀变速）', () => {
+  // [开始时间, 时长, 字宽]：各字速度不同，1600~1800、3100~3300 为字间空隙
+  const syllables: [number, number, number][] = [
+    [1000, 200, 40],
+    [1200, 300, 30],
+    [1500, 100, 30],
+    [1800, 400, 80],
+    [2200, 150, 60],
+    [2350, 250, 25],
+    [2600, 500, 75],
+    [3300, 200, 90],
+    [3500, 300, 60],
+    [3800, 400, 120],
+  ]
+  const words: LyricWord[] = []
+  const wordBoxes: LyricMarqueeWordBox[] = []
+  let contentWidth = 0
+  for (const [startTime, duration, width] of syllables) {
+    words.push({ text: '字', start: startTime, end: startTime + duration })
+    wordBoxes.push({ left: contentWidth, width })
+    contentWidth += width
+  }
+  const containerWidth = 200
+  const overflow = contentWidth - containerWidth
+  const wordLine: LyricLine = { words, start: 1000, end: 4200, isDuet: false, isBackground: false }
+  const offsetAt = (currentTimeMs: number, smoothWindowMs?: number) =>
+    getLyricMarqueeOffset({ line: wordLine, currentTimeMs, containerWidth, contentWidth, wordBoxes, smoothWindowMs })
+  const half = LYRIC_MARQUEE_SMOOTH_WINDOW_MS / 2
+  const lineEnd = 4200
+
+  // 原偏移速度突变的时刻：各字边界，以及演唱位置越过滚动起点、终点的时刻
+  const crossingTime = (position: number) => {
+    const i = wordBoxes.findIndex(box => box.left + box.width > position)
+    return words[i].start + (position - wordBoxes[i].left) / wordBoxes[i].width * (words[i].end - words[i].start)
+  }
+  const anchor = containerWidth * LYRIC_MARQUEE_ANCHOR_RATIO
+  const rawKinks = [...new Set(words.flatMap(word => [word.start, word.end])), crossingTime(anchor), crossingTime(anchor + overflow)]
+  // 平滑后加速度跳变的时刻：原折点前后各半个窗口
+  const kinks = rawKinks.flatMap(time => [time - half, time + half])
+
+  const h = 0.01
+  const leftVelocity = (t: number, smoothWindowMs?: number) => (offsetAt(t, smoothWindowMs) - offsetAt(t - h, smoothWindowMs)) / h
+  const rightVelocity = (t: number, smoothWindowMs?: number) => (offsetAt(t + h, smoothWindowMs) - offsetAt(t, smoothWindowMs)) / h
+  const grid = (from: number, to: number, step: number) => Array.from({ length: Math.floor((to - from) / step) + 1 }, (_, i) => from + i * step)
+
+  it('不平滑时速度在字的边界突变（对照）', () => {
+    // 2200ms 处由 0.2px/ms 突变为 0.4px/ms
+    expect(rightVelocity(2200, 0) - leftVelocity(2200, 0)).toBeCloseTo(0.2, 3)
+  })
+
+  it('字的边界、开始滚动与滚到底处速度连续', () => {
+    for (const t of [...rawKinks, ...kinks, ...grid(500, 4800, 7)])
+      expect(Math.abs(rightVelocity(t) - leftVelocity(t)), `t=${t}`).toBeLessThan(1e-3)
+  })
+
+  it('两次加速度跳变之间速度线性变化（匀变速）', () => {
+    const delta = 5
+    const velocity = (t: number) => (offsetAt(t + h) - offsetAt(t - h)) / (2 * h)
+    for (const t of grid(500, 4800, 3)) {
+      if (kinks.some(kink => Math.abs(kink - t) <= delta + h))
+        continue
+      expect(Math.abs(velocity(t) - (velocity(t - delta) + velocity(t + delta)) / 2), `t=${t}`).toBeLessThan(1e-3)
+    }
+  })
+
+  it('整句起止位置不变', () => {
+    for (const t of [0, 900, 1000])
+      expect(offsetAt(t)).toBe(0)
+    for (const t of [lineEnd, lineEnd + half, lineEnd + 5000]) {
+      expect(offsetAt(t)).toBeCloseTo(overflow, 6)
+      expect(offsetAt(t)).toBeCloseTo(offsetAt(t, 0), 6)
+    }
+  })
+
+  it('不超出文本范围，也不倒退', () => {
+    let last = 0
+    for (const t of grid(0, 5000, 3)) {
+      const offset = offsetAt(t)
+      expect(offset).toBeGreaterThanOrEqual(0)
+      expect(offset).toBeLessThanOrEqual(overflow)
+      expect(offset).toBeGreaterThanOrEqual(last - 1e-9)
+      last = offset
+    }
+  })
+
+  it('跟住演唱位置：介于前后半个窗口时刻的原偏移之间', () => {
+    for (const t of grid(500, 4800, 5)) {
+      const offset = offsetAt(t)
+      expect(offset).toBeGreaterThanOrEqual(offsetAt(t - half, 0) - 1e-9)
+      expect(offset).toBeLessThanOrEqual(offsetAt(t + half, 0) + 1e-9)
+    }
+    // 远离折点的匀速段与原偏移重合
+    expect(offsetAt(2850)).toBeCloseTo(offsetAt(2850, 0), 6)
   })
 })
 

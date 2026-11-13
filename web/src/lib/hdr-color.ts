@@ -144,20 +144,30 @@ export function parseCssColor(color: string): readonly [number, number, number] 
   if (cached !== undefined)
     return cached
   let rgb: readonly [number, number, number] | null = null
-  try {
-    // 借 canvas 把各种写法统一成 sRGB 字节
-    const ctx = document.createElement('canvas').getContext('2d', { willReadFrequently: true })
-    if (ctx) {
-      ctx.canvas.width = 1
-      ctx.canvas.height = 1
-      ctx.fillStyle = color
-      ctx.fillRect(0, 0, 1, 1)
-      const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data
-      rgb = [r, g, b]
-    }
+  const hex3 = /^#([0-9a-f]{3})$/i.exec(color)?.[1]
+  const hex6 = /^#([0-9a-f]{6})$/i.exec(color)?.[1]
+  if (hex3) {
+    rgb = [0, 1, 2].map(i => Number.parseInt(hex3[i] + hex3[i], 16)) as [number, number, number]
   }
-  catch {
-    rgb = null
+  else if (hex6) {
+    rgb = [0, 2, 4].map(i => Number.parseInt(hex6.slice(i, i + 2), 16)) as [number, number, number]
+  }
+  else if (typeof document !== 'undefined') {
+    try {
+      // 借 canvas 把各种写法统一成 sRGB 字节
+      const ctx = document.createElement('canvas').getContext('2d', { willReadFrequently: true })
+      if (ctx) {
+        ctx.canvas.width = 1
+        ctx.canvas.height = 1
+        ctx.fillStyle = color
+        ctx.fillRect(0, 0, 1, 1)
+        const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data
+        rgb = [r, g, b]
+      }
+    }
+    catch {
+      rgb = null
+    }
   }
   rgbCache.set(color, rgb)
   return rgb

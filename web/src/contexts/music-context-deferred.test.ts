@@ -14,7 +14,7 @@ vi.mock('@/api/music', () => ({ fetchSongAudioURL: vi.fn(() => Promise.resolve('
 vi.mock('@/lib/lyrics/rhythm/source', () => ({ requestRhythm: vi.fn() }))
 vi.mock('./song-lyrics', () => ({
   refreshSongLyrics: vi.fn(),
-  useResolvedSongLyrics: () => ({ lyrics: EMPTY_LYRICS, candidates: [], kind: null, pending: false, status: 'none', ncmParsed: null, siteKind: null, isSiteVersion: true }),
+  useResolvedSongLyrics: () => ({ lyrics: EMPTY_LYRICS, candidates: [], kind: null, pending: false, status: 'none', siteKind: null, isSiteVersion: true }),
 }))
 vi.mock('./lyric-annotations', () => ({
   requestLyricAnnotations: vi.fn(),

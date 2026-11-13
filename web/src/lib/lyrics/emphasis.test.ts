@@ -68,18 +68,6 @@ describe('歌词强调', () => {
     expect(lineEmphasis(short, phrase('shake'))[0].hold).toBeUndefined()
   })
 
-  it('节奏：标注里的 pace 不再往下传，动效快慢只由节拍决定', () => {
-    const line = HEARTBEAT
-    const lyrics: ResolvedLyrics = { source: 'ttml-amll', wordTimed: true, instrumental: false, lines: [line] }
-    const text = line.words.map(word => word.text).join('')
-    const applied = applyEmphasis(lyrics, { pace: 'slow', lines: [{ text, phrases: [{ text: '怦然心动', effect: 'heartbeat', pace: 'fast' }, { text: '图书馆', effect: 'glow' }] }] })
-    const groups = applied.lines[0].emphasis ?? []
-    expect(groups.find(group => group.effect === 'heartbeat')?.effect).toBe('heartbeat')
-    // 后端仍会下发 pace（标注与后台编辑器），但解析后没有 pace 字段可供动效读取（见 rhythm/effects.ts 的 rhythmContext）
-    expect('pace' in applied).toBe(false)
-    expect(groups.every(group => !('pace' in group))).toBe(true)
-  })
-
   it('逐行歌词不处理', () => {
     const lyrics: ResolvedLyrics = { source: 'ncm-lrc', wordTimed: false, instrumental: false, lines: [line([['一句歌词', 0, 5000]])] }
     expect(applyEmphasis(lyrics)).toBe(lyrics)

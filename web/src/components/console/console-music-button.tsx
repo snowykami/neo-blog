@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { AlbumNavIcon, MINI_PLAYER_POPOVER_CLASSNAME, MINI_PLAYER_POPOVER_STYLE } from '@/components/common/music-player-shared'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { useMusic } from '@/contexts/music-context'
+import { useMusicPlayback } from '@/contexts/music-context'
 
 // 播放器本体很重（歌词引擎、特效），与悬浮球共用同一个按需加载的 chunk（main-floating-widgets 空闲时已加载）
 const MiniPlayer = dynamic(() => import('@/components/common/music-player').then(m => m.MiniPlayer), { ssr: false })
@@ -17,7 +17,7 @@ const MiniPlayer = dynamic(() => import('@/components/common/music-player').then
  */
 export function ConsoleMusicButton() {
   const t = useTranslations('MusicPlayer')
-  const { currentTrack } = useMusic()
+  const { currentTrack } = useMusicPlayback()
   const [open, setOpen] = useState(false)
   if (!currentTrack)
     return null

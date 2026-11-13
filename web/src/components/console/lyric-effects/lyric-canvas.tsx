@@ -16,7 +16,7 @@ type Bubble
   = | { mode: 'add', line: number, start: number, end: number, rect: DOMRect, draft: PhraseStyle }
     | { mode: 'edit', line: number, phrase: number, rect: DOMRect }
 
-const DEFAULT_STYLE: PhraseStyle = { effect: 'swell', color: '', font: '', styles: [], pace: '' }
+const DEFAULT_STYLE: PhraseStyle = { effect: 'swell', color: '', font: '', styles: [] }
 
 /** 选区端点在一行文字中的字符位置（行内只有歌词文字，没有其他内容） */
 function offsetIn(lineEl: HTMLElement, node: Node, offset: number) {

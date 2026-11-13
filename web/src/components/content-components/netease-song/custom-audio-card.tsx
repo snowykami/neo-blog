@@ -1,11 +1,12 @@
 'use client'
 
 import type { NeteaseSongProps } from './schema'
-import type { MusicLyricLine } from '@/utils/music-lyric'
+import type { LyricLine } from '@/lib/lyrics/types'
 import { useTranslations } from 'next-intl'
 import { useEffect, useMemo, useRef } from 'react'
+import { findActiveLyricLineIndex, getLyricLineText, getLyricLineVocalStart } from '@/lib/lyrics/line-utils'
+import { parseLrcLines } from '@/lib/lyrics/parse-platform'
 import { cn } from '@/lib/utils'
-import { getCurrentLyricIndex, parseMusicLyrics } from '@/utils/music-lyric'
 import { cleanLyricLines } from '../lyric-quote/quote-lines'
 import { useCardAudio } from '../use-card-audio'
 import { useComponentHeight } from '../use-component-height'
@@ -23,11 +24,13 @@ export function CustomAudioCard({ title, artist, album, cover, src, lyric }: Net
 
   const tall = isTallMusicCard(useComponentHeight())
   // 与歌词摘录一致：去掉作词、作曲等署名行
-  const lines = useMemo(() => (lyric.trim() ? cleanLyricLines(parseMusicLyrics({ lrc: { lyric, version: 1 } }).lines) : []), [lyric])
+  const lines = useMemo(() => (lyric.trim() ? cleanLyricLines(parseLrcLines(lyric)) : []), [lyric])
   // 还没开始播放时不高亮任何一句
   const started = playing || currentTime > 0
-  const activeIndex = started && lines.length > 0 ? getCurrentLyricIndex(lines, currentTime * 1000, null) : null
-  const lyricText = playing && !tall && activeIndex != null ? lines[activeIndex]?.originalText.trim() : ''
+  const activeIndex = started && lines.length > 0 ? findActiveLyricLineIndex(lines, currentTime * 1000, null) : null
+  const lyricText = playing && !tall && activeIndex != null && lines[activeIndex]
+    ? getLyricLineText(lines[activeIndex]).trim()
+    : ''
 
   // 与网易云模式一致：标题为歌名，副标题为「艺人 · 专辑」，播放中换成当前歌词；无法加载时提示
   const subtitle = status === 'error'
@@ -52,7 +55,7 @@ export function CustomAudioCard({ title, artist, album, cover, src, lyric }: Net
 }
 
 /** 歌词区：列出全部歌词，当前行高亮并滚动到中间，点击某行从该句开始播放（与全站播放器的歌词面板一致） */
-function CardLyricList({ lines, activeIndex, onSelect }: { lines: MusicLyricLine[], activeIndex: number | null, onSelect: (seconds: number) => void }) {
+function CardLyricList({ lines, activeIndex, onSelect }: { lines: LyricLine[], activeIndex: number | null, onSelect: (seconds: number) => void }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const lineRefs = useRef<(HTMLButtonElement | null)[]>([])
 
@@ -70,21 +73,25 @@ function CardLyricList({ lines, activeIndex, onSelect }: { lines: MusicLyricLine
       className="relative grid h-full content-start gap-0.5 overflow-y-auto py-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       style={{ maskImage: 'linear-gradient(to bottom, transparent, black 18%, black 82%, transparent)' }}
     >
-      {lines.map((line, index) => (
-        <button
-          // 歌词行可能重复，以开始时间与下标作为 key
-          key={`${line.startTime}-${index}`}
-          ref={(el) => { lineRefs.current[index] = el }}
-          type="button"
-          className={cn(
-            'rounded-md px-2 py-px text-center text-sm transition-colors hover:text-foreground',
-            index === activeIndex ? 'font-semibold text-primary' : 'text-muted-foreground',
-          )}
-          onClick={() => onSelect(line.startTime / 1000)}
-        >
-          {line.originalText.trim() || '\u00A0'}
-        </button>
-      ))}
+      {lines.map((line, index) => {
+        const start = getLyricLineVocalStart(line)
+        const text = getLyricLineText(line).trim()
+        return (
+          <button
+            // 歌词行可能重复，以开始时间与下标作为 key
+            key={`${start}-${index}`}
+            ref={(el) => { lineRefs.current[index] = el }}
+            type="button"
+            className={cn(
+              'rounded-md px-2 py-px text-center text-sm transition-colors hover:text-foreground',
+              index === activeIndex ? 'font-semibold text-primary' : 'text-muted-foreground',
+            )}
+            onClick={() => onSelect(start / 1000)}
+          >
+            {text || '\u00A0'}
+          </button>
+        )
+      })}
     </div>
   )
 }

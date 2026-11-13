@@ -1,9 +1,8 @@
 'use client'
 import type { LyricCandidate, LyricSourceKind } from '@/lib/lyrics/resolve'
 import type { LyricTrackInfo } from '@/lib/lyrics/strip-credits'
-import type { ResolvedLyrics } from '@/lib/lyrics/types'
+import type { LyricLine, ResolvedLyrics } from '@/lib/lyrics/types'
 import type { MusicTrack } from '@/models/music'
-import type { MusicLyricLine } from '@/utils/music-lyric'
 import { useTranslations } from 'next-intl'
 import React, {
   createContext,
@@ -18,113 +17,116 @@ import React, {
 import { toast } from 'sonner'
 import { fetchSongAudioURL } from '@/api/music'
 import { applyEmphasis } from '@/lib/lyrics/emphasis'
-import { toSingleLineLyrics } from '@/lib/lyrics/from-platform'
+import {
+  findActiveLyricLineIndex,
+  getLyricLineText,
+  getVocalLyricLines,
+  LYRIC_PLACEHOLDERS,
+} from '@/lib/lyrics/line-utils'
 import { requestRhythm } from '@/lib/lyrics/rhythm/source'
 import { registerTelemetryContext } from '@/lib/telemetry/context'
-import { getCurrentLyricIndex, LYRIC_PLACEHOLDERS } from '@/utils/music-lyric'
 import { requestLyricAnnotations, useLyricAnnotations, useLyricAnnotationsGenerating } from './lyric-annotations'
 import { refreshSongLyrics, useResolvedSongLyrics } from './song-lyrics'
 
 export type PlayMode = 'repeat-all' | 'repeat-one' | 'shuffle'
 
-/**
- * 播放状态与操作。value 经过 memo，只包含低频变化的状态：
- * 播放进度不在这里（见 useMusicClock），当前歌词行只在换行时变化
- */
-interface MusicContextValue {
-  // 播放状态
+/** 稳定动作集合：所有函数引用在 Provider 生命周期内保持稳定，订阅不会触发重渲染 */
+export interface MusicActionsValue {
+  getAudio: () => HTMLAudioElement | null
+  // 播放列表操作
+  replacePlaylist: (tracks: MusicTrack[], startIndex?: number, startTime?: number) => void
+  updatePlaylist: (tracks: MusicTrack[]) => void
+  markPlaylistFailed: () => void
+  deferPlaylist: (load: () => Promise<MusicTrack[]>, partial: boolean) => void
+  ensurePlaylist: () => Promise<boolean>
+  // 播放控制
+  playTrack: (index: number, startTime?: number) => void
+  playSong: (track: MusicTrack, startTime?: number) => void
+  play: () => void
+  pause: () => void
+  togglePlay: () => void
+  next: () => void
+  prev: () => void
+  setPlayMode: (m: PlayMode) => void
+  seek: (seconds: number) => void
+  // 音量与偏好操作
+  setVolume: (v: number) => void
+  adjustVolume: (delta: number) => void
+  toggleMuted: () => void
+  setShowTranslation: (show: boolean) => void
+  setShowRomaji: (show: boolean) => void
+  setShowLyricEffects: (show: boolean) => void
+  setShowLyricMoments: (show: boolean) => void
+  setHdr: (enabled: boolean) => void
+  refreshLyrics: () => void
+}
+
+/** 低频核心播放与歌单状态（与歌词 SSE 瀑布流、音量滑块隔离） */
+export interface MusicPlaybackValue {
   playlist: MusicTrack[]
   currentIndex: number | null
   currentTrack: MusicTrack | null
   isPlaying: boolean
   playMode: PlayMode
   duration: number | null
-  bufferedPercent: number
+  playlistComplete: boolean
+  playlistLoading: boolean
+  pendingStep: 1 | -1 | null
+  playlistState: 'pending' | 'loaded' | 'failed'
+}
+
+/** 音量状态与控制（拖动滑块时高频更新，仅音量控件订阅） */
+export interface MusicVolumeValue {
   volume: number
   isMuted: boolean
-  // 当前歌词行（随播放进度换行时更新），为 lyricLines 中的下标
-  // 当前歌词行（lyricLines 中的下标）的外部 store：只在换行时通知，订阅见 useCurrentLyricIndex / useCurrentLyric，
-  // 不放进 context value，换行不会让所有使用 useMusic 的组件重渲染
-  lyricCursor: LyricCursor
-  // 最终显示歌词的主唱行（单行歌词组件使用的旧结构，见 toSingleLineLyrics）：导航栏、单曲卡与媒体会话使用
-  lyricLines: MusicLyricLine[]
-  // 当前曲目歌词的加载状态：loading 请求中；ready 有歌词；none 没有歌词或获取失败
-  lyricStatus: 'loading' | 'ready' | 'none'
-  // 歌词引擎使用的数据模型（已预处理，见 lib/lyrics），按全站歌词版本与来源等级选出
-  lyrics: ResolvedLyrics
-  // 当前曲目已到达且有歌词的各来源（等级从高到低）与当前显示的来源
-  lyricCandidates: LyricCandidate[]
-  lyricKind: LyricSourceKind | null
-  // 全站歌词版本的来源（后端选出，见 spec 7.2o），以及当前显示的是否就是它（歌词特效只叠加在全站版本上）
-  lyricSiteKind: LyricSourceKind | null
-  lyricIsSiteVersion: boolean
-  // 仍有来源在请求中（已显示的歌词可能被更高等级的来源替换）
-  lyricSourcesPending: boolean
-  // 重新从所有来源获取当前曲目的歌词（获取失败或歌词不对时由读者手动触发）
-  refreshLyrics: () => void
-  // 当前显示的歌词叠加了 AI 歌词标注（强调词句、上色、情绪等）
-  lyricAnnotated: boolean
-  // AI 歌词标注正在生成（首次生成或重新生成）
-  lyricAnnotationsGenerating: boolean
-  // 翻译与音译是两个独立开关，可同时开启
+  setVolume: (v: number) => void
+  adjustVolume: (delta: number) => void
+  toggleMuted: () => void
+}
+
+/** 界面显示偏好开关（翻译、音译、强调特效、热评时刻、HDR 高光） */
+export interface MusicPreferencesValue {
   showTranslation: boolean
   showRomaji: boolean
-  // 歌词强调特效（放大、辉光、波浪）开关，播放器页与悬浮播放器共用
   showLyricEffects: boolean
-  setShowLyricEffects: (show: boolean) => void
-  // 播放时出现的网易云热评与 AI 旁白（前奏导语、关键节点的时刻、尾奏热评）开关，播放器页与悬浮播放器共用
   showLyricMoments: boolean
-  setShowLyricMoments: (show: boolean) => void
-  // HDR 高光（歌词已唱部分、灵动岛律动条与随拍染色亮过 SDR 白，只在 HDR 显示器上生效）开关，播放器页与悬浮播放器共用
   hdr: boolean
-  setHdr: (enabled: boolean) => void
   setShowTranslation: (show: boolean) => void
   setShowRomaji: (show: boolean) => void
+  setShowLyricEffects: (show: boolean) => void
+  setShowLyricMoments: (show: boolean) => void
+  setHdr: (enabled: boolean) => void
+}
+
+/** 当前曲目的歌词瀑布流与 AI 标注状态 */
+export interface MusicLyricsValue {
+  lyricCursor: LyricCursor
+  // 最终显示歌词的主唱行（过滤掉背景和声行，标准 LyricLine 结构）
+  lyricLines: LyricLine[]
+  lyricStatus: 'loading' | 'ready' | 'none'
+  lyrics: ResolvedLyrics
+  lyricCandidates: LyricCandidate[]
+  lyricKind: LyricSourceKind | null
+  lyricSiteKind: LyricSourceKind | null
+  lyricIsSiteVersion: boolean
+  lyricSourcesPending: boolean
+  refreshLyrics: () => void
+  lyricAnnotated: boolean
+  lyricAnnotationsGenerating: boolean
   hasTranslationLyric: boolean
   hasRomajiLyric: boolean
-  getAudio: () => HTMLAudioElement | null
-
-  // 播放列表 操作
-  // startTime：起始曲目的初始播放进度（秒），用于刷新后恢复进度，会在该曲目元数据就绪后应用
-  replacePlaylist: (tracks: MusicTrack[], startIndex?: number, startTime?: number) => void
-  // 只换歌单数据（后台拿到新版本歌单）：不换当前曲目、不动进度与待恢复的进度，当前曲目已被移出歌单时留在原位（见 rebasePlaylist）
-  updatePlaylist: (tracks: MusicTrack[]) => void
-  // 歌单是否已取全：页面加载恢复播放时可能只取了要恢复的那一首（见 MusicPlayer），完整歌单在开始出声、打开播放器 / 歌单
-  // 或切歌时由 ensurePlaylist 补上；上一首 / 下一首（含自动下一首与系统媒体控制）在补全之后再算
-  playlistComplete: boolean
-  // 正在补全歌单（歌单抽屉据此显示加载中；没在补全又没取全，说明上次补全失败）
-  playlistLoading: boolean
-  // 正在等歌单补全的上一首 / 下一首（按钮显示忙碌态），没有时为 null
-  pendingStep: 1 | -1 | null
-  // 歌单的加载状态：pending 还没拿到歌单；loaded 已换上歌单（可能为空）；failed 首次获取失败且没有可用的本地缓存
-  playlistState: 'pending' | 'loaded' | 'failed'
-  // 首次获取歌单失败时调用（MusicPlayer）：不再用示例曲目兜底，播放器页据此显示加载失败
-  markPlaylistFailed: () => void
-  // 登记完整歌单的获取函数（MusicPlayer 调用）。partial 为 true：现有歌单只有要恢复的那一首，切歌要先等它；
-  // 为 false：现有歌单可用、只是可能不是最新版本（本地缓存的版本已过期），需要时在后台换上
-  deferPlaylist: (load: () => Promise<MusicTrack[]>, partial: boolean) => void
-  // 需要完整歌单时调用（打开播放器页、悬浮播放器）：有待取的歌单时获取并换上（同一时间只取一次），没有时立即完成；
-  // 恢复用的那一首还在请求中（还没登记获取函数）时记下这次需要，登记后立即获取。获取失败时保留现有歌单，下次调用再试。
-  // 结果为完成后歌单是否已取全
-  ensurePlaylist: () => Promise<boolean>
-
-  // 播放控制
-  // startTime：可选的起始播放进度（秒），用于从歌词摘录等位置开始播放
-  playTrack: (index: number, startTime?: number) => void // 指定播放曲目
-  // 播放一首歌：已在播放列表中时直接播放，否则插到当前曲目之后再播放（文章引用的、不在歌单内的歌曲）
-  playSong: (track: MusicTrack, startTime?: number) => void
-  play: () => void // 播放
-  pause: () => void // 暂停
-  togglePlay: () => void // 切换播放/暂停
-  next: () => void // 下一首
-  prev: () => void // 上一首
-  setPlayMode: (m: PlayMode) => void // 设置播放模式（同时保存到本地）
-
-  // 可选：音量/进度控制
-  seek: (seconds: number) => void // 跳转到指定秒数
-  setVolume: (v: number) => void // 设置音量 0~1
-  toggleMuted: () => void // 切换静音
 }
+
+/**
+ * 聚合门面接口（向后兼容）：合并播放、音量、偏好、歌词与动作。
+ * 单一职责的高频受影响组件建议优先使用 useMusicPlayback / useMusicPreferences / useMusicVolume / useMusicLyrics / useMusicActions
+ */
+export type MusicContextValue
+  = & MusicPlaybackValue
+    & MusicVolumeValue
+    & MusicPreferencesValue
+    & MusicLyricsValue
+    & MusicActionsValue
 
 /** 播放时钟：音频进度的外部 store，随 timeupdate（约 4 次/秒）、跳转与切歌更新，不经过 context value */
 export interface MusicClock {
@@ -216,6 +218,11 @@ function writeStored(key: string, value: unknown) {
 
 const MusicContext = createContext<MusicContextValue | null>(null)
 const MusicClockContext = createContext<MusicClock | null>(null)
+const MusicActionsContext = createContext<MusicActionsValue | null>(null)
+const MusicPlaybackContext = createContext<MusicPlaybackValue | null>(null)
+const MusicVolumeContext = createContext<MusicVolumeValue | null>(null)
+const MusicPreferencesContext = createContext<MusicPreferencesValue | null>(null)
+const MusicLyricsContext = createContext<MusicLyricsValue | null>(null)
 
 export function useMusic(): MusicContextValue {
   const ctx = useContext(MusicContext)
@@ -224,7 +231,41 @@ export function useMusic(): MusicContextValue {
   return ctx
 }
 
-/** 播放时钟本身：需要在回调中读取进度（如定期保存进度）而不想因此重渲染时使用 */
+export function useMusicActions(): MusicActionsValue {
+  const ctx = useContext(MusicActionsContext)
+  if (!ctx)
+    throw new Error('useMusicActions must be used within MusicProvider')
+  return ctx
+}
+
+export function useMusicPlayback(): MusicPlaybackValue {
+  const ctx = useContext(MusicPlaybackContext)
+  if (!ctx)
+    throw new Error('useMusicPlayback must be used within MusicProvider')
+  return ctx
+}
+
+export function useMusicVolume(): MusicVolumeValue {
+  const ctx = useContext(MusicVolumeContext)
+  if (!ctx)
+    throw new Error('useMusicVolume must be used within MusicProvider')
+  return ctx
+}
+
+export function useMusicPreferences(): MusicPreferencesValue {
+  const ctx = useContext(MusicPreferencesContext)
+  if (!ctx)
+    throw new Error('useMusicPreferences must be used within MusicProvider')
+  return ctx
+}
+
+export function useMusicLyrics(): MusicLyricsValue {
+  const ctx = useContext(MusicLyricsContext)
+  if (!ctx)
+    throw new Error('useMusicLyrics must be used within MusicProvider')
+  return ctx
+}
+
 /**
  * 按歌曲 id 取最终显示的歌词（与播放器、导航栏同一套来源与选择规则，读者不参与来源选择，一律按全站版本）；
  * id 为空时不请求。track 用于去掉「歌名 - 歌手」等署名行
@@ -233,6 +274,7 @@ export function useSongLyrics(id: number | null, track?: LyricTrackInfo | null) 
   return useResolvedSongLyrics(id, track)
 }
 
+/** 播放时钟本身：需要在回调中读取进度（如定期保存进度）而不想因此重渲染时使用 */
 export function useMusicClockStore(): MusicClock {
   const clock = useContext(MusicClockContext)
   if (!clock)
@@ -260,7 +302,7 @@ export function useMusicClock(enabled = true): number {
 
 /** 当前歌词行在 lyricLines 中的下标，只在换行时触发重渲染；enabled 为 false 时不订阅（始终为 null） */
 export function useCurrentLyricIndex(enabled = true): number | null {
-  const { lyricCursor } = useMusic()
+  const { lyricCursor } = useMusicLyrics()
   return useSyncExternalStore(
     enabled ? lyricCursor.subscribe : noopSubscribe,
     enabled ? lyricCursor.getSnapshot : nullSnapshot,
@@ -270,9 +312,11 @@ export function useCurrentLyricIndex(enabled = true): number | null {
 
 /** 当前歌词行的文字；enabled 为 false 时不订阅（始终为 null） */
 export function useCurrentLyric(enabled = true): string | null {
-  const { lyricLines } = useMusic()
+  const { lyricLines } = useMusicLyrics()
   const index = useCurrentLyricIndex(enabled)
-  return index == null ? null : lyricLines[index]?.originalText ?? null
+  if (index == null || !lyricLines[index])
+    return null
+  return getLyricLineText(lyricLines[index]).trim()
 }
 
 /**
@@ -366,7 +410,6 @@ function updateMediaSessionMetadata(
     ms.metadata = new MediaMetadata(metadata)
   }
   catch {
-    // 某些环境可能不支持构造函数
     try {
       ms.metadata = metadata as MediaMetadata
     }
@@ -389,7 +432,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [clock] = useState(createMusicClock)
   const [lyricCursor] = useState(createLyricCursor)
   const [duration, setDuration] = useState<number | null>(null)
-  const [bufferedPercent, setBufferedPercent] = useState<number>(0)
   const [volume, setVolumeState] = useState(1)
   const [isMuted, setIsMuted] = useState(false)
   // 翻译与音译默认都打开；读者切换后的选择保存在本地，以读者的选择为准
@@ -427,9 +469,16 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     playModeRef.current = playMode
   }, [playlist, currentIndex, playMode])
 
+  // 创建 audio 元素并恢复本地偏好（仅在客户端首次挂载时执行）
   useEffect(() => {
     if (typeof window === 'undefined')
       return
+
+    if (!audioRef.current) {
+      const audio = new Audio()
+      audio.preload = 'metadata'
+      audioRef.current = audio
+    }
 
     try {
       const storedVolume = localStorage.getItem('music-volume')
@@ -437,8 +486,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const nextVolume = Math.max(0, Math.min(1, Number(JSON.parse(storedVolume))))
         if (Number.isFinite(nextVolume)) {
           setVolumeState(nextVolume)
-          if (audioRef.current)
-            audioRef.current.volume = nextVolume
+          audioRef.current.volume = nextVolume
         }
       }
 
@@ -446,8 +494,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (storedMuted != null) {
         const nextMuted = Boolean(JSON.parse(storedMuted))
         setIsMuted(nextMuted)
-        if (audioRef.current)
-          audioRef.current.muted = nextMuted
+        audioRef.current.muted = nextMuted
       }
 
       const storedPlayMode = JSON.parse(localStorage.getItem(STORAGE_KEY_PLAY_MODE) ?? 'null')
@@ -489,19 +536,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       console.error('Failed to restore music preferences:', error)
     }
   }, [])
-
-  // 创建 audio 元素并做基础配置（仅在客户端）
-  useEffect(() => {
-    if (typeof window === 'undefined')
-      return
-    if (!audioRef.current) {
-      const audio = new Audio()
-      audio.preload = 'metadata'
-      audio.volume = volume
-      audio.muted = isMuted
-      audioRef.current = audio
-    }
-  }, [isMuted, volume])
 
   useEffect(() => {
     if (!audioRef.current)
@@ -567,7 +601,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // 切换曲目时重置时长与进度，避免进度条短暂沿用上一首的时长
     setDuration(null)
     clock.set(0)
-    setBufferedPercent(0)
     audio.src = track?.audio || ''
     audio.currentTime = 0
     if (pendingPlayRef.current) {
@@ -578,11 +611,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [clock, currentTrackId, resetTrackPlayStats])
 
-  // 节拍分析（韵律动效）：开启歌词特效时分析当前曲目，结果按歌曲缓存；拿不到时动效回退到固定快慢（见 lib/lyrics/rhythm/source.ts）。
-  // 分析要另外下载一整首音频：等这首歌出声后再请求，不跟切歌后的首段缓冲抢带宽；页面不可见时（锁屏、后台用系统媒体控制切歌）
-  // 看不到动效，也不在后台下载、解码整首歌，回到前台后再分析
-  // 切歌、关闭特效时取消这首的分析（中止下载、丢弃解码结果、终止 Worker），不和下一首的 <audio> 抢带宽与内存；
-  // 依赖只用 id 与音频地址：后台换上新版本歌单时曲目对象会换成新的，但不是换歌，不能把进行到一半的分析取消掉
+  // 节拍分析（韵律动效）：开启歌词特效时分析当前曲目，结果按歌曲缓存
   const currentTrackAudio = currentTrack?.audio ?? null
   useEffect(() => {
     const audio = audioRef.current
@@ -603,7 +632,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [currentTrackAudio, currentTrackId, showLyricEffects])
 
-  // 歌单的加载状态（见 MusicContextValue.playlistState）
+  // 歌单的加载状态
   const [playlistState, setPlaylistState] = useState<'pending' | 'loaded' | 'failed'>('pending')
   const markPlaylistFailed = useCallback(() => {
     setPlaylistState(state => (state === 'loaded' ? state : 'failed'))
@@ -626,9 +655,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [playlistLoading, setPlaylistLoading] = useState(false)
   const deferredPlaylistRef = useRef<(() => Promise<MusicTrack[]>) | null>(null)
   const playlistLoadingRef = useRef<Promise<boolean> | null>(null)
-  // 还没登记获取函数时（恢复用的那一首、版本校验还在请求中）就有人要完整歌单（如直接打开播放器页）：记下来，登记时立即获取
   const playlistWantedRef = useRef(false)
-  // 获取中途换了歌单来源时，接着等新登记的那份（见下）
   const ensurePlaylistRef = useRef<() => Promise<boolean>>(() => Promise.resolve(true))
 
   const ensurePlaylist = useCallback((): Promise<boolean> => {
@@ -642,7 +669,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setPlaylistLoading(true)
     const loading: Promise<boolean> = load()
       .then((tracks) => {
-        // 期间换了歌单来源（重新登记了获取函数）时丢弃这次的结果，结果以新登记的那份为准
         if (deferredPlaylistRef.current !== load)
           return deferredPlaylistRef.current ? ensurePlaylistRef.current() : playlistCompleteRef.current
         deferredPlaylistRef.current = null
@@ -679,13 +705,8 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       void ensurePlaylist()
   }, [ensurePlaylist])
 
-  // 预取过播放地址的歌曲与预取时间：页面可见性变化、同一首反复触发时不重复请求；
-  // 地址在后端缓存 10 分钟，过了这段时间（列表循环回来、再次经过）重新预取
   const prefetchedTrackIds = useRef<Map<number, number>>(new Map())
 
-  // 预取下一首的播放地址：切歌时后端要现向网易云要地址（实测接近 1 秒），提前问好之后按「下一首」只需等 CDN 的首字节。
-  // 与节奏分析一样等这首歌真的出声后再要，不和切歌后的首段缓冲抢；页面不可见时不预取（后台切歌看不到，也别浪费上游额度）。
-  // 随机模式下的下一首不确定，不预取
   useEffect(() => {
     const audio = audioRef.current
     if (!currentTrack || !audio)
@@ -693,8 +714,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const request = () => {
       if (audio.paused || audio.readyState < HTMLMediaElement.HAVE_FUTURE_DATA)
         return
-      // 恢复播放时可能只取了这一首：出声后再取完整歌单（不和切歌后的首段缓冲抢），之后的切歌、自动下一首不用再等；
-      // 后台（锁屏）也要取，系统媒体控制的下一首同样要用。换上后 currentTrack 换成新歌单里的对象，这里重新执行并预取下一首
       if (deferredPlaylistRef.current) {
         void ensurePlaylist()
         return
@@ -705,11 +724,9 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return
       const nextIndex = getAdjacentIndex(playlistRef.current, currentIndexRef.current, playModeRef.current, 1)
       const next = nextIndex == null ? null : playlistRef.current[nextIndex]
-      // 单曲歌单、单曲循环时下一首就是当前曲目：播放地址已经取过了
       if (!next || next.id === currentTrack.id || !shouldPrefetch(prefetchedTrackIds.current, next.id, Date.now()))
         return
       prefetchedTrackIds.current.set(next.id, Date.now())
-      // 失败时删掉标记，切到它时重新现取（只是白预取一次，不影响播放）
       fetchSongAudioURL(next.id).catch(() => prefetchedTrackIds.current.delete(next.id))
     }
     request()
@@ -721,8 +738,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [currentTrack, ensurePlaylist])
 
-  // 切换到指定索引；目标与当前曲目相同时（如单曲歌单）直接从头播放，避免 effect 不触发导致停播
-  // startTime 为可选的起始进度（秒），在不切歌时立即跳转，切歌时等元数据就绪后再跳转
   const goTo = useCallback((index: number | null, autoplay: boolean, startTime?: number) => {
     if (index == null) {
       currentIndexRef.current = null
@@ -758,15 +773,11 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     pendingSeekRef.current = pendingSeek
     pendingPlayRef.current = autoplay
-    // 立即同步 ref，保证连续切歌时基于最新索引计算
     currentIndexRef.current = index
     setCurrentIndex(index)
   }, [clock, resetTrackPlayStats])
 
-  // 切歌代号：读者直接选歌（点歌单里的歌、播放文章里的歌、换歌单）时加一。等歌单补全的上一首 / 下一首记下当时的代号，
-  // 补全后代号已变（读者在等待期间自己选了歌）就丢弃，不把读者的选择切走；连续的上一首 / 下一首代号相同，补全后按顺序依次执行
   const switchSeqRef = useRef(0)
-  // 等待中的上一首 / 下一首个数与最后一次的方向（按钮忙碌态）
   const pendingStepCountRef = useRef(0)
   const [pendingStep, setPendingStep] = useState<1 | -1 | null>(null)
   const supersedeSteps = useCallback(() => {
@@ -775,8 +786,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setPendingStep(null)
   }, [])
 
-  // 上一首 / 下一首：歌单还没取全时先取完整歌单再算（只有恢复的那一首时算出来的就是它自己）。
-  // 取不到时不切歌（否则会变成从头重播当前这首），提示读者稍后再试；歌单补全会在下次切歌或打开歌单时重试
   const step = useCallback((direction: 1 | -1) => {
     const go = () => goTo(getAdjacentIndex(playlistRef.current, currentIndexRef.current, playModeRef.current, direction), true)
     if (playlistCompleteRef.current) {
@@ -802,7 +811,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     })
   }, [ensurePlaylist, goTo])
 
-  // 触发自动切歌熔断：停在当前曲目、丢弃排队的切歌、同步未播放状态并提示读者；下次手动点播放时会重新 load()
   const tripCircuitBreaker = useCallback(() => {
     resetCircuitBreaker()
     flushTrackPlayTimer()
@@ -816,7 +824,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     toast.error(tRef.current('playback_circuit_broken'), { id: PLAYBACK_FAILED_TOAST_ID })
   }, [flushTrackPlayTimer, resetCircuitBreaker, supersedeSteps])
 
-  // 开始播放：上次加载出错或刚触发熔断时先重新加载（出错的音频直接 play() 会立即失败，熔断曲目需从头重新拉流）
   const startAudio = useCallback((audio: HTMLAudioElement) => {
     resetCircuitBreaker()
     const wasTripped = circuitTrippedRef.current
@@ -833,7 +840,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     })
   }, [resetCircuitBreaker, resetTrackPlayStats])
 
-  // 统一通过 audio 事件驱动上下文状态（isPlaying / time / duration / buffered）
+  // 统一通过 audio 事件驱动上下文状态（isPlaying / time / duration）
   useEffect(() => {
     const audio = audioRef.current
     if (!audio)
@@ -853,21 +860,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       flushTrackPlayTimer()
     }
 
-    const updateBuffered = () => {
-      try {
-        if (audio.buffered.length > 0 && Number.isFinite(audio.duration) && audio.duration > 0) {
-          const end = audio.buffered.end(audio.buffered.length - 1)
-          setBufferedPercent(Math.min(1, end / audio.duration))
-        }
-        else {
-          setBufferedPercent(0)
-        }
-      }
-      catch {
-        setBufferedPercent(0)
-      }
-    }
-
     const onLoaded = () => {
       const pendingSeek = pendingSeekRef.current
       if (pendingSeek && pendingSeek.trackId === prevTrackIdRef.current && Number.isFinite(audio.duration) && audio.duration > 0) {
@@ -881,7 +873,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
       setDuration(Number.isFinite(audio.duration) ? audio.duration : null)
       clock.set(audio.currentTime ?? 0)
-      updateBuffered()
     }
     // timeupdate 本身约每秒 4 次；跳转完成时立即同步一次；正常播放满阈值后清零异常计数
     const onTimeUpdate = () => {
@@ -889,8 +880,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (!audio.paused && getPlayedMs() >= MIN_VALID_PLAY_MS)
         resetCircuitBreaker()
     }
-    // 加载或播放出错（播放地址失效、网络中断、格式不支持）：浏览器不会因此暂停，界面会一直显示「播放中」。
-    // 停下来并同步状态；读者本想听（正在播放或切歌后等着出声）时提示一次，只是预加载失败时不打扰
     const onError = () => {
       const error = audio.error
       if (!error || error.code === MEDIA_ERR_ABORTED)
@@ -935,7 +924,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     audio.addEventListener('loadedmetadata', onLoaded)
     audio.addEventListener('timeupdate', onTimeUpdate)
     audio.addEventListener('seeked', onTimeUpdate)
-    audio.addEventListener('progress', updateBuffered)
     audio.addEventListener('ended', onEnded)
     audio.addEventListener('error', onError)
 
@@ -947,18 +935,13 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       audio.removeEventListener('loadedmetadata', onLoaded)
       audio.removeEventListener('timeupdate', onTimeUpdate)
       audio.removeEventListener('seeked', onTimeUpdate)
-      audio.removeEventListener('progress', updateBuffered)
       audio.removeEventListener('ended', onEnded)
       audio.removeEventListener('error', onError)
     }
   }, [clock, flushTrackPlayTimer, getPlayedMs, resetCircuitBreaker, resetTrackPlayStats, step, tripCircuitBreaker])
 
-  // 当前曲目的歌词：与文章内的单曲卡、歌词摘录共用同一份来源与选择结果（见 contexts/song-lyrics.ts）；
-  // 去掉署名行时用曲目信息判断「歌名 - 歌手」行
-  // 读者不参与歌词选择：一律按全站歌词版本（管理员为这首歌选定的来源，没有时按质量自动选择）
+  // 当前曲目的歌词：与文章内的单曲卡、歌词摘录共用同一份来源与选择结果（见 contexts/song-lyrics.ts）
   const songLyrics = useResolvedSongLyrics(currentTrackId, currentTrack)
-  // 强调特效：按演唱时长规则计算，并叠加歌词标注（逐字歌词）。标注在读者播放到这首歌时才请求（懒处理），
-  // 关闭歌词特效、不是逐字歌词或显示的已不是全站版本（回退到了别的来源）时不请求。标注只按全站歌词版本生成，只在显示这一版本时叠加
   const wantsAnnotations = isPlaying && showLyricEffects && songLyrics.lyrics.wordTimed && songLyrics.isSiteVersion && currentTrackId != null && currentTrackId > 0
   useEffect(() => {
     if (wantsAnnotations && currentTrackId != null)
@@ -968,9 +951,10 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const annotations = storedAnnotations?.source === songLyrics.lyrics.source ? storedAnnotations : null
   const lyrics = useMemo(() => applyEmphasis(songLyrics.lyrics, annotations), [annotations, songLyrics.lyrics])
   const refreshLyrics = useCallback(() => {
-    if (currentTrackId != null)
-      refreshSongLyrics(currentTrackId)
-  }, [currentTrackId])
+    const id = playlistRef.current[currentIndexRef.current ?? -1]?.id
+    if (id != null)
+      refreshSongLyrics(id)
+  }, [])
   const lyricAnnotationsGenerating = useLyricAnnotationsGenerating(showLyricEffects && songLyrics.lyrics.wordTimed && songLyrics.isSiteVersion ? currentTrackId : null)
   const lyricAnnotated = showLyricEffects && songLyrics.lyrics.wordTimed && (annotations?.lines.length ?? 0) > 0
   const lyricCandidates = songLyrics.candidates
@@ -980,12 +964,12 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const lyricsPending = songLyrics.pending
   const lyricStatus = songLyrics.status
 
-  // 当前歌词行：订阅播放时钟，只在换行时更新状态（相同的值不会触发重渲染）
-  const lyricLines = useMemo(() => toSingleLineLyrics(lyrics).lines, [lyrics])
+  // 当前歌词主唱行（标准 LyricLine[]）：订阅播放时钟，只在换行时更新外部 store
+  const lyricLines = useMemo(() => getVocalLyricLines(lyrics.lines), [lyrics.lines])
   useEffect(() => {
     const update = () => lyricCursor.set(lyricLines.length === 0
       ? null
-      : getCurrentLyricIndex(lyricLines, clock.getSnapshot() * 1000, null))
+      : findActiveLyricLineIndex(lyricLines, clock.getSnapshot() * 1000, null))
     update()
     return clock.subscribe(update)
   }, [clock, lyricCursor, lyricLines])
@@ -1000,7 +984,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     pendingSeekRef.current = track && startTime != null && Number.isFinite(startTime) && startTime > 0
       ? { trackId: track.id, time: startTime }
       : null
-    // 新歌单的起始曲目与正在加载的曲目相同时，src 不会重新加载，若元数据已就绪需立即应用进度
     const audio = audioRef.current
     if (audio && pendingSeekRef.current && pendingSeekRef.current.trackId === prevTrackIdRef.current && audio.readyState >= 1) {
       if (Number.isFinite(audio.duration) && audio.duration > 0 && pendingSeekRef.current.time >= audio.duration - NEAR_END_SEEK_THRESHOLD_S)
@@ -1024,12 +1007,10 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     supersedeSteps()
     resetCircuitBreaker()
     circuitTrippedRef.current = false
-    // 指定了起始进度时（如歌词摘录）总是从该位置播放
     if (startTime != null) {
       goTo(index, true, startTime)
       return
     }
-    // 点击正在播放的曲目时仅继续播放，不从头开始
     if (index === currentIndexRef.current) {
       if (audioRef.current)
         startAudio(audioRef.current)
@@ -1072,15 +1053,12 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const audio = audioRef.current
     if (!audio)
       return
-    if (audio.paused) {
+    if (audio.paused)
       startAudio(audio)
-    }
-    else {
+    else
       audio.pause()
-    }
   }, [startAudio])
 
-  // 界面按钮主动切歌：重置自动切歌熔断计数，不拦截读者的手动连续切歌
   const next = useCallback(() => {
     resetCircuitBreaker()
     circuitTrippedRef.current = false
@@ -1093,7 +1071,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     step(-1)
   }, [resetCircuitBreaker, step])
 
-  // 系统 MediaSession 切歌：短时间内连续触发且始终未正常出声时熔断，避免系统媒体控制异常连发导致无限切歌
   const mediaSessionStep = useCallback((direction: 1 | -1) => {
     const now = performance.now()
     if (getPlayedMs() < MIN_VALID_PLAY_MS && lastMediaSkipAtRef.current > 0 && now - lastMediaSkipAtRef.current < MEDIA_SESSION_STORM_WINDOW_MS) {
@@ -1133,6 +1110,19 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       localStorage.setItem('music-volume', JSON.stringify(nextVolume))
     }
     catch { }
+  }, [])
+
+  const adjustVolume = useCallback((delta: number) => {
+    setVolumeState((prev) => {
+      const nextVolume = Math.max(0, Math.min(1, prev + delta))
+      if (audioRef.current)
+        audioRef.current.volume = nextVolume
+      try {
+        localStorage.setItem('music-volume', JSON.stringify(nextVolume))
+      }
+      catch { }
+      return nextVolume
+    })
   }, [])
 
   const toggleMuted = useCallback(() => {
@@ -1209,10 +1199,8 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       })
     }
     catch {
-      // 某些浏览器/环境对 setActionHandler 有限制
     }
 
-    // 同步 position state
     const onTimeUpdate = () => {
       try {
         if ('setPositionState' in ms && audio && Number.isFinite(audio.duration) && audio.duration > 0) {
@@ -1227,7 +1215,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     audio.addEventListener('timeupdate', onTimeUpdate)
-    // 事件回调只依赖稳定的播放控制方法，元数据交给下方 effect 按曲目/歌词/播放状态更新
     return () => {
       audio.removeEventListener('timeupdate', onTimeUpdate)
       try {
@@ -1241,8 +1228,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [mediaSessionStep, pause, play])
 
-  // 有歌词且正在播放时，把 MediaSession 的标题更新为当前歌词，暂停后回退到曲目名。
-  // 直接订阅当前行（不经过 React 渲染）；重建 MediaMetadata（含封面）开销不小，快歌换行频繁时最多每秒更新一次
   useEffect(() => {
     if (typeof window === 'undefined' || !navigator.mediaSession)
       return
@@ -1253,7 +1238,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const apply = () => {
       timer = undefined
       const index = lyricCursor.getSnapshot()
-      const lyric = index == null ? null : lyricLines[index]?.originalText ?? null
+      const lyric = index == null || !lyricLines[index] ? null : getLyricLineText(lyricLines[index]).trim()
       if (lyric === lastLyric)
         return
       lastLyric = lyric
@@ -1278,19 +1263,118 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [currentTrack, isPlaying, lyricCursor, lyricLines])
 
-  // 按最终显示的歌词判断（TTML、QQ 音乐的翻译与音译也算）
   const hasTranslationLyric = useMemo(() => lyrics.lines.some(line => line.translation), [lyrics])
   const hasRomajiLyric = useMemo(() => lyrics.lines.some(line => line.romanization), [lyrics])
-  const value = useMemo<MusicContextValue>(() => ({
+
+  const actionsValue = useMemo<MusicActionsValue>(() => ({
+    getAudio,
+    replacePlaylist,
+    updatePlaylist,
+    markPlaylistFailed,
+    deferPlaylist,
+    ensurePlaylist,
+    playTrack,
+    playSong,
+    play,
+    pause,
+    togglePlay,
+    next,
+    prev,
+    setPlayMode,
+    seek,
+    setVolume,
+    adjustVolume,
+    toggleMuted,
+    setShowTranslation,
+    setShowRomaji,
+    setShowLyricEffects,
+    setShowLyricMoments,
+    setHdr,
+    refreshLyrics,
+  }), [
+    getAudio,
+    replacePlaylist,
+    updatePlaylist,
+    markPlaylistFailed,
+    deferPlaylist,
+    ensurePlaylist,
+    playTrack,
+    playSong,
+    play,
+    pause,
+    togglePlay,
+    next,
+    prev,
+    setPlayMode,
+    seek,
+    setVolume,
+    adjustVolume,
+    toggleMuted,
+    setShowTranslation,
+    setShowRomaji,
+    setShowLyricEffects,
+    setShowLyricMoments,
+    setHdr,
+    refreshLyrics,
+  ])
+
+  const playbackValue = useMemo<MusicPlaybackValue>(() => ({
     playlist,
     currentIndex,
     currentTrack,
     isPlaying,
     playMode,
     duration,
-    bufferedPercent,
+    playlistComplete,
+    playlistLoading,
+    pendingStep,
+    playlistState,
+  }), [
+    playlist,
+    currentIndex,
+    currentTrack,
+    isPlaying,
+    playMode,
+    duration,
+    playlistComplete,
+    playlistLoading,
+    pendingStep,
+    playlistState,
+  ])
+
+  const volumeValue = useMemo<MusicVolumeValue>(() => ({
     volume,
     isMuted,
+    setVolume,
+    adjustVolume,
+    toggleMuted,
+  }), [volume, isMuted, setVolume, adjustVolume, toggleMuted])
+
+  const preferencesValue = useMemo<MusicPreferencesValue>(() => ({
+    showTranslation,
+    showRomaji,
+    showLyricEffects,
+    showLyricMoments,
+    hdr,
+    setShowTranslation,
+    setShowRomaji,
+    setShowLyricEffects,
+    setShowLyricMoments,
+    setHdr,
+  }), [
+    showTranslation,
+    showRomaji,
+    showLyricEffects,
+    showLyricMoments,
+    hdr,
+    setShowTranslation,
+    setShowRomaji,
+    setShowLyricEffects,
+    setShowLyricMoments,
+    setHdr,
+  ])
+
+  const lyricsValue = useMemo<MusicLyricsValue>(() => ({
     lyricCursor,
     lyricLines,
     lyricStatus,
@@ -1303,49 +1387,9 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     refreshLyrics,
     lyricAnnotated,
     lyricAnnotationsGenerating,
-    showTranslation,
-    showRomaji,
-    setShowTranslation,
-    setShowRomaji,
-    showLyricEffects,
-    setShowLyricEffects,
-    showLyricMoments,
-    setShowLyricMoments,
-    hdr,
-    setHdr,
     hasTranslationLyric,
     hasRomajiLyric,
-    getAudio,
-    replacePlaylist,
-    updatePlaylist,
-    playlistComplete,
-    playlistLoading,
-    pendingStep,
-    playlistState,
-    markPlaylistFailed,
-    deferPlaylist,
-    ensurePlaylist,
-    playTrack,
-    playSong,
-    play,
-    pause,
-    togglePlay,
-    next,
-    prev,
-    setPlayMode,
-    seek,
-    setVolume,
-    toggleMuted,
   }), [
-    playlist,
-    currentIndex,
-    currentTrack,
-    isPlaying,
-    playMode,
-    duration,
-    bufferedPercent,
-    volume,
-    isMuted,
     lyricCursor,
     lyricLines,
     lyricStatus,
@@ -1358,44 +1402,31 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     refreshLyrics,
     lyricAnnotated,
     lyricAnnotationsGenerating,
-    showTranslation,
-    showRomaji,
-    setShowTranslation,
-    setShowRomaji,
-    showLyricEffects,
-    setShowLyricEffects,
-    showLyricMoments,
-    setShowLyricMoments,
-    hdr,
-    setHdr,
     hasTranslationLyric,
     hasRomajiLyric,
-    getAudio,
-    replacePlaylist,
-    updatePlaylist,
-    playlistComplete,
-    playlistLoading,
-    pendingStep,
-    playlistState,
-    markPlaylistFailed,
-    deferPlaylist,
-    ensurePlaylist,
-    playTrack,
-    playSong,
-    play,
-    pause,
-    togglePlay,
-    next,
-    prev,
-    setPlayMode,
-    seek,
-    setVolume,
-    toggleMuted,
   ])
+
+  const combinedValue = useMemo<MusicContextValue>(() => ({
+    ...playbackValue,
+    ...volumeValue,
+    ...preferencesValue,
+    ...lyricsValue,
+    ...actionsValue,
+  }), [playbackValue, volumeValue, preferencesValue, lyricsValue, actionsValue])
 
   return (
     <MusicClockContext value={clock}>
-      <MusicContext value={value}>{children}</MusicContext>
+      <MusicActionsContext value={actionsValue}>
+        <MusicPlaybackContext value={playbackValue}>
+          <MusicVolumeContext value={volumeValue}>
+            <MusicPreferencesContext value={preferencesValue}>
+              <MusicLyricsContext value={lyricsValue}>
+                <MusicContext value={combinedValue}>{children}</MusicContext>
+              </MusicLyricsContext>
+            </MusicPreferencesContext>
+          </MusicVolumeContext>
+        </MusicPlaybackContext>
+      </MusicActionsContext>
     </MusicClockContext>
   )
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useMusic } from '@/contexts/music-context'
+import { useMusicActions, useMusicPlayback } from '@/contexts/music-context'
 
 // 文章内多个自定义音频（音乐卡片、歌词摘录）共用：同一时间只播放一个
 let activeAudio: HTMLAudioElement | null = null
@@ -16,7 +16,8 @@ export type CardAudioStatus = 'idle' | 'loading' | 'playing' | 'error'
  * - 区分缓冲中与加载失败，失败后再次播放会重新加载
  */
 export function useCardAudio(src: string) {
-  const { isPlaying: globalPlaying, pause: pauseGlobal } = useMusic()
+  const { isPlaying: globalPlaying } = useMusicPlayback()
+  const { pause: pauseGlobal } = useMusicActions()
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [playing, setPlaying] = useState(false)
   const [waiting, setWaiting] = useState(false)

@@ -5,9 +5,9 @@ import { useTranslations } from 'next-intl'
 import dynamic from 'next/dynamic'
 import { getMusicSong } from '@/api/music'
 import { prefetchMusicPlayer } from '@/components/music-page/prefetch-music-player'
-import { useCurrentLyric, useMusic, useMusicClock } from '@/contexts/music-context'
+import { useCurrentLyric, useMusicActions, useMusicClock, useMusicPlayback } from '@/contexts/music-context'
+import { LYRIC_PLACEHOLDERS } from '@/lib/lyrics/line-utils'
 import { songToTrack } from '@/models/music'
-import { LYRIC_PLACEHOLDERS } from '@/utils/music-lyric'
 import { useCachedRequest } from '../use-cached-request'
 import { useComponentHeight } from '../use-component-height'
 import { CustomAudioCard } from './custom-audio-card'
@@ -29,7 +29,8 @@ const MusicLyricStage = dynamic(() => import('@/components/music-page/music-lyri
 
 function NeteaseSongCard({ id }: { id: number }) {
   const t = useTranslations('ContentComponents.neteaseSong')
-  const { playlist, currentTrack, isPlaying, duration, playTrack, playSong, togglePlay, seek } = useMusic()
+  const { playlist, currentTrack, isPlaying, duration } = useMusicPlayback()
+  const { playTrack, playSong, togglePlay, seek } = useMusicActions()
   const index = playlist.findIndex(track => track.id === id)
   const track = index >= 0 ? playlist[index] : null
   // 歌单内的歌曲直接使用歌单数据，否则请求单曲公开信息

@@ -68,4 +68,33 @@ describe('解析 TTML 歌词', () => {
     expect(shifted.words.map(word => word.text)).toEqual(['光', '散'])
     expect(shifted.romanizationWords?.map(part => part.word)).toEqual([0, 0, 0, 1])
   })
+
+  it('解析日语振假名（tts:ruby container/base/textContainer/text/delimiter）且不混入正文', () => {
+    const ttml = `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:tts="http://www.w3.org/ns/ttml#styling">
+<body><div>
+  <p begin="00:10.000" end="00:11.200">
+    <span tts:ruby="container" begin="00:10.000" end="00:10.600">
+      <span tts:ruby="base">明日</span>
+      <span tts:ruby="delimiter">（</span>
+      <span tts:ruby="textContainer">
+        <span tts:ruby="text" begin="00:10.000" end="00:10.200">あ</span>
+        <span tts:ruby="text" begin="00:10.200" end="00:10.400">し</span>
+        <span tts:ruby="text" begin="00:10.400" end="00:10.600">た</span>
+      </span>
+      <span tts:ruby="delimiter">）</span>
+    </span><span begin="00:10.600" end="00:10.800">へ</span><span tts:ruby="container" begin="00:10.800" end="00:11.200"><span tts:ruby="base">行</span><span tts:ruby="text">ゆ</span></span>
+  </p>
+</div></body></tt>`
+    const [line] = parseTtml(ttml, 'ttml-amll')!.lines
+    expect(line.words.map(word => word.text)).toEqual(['明日', 'へ', '行'])
+    expect(line.words[0].ruby).toEqual([
+      { text: 'あ', start: 10000, end: 10200 },
+      { text: 'し', start: 10200, end: 10400 },
+      { text: 'た', start: 10400, end: 10600 },
+    ])
+    expect(line.words[1].ruby).toBeUndefined()
+    expect(line.words[2].ruby).toEqual([
+      { text: 'ゆ', start: 10800, end: 11200 },
+    ])
+  })
 })

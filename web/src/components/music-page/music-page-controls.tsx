@@ -9,7 +9,15 @@ import { useTranslations } from 'next-intl'
 import { useMemo, useState } from 'react'
 import { TbHdr } from 'react-icons/tb'
 import { ProgressControl } from '@/components/common/controlled-progress'
-import { getNextPlayMode, useMusic, useMusicClock } from '@/contexts/music-context'
+import {
+  getNextPlayMode,
+  useMusicActions,
+  useMusicClock,
+  useMusicLyrics,
+  useMusicPlayback,
+  useMusicPreferences,
+  useMusicVolume,
+} from '@/contexts/music-context'
 import { useSongChorus } from '@/contexts/song-chorus'
 import { useHdrDisplay } from '@/hooks/use-hdr-highlight'
 import { cn } from '@/lib/utils'
@@ -69,7 +77,8 @@ function IconButton({ icon: Icon, label, onClick, active, disabled, busy, classN
 /** 进度条与时间：订阅播放时钟（约每秒 4 次），拖动时显示预览时间、松手后跳转；网易云标出的副歌片段在进度条上标出 */
 function ProgressRow() {
   const t = useTranslations('MusicPage')
-  const { duration, seek, currentTrack } = useMusic()
+  const { duration, currentTrack } = useMusicPlayback()
+  const { seek } = useMusicActions()
   const chorus = useSongChorus(currentTrack?.id ?? null)
   const currentTime = useMusicClock()
   const [dragPercent, setDragPercent] = useState<number | null>(null)
@@ -110,7 +119,7 @@ function ProgressRow() {
 function VolumeControl({ compact }: { compact: boolean }) {
   const t = useTranslations('MusicPage')
   const playerT = useTranslations('MusicPlayer')
-  const { volume, isMuted, setVolume, toggleMuted } = useMusic()
+  const { volume, isMuted, setVolume, toggleMuted } = useMusicVolume()
   const muted = isMuted || volume === 0
   return (
     <div className="flex items-center gap-1.5">
@@ -150,27 +159,21 @@ export function MusicPageControls({ onOpenPlaylist, playlistSlot, compact = fals
 }) {
   const t = useTranslations('MusicPage')
   const playerT = useTranslations('MusicPlayer')
+  const { isPlaying, pendingStep, playMode } = useMusicPlayback()
+  const { hasTranslationLyric, hasRomajiLyric } = useMusicLyrics()
   const {
-    isPlaying,
-    togglePlay,
-    prev,
-    next,
-    pendingStep,
-    playMode,
-    setPlayMode,
     showTranslation,
     showRomaji,
     setShowTranslation,
     setShowRomaji,
-    hasTranslationLyric,
-    hasRomajiLyric,
     showLyricEffects,
     setShowLyricEffects,
     showLyricMoments,
     setShowLyricMoments,
     hdr,
     setHdr,
-  } = useMusic()
+  } = useMusicPreferences()
+  const { togglePlay, prev, next, setPlayMode } = useMusicActions()
   const hdrDisplay = useHdrDisplay()
 
   return (

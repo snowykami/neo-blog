@@ -1,7 +1,5 @@
 import type { LyricAnnotationLine, LyricAnnotationPhrase, LyricAnnotations } from './emphasis'
-import type { LyricPace } from './pace'
 import type { LyricColor, LyricEffect, LyricFont, LyricMood, LyricSceneName, LyricTextStyle } from './types'
-import { DEFAULT_LYRIC_PACE, isLyricPace } from './pace'
 
 /**
  * 后台歌词特效编辑器的数据处理（纯函数）：标注按行文本保存（同一文本的行共用一条），所以编辑器按「去重后的行」编辑；
@@ -14,8 +12,6 @@ export interface PhraseForm {
   color: LyricColor | ''
   font: LyricFont | ''
   styles: LyricTextStyle[]
-  // 为空时沿用全曲
-  pace: LyricPace | ''
 }
 
 export interface LineForm {
@@ -33,7 +29,6 @@ export interface LineForm {
 
 export interface AnnotationForm {
   font: LyricFont | ''
-  pace: LyricPace
   intro: string
   // 主题色 #rrggbb，为空时用封面主色
   accent: string
@@ -143,7 +138,6 @@ function toPhraseForm(phrase: LyricAnnotationPhrase): PhraseForm {
     color: phrase.color ?? '',
     font: phrase.font ?? '',
     styles: phrase.styles ?? [],
-    pace: isLyricPace(phrase.pace) ? phrase.pace : '',
   }
 }
 
@@ -153,7 +147,6 @@ export function toAnnotationForm(lines: string[], annotation: LyricAnnotations |
   const unique = uniqueLyricLines(lines)
   return {
     font: annotation?.font ?? '',
-    pace: isLyricPace(annotation?.pace) ? annotation.pace : DEFAULT_LYRIC_PACE,
     intro: annotation?.intro ?? '',
     accent: annotation?.accent ?? '',
     spotlights: [...new Set((annotation?.spotlights ?? []).flatMap((spot) => {
@@ -194,13 +187,10 @@ export function fromAnnotationForm(lines: string[], form: AnnotationForm) {
         ...(phrase.color && { color: phrase.color }),
         ...(phrase.font && { font: phrase.font }),
         ...(phrase.styles.length > 0 && { styles: phrase.styles }),
-        ...(phrase.pace && { pace: phrase.pace }),
       })),
     }))
   return {
     font: form.font || undefined,
-    // 跟随节拍是默认值，不保存
-    pace: form.pace === DEFAULT_LYRIC_PACE ? undefined : form.pace,
     intro: form.intro.trim(),
     accent: form.accent || undefined,
     spotlights: [...new Set(form.spotlights)]

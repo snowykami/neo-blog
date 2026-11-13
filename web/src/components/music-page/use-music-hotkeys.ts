@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useMusic } from '@/contexts/music-context'
+import { useMusicActions } from '@/contexts/music-context'
 
 const SEEK_STEP_SECONDS = 5
 const VOLUME_STEP = 0.1
@@ -11,7 +11,7 @@ const VOLUME_STEP = 0.1
  * 焦点在输入框、滑块中时交给它们自己处理；焦点在按钮、链接上时空格保留原生的点击
  */
 export function useMusicHotkeys() {
-  const { togglePlay, seek, getAudio, volume, setVolume } = useMusic()
+  const { togglePlay, seek, getAudio, adjustVolume } = useMusicActions()
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -36,10 +36,10 @@ export function useMusicHotkeys() {
             seek(audio.currentTime + SEEK_STEP_SECONDS)
           break
         case 'ArrowUp':
-          setVolume(Math.min(1, volume + VOLUME_STEP))
+          adjustVolume(VOLUME_STEP)
           break
         case 'ArrowDown':
-          setVolume(Math.max(0, volume - VOLUME_STEP))
+          adjustVolume(-VOLUME_STEP)
           break
         default:
           return
@@ -48,5 +48,5 @@ export function useMusicHotkeys() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [getAudio, seek, setVolume, togglePlay, volume])
+  }, [adjustVolume, getAudio, seek, togglePlay])
 }

@@ -27,7 +27,7 @@
   line-height: 1.3;
   color: color-mix(in srgb, var(--lyric-color, #fff) 35%, transparent);
   cursor: pointer;
-  transition: color 0.4s ease-out, background-color 0.2s ease-out;
+  transition: color 0.4s ease-out, background-color 0.2s ease-out, filter 0.35s ease-out;
 }
 
 @media (min-width: 1024px) {
@@ -116,8 +116,10 @@
 }
 
 .lyric-player--hdr .lyric-line--active .lyric-word:not(.lyric-word--emphasis),
-.lyric-player--hdr .lyric-line--active .lyric-main:not(:has(.lyric-word)) {
-  background-image: var(--lyric-hdr);
+.lyric-player--hdr .lyric-line--active .lyric-main:not(:has(.lyric-word)),
+.lyric-player--hdr .lyric-line--hdr-exit .lyric-word:not(.lyric-word--emphasis),
+.lyric-player--hdr .lyric-line--hdr-exit .lyric-main:not(:has(.lyric-word)) {
+  background-image: var(--lyric-hdr-line, var(--lyric-hdr));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -272,13 +274,31 @@
 }
 
 /*
- * 逐字音译的注音单元：一个字在上、它的音译在下。单元宽度只取字的宽度，音译不占宽度（width: 0，内容溢出显示），
- * 可以伸到相邻的字下面；第一个音拍对准字的中心、与前一段音译重叠时推后单元，由引擎测量后写入左外边距（见 ruby-layout.ts）
+ * 注音单元：底字上方可选日文振假名（.lyric-furigana，0.42em 半透明）、下方可选逐字音译（.lyric-ruby）。
+ * 单元宽度只取底字宽度，上下注音均不占盒内宽度（width: 0，溢出显示）；引擎测量后按超出宽度撑开外边距避免重叠（见 layoutRubyUnits）
  */
 .lyric-unit {
   display: inline-flex;
   flex-direction: column;
   align-items: flex-start;
+}
+
+.lyric-unit--furigana {
+  position: relative;
+  padding-top: 0.56em;
+}
+
+.lyric-furigana {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  font-size: 0.42em;
+  font-weight: 600;
+  line-height: 1.15;
+  white-space: pre;
+  opacity: 0.72;
+  pointer-events: none;
 }
 
 .lyric-ruby {
@@ -426,7 +446,8 @@
 }
 
 .lyric-player--strip .lyric-extra,
-.lyric-player--strip .lyric-ruby {
+.lyric-player--strip .lyric-ruby,
+.lyric-player--strip .lyric-furigana {
   display: none;
 }
 

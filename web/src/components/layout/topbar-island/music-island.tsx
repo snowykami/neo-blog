@@ -7,10 +7,11 @@ import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { AlbumNavIcon, MINI_PLAYER_POPOVER_CLASSNAME, MINI_PLAYER_POPOVER_STYLE, useMiniPlayerHolding } from '@/components/common/music-player-shared'
 import { useCoverAccent } from '@/components/music-page/use-cover-accent'
-import { useMusic, useMusicClockStore } from '@/contexts/music-context'
+import { useMusicActions, useMusicClockStore, useMusicLyrics, useMusicPlayback } from '@/contexts/music-context'
 import { useSongChorus } from '@/contexts/song-chorus'
 import { dismissIslandAlert, pushIslandAlert, useIslandActivity } from '@/contexts/topbar-island'
 import { usePathname } from '@/i18n/navigation'
+import { getLyricLineVocalStart } from '@/lib/lyrics/line-utils'
 import { lyricGlowAt } from '@/lib/lyrics/lyric-glow'
 import { buildTimeline, getLineTextAt } from '@/lib/lyrics/timeline'
 
@@ -47,7 +48,8 @@ function trackTitle(track: MusicTrack) {
  */
 export function MusicIsland({ settings }: { settings: IslandSettings }) {
   const t = useTranslations('TopbarIsland')
-  const { currentTrack, isPlaying, play } = useMusic()
+  const { currentTrack, isPlaying } = useMusicPlayback()
+  const { play } = useMusicActions()
   const onPlayerPage = usePathname() === '/music'
   // 悬浮球的弹层开着：歌词与特效都在弹层里，岛上不再重复显示
   const floatingOpen = useMiniPlayerHolding('floating')
@@ -174,10 +176,10 @@ function useLazyModule<T>(load: () => Promise<T>, enabled: boolean): T | null {
 
 /** 第一句歌词是否已经开唱（前奏期间为 false）；enabled 为 false 时不订阅播放进度 */
 function useLyricStarted(enabled: boolean) {
-  const { lyricLines } = useMusic()
+  const { lyricLines } = useMusicLyrics()
   const clock = useMusicClockStore()
   const getSnapshot = useCallback(
-    () => lyricLines.length > 0 && clock.getSnapshot() * 1000 >= lyricLines[0].startTime,
+    () => lyricLines.length > 0 && clock.getSnapshot() * 1000 >= getLyricLineVocalStart(lyricLines[0]),
     [clock, lyricLines],
   )
   return useSyncExternalStore(enabled ? clock.subscribe : noopSubscribe, enabled ? getSnapshot : falseSnapshot, falseSnapshot)
@@ -185,7 +187,7 @@ function useLyricStarted(enabled: boolean) {
 
 /** 暂停时胶囊里的那一句（见 getLineTextAt）：间奏、开唱前、没有歌词时为 null；暂停期间拖动进度时跟着换；enabled 为 false 时不订阅播放进度 */
 function usePausedLine(enabled: boolean) {
-  const { lyrics } = useMusic()
+  const { lyrics } = useMusicLyrics()
   const clock = useMusicClockStore()
   const items = useMemo(() => buildTimeline(lyrics.lines), [lyrics.lines])
   const getSnapshot = useCallback(
@@ -200,7 +202,7 @@ function usePausedLine(enabled: boolean) {
  * 随播放时钟（约每秒 4 次）读取，只在颜色或强弱变化时重渲染
  */
 function useLyricGlow(enabled: boolean, fallback: string | null): IslandGlow | null {
-  const { lyrics } = useMusic()
+  const { lyrics } = useMusicLyrics()
   const clock = useMusicClockStore()
   const getSnapshot = useCallback(() => {
     const { color, strong } = lyricGlowAt(lyrics, clock.getSnapshot() * 1000)

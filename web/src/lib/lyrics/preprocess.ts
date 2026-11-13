@@ -64,7 +64,18 @@ export function preprocessLyricLines(input: LyricLine[]): LyricLine[] {
       lines[i] = {
         ...lines[i],
         end,
-        words: lines[i].words.map(word => ({ ...word, end: Math.min(word.end, end), start: Math.min(word.start, end) })),
+        words: lines[i].words.map(word => ({
+          ...word,
+          end: Math.min(word.end, end),
+          start: Math.min(word.start, end),
+          ...(word.ruby && {
+            ruby: word.ruby.map(r => ({
+              ...r,
+              start: Math.min(r.start, end),
+              end: Math.min(r.end, end),
+            })),
+          }),
+        })),
       }
     }
   }

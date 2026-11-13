@@ -13,7 +13,10 @@ export function shiftLyrics(lyrics: ResolvedLyrics, offsetMs: number): ResolvedL
     ...lyrics,
     lines: lyrics.lines.map(line => ({
       ...shift(line),
-      words: line.words.map(shift),
+      words: line.words.map(word => ({
+        ...shift(word),
+        ...(word.ruby && { ruby: word.ruby.map(shift) }),
+      })),
       // 逐字音译有自己的时间（随原文音节擦除），要一起平移，否则偏移后音译与原文错开
       ...(line.romanizationWords && { romanizationWords: line.romanizationWords.map(shift) }),
     })),

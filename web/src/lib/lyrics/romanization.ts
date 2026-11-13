@@ -281,15 +281,15 @@ export function alignRomanization(romanization: string, words: LyricWord[]): Lyr
 }
 
 /** 来源本身带逐字时间的音译（QQ 音乐的音译 QRC）：按开始时间归到所在的原文音节 */
-export function romanWordsFromTimed(items: { text: string, startTime: number, duration: number }[], words: LyricWord[]): LyricRomanWord[] | null {
-  const timed = items.filter(item => item.text.trim() && item.duration > 0)
+export function romanWordsFromTimed(items: { text: string, start: number, end: number }[], words: LyricWord[]): LyricRomanWord[] | null {
+  const timed = items.filter(item => item.text.trim() && item.end > item.start)
   if (timed.length === 0 || words.length === 0)
     return null
   return timed.map((item) => {
     let word = 0
-    for (let i = 0; i < words.length && words[i].start <= item.startTime + 20; i++)
+    for (let i = 0; i < words.length && words[i].start <= item.start + 20; i++)
       word = i
-    return { text: item.text, start: item.startTime, end: item.startTime + item.duration, word }
+    return { text: item.text, start: item.start, end: item.end, word }
   })
 }
 

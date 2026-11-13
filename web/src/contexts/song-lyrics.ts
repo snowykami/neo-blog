@@ -4,15 +4,14 @@ import type { MusicKugouLyric, MusicLyricCache, MusicLyrics, MusicLyricStreamEve
 import type { LyricCandidate, LyricSourceKind } from '@/lib/lyrics/resolve'
 import type { LyricTrackInfo } from '@/lib/lyrics/strip-credits'
 import type { ResolvedLyrics } from '@/lib/lyrics/types'
-import type { MusicLyricParseResult } from '@/utils/music-lyric'
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
 import { fetchKugouLyric, fetchLyricCache, fetchNcmLyric, fetchQqLyric, fetchTtmlLyric, streamSongLyrics } from '@/api/music'
 import { platformToLyrics } from '@/lib/lyrics/from-platform'
 import { shiftLyrics } from '@/lib/lyrics/offset'
+import { parseNcmLyrics, parseQqLyrics } from '@/lib/lyrics/parse-platform'
 import { parseTtml } from '@/lib/lyrics/parse-ttml'
 import { resolveLyrics } from '@/lib/lyrics/resolve'
 import { withRomanizationWords } from '@/lib/lyrics/romanization'
-import { parseMusicLyrics, parseQqLyrics } from '@/utils/music-lyric'
 import { useLyricOffsets, useLyricSitePin } from './lyric-settings'
 
 /**
@@ -232,6 +231,23 @@ export function setSongLyricVersion(id: number, version: MusicLyricVersion) {
   settle(getEntry(id), 'decided', version.kind ? version : null)
 }
 
+/** 管理员清空后端 TTML 缓存后，同步清理本标签页已缓存的 TTML 记录，以便切歌或回到播放器时重新拉取 */
+export function clearClientSongLyricsCache() {
+  for (const [, entry] of entries) {
+    if (entry.streaming)
+      continue
+    const nextSources = { ...entry.sources }
+    delete nextSources.ttml
+    delete nextSources.decided
+    if (nextSources.cache)
+      nextSources.cache = { ...nextSources.cache, ttml: undefined, kind: undefined }
+    entry.sources = nextSources
+    entry.started.delete('ttml')
+    entry.failed.delete('ttml')
+    entry.listeners.forEach(listener => listener())
+  }
+}
+
 const EMPTY_SOURCES: SongLyricSources = {}
 
 /** 订阅一首歌的歌词来源并在需要时开始获取；id 为空或不大于 0（示例曲目）时不获取 */
@@ -268,8 +284,6 @@ export interface SongLyrics {
   pending: boolean
   // loading：请求中且还没有可显示的歌词；ready：有歌词；none：没有歌词或获取失败
   status: 'loading' | 'ready' | 'none'
-  // 网易云歌词的解析结果（旧数据结构）
-  ncmParsed: MusicLyricParseResult | null
   // 全站歌词版本的来源（后端选出；还没有收到时为快照的来源），不知道时为 null
   siteKind: LyricSourceKind | null
   // 当前显示的是全站版本（歌词特效只叠加在全站版本上）；不知道全站版本时视为是
@@ -298,7 +312,7 @@ export function useResolvedSongLyrics(id: number | null, track?: LyricTrackInfo 
   const ncm = sources?.ncm ?? null
   const qq = sources?.qq ?? null
   const kugou = sources?.kugou ?? null
-  const ncmParsed = useMemo(() => (ncm ? safely(() => parseMusicLyrics(ncm), 'NetEase') : null), [ncm])
+  const ncmParsed = useMemo(() => (ncm ? safely(() => parseNcmLyrics(ncm), 'NetEase') : null), [ncm])
   const qqParsed = useMemo(() => (qq ? safely(() => parseQqLyrics(qq), 'QQ Music') : null), [qq])
   // 酷狗音乐的 KRC 已由后端转换为 QQ 音乐的格式
   const kugouParsed = useMemo(() => (kugou ? safely(() => parseQqLyrics(kugou), 'Kugou') : null), [kugou])
@@ -332,7 +346,6 @@ export function useResolvedSongLyrics(id: number | null, track?: LyricTrackInfo 
       kind: resolution.kind,
       pending,
       status: resolution.lyrics.lines.length > 0 ? 'ready' : pending ? 'loading' : 'none',
-      ncmParsed,
       siteKind,
       isSiteVersion: siteKind == null || resolution.kind === siteKind,
     }

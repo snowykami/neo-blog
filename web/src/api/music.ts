@@ -5,6 +5,7 @@ import type { MusicSearchSong, MusicSong, MusicTrack, NCMPlaylists } from '@/mod
 import type { BaseResponse } from '@/models/resp'
 import { isAxiosError } from 'axios'
 import { snakeToCamelObj } from 'field-conv'
+import { clearClientSongLyricsCache } from '@/contexts/song-lyrics'
 import axiosClient from './client'
 
 export interface MusicLyrics {
@@ -131,7 +132,6 @@ export interface MusicLyricAnnotations {
   status: 'ready' | 'pending'
   stale?: boolean
   font?: LyricAnnotations['font']
-  pace?: LyricAnnotations['pace']
   intro?: LyricAnnotations['intro']
   outro?: LyricAnnotations['outro']
   moments?: LyricAnnotations['moments']
@@ -276,10 +276,9 @@ export interface MusicLyricAnnotationEditor {
   orphaned?: boolean
 }
 
-// 手动编辑可改的部分：全曲字体、节奏、导语、主题色、聚光灯与各行（时刻与尾奏热评保持原样）
+// 手动编辑可改的部分：全曲字体、导语、主题色、聚光灯与各行（时刻与尾奏热评保持原样）
 export interface MusicLyricAnnotationsEdit {
   font?: LyricAnnotations['font']
-  pace?: LyricAnnotations['pace']
   intro?: string
   accent?: string
   spotlights: NonNullable<LyricAnnotations['spotlights']>
@@ -445,4 +444,10 @@ export async function searchMusicSongs(keywords: string): Promise<MusicSearchSon
 export async function listNCMPlaylists(params: { apiBaseUrl: string, cookie: string }): Promise<BaseResponse<NCMPlaylists>> {
   const res = await axiosClient.post('/music/ncm/playlists', params)
   return res.data
+}
+
+// 清空服务端 TTML 缓存（含 72 小时未命中负缓存）与当前标签页内存歌词缓存（仅管理员）
+export async function clearMusicTTMLCache(): Promise<void> {
+  await axiosClient.post('/music/lyric/ttml-cache/clear')
+  clearClientSongLyricsCache()
 }

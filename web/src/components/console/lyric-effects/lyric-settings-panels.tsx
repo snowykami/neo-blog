@@ -42,7 +42,7 @@ function Swatch({ color }: { color: string }) {
 // 主题色：#rrggbb（与后端校验一致）
 const ACCENT_PATTERN = /^#[0-9a-f]{6}$/i
 
-/** 全曲设置：字体、特效节奏、前奏导语、主题色与聚光灯的句子 */
+/** 全曲设置：字体、前奏导语、主题色与聚光灯的句子 */
 export function SongSettingsPanel({ unique }: { unique: UniqueLine[] }) {
   const t = useTranslations('Console.lyric_effects')
   const optionT = useTranslations('LyricOptions')

@@ -8,7 +8,7 @@ import { SafeImage } from '@/components/common/safe-image'
 import { Input } from '@/components/ui/input'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useMusic } from '@/contexts/music-context'
+import { useMusicActions, useMusicPlayback } from '@/contexts/music-context'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 import { filterPlaylist } from './playlist-filter'
@@ -59,7 +59,8 @@ export const MusicPlaylistItem = memo(({ track, index, active, playing, onSelect
  */
 export function PlaylistPendingState({ compact = false }: { compact?: boolean }) {
   const t = useTranslations('MusicPage')
-  const { playlistLoading, ensurePlaylist } = useMusic()
+  const { playlistLoading } = useMusicPlayback()
+  const { ensurePlaylist } = useMusicActions()
   if (!playlistLoading) {
     return (
       <div className={cn('grid justify-items-center gap-2 text-center text-white/50', compact ? 'px-2 py-6 text-xs' : 'px-4 py-10 text-sm')}>
@@ -93,7 +94,8 @@ export function PlaylistPendingState({ compact = false }: { compact?: boolean })
 /** 歌单面板：桌面端从右侧滑出，移动端从底部滑出；打开时滚动到当前曲目，点击即播放 */
 export function MusicPlaylistSheet({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void }) {
   const t = useTranslations('MusicPage')
-  const { playlist, playlistComplete, currentIndex, isPlaying, playTrack, ensurePlaylist } = useMusic()
+  const { playlist, playlistComplete, currentIndex, isPlaying } = useMusicPlayback()
+  const { playTrack, ensurePlaylist } = useMusicActions()
   const isMobile = useIsMobile(1024)
   const [keyword, setKeyword] = useState('')
   const listRef = useRef<HTMLOListElement>(null)

@@ -11,7 +11,7 @@ import { VisitReporter } from '@/components/common/visit-reporter'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/contexts/auth-context'
-import { useMusic } from '@/contexts/music-context'
+import { useMusicActions, useMusicPlayback } from '@/contexts/music-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { useRouter } from '@/i18n/navigation'
 import { cn } from '@/lib/utils'
@@ -103,7 +103,8 @@ export function MusicPlayerPage() {
   const router = useRouter()
   const { siteInfo } = useSiteInfo()
   const { user } = useAuth()
-  const { playlist, playlistState, currentTrack, isPlaying, ensurePlaylist } = useMusic()
+  const { playlist, playlistState, currentTrack, isPlaying } = useMusicPlayback()
+  const { ensurePlaylist } = useMusicActions()
   // 播放器页要用完整歌单（歌单抽屉、上一首 / 下一首、分享地址定位）：恢复播放时可能只取了一首，进入时补全
   useEffect(() => {
     void ensurePlaylist()
