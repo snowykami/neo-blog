@@ -8,9 +8,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
-	"github.com/snowykami/neo-blog/internal/model"
-	"github.com/snowykami/neo-blog/internal/repo"
-	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/resps"
 )
 
@@ -43,17 +40,11 @@ func (u *UserController) OidcAuthorize(ctx context.Context, c *app.RequestContex
 }
 
 func (u *UserController) GetUserOpenIDList(ctx context.Context, c *app.RequestContext) {
-	userID, ok := ctxutils.GetCurrentUserID(ctx)
-	if !ok {
-		resps.Unauthorized(c, resps.ErrUnauthorized)
+	userOpenIdDtos, svcerr := u.service.ListUserOpenIDs(ctx)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
-	userOpenIdModels, err := repo.User.ListUserOpenIDsByUserID(userID)
-	if err != nil {
-		resps.Error(c, errs.Internal("failed_to_get_target", err).WithResource("user_openid"))
-		return
-	}
-	userOpenIdDtos := model.ToOpenIdDtos(userOpenIdModels)
 	resps.Ok(c, resps.Success, utils.H{
 		"openids": userOpenIdDtos,
 	})
@@ -85,23 +76,8 @@ func (u *UserController) OidcLogin(ctx context.Context, c *app.RequestContext) {
 
 func (u *UserController) DeleteUserOpenID(ctx context.Context, c *app.RequestContext) {
 	id := ctxutils.GetIDParam(c).Uint
-	if id == 0 {
-		resps.BadRequest(c, resps.ErrParamInvalid)
-		return
-	}
-	// 检查该OIDC是否属于当前用户
-	userOpenIdModel, err := repo.User.GetUserOpenIDByID(id)
-	if err != nil {
-		resps.Error(c, errs.FromDB(err, "user_openid", "failed_to_get_target"))
-		return
-	}
-	if !ctxutils.IsOwnerOfTarget(ctx, userOpenIdModel.UserID) {
-		resps.Forbidden(c, resps.ErrForbidden)
-		return
-	}
-	err = repo.User.DeleteUserOpenID(id)
-	if err != nil {
-		resps.Error(c, errs.Internal("failed_to_delete_target", err).WithResource("user_openid"))
+	if svcerr := u.service.DeleteUserOpenID(ctx, id); svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	resps.Ok(c, resps.Success, nil)

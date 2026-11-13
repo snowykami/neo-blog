@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -151,7 +152,15 @@ func updatePageTx(tx *gorm.DB, page *model.Page, columns []string) error {
 
 // ListPages includePrivate 为 false 时只列公开页面（前台）；为 true 时是后台管理视图，含私密页面，按 req.UserID 限定作者
 func (p *pageRepo) ListPages(includePrivate bool, req *dto.ListPageReq, query []string) ([]model.Page, int64, error) {
-	q := GetDB().Model(&model.Page{}).Preload(clause.Associations)
+	return p.ListPagesContext(context.Background(), includePrivate, req, query)
+}
+
+// ListPagesContext 带上下文与慢查询超时保护的页面列表查询
+func (p *pageRepo) ListPagesContext(ctx context.Context, includePrivate bool, req *dto.ListPageReq, query []string) ([]model.Page, int64, error) {
+	dbSession, cancel := WithTimeout(ctx, DefaultHeavyQueryTimeout)
+	defer cancel()
+
+	q := dbSession.Model(&model.Page{}).Preload(clause.Associations)
 
 	if req.UserID > 0 {
 		q = q.Where("user_id = ?", req.UserID)

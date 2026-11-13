@@ -314,7 +314,7 @@ func searchPublicPostsMeili(ctx context.Context, req *dto.ListPostReq) ([]*dto.P
 	return dtos, res.Total(), true
 }
 
-func searchPublicPagesMeili(req *dto.ListPageReq) ([]*dto.PageDto, int64, bool) {
+func searchPublicPagesMeili(ctx context.Context, req *dto.ListPageReq) ([]*dto.PageDto, int64, bool) {
 	qText := normalizePostSearchQuery(req.Query)
 	if qText == "" || !hasSearchableToken(qText) {
 		return nil, 0, false
@@ -340,7 +340,10 @@ func searchPublicPagesMeili(req *dto.ListPageReq) ([]*dto.PageDto, int64, bool) 
 		dir = "asc"
 	}
 
-	qCtx, cancel := context.WithTimeout(context.Background(), searchQueryTimeout)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	qCtx, cancel := context.WithTimeout(ctx, searchQueryTimeout)
 	defer cancel()
 	start := time.Now()
 	res, err := client.Search(qCtx, cfg.IndexUID(SearchGroupPages), meili.SearchQuery{
@@ -524,7 +527,7 @@ func (s *SearchService) GlobalSearch(ctx context.Context, req *dto.GlobalSearchR
 			return resp, nil
 		}
 	}
-	return s.globalSearchDatabase(query, limit, groups, loggedIn, currentUserID)
+	return s.globalSearchDatabase(ctx, query, limit, groups, loggedIn, currentUserID)
 }
 
 func (s *SearchService) globalSearchMeili(
@@ -870,6 +873,7 @@ func hydrateSearchUserHits(hits []map[string]any, query string) ([]dto.SearchUse
 }
 
 func (s *SearchService) globalSearchDatabase(
+	ctx context.Context,
 	query string,
 	limit int,
 	groups map[string]bool,
@@ -880,7 +884,7 @@ func (s *SearchService) globalSearchDatabase(
 	terms := strings.Fields(query)
 
 	if groups[SearchGroupPosts] {
-		posts, _, err := repo.Post.ListPosts(false, []string{query}, &dto.ListPostReq{
+		posts, _, err := repo.Post.ListPostsContext(ctx, false, []string{query}, &dto.ListPostReq{
 			PaginationParams: dto.PaginationParams{Page: 1, Size: uint64(limit), OrderBy: constant.OrderByCreatedAt, Desc: true},
 		})
 		if err != nil {
@@ -922,7 +926,7 @@ func (s *SearchService) globalSearchDatabase(
 	}
 
 	if groups[SearchGroupPages] {
-		pages, _, err := repo.Page.ListPages(false, &dto.ListPageReq{
+		pages, _, err := repo.Page.ListPagesContext(ctx, false, &dto.ListPageReq{
 			PaginationParams: dto.PaginationParams{Page: 1, Size: uint64(limit), OrderBy: constant.OrderByCreatedAt, Desc: true},
 		}, []string{query})
 		if err != nil {
@@ -948,7 +952,7 @@ func (s *SearchService) globalSearchDatabase(
 	}
 
 	if groups[SearchGroupComments] {
-		comments, err := repo.SearchPublicCommentsDB(query, limit)
+		comments, err := repo.SearchPublicCommentsDBContext(ctx, query, limit)
 		if err != nil {
 			return nil, errs.Internal("failed_to_get_target", err).WithResource("comment")
 		}
@@ -974,7 +978,7 @@ func (s *SearchService) globalSearchDatabase(
 	}
 
 	if groups[SearchGroupUsers] {
-		users, err := repo.SearchPublicCreatorsDB(query, loggedIn, currentUserID, limit)
+		users, err := repo.SearchPublicCreatorsDBContext(ctx, query, loggedIn, currentUserID, limit)
 		if err != nil {
 			return nil, errs.Internal("failed_to_get_target", err).WithResource("user")
 		}

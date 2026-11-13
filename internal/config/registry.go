@@ -4,15 +4,18 @@
 package config
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/pkg/errs"
+	"github.com/snowykami/neo-blog/pkg/sharedstate"
 	"github.com/snowykami/neo-blog/pkg/utils"
 )
 
@@ -95,7 +98,11 @@ type Tab struct {
 	Title string `json:"title"`
 }
 
-const siteInfoKey = "site_info"
+const (
+	siteInfoKey       = "site_info"
+	configSaveLockKey = "config:save" // sharedstate.Lock 内部自动拼接 "lock:" 前缀，实际键为 "lock:config:save"
+	configSaveLockTTL = 10 * time.Second
+)
 
 var byKey = func() map[string]*Item {
 	m := map[string]*Item{}
@@ -342,7 +349,8 @@ type Change struct {
 	Value any    `json:"value"`
 }
 
-// Save 校验并保存后台修改的配置：只写入数据库，环境变量设置的配置照常保存但不生效，直到去掉环境变量
+// Save 校验并保存后台修改的配置：只写入数据库，环境变量设置的配置照常保存但不生效，直到去掉环境变量。
+// 全程持有跨实例互斥锁（lock:config:save），防止多请求并发读写聚合键（如 site_info）产生覆盖丢失（Lost Update）。
 func Save(changes []Change) *errs.ServiceError {
 	pending := make(map[string]any, len(changes))
 	for _, change := range changes {
@@ -356,6 +364,24 @@ func Save(changes []Change) *errs.ServiceError {
 		}
 		pending[it.Key] = v
 	}
+	if len(pending) == 0 {
+		return nil
+	}
+
+	lockCtx, cancel := context.WithTimeout(context.Background(), configSaveLockTTL)
+	defer cancel()
+	release, err := sharedstate.Lock(lockCtx, configSaveLockKey, configSaveLockTTL)
+	if err != nil {
+		return errs.Internal("failed_to_save_config", err)
+	}
+	defer release()
+
+	// 加锁后清空本机配置缓存，确保跨实例并发修改时从数据库读取最新快照再做关联校验与聚合合并
+	repo.KV.InvalidateCache()
+	return saveLocked(pending)
+}
+
+func saveLocked(pending map[string]any) *errs.ServiceError {
 	// 涉及多项配置的校验以保存后实际生效的值为准
 	effective := func(key string) any {
 		it := mustLookup(key)
@@ -405,6 +431,58 @@ func Save(changes []Change) *errs.ServiceError {
 		if err := repo.KV.SetKV(siteInfoKey, info); err != nil {
 			return errs.NewInternalServer("internal_server_error")
 		}
+	}
+	return nil
+}
+
+// Reset 重置单个已注册配置项回默认值（清理 site_info 聚合路径与同名独立键），同时执行关联校验与跨实例缓存失效广播
+func Reset(key string) *errs.ServiceError {
+	it := Lookup(key)
+	if it == nil {
+		return errs.NewBadRequest("unknown_config_key")
+	}
+	lockCtx, cancel := context.WithTimeout(context.Background(), configSaveLockTTL)
+	defer cancel()
+	release, err := sharedstate.Lock(lockCtx, configSaveLockKey, configSaveLockTTL)
+	if err != nil {
+		return errs.Internal("failed_to_save_config", err)
+	}
+	defer release()
+
+	repo.KV.InvalidateCache()
+
+	effective := func(k string) any {
+		item := mustLookup(k)
+		if env, ok := item.EnvValue(); ok && !item.envCustom {
+			v, _ := item.parseEnv(env)
+			return v
+		}
+		if k == key {
+			return item.Default
+		}
+		return item.dbValue()
+	}
+	for _, check := range crossChecks {
+		if slices.Contains(check.keys, key) {
+			if code := check.check(effective); code != "" {
+				return errs.NewBadRequest(code)
+			}
+		}
+	}
+
+	if len(it.siteInfoPath) > 0 {
+		if raw, ok := repo.KV.GetKVWithoutErr(siteInfoKey, nil).(map[string]any); ok {
+			var cloned map[string]any
+			if data, mErr := json.Marshal(raw); mErr == nil && json.Unmarshal(data, &cloned) == nil {
+				deletePath(cloned, it.siteInfoPath)
+				if err := repo.KV.SetKV(siteInfoKey, cloned); err != nil {
+					return errs.NewInternalServer("internal_server_error")
+				}
+			}
+		}
+	}
+	if err := repo.KV.DeleteKV(key); err != nil {
+		return errs.NewInternalServer("internal_server_error")
 	}
 	return nil
 }
@@ -548,4 +626,18 @@ func setPath(m map[string]any, path []string, v any) {
 		m = next
 	}
 	m[path[len(path)-1]] = v
+}
+
+func deletePath(m map[string]any, path []string) {
+	if len(path) == 0 || m == nil {
+		return
+	}
+	for _, key := range path[:len(path)-1] {
+		next, ok := m[key].(map[string]any)
+		if !ok {
+			return
+		}
+		m = next
+	}
+	delete(m, path[len(path)-1])
 }

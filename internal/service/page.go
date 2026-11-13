@@ -374,7 +374,7 @@ func normalizeAspectRatio(raw string) (string, bool) {
 // ListPages 前台页面列表（导航等）：不看当前用户是谁，只返回公开页面
 func (p *PageService) ListPages(ctx context.Context, req *dto.ListPageReq) ([]*dto.PageDto, int64, *errs.ServiceError) {
 	res, svcerr := pageCached(pageListCacheKey(req), func() (guestPageList, *errs.ServiceError) {
-		pages, total, svcerr := p.listPages(req, false)
+		pages, total, svcerr := p.listPages(ctx, req, false)
 		return guestPageList{Pages: pages, Total: total}, svcerr
 	})
 	return res.Pages, res.Total, svcerr
@@ -390,7 +390,7 @@ func (p *PageService) ListMyPages(ctx context.Context, req *dto.ListPageReq) ([]
 		return nil, 0, errs.NewForbidden("permission_denied")
 	}
 	req.UserID = currentUser.ID
-	return p.listPages(req, true)
+	return p.listPages(ctx, req, true)
 }
 
 // ListPagesAdmin 后台页面管理列出所有人的页面（含私密页面），仅管理员；传 user_id 时只看该用户的页面
@@ -398,13 +398,13 @@ func (p *PageService) ListPagesAdmin(ctx context.Context, req *dto.ListPageReq) 
 	if !ctxutils.IsAdmin(ctx) {
 		return nil, 0, errs.NewForbidden("permission_denied")
 	}
-	return p.listPages(req, true)
+	return p.listPages(ctx, req, true)
 }
 
 // listPages includePrivate 为 true 时是后台管理视图（含私密页面）
-func (p *PageService) listPages(req *dto.ListPageReq, includePrivate bool) ([]*dto.PageDto, int64, *errs.ServiceError) {
+func (p *PageService) listPages(ctx context.Context, req *dto.ListPageReq, includePrivate bool) ([]*dto.PageDto, int64, *errs.ServiceError) {
 	if !includePrivate && strings.TrimSpace(req.Query) != "" {
-		if dtos, total, ok := searchPublicPagesMeili(req); ok {
+		if dtos, total, ok := searchPublicPagesMeili(ctx, req); ok {
 			return dtos, total, nil
 		}
 	}
@@ -414,7 +414,7 @@ func (p *PageService) listPages(req *dto.ListPageReq, includePrivate bool) ([]*d
 			queryArray = append(queryArray, strings.TrimSpace(q))
 		}
 	}
-	pages, total, err := repo.Page.ListPages(includePrivate, req, queryArray)
+	pages, total, err := repo.Page.ListPagesContext(ctx, includePrivate, req, queryArray)
 	if err != nil {
 		return nil, total, errs.Internal("failed_to_get_target", err).WithResource("page")
 	}

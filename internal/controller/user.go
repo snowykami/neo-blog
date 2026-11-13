@@ -8,11 +8,8 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
-	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/service"
 	"github.com/snowykami/neo-blog/internal/tools"
-	"github.com/snowykami/neo-blog/pkg/errs"
-	"github.com/snowykami/neo-blog/pkg/ipregion"
 	"github.com/snowykami/neo-blog/pkg/resps"
 	utils2 "github.com/snowykami/neo-blog/pkg/utils"
 )
@@ -91,14 +88,8 @@ func (u *UserController) Logout(ctx context.Context, c *app.RequestContext) {
 	// 清除客户端Cookie
 	ctxutils.Clear2Tokens(c)
 	sessionId, _ := ctx.Value("session_id").(string)
-	if sessionId == "" {
-		resps.Ok(c, resps.Success, nil)
-		return
-	}
-	// 服务端删除Session
-	err := repo.Session.RevokeSession(sessionId)
-	if err != nil {
-		resps.InternalError(c, err)
+	if svcerr := u.service.UserLogout(sessionId); svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
 	resps.Ok(c, resps.Success, nil)
@@ -273,36 +264,10 @@ func (u *UserController) GetCaptchaConfig(ctx context.Context, c *app.RequestCon
 
 func (u *UserController) GetUserLastIPLocation(ctx context.Context, c *app.RequestContext) {
 	userID := ctxutils.GetIDParam(c).Uint
-	user, err := repo.User.GetUserByID(userID)
-	if err != nil {
-		resps.Error(c, errs.FromDB(err, "user", "failed_to_get_user"))
+	ipInfo, svcerr := u.service.GetUserLastIPLocation(userID)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
 		return
-	}
-	if user.ShowIPLocation == nil || !*user.ShowIPLocation {
-		resps.Forbidden(c, "ip_location_hidden")
-		return
-	}
-	// 获取用户最新的session
-	session, err := repo.Session.GetLatestSessionByUserID(userID)
-	if err != nil {
-		resps.Error(c, errs.FromDB(err, "session", "failed_to_get_target"))
-		return
-	}
-	// 使用本地离线 ip2region 查询归属地，不把用户会话 IP 发送给第三方在线接口
-	reg := ipregion.Lookup(session.LatestIP())
-	ipInfo := &utils2.IPData{}
-	if !reg.Reserved {
-		ipInfo.Country = reg.Country
-		ipInfo.CountryCode = reg.CountryCode
-		ipInfo.Province = reg.Province
-		ipInfo.City = reg.City
-		ipInfo.ISP = reg.ISP
-		if ipInfo.Province == ipInfo.Country {
-			ipInfo.Province = ""
-		}
-		if ipInfo.City == ipInfo.Province {
-			ipInfo.City = ""
-		}
 	}
 	resps.Ok(c, resps.Success, ipInfo)
 }

@@ -431,3 +431,34 @@ func (s *UserService) updateUserOpenIdInfo(userOpenId *model.UserOpenID, userInf
 	}
 	return nil
 }
+
+// ListUserOpenIDs 列出当前登录用户绑定的第三方身份列表
+func (s *UserService) ListUserOpenIDs(ctx context.Context) ([]dto.UserOpenIDDto, *errs.ServiceError) {
+	userID, ok := ctxutils.GetCurrentUserID(ctx)
+	if !ok {
+		return nil, errs.NewUnauthorized("unauthorized")
+	}
+	userOpenIdModels, err := repo.User.ListUserOpenIDsByUserID(userID)
+	if err != nil {
+		return nil, errs.Internal("failed_to_get_target", err).WithResource("user_openid")
+	}
+	return model.ToOpenIdDtos(userOpenIdModels), nil
+}
+
+// DeleteUserOpenID 解绑第三方身份（仅本人或管理员可操作）
+func (s *UserService) DeleteUserOpenID(ctx context.Context, id uint) *errs.ServiceError {
+	if id == 0 {
+		return errs.NewBadRequest("invalid_request_parameters")
+	}
+	userOpenIdModel, err := repo.User.GetUserOpenIDByID(id)
+	if err != nil {
+		return errs.FromDB(err, "user_openid", "failed_to_get_target")
+	}
+	if !(ctxutils.IsOwnerOfTarget(ctx, userOpenIdModel.UserID) || ctxutils.IsAdmin(ctx)) {
+		return errs.NewForbidden("permission_denied")
+	}
+	if err := repo.User.DeleteUserOpenID(id); err != nil {
+		return errs.Internal("failed_to_delete_target", err).WithResource("user_openid")
+	}
+	return nil
+}

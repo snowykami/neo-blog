@@ -9,8 +9,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -274,66 +272,152 @@ func resetVisitAttribution(visitorID uint) {
 	}
 }
 
-const viewFlushInterval = 5 * time.Second
-
-var (
-	viewBufferEnabled atomic.Bool
-	pendingViewsMu    sync.Mutex
-	pendingViews      = make(map[uint]uint64)
+const (
+	viewFlushInterval   = 5 * time.Second
+	postViewDeltaPrefix = "post:view_delta:"
+	postViewDeltaTTL    = 24 * time.Hour
 )
 
-// StartViewCountFlusher 启动本实例的浏览量批量落库协程（进程启动时调用；单测未启动时保持同步写入）
+func postViewDeltaKey(postID uint) string {
+	return postViewDeltaPrefix + strconv.FormatUint(uint64(postID), 10)
+}
+
+// StartViewCountFlusher 启动文章阅读量增量定期落库协程；收到退出信号时执行最后一次刷库
 func StartViewCountFlusher(ctx context.Context) {
-	viewBufferEnabled.Store(true)
 	go func() {
 		ticker := time.NewTicker(viewFlushInterval)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
-				FlushPendingViews()
+				FlushPostViewCounts()
 				return
 			case <-ticker.C:
-				FlushPendingViews()
+				FlushPostViewCounts()
 			}
 		}
 	}()
 }
 
-// FlushPendingViews 将内存中缓冲的文章浏览量增量批量累加到数据库；失败时放回缓冲等待下次重试
+// FlushPendingViews 兼容旧调用名，等价于 FlushPostViewCounts
 func FlushPendingViews() {
-	pendingViewsMu.Lock()
-	if len(pendingViews) == 0 {
-		pendingViewsMu.Unlock()
-		return
-	}
-	snapshot := pendingViews
-	pendingViews = make(map[uint]uint64)
-	pendingViewsMu.Unlock()
-
-	if err := repo.Post.AddViewCounts(snapshot); err != nil {
-		logrus.Warnf("flush pending view counts failed: %v", err)
-		pendingViewsMu.Lock()
-		for id, delta := range snapshot {
-			pendingViews[id] += delta
-		}
-		pendingViewsMu.Unlock()
-	}
+	FlushPostViewCounts()
 }
 
-// countPostView 记录了一次新的文章访问（已去重、排除爬虫、疑似自动化与管理员）后累加文章浏览量；失败只打日志
+// FlushPostViewCounts 从共享状态中原子取出各篇文章尚未落库的阅读量增量，批量写回数据库。
+// 多副本下通过共享状态的原子 Take 领取各自的增量（互不重算、不漏记）；写库失败时通过 IncrBy 回滚增量等待下次重试。
+func FlushPostViewCounts() {
+	rawMap, err := sharedstate.Current().GetByPrefix(postViewDeltaPrefix)
+	if err != nil || len(rawMap) == 0 {
+		if err != nil {
+			logrus.Warnf("scan pending view deltas failed: %v", err)
+		}
+		return
+	}
+	deltas := make(map[uint]uint64, len(rawMap))
+	for key := range rawMap {
+		idStr := strings.TrimPrefix(key, postViewDeltaPrefix)
+		id64, parseErr := strconv.ParseUint(idStr, 10, 64)
+		if parseErr != nil || id64 == 0 {
+			continue
+		}
+		val, ok, takeErr := sharedstate.Current().Take(key)
+		if takeErr != nil || !ok {
+			continue
+		}
+		delta, convErr := strconv.ParseInt(val, 10, 64)
+		if convErr != nil || delta <= 0 {
+			continue
+		}
+		deltas[uint(id64)] += uint64(delta)
+	}
+	if len(deltas) == 0 {
+		return
+	}
+
+	if err := repo.Post.AddViewCounts(deltas); err != nil {
+		logrus.Warnf("flush post view counts failed: %v", err)
+		for id, delta := range deltas {
+			if _, rbErr := sharedstate.IncrBy(postViewDeltaKey(id), int64(delta), postViewDeltaTTL); rbErr != nil {
+				logrus.Warnf("rollback view delta of post %d (+%d) failed: %v", id, delta, rbErr)
+			}
+		}
+		return
+	}
+	// 增量已写入数据库，清理前台文章内存/二级缓存快照（不触发前端 ISR 标签重绘），保证后续读取基线单调递增
+	repo.PostGuestCache.Clear()
+}
+
+// PendingPostViewDelta 读取单篇文章尚未刷入数据库的阅读量增量
+func PendingPostViewDelta(postID uint) uint64 {
+	if postID == 0 {
+		return 0
+	}
+	raw, ok, err := sharedstate.Current().Get(postViewDeltaKey(postID))
+	if err != nil || !ok {
+		return 0
+	}
+	n, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || n <= 0 {
+		return 0
+	}
+	return uint64(n)
+}
+
+// PendingPostViewDeltas 批量读取多篇文章尚未刷入数据库的阅读量增量
+func PendingPostViewDeltas(postIDs []uint) map[uint]uint64 {
+	if len(postIDs) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(postIDs))
+	idByKey := make(map[string]uint, len(postIDs))
+	for _, id := range postIDs {
+		if id == 0 {
+			continue
+		}
+		k := postViewDeltaKey(id)
+		if _, exists := idByKey[k]; exists {
+			continue
+		}
+		idByKey[k] = id
+		keys = append(keys, k)
+	}
+	if len(keys) == 0 {
+		return nil
+	}
+	rawMap, err := sharedstate.Current().GetMany(keys...)
+	if err != nil || len(rawMap) == 0 {
+		return nil
+	}
+	out := make(map[uint]uint64, len(rawMap))
+	for k, raw := range rawMap {
+		n, parseErr := strconv.ParseInt(raw, 10, 64)
+		if parseErr == nil && n > 0 {
+			out[idByKey[k]] = uint64(n)
+		}
+	}
+	return out
+}
+
+// DeletePendingPostViewDelta 文章被删除时顺带清理共享状态中的待刷增量
+func DeletePendingPostViewDelta(postID uint) {
+	if postID == 0 {
+		return
+	}
+	_ = sharedstate.Current().Delete(postViewDeltaKey(postID))
+}
+
+// countPostView 记录了一次新的文章访问（已去重、排除爬虫、疑似自动化与管理员）后在共享状态中原子累加增量；
+// 共享状态故障时降级为直接写库，确保不丢计数
 func countPostView(log *model.VisitLog) {
 	if log.TargetType != constant.TargetTypePost || log.TargetID == 0 || log.Trust == constant.VisitTrustBot {
 		return
 	}
-	if viewBufferEnabled.Load() {
-		pendingViewsMu.Lock()
-		pendingViews[log.TargetID]++
-		pendingViewsMu.Unlock()
-		return
-	}
-	if err := repo.Post.IncreaseViewCount(log.TargetID); err != nil {
-		logrus.Warnf("increase view count of post %d failed: %v", log.TargetID, err)
+	if _, err := sharedstate.Current().Incr(postViewDeltaKey(log.TargetID), postViewDeltaTTL); err != nil {
+		logrus.Warnf("incr view delta of post %d failed, fallback to db: %v", log.TargetID, err)
+		if dbErr := repo.Post.IncreaseViewCount(log.TargetID); dbErr != nil {
+			logrus.Warnf("increase view count of post %d failed: %v", log.TargetID, dbErr)
+		}
 	}
 }
 
@@ -685,7 +769,7 @@ func (s *VisitService) GetInsights(ctx context.Context, req *dto.VisitInsightsRe
 	visitors := map[uint]bool{}
 	agg := newContentInsightAgg()
 	includeAI := req.ShouldIncludeAI()
-	err := repo.Visit.StreamInsightVisits(since, includeAI, func(l *model.VisitLog) {
+	err := repo.Visit.StreamInsightVisitsContext(ctx, since, includeAI, func(l *model.VisitLog) {
 		verdict := l.Trust
 		if verdict == "" {
 			verdict = constant.VisitTrustUnknown
@@ -752,10 +836,10 @@ func (s *VisitService) GetInsights(ctx context.Context, req *dto.VisitInsightsRe
 	for id := range visitors {
 		visitorIDs = append(visitorIDs, id)
 	}
-	if err := fillContentInsights(result, agg, visitorIDs, since, includeAI); err != nil {
+	if err := fillContentInsights(ctx, result, agg, visitorIDs, since, includeAI); err != nil {
 		return nil, errs.NewInternalServer("failed_to_get_target")
 	}
-	if err := fillVitalInsights(result, since, includeAI); err != nil {
+	if err := fillVitalInsights(ctx, result, since, includeAI); err != nil {
 		return nil, errs.NewInternalServer("failed_to_get_target")
 	}
 	return result, nil
@@ -777,7 +861,7 @@ func (s *VisitService) GetVisitor(ctx context.Context, id uint) (*dto.VisitorDto
 func (s *VisitService) GetStats(ctx context.Context, req *dto.VisitStatsReq) (*dto.VisitStatsDto, *errs.ServiceError) {
 	now := time.Now()
 	midnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	stats, err := repo.Visit.CountVisitStats(midnight, req.ShouldIncludeAI())
+	stats, err := repo.Visit.CountVisitStatsContext(ctx, midnight, req.ShouldIncludeAI())
 	if err != nil {
 		return nil, errs.NewInternalServer("failed_to_get_target")
 	}

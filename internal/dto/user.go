@@ -6,6 +6,23 @@ import (
 	"github.com/snowykami/neo-blog/pkg/constant"
 )
 
+// PublicUserDto 对外公开的用户信息结构（物理不含邮箱、注册时间、禁用状态等私密字段）
+type PublicUserDto struct {
+	ID             uint          `json:"id"`
+	Username       string        `json:"username"`
+	Nickname       string        `json:"nickname"`
+	AvatarUrl      string        `json:"avatar_url"`
+	BackgroundUrl  string        `json:"background_url"`
+	PreferredColor string        `json:"preferred_color"`
+	GravatarHash   string        `json:"gravatar_hash,omitempty"`
+	Gender         string        `json:"gender"`
+	Role           constant.Role `json:"role"`
+	Language       string        `json:"language"`
+	ShowIPLocation *bool         `json:"show_ip_location"`
+	ShowLikes      *bool         `json:"show_likes"`
+	ShowLocalTime  *bool         `json:"show_local_time"`
+}
+
 type UserDto struct {
 	ID             uint            `json:"id"`       // 用户ID
 	Username       string          `json:"username"` // 用户名

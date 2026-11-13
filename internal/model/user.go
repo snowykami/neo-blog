@@ -34,6 +34,25 @@ type User struct {
 	NotificationPrefs string `gorm:"type:text;default:''"`
 }
 
+// ToPublicDto 公开的用户信息（物理不含邮箱等隐私字段，供文章协作者等公开嵌套场景使用）
+func (user *User) ToPublicDto() dto.PublicUserDto {
+	return dto.PublicUserDto{
+		ID:             user.ID,
+		Username:       user.Username,
+		Nickname:       user.Nickname,
+		AvatarUrl:      user.AvatarUrl,
+		BackgroundUrl:  user.BackgroundUrl,
+		PreferredColor: user.PreferredColor,
+		Gender:         user.Gender,
+		Role:           user.Role,
+		Language:       user.Language,
+		ShowIPLocation: user.ShowIPLocation,
+		ShowLikes:      user.ShowLikes,
+		ShowLocalTime:  user.ShowLocalTime,
+		GravatarHash:   gravatarHash(user.Email),
+	}
+}
+
 // ToDto 公开的用户信息，不包含邮箱等隐私字段
 func (user *User) ToDto() dto.UserDto {
 	return dto.UserDto{

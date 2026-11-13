@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"math"
 	"net/url"
 	"sort"
@@ -87,8 +88,8 @@ func (a *contentInsightAgg) observe(l *model.VisitLog) {
 }
 
 // fillContentInsights 访客统计中的内容部分：新老访客、阅读参与度、文章表现、站内路径、外链与下载（均不含疑似自动化）
-func fillContentInsights(result *dto.VisitInsightsDto, agg *contentInsightAgg, visitorIDs []uint, since time.Time, includeAI bool) error {
-	newVisitors, err := repo.Visit.CountVisitorsFirstSeenSince(visitorIDs, since)
+func fillContentInsights(ctx context.Context, result *dto.VisitInsightsDto, agg *contentInsightAgg, visitorIDs []uint, since time.Time, includeAI bool) error {
+	newVisitors, err := repo.Visit.CountVisitorsFirstSeenSinceContext(ctx, visitorIDs, since)
 	if err != nil {
 		return err
 	}
@@ -134,7 +135,7 @@ func fillContentInsights(result *dto.VisitInsightsDto, agg *contentInsightAgg, v
 	if err != nil {
 		return err
 	}
-	interactions, err := repo.Visit.CountPostInteractions(since, includeAI)
+	interactions, err := repo.Visit.CountPostInteractionsContext(ctx, since, includeAI)
 	if err != nil {
 		return err
 	}
@@ -186,10 +187,10 @@ func fillContentInsights(result *dto.VisitInsightsDto, agg *contentInsightAgg, v
 	}
 
 	// 外链点击与文件下载
-	if result.Outbound, err = topEventLabels(constant.VisitEventOutbound, since, includeAI); err != nil {
+	if result.Outbound, err = topEventLabels(ctx, constant.VisitEventOutbound, since, includeAI); err != nil {
 		return err
 	}
-	result.Downloads, err = topEventLabels(constant.VisitEventDownload, since, includeAI)
+	result.Downloads, err = topEventLabels(ctx, constant.VisitEventDownload, since, includeAI)
 	return err
 }
 
@@ -214,8 +215,8 @@ func depthBucket(depth int) int {
 	return 4
 }
 
-func topEventLabels(name string, since time.Time, includeAI bool) ([]dto.NamedCount, error) {
-	return repo.Visit.TopEventLabels(name, since, visitInsightsTop, includeAI)
+func topEventLabels(ctx context.Context, name string, since time.Time, includeAI bool) ([]dto.NamedCount, error) {
+	return repo.Visit.TopEventLabelsContext(ctx, name, since, visitInsightsTop, includeAI)
 }
 
 func topCounts(counts map[string]int64, limit int) []dto.NamedCount {
@@ -239,12 +240,12 @@ func percentile75(values []float64) float64 {
 }
 
 // fillVitalInsights Web Vitals：各指标 p75（区分手机与桌面）、评级分布，以及 LCP 最慢的页面
-func fillVitalInsights(result *dto.VisitInsightsDto, since time.Time, includeAI bool) error {
+func fillVitalInsights(ctx context.Context, result *dto.VisitInsightsDto, since time.Time, includeAI bool) error {
 	type group struct{ all, mobile, desktop []float64 }
 	metrics := map[string]*group{}
 	ratings := map[string]map[string]int64{}
 	lcpByPath := map[string][]float64{}
-	err := repo.Visit.StreamVisitEvents(constant.VisitEventWebVital, since, includeAI, func(e *model.VisitEvent) {
+	err := repo.Visit.StreamVisitEventsContext(ctx, constant.VisitEventWebVital, since, includeAI, func(e *model.VisitEvent) {
 		g := metrics[e.Label]
 		if g == nil {
 			g = &group{}

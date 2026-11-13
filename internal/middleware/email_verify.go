@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/snowykami/neo-blog/internal/config"
 	"github.com/snowykami/neo-blog/internal/dto"
-	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/resps"
 	"github.com/snowykami/neo-blog/pkg/utils"
 )
@@ -20,7 +20,7 @@ func UseEmailVerify() app.HandlerFunc {
 			return
 		}
 		// 如果全局关闭，则不允许
-		if !utils.Env.GetAsBool(constant.EnvKeyEnableEmailVerify, true) {
+		if !config.Bool("enable_email_verify") {
 			resps.Forbidden(c, "email_verify_disabled")
 			c.Abort()
 			return

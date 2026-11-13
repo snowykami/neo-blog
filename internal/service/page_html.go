@@ -9,6 +9,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
@@ -19,15 +20,17 @@ import (
 	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
+	"github.com/snowykami/neo-blog/pkg/sharedstate"
 	"github.com/snowykami/neo-blog/pkg/storageprovider"
 	"github.com/snowykami/neo-blog/pkg/utils"
 )
 
 // 版本标识：32 位小写字母与数字（约 165 bit），访问路径凭它找到版本，不可猜测
 const (
-	pageHTMLKeyLength  = 32
-	pageHTMLKeyCharset = "abcdefghijklmnopqrstuvwxyz0123456789"
-	pageHTMLStorageDir = "page-html"
+	pageHTMLKeyLength     = 32
+	pageHTMLKeyCharset    = "abcdefghijklmnopqrstuvwxyz0123456789"
+	pageHTMLStorageDir    = "page-html"
+	pageHTMLUploadLockTTL = 15 * time.Second
 )
 
 // PageHTMLService HTML 页面：管理员上传静态 HTML 包，解压到存储后经后端代理、在沙箱中访问
@@ -76,10 +79,6 @@ func (s *PageHTMLService) Upload(ctx context.Context, in *PageHTMLUploadInput) (
 	if !ok {
 		return nil, errs.NewInternalServer("storage_provider_unavailable")
 	}
-	maxVersion, err := repo.PageHTML.MaxVersion(page.ID)
-	if err != nil {
-		return nil, errs.Internal("failed_to_get_target", err).WithResource("page")
-	}
 
 	key := utils.Strings.GenerateRandomStringWithCharset(pageHTMLKeyLength, pageHTMLKeyCharset)
 	manifest := make(model.PageHTMLFiles, 0, len(bundle.Files))
@@ -94,6 +93,22 @@ func (s *PageHTMLService) Upload(ctx context.Context, in *PageHTMLUploadInput) (
 			return nil, svcerr
 		}
 		manifest = append(manifest, model.PageHTMLFile{Path: f.Path, Size: actualSize})
+	}
+
+	// 跨实例互斥计算版本号并写入版本记录，消除同一页面并发上传版本号冲突（实际锁键为 "lock:page_html:upload:<pageID>"）
+	lockCtx, cancelLock := context.WithTimeout(ctx, pageHTMLUploadLockTTL)
+	defer cancelLock()
+	release, lockErr := sharedstate.Lock(lockCtx, fmt.Sprintf("page_html:upload:%d", page.ID), pageHTMLUploadLockTTL)
+	if lockErr != nil {
+		deleteStoredFiles(ctx, provider, written)
+		return nil, errs.Internal("failed_to_create_target", lockErr).WithResource("page")
+	}
+	defer release()
+
+	maxVersion, err := repo.PageHTML.MaxVersion(page.ID)
+	if err != nil {
+		deleteStoredFiles(ctx, provider, written)
+		return nil, errs.Internal("failed_to_get_target", err).WithResource("page")
 	}
 
 	currentUserID, _ := ctxutils.GetCurrentUserID(ctx)
@@ -156,6 +171,7 @@ func (s *PageHTMLService) UpdateVersion(ctx context.Context, req *dto.UpdatePage
 			return nil, errs.Internal("failed_to_update_target", err).WithResource("page")
 		}
 		version.Entry = entry
+		repo.InvalidatePageCache()
 	}
 	if req.Active != nil && *req.Active {
 		if err := repo.Page.SetHTMLVersion(page.ID, version.ID); err != nil {

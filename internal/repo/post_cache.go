@@ -39,3 +39,8 @@ func InvalidatePostCache() {
 	PostGuestCache.Clear()
 	TouchCacheTags(CacheTagPosts)
 }
+
+// InvalidatePageCache 独立页面或其 HTML 版本变化后调用；同时让前端带 pages 标签的缓存失效（见 cache_tag.go）
+func InvalidatePageCache() {
+	TouchCacheTags(CacheTagPages)
+}

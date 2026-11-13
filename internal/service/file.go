@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/storage"
+	"github.com/snowykami/neo-blog/pkg/cache"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/sharedstate"
@@ -143,4 +145,82 @@ func (f *FileService) SaveFile(ctx context.Context, in *SaveFileInput) (*SavedFi
 	// 始终返回稳定链接（相对路径）：内容中只保存稳定链接，文件换存储、存储改地址或站点换域名时都无需改动内容；
 	// 可直连的存储在接口返回时再改写为直链
 	return &SavedFile{ID: fileModel.ID, Hash: hash, URL: FileLink(fileModel.ID)}, nil
+}
+
+// GetFileCached 按文件 ID 读取带缓存的文件元数据
+func (f *FileService) GetFileCached(fileID uint) (model.File, *errs.ServiceError) {
+	return repo.File.GetByIDCached(fileID)
+}
+
+// DeleteFile 删除单个文件记录并在无其他引用时回收底层物理存储对象
+func (f *FileService) DeleteFile(ctx context.Context, fileID uint) *errs.ServiceError {
+	fileModel, err := repo.File.GetByID(fileID)
+	if err != nil {
+		return errs.FromDB(err, "file", "failed_to_get_target")
+	}
+	if !(ctxutils.IsOwnerOfTarget(ctx, fileModel.UserID) || ctxutils.IsAdmin(ctx)) {
+		return errs.NewForbidden("permission_denied")
+	}
+	provider, ok := storage.GetStorageProvider(fileModel.ProviderID)
+	if !ok {
+		return errs.NewBadRequest("storage_provider_not_found")
+	}
+	if err := f.deleteFileRecordAndBlob(ctx, provider, &fileModel); err != nil {
+		return errs.Internal("failed_to_delete_target", err).WithResource("file")
+	}
+	cache.EvictFile(fileID)
+	logrus.Debugf("文件已从缓存中删除, fileId: %d", fileID)
+	return nil
+}
+
+// BatchDeleteFiles 批量校验权限并删除文件记录及无引用物理存储对象
+func (f *FileService) BatchDeleteFiles(ctx context.Context, ids []uint) *errs.ServiceError {
+	for _, id := range ids {
+		fileModel, err := repo.File.GetByID(id)
+		if err != nil {
+			logrus.Error("获取文件信息失败，跳过: ", err)
+			continue
+		}
+		if !(ctxutils.IsOwnerOfTarget(ctx, fileModel.UserID) || ctxutils.IsAdmin(ctx)) {
+			return errs.NewForbidden("permission_denied")
+		}
+	}
+	for _, id := range ids {
+		fileModel, err := repo.File.GetByID(id)
+		if err != nil {
+			logrus.Error("获取文件信息失败: ", err)
+			continue
+		}
+		provider, ok := storage.GetStorageProvider(fileModel.ProviderID)
+		if !ok {
+			return errs.NewBadRequest("storage_provider_not_found")
+		}
+		if err := f.deleteFileRecordAndBlob(ctx, provider, &fileModel); err != nil {
+			logrus.Error("删除文件失败: ", err)
+			continue
+		}
+		cache.EvictFile(id)
+		logrus.Debugf("文件已从缓存中删除, fileId: %d", id)
+	}
+	return nil
+}
+
+// deleteFileRecordAndBlob 在对象锁保护下删除文件记录并在无其他引用时回收底层存储对象
+func (f *FileService) deleteFileRecordAndBlob(ctx context.Context, provider storageprovider.StorageProvider, fileModel *model.File) error {
+	unlock, err := LockFileBlob(ctx, fileModel.ProviderID, fileModel.Hash)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	if err := repo.File.DeleteByID(fileModel.ID); err != nil {
+		return err
+	}
+	count, err := repo.File.CountFilesByHash(fileModel.Hash, fileModel.ProviderID)
+	if err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+	return provider.Delete(ctx, filepath.Join(utils.FilePath(fileModel.Hash)))
 }

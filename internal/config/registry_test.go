@@ -4,14 +4,18 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"sync"
 	"testing"
 
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/pkg/constant"
+	"github.com/snowykami/neo-blog/pkg/sharedstate"
 )
 
 func setupDB(t *testing.T) {
 	t.Helper()
+	sharedstate.UseMemory()
+	t.Cleanup(sharedstate.UseMemory)
 	t.Setenv(constant.EnvKeyDBDriver, "sqlite")
 	t.Setenv(constant.EnvKeyDBURL, "")
 	t.Setenv(constant.EnvKeyDBPath, filepath.Join(t.TempDir(), "test.db"))
@@ -255,5 +259,67 @@ func TestGetSchema(t *testing.T) {
 				t.Fatalf("email_password secret leaked or missing boolean markers: %+v", view)
 			}
 		}
+	}
+}
+
+// 同一聚合键 site_info 下不同子字段并发 Save 时通过跨实例锁串行化，不发生 Lost Update 互相覆盖
+func TestSaveConcurrentSiteInfoNoLostUpdate(t *testing.T) {
+	setupDB(t)
+
+	updates := []Change{
+		{Key: "site_name", Value: "ConcurrentSite"},
+		{Key: "site_description", Value: "ConcurrentDescription"},
+		{Key: "owner_name", Value: "ConcurrentOwner"},
+		{Key: "owner_description", Value: "ConcurrentBio"},
+		{Key: "footer_text", Value: "ConcurrentFooter"},
+		{Key: "copyright", Value: "ConcurrentCopyright"},
+		{Key: "posts_per_page", Value: 24},
+		{Key: "page_background_blur", Value: 12},
+	}
+
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	errsCh := make(chan error, len(updates))
+	for _, item := range updates {
+		ch := item
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			if svcerr := Save([]Change{ch}); svcerr != nil {
+				errsCh <- svcerr
+			}
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(errsCh)
+	for err := range errsCh {
+		t.Fatalf("concurrent Save failed: %v", err)
+	}
+
+	if got := String("site_name"); got != "ConcurrentSite" {
+		t.Fatalf("site_name lost update: got %q", got)
+	}
+	if got := String("site_description"); got != "ConcurrentDescription" {
+		t.Fatalf("site_description lost update: got %q", got)
+	}
+	if got := String("owner_name"); got != "ConcurrentOwner" {
+		t.Fatalf("owner_name lost update: got %q", got)
+	}
+	if got := String("owner_description"); got != "ConcurrentBio" {
+		t.Fatalf("owner_description lost update: got %q", got)
+	}
+	if got := String("footer_text"); got != "ConcurrentFooter" {
+		t.Fatalf("footer_text lost update: got %q", got)
+	}
+	if got := String("copyright"); got != "ConcurrentCopyright" {
+		t.Fatalf("copyright lost update: got %q", got)
+	}
+	if got := Int("posts_per_page"); got != 24 {
+		t.Fatalf("posts_per_page lost update: got %d", got)
+	}
+	if got := Int("page_background_blur"); got != 12 {
+		t.Fatalf("page_background_blur lost update: got %d", got)
 	}
 }

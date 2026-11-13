@@ -1,7 +1,7 @@
 package repo
 
 import (
-	"gorm.io/gorm/clause"
+	"context"
 	"strings"
 
 	"github.com/snowykami/neo-blog/internal/dto"
@@ -9,6 +9,7 @@ import (
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type userRepo struct{}
@@ -109,6 +110,11 @@ func (user *userRepo) CheckEmailExists(email string) (bool, error) {
 // SearchUsers 按用户名或昵称搜索可被提及的用户：只返回可用账号，排除自己，完全匹配的排在前面。
 // 关键词按字面匹配（转义 LIKE 通配符），登录用户才能调用，见 UserService.SearchUsers
 func (user *userRepo) SearchUsers(keyword string, excludeID uint, limit int) ([]model.User, error) {
+	return user.SearchUsersContext(context.Background(), keyword, excludeID, limit)
+}
+
+// SearchUsersContext 带超时保护的用户模糊搜索
+func (user *userRepo) SearchUsersContext(ctx context.Context, keyword string, excludeID uint, limit int) ([]model.User, error) {
 	keyword = strings.ToLower(strings.TrimSpace(keyword))
 	if keyword == "" {
 		return []model.User{}, nil
@@ -116,8 +122,10 @@ func (user *userRepo) SearchUsers(keyword string, excludeID uint, limit int) ([]
 	if limit <= 0 || limit > 20 {
 		limit = 10
 	}
+	dbSession, cancel := WithTimeout(ctx, DefaultHeavyQueryTimeout)
+	defer cancel()
 	like := "%" + likeEscaper.Replace(keyword) + "%"
-	query := GetDB().Model(&model.User{}).
+	query := dbSession.Model(&model.User{}).
 		Where("disabled = ?", false).
 		Where("(LOWER(username) LIKE ? ESCAPE '\\' OR LOWER(nickname) LIKE ? ESCAPE '\\')", like, like)
 	if excludeID != 0 {
@@ -160,7 +168,11 @@ func (user *userRepo) ListUsers(req *dto.AdminListUsersReq) ([]model.User, uint6
 		db = db.Where("disabled = ?", true)
 	}
 
-	db = db.Order(orderColumn(AllowedOrderBy(req.OrderBy, constant.OrderByEnumUser, constant.OrderByCreatedAt), req.Desc))
+	col := AllowedOrderBy(req.OrderBy, constant.OrderByEnumUser, constant.OrderByCreatedAt)
+	db = db.Order(orderColumn(col, req.Desc))
+	if col != "id" {
+		db = db.Order(orderColumn("id", req.Desc))
+	}
 
 	// Get total count before applying Limit/Offset
 	if err := db.Count(&total).Error; err != nil {

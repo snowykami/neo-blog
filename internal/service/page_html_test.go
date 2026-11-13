@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/snowykami/neo-blog/internal/dto"
@@ -290,5 +291,94 @@ func TestPageHTMLOrigin(t *testing.T) {
 		if got := IsPageHTMLOriginRequest(r.host, r.forwarded); got != r.want {
 			t.Errorf("IsPageHTMLOriginRequest(%q, %q) = %v, want %v", r.host, r.forwarded, got, r.want)
 		}
+	}
+}
+
+func TestPageHTMLConcurrentUploadAndGuestCacheInvalidation(t *testing.T) {
+	_, admin, _ := setupPageHTMLTest(t)
+	ctx := userCtx(admin)
+	html := model.PageKindHTML
+	pageID, svcerr := NewPageService().CreatePage(ctx, &dto.CreateOrUpdatePageReq{
+		PageBaseDto: dto.PageBaseDto{Title: "ConcurrentDemo", Slug: "concurrent-demo"},
+		Kind:        &html,
+	})
+	if svcerr != nil {
+		t.Fatal(svcerr)
+	}
+
+	const workers = 5
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	versions := make([]int, workers)
+	errs := make([]error, workers)
+	for i := 0; i < workers; i++ {
+		idx := i
+		z := buildZip(t,
+			zipEntry{name: "index.html", content: fmt.Sprintf("<h1>v-%d</h1>", idx)},
+			zipEntry{name: "alt.html", content: fmt.Sprintf("<h1>alt-%d</h1>", idx)},
+		)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			v, sErr := NewPageHTMLService().Upload(ctx, &PageHTMLUploadInput{
+				PageID:   pageID,
+				FileName: "site.zip",
+				Size:     z.Size(),
+				Src:      z,
+			})
+			if sErr != nil {
+				errs[idx] = sErr
+				return
+			}
+			versions[idx] = v.Version
+		}()
+	}
+	close(start)
+	wg.Wait()
+
+	seen := make(map[int]bool, workers)
+	for i := 0; i < workers; i++ {
+		if errs[i] != nil {
+			t.Fatalf("worker %d upload failed: %v", i, errs[i])
+		}
+		if seen[versions[i]] {
+			t.Fatalf("duplicate version number assigned under concurrent upload: %v", versions)
+		}
+		seen[versions[i]] = true
+	}
+	for want := 1; want <= workers; want++ {
+		if !seen[want] {
+			t.Fatalf("missing version %d in assigned versions %v", want, versions)
+		}
+	}
+
+	// 访客缓存预热后，修改当前生效版本的入口文件应立即失效访客缓存并返回新入口
+	guestPage, svcerr := NewPageService().GetPageSlugOrID(context.Background(), "concurrent-demo")
+	if svcerr != nil || guestPage.HTMLBundle == nil || guestPage.HTMLBundle.Entry != "index.html" {
+		t.Fatalf("unexpected guest page before entry update: %+v, err=%v", guestPage, svcerr)
+	}
+	list, svcerr := NewPageHTMLService().ListVersions(ctx, pageID)
+	if svcerr != nil || len(list) == 0 {
+		t.Fatalf("list versions failed: %v", svcerr)
+	}
+	var activeID uint
+	for _, v := range list {
+		if v.Active {
+			activeID = v.ID
+			break
+		}
+	}
+	newEntry := "alt.html"
+	if _, svcerr := NewPageHTMLService().UpdateVersion(ctx, &dto.UpdatePageHTMLVersionReq{
+		PageID:    pageID,
+		VersionID: activeID,
+		Entry:     &newEntry,
+	}); svcerr != nil {
+		t.Fatalf("update entry failed: %v", svcerr)
+	}
+	guestAfter, svcerr := NewPageService().GetPageSlugOrID(context.Background(), "concurrent-demo")
+	if svcerr != nil || guestAfter.HTMLBundle == nil || guestAfter.HTMLBundle.Entry != "alt.html" {
+		t.Fatalf("guest cache was not invalidated after HTML entry update: got %+v, err=%v", guestAfter, svcerr)
 	}
 }

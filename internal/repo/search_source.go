@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"context"
 	"errors"
 	"slices"
 
@@ -145,9 +146,13 @@ func ListPagesByIDsForList(ids []uint, noContent bool) ([]model.Page, error) {
 
 // publicCommentsQuery 严格双重公开校验：评论本身公开，且所属宿主（文章或页面）存在、未软删除且公开
 func publicCommentsQuery() *gorm.DB {
-	publicPostIDs := GetDB().Model(&model.Post{}).Select("id").Where("is_private = ? AND is_draft = ?", false, false)
-	publicPageIDs := GetDB().Model(&model.Page{}).Select("id").Where("is_private = ?", false)
-	return GetDB().Model(&model.Comment{}).
+	return publicCommentsQueryDB(GetDB())
+}
+
+func publicCommentsQueryDB(d *gorm.DB) *gorm.DB {
+	publicPostIDs := d.Model(&model.Post{}).Select("id").Where("is_private = ? AND is_draft = ?", false, false)
+	publicPageIDs := d.Model(&model.Page{}).Select("id").Where("is_private = ?", false)
+	return d.Model(&model.Comment{}).
 		Where("comments.is_private = ?", false).
 		Where("((comments.target_type = ? AND comments.target_id IN (?)) OR (comments.target_type = ? AND comments.target_id IN (?)))",
 			constant.TargetTypePost, publicPostIDs,
@@ -155,6 +160,10 @@ func publicCommentsQuery() *gorm.DB {
 }
 
 func attachCommentTargets(comments []model.Comment) ([]PublicCommentWithTarget, error) {
+	return attachCommentTargetsDB(GetDB(), comments)
+}
+
+func attachCommentTargetsDB(d *gorm.DB, comments []model.Comment) ([]PublicCommentWithTarget, error) {
 	if len(comments) == 0 {
 		return []PublicCommentWithTarget{}, nil
 	}
@@ -178,7 +187,7 @@ func attachCommentTargets(comments []model.Comment) ([]PublicCommentWithTarget, 
 	postMap := make(map[uint]targetMeta, len(postIDs))
 	if len(postIDs) > 0 {
 		var posts []model.Post
-		if err := GetDB().Model(&model.Post{}).Select("id", "title", "slug").Where("is_private = ? AND is_draft = ? AND id IN ?", false, false, postIDs).Find(&posts).Error; err != nil {
+		if err := d.Model(&model.Post{}).Select("id", "title", "slug").Where("is_private = ? AND is_draft = ? AND id IN ?", false, false, postIDs).Find(&posts).Error; err != nil {
 			return nil, err
 		}
 		for i := range posts {
@@ -188,7 +197,7 @@ func attachCommentTargets(comments []model.Comment) ([]PublicCommentWithTarget, 
 	pageMap := make(map[uint]targetMeta, len(pageIDs))
 	if len(pageIDs) > 0 {
 		var pages []model.Page
-		if err := GetDB().Model(&model.Page{}).Select("id", "title", "slug").Where("is_private = ? AND id IN ?", false, pageIDs).Find(&pages).Error; err != nil {
+		if err := d.Model(&model.Page{}).Select("id", "title", "slug").Where("is_private = ? AND id IN ?", false, pageIDs).Find(&pages).Error; err != nil {
 			return nil, err
 		}
 		for i := range pages {
@@ -294,12 +303,19 @@ func ListPublicCommentsByIDs(ids []uint) ([]PublicCommentWithTarget, error) {
 
 // SearchPublicCommentsDB 数据库兜底的公开评论搜索（未开启 Meilisearch 时供全站聚合搜索回退使用）
 func SearchPublicCommentsDB(keyword string, limit int) ([]PublicCommentWithTarget, error) {
+	return SearchPublicCommentsDBContext(context.Background(), keyword, limit)
+}
+
+// SearchPublicCommentsDBContext 带上下文与慢查询超时保护的公开评论搜索
+func SearchPublicCommentsDBContext(ctx context.Context, keyword string, limit int) ([]PublicCommentWithTarget, error) {
 	if keyword == "" || limit <= 0 {
 		return []PublicCommentWithTarget{}, nil
 	}
+	dbSession, cancel := WithTimeout(ctx, DefaultHeavyQueryTimeout)
+	defer cancel()
 	like := "%" + likeEscaper.Replace(keyword) + "%"
 	var comments []model.Comment
-	err := publicCommentsQuery().
+	err := publicCommentsQueryDB(dbSession).
 		Preload("User").
 		Joins("LEFT JOIN users ON users.id = comments.user_id AND users.deleted_at IS NULL").
 		Where("(comments.content LIKE ? ESCAPE '\\' OR users.username LIKE ? ESCAPE '\\' OR users.nickname LIKE ? ESCAPE '\\')", like, like, like).
@@ -309,7 +325,7 @@ func SearchPublicCommentsDB(keyword string, limit int) ([]PublicCommentWithTarge
 	if err != nil {
 		return nil, err
 	}
-	return attachCommentTargets(comments)
+	return attachCommentTargetsDB(dbSession, comments)
 }
 
 // ListActiveUsersAfter 按主键游标分批读取未禁用用户（供候选用户索引构建）
@@ -377,15 +393,22 @@ func ListActiveUsersByIDs(ids []uint) ([]model.User, error) {
 
 // SearchPublicCreatorsDB 数据库兜底的创作者用户搜索（未登录访客在聚合搜索中只看管理员/编辑或发过公开文章的作者）
 func SearchPublicCreatorsDB(keyword string, includeAllActive bool, excludeID uint, limit int) ([]model.User, error) {
+	return SearchPublicCreatorsDBContext(context.Background(), keyword, includeAllActive, excludeID, limit)
+}
+
+// SearchPublicCreatorsDBContext 带上下文与慢查询超时保护的创作者用户搜索
+func SearchPublicCreatorsDBContext(ctx context.Context, keyword string, includeAllActive bool, excludeID uint, limit int) ([]model.User, error) {
 	if keyword == "" || limit <= 0 {
 		return []model.User{}, nil
 	}
 	if includeAllActive {
-		return User.SearchUsers(keyword, excludeID, limit)
+		return User.SearchUsersContext(ctx, keyword, excludeID, limit)
 	}
+	dbSession, cancel := WithTimeout(ctx, DefaultHeavyQueryTimeout)
+	defer cancel()
 	like := "%" + likeEscaper.Replace(keyword) + "%"
-	publicAuthorIDs := GetDB().Model(&model.Post{}).Select("user_id").Where("is_private = ? AND is_draft = ?", false, false)
-	q := GetDB().Model(&model.User{}).
+	publicAuthorIDs := dbSession.Model(&model.Post{}).Select("user_id").Where("is_private = ? AND is_draft = ?", false, false)
+	q := dbSession.Model(&model.User{}).
 		Where("disabled = ?", false).
 		Where("(role IN ? OR id IN (?))", []constant.Role{constant.RoleAdmin, constant.RoleEditor}, publicAuthorIDs).
 		Where("(LOWER(username) LIKE LOWER(?) ESCAPE '\\' OR LOWER(nickname) LIKE LOWER(?) ESCAPE '\\')", like, like)

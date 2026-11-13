@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"context"
 	"time"
 
 	"gorm.io/gorm"
@@ -188,11 +189,17 @@ func (v *visitRepo) ListVisitLogs(req *dto.ListVisitLogReq) ([]model.VisitLog, i
 
 // CountVisitStats 统计指定时间之后的访问量、独立访客数与登录用户访问数，以及累计访客数
 func (v *visitRepo) CountVisitStats(since time.Time, includeAI bool) (*dto.VisitStatsDto, error) {
+	return v.CountVisitStatsContext(context.Background(), since, includeAI)
+}
+
+// CountVisitStatsContext 带上下文与慢查询超时保护的今日访问统计
+func (v *visitRepo) CountVisitStatsContext(ctx context.Context, since time.Time, includeAI bool) (*dto.VisitStatsDto, error) {
 	stats := &dto.VisitStatsDto{}
-	db := GetDB()
+	dbSession, cancel := WithTimeout(ctx, DefaultHeavyQueryTimeout)
+	defer cancel()
 	// 只统计访问，不含点赞、评论等互动记录与疑似自动化
 	visits := func() *gorm.DB {
-		q := HumanVisits(db.Model(&model.VisitLog{}))
+		q := HumanVisits(dbSession.Model(&model.VisitLog{}))
 		if !includeAI {
 			q = excludeAIUsers(q, "visit_logs.user_id")
 		}
@@ -209,7 +216,7 @@ func (v *visitRepo) CountVisitStats(since time.Time, includeAI bool) (*dto.Visit
 		Count(&stats.TodayUserVisits).Error; err != nil {
 		return nil, err
 	}
-	visitorsQ := db.Model(&model.Visitor{})
+	visitorsQ := dbSession.Model(&model.Visitor{})
 	if !includeAI {
 		visitorsQ = excludeAIUsers(visitorsQ, "visitors.user_id")
 	}
@@ -265,7 +272,14 @@ func (v *visitRepo) ListVisitorVisits(visitorID uint, limit int) ([]model.VisitL
 
 // StreamInsightVisits 流式读取指定时间之后的全部访问（含疑似自动化），避免一次性分配大数组
 func (v *visitRepo) StreamInsightVisits(since time.Time, includeAI bool, visit func(*model.VisitLog)) error {
-	q := GetDB().Model(&model.VisitLog{}).
+	return v.StreamInsightVisitsContext(context.Background(), since, includeAI, visit)
+}
+
+// StreamInsightVisitsContext 带上下文与慢查询超时保护的访客统计流式扫描
+func (v *visitRepo) StreamInsightVisitsContext(ctx context.Context, since time.Time, includeAI bool, visit func(*model.VisitLog)) error {
+	dbSession, cancel := WithTimeout(ctx, DefaultHeavyQueryTimeout)
+	defer cancel()
+	q := dbSession.Model(&model.VisitLog{}).
 		Select("visitor_id, created_at, path, target_type, target_id, source, referrer, referrer_host, os, browser, device_type, ip_country, has_signals, time_zone, languages, color_scheme, trust, trust_flags, inferred_country, engaged_ms, scroll_depth").
 		Where("action = ? AND created_at >= ? AND path <> ?", constant.VisitActionVisit, since, "/random")
 	if !includeAI {
@@ -276,10 +290,9 @@ func (v *visitRepo) StreamInsightVisits(since time.Time, includeAI bool, visit f
 		return err
 	}
 	defer rows.Close()
-	db := GetDB()
 	for rows.Next() {
 		var log model.VisitLog
-		if err := db.ScanRows(rows, &log); err != nil {
+		if err := dbSession.ScanRows(rows, &log); err != nil {
 			return err
 		}
 		visit(&log)
@@ -332,8 +345,15 @@ func (v *visitRepo) ListVisitEvents(name string, since time.Time) ([]model.Visit
 
 // TopEventLabels 指定时间之后某类事件按标签聚合的排行（下推到数据库，避免加载全部事件行）
 func (v *visitRepo) TopEventLabels(name string, since time.Time, limit int, includeAI bool) ([]dto.NamedCount, error) {
+	return v.TopEventLabelsContext(context.Background(), name, since, limit, includeAI)
+}
+
+// TopEventLabelsContext 带上下文与慢查询超时保护的事件标签聚合排行
+func (v *visitRepo) TopEventLabelsContext(ctx context.Context, name string, since time.Time, limit int, includeAI bool) ([]dto.NamedCount, error) {
+	dbSession, cancel := WithTimeout(ctx, DefaultHeavyQueryTimeout)
+	defer cancel()
 	items := []dto.NamedCount{}
-	q := GetDB().Model(&model.VisitEvent{}).
+	q := dbSession.Model(&model.VisitEvent{}).
 		Select("label AS name, COUNT(*) AS count").
 		Where("name = ? AND created_at >= ? AND label <> ''", name, since)
 	if !includeAI {
@@ -350,7 +370,14 @@ func (v *visitRepo) TopEventLabels(name string, since time.Time, limit int, incl
 
 // StreamVisitEvents 流式扫描指定时间之后的某类事件（只读统计所需列）
 func (v *visitRepo) StreamVisitEvents(name string, since time.Time, includeAI bool, visit func(*model.VisitEvent)) error {
-	q := GetDB().Model(&model.VisitEvent{}).
+	return v.StreamVisitEventsContext(context.Background(), name, since, includeAI, visit)
+}
+
+// StreamVisitEventsContext 带上下文与慢查询超时保护的事件流式扫描
+func (v *visitRepo) StreamVisitEventsContext(ctx context.Context, name string, since time.Time, includeAI bool, visit func(*model.VisitEvent)) error {
+	dbSession, cancel := WithTimeout(ctx, DefaultHeavyQueryTimeout)
+	defer cancel()
+	q := dbSession.Model(&model.VisitEvent{}).
 		Select("label, value, rating, device_type, path").
 		Where("name = ? AND created_at >= ?", name, since)
 	if !includeAI {
@@ -361,10 +388,9 @@ func (v *visitRepo) StreamVisitEvents(name string, since time.Time, includeAI bo
 		return err
 	}
 	defer rows.Close()
-	db := GetDB()
 	for rows.Next() {
 		var ev model.VisitEvent
-		if err := db.ScanRows(rows, &ev); err != nil {
+		if err := dbSession.ScanRows(rows, &ev); err != nil {
 			return err
 		}
 		visit(&ev)
@@ -374,11 +400,18 @@ func (v *visitRepo) StreamVisitEvents(name string, since time.Time, includeAI bo
 
 // CountVisitorsFirstSeenSince 访客中首次访问在指定时间之后的人数
 func (v *visitRepo) CountVisitorsFirstSeenSince(ids []uint, since time.Time) (int64, error) {
+	return v.CountVisitorsFirstSeenSinceContext(context.Background(), ids, since)
+}
+
+// CountVisitorsFirstSeenSinceContext 带上下文与慢查询超时保护的新访客统计
+func (v *visitRepo) CountVisitorsFirstSeenSinceContext(ctx context.Context, ids []uint, since time.Time) (int64, error) {
+	dbSession, cancel := WithTimeout(ctx, DefaultHeavyQueryTimeout)
+	defer cancel()
 	var total int64
 	for start := 0; start < len(ids); start += 500 {
 		var n int64
 		end := min(start+500, len(ids))
-		if err := GetDB().Model(&model.Visitor{}).Where("id IN ? AND created_at >= ?", ids[start:end], since).Count(&n).Error; err != nil {
+		if err := dbSession.Model(&model.Visitor{}).Where("id IN ? AND created_at >= ?", ids[start:end], since).Count(&n).Error; err != nil {
 			return 0, err
 		}
 		total += n
@@ -395,8 +428,15 @@ type PostInteraction struct {
 
 // CountPostInteractions 指定时间之后对文章的点赞与评论（不含对评论的点赞和回复）
 func (v *visitRepo) CountPostInteractions(since time.Time, includeAI bool) ([]PostInteraction, error) {
+	return v.CountPostInteractionsContext(context.Background(), since, includeAI)
+}
+
+// CountPostInteractionsContext 带上下文与慢查询超时保护的文章互动统计
+func (v *visitRepo) CountPostInteractionsContext(ctx context.Context, since time.Time, includeAI bool) ([]PostInteraction, error) {
+	dbSession, cancel := WithTimeout(ctx, DefaultHeavyQueryTimeout)
+	defer cancel()
 	var rows []PostInteraction
-	q := GetDB().Model(&model.VisitLog{}).Select("target_id, action, COUNT(*) AS count").
+	q := dbSession.Model(&model.VisitLog{}).Select("target_id, action, COUNT(*) AS count").
 		Where("action IN ? AND target_type = ? AND created_at >= ?", []string{constant.VisitActionLike, constant.VisitActionComment}, constant.TargetTypePost, since)
 	if !includeAI {
 		q = excludeAIUsers(q, "visit_logs.user_id")

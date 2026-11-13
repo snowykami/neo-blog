@@ -84,6 +84,27 @@ func DeleteStorageProvider(id uint) *errs.ServiceError {
 	return repo.File.DeleteStorageProvider(id)
 }
 
+// CreateStorageProvider 创建存储提供者配置记录
+func CreateStorageProvider(next *model.StorageProviderModelAndDto) *errs.ServiceError {
+	return repo.File.CreateStorageProvider(next)
+}
+
+// ListStorageProviders 列出所有已脱敏的存储提供者及各存储的引用统计
+func ListStorageProviders() ([]model.StorageProviderModelAndDto, any, *errs.ServiceError) {
+	providers, err := repo.File.ListStorageProviders()
+	if err != nil {
+		return nil, nil, errs.Internal("failed_to_get_target", err).WithResource("storage_provider")
+	}
+	for i := range providers {
+		providers[i].SanitizeSecrets()
+	}
+	usage, svcerr := ListStorageProviderUsage()
+	if svcerr != nil {
+		return nil, nil, svcerr
+	}
+	return providers, usage, nil
+}
+
 // ListStorageProviderUsage 各存储提供者存放的文件数、字节数与 HTML 页面版本数
 func ListStorageProviderUsage() (map[uint]repo.StorageProviderUsage, *errs.ServiceError) {
 	usage, err := repo.File.ListProviderUsage()

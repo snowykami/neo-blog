@@ -147,6 +147,7 @@ var sections = []*Section{
 	{Tab: "account", Key: "account", Title: "section_account", Items: []*Item{
 		{Key: "enable_register", Type: TypeBool, Label: "enable_register", Description: "enable_register_desc", Default: false, Env: constant.EnvKeyEnableRegister},
 		{Key: "enable_register_from_oidc", Type: TypeBool, Label: "enable_register_from_oidc", Description: "enable_register_from_oidc_desc", Default: true, Env: constant.EnvKeyEnableRegisterFromOidc},
+		{Key: "enable_email_verify", Type: TypeBool, Label: "enable_email_verify", Description: "enable_email_verify_desc", Default: true, Env: constant.EnvKeyEnableEmailVerify},
 		{Key: "verify_code_cool_down", Type: TypeInt, Label: "verify_code_cool_down", Description: "seconds", Min: num(10), Max: num(3600), Default: 60, siteInfoPath: path("verify_code_cool_down")},
 	}},
 	{Tab: "account", Key: "token", Title: "section_token", Description: "section_token_desc", Items: []*Item{

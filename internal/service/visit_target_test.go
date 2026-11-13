@@ -47,6 +47,10 @@ func TestVisitReportTargetVisibility(t *testing.T) {
 			t.Errorf("%s target = %s %d, want other", path, log.TargetType, log.TargetID)
 		}
 	}
+	if stats, svcerr := NewPostService().GetPublicPostStats(publicID); svcerr != nil || stats.ViewCount != 1 {
+		t.Errorf("public live view count = %v (err=%v), want 1", stats, svcerr)
+	}
+	FlushPostViewCounts()
 	if got := reloadPost(t, publicID).ViewCount; got != 1 {
 		t.Errorf("public view count = %d, want 1", got)
 	}

@@ -64,26 +64,12 @@ const (
 )
 
 var (
-	errLinkPreviewBlockedAddr = errors.New("blocked link preview address")
-
-	// 常见代理软件（Clash / Mihomo / Surge / Sing-box 等）使用的 Fake-IP 段：不含云厂商元数据与常规局域网地址
-	fakeIPv4Prefix = netip.MustParsePrefix("198.18.0.0/15")
-	fakeIPv6Prefix = netip.MustParsePrefix("fc00::/18")
-
-	// 补充排除的特殊 IPv6 / 文档地址段
-	extraBlockedPrefixes = []netip.Prefix{
-		netip.MustParsePrefix("192.0.2.0/24"),    // TEST-NET-1
-		netip.MustParsePrefix("198.51.100.0/24"), // TEST-NET-2
-		netip.MustParsePrefix("203.0.113.0/24"),  // TEST-NET-3
-		netip.MustParsePrefix("100::/64"),        // 丢弃前缀
-		netip.MustParsePrefix("2001::/32"),       // Teredo
-		netip.MustParsePrefix("2001:db8::/32"),   // 文档地址
-	}
+	errLinkPreviewBlockedAddr = utils.ErrBlockedAddress
 
 	acceptLangTagPattern = regexp.MustCompile(`^[a-zA-Z]{2,3}(?:-[a-zA-Z0-9]{2,8})*$`)
 	headEndPattern       = regexp.MustCompile(`(?i)</head\s*>`)
 
-	// 测试中可替换 DNS 解析、拨号器、RoundTripper 与本机私网开关
+	// 测试中可替换 DNS 解析、拨号器、RoundTripper 与本机私网开关（底层统一委托给 utils.NewSafeTransport）
 	linkPreviewAllowPrivate = false
 	linkPreviewLookupNetIP  = func(ctx context.Context, host string) ([]netip.Addr, error) {
 		return net.DefaultResolver.LookupNetIP(ctx, "ip", host)
@@ -115,24 +101,9 @@ func NewLinkPreviewService() *LinkPreviewService {
 	return LinkPreview
 }
 
-// IsLinkPreviewAllowedAddr 判断目标 IP 是否允许外链预览连接：允许公网地址及常见代理 Fake-IP 段，拦截回环、私网与云元数据地址
+// IsLinkPreviewAllowedAddr 判断目标 IP 是否允许外链预览连接：复用 safefetch 的公网 + Fake-IP 判断
 func IsLinkPreviewAllowedAddr(addr netip.Addr) bool {
-	addr = addr.Unmap()
-	if !addr.IsValid() {
-		return false
-	}
-	if fakeIPv4Prefix.Contains(addr) || fakeIPv6Prefix.Contains(addr) {
-		return true
-	}
-	if !utils.IsPublicAddr(addr) {
-		return false
-	}
-	for _, prefix := range extraBlockedPrefixes {
-		if prefix.Contains(addr) {
-			return false
-		}
-	}
-	return true
+	return utils.IsPublicOrFakeIPAddr(addr)
 }
 
 // NormalizeLinkPreviewURL 校验并规范化外链地址，使正文 HTML 提取结果与浏览器传入的 href 一致
@@ -145,25 +116,11 @@ func NormalizeLinkPreviewURL(raw string) (string, *url.URL, error) {
 	if err != nil {
 		return "", nil, errLinkPreviewBlockedAddr
 	}
+	if err := utils.CheckSafeURL(u, linkPreviewAllowPrivate || utils.SafeFetchAllowPrivate, IsLinkPreviewAllowedAddr); err != nil {
+		return "", nil, errLinkPreviewBlockedAddr
+	}
 	scheme := strings.ToLower(u.Scheme)
-	if !(scheme == "http" || scheme == "https") {
-		return "", nil, errLinkPreviewBlockedAddr
-	}
-	if u.User != nil {
-		return "", nil, errLinkPreviewBlockedAddr
-	}
 	host := strings.ToLower(strings.TrimSpace(u.Hostname()))
-	if host == "" {
-		return "", nil, errLinkPreviewBlockedAddr
-	}
-	if !(linkPreviewAllowPrivate || utils.SafeFetchAllowPrivate) {
-		if host == "localhost" || strings.HasSuffix(host, ".localhost") {
-			return "", nil, errLinkPreviewBlockedAddr
-		}
-		if ip, err := netip.ParseAddr(host); err == nil && !IsLinkPreviewAllowedAddr(ip) {
-			return "", nil, errLinkPreviewBlockedAddr
-		}
-	}
 
 	u.Scheme = scheme
 	port := u.Port()
@@ -515,64 +472,29 @@ func resolvePreviewFetchURL(u *url.URL) *url.URL {
 	return u
 }
 
-func linkPreviewDialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	host, port, err := net.SplitHostPort(address)
-	if err != nil {
-		return nil, err
-	}
-	var resolved []netip.Addr
-	if ip, parseErr := netip.ParseAddr(host); parseErr == nil {
-		resolved = []netip.Addr{ip}
-	} else {
-		resolved, err = linkPreviewLookupNetIP(ctx, host)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// 过滤掉不可访问的私网/保留地址，双栈域名中若 IPv6 为保留地址而 IPv4 合法，仍使用合法地址连接；IPv4 优先以避免无 IPv6 出口的容器超时
-	v4 := make([]netip.Addr, 0, len(resolved))
-	v6 := make([]netip.Addr, 0, len(resolved))
-	allowPrivate := linkPreviewAllowPrivate || utils.SafeFetchAllowPrivate
-	for _, addr := range resolved {
-		unmapped := addr.Unmap()
-		if !(allowPrivate || IsLinkPreviewAllowedAddr(unmapped)) {
-			continue
-		}
-		if unmapped.Is4() {
-			v4 = append(v4, unmapped)
-		} else {
-			v6 = append(v6, unmapped)
-		}
-	}
-	candidates := append(v4, v6...)
-	if len(candidates) == 0 {
-		return nil, errLinkPreviewBlockedAddr
-	}
-
-	var lastErr error
-	for _, addr := range candidates {
-		conn, dialErr := linkPreviewDial(ctx, network, net.JoinHostPort(addr.String(), port))
-		if dialErr == nil {
-			return conn, nil
-		}
-		lastErr = dialErr
-		if ctx.Err() != nil {
-			break
-		}
-	}
-	return nil, lastErr
+var linkPreviewSafeDialOpts = utils.SafeDialOptions{
+	DialTimeout:  linkPreviewDialTimeout,
+	AllowAnyPort: true,
+	AllowPrivate: func() bool { return linkPreviewAllowPrivate },
+	AllowAddr:    IsLinkPreviewAllowedAddr,
+	LookupNetIP: func(ctx context.Context, host string) ([]netip.Addr, error) {
+		return linkPreviewLookupNetIP(ctx, host)
+	},
+	Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+		return linkPreviewDial(ctx, network, address)
+	},
 }
 
-var linkPreviewTransport = &http.Transport{
-	Proxy:                 nil,
-	DialContext:           linkPreviewDialContext,
+var linkPreviewDialContext = utils.NewSafeDialContext(linkPreviewSafeDialOpts)
+
+var linkPreviewTransport = utils.NewSafeTransport(utils.SafeTransportOptions{
+	SafeDialOptions:       linkPreviewSafeDialOpts,
 	TLSHandshakeTimeout:   5 * time.Second,
 	ResponseHeaderTimeout: 8 * time.Second,
 	MaxIdleConns:          32,
 	MaxIdleConnsPerHost:   4,
 	IdleConnTimeout:       30 * time.Second,
-}
+})
 
 var linkPreviewRoundTripper http.RoundTripper = linkPreviewTransport
 

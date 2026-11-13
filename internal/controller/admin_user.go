@@ -2,12 +2,14 @@ package v1
 
 import (
 	"context"
+	"slices"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/service"
+	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/resps"
 )
 
@@ -15,6 +17,10 @@ func (cc *AdminController) ListUsers(ctx context.Context, c *app.RequestContext)
 	req := &dto.AdminListUsersReq{}
 	if err := c.BindAndValidate(req); err != nil {
 		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	if req.OrderBy != "" && !slices.Contains(constant.OrderByEnumUser, req.OrderBy) {
+		resps.BadRequest(c, "invalid_order_by")
 		return
 	}
 	users, total, svcerr := service.NewAdminUserService().ListUsers(ctx, req)

@@ -19,7 +19,6 @@ import (
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
-	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/service"
 	"github.com/snowykami/neo-blog/internal/storage"
 	"github.com/snowykami/neo-blog/internal/tasks"
@@ -27,7 +26,6 @@ import (
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/resps"
-	"github.com/snowykami/neo-blog/pkg/storageprovider"
 	"github.com/snowykami/neo-blog/pkg/utils"
 )
 
@@ -169,7 +167,7 @@ func (f *FileController) UploadFileStream(ctx context.Context, c *app.RequestCon
 func (f *FileController) GetFile(ctx context.Context, c *app.RequestContext) {
 	fileId := ctxutils.GetIDParam(c).Uint
 	fileName := c.Param("filename") // 此处的filename是请求时传入的文件名，可以整治浏览器直接访问时响应id作为文件名的情况
-	fileModel, svcerr := repo.File.GetByIDCached(fileId)
+	fileModel, svcerr := service.NewFileService().GetFileCached(fileId)
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return
@@ -323,29 +321,10 @@ func (f *FileController) ListFiles(ctx context.Context, c *app.RequestContext) {
 
 func (f *FileController) DeleteFile(ctx context.Context, c *app.RequestContext) {
 	fileId := ctxutils.GetIDParam(c).Uint
-	fileModel, err := repo.File.GetByID(fileId)
-	if err != nil {
-		resps.Error(c, errs.FromDB(err, "file", "failed_to_get_target"))
+	if svcerr := service.NewFileService().DeleteFile(ctx, fileId); svcerr != nil {
+		resps.Error(c, svcerr)
 		return
 	}
-	// 只有文件所有者或管理员可以删除文件
-	if !(ctxutils.IsOwnerOfTarget(ctx, fileModel.UserID) || ctxutils.IsAdmin(ctx)) {
-		resps.Forbidden(c, resps.ErrForbidden)
-		return
-	}
-	provider, ok := storage.GetStorageProvider(fileModel.ProviderID)
-	if !ok {
-		resps.BadRequest(c, "storage_provider_not_found")
-		return
-	}
-	if err := f.deleteFileRecordAndBlob(ctx, provider, &fileModel); err != nil {
-		resps.Error(c, errs.Internal("failed_to_delete_target", err).WithResource("file"))
-		return
-	}
-	// 从缓存中删除文件
-	cache.EvictFile(fileId)
-	logrus.Debugf("文件已从缓存中删除, fileId: %d", fileId)
-
 	resps.Ok(c, "文件删除成功", nil)
 }
 
@@ -359,8 +338,7 @@ func (f *FileController) CreateStorageProvider(ctx context.Context, c *app.Reque
 		resps.BadRequest(c, "invalid_storage_provider")
 		return
 	}
-	svcerr := repo.File.CreateStorageProvider(&req)
-	if svcerr != nil {
+	if svcerr := service.CreateStorageProvider(&req); svcerr != nil {
 		resps.Error(c, svcerr)
 		return
 	}
@@ -429,54 +407,15 @@ func (f *FileController) BatchDeleteFiles(ctx context.Context, c *app.RequestCon
 		idUints = append(idUints, uint(id))
 	}
 
-	// 权限判断
-	for _, id := range idUints {
-		fileModel, err := repo.File.GetByID(id)
-		if err != nil {
-			logrus.Error("获取文件信息失败，跳过: ", err)
-			continue
-		}
-		if !(ctxutils.IsOwnerOfTarget(ctx, fileModel.UserID) || ctxutils.IsAdmin(ctx)) {
-			resps.Forbidden(c, resps.ErrForbidden)
-			return
-		}
+	if svcerr := service.NewFileService().BatchDeleteFiles(ctx, idUints); svcerr != nil {
+		resps.Error(c, svcerr)
+		return
 	}
-
-	// 批量删除文件记录和存储中的文件
-	for _, id := range idUints {
-		// 删除数据库记录
-		fileModel, err := repo.File.GetByID(id)
-		if err != nil {
-			logrus.Error("获取文件信息失败: ", err)
-			continue
-		}
-		provider, ok := storage.GetStorageProvider(fileModel.ProviderID)
-		if !ok {
-			resps.BadRequest(c, "storage_provider_not_found")
-			return
-		}
-		if err := f.deleteFileRecordAndBlob(ctx, provider, &fileModel); err != nil {
-			logrus.Error("删除文件失败: ", err)
-			continue
-		}
-		// 从缓存中删除文件
-		cache.EvictFile(id)
-		logrus.Debugf("文件已从缓存中删除, fileId: %d", id)
-	}
-
 	resps.Ok(c, "文件批量删除成功", nil)
 }
 
 func (f *FileController) ListStorageProviders(ctx context.Context, c *app.RequestContext) {
-	providers, err := repo.File.ListStorageProviders()
-	if err != nil {
-		resps.Error(c, errs.Internal("failed_to_get_target", err))
-		return
-	}
-	for i := range providers {
-		providers[i].SanitizeSecrets()
-	}
-	usage, svcerr := service.ListStorageProviderUsage()
+	providers, usage, svcerr := service.ListStorageProviders()
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return
@@ -559,31 +498,6 @@ func parseByteRange(header string, size int64) (start, end int64, ok bool) {
 		}
 	}
 	return start, end, true
-}
-
-// deleteFileRecordAndBlob 在对象锁保护下删除文件记录并在无其他引用时回收底层存储对象
-func (f *FileController) deleteFileRecordAndBlob(ctx context.Context, provider storageprovider.StorageProvider, fileModel *model.File) error {
-	unlock, err := service.LockFileBlob(ctx, fileModel.ProviderID, fileModel.Hash)
-	if err != nil {
-		return err
-	}
-	defer unlock()
-	if err := repo.File.DeleteByID(fileModel.ID); err != nil {
-		return err
-	}
-	return f.deleteObjectIfUnused(ctx, provider, fileModel)
-}
-
-// deleteObjectIfUnused 相同内容的文件共用一个存储对象，没有其他文件记录引用时才删除对象
-func (f *FileController) deleteObjectIfUnused(ctx context.Context, provider storageprovider.StorageProvider, fileModel *model.File) error {
-	count, err := repo.File.CountFilesByHash(fileModel.Hash, fileModel.ProviderID)
-	if err != nil {
-		return err
-	}
-	if count > 0 {
-		return nil
-	}
-	return provider.Delete(ctx, filepath.Join(utils.FilePath(fileModel.Hash)))
 }
 
 // isInlineContentType 只有图片、音视频、PDF 和纯文本允许在浏览器内直接打开，其余一律作为附件下载

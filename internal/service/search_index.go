@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -53,6 +54,11 @@ const (
 	searchReindexPendingKey = "search:reindex:pending"
 	searchReindexLeaseKey   = "search:reindex:lease"
 	searchSettingsKeyPrefix = "search:settings:"
+
+	searchAsyncQueueSize      = 512
+	searchAsyncWorkerCount    = 4
+	searchDropWarnPeriod      = time.Minute
+	searchDefaultDrainTimeout = 5 * time.Second
 )
 
 // searchClientHolder 缓存当前配置对应的 Meilisearch 客户端，配置变更时自动重建
@@ -63,6 +69,304 @@ var searchClientHolder struct {
 	client     *meili.Client
 	transport  http.RoundTripper // 仅测试注入
 	syncInline bool              // 仅测试同步执行增量钩子
+}
+
+func isSearchSyncInline() bool {
+	searchClientHolder.mu.Lock()
+	defer searchClientHolder.mu.Unlock()
+	return searchClientHolder.syncInline
+}
+
+type searchTaskKind uint8
+
+const (
+	searchTaskPost searchTaskKind = iota + 1
+	searchTaskPage
+	searchTaskComment
+	searchTaskFunc
+)
+
+type searchSyncItem struct {
+	kind searchTaskKind
+	id   uint
+	fn   func()
+}
+
+type pendingPostSync struct {
+	syncComments bool
+	authorIDs    []uint
+}
+
+type pendingPageSync struct {
+	syncComments bool
+}
+
+// searchSyncQueue 增量索引更新的有界异步队列 + 固定 Worker 池，支持按资源 ID 去重合并尚未执行的任务
+type searchSyncQueue struct {
+	capacity int
+	workers  int
+	execPost func(postID uint, syncComments bool, authorIDs []uint)
+	execPage func(pageID uint, syncComments bool)
+	execCmt  func(commentID uint)
+
+	mu              sync.Mutex
+	running         bool
+	ch              chan searchSyncItem
+	done            chan struct{}
+	pendingPosts    map[uint]*pendingPostSync
+	pendingPages    map[uint]*pendingPageSync
+	pendingComments map[uint]struct{}
+
+	dropped    atomic.Int64
+	dropWarnAt atomic.Int64
+}
+
+func newSearchSyncQueue(capacity, workers int) *searchSyncQueue {
+	return &searchSyncQueue{
+		capacity: max(capacity, 1),
+		workers:  max(workers, 1),
+		execPost: func(postID uint, syncComments bool, authorIDs []uint) {
+			syncPostNow(postID)
+			if syncComments {
+				syncTargetCommentsNow(constant.TargetTypePost, postID)
+			}
+			for _, uid := range authorIDs {
+				if uid > 0 {
+					syncUserNow(uid)
+				}
+			}
+		},
+		execPage: func(pageID uint, syncComments bool) {
+			syncPageNow(pageID)
+			if syncComments {
+				syncTargetCommentsNow(constant.TargetTypePage, pageID)
+			}
+		},
+		execCmt:         syncCommentNow,
+		pendingPosts:    make(map[uint]*pendingPostSync),
+		pendingPages:    make(map[uint]*pendingPageSync),
+		pendingComments: make(map[uint]struct{}),
+	}
+}
+
+var (
+	defaultSearchQueue = newSearchSyncQueue(searchAsyncQueueSize, searchAsyncWorkerCount)
+	searchBgWG         sync.WaitGroup
+)
+
+func (q *searchSyncQueue) ensureStartedLocked() {
+	if q.running {
+		return
+	}
+	ch := make(chan searchSyncItem, q.capacity)
+	done := make(chan struct{})
+	q.ch = ch
+	q.done = done
+	q.running = true
+
+	var wg sync.WaitGroup
+	wg.Add(q.workers)
+	for range q.workers {
+		go func() {
+			defer wg.Done()
+			q.workerLoop(ch)
+		}()
+	}
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+}
+
+func (q *searchSyncQueue) workerLoop(ch <-chan searchSyncItem) {
+	for item := range ch {
+		q.executeItem(item)
+	}
+}
+
+func (q *searchSyncQueue) executeItem(item searchSyncItem) {
+	defer func() {
+		if r := recover(); r != nil {
+			logrus.Errorf("search async worker panicked: %v\n%s", r, debug.Stack())
+		}
+	}()
+	switch item.kind {
+	case searchTaskPost:
+		q.mu.Lock()
+		p, ok := q.pendingPosts[item.id]
+		delete(q.pendingPosts, item.id)
+		q.mu.Unlock()
+		if ok && p != nil && q.execPost != nil {
+			q.execPost(item.id, p.syncComments, p.authorIDs)
+		}
+	case searchTaskPage:
+		q.mu.Lock()
+		p, ok := q.pendingPages[item.id]
+		delete(q.pendingPages, item.id)
+		q.mu.Unlock()
+		if ok && p != nil && q.execPage != nil {
+			q.execPage(item.id, p.syncComments)
+		}
+	case searchTaskComment:
+		q.mu.Lock()
+		_, ok := q.pendingComments[item.id]
+		delete(q.pendingComments, item.id)
+		q.mu.Unlock()
+		if ok && q.execCmt != nil {
+			q.execCmt(item.id)
+		}
+	case searchTaskFunc:
+		if item.fn != nil {
+			item.fn()
+		}
+	}
+}
+
+func (q *searchSyncQueue) warnDropped() {
+	n := q.dropped.Add(1)
+	now := time.Now().UnixNano()
+	last := q.dropWarnAt.Load()
+	if last == 0 || now-last >= int64(searchDropWarnPeriod) {
+		if q.dropWarnAt.CompareAndSwap(last, now) {
+			total := q.dropped.Swap(0)
+			if total == 0 {
+				total = n
+			}
+			logrus.Warnf("search async sync queue full (cap=%d), dropped %d incremental task(s); periodic reconcile will catch up", q.capacity, total)
+		}
+	}
+}
+
+func (q *searchSyncQueue) enqueuePost(postID, authorID uint, syncComments bool) {
+	if postID == 0 {
+		return
+	}
+	q.mu.Lock()
+	if existing, ok := q.pendingPosts[postID]; ok {
+		existing.syncComments = existing.syncComments || syncComments
+		if authorID > 0 && !slices.Contains(existing.authorIDs, authorID) {
+			existing.authorIDs = append(existing.authorIDs, authorID)
+		}
+		q.mu.Unlock()
+		return
+	}
+	p := &pendingPostSync{syncComments: syncComments}
+	if authorID > 0 {
+		p.authorIDs = []uint{authorID}
+	}
+	q.ensureStartedLocked()
+	select {
+	case q.ch <- searchSyncItem{kind: searchTaskPost, id: postID}:
+		q.pendingPosts[postID] = p
+		q.mu.Unlock()
+	default:
+		q.mu.Unlock()
+		q.warnDropped()
+	}
+}
+
+func (q *searchSyncQueue) enqueuePage(pageID uint, syncComments bool) {
+	if pageID == 0 {
+		return
+	}
+	q.mu.Lock()
+	if existing, ok := q.pendingPages[pageID]; ok {
+		existing.syncComments = existing.syncComments || syncComments
+		q.mu.Unlock()
+		return
+	}
+	q.ensureStartedLocked()
+	select {
+	case q.ch <- searchSyncItem{kind: searchTaskPage, id: pageID}:
+		q.pendingPages[pageID] = &pendingPageSync{syncComments: syncComments}
+		q.mu.Unlock()
+	default:
+		q.mu.Unlock()
+		q.warnDropped()
+	}
+}
+
+func (q *searchSyncQueue) enqueueComment(commentID uint) {
+	if commentID == 0 {
+		return
+	}
+	q.mu.Lock()
+	if _, ok := q.pendingComments[commentID]; ok {
+		q.mu.Unlock()
+		return
+	}
+	q.ensureStartedLocked()
+	select {
+	case q.ch <- searchSyncItem{kind: searchTaskComment, id: commentID}:
+		q.pendingComments[commentID] = struct{}{}
+		q.mu.Unlock()
+	default:
+		q.mu.Unlock()
+		q.warnDropped()
+	}
+}
+
+func (q *searchSyncQueue) enqueueFunc(fn func()) {
+	if fn == nil {
+		return
+	}
+	q.mu.Lock()
+	q.ensureStartedLocked()
+	select {
+	case q.ch <- searchSyncItem{kind: searchTaskFunc, fn: fn}:
+		q.mu.Unlock()
+	default:
+		q.mu.Unlock()
+		q.warnDropped()
+	}
+}
+
+func (q *searchSyncQueue) Shutdown(ctx context.Context) error {
+	q.mu.Lock()
+	if !q.running {
+		q.mu.Unlock()
+		return nil
+	}
+	ch := q.ch
+	done := q.done
+	q.ch = nil
+	q.done = nil
+	q.running = false
+	close(ch)
+	q.mu.Unlock()
+
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// ShutdownSearchIndex 排空并停止搜索异步增量同步队列与后台协程，供优雅停机与测试清理使用
+func ShutdownSearchIndex(ctx context.Context) error {
+	err := defaultSearchQueue.Shutdown(ctx)
+	bgDone := make(chan struct{})
+	go func() {
+		searchBgWG.Wait()
+		close(bgDone)
+	}()
+	select {
+	case <-bgDone:
+		return err
+	case <-ctx.Done():
+		if err != nil {
+			return err
+		}
+		return ctx.Err()
+	}
+}
+
+// StopSearchIndex 以默认超时排空并停止搜索异步索引队列
+func StopSearchIndex() {
+	ctx, cancel := context.WithTimeout(context.Background(), searchDefaultDrainTimeout)
+	defer cancel()
+	_ = ShutdownSearchIndex(ctx)
 }
 
 // activeMeiliClient 返回当前生效配置下的客户端；未开启时返回 (nil, cfg, false)
@@ -86,14 +390,13 @@ func activeMeiliClient(timeout time.Duration) (*meili.Client, tools.MeilisearchC
 }
 
 func runSearchGoroutine(name string, fn func()) {
-	searchClientHolder.mu.Lock()
-	inline := searchClientHolder.syncInline
-	searchClientHolder.mu.Unlock()
-	if inline {
+	if isSearchSyncInline() {
 		fn()
 		return
 	}
+	searchBgWG.Add(1)
 	go func() {
+		defer searchBgWG.Done()
 		defer func() {
 			if r := recover(); r != nil {
 				logrus.Errorf("search background task %s panicked: %v\n%s", name, r, debug.Stack())
@@ -103,11 +406,19 @@ func runSearchGoroutine(name string, fn func()) {
 	}()
 }
 
+func canRunSearchAsync() bool {
+	return repo.GetDB() != nil && tools.GetMeilisearchConfig().Enabled()
+}
+
 func runSearchAsync(fn func()) {
-	if repo.GetDB() == nil || !tools.GetMeilisearchConfig().Enabled() {
+	if !canRunSearchAsync() {
 		return
 	}
-	runSearchGoroutine("incremental_sync", fn)
+	if isSearchSyncInline() {
+		fn()
+		return
+	}
+	defaultSearchQueue.enqueueFunc(fn)
 }
 
 var searchConfigListenOnce sync.Once
@@ -870,47 +1181,60 @@ func syncUserNow(userID uint) {
 	}
 }
 
-// SyncSearchPost 异步同步单篇文章索引（含可见性翻转与作者公开文章标记联动）
+// SyncSearchPost 异步同步单篇文章索引（含可见性翻转与作者公开文章标记联动；按 postID 去重合并待执行请求）
 func SyncSearchPost(postID, authorID uint, syncComments bool) {
-	runSearchAsync(func() {
-		syncPostNow(postID)
-		if syncComments {
-			syncTargetCommentsNow(constant.TargetTypePost, postID)
-		}
-		if authorID > 0 {
-			syncUserNow(authorID)
-		}
-	})
-}
-
-// SyncSearchPostsByIDs 批量异步刷新指定公开文章索引（如分类或标签改名、删除后）
-func SyncSearchPostsByIDs(postIDs []uint) {
-	if len(postIDs) == 0 {
+	if !canRunSearchAsync() || postID == 0 {
 		return
 	}
-	ids := slices.Clone(postIDs)
-	runSearchAsync(func() {
-		for _, id := range ids {
+	if isSearchSyncInline() {
+		var authorIDs []uint
+		if authorID > 0 {
+			authorIDs = []uint{authorID}
+		}
+		defaultSearchQueue.execPost(postID, syncComments, authorIDs)
+		return
+	}
+	defaultSearchQueue.enqueuePost(postID, authorID, syncComments)
+}
+
+// SyncSearchPostsByIDs 批量异步刷新指定公开文章索引（如分类或标签改名、删除后），逐篇按 postID 去重入队
+func SyncSearchPostsByIDs(postIDs []uint) {
+	if !canRunSearchAsync() || len(postIDs) == 0 {
+		return
+	}
+	if isSearchSyncInline() {
+		for _, id := range postIDs {
 			syncPostNow(id)
 		}
-	})
+		return
+	}
+	for _, id := range postIDs {
+		defaultSearchQueue.enqueuePost(id, 0, false)
+	}
 }
 
-// SyncSearchPage 异步同步单个独立页面索引（含评论可见性联动）
+// SyncSearchPage 异步同步单个独立页面索引（含评论可见性联动；按 pageID 去重合并）
 func SyncSearchPage(pageID uint, syncComments bool) {
-	runSearchAsync(func() {
-		syncPageNow(pageID)
-		if syncComments {
-			syncTargetCommentsNow(constant.TargetTypePage, pageID)
-		}
-	})
+	if !canRunSearchAsync() || pageID == 0 {
+		return
+	}
+	if isSearchSyncInline() {
+		defaultSearchQueue.execPage(pageID, syncComments)
+		return
+	}
+	defaultSearchQueue.enqueuePage(pageID, syncComments)
 }
 
-// SyncSearchComment 异步同步单条评论索引
+// SyncSearchComment 异步同步单条评论索引（按 commentID 去重合并）
 func SyncSearchComment(commentID uint) {
-	runSearchAsync(func() {
-		syncCommentNow(commentID)
-	})
+	if !canRunSearchAsync() || commentID == 0 {
+		return
+	}
+	if isSearchSyncInline() {
+		defaultSearchQueue.execCmt(commentID)
+		return
+	}
+	defaultSearchQueue.enqueueComment(commentID)
 }
 
 // DeleteSearchCommentAndReplies 评论删除后（含子回复一并被删）按对账或指定 ID 移除评论索引

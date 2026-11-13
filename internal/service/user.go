@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/sirupsen/logrus"
+	"github.com/snowykami/neo-blog/internal/config"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
@@ -17,6 +18,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
+	"github.com/snowykami/neo-blog/pkg/ipregion"
 	"github.com/snowykami/neo-blog/pkg/sharedstate"
 	"github.com/snowykami/neo-blog/pkg/utils"
 	"gorm.io/gorm"
@@ -52,9 +54,10 @@ const (
 	verifyEmailGlobalLimit = 300 // 全站每小时最多发送验证码次数，防止分布式代理耗尽 SMTP 配额
 )
 
-// EmailVerifyEnabled 是否开启邮箱验证（环境变量 ENABLE_EMAIL_VERIFY，默认开启）：开启时注册、找回密码、改邮箱都要邮箱验证码
+// EmailVerifyEnabled 是否开启邮箱验证（环境变量 ENABLE_EMAIL_VERIFY 优先，其次后台配置 enable_email_verify，默认开启）：
+// 开启时注册、找回密码、改邮箱都要邮箱验证码
 func EmailVerifyEnabled() bool {
-	return utils.Env.GetAsBool(constant.EnvKeyEnableEmailVerify, true)
+	return config.Bool("enable_email_verify")
 }
 
 // UserLogin 用户登录
@@ -607,4 +610,46 @@ func (s *UserService) SearchUsers(ctx context.Context, req *dto.SearchUsersReq) 
 		result = append(result, users[i].ToBriefDto())
 	}
 	return result, nil
+}
+
+// UserLogout 吊销用户当前登录会话
+func (s *UserService) UserLogout(sessionID string) *errs.ServiceError {
+	if sessionID == "" {
+		return nil
+	}
+	if err := repo.Session.RevokeSession(sessionID); err != nil {
+		return errs.Internal("failed_to_delete_target", err).WithResource("session")
+	}
+	return nil
+}
+
+// GetUserLastIPLocation 查询用户最近一次会话的 IP 归属地（仅当用户开启公开 IP 归属地时允许查看）
+func (s *UserService) GetUserLastIPLocation(userID uint) (*utils.IPData, *errs.ServiceError) {
+	user, err := repo.User.GetUserByID(userID)
+	if err != nil {
+		return nil, errs.FromDB(err, "user", "failed_to_get_user")
+	}
+	if user.ShowIPLocation == nil || !*user.ShowIPLocation {
+		return nil, errs.NewForbidden("ip_location_hidden")
+	}
+	session, err := repo.Session.GetLatestSessionByUserID(userID)
+	if err != nil {
+		return nil, errs.FromDB(err, "session", "failed_to_get_target")
+	}
+	reg := ipregion.Lookup(session.LatestIP())
+	ipInfo := &utils.IPData{}
+	if !reg.Reserved {
+		ipInfo.Country = reg.Country
+		ipInfo.CountryCode = reg.CountryCode
+		ipInfo.Province = reg.Province
+		ipInfo.City = reg.City
+		ipInfo.ISP = reg.ISP
+		if ipInfo.Province == ipInfo.Country {
+			ipInfo.Province = ""
+		}
+		if ipInfo.City == ipInfo.Province {
+			ipInfo.City = ""
+		}
+	}
+	return ipInfo, nil
 }

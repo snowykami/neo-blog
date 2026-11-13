@@ -123,6 +123,17 @@ func (k *kvRepo) resetCache() {
 	k.mu.Unlock()
 }
 
+// InvalidateCache 主动失效指定配置键的本机缓存；未传参时清空全部配置缓存（如加锁合并写前强制读最新库值）
+func (k *kvRepo) InvalidateCache(keys ...string) {
+	if len(keys) == 0 {
+		k.resetCache()
+		return
+	}
+	for _, key := range keys {
+		k.invalidate(key)
+	}
+}
+
 // changed 写入后清除本实例缓存并通知其他实例；前端带 site 标签的缓存（站点信息与全部前台页面）一并失效
 func (k *kvRepo) changed(key string) {
 	k.invalidate(key)
@@ -139,6 +150,18 @@ func (k *kvRepo) ListenChanges() {
 		}
 		k.invalidate(key)
 	})
+}
+
+// HasKey 配置键是否存在于数据库中
+func (k *kvRepo) HasKey(key string) bool {
+	_, err := k.loadKV(key)
+	return err == nil
+}
+
+// IsSecret 配置键在数据库中是否已标记为敏感项
+func (k *kvRepo) IsSecret(key string) bool {
+	kv, err := k.loadKV(key)
+	return err == nil && kv.Secret
 }
 
 func (k *kvRepo) GetKV(key string, defaultValue ...any) (any, error) {
