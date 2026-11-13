@@ -28,26 +28,38 @@ func runMigrations() error {
 	}
 	defer unlock()
 
-	m := gormigrate.New(GetDB(), &gormigrate.Options{
+	if GetDB().Dialector.Name() == "postgres" {
+		// Postgres 连接默认带会话级 statement_timeout；迁移和建索引可能耗时较长，在独立连接上临时放宽并在归还连接池前恢复
+		return GetDB().Connection(func(tx *gorm.DB) error {
+			_ = tx.Exec("SET statement_timeout = 0").Error
+			defer tx.Exec("RESET statement_timeout")
+			return runMigrationsOnDB(tx)
+		})
+	}
+	return runMigrationsOnDB(GetDB())
+}
+
+func runMigrationsOnDB(tx *gorm.DB) error {
+	m := gormigrate.New(tx, &gormigrate.Options{
 		TableName:                 migrationTable,
 		UseTransaction:            true,
 		ValidateUnknownMigrations: true,
 	}, migrations.List())
-	if isFreshDatabase() {
+	if isFreshDatabase(tx) {
 		m.InitSchema(autoMigrateModels)
 	}
 	if err := m.Migrate(); err != nil {
 		return fmt.Errorf("run migrations: %w", err)
 	}
-	if err := autoMigrateModels(GetDB()); err != nil {
+	if err := autoMigrateModels(tx); err != nil {
 		return err
 	}
-	return createQueryIndexes()
+	return createQueryIndexesWithDB(tx)
 }
 
 // isFreshDatabase 既没有迁移记录也没有业务表时视为全新库
-func isFreshDatabase() bool {
-	migrator := GetDB().Migrator()
+func isFreshDatabase(tx *gorm.DB) bool {
+	migrator := tx.Migrator()
 	return !migrator.HasTable(migrationTable) && !migrator.HasTable(&model.User{})
 }
 

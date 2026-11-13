@@ -55,7 +55,8 @@ func isProtectedMemoryKey(key string) bool {
 		strings.HasPrefix(key, "task_round:") ||
 		strings.HasPrefix(key, "storage_migration:") ||
 		strings.HasPrefix(key, "ai_summary:") ||
-		strings.HasPrefix(key, "edit_session:")
+		strings.HasPrefix(key, "edit_session:") ||
+		strings.HasPrefix(key, "post:view_")
 }
 
 func (m *memoryStore) putLocked(key string, item memoryItem, now time.Time) {
@@ -170,6 +171,10 @@ func (m *memoryStore) Delete(keys ...string) error {
 }
 
 func (m *memoryStore) Incr(key string, ttl time.Duration) (int64, error) {
+	return m.IncrBy(key, 1, ttl)
+}
+
+func (m *memoryStore) IncrBy(key string, delta int64, ttl time.Duration) (int64, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	now := time.Now()
@@ -178,12 +183,13 @@ func (m *memoryStore) Incr(key string, ttl time.Duration) (int64, error) {
 		if err != nil {
 			return 0, err
 		}
-		item.value = strconv.FormatInt(count+1, 10)
+		next := count + delta
+		item.value = strconv.FormatInt(next, 10)
 		m.items[key] = item
-		return count + 1, nil
+		return next, nil
 	}
-	m.putLocked(key, memoryItem{value: "1", expireAt: expireAt(now, ttl)}, now)
-	return 1, nil
+	m.putLocked(key, memoryItem{value: strconv.FormatInt(delta, 10), expireAt: expireAt(now, ttl)}, now)
+	return delta, nil
 }
 
 func (m *memoryStore) GetByPrefix(prefix string) (map[string]string, error) {

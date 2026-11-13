@@ -1,18 +1,24 @@
-// Package ipregion 离线 IP 归属地查询，基于 ip2region（Apache-2.0, lionsoul2014/ip2region）
+// Package ipregion 离线优先的 IP 归属地查询，基于 ip2region（Apache-2.0, lionsoul2014/ip2region）
 //   - IPv4：内置数据文件（assets/ip2region_v4.xdb），随二进制分发，无需联网
-//   - IPv6：数据文件较大（约 37MB）未内置，可通过环境变量 IP2REGION_V6_PATH 指定；未指定时返回空结果，不向第三方在线接口泄露用户 IP
+//   - IPv6：可通过环境变量 IP2REGION_V6_PATH 指定本地离线库；未指定时回退短超时外网查询（带 singleflight 防击穿与正/负有界缓存）
 package ipregion
 
 import (
 	_ "embed"
+	"encoding/json"
+	"fmt"
 	"net"
+	"net/http"
+	"net/url"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/lionsoul2014/ip2region/binding/golang/xdb"
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/utils"
+	"golang.org/x/sync/singleflight"
 )
 
 //go:embed assets/ip2region_v4.xdb
@@ -26,6 +32,10 @@ type Region struct {
 	ISP         string
 	CountryCode string
 	Reserved    bool // 内网、本机等保留地址
+}
+
+func (r Region) isEmpty() bool {
+	return !r.Reserved && r.Country == "" && r.Province == "" && r.City == "" && r.ISP == "" && r.CountryCode == ""
 }
 
 // String 归属地展示文本：国内为「省份 城市 运营商」（直辖市省市相同只显示一次），国外为「国家 省/州 城市」
@@ -54,10 +64,30 @@ func (r Region) String() string {
 	return strings.Join(parts, " ")
 }
 
+const (
+	v6OnlineTimeout     = 2500 * time.Millisecond
+	v6OnlineSuccessTTL  = time.Hour
+	v6OnlineNegativeTTL = 2 * time.Minute
+	v6OnlineCacheMax    = 4096
+)
+
+type v6CacheEntry struct {
+	region    Region
+	expiresAt time.Time
+}
+
 var (
 	v4Searcher *xdb.Searcher
 	v6Searcher *xdb.Searcher
 	initOnce   sync.Once
+
+	v6OnlineHTTPClient = &http.Client{Timeout: v6OnlineTimeout}
+	v6OnlineEndpoint   = "https://api.mir6.com/api/ip"
+	v6OnlineGroup      singleflight.Group
+
+	v6CacheMu sync.RWMutex
+	v6Cache   = make(map[string]v6CacheEntry)
+	v6Now     = time.Now
 )
 
 func initSearchers() {
@@ -99,7 +129,8 @@ func Lookup(ip string) Region {
 	if parsed == nil {
 		return Region{}
 	}
-	if utils.IsReservedIP(parsed.String()) {
+	canonical := parsed.String()
+	if utils.IsReservedIP(canonical) {
 		return Region{Reserved: true}
 	}
 	if v4 := parsed.To4(); v4 != nil {
@@ -113,11 +144,88 @@ func Lookup(ip string) Region {
 		return parse(raw)
 	}
 	if v6Searcher != nil {
-		raw, err := v6Searcher.Search(parsed.String())
+		raw, err := v6Searcher.Search(canonical)
 		if err != nil {
 			return Region{}
 		}
 		return parse(raw)
 	}
-	return Region{}
+	return lookupIPv6Online(canonical)
+}
+
+func lookupIPv6Online(canonicalIP string) Region {
+	now := v6Now()
+	v6CacheMu.RLock()
+	entry, ok := v6Cache[canonicalIP]
+	v6CacheMu.RUnlock()
+	if ok && now.Before(entry.expiresAt) {
+		return entry.region
+	}
+
+	val, _, _ := v6OnlineGroup.Do(canonicalIP, func() (any, error) {
+		recheckNow := v6Now()
+		v6CacheMu.RLock()
+		cached, hit := v6Cache[canonicalIP]
+		v6CacheMu.RUnlock()
+		if hit && recheckNow.Before(cached.expiresAt) {
+			return cached.region, nil
+		}
+
+		region, err := fetchIPv6RegionHTTP(canonicalIP)
+		ttl := v6OnlineSuccessTTL
+		if err != nil || region.isEmpty() {
+			ttl = v6OnlineNegativeTTL
+			region = Region{}
+		}
+		storeIPv6Cache(canonicalIP, region, v6Now().Add(ttl))
+		return region, nil
+	})
+	res, _ := val.(Region)
+	return res
+}
+
+func storeIPv6Cache(ip string, region Region, expiresAt time.Time) {
+	now := v6Now()
+	v6CacheMu.Lock()
+	defer v6CacheMu.Unlock()
+	if _, exists := v6Cache[ip]; !exists && len(v6Cache) >= v6OnlineCacheMax {
+		for k, v := range v6Cache {
+			if !now.Before(v.expiresAt) {
+				delete(v6Cache, k)
+			}
+		}
+		for k := range v6Cache {
+			if len(v6Cache) < v6OnlineCacheMax {
+				break
+			}
+			delete(v6Cache, k)
+		}
+	}
+	v6Cache[ip] = v6CacheEntry{region: region, expiresAt: expiresAt}
+}
+
+func fetchIPv6RegionHTTP(ip string) (Region, error) {
+	reqURL := fmt.Sprintf("%s?ip=%s&type=json", v6OnlineEndpoint, url.QueryEscape(ip))
+	resp, err := v6OnlineHTTPClient.Get(reqURL)
+	if err != nil {
+		return Region{}, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return Region{}, fmt.Errorf("status %d", resp.StatusCode)
+	}
+	var payload utils.IPInfoResponse
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return Region{}, err
+	}
+	if payload.Data == nil {
+		return Region{}, fmt.Errorf("empty ip data")
+	}
+	return Region{
+		Country:     payload.Data.Country,
+		Province:    payload.Data.Province,
+		City:        payload.Data.City,
+		ISP:         payload.Data.ISP,
+		CountryCode: payload.Data.CountryCode,
+	}, nil
 }

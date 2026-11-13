@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/snowykami/neo-blog/pkg/constant"
 )
@@ -216,5 +217,76 @@ func TestKVAndPingWhenDatabaseUninitialized(t *testing.T) {
 	}
 	if err := KV.DeleteKV("k"); !errors.Is(err, ErrDatabaseNotInitialized) {
 		t.Fatalf("DeleteKV when db==nil = %v, want ErrDatabaseNotInitialized", err)
+	}
+}
+
+func TestApplyPostgresStatementTimeout(t *testing.T) {
+	// 1. 默认未设置环境变量时注入 15000ms
+	t.Setenv(constant.EnvKeyDBStatementTimeoutMs, "")
+	if got := applyPostgresStatementTimeout("postgres://blog:s3cret@db:5432/blog?sslmode=disable"); !strings.Contains(got, "statement_timeout=15000") {
+		t.Fatalf("default URL timeout = %q, want statement_timeout=15000", got)
+	}
+	if got := applyPostgresStatementTimeout("host=db port=5432 user=blog dbname=blog sslmode=disable"); got != "host=db port=5432 user=blog dbname=blog sslmode=disable statement_timeout=15000" {
+		t.Fatalf("default kv timeout = %q", got)
+	}
+
+	// 2. 自定义毫秒值
+	t.Setenv(constant.EnvKeyDBStatementTimeoutMs, "5000")
+	if got := applyPostgresStatementTimeout("postgresql://blog:s3cret@db:5432/blog"); got != "postgresql://blog:s3cret@db:5432/blog?statement_timeout=5000" {
+		t.Fatalf("custom URL timeout = %q", got)
+	}
+
+	// 3. 设为 0 时关闭
+	t.Setenv(constant.EnvKeyDBStatementTimeoutMs, "0")
+	rawURL := "postgres://blog:s3cret@db:5432/blog?sslmode=disable"
+	if got := applyPostgresStatementTimeout(rawURL); got != rawURL {
+		t.Fatalf("disabled URL timeout = %q, want unchanged %q", got, rawURL)
+	}
+	rawKV := "host=db port=5432 user=blog dbname=blog"
+	if got := applyPostgresStatementTimeout(rawKV); got != rawKV {
+		t.Fatalf("disabled kv timeout = %q, want unchanged %q", got, rawKV)
+	}
+
+	// 4. 连接串中已显式指定 statement_timeout 时保持原样
+	t.Setenv(constant.EnvKeyDBStatementTimeoutMs, "15000")
+	explicitURL := "postgres://blog:s3cret@db:5432/blog?statement_timeout=30000"
+	if got := applyPostgresStatementTimeout(explicitURL); got != explicitURL {
+		t.Fatalf("explicit URL timeout overwritten = %q", got)
+	}
+	explicitKV := "host=db port=5432 statement_timeout=30000 dbname=blog"
+	if got := applyPostgresStatementTimeout(explicitKV); got != explicitKV {
+		t.Fatalf("explicit kv timeout overwritten = %q", got)
+	}
+}
+
+func TestWithTimeoutAbortsCanceledContext(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "timeout.db")
+	t.Setenv(constant.EnvKeyDBURL, "sqlite://"+path)
+	prev := db
+	if err := InitDatabase(); err != nil {
+		t.Fatalf("InitDatabase: %v", err)
+	}
+	t.Cleanup(func() {
+		if sqlDB, err := db.DB(); err == nil {
+			_ = sqlDB.Close()
+		}
+		db = prev
+	})
+
+	// 正常超时上下文可执行查询
+	session, cancel := WithTimeout(nil, 2*time.Second)
+	defer cancel()
+	var one int
+	if err := session.Raw("SELECT 1").Scan(&one).Error; err != nil || one != 1 {
+		t.Fatalf("SELECT 1 with timeout: one=%d err=%v", one, err)
+	}
+
+	// 已取消的上下文应立即终止查询
+	canceledCtx, cancelNow := context.WithCancel(context.Background())
+	cancelNow()
+	abortedSession, cancelAborted := WithTimeout(canceledCtx, 5*time.Second)
+	defer cancelAborted()
+	if err := abortedSession.Raw("SELECT 1").Scan(&one).Error; !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled on canceled ctx, got %v", err)
 	}
 }

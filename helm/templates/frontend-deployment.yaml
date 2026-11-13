@@ -84,6 +84,16 @@ spec:
             - name: REDIS_KEY_PREFIX
               value: {{ .Values.redis.keyPrefix | quote }}
             {{- end }}
+            {{- if and .Values.telemetry .Values.telemetry.otlpEndpoint }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.telemetry.otlpEndpoint | quote }}
+            - name: OTEL_SERVICE_NAME
+              value: "{{ .Chart.Name }}-frontend"
+            {{- if .Values.telemetry.otlpHeaders }}
+            - name: OTEL_EXPORTER_OTLP_HEADERS
+              value: {{ .Values.telemetry.otlpHeaders | quote }}
+            {{- end }}
+            {{- end }}
           # 退出前先等几秒，让负载均衡摘掉本实例，再由 Next.js 处理完进行中的请求后退出
           lifecycle:
             preStop:

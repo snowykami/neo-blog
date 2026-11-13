@@ -118,6 +118,12 @@ aiAgent:
   # 每个实例同时执行的任务数，0 表示本实例不执行
   workers: 2
 
+# OpenTelemetry 分布式链路追踪（可选）：留空时完全不加载导出器（零开销）；
+# 设置为 OTLP HTTP 接收地址（如 http://otel-collector.monitoring:4318）后，前后端自动导出并串联全链路 Span
+telemetry:
+  otlpEndpoint: ""
+  otlpHeaders: ""
+
 ## 镜像拉取密钥
 imagePullSecrets: []
 

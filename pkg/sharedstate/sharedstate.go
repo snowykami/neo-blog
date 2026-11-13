@@ -127,6 +127,27 @@ func SetJSON(key string, value any, ttl time.Duration) error {
 	return Current().Set(key, string(data), ttl)
 }
 
+type incrByStore interface {
+	IncrBy(key string, delta int64, ttl time.Duration) (int64, error)
+}
+
+// IncrBy 原子累加指定步长并返回当前值；键不存在时按 ttl 计时（固定窗口，期间再累加不延长）
+func IncrBy(key string, delta int64, ttl time.Duration) (int64, error) {
+	s := Current()
+	if ib, ok := s.(incrByStore); ok {
+		return ib.IncrBy(key, delta, ttl)
+	}
+	var last int64
+	for i := int64(0); i < delta; i++ {
+		n, err := s.Incr(key, ttl)
+		if err != nil {
+			return last, err
+		}
+		last = n
+	}
+	return last, nil
+}
+
 // TakeJSON 读取并删除 JSON 值（原子），返回是否存在
 func TakeJSON(key string, dst any) (bool, error) {
 	value, ok, err := Current().Take(key)

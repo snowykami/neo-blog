@@ -1,8 +1,10 @@
 package utils
 
 import (
+	"hash/fnv"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 // 设备类型
@@ -11,6 +13,10 @@ const (
 	DeviceMobile  = "mobile"
 	DeviceTablet  = "tablet"
 	DeviceBot     = "bot"
+
+	uaCacheMaxInputLen = 512
+	uaCacheShards      = 16
+	uaCacheShardCap    = 256 // 16 * 256 = 4096 条有界缓存上限
 )
 
 type UAResult struct {
@@ -21,6 +27,25 @@ type UAResult struct {
 	DeviceType string // desktop / mobile / tablet / bot
 
 	osVersionFrozen bool // OSVersion 是浏览器固定报的值，不代表真实系统版本（见 osVersionFrozen）
+}
+
+type uaCacheShard struct {
+	mu    sync.RWMutex
+	items map[string]UAResult
+}
+
+var uaCache = func() [uaCacheShards]uaCacheShard {
+	var shards [uaCacheShards]uaCacheShard
+	for i := range shards {
+		shards[i].items = make(map[string]UAResult, 64)
+	}
+	return shards
+}()
+
+func getUACacheShard(ua string) *uaCacheShard {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(ua))
+	return &uaCache[h.Sum32()%uaCacheShards]
 }
 
 var (
@@ -57,8 +82,37 @@ var (
 	botPattern = regexp.MustCompile(`(?i)bot|spider|crawl|slurp|headless|lighthouse|curl|wget|python-requests`)
 )
 
-// ParseUA 解析 UA，返回结构化信息
+// ParseUA 解析 UA，返回结构化信息；对长度不超过 512 字节的常见 UA 做进程内有界分片缓存，避免每次请求重复执行 18 条正则
 func ParseUA(ua string) UAResult {
+	if len(ua) > uaCacheMaxInputLen {
+		return parseUAUncached(ua)
+	}
+	shard := getUACacheShard(ua)
+	shard.mu.RLock()
+	cached, ok := shard.items[ua]
+	shard.mu.RUnlock()
+	if ok {
+		return cached
+	}
+
+	res := parseUAUncached(ua)
+	shard.mu.Lock()
+	if len(shard.items) >= uaCacheShardCap {
+		// 达到单分片上限时淘汰部分旧条目，避免整表清空引起的缓存抖动，同时严格保证总条目 <= 4096
+		evict := uaCacheShardCap / 4
+		for k := range shard.items {
+			delete(shard.items, k)
+			if evict--; evict <= 0 {
+				break
+			}
+		}
+	}
+	shard.items[ua] = res
+	shard.mu.Unlock()
+	return res
+}
+
+func parseUAUncached(ua string) UAResult {
 	r := UAResult{DeviceType: DeviceDesktop}
 	// 1. 操作系统 + 版本 + 设备类型
 	for _, p := range osPatterns {
@@ -89,6 +143,16 @@ func ParseUA(ua string) UAResult {
 	}
 	r.osVersionFrozen = osVersionFrozen(r, ua)
 	return r
+}
+
+func uaCacheSize() int {
+	total := 0
+	for i := range uaCache {
+		uaCache[i].mu.RLock()
+		total += len(uaCache[i].items)
+		uaCache[i].mu.RUnlock()
+	}
+	return total
 }
 
 // windowsReleases Windows NT 内核版本对应的发行名；NT 10.0 同时对应 Windows 10 与 11，无法区分，不在表中

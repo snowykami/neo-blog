@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,6 +27,12 @@ var db *gorm.DB
 // ErrDatabaseNotInitialized 数据库尚未初始化时返回该错误，避免空指针解引用
 var ErrDatabaseNotInitialized = errors.New("database is not initialized")
 
+// DefaultDBStatementTimeoutMs Postgres 会话级 statement_timeout 默认值（15s）
+const DefaultDBStatementTimeoutMs = 15000
+
+// DefaultHeavyQueryTimeout 重查询（全文模糊回退、访客统计聚合等）默认超时时间
+const DefaultHeavyQueryTimeout = 15 * time.Second
+
 func GetDB() *gorm.DB {
 	return db
 }
@@ -36,6 +43,18 @@ func DB(ctx context.Context) *gorm.DB {
 		return db
 	}
 	return db.WithContext(ctx)
+}
+
+// WithTimeout 返回绑定了超时上下文的数据库连接与取消函数；ctx 为 nil 时基于 context.Background() 派生
+func WithTimeout(ctx context.Context, d time.Duration) (*gorm.DB, context.CancelFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if d <= 0 {
+		return DB(ctx), func() {}
+	}
+	tctx, cancel := context.WithTimeout(ctx, d)
+	return DB(tctx), cancel
 }
 
 // Ping 检查数据库连接是否可用（就绪检查使用）
@@ -158,6 +177,7 @@ func InitDatabase() error {
 	}
 
 	configureConnPool(dbConfig.Driver)
+	_ = db.Use(newOtelGormPlugin(dbConfig.Driver))
 	KV.resetCache() // 切换数据库（如测试中重新初始化）时清空配置缓存
 	resetQueryCaches()
 
@@ -191,9 +211,50 @@ func InitDatabase() error {
 	return nil
 }
 
-// initPostgres 初始化PostgreSQL连接
+// initPostgres 初始化PostgreSQL连接，并按环境变量注入会话级 statement_timeout 保护
 func initPostgres(dsn string, gormConfig *gorm.Config) (*gorm.DB, error) {
-	return gorm.Open(postgres.Open(dsn), gormConfig)
+	return gorm.Open(postgres.Open(applyPostgresStatementTimeout(dsn)), gormConfig)
+}
+
+// applyPostgresStatementTimeout 为 Postgres 连接串补充会话级 statement_timeout（毫秒）。
+// 环境变量 DB_STATEMENT_TIMEOUT_MS 未配置时默认 15000（15s），设为 <= 0 关闭；若连接串中已显式指定 statement_timeout 则保持原样。
+func applyPostgresStatementTimeout(dsn string) string {
+	timeoutMs := DefaultDBStatementTimeoutMs
+	if raw, ok := os.LookupEnv(constant.EnvKeyDBStatementTimeoutMs); ok && strings.TrimSpace(raw) != "" {
+		parsed, err := strconv.Atoi(strings.TrimSpace(raw))
+		if err != nil || parsed <= 0 {
+			return dsn
+		}
+		timeoutMs = parsed
+	}
+	trimmed := strings.TrimSpace(dsn)
+	if trimmed == "" {
+		return dsn
+	}
+	lower := strings.ToLower(trimmed)
+	if strings.HasPrefix(lower, "postgres://") || strings.HasPrefix(lower, "postgresql://") {
+		u, err := url.Parse(trimmed)
+		if err != nil {
+			return dsn
+		}
+		q := u.Query()
+		if q.Has("statement_timeout") || strings.Contains(q.Get("options"), "statement_timeout") {
+			return dsn
+		}
+		q.Set("statement_timeout", strconv.Itoa(timeoutMs))
+		u.RawQuery = q.Encode()
+		return u.String()
+	}
+	for _, field := range strings.Fields(trimmed) {
+		k, _, found := strings.Cut(field, "=")
+		if found && strings.EqualFold(k, "statement_timeout") {
+			return dsn
+		}
+	}
+	if strings.Contains(lower, "statement_timeout") {
+		return dsn
+	}
+	return trimmed + " statement_timeout=" + strconv.Itoa(timeoutMs)
 }
 
 // initSQLite 初始化 SQLite 连接，params 追加在默认参数之后（同名 pragma 以它为准）
@@ -292,6 +353,10 @@ func migrate() error {
 
 // createQueryIndexes 为常用查询补充组合索引（gorm.Model 内的字段无法通过标签声明组合索引）
 func createQueryIndexes() error {
+	return createQueryIndexesWithDB(GetDB())
+}
+
+func createQueryIndexesWithDB(tx *gorm.DB) error {
 	indexes := []string{
 		// 文章列表：按可见性与发布状态过滤后按时间或热度排序
 		"CREATE INDEX IF NOT EXISTS idx_posts_list_created ON posts (is_private, is_draft, created_at)",
@@ -319,7 +384,7 @@ func createQueryIndexes() error {
 		"CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications (user_id, read_at, id)",
 	}
 	for _, sql := range indexes {
-		if err := GetDB().Exec(sql).Error; err != nil {
+		if err := tx.Exec(sql).Error; err != nil {
 			return err
 		}
 	}

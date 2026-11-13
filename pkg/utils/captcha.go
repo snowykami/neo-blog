@@ -2,9 +2,11 @@ package utils
 
 import (
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"resty.dev/v3"
 )
@@ -21,39 +23,44 @@ type CaptchaConfig struct {
 
 const captchaVerifyTimeout = 5 * time.Second
 
+// captchaHTTPClient 与 captchaClient 为包级复用的带 5s 超时客户端，避免每次校验重复创建连接池且杜绝无超时阻塞
+var (
+	captchaHTTPClient = &http.Client{Timeout: captchaVerifyTimeout}
+	captchaClient     = resty.NewWithClient(captchaHTTPClient).SetTimeout(captchaVerifyTimeout)
+)
+
+var captchaVerifyEndpoints = map[string]string{
+	constant.CaptchaTypeHCaptcha:  "https://hcaptcha.com/siteverify",
+	constant.CaptchaTypeTurnstile: "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+	constant.CaptchaTypeReCaptcha: "https://www.google.com/recaptcha/api/siteverify",
+}
+
 // VerifyCaptcha 根据提供的配置和令牌验证验证码
 func (c *captchaUtils) VerifyCaptcha(captchaConfig *CaptchaConfig, captchaToken string) (bool, error) {
 	if captchaConfig == nil || captchaConfig.Type == constant.CaptchaTypeDisable {
 		return true, nil
 	}
-	var verifyURL string
-	switch captchaConfig.Type {
-	case constant.CaptchaTypeHCaptcha:
-		verifyURL = "https://hcaptcha.com/siteverify"
-	case constant.CaptchaTypeTurnstile:
-		verifyURL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
-	case constant.CaptchaTypeReCaptcha:
-		verifyURL = "https://www.google.com/recaptcha/api/siteverify"
-	default:
-		return false, fmt.Errorf("invalid captcha type: %s", captchaConfig.Type)
-	}
-	if strings.TrimSpace(captchaToken) == "" {
+	token := strings.TrimSpace(captchaToken)
+	if token == "" {
 		return false, nil
 	}
-
-	restyClient := resty.New().SetTimeout(captchaVerifyTimeout)
-	defer restyClient.Close() // resty v3 客户端用完需 Close，释放后台资源
+	verifyURL, ok := captchaVerifyEndpoints[captchaConfig.Type]
+	if !ok {
+		return false, fmt.Errorf("invalid captcha type: %s", captchaConfig.Type)
+	}
 
 	result := make(map[string]any)
-	resp, err := restyClient.R().
+	resp, err := captchaClient.R().
 		SetFormData(map[string]string{
 			"secret":   captchaConfig.SecretKey,
-			"response": captchaToken,
+			"response": token,
 		}).SetResult(&result).Post(verifyURL)
 	if err != nil {
+		logrus.Warnf("captcha verify request (%s) failed: %v", captchaConfig.Type, err)
 		return false, err
 	}
 	if resp.IsStatusFailure() {
+		logrus.Warnf("captcha verify (%s) unexpected status: %d", captchaConfig.Type, resp.StatusCode())
 		return false, nil
 	}
 	success, ok := result["success"].(bool)

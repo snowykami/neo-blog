@@ -11,7 +11,11 @@ import (
 // RequestIDHeader 请求 ID 的请求头 / 响应头：前端转发时生成或透传，后端沿用并写回响应，日志与错误报告据此串起同一个请求
 const RequestIDHeader = "X-Request-ID"
 
+// TraceIDHeader 链路追踪 ID 响应头：当请求带上游 W3C traceparent 或启用 OTel 时返回
+const TraceIDHeader = "X-Trace-ID"
+
 type requestIDKey struct{}
+type traceIDKey struct{}
 
 // WithRequestID 挂载请求 ID
 func WithRequestID(ctx context.Context, id string) context.Context {
@@ -24,6 +28,20 @@ func RequestID(ctx context.Context) string {
 		return ""
 	}
 	id, _ := ctx.Value(requestIDKey{}).(string)
+	return id
+}
+
+// WithTraceID 挂载链路追踪 TraceID
+func WithTraceID(ctx context.Context, traceID string) context.Context {
+	return context.WithValue(ctx, traceIDKey{}, traceID)
+}
+
+// TraceID 当前上下文关联的链路追踪 TraceID；无追踪上下文时为空
+func TraceID(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	id, _ := ctx.Value(traceIDKey{}).(string)
 	return id
 }
 
@@ -58,11 +76,15 @@ func (RequestIDLogHook) Fire(entry *logrus.Entry) error {
 	if entry.Context == nil {
 		return nil
 	}
-	if _, exists := entry.Data["request_id"]; exists {
-		return nil
+	if _, exists := entry.Data["request_id"]; !exists {
+		if id := RequestID(entry.Context); id != "" {
+			entry.Data["request_id"] = id
+		}
 	}
-	if id := RequestID(entry.Context); id != "" {
-		entry.Data["request_id"] = id
+	if _, exists := entry.Data["trace_id"]; !exists {
+		if traceID := TraceID(entry.Context); traceID != "" {
+			entry.Data["trace_id"] = traceID
+		}
 	}
 	return nil
 }

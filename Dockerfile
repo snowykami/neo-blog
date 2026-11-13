@@ -1,6 +1,9 @@
 # build
-# Go 版本与 go.mod 的 toolchain 一致，升级 Go 时两处一起改
-FROM golang:1.26.10-alpine3.24 AS builder
+# Go 版本与 go.mod 的 toolchain 一致，升级 Go 时两处一起改；默认走官方镜像，可通过 --build-arg 切换镜像站
+ARG GO_IMAGE=golang:1.26.10-alpine3.24
+ARG ALPINE_IMAGE=alpine:3.24
+
+FROM ${GO_IMAGE} AS builder
 
 ENV TZ=Asia/Chongqing
 
@@ -18,7 +21,7 @@ RUN go build -o server ./cmd/server
 
 # production
 # 固定 Alpine 小版本（与构建阶段的 golang:*-alpine3.24 一致），避免 latest 跨大版本漂移；3.24 标签会跟随补丁版本更新
-FROM alpine:3.24 AS prod
+FROM ${ALPINE_IMAGE} AS prod
 
 ENV TZ=Asia/Chongqing
 
@@ -43,4 +46,7 @@ USER neo-blog
 
 EXPOSE 8888
 
-ENTRYPOINT ["./server"]
+HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
+  CMD ["/app/server", "-healthcheck"]
+
+ENTRYPOINT ["/app/server"]

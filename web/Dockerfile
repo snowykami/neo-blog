@@ -41,6 +41,9 @@ ENV NEXT_PUBLIC_APP_VERSION=${APP_VERSION}
 # 走 Next 图片优化的本站图床 / 对象存储域名，逗号分隔；未传入时只优化站内相对路径，其余外链由浏览器直连
 ARG IMAGE_OPTIMIZE_HOSTS=""
 ENV NEXT_PUBLIC_IMAGE_OPTIMIZE_HOSTS=${IMAGE_OPTIMIZE_HOSTS}
+# 前端静态资源 CDN 前缀（如 https://cdn.example.com 或 https://cdn.example.com/neo-blog）；未传入时保持同源加载
+ARG ASSET_PREFIX=""
+ENV NEXT_PUBLIC_ASSET_PREFIX=${ASSET_PREFIX}
 # 这里用 lint 而不是 lint:fix：格式不合规应当直接失败，避免 CI 静默重排代码导致镜像内容与仓库不一致
 RUN pnpm run lint && pnpm run build
 
@@ -66,6 +69,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/sourcemaps ./.next/sourcema
 USER nextjs
 
 EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
+  CMD ["node", "-e", "process.env.NODE_USE_ENV_PROXY='0';fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
 
 # run with node (standalone/server.js)
 CMD ["node", "server.js"]

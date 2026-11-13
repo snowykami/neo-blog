@@ -11,6 +11,10 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"github.com/sirupsen/logrus"
+	"github.com/snowykami/neo-blog/pkg/telemetry"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -34,6 +38,10 @@ end
 return 0`)
 	incrScript = redis.NewScript(`local v = redis.call('INCR', KEYS[1])
 if v == 1 and tonumber(ARGV[1]) > 0 then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end
+return v`)
+	incrByScript = redis.NewScript(`local existed = redis.call('EXISTS', KEYS[1])
+local v = redis.call('INCRBY', KEYS[1], ARGV[1])
+if existed == 0 and tonumber(ARGV[2]) > 0 then redis.call('PEXPIRE', KEYS[1], ARGV[2]) end
 return v`)
 )
 
@@ -61,6 +69,7 @@ func newRedisStore(redisURL, prefix string) (*redisStore, error) {
 	}
 	opt.DialTimeout = redisDialTimeout
 	client := redis.NewClient(opt)
+	client.AddHook(otelRedisHook{})
 	ctx, cancel := context.WithTimeout(context.Background(), redisDialTimeout)
 	defer cancel()
 	if err := client.Ping(ctx).Err(); err != nil {
@@ -174,6 +183,12 @@ func (s *redisStore) Incr(key string, ttl time.Duration) (int64, error) {
 	ctx, cancel := s.ctx()
 	defer cancel()
 	return incrScript.Run(ctx, s.client, []string{s.key(key)}, max(ttl, 0).Milliseconds()).Int64()
+}
+
+func (s *redisStore) IncrBy(key string, delta int64, ttl time.Duration) (int64, error) {
+	ctx, cancel := s.ctx()
+	defer cancel()
+	return incrByScript.Run(ctx, s.client, []string{s.key(key)}, delta, max(ttl, 0).Milliseconds()).Int64()
 }
 
 // globEscaper 转义 SCAN MATCH 中的通配符
@@ -290,4 +305,60 @@ func (s *redisStore) Close() error {
 		_ = pubsub.Close()
 	}
 	return s.client.Close()
+}
+
+// otelRedisHook 轻量 Redis 追踪钩子：仅在启用 OTel 且上游存在录制中的请求 Span 时生成子 Span，不记录命令键值参数
+type otelRedisHook struct{}
+
+func (otelRedisHook) DialHook(next redis.DialHook) redis.DialHook {
+	return next
+}
+
+func (otelRedisHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
+	return func(ctx context.Context, cmd redis.Cmder) error {
+		if !telemetry.Enabled() || ctx == nil || !trace.SpanFromContext(ctx).IsRecording() {
+			return next(ctx, cmd)
+		}
+		name := strings.ToUpper(cmd.Name())
+		ctx, span := telemetry.Tracer("redis").Start(
+			ctx,
+			"redis."+strings.ToLower(cmd.Name()),
+			trace.WithSpanKind(trace.SpanKindClient),
+			trace.WithAttributes(
+				attribute.String("db.system", "redis"),
+				attribute.String("db.operation.name", name),
+			),
+		)
+		defer span.End()
+		err := next(ctx, cmd)
+		if err != nil && !errors.Is(err, redis.Nil) {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+		return err
+	}
+}
+
+func (otelRedisHook) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.ProcessPipelineHook {
+	return func(ctx context.Context, cmds []redis.Cmder) error {
+		if !telemetry.Enabled() || ctx == nil || !trace.SpanFromContext(ctx).IsRecording() {
+			return next(ctx, cmds)
+		}
+		ctx, span := telemetry.Tracer("redis").Start(
+			ctx,
+			"redis.pipeline",
+			trace.WithSpanKind(trace.SpanKindClient),
+			trace.WithAttributes(
+				attribute.String("db.system", "redis"),
+				attribute.Int("db.redis.pipeline_length", len(cmds)),
+			),
+		)
+		defer span.End()
+		err := next(ctx, cmds)
+		if err != nil && !errors.Is(err, redis.Nil) {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+		return err
+	}
 }

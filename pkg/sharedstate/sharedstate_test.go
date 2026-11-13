@@ -109,6 +109,9 @@ func TestStoreContract(t *testing.T) {
 			if n, _ := s.Incr("counter", time.Minute); n != 1 {
 				t.Fatalf("counter should restart after window, got %d", n)
 			}
+			if n, err := IncrBy("counter", 4, time.Minute); err != nil || n != 5 {
+				t.Fatalf("incrby = %d %v, want 5", n, err)
+			}
 
 			_ = s.Delete("a", "counter")
 			if _, ok, _ := s.Get("a"); ok {

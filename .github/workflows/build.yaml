@@ -39,6 +39,9 @@ jobs:
           build-args: |
             APP_VERSION=${{ github.sha }}
             IMAGE_OPTIMIZE_HOSTS=${{ vars.IMAGE_OPTIMIZE_HOSTS }}
+            ASSET_PREFIX=${{ vars.ASSET_PREFIX }}
+            ${{ vars.NODE_IMAGE && format('NODE_IMAGE={0}', vars.NODE_IMAGE) || '' }}
+            ${{ vars.NPM_REGISTRY && format('NPM_REGISTRY={0}', vars.NPM_REGISTRY) || '' }}
           # 构建缓存存在 GitHub Actions 缓存里，依赖没变时跳过 pnpm install；前后端用不同 scope，互不覆盖
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
@@ -67,5 +70,8 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/neo-blog-backend:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/neo-blog-backend:${{ github.sha }}
+          build-args: |
+            ${{ vars.GO_IMAGE && format('GO_IMAGE={0}', vars.GO_IMAGE) || '' }}
+            ${{ vars.ALPINE_IMAGE && format('ALPINE_IMAGE={0}', vars.ALPINE_IMAGE) || '' }}
           cache-from: type=gha,scope=backend
           cache-to: type=gha,mode=max,scope=backend

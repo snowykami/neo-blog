@@ -8,11 +8,17 @@ import (
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/service"
 	"github.com/snowykami/neo-blog/pkg/constant"
+	"github.com/snowykami/neo-blog/pkg/telemetry"
 	"github.com/snowykami/neo-blog/pkg/utils"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // 访问日志：每个请求一行结构化日志（方法、路径、路由模板、查询参数的键名、状态码、耗时、请求 ID、客户端 IP），
@@ -44,7 +50,28 @@ func loadAccessLogConfig() accessLogConfig {
 	return accessLogConfig{enabled: utils.Env.GetAsBool(constant.EnvKeyAccessLog, true), level: level}
 }
 
-// UseRequestLog 请求 ID、访问日志与 HTTP 指标；需注册为第一个中间件（在 recovery 之外），
+// hertzHeaderCarrier 适配 Hertz 请求头供 OpenTelemetry TextMapPropagator 提取 W3C TraceContext
+type hertzHeaderCarrier struct {
+	header *protocol.RequestHeader
+}
+
+func (c hertzHeaderCarrier) Get(key string) string {
+	return c.header.Get(key)
+}
+
+func (c hertzHeaderCarrier) Set(key, value string) {
+	c.header.Set(key, value)
+}
+
+func (c hertzHeaderCarrier) Keys() []string {
+	var keys []string
+	c.header.VisitAll(func(key, _ []byte) {
+		keys = append(keys, string(key))
+	})
+	return keys
+}
+
+// UseRequestLog 请求 ID、链路追踪、访问日志与 HTTP 指标；需注册为第一个中间件（在 recovery 之外），
 // 处理函数 panic 时也能拿到 recovery 写出的 500，且 recovery 与错误报告拿到的 ctx 已带请求 ID
 func UseRequestLog() app.HandlerFunc {
 	cfg := loadAccessLogConfig()
@@ -63,18 +90,51 @@ func UseRequestLog() app.HandlerFunc {
 		c.Response.Header.Set(ctxutils.RequestIDHeader, requestID)
 		ctx = ctxutils.WithRequestID(ctx, requestID)
 
+		// 提取上游 W3C traceparent（即使未开启导出也可串起前后端 trace_id）
+		ctx = otel.GetTextMapPropagator().Extract(ctx, hertzHeaderCarrier{header: &c.Request.Header})
+		method := string(c.Method())
+		var span trace.Span
+		if telemetry.Enabled() {
+			ctx, span = telemetry.Tracer("hertz").Start(ctx, method, trace.WithSpanKind(trace.SpanKindServer))
+			defer span.End()
+		}
+		var traceID string
+		if sc := trace.SpanFromContext(ctx).SpanContext(); sc.HasTraceID() {
+			traceID = sc.TraceID().String()
+			ctx = ctxutils.WithTraceID(ctx, traceID)
+			c.Response.Header.Set(ctxutils.TraceIDHeader, traceID)
+		}
+
 		start := time.Now()
 		c.Next(ctx)
 		elapsed := time.Since(start)
 
 		status := c.Response.StatusCode()
-		// 个别处理函数会重置响应（含响应头），补回请求 ID；流式响应的头已发出，这里设置不产生影响
+		// 个别处理函数会重置响应（含响应头），补回请求 ID 与 Trace ID；流式响应的头已发出，这里设置不产生影响
 		if len(c.Response.Header.Peek(ctxutils.RequestIDHeader)) == 0 {
 			c.Response.Header.Set(ctxutils.RequestIDHeader, requestID)
 		}
-		method := string(c.Method())
+		if traceID != "" && len(c.Response.Header.Peek(ctxutils.TraceIDHeader)) == 0 {
+			c.Response.Header.Set(ctxutils.TraceIDHeader, traceID)
+		}
+		route := c.FullPath()
+		if span != nil {
+			if route != "" {
+				span.SetName(method + " " + route)
+			}
+			span.SetAttributes(
+				attribute.String("http.request.method", method),
+				attribute.String("url.path", utils.Truncate(path, accessLogMaxPath)),
+				attribute.String("http.route", route),
+				attribute.Int("http.response.status_code", status),
+				attribute.String("request_id", requestID),
+			)
+			if status >= http.StatusInternalServerError {
+				span.SetStatus(codes.Error, http.StatusText(status))
+			}
+		}
 		longLived := isEventStream(c)
-		service.ObserveHTTPRequest(method, c.FullPath(), status, elapsed, longLived)
+		service.ObserveHTTPRequest(method, route, status, elapsed, longLived)
 		if !cfg.enabled {
 			return
 		}
@@ -91,11 +151,14 @@ func UseRequestLog() app.HandlerFunc {
 		fields := logrus.Fields{
 			"method":      method,
 			"path":        utils.Truncate(path, accessLogMaxPath),
-			"route":       c.FullPath(),
+			"route":       route,
 			"status":      status,
 			"duration_ms": float64(elapsed.Microseconds()) / 1000,
 			"request_id":  requestID,
 			"ip":          c.ClientIP(),
+		}
+		if traceID != "" {
+			fields["trace_id"] = traceID
 		}
 		if keys := queryKeys(c); keys != "" {
 			fields["query_keys"] = keys

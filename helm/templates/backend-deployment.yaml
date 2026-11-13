@@ -107,6 +107,16 @@ spec:
             - name: REDIS_KEY_PREFIX
               value: {{ .Values.redis.keyPrefix | quote }}
             {{- end }}
+            {{- if and .Values.telemetry .Values.telemetry.otlpEndpoint }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.telemetry.otlpEndpoint | quote }}
+            - name: OTEL_SERVICE_NAME
+              value: "{{ .Chart.Name }}-backend"
+            {{- if .Values.telemetry.otlpHeaders }}
+            - name: OTEL_EXPORTER_OTLP_HEADERS
+              value: {{ .Values.telemetry.otlpHeaders | quote }}
+            {{- end }}
+            {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}

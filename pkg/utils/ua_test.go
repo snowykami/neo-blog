@@ -1,6 +1,11 @@
 package utils
 
-import "testing"
+import (
+	"fmt"
+	"strings"
+	"sync"
+	"testing"
+)
 
 func TestParseUA(t *testing.T) {
 	cases := []struct {
@@ -54,5 +59,45 @@ func TestPublicOSAndBrowser(t *testing.T) {
 		if got := r.PublicBrowser(); got != c.browser {
 			t.Errorf("PublicBrowser(%q) = %q, want %q", c.ua, got, c.browser)
 		}
+	}
+}
+
+func TestParseUACacheConsistencyBoundAndConcurrency(t *testing.T) {
+	// 1. 超过 512 字节的超长 UA 不进缓存，但解析结果完全一致
+	longUA := "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/135.0.0.0 " + strings.Repeat("X", 600)
+	beforeSize := uaCacheSize()
+	gotLong := ParseUA(longUA)
+	wantLong := parseUAUncached(longUA)
+	if gotLong != wantLong {
+		t.Fatalf("long UA mismatch: got %+v, want %+v", gotLong, wantLong)
+	}
+	if uaCacheSize() != beforeSize {
+		t.Fatalf("expected oversized UA not to enter cache")
+	}
+
+	// 2. 高并发读写大量不同 UA 时并发安全，且总缓存条目严格不超过 4096 上限
+	const goroutines = 16
+	const perG = 500
+	var wg sync.WaitGroup
+	for g := 0; g < goroutines; g++ {
+		wg.Add(1)
+		go func(gid int) {
+			defer wg.Done()
+			for i := 0; i < perG; i++ {
+				ua := fmt.Sprintf("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/%d.%d.0.0 Safari/537.36", gid+100, i)
+				got := ParseUA(ua)
+				want := parseUAUncached(ua)
+				if got != want {
+					t.Errorf("cache inconsistency for %q: got %+v, want %+v", ua, got, want)
+					return
+				}
+			}
+		}(g)
+	}
+	wg.Wait()
+
+	maxCap := uaCacheShards * uaCacheShardCap
+	if sz := uaCacheSize(); sz > maxCap {
+		t.Fatalf("expected uaCacheSize <= %d, got %d", maxCap, sz)
 	}
 }
