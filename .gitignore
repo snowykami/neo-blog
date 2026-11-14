@@ -9,6 +9,8 @@ configs/
 
 # data
 data/
+*.sqlite
+*.sqlite-*
 
 # dist
 /server
@@ -22,6 +24,7 @@ __debug_bin*
 
 # dependencies
 /node_modules
+.pnpm-store/
 /.pnp
 .pnp.*
 .yarn/*
@@ -69,3 +72,6 @@ bench/
 
 # 本地技术笔记（写博客用的素材，不提交）
 docs/notes/
+
+# 本地临时脚本与实验数据（不提交；注意保留 web/scripts/ 构建脚本）
+/scripts/
