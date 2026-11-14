@@ -166,7 +166,7 @@ describe('解析 TTML 歌词', () => {
     expect(main.romanizationWords?.map(p => p.text)).toEqual(['hi', 'ka', 'ri'])
   })
 
-  it('3+ 演唱者按出场顺序奇偶左/右对齐，识别 <ttm:name>、合唱成员与单人独唱清理', () => {
+  it('3+ 演唱者默认第 1 位左对齐、其余独唱右对齐，识别 <ttm:name>、合唱成员与单人独唱清理', () => {
     const multiTtml = `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata">
 <head><metadata>
   <ttm:agent type="person" xml:id="v1"><ttm:name type="full">林俊杰</ttm:name></ttm:agent>
@@ -190,7 +190,7 @@ describe('解析 TTML 歌词', () => {
       ['v1', 'left', false, false],
       ['v2', 'right', true, false],
       ['v2', 'right', true, true],
-      ['v3', 'left', false, false],
+      ['v3', 'right', true, false],
       ['v1+v3', 'center', false, false],
       ['v1000', 'center', false, false],
     ])
@@ -265,11 +265,121 @@ describe('解析 TTML 歌词', () => {
       ['v1', 'left', false, false],
       ['v2', 'right', true, false],
       ['v1', 'left', false, false],
-      ['v4', 'right', true, true],
+      ['v4', 'left', false, true],
       ['v1+v2+v4+v3', 'center', false, false],
       ['v3', 'left', false, false],
       ['v4', 'right', true, false],
       ['v2', 'left', false, false],
     ])
+  })
+
+  it('背景人声未标位置时默认跟随所属主唱行，显式标注位置时按标注对齐，并支持 ttd:position="duet" 与 ttv:members', () => {
+    const pipaxingTtml = `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata" xmlns:ttv="urn:ttml:extensions:vocalist-style:1" xmlns:ttd="urn:ttml:extensions:display-position:1">
+<head><metadata>
+  <ttm:agent type="person" xml:id="v1_2" ttd:position="primary"/>
+  <ttm:agent type="other" xml:id="v2_2" ttd:position="secondary"/>
+  <ttm:agent type="group" xml:id="v1000_2" ttd:position="duet"/>
+  <ttm:agent type="person" xml:id="v1" ttv:color="#86A2F0"><ttm:name type="full">奇然</ttm:name></ttm:agent>
+  <ttm:agent type="person" xml:id="v2" ttv:color="#6CC892"><ttm:name type="full">沈谧仁</ttm:name></ttm:agent>
+  <ttm:agent type="group" xml:id="g1" ttv:members="v1 v2"><ttm:name type="full">奇然 · 沈谧仁</ttm:name></ttm:agent>
+</metadata></head>
+<body><div>
+  <p begin="00:01.000" end="00:04.000" ttm:agent="v1000_2" ttd:agents="g1">
+    <span begin="00:01.000" end="00:02.000">弦转急</span>
+    <span ttm:role="x-bg" ttm:agent="v1"><span begin="00:02.000" end="00:04.000">(弦转急急急急急急急)</span></span>
+  </p>
+  <p begin="00:05.000" end="00:08.000" ttm:agent="v1_2" ttd:agents="v1">
+    <span begin="00:05.000" end="00:06.500">主唱在左</span>
+    <span ttm:role="x-bg" ttd:position="secondary" ttm:agent="v2"><span begin="00:06.500" end="00:08.000">(显式标右和声)</span></span>
+  </p>
+  <p begin="00:09.000" end="00:12.000" ttm:agent="v1_2" ttd:agents="v1">
+    <span begin="00:09.000" end="00:10.500">主唱再左</span>
+    <span ttm:role="x-bg" ttm:agent="v2_2" ttd:agents="v2"><span begin="00:10.500" end="00:12.000">(载体标右和声)</span></span>
+  </p>
+  <p begin="00:13.000" end="00:15.000" ttm:agent="v1000_2" ttd:agents="v1"><span begin="00:13.000" end="00:15.000">独唱居中念白</span></p>
+  <p begin="00:16.000" end="00:18.000" ttm:agent="v2_2" ttd:agents=""><span begin="00:16.000" end="00:18.000">未分配歌手但居右</span></p>
+</div></body></tt>`
+    const parsed = parseTtml(pipaxingTtml, 'ttml-custom')!
+    expect(parsed.agents?.g1).toMatchObject({
+      id: 'g1',
+      name: '奇然 · 沈谧仁',
+      isGroup: true,
+      members: ['v1', 'v2'],
+    })
+    expect(parsed.agents?.v1_2).toBeUndefined()
+    expect(parsed.agents?.v2_2).toBeUndefined()
+    expect(parsed.agents?.v1000_2).toBeUndefined()
+    expect(parsed.lines.map(l => [l.agent, l.align, l.isDuet, l.isBackground])).toEqual([
+      ['g1', 'center', false, false],
+      ['v1', 'center', false, true],
+      ['v1', 'left', false, false],
+      ['v2', 'right', true, true],
+      ['v1', 'left', false, false],
+      ['v2', 'right', true, true],
+      ['v1', 'center', false, false],
+      [undefined, 'right', true, false],
+    ])
+  })
+
+  it('解析 starry:extensions:v1（AMLL 仓库投稿兼容模式）恢复歌手角色、颜色、摆位与共享注音', () => {
+    const payload = {
+      version: 1,
+      agents: [
+        { id: 'v1', kind: 'person', names: [{ text: '奇然', kind: 'full' }], color: { red: 134, green: 162, blue: 240 } },
+        { id: 'v2', kind: 'person', names: [{ text: '沈谧仁', kind: 'full' }], color: { red: 108, green: 200, blue: 146 } },
+      ],
+      lines: [
+        {
+          key: 'L1',
+          singer: 'duet',
+          agentIDs: ['v1', 'v2'],
+          main: {
+            syllables: [
+              { index: 0, groupRuby: [{ start: 1, end: 1.5, text: 'げん' }, { start: 1.5, end: 2, text: 'てん' }] },
+              { index: 1, joinsRubyGroup: true },
+            ],
+          },
+          background: { agentIDs: ['v1'], syllables: [] },
+        },
+        {
+          key: 'L2',
+          singer: 'secondary',
+          agentIDs: ['v2'],
+          main: { syllables: [] },
+        },
+      ],
+    }
+    const bytes = new TextEncoder().encode(JSON.stringify(payload))
+    const encoded = btoa(String.fromCharCode(...bytes))
+    const repoCompatTtml = `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata" xmlns:amll="http://www.example.com/ns/amll" xmlns:itunes="http://music.apple.com/lyric-ttml-internal">
+<head><metadata>
+  <ttm:agent type="person" xml:id="v1"/>
+  <ttm:agent type="other" xml:id="v2"/>
+  <amll:meta key="starry:extensions:v1" value="${encoded}"/>
+</metadata></head>
+<body><div>
+  <p begin="00:01.000" end="00:04.000" ttm:agent="v1" itunes:key="L1">
+    <span begin="00:01.000" end="00:01.500">弦</span><span begin="00:01.500" end="00:02.000">转</span>
+    <span ttm:role="x-bg"><span begin="00:02.000" end="00:04.000">(弦转急)</span></span>
+  </p>
+  <p begin="00:05.000" end="00:07.000" ttm:agent="v1" itunes:key="L2">
+    <span begin="00:05.000" end="00:07.000">凄凄不似向前声</span>
+  </p>
+</div></body></tt>`
+    const parsed = parseTtml(repoCompatTtml, 'ttml-amll')!
+    expect(parsed.agents?.v1).toMatchObject({ id: 'v1', name: '奇然', colorHex: '#86a2f0' })
+    expect(parsed.agents?.v2).toMatchObject({ id: 'v2', name: '沈谧仁', colorHex: '#6cc892' })
+    expect(parsed.lines.map(l => [l.agent, l.align, l.isDuet, l.isBackground])).toEqual([
+      ['v1+v2', 'center', false, false],
+      ['v1', 'center', false, true],
+      ['v2', 'right', true, false],
+    ])
+    expect(parsed.lines[0].words[0]).toMatchObject({
+      text: '弦转',
+      ruby: [
+        { text: 'げん', start: 1000, end: 1500 },
+        { text: 'てん', start: 1500, end: 2000 },
+      ],
+    })
   })
 })

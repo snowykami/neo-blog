@@ -585,8 +585,8 @@ interface ResolvedLyrics {
 
 ### 8.6 对唱、合唱、背景人声与多行重叠
 
-- **三态演唱者对齐、`ttm:agent` / `ttd:agents` 继承与 3+ 歌手交替**：
-  - 声明多声部 `<ttm:agent>` 时优先读取扩展声部属性 `ttd:agents`（不存在时回退标准 `ttm:agent`）；若 `<head>` 或正文存在显式 `ttd:position`（支持将摆位载体放在 `ttm:agent` 上，如 `primary`/`left`、`secondary`/`right`、`center`），独唱行按显式摆位左右/居中对齐，否则按出场顺序奇偶分配独唱方向（第 `0, 2, ...` 位左对齐，第 `1, 3, ...` 位右对齐，`transform-origin` 置于右侧）；`type="group"`、约定合唱 ID（`v1000` / `v2000`）或一行多 ID（如 `ttd:agents="v1 v2 v4 v3"`）始终居中对齐（`transform-origin` 置于中心）。`<p>` 可继承祖先 `<div>` / `<body>` 上的 `ttd:agents` / `ttm:agent`，`<span ttm:role="x-bg">` 带独立 `ttd:agents` / `ttm:agent` 时覆盖所属 `<p>`。未实际参演的摆位占位符不进入 `agents` 列表，单人纯独唱曲目不产出 `agents` 与行级 `agent` 标识。
+- **三态演唱者对齐、`ttm:agent` / `ttd:agents` 继承与 StarryPlayer 扩展兼容**：
+  - 声明多声部 `<ttm:agent>` 时优先读取扩展声部属性 `ttd:agents`（支持显式空串表示未分配歌手；不存在该属性时回退标准 `ttm:agent`），并识别 `ttv:members` 组合成员列表以及 `<amll:meta key="starry:extensions:v1"/>`（AMLL 仓库投稿兼容备份，在无原生扩展命名空间时自动恢复歌手表、颜色、摆位与跨音节注音）；若 `<head>` 或正文存在显式 `ttd:position`（支持将摆位载体放在 `ttm:agent` 上，如 `primary`/`left`、`secondary`/`right`、`duet`/`center`），行按显式摆位左/右/居中对齐；未指定摆位时对齐 StarryPlayer 规则：第 `1` 位非 `group` 独唱默认左对齐，其余独唱（含 `type="other"`）默认右对齐（`transform-origin` 置于右侧），`type="group"`、约定合唱 ID（`v1000` / `v2000`）或一行多 ID（如 `ttd:agents="v1 v2 v4 v3"`）默认居中对齐（`transform-origin` 置于中心）。`<p>` 可继承祖先 `<div>` / `<body>` 上的 `ttd:agents` / `ttm:agent`；`<span ttm:role="x-bg">` 上的实名歌手 `ttm:agent` 仅标识和声演唱者、水平对齐**默认跟随所属主唱行**（与 StarryPlayer 一致），仅当 `x-bg` 显式标注了位置（`ttd:position`、摆位载体或 AMLL 匿名对唱站位）时才按标注独立对齐。未实际参演的摆位载体不进入 `agents` 列表，单人纯独唱曲目不产出 `agents` 与行级 `agent` 标识。
   - **多歌手曲目留白**：整首歌存在右对齐对唱、居中合唱或多声部 `agents` 时，非单行条模式下每行主舞台布局宽度收窄至 `85%`，为对侧留出 `15%` 留白（居中时两侧各 `7.5%`）。
 - **多演唱者视觉身份 × AI 特效（方案 A：呼吸边缘光丝 + 切换低语胶囊）**：
   - **身份合并优先级**：TTML 原生 `<ttm:name>` 永远优先于 AI 推断姓名；原生 `ttv:color`（精确十六进制歌手色 `#rrggbb`，同时映射到最近语义色名供舞台洗光使用）优先于 AI 调色盘，仅在未声明 `ttv:color` 时允许 AI `singers` 从 32 色板中覆盖前端默认的 8 色轮换方案。
@@ -613,7 +613,7 @@ interface ResolvedLyrics {
 
 - 归一化连续空格
 - 行级时间戳补齐为字级时间戳
-- 将背景人声按所属主唱行成组隔离：清洗无意重叠（规则见 8.6）与提前起唱只在主唱行序列上推进，保留背景人声自身的真实时间；未标记独立对齐与声部的背景人声继承所属主行的水平对齐；保留 TTML 不同 `<div>` 段落首行标记以在渲染时增加段落间距（空主行过滤时向后传递，首条主行不加顶距）
+- 将背景人声按所属主唱行成组隔离：清洗无意重叠（规则见 8.6）与提前起唱只在主唱行序列上推进，保留背景人声自身的真实时间；未显式标记位置的背景人声继承所属主行的水平对齐；保留 TTML 不同 `<div>` 段落首行标记以在渲染时增加段落间距（空主行过滤时向后传递，首条主行不加顶距）
 - **提前起唱**：最多提前 600ms，且与上一主行没有重叠时最多提前到上一主行组结束（取上一主行及其尾随背景和声的最大结束时刻，避免尾随和声仍在独唱时提前切走焦点；快歌里紧挨着的短行若都提前 600ms，会被提前到同一时刻、同时高亮，焦点停在最早的一行）；与上一主行重叠时提前 400ms，重叠不足 400ms 则提前重叠时长的 70%
 
 ### 8.9 不雅用语打码

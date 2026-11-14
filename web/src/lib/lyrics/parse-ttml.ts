@@ -1,6 +1,7 @@
 import type { SharedRubyMark, TtmlWordDraft } from './ttml-ruby'
 import type { LyricAgent, LyricAlign, LyricColor, LyricLine, LyricSource, ResolvedLyrics } from './types'
 import { nearestLyricColor, parseHexColor } from './colors'
+import { getBackgroundOwnerMap } from './line-utils'
 import { preprocessLyricLines } from './preprocess'
 import { romanWordsFromSpans } from './romanization'
 import { applySharedRubyGroups, parseTtmlRubyContainer, retimePlaceholderWords, spreadRubyTexts } from './ttml-ruby'
@@ -41,6 +42,10 @@ function attr(el: Element, localName: string): string | null {
   return null
 }
 
+function hasAttr(el: Element, localName: string): boolean {
+  return Array.from(el.attributes).some(attribute => (attribute.localName ?? attribute.name).split(':').pop() === localName)
+}
+
 const childElements = (el: Element, localName: string) => Array.from(el.getElementsByTagName('*')).filter(child => (child.localName ?? child.tagName).split(':').pop() === localName)
 
 type Singer = 'primary' | 'secondary' | 'duet'
@@ -63,11 +68,41 @@ interface DeclaredAgent {
   name?: string
   colorHex?: string
   position?: LyricAlign
+  members?: string[]
 }
 
 interface ResolvedAgentRef {
   singer: Singer
   agent?: string
+}
+
+interface StarryExtReading {
+  start: number
+  end: number
+  text: string
+}
+
+interface StarryExtSyllable {
+  index: number
+  start?: number
+  end?: number
+  ruby?: StarryExtReading[]
+  groupRuby?: StarryExtReading[]
+  joinsRubyGroup?: boolean
+}
+
+interface StarryExtLine {
+  key: string
+  position?: LyricAlign
+  agentAttr?: string
+  bgAgentAttr?: string
+  mainSyllables?: StarryExtSyllable[]
+  bgSyllables?: StarryExtSyllable[]
+}
+
+interface StarryExtensions {
+  agents: DeclaredAgent[]
+  linesByKey: Map<string, StarryExtLine>
 }
 
 function isConventionalGroupId(id: string): boolean {
@@ -80,7 +115,7 @@ function parseDeclaredPosition(value: string | null): LyricAlign | undefined {
     return 'left'
   if (v === 'secondary' || v === 'right')
     return 'right'
-  if (v === 'center')
+  if (v === 'duet' || v === 'center')
     return 'center'
   return undefined
 }
@@ -92,12 +127,148 @@ function readAgentName(agentEl: Element): string | undefined {
   return text || undefined
 }
 
-/** 向上查找可继承的指定本地名属性（支持 body / div 继承到 p） */
-function resolveInheritedAttr(el: Element, localName: string): string | null {
+function parseStarryExtColor(raw: unknown): string | undefined {
+  if (typeof raw === 'string')
+    return parseHexColor(raw)
+  if (!raw || typeof raw !== 'object')
+    return undefined
+  const obj = raw as Record<string, unknown>
+  if (typeof obj.hex === 'string')
+    return parseHexColor(obj.hex)
+  if (typeof obj.red === 'number' && typeof obj.green === 'number' && typeof obj.blue === 'number') {
+    const toHex = (n: number) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0')
+    return `#${toHex(obj.red)}${toHex(obj.green)}${toHex(obj.blue)}`
+  }
+  return undefined
+}
+
+function hasNativeStarryExtensions(doc: Document): boolean {
+  const root = doc.documentElement
+  if (Array.from(root.attributes).some(a => a.name.startsWith('xmlns:') && a.value.startsWith('urn:ttml:extensions:')))
+    return true
+  return Array.from(root.getElementsByTagName('*')).some(el => (
+    hasAttr(el, 'position')
+    || hasAttr(el, 'agents')
+    || hasAttr(el, 'color')
+    || hasAttr(el, 'members')
+    || hasAttr(el, 'rubyGroup')
+  ))
+}
+
+/**
+ * 解析 StarryPlayer「扩展属性兼容 AMLL 仓库投稿」导出的 `<amll:meta key="starry:extensions:v1"/>` 备份：
+ * 当上游仓库清洗掉 xmlns:ttd/ttv/ttx 等非标命名空间属性时，从中恢复歌手角色表、颜色、组合成员、行摆位与跨音节共享注音
+ */
+function readStarryExtensions(doc: Document): StarryExtensions | undefined {
+  if (hasNativeStarryExtensions(doc))
+    return undefined
+  const metaEl = childElements(doc.documentElement, 'meta').find(el => attr(el, 'key') === 'starry:extensions:v1')
+  const encoded = metaEl ? attr(metaEl, 'value')?.trim() : undefined
+  if (!encoded || typeof atob !== 'function')
+    return undefined
+  try {
+    const binary = atob(encoded)
+    const bytes = Uint8Array.from(binary, ch => ch.charCodeAt(0))
+    const payload = JSON.parse(new TextDecoder().decode(bytes)) as {
+      version?: number
+      agents?: Array<{
+        id?: string
+        kind?: string
+        names?: Array<{ text?: string, kind?: string }>
+        color?: unknown
+        memberIDs?: string[]
+      }>
+      lines?: Array<{
+        key?: string
+        singer?: string
+        agentIDs?: string[]
+        main?: { syllables?: StarryExtSyllable[] }
+        background?: { agentIDs?: string[], syllables?: StarryExtSyllable[] }
+      }>
+    }
+    if (payload?.version !== 1)
+      return undefined
+    const agents: DeclaredAgent[] = (payload.agents ?? [])
+      .map((entry) => {
+        const id = entry.id?.trim() ?? ''
+        const names = entry.names ?? []
+        const full = names.find(n => n.kind === 'full' && n.text?.trim()) ?? names.find(n => n.text?.trim())
+        const members = entry.kind === 'group' && Array.isArray(entry.memberIDs)
+          ? entry.memberIDs.map(m => String(m).trim()).filter(Boolean)
+          : undefined
+        return {
+          id,
+          type: entry.kind?.trim() || 'person',
+          name: full?.text?.trim() || undefined,
+          colorHex: parseStarryExtColor(entry.color),
+          ...(members && members.length > 0 ? { members } : {}),
+        }
+      })
+      .filter(entry => Boolean(entry.id))
+    const linesByKey = new Map<string, StarryExtLine>()
+    for (const line of payload.lines ?? []) {
+      const key = line.key?.trim()
+      if (!key || linesByKey.has(key))
+        continue
+      linesByKey.set(key, {
+        key,
+        position: parseDeclaredPosition(line.singer ?? null),
+        agentAttr: Array.isArray(line.agentIDs) ? line.agentIDs.map(s => String(s).trim()).filter(Boolean).join(' ') : undefined,
+        bgAgentAttr: Array.isArray(line.background?.agentIDs) ? line.background!.agentIDs!.map(s => String(s).trim()).filter(Boolean).join(' ') : undefined,
+        mainSyllables: line.main?.syllables,
+        bgSyllables: line.background?.syllables,
+      })
+    }
+    return { agents, linesByKey }
+  }
+  catch {
+    return undefined
+  }
+}
+
+function applyStarryExtSyllables(words: TtmlWordDraft[], savedSyllables?: StarryExtSyllable[]): void {
+  if (!savedSyllables?.length || words.length === 0)
+    return
+  if (!savedSyllables.every(s => Number.isInteger(s.index) && s.index >= 0 && s.index < words.length))
+    return
+  let activeGroupId: string | undefined
+  for (const saved of savedSyllables) {
+    const target = words[saved.index]
+    if (!target)
+      continue
+    if (saved.ruby?.length && !target.ruby?.length) {
+      if (typeof saved.start === 'number' && Number.isFinite(saved.start))
+        target.start = Math.round(saved.start * 1000)
+      if (typeof saved.end === 'number' && Number.isFinite(saved.end))
+        target.end = Math.max(target.start, Math.round(saved.end * 1000))
+      target.ruby = saved.ruby.map(r => ({
+        text: r.text,
+        start: Math.round(r.start * 1000),
+        end: Math.max(Math.round(r.start * 1000), Math.round(r.end * 1000)),
+      }))
+    }
+    if (saved.groupRuby?.length && !target.rubyGroup) {
+      activeGroupId = `ext_${saved.index}`
+      target.rubyGroup = {
+        id: activeGroupId,
+        text: saved.groupRuby.map(r => r.text.replace(/\\/g, '\\\\').replace(/\|/g, '\\|')).join('|'),
+        times: saved.groupRuby.map(r => `${r.start}s,${r.end}s`).join(' '),
+      }
+    }
+    else if (saved.joinsRubyGroup && activeGroupId && !target.rubyGroup) {
+      target.rubyGroup = { id: activeGroupId }
+    }
+  }
+}
+
+/** 向上查找声部标识属性：显式 ttd:agents（含空串表示未分配）优先于用于摆位的 ttm:agent，并支持 body / div 继承到 p */
+function resolveInheritedVocalAttr(el: Element): string | null {
   let cur: Element | null = el
   while (cur) {
     const tag = (cur.localName ?? cur.tagName).split(':').pop()
-    const val = attr(cur, localName)?.trim()
+    if (hasAttr(cur, 'agents'))
+      return attr(cur, 'agents')?.trim() || null
+    const val = attr(cur, 'agent')?.trim()
     if (val)
       return val
     if (tag === 'body' || tag === 'tt')
@@ -105,11 +276,6 @@ function resolveInheritedAttr(el: Element, localName: string): string | null {
     cur = cur.parentElement
   }
   return null
-}
-
-/** 向上查找声部标识属性：ttd:agents（StarryPlayer / 扩展格式）优先于用于摆位的 ttm:agent */
-function resolveInheritedVocalAttr(el: Element): string | null {
-  return resolveInheritedAttr(el, 'agents') ?? resolveInheritedAttr(el, 'agent')
 }
 
 /** 查找 p 所属的段落容器 div */
@@ -126,28 +292,61 @@ function ancestorDiv(el: Element): Element | null {
   return null
 }
 
-/** 多演唱者解析：优先识别 ttd:position / ttv:color 等显式元数据，其次按 <head> 声明顺序与出场顺序奇偶分配左/右对齐，group/多 agent 居中合唱 */
-function buildAgentResolver(doc: Document): {
+/**
+ * 多演唱者解析：
+ * - 优先识别 ttd:position / ttv:color / ttv:members / starry:extensions:v1 等显式元数据
+ * - 未显式指定摆位时对齐 StarryPlayer：第 1 位非 group 独唱默认左对齐，其余独唱（含 type="other"）右对齐，group / 多 agent 居中合唱
+ * - 背景人声（x-bg）显式标注了位置（ttd:position、摆位载体或 AMLL 匿名站位）时按标注对齐，否则默认跟随所属主唱行
+ */
+function buildAgentResolver(doc: Document, starryExt?: StarryExtensions): {
   resolve: (agentAttr: string | null) => ResolvedAgentRef
   resolvePosition: (el: Element, inheritFromMain?: boolean) => LyricAlign | undefined
+  resolveBgPosition: (bg: { el?: Element, agent?: string | null, hasAgentsAttr?: boolean }) => LyricAlign | undefined
   finalize: (lines: LyricLine[]) => Record<string, LyricAgent> | undefined
 } {
-  const declaredList: DeclaredAgent[] = childElements(doc.documentElement, 'agent')
-    .map(agent => ({
-      id: attr(agent, 'id')?.trim() ?? '',
-      type: attr(agent, 'type')?.trim() ?? 'person',
-      name: readAgentName(agent),
-      colorHex: parseHexColor(attr(agent, 'color')),
-      position: parseDeclaredPosition(attr(agent, 'position')),
-    }))
+  const xmlDeclared: DeclaredAgent[] = childElements(doc.documentElement, 'agent')
+    .map((agent) => {
+      const members = attr(agent, 'members')?.trim().split(/\s+/).filter(Boolean)
+      return {
+        id: attr(agent, 'id')?.trim() ?? '',
+        type: attr(agent, 'type')?.trim() ?? 'person',
+        name: readAgentName(agent),
+        colorHex: parseHexColor(attr(agent, 'color')),
+        position: parseDeclaredPosition(attr(agent, 'position')),
+        ...(members && members.length > 0 ? { members } : {}),
+      }
+    })
     .filter(agent => Boolean(agent.id))
-  const declaredMap = new Map(declaredList.map(agent => [agent.id, agent]))
+
+  const declaredList: DeclaredAgent[] = starryExt?.agents.length
+    ? [
+        ...starryExt.agents,
+        ...xmlDeclared.filter(xmlAgent => !starryExt.agents.some(ext => ext.id === xmlAgent.id)),
+      ]
+    : xmlDeclared
+
+  const declaredMap = new Map<string, DeclaredAgent>()
+  for (const agent of declaredList) {
+    if (!declaredMap.has(agent.id))
+      declaredMap.set(agent.id, agent)
+  }
+
+  const hasPerformerDecl = declaredList.some(a => !a.position || Boolean(a.name || a.colorHex || a.members?.length))
+  const carrierIds = new Set(
+    declaredList
+      .filter(a => Boolean(a.position && !a.name && !a.colorHex && !a.members?.length && hasPerformerDecl))
+      .map(a => a.id),
+  )
+  const hasSeparatedPositions = Boolean(starryExt)
+    || declaredList.some(a => a.position != null)
+    || childElements(doc.documentElement, 'p').some(p => hasAttr(p, 'agents') || hasAttr(p, 'position'))
+
   const declaredSoloRank = new Map<string, number>()
   for (const agent of declaredList) {
-    if (agent.type !== 'group' && !declaredSoloRank.has(agent.id))
+    if (!carrierIds.has(agent.id) && agent.type !== 'group' && !declaredSoloRank.has(agent.id))
       declaredSoloRank.set(agent.id, declaredSoloRank.size)
   }
-  const groups = new Set(declaredList.filter(agent => agent.type === 'group').map(agent => agent.id))
+  const groups = new Set(declaredList.filter(agent => !carrierIds.has(agent.id) && agent.type === 'group').map(agent => agent.id))
   const appearanceOrder = new Map<string, number>()
   const resolvedAgents = new Map<string, LyricAgent>()
 
@@ -158,35 +357,62 @@ function buildAgentResolver(doc: Document): {
       appearanceOrder.set(id, seenIdx)
     }
     const tentativeIdx = declaredSoloRank.get(id) ?? seenIdx
+    const declared = declaredMap.get(id)
     if (!resolvedAgents.has(id)) {
       resolvedAgents.set(id, {
         id,
-        name: declaredMap.get(id)?.name,
+        name: declared?.name,
         color: DEFAULT_SOLO_COLORS[tentativeIdx % DEFAULT_SOLO_COLORS.length],
       })
     }
-    return { singer: tentativeIdx % 2 === 1 ? 'secondary' : 'primary', id }
+    const singer: Singer = declared?.type === 'other'
+      ? 'secondary'
+      : (tentativeIdx === 0 ? 'primary' : 'secondary')
+    return { singer, id }
+  }
+
+  const resolvePosition = (el: Element, inheritFromMain = true): LyricAlign | undefined => {
+    let cur: Element | null = el
+    while (cur) {
+      const tag = (cur.localName ?? cur.tagName).split(':').pop()
+      const explicitPos = parseDeclaredPosition(attr(cur, 'position'))
+      if (explicitPos)
+        return explicitPos
+      // StarryPlayer 等导出会把摆位载体放在 ttm:agent（如 v1_2=primary / v2_2=secondary / v1000_2=duet），而真实歌手写在 ttd:agents
+      const agentIds = (attr(cur, 'agent') ?? '').trim().split(/\s+/).filter(Boolean)
+      if (agentIds.length === 1) {
+        const declaredPos = declaredMap.get(agentIds[0])?.position
+        if (declaredPos)
+          return declaredPos
+      }
+      if (!inheritFromMain || tag === 'body' || tag === 'tt')
+        break
+      cur = cur.parentElement
+    }
+    return undefined
   }
 
   return {
     resolve(agentAttr) {
-      const ids = (agentAttr ?? '').split(/\s+/).filter(Boolean)
+      const ids = Array.from(new Set((agentAttr ?? '').split(/\s+/).filter(Boolean)))
+        .filter(id => !carrierIds.has(id))
       if (ids.length === 0)
         return { singer: 'primary' }
 
       if (ids.length > 1 || ids.some(id => groups.has(id) || isConventionalGroupId(id))) {
         const groupId = ids.length === 1 ? ids[0] : ids.join('+')
         if (!resolvedAgents.has(groupId)) {
-          const members = ids.length > 1
-            ? ids.filter(id => !groups.has(id) && !isConventionalGroupId(id)).map(id => ensureSolo(id).id)
-            : undefined
           const singleDeclared = ids.length === 1 ? declaredMap.get(ids[0]) : undefined
+          const rawMembers = ids.length > 1 ? ids : (singleDeclared?.members ?? [])
+          const members = Array.from(new Set(rawMembers))
+            .filter(id => !groups.has(id) && !isConventionalGroupId(id) && !carrierIds.has(id))
+            .map(id => ensureSolo(id).id)
           resolvedAgents.set(groupId, {
             id: groupId,
             name: singleDeclared?.name,
             color: DEFAULT_GROUP_COLOR,
             isGroup: true,
-            ...(members && members.length > 0 ? { members } : {}),
+            ...(members.length > 0 ? { members } : {}),
           })
         }
         return { singer: 'duet', agent: groupId }
@@ -195,27 +421,41 @@ function buildAgentResolver(doc: Document): {
       const solo = ensureSolo(ids[0])
       return { singer: solo.singer, agent: solo.id }
     },
-    resolvePosition(el, inheritFromMain = true) {
-      let cur: Element | null = el
-      while (cur) {
-        const tag = (cur.localName ?? cur.tagName).split(':').pop()
-        const explicitPos = parseDeclaredPosition(attr(cur, 'position'))
-        if (explicitPos)
-          return explicitPos
-        // StarryPlayer 等导出会把摆位载体放在 ttm:agent（如 v1_2=primary / v2_2=secondary），而真实歌手写在 ttd:agents
-        const agentIds = (attr(cur, 'agent') ?? '').trim().split(/\s+/).filter(Boolean)
-        if (agentIds.length === 1) {
-          const declaredPos = declaredMap.get(agentIds[0])?.position
-          if (declaredPos)
-            return declaredPos
+    resolvePosition,
+    resolveBgPosition(bg) {
+      const explicitPos = bg.el ? resolvePosition(bg.el, false) : undefined
+      if (explicitPos)
+        return explicitPos
+      // 未分离摆位载体的 AMLL 等匿名对唱文件中，x-bg 上直接写匿名站位 ID（无姓名与自定义颜色）视为显式位置标注
+      if (!hasSeparatedPositions && bg.agent && !bg.hasAgentsAttr) {
+        const ids = Array.from(new Set(bg.agent.split(/\s+/).filter(Boolean)))
+          .filter(id => !carrierIds.has(id))
+        if (ids.length > 0 && ids.every((id) => {
+          const d = declaredMap.get(id)
+          return !d?.name && !d?.colorHex && !d?.members?.length
+        })) {
+          if (ids.length > 1 || ids.some(id => groups.has(id) || isConventionalGroupId(id)))
+            return 'center'
+          const solo = ensureSolo(ids[0])
+          return solo.singer === 'secondary' ? 'right' : 'left'
         }
-        if (!inheritFromMain || tag === 'body' || tag === 'tt')
-          break
-        cur = cur.parentElement
       }
       return undefined
     },
     finalize(lines) {
+      const finalizeBackgroundAligns = () => {
+        const ownerMap = getBackgroundOwnerMap(lines)
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i]
+          if (!line.isBackground)
+            continue
+          const ownerIdx = ownerMap.get(i)
+          const ownerAlign = ownerIdx != null ? lines[ownerIdx]?.align : undefined
+          line.align ??= ownerAlign ?? 'left'
+          line.isDuet = line.align === 'right'
+        }
+      }
+
       const usedIds = new Set<string>()
       for (const line of lines) {
         if (line.agent)
@@ -223,9 +463,12 @@ function buildAgentResolver(doc: Document): {
       }
       if (usedIds.size === 0) {
         for (const line of lines) {
-          line.align ??= 'left'
-          line.isDuet = line.align === 'right'
+          if (!line.isBackground) {
+            line.align ??= 'left'
+            line.isDuet = line.align === 'right'
+          }
         }
+        finalizeBackgroundAligns()
         return undefined
       }
       // 将群组引用的成员一并保留，确保合唱多色微光与成员名可查找
@@ -246,12 +489,22 @@ function buildAgentResolver(doc: Document): {
           usedSolos.push(id)
       }
 
-      if (usedSolos.length <= 1 && !hasGroup) {
+      const hasImplicitPrimary = lines.some(l => !l.isBackground && !l.agent)
+      const singleSoloId = usedSolos.length === 1 ? usedSolos[0] : undefined
+      const singleSoloIsSecondary = singleSoloId != null && (
+        declaredMap.get(singleSoloId)?.type === 'other'
+        || declaredMap.get(singleSoloId)?.position === 'right'
+        || (declaredSoloRank.get(singleSoloId) ?? 0) > 0
+      )
+      if (usedSolos.length <= 1 && !hasGroup && !(hasImplicitPrimary && singleSoloIsSecondary)) {
         for (const line of lines) {
           delete line.agent
-          line.align = 'left'
-          line.isDuet = false
+          if (!line.isBackground) {
+            line.align ??= 'left'
+            line.isDuet = line.align === 'right'
+          }
         }
+        finalizeBackgroundAligns()
         return undefined
       }
 
@@ -282,24 +535,24 @@ function buildAgentResolver(doc: Document): {
         }
       }
 
-      // 为每位实际参演独唱计算默认摆位（供未显式标注位置的 x-bg 等复用到主唱同侧）
       const soloDefaultAlign = new Map<string, LyricAlign>()
       for (const id of usedSolos) {
-        const declaredPos = declaredMap.get(id)?.position
-        if (declaredPos) {
-          soloDefaultAlign.set(id, declaredPos)
+        const declared = declaredMap.get(id)
+        if (declared?.position) {
+          soloDefaultAlign.set(id, declared.position)
           continue
         }
-        const firstMainWithPos = lines.find(l => !l.isBackground && l.agent === id && l.align != null)
-        if (firstMainWithPos?.align) {
-          soloDefaultAlign.set(id, firstMainWithPos.align)
+        if (declared?.type === 'other') {
+          soloDefaultAlign.set(id, 'right')
           continue
         }
-        const idx = finalSoloIdx.get(id) ?? 0
-        soloDefaultAlign.set(id, idx % 2 === 1 ? 'right' : 'left')
+        const rank = declaredSoloRank.get(id) ?? (finalSoloIdx.get(id) ?? 0)
+        soloDefaultAlign.set(id, rank === 0 ? 'left' : 'right')
       }
 
       for (const line of lines) {
+        if (line.isBackground)
+          continue
         const agent = line.agent ? result[line.agent] : undefined
         if (!agent) {
           line.align ??= 'left'
@@ -307,8 +560,8 @@ function buildAgentResolver(doc: Document): {
           continue
         }
         if (agent.isGroup) {
-          line.align = 'center'
-          line.isDuet = false
+          line.align = line.align === 'right' ? 'right' : 'center'
+          line.isDuet = line.align === 'right'
         }
         else {
           const align = line.align ?? soloDefaultAlign.get(agent.id) ?? 'left'
@@ -316,6 +569,8 @@ function buildAgentResolver(doc: Document): {
           line.isDuet = align === 'right'
         }
       }
+
+      finalizeBackgroundAligns()
 
       return Object.keys(result).length > 0 ? result : undefined
     },
@@ -425,6 +680,7 @@ interface ParsedLineContent {
   romanization?: string
   romanizationSpans?: KeyedRomanization['spans']
   agent?: string | null
+  hasAgentsAttr?: boolean
   el?: Element
   background?: ParsedLineContent
 }
@@ -465,6 +721,7 @@ function mergeBackgroundContent(prev: ParsedLineContent | undefined, next: Parse
     romanization: prev.romanization ?? next.romanization,
     romanizationSpans: prev.romanizationSpans?.length ? prev.romanizationSpans : next.romanizationSpans,
     agent: prev.agent || next.agent,
+    hasAgentsAttr: Boolean(prev.hasAgentsAttr || next.hasAgentsAttr),
     el: prev.el ?? next.el,
   }
 }
@@ -523,7 +780,10 @@ function readLineContent(el: Element): ParsedLineContent {
       bg.spanEnd = parseTtmlTime(attr(child, 'end'))
       if (bg.words.length === 0)
         bg.plainText = Array.from(child.childNodes, extractBaseText).join('').replace(/\s+/g, ' ').trim() || undefined
-      bg.agent = attr(child, 'agents')?.trim() || attr(child, 'agent')?.trim() || null
+      bg.hasAgentsAttr = hasAttr(child, 'agents')
+      bg.agent = bg.hasAgentsAttr
+        ? (attr(child, 'agents')?.trim() || null)
+        : (attr(child, 'agent')?.trim() || null)
       bg.el = child
       content.background = mergeBackgroundContent(content.background, bg, bgPendingSpace)
       bgPendingSpace = false
@@ -604,7 +864,9 @@ function toLine(
   const wordEnd = Math.max(...words.map(word => word.end))
   // 忽略与词区间完全不重叠的 00:00.000 等占位段落边界（同 StarryPlayer Parsers.swift 规则）
   const expandToSpan = end > start && start < wordEnd && end > wordStart
-  const align = resolved.singer === 'duet' ? 'center' : explicitAlign
+  const align = isBackground
+    ? explicitAlign
+    : (explicitAlign === 'right' ? 'right' : (resolved.singer === 'duet' ? 'center' : explicitAlign))
   return {
     words,
     start: expandToSpan ? Math.min(start, wordStart) : wordStart,
@@ -626,7 +888,8 @@ export function parseTtml(text: string, source: Extract<LyricSource, 'ttml-custo
   if (doc.getElementsByTagName('parsererror').length > 0 || (doc.documentElement.localName ?? '').split(':').pop() !== 'tt')
     return null
 
-  const agentResolver = buildAgentResolver(doc)
+  const starryExt = readStarryExtensions(doc)
+  const agentResolver = buildAgentResolver(doc, starryExt)
   const translations = readKeyedTexts(doc, 'translations')
   const transliterations = readTransliterations(doc)
   const lines: LyricLine[] = []
@@ -645,6 +908,17 @@ export function parseTtml(text: string, source: Extract<LyricSource, 'ttml-custo
         content.words.push({ text: lineText, start: rawBegin, end: rawEnd })
     }
     const key = attr(p, 'key')
+    const extLine = key ? starryExt?.linesByKey.get(key) : undefined
+    if (extLine) {
+      applyStarryExtSyllables(content.words, extLine.mainSyllables)
+      if (content.background) {
+        applyStarryExtSyllables(content.background.words, extLine.bgSyllables)
+        if (extLine.bgAgentAttr !== undefined) {
+          content.background.agent = extLine.bgAgentAttr || null
+          content.background.hasAgentsAttr = true
+        }
+      }
+    }
     if (key) {
       const tr = translations.get(key)
       if (tr) {
@@ -685,8 +959,12 @@ export function parseTtml(text: string, source: Extract<LyricSource, 'ttml-custo
     const end = rawEnd ?? inferredEnd
     if (begin == null || end == null || (content.words.length === 0 && !content.plainText))
       continue
-    const mainAgent = promotedBg?.agent ? agentResolver.resolve(promotedBg.agent) : agentResolver.resolve(resolveInheritedVocalAttr(p))
-    const mainExplicitAlign = (promotedBg?.el ? agentResolver.resolvePosition(promotedBg.el, false) : undefined) ?? agentResolver.resolvePosition(p, true)
+    const mainVocalAttr = promotedBg?.agent
+      ?? (extLine?.agentAttr !== undefined ? (extLine.agentAttr || null) : resolveInheritedVocalAttr(p))
+    const mainAgent = agentResolver.resolve(mainVocalAttr)
+    const mainExplicitAlign = (promotedBg ? agentResolver.resolveBgPosition(promotedBg) : undefined)
+      ?? extLine?.position
+      ?? agentResolver.resolvePosition(p, true)
     const main = toLine(content, begin, end, mainAgent, false, mainExplicitAlign)
     if (!main)
       continue
@@ -698,8 +976,8 @@ export function parseTtml(text: string, source: Extract<LyricSource, 'ttml-custo
     const bgContent = content.background
     const hasBgWords = Boolean(bgContent && (bgContent.words.length > 0 || bgContent.plainText))
     const bgAgent = bgContent?.agent ? agentResolver.resolve(bgContent.agent) : mainAgent
-    const bgOwnPos = bgContent?.el ? agentResolver.resolvePosition(bgContent.el, false) : undefined
-    const bgExplicitAlign = bgContent?.agent ? bgOwnPos : (bgOwnPos ?? mainExplicitAlign)
+    // 背景人声：显式标注位置（ttd:position / 摆位载体 / AMLL 匿名站位）时按标注对齐，否则留空由 finalize 继承所属主唱行
+    const bgExplicitAlign = bgContent ? agentResolver.resolveBgPosition(bgContent) : undefined
     const bgFallbackStart = bgContent && bgContent.words.length > 0
       ? Math.min(...bgContent.words.map(word => word.start))
       : (bgContent?.spanStart ?? begin)

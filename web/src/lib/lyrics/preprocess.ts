@@ -96,7 +96,7 @@ export function preprocessLyricLines(input: LyricLine[]): LyricLine[] {
     if (!group)
       continue
     const isAbove = input[i].backgroundPosition === 'above' || (input[i].backgroundPosition == null && ownerIdx != null && i < ownerIdx)
-    const canInheritOwnerAlign = input[i].align == null && (!input[i].agent || input[i].agent === group.main.agent)
+    const canInheritOwnerAlign = input[i].align == null && !input[i].isDuet
     const inheritedAlign = canInheritOwnerAlign && group.main.align != null
       ? { align: group.main.align, isDuet: group.main.isDuet }
       : (canInheritOwnerAlign && group.main.isDuet ? { isDuet: true } : {})
