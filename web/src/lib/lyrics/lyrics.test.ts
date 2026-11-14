@@ -61,6 +61,38 @@ describe('歌词预处理（8.8）', () => {
     // 词的时间不变
     expect(b.words[0].start).toBe(3000)
   })
+
+  it('背景行随所属主唱行成组隔离：不因局部排序打散归属，也不被邻近主行互裁时间', () => {
+    const firstMain: LyricLine = { words: [{ text: 'first', start: 1000, end: 3000 }], start: 1000, end: 3000, isDuet: false, isBackground: false }
+    const belowBg: LyricLine = { words: [{ text: '(bg)', start: 3200, end: 3900 }], start: 3200, end: 3900, isDuet: false, isBackground: true, backgroundPosition: 'below' }
+    const secondMain: LyricLine = { words: [{ text: 'second', start: 3850, end: 5000 }], start: 3850, end: 5000, isDuet: false, isBackground: false }
+    const aboveBg: LyricLine = { words: [{ text: '(pre)', start: 5400, end: 5800 }], start: 5400, end: 5800, isDuet: false, isBackground: true, backgroundPosition: 'above' }
+    const thirdMain: LyricLine = { words: [{ text: 'third', start: 5900, end: 7000 }], start: 5900, end: 7000, isDuet: false, isBackground: false }
+
+    const result = preprocessLyricLines([firstMain, belowBg, secondMain, aboveBg, thirdMain])
+    expect(result.map(item => item.words[0].text)).toEqual(['first', '(bg)', 'second', '(pre)', 'third'])
+    // firstMain 与 secondMain 空隙大于 0，firstMain 不会被 belowBg/secondMain 互裁，belowBg 保持自身时间
+    expect(result[0].end).toBe(3000)
+    expect(result[1].start).toBe(3200)
+    expect(result[1].end).toBe(3900)
+    // 后置背景人声 (3200..3900) 仍在独唱收尾时，下一主行 (3850) 不得提前 600ms 抢走焦点
+    expect(result[2].start).toBe(3850)
+    expect(result[3].start).toBe(5400)
+  })
+
+  it('段首标记跨空行向下继承但首句主行清除，未标对齐方向的同声部背景行继承主行对齐', () => {
+    const firstWithPara: LyricLine = { ...line(1000, 2000, '首段首句'), paragraphStart: true, align: 'right', isDuet: true }
+    const untaggedBg: LyricLine = { ...line(1200, 1900, '(跟唱)'), isBackground: true }
+    const emptyPara: LyricLine = { ...line(2200, 2400, '   '), paragraphStart: true }
+    const secondKept: LyricLine = line(2500, 3500, '跨过空行的新段')
+
+    const result = preprocessLyricLines([firstWithPara, untaggedBg, emptyPara, secondKept])
+    expect(result.map(item => item.words[0].text)).toEqual(['首段首句', '(跟唱)', '跨过空行的新段'])
+    expect(result[0].paragraphStart).toBeUndefined()
+    expect(result[1].align).toBe('right')
+    expect(result[1].isDuet).toBe(true)
+    expect(result[2].paragraphStart).toBe(true)
+  })
 })
 
 describe('时间线（8.6、8.7）', () => {
@@ -101,6 +133,29 @@ describe('时间线（8.6、8.7）', () => {
     expect(getLineTextAt([], buildTimeline([]), 1000)).toBeNull()
     const withBackground = [line(0, 3000, 'main'), { ...line(1000, 4000, 'bg'), isBackground: true }]
     expect(getLineTextAt(withBackground, buildTimeline(withBackground), 3500)).toBe('main')
+  })
+
+  it('7 秒间奏按真实人声起唱时刻判断且句末延后 100ms 进入，焦点始终锁定所属主唱行', () => {
+    // 经预处理提前 600ms 后，line.start - prev.end 仅 6600ms，但真实人声空隙仍为 7200ms (≥ 7000ms)
+    const preprocessed = preprocessLyricLines([line(1000, 6000, 'a'), line(13200, 15000, 'b')])
+    expect(preprocessed[1].start).toBe(12600)
+    const tl = buildTimeline(preprocessed)
+    expect(tl.map(item => item.kind)).toEqual(['line', 'interlude', 'line', 'footer'])
+    expect(tl[1]).toEqual({ kind: 'interlude', start: 6100, end: 12600 })
+    // 延后 100ms 缓冲期内仍保持上一主行高亮
+    expect(getTimelineState(preprocessed, tl, 6050)).toEqual({ active: [0], focus: 0, interlude: null })
+    expect(getTimelineState(preprocessed, tl, 9000)).toEqual({ active: [], focus: 1, interlude: 1 })
+
+    // 前置背景人声早于主行开唱、以及后置背景人声晚于主行结束时，焦点均锁定所属主唱行且主行保持高亮
+    const aboveBg: LyricLine = { ...line(1000, 1800, 'pre-bg'), isBackground: true, backgroundPosition: 'above' }
+    const mainLine: LyricLine = line(1500, 3000, 'main')
+    const belowBg: LyricLine = { ...line(2600, 4000, 'post-bg'), isBackground: true, backgroundPosition: 'below' }
+    const seq = [aboveBg, mainLine, belowBg]
+    const seqItems = buildTimeline(seq)
+    // 仅前置背景人声在唱时：主行加入 active，焦点仍在 mainLine（条目下标 1）
+    expect(getTimelineState(seq, seqItems, 1200)).toEqual({ active: [0, 1], focus: 1, interlude: null })
+    // 仅后置背景人声拖尾时：主行仍在 active，焦点仍在 mainLine（条目下标 1）
+    expect(getTimelineState(seq, seqItems, 3500)).toEqual({ active: [1, 2], focus: 1, interlude: null })
   })
 
   it('词进度', () => {
@@ -165,10 +220,48 @@ describe('多来源选择', () => {
     expect(resolveLyrics({ ttml: null, ncm: null, ncmParsed: null, pin: null }).kind).toBeNull()
   })
 
-  it('缺翻译与音译的 TTML 向平台借，含中日文字符的音译不借', () => {
+  it('缺翻译与音译的 TTML 向平台借，含中日文字符的音译不借；韩文等无法按字形猜测时保留平台 QRC 逐字音译时间', () => {
     const { lyrics } = resolveLyrics({ ttml, ncm, ncmParsed, pin: null })
     expect(lyrics.lines.map(line => line.translation)).toEqual(['one', 'two'])
     expect(lyrics.lines.map(line => line.romanization)).toEqual(['ichi', undefined])
+
+    const koreanTtml: ResolvedLyrics = {
+      source: 'ttml-amll',
+      wordTimed: true,
+      instrumental: false,
+      lines: [{
+        words: [
+          { text: '사', start: 1000, end: 1300 },
+          { text: '랑', start: 1300, end: 1600 },
+          { text: '해', start: 1600, end: 2000 },
+        ],
+        start: 400,
+        end: 2000,
+        isDuet: false,
+        isBackground: false,
+      }],
+    }
+    const qqKorean = parseQqLyrics({
+      format: 'qrc',
+      lyric: '[1050,950]사(1050,300)랑(1350,300)해(1650,350)',
+      translation: '[00:01.05]爱你',
+      romanization: '[1050,950]sa (1050,300)rang (1350,300)hae(1650,350)',
+    })
+    const borrowed = resolveLyrics({
+      ttml: koreanTtml,
+      ncm: null,
+      ncmParsed: null,
+      qq: platformToLyrics(qqKorean, 'qq'),
+      qqParsed: qqKorean,
+      pin: null,
+    }).lyrics
+    expect(borrowed.lines[0].translation).toBe('爱你')
+    expect(borrowed.lines[0].romanization).toBe('sa rang hae')
+    expect(borrowed.lines[0].romanizationWords?.map(w => [w.text.trim(), w.word, w.start, w.end])).toEqual([
+      ['sa', 0, 1000, 1300],
+      ['rang', 1, 1300, 1600],
+      ['hae', 2, 1600, 1950],
+    ])
   })
 
   it('等级：TTML > 逐字 > 逐行', () => {
@@ -480,6 +573,8 @@ describe('去掉署名行', () => {
     expect(isCreditText('作词 : 宇多田ヒカル')).toBe(true)
     expect(isCreditText('曲：某人')).toBe(true)
     expect(isCreditText('Producer: Someone')).toBe(true)
+    expect(isCreditText('音乐营销：网易云音乐')).toBe(true)
+    expect(isCreditText('營銷推廣：某團隊')).toBe(true)
     expect(isCreditText('Lyrics by Someone')).toBe(true)
     expect(isCreditText('未经许可，不得翻唱或使用')).toBe(true)
     expect(isCreditText('愛：それはきっと')).toBe(false)

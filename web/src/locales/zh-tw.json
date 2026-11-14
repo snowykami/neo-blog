@@ -4720,6 +4720,7 @@
     "lyric_badge_none": "無歌詞",
     "lyric_badge_instrumental": "純音樂",
     "lyric_footer": "歌詞來源：{source}",
+    "lyric_chorus_together": "合唱",
     "lyric_badge_auto": "自動（依品質選擇）",
     "lyric_badge_upgrading": "正在取得更高品質的歌詞",
     "lyric_badge_ai_effects": "AI 歌詞特效",

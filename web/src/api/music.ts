@@ -139,6 +139,7 @@ export interface MusicLyricAnnotations {
   accent?: LyricAnnotations['accent']
   lines: LyricAnnotations['lines']
   sprites?: LyricAnnotations['sprites']
+  singers?: LyricAnnotations['singers']
   edited?: boolean
   // 标注所属的全站歌词版本（具体来源）：只在显示这一版本时叠加特效
   source?: LyricSource

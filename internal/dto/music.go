@@ -114,10 +114,21 @@ type MusicLyricAnnotationsDto struct {
 	Lines  []MusicLyricAnnotationLine `json:"lines"`
 	// 这首歌的自定义粒子（最多 2 种）：行的 scene 为 custom:<name> 时使用，见 MusicLyricSprite
 	Sprites []MusicLyricSprite `json:"sprites,omitempty"`
+	// 多演唱者曲目中各声部（TTML ttm:agent）的名称与代表色，由 AI 全曲规划一并产出，可为空
+	Singers []MusicLyricAnnotationSinger `json:"singers,omitempty"`
 	// 管理员手动编辑过（不再因过期自动重新生成；播放器里手动重新生成前提示会覆盖编辑）
 	Edited bool `json:"edited,omitempty"`
 	// 标注所属的全站歌词版本（具体来源，与前端 ResolvedLyrics.source 一致）：前端只在显示这一版本时叠加特效
 	Source string `json:"source,omitempty"`
+}
+
+// MusicLyricAnnotationSinger 多演唱者曲目中一个声部（TTML ttm:agent）的视觉信息：
+// id 与 TTML 的 agent id 一致（如 v1、v2）；name 为模型结合歌曲歌手与热评推断出的演唱者名称（不确定时为空，且前端优先采用 TTML 原生 ttm:name）；
+// color 为语义化色板中的代表色名称
+type MusicLyricAnnotationSinger struct {
+	ID    string `json:"id"`
+	Name  string `json:"name,omitempty"`
+	Color string `json:"color,omitempty"`
 }
 
 // MusicLyricAnnotationMoment 一个「时刻」：在歌词 text 的第 occurrence 次出现（从 0 开始，副歌常有重复的行）开唱时显示；

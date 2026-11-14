@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -29,13 +30,20 @@ var (
 	ttmlClockRe         = regexp.MustCompile(`^\d+(?::\d+){0,2}(?:\.\d+)?$`)
 )
 
+// lyricTTMLAgent TTML <ttm:agent> 解析出的非群组独唱声部：id 与可选的原生名称（<ttm:name>）
+type lyricTTMLAgent struct {
+	ID   string
+	Name string
+}
+
 // lyricVersionLines 一个来源按前端规则得到的歌词：具体来源（与前端 ResolvedLyrics.source 一致）、各行（开始时间、文字与长音）、
-// 逐行翻译（送给模型的上下文，没有时为 nil）与来源自带的翻译、音译项数（0～2，排序用）
+// 逐行翻译（送给模型的上下文，没有时为 nil）、多声部独唱列表与来源自带的翻译、音译项数（0～2，排序用）
 type lyricVersionLines struct {
 	Source       string
 	WordTimed    bool
 	Timed        []lyricTimedLine
 	Translations []string
+	Agents       []lyricTTMLAgent
 	Extras       int
 }
 
@@ -140,7 +148,7 @@ func ttmlVersion(snapshot *dto.MusicLyricCacheDto) *lyricVersionLines {
 	if len(parsed.Lines) == 0 {
 		return nil
 	}
-	version := &lyricVersionLines{Source: source, WordTimed: parsed.WordTimed, Timed: parsed.Lines}
+	version := &lyricVersionLines{Source: source, WordTimed: parsed.WordTimed, Timed: parsed.Lines, Agents: parsed.Agents}
 	if parsed.HasTranslation {
 		version.Translations = parsed.Translations
 		version.Extras++
@@ -182,10 +190,11 @@ func lyricHasExtra(lines []lyricTimedLine, raw string, noCJK bool) bool {
 	return false
 }
 
-// ttmlLyrics TTML 的主唱行与逐行翻译（与 Lines 一一对应，没有翻译的行为空字符串），以及是否自带翻译、音译与逐字时间
+// ttmlLyrics TTML 的主唱行与逐行翻译（与 Lines 一一对应，没有翻译的行为空字符串），以及是否自带翻译、音译、逐字时间与多声部独唱列表
 type ttmlLyrics struct {
 	Lines           []lyricTimedLine
 	Translations    []string
+	Agents          []lyricTTMLAgent
 	HasTranslation  bool
 	HasRomanization bool
 	WordTimed       bool
@@ -206,7 +215,8 @@ type ttmlWord struct {
 }
 
 // parseTTMLLyrics 解析 TTML 的主唱行（规则见文件开头）：p 为一行，带时间的 span 为音节，span 之间的空白归到前一个音节；
-// 没有音节时间的行整行为一个音节；行按开始时间排序（与前端预处理一致），行数与每行长度的上限同 lyricTimedLines
+// 没有音节时间的行整行为一个音节；支持祖先 body/div 上的 ttd:agents / ttm:agent 继承（ttd:agents 优先于 ttm:agent）；
+// 行按开始时间排序（与前端预处理一致），行数与每行长度的上限同 lyricTimedLines
 func parseTTMLLyrics(raw string) ttmlLyrics {
 	var result ttmlLyrics
 	root := parseTTMLTree(raw)
@@ -215,14 +225,14 @@ func parseTTMLLyrics(raw string) ttmlLyrics {
 	}
 	translations := ttmlKeyedTexts(root)
 	romanized := ttmlKeyedRomanizations(root)
-	singerOf := ttmlSingerResolver(root)
+	resolver := newTTMLAgentResolver(root)
 
 	type line struct {
 		timed       lyricTimedLine
 		translation string
 	}
 	var lines []line
-	walkTTML(root, func(p *ttmlNode) bool {
+	walkTTMLWithAgent(root, "", "", func(p *ttmlNode, inheritedAgent string) bool {
 		if p.name != "p" {
 			return true
 		}
@@ -247,7 +257,7 @@ func parseTTMLLyrics(raw string) ttmlLyrics {
 		if !ok {
 			return false
 		}
-		timed.Singer = singerOf(ttmlAttr(p, "agent"))
+		timed.Singer, timed.Agent = resolver.resolve(inheritedAgent)
 		timed.Background = ttmlBackground(background, begin)
 		lines = append(lines, line{timed: timed, translation: translation})
 		result.HasTranslation = result.HasTranslation || translation != ""
@@ -259,7 +269,32 @@ func parseTTMLLyrics(raw string) ttmlLyrics {
 	if len(lines) > lyricAnnotationMaxLines {
 		lines = lines[:lyricAnnotationMaxLines]
 	}
+	agents := resolver.finalize()
+	result.Agents = agents
+	defaultSolo := ""
+	if len(agents) > 0 {
+		defaultSolo = agents[0].ID
+	}
 	for _, item := range lines {
+		switch {
+		case item.timed.Agent == lyricSingerTogether:
+			item.timed.Singer = lyricSingerTogether
+			if len(agents) == 0 {
+				item.timed.Agent = ""
+			}
+		case len(agents) == 0:
+			item.timed.Singer = ""
+			item.timed.Agent = ""
+		default:
+			if item.timed.Agent == "" {
+				item.timed.Agent = defaultSolo
+			}
+			if item.timed.Agent == defaultSolo {
+				item.timed.Singer = ""
+			} else {
+				item.timed.Singer = lyricSingerSecond
+			}
+		}
 		result.Lines = append(result.Lines, item.timed)
 		result.Translations = append(result.Translations, item.translation)
 	}
@@ -310,35 +345,149 @@ const (
 	lyricSingerTogether = "together"
 )
 
-// ttmlSingerResolver 行的 agent 属性对应的歌手，与前端 parse-ttml.ts 的 buildSingerResolver 一致：
-// 文件中第一个不是群组的 agent 为主唱（返回空）；行的 agent 有多个或属于群组时为合唱，其余为第二位歌手；文件没有声明 agent 时都是主唱
-func ttmlSingerResolver(root *ttmlNode) func(attr string) string {
-	primary, hasPrimary := "", false
-	groups := map[string]bool{}
+// ttmlAgentResolver TTML <ttm:agent> 与行演唱者解析器：
+// - Singer 保持向后兼容（主唱 "" / 第二位及后续独唱 lyricSingerSecond / 合唱 lyricSingerTogether）
+// - Agent 记录原始独唱声部 ID（或 lyricSingerTogether），仅当整首存在多声部（独唱 ≥ 2 或有合唱且有独唱）时由 finalize 返回 Agents 列表
+type ttmlAgentResolver struct {
+	hasDeclared bool
+	groups      map[string]bool
+	names       map[string]string
+	soloOrder   []string
+	soloSet     map[string]bool
+	usedSolo    map[string]bool
+	usedGroup   bool
+}
+
+func isConventionalTTMLGroupID(id string) bool {
+	return strings.EqualFold(id, "v1000") || strings.EqualFold(id, "v2000")
+}
+
+func readTTMLAgentName(agentNode *ttmlNode) string {
+	var full, fallback []string
+	walkTTML(agentNode, func(child *ttmlNode) bool {
+		if child.name != "name" {
+			return true
+		}
+		if text := collapseLyricSpace(ttmlTextContent(child)); text != "" {
+			if ttmlAttr(child, "type") == "full" {
+				full = append(full, text)
+			} else {
+				fallback = append(fallback, text)
+			}
+		}
+		return false
+	})
+	if len(full) > 0 {
+		return strings.Join(full, " ")
+	}
+	return strings.Join(fallback, " ")
+}
+
+func newTTMLAgentResolver(root *ttmlNode) *ttmlAgentResolver {
+	r := &ttmlAgentResolver{
+		groups:   map[string]bool{},
+		names:    map[string]string{},
+		soloSet:  map[string]bool{},
+		usedSolo: map[string]bool{},
+	}
 	walkTTML(root, func(node *ttmlNode) bool {
 		if node.name != "agent" {
 			return true
 		}
-		id := ttmlAttr(node, "id")
+		id := strings.TrimSpace(ttmlAttr(node, "id"))
+		if id == "" {
+			return false
+		}
+		r.hasDeclared = true
+		if name := readTTMLAgentName(node); name != "" {
+			r.names[id] = name
+		}
 		if ttmlAttr(node, "type") == "group" {
-			groups[id] = true
-		} else if !hasPrimary {
-			primary, hasPrimary = id, true
+			r.groups[id] = true
+		} else if !r.soloSet[id] {
+			r.soloSet[id] = true
+			r.soloOrder = append(r.soloOrder, id)
 		}
 		return false
 	})
-	return func(attr string) string {
-		ids := strings.Fields(attr)
-		if len(ids) == 0 || (!hasPrimary && len(groups) == 0) {
-			return ""
+	return r
+}
+
+func (r *ttmlAgentResolver) isGroupID(id string) bool {
+	return r.groups[id] || (r.hasDeclared && isConventionalTTMLGroupID(id))
+}
+
+func (r *ttmlAgentResolver) resolve(attr string) (singer, agentID string) {
+	ids := strings.Fields(attr)
+	if len(ids) == 0 || !r.hasDeclared {
+		return "", ""
+	}
+	if len(ids) > 1 || slices.ContainsFunc(ids, r.isGroupID) {
+		r.usedGroup = true
+		if len(ids) > 1 {
+			for _, id := range ids {
+				if r.isGroupID(id) {
+					continue
+				}
+				if !r.soloSet[id] {
+					r.soloSet[id] = true
+					r.soloOrder = append(r.soloOrder, id)
+				}
+				r.usedSolo[id] = true
+			}
 		}
-		if len(ids) > 1 || groups[ids[0]] {
-			return lyricSingerTogether
+		return lyricSingerTogether, lyricSingerTogether
+	}
+	id := ids[0]
+	if !r.soloSet[id] {
+		r.soloSet[id] = true
+		r.soloOrder = append(r.soloOrder, id)
+	}
+	r.usedSolo[id] = true
+	if len(r.soloOrder) > 0 && id == r.soloOrder[0] {
+		return "", id
+	}
+	return lyricSingerSecond, id
+}
+
+func (r *ttmlAgentResolver) finalize() []lyricTTMLAgent {
+	if len(r.usedSolo) < 2 && !(r.usedGroup && len(r.usedSolo) >= 1) {
+		return nil
+	}
+	agents := make([]lyricTTMLAgent, 0, len(r.soloOrder))
+	for _, id := range r.soloOrder {
+		if r.usedSolo[id] {
+			agents = append(agents, lyricTTMLAgent{ID: id, Name: r.names[id]})
 		}
-		if hasPrimary && ids[0] == primary {
-			return ""
+	}
+	if len(agents) == 0 {
+		return nil
+	}
+	return agents
+}
+
+// walkTTMLWithAgent 按文档顺序遍历元素，传递继承自 body / div / p 的 ttd:agents 与 ttm:agent 属性（ttd:agents 优先于 ttm:agent）
+func walkTTMLWithAgent(node *ttmlNode, inheritedAgents, inheritedAgent string, visit func(*ttmlNode, string) bool) {
+	for _, child := range node.children {
+		if child.name == "" {
+			continue
 		}
-		return lyricSingerSecond
+		nextAgents, nextAgent := inheritedAgents, inheritedAgent
+		if child.name == "body" || child.name == "div" || child.name == "p" {
+			if own := strings.TrimSpace(ttmlAttr(child, "agents")); own != "" {
+				nextAgents = own
+			}
+			if own := strings.TrimSpace(ttmlAttr(child, "agent")); own != "" {
+				nextAgent = own
+			}
+		}
+		effective := nextAgents
+		if effective == "" {
+			effective = nextAgent
+		}
+		if visit(child, effective) {
+			walkTTMLWithAgent(child, nextAgents, nextAgent, visit)
+		}
 	}
 }
 

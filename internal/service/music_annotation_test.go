@@ -443,3 +443,47 @@ func TestParseLyricAnnotationDataNormalizesLegacy(t *testing.T) {
 		t.Fatalf("styles not normalized: %+v", line.Phrases)
 	}
 }
+
+func TestSanitizeLyricAnnotationsSingers(t *testing.T) {
+	lines := []string{"我先唱", "我接着唱"}
+	// 支持对象格式 {"v1":{"name":"","color":"sky"}}，映射旧版颜色、忽略全空与非法项、名称过长截断并按 id 排序
+	raw := `{"singers":{
+		"v2":{"name":"  「周深」  ","color":"pink"},
+		"v1":{"name":"","color":"sky"},
+		"v3":{"name":"` + strings.Repeat("名", 30) + `","color":"unknown"},
+		"empty":{"name":"","color":"neon"},
+		"bad id!":{"name":"bad","color":"gold"}
+	},"lines":[]}`
+	got, err := sanitizeLyricAnnotations(lines, nil, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []dto.MusicLyricAnnotationSinger{
+		{ID: "v1", Color: "sky"},
+		{ID: "v2", Name: "周深", Color: "cherry-blossom"},
+		{ID: "v3", Name: strings.Repeat("名", lyricAnnotationMaxSingerRunes)},
+	}
+	if !reflect.DeepEqual(got.Singers, want) {
+		t.Fatalf("singers = %+v\nwant %+v", got.Singers, want)
+	}
+
+	// 数组格式同样支持
+	arrRaw := `{"singers":[{"id":"v2","name":"乙","color":"rose"},{"id":"v1","name":"甲","color":"ocean"}],"lines":[]}`
+	gotArr, err := sanitizeLyricAnnotations(lines, nil, arrRaw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantArr := []dto.MusicLyricAnnotationSinger{
+		{ID: "v1", Name: "甲", Color: "ocean"},
+		{ID: "v2", Name: "乙", Color: "rose"},
+	}
+	if !reflect.DeepEqual(gotArr.Singers, wantArr) {
+		t.Fatalf("array singers = %+v\nwant %+v", gotArr.Singers, wantArr)
+	}
+
+	// parseLyricAnnotationData 同样会归一化旧版颜色名并过滤空项
+	parsed := parseLyricAnnotationData(`{"singers":[{"id":"v1","color":"blue"},{"id":"v2","color":"invalid"}],"lines":[]}`)
+	if wantParsed := []dto.MusicLyricAnnotationSinger{{ID: "v1", Color: "ocean"}}; !reflect.DeepEqual(parsed.Singers, wantParsed) {
+		t.Fatalf("parsed legacy singers = %+v", parsed.Singers)
+	}
+}

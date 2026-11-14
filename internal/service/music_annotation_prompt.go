@@ -28,6 +28,7 @@ type lyricAnnotationLocale struct {
 	// 对唱（第二位歌手、合唱）、背景人声（文字）、没有人唱的时段（单独一行：前奏、间奏、尾奏的秒数）
 	DurationNote, Duration, RepeatNote, Repeat, RepeatVaried, CreditNote, Credit string
 	SingerNote, SingerSecond, SingerTogether, BackgroundNote, Background         string
+	VocalNote, VocalKnown, VocalPart                                             string
 	GapNote, Intro, Break, Outro                                                 string
 	// 逐段标注：全曲规划的开始与结束标签、主题、方向、全曲字体、意象标题、一个意象（原文、特效、颜色）、不上色
 	Plan, PlanEnd, Theme, Direction, Font, Imagery, ImageryItem, NoColor string
@@ -57,6 +58,9 @@ var lyricAnnotationEN = lyricAnnotationLocale{
 	CreditNote: "〔credits〕: a credit line, not sung; the player hides it.\n", Credit: "　〔credits〕",
 	SingerNote:   "〔singer 2〕 / 〔together〕: a duet line sung by the second singer / by both; unmarked lines are the lead.\n",
 	SingerSecond: "　〔singer 2〕", SingerTogether: "　〔together〕",
+	VocalNote:      "〔vocal: id〕 / 〔together〕: which vocal part sings the line in a multi-singer song; 〔together〕 is sung together.\n",
+	VocalKnown:     "Known vocal names from lyric metadata: %s.\n",
+	VocalPart:      "　〔vocal: %s〕",
 	BackgroundNote: "〔bg: …〕: a background vocal sung with the line; it is not part of the line's text.\n", Background: "　〔bg: \"%s\"〕",
 	GapNote: "Unnumbered 〔intro / instrumental break / outro: Ns〕 lines mark stretches with no singing.\n",
 	Intro:   "〔intro: %ds〕\n", Break: "〔instrumental break: %ds〕\n", Outro: "〔outro: %ds〕\n",
@@ -105,6 +109,7 @@ Task: plan the whole song. Phrases are annotated afterwards, chunk by chunk in p
 - font: song-wide font, optional (default sans).
 - spotlights: indices i of the moments that sum up the song — its title line or deepest confession, sung for at least ~2 seconds (see 〔Ns〕); at most 3 different lines and 6 indices in all. While one is sung it moves alone to the center, enlarged, with a warm light behind it and the other lines dimmed. Only the listed indices are lit: when the line repeats, pick the repeats where it lands hardest (often the final chorus or the last time it is sung), not every one, because a spotlight that comes every chorus stops feeling special. Add a second or third line only when it is just as essential; give [] if no line clearly stands out.
 - accent: the song's theme color as #rrggbb, chosen freely from the song's feeling and imagery (not from the album cover). It tints the lyric glow and the breathing light behind the lyrics on a dark screen, so pick a color that glows well there.
+- singers (only when <lyrics> has 〔vocal: …〕 marks): {"v1":{"name":"","color":"sky"}} for each vocal id — pick distinct colors from the palette above that fit each voice and the song's direction; fill name from <song> Artists or <listener_comments> only when you can tell with confidence which artist sings that part (leave name "" if unsure).
 - lines: mood (calm / bright / sad / intense) on emotionally clear lines; scene on lines describing a concrete image or starting a chorus (up to 6 per song), with optional scene_color (a color value, e.g. bauhinia for bauhinia petals) and scene_until: the index of the last line the scene should stay on — the end of the image's passage or of that chorus, so the scene fades as the image leaves the lyrics (a passing image may last 1-3 lines; a scene that opens a chorus usually lasts through it; at most 16 lines). The next scene also ends the previous one.
 scene:
 {{scenes}}

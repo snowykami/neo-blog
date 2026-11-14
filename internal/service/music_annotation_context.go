@@ -51,6 +51,8 @@ type lyricAnnotationInfo struct {
 	Chorus []lyricChorusRange
 	// 歌词各行的开始时间（与歌词行一一对应）
 	Timed []lyricTimedLine
+	// 多声部 TTML 解析出的独唱声部列表（用于提示词标出各声部 id 与原生名称）
+	Agents []lyricTTMLAgent
 	// 歌词有逐字时间（长音直接从中找出）；没有时在生成时向 QQ 音乐 / 酷狗的逐字歌词借（borrowHeldNotes）
 	WordTimed bool
 	// 歌词所属的全站歌词版本（具体来源，如 ttml-amll、ncm-yrc），随标注保存
@@ -76,6 +78,8 @@ type lyricTimedLine struct {
 	Held *lyricHeldNote
 	// TTML 的对唱：lyricSingerSecond 为第二位歌手，lyricSingerTogether 为合唱（与前端 parse-ttml.ts 的判断一致）；主唱与其他来源为空
 	Singer string
+	// 多声部 TTML 的原始声部标识（如 v1、v2、v3 或 together）；单歌手或平台歌词为空
+	Agent string
 	// TTML 中与这一行一起唱的背景人声（x-bg），没有时为 nil
 	Background *lyricBackground
 }
@@ -417,7 +421,8 @@ func writeLyricAnnotationLines(b *strings.Builder, info lyricAnnotationInfo, lin
 		line := timed(i)
 		return line != nil && line.End > line.Start && line.Start >= 0 && !(i < len(structure.Credit) && structure.Credit[i])
 	}
-	var hasTranslation, hasHeld, hasDuration, hasRepeat, hasGap, hasSinger, hasBackground, hasCredit bool
+	hasAgents := len(info.Agents) > 0
+	var hasTranslation, hasHeld, hasDuration, hasRepeat, hasGap, hasSinger, hasVocal, hasBackground, hasCredit bool
 	for i := from; i <= to; i++ {
 		line := timed(i)
 		hasTranslation = hasTranslation || (i < len(info.Translations) && info.Translations[i] != "")
@@ -425,9 +430,21 @@ func writeLyricAnnotationLines(b *strings.Builder, info lyricAnnotationInfo, lin
 		hasDuration = hasDuration || sung(i)
 		hasRepeat = hasRepeat || (i < len(structure.Repeat) && structure.Repeat[i] > 0)
 		hasGap = hasGap || at(structure.GapBefore, i) > 0
-		hasSinger = hasSinger || (line != nil && line.Singer != "")
+		if hasAgents {
+			hasVocal = hasVocal || (line != nil && line.Agent != "")
+		} else {
+			hasSinger = hasSinger || (line != nil && line.Singer != "")
+		}
 		hasBackground = hasBackground || (line != nil && line.Background != nil)
 		hasCredit = hasCredit || (i < len(structure.Credit) && structure.Credit[i])
+	}
+	var knownVocals []string
+	if hasVocal {
+		for _, agent := range info.Agents {
+			if agent.Name != "" {
+				knownVocals = append(knownVocals, fmt.Sprintf("%s=%q", agent.ID, agent.Name))
+			}
+		}
 	}
 	hasGap = hasGap || (to == len(lines)-1 && structure.Outro > 0)
 	b.WriteString(text.Lyrics)
@@ -436,7 +453,9 @@ func writeLyricAnnotationLines(b *strings.Builder, info lyricAnnotationInfo, lin
 		text string
 	}{
 		{hasTranslation, text.TranslationNote}, {hasHeld, text.HeldNote}, {hasDuration, text.DurationNote}, {hasRepeat, text.RepeatNote},
-		{hasCredit, text.CreditNote}, {hasSinger, text.SingerNote}, {hasBackground, text.BackgroundNote}, {hasGap, text.GapNote},
+		{hasCredit, text.CreditNote}, {hasSinger, text.SingerNote}, {hasVocal, text.VocalNote},
+		{len(knownVocals) > 0, fmt.Sprintf(text.VocalKnown, strings.Join(knownVocals, ", "))},
+		{hasBackground, text.BackgroundNote}, {hasGap, text.GapNote},
 	} {
 		if note.show {
 			b.WriteString(note.text)
@@ -473,11 +492,19 @@ func writeLyricAnnotationLines(b *strings.Builder, info lyricAnnotationInfo, lin
 			}
 		}
 		if line != nil {
-			switch line.Singer {
-			case lyricSingerSecond:
-				b.WriteString(text.SingerSecond)
-			case lyricSingerTogether:
-				b.WriteString(text.SingerTogether)
+			if hasAgents && line.Agent != "" {
+				if line.Agent == lyricSingerTogether {
+					b.WriteString(text.SingerTogether)
+				} else {
+					fmt.Fprintf(b, text.VocalPart, line.Agent)
+				}
+			} else if !hasAgents {
+				switch line.Singer {
+				case lyricSingerSecond:
+					b.WriteString(text.SingerSecond)
+				case lyricSingerTogether:
+					b.WriteString(text.SingerTogether)
+				}
 			}
 		}
 		if i < len(info.Translations) && info.Translations[i] != "" {

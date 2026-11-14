@@ -1,6 +1,7 @@
-import type { PlatformLyricParsed } from './parse-platform'
-import type { LyricLine, ResolvedLyrics } from './types'
-import { alignTimedTexts, getLyricLineText, getLyricLineVocalStart } from './line-utils'
+import type { PlatformExtraLine, PlatformLyricParsed } from './parse-platform'
+import type { LyricLine, LyricRomanWord, ResolvedLyrics } from './types'
+import { alignTimedTexts, EXTRA_LYRIC_MAX_OFFSET_MS, getLyricLineText, getLyricLineVocalStart } from './line-utils'
+import { alignRomanization, romanWordsFromTimed } from './romanization'
 import { EMPTY_LYRICS } from './types'
 
 /**
@@ -33,6 +34,47 @@ export function lyricTier(lyrics: ResolvedLyrics): number {
 }
 
 const CJK_RE = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
+const BORROW_TIMED_DURATION_TOLERANCE_MS = 1500
+
+function alignExtraLines(baseStarts: number[], extras: PlatformExtraLine[]): Map<number, PlatformExtraLine> {
+  const pairs: { offset: number, base: number, extra: number }[] = []
+  extras.forEach((extraItem, extra) => {
+    baseStarts.forEach((baseStart, base) => {
+      const offset = Math.abs(baseStart - extraItem.start)
+      if (offset <= EXTRA_LYRIC_MAX_OFFSET_MS)
+        pairs.push({ offset, base, extra })
+    })
+  })
+  pairs.sort((a, b) => a.offset - b.offset)
+  const usedBase = new Set<number>()
+  const usedExtra = new Set<number>()
+  const result = new Map<number, PlatformExtraLine>()
+  for (const { base, extra } of pairs) {
+    if (usedBase.has(base) || usedExtra.has(extra))
+      continue
+    usedBase.add(base)
+    usedExtra.add(extra)
+    result.set(base, extras[extra])
+  }
+  return result
+}
+
+function borrowTimedRomanization(line: LyricLine, vocalStart: number, extraLine: PlatformExtraLine): LyricRomanWord[] | undefined {
+  if (!extraLine.items?.length || alignRomanization(extraLine.text, line.words))
+    return undefined
+  const extraEnd = Math.max(...extraLine.items.map(item => item.end))
+  const extraDuration = Math.max(0, extraEnd - extraLine.start)
+  const lineDuration = Math.max(0, line.end - vocalStart)
+  if (Math.abs(extraDuration - lineDuration) > BORROW_TIMED_DURATION_TOLERANCE_MS)
+    return undefined
+  const delta = vocalStart - extraLine.start
+  const shifted = extraLine.items.map((item) => {
+    const start = Math.min(line.end, Math.max(vocalStart, item.start + delta))
+    const end = Math.min(line.end, Math.max(start, item.end + delta))
+    return { text: item.text, start, end }
+  })
+  return romanWordsFromTimed(shifted, line.words) ?? undefined
+}
 
 /** 把平台歌词的翻译 / 音译借给目标歌词（只补缺失的那一种） */
 export function borrowExtras(target: ResolvedLyrics, platform: PlatformLyricParsed | null): ResolvedLyrics {
@@ -48,18 +90,22 @@ export function borrowExtras(target: ResolvedLyrics, platform: PlatformLyricPars
   const baseStarts = mainIndexes.map(index => getLyricLineVocalStart(target.lines[index]))
   const translations = needTranslation ? alignTimedTexts(baseStarts, platform.translations) : null
   const romanizations = needRomanization
-    ? alignTimedTexts(baseStarts, platform.romanizations.filter(item => !CJK_RE.test(item.text)))
+    ? alignExtraLines(baseStarts, platform.romanizations.filter(item => !CJK_RE.test(item.text)))
     : null
 
   const lines: LyricLine[] = target.lines.slice()
   mainIndexes.forEach((index, i) => {
     const translation = translations?.get(i)
-    const romanization = romanizations?.get(i)
+    const extraRoman = romanizations?.get(i)
+    const romanization = extraRoman?.text
     if (translation || romanization) {
+      const romanizationWords = lines[index].romanizationWords
+        ?? (target.wordTimed && extraRoman ? borrowTimedRomanization(lines[index], baseStarts[i], extraRoman) : undefined)
       lines[index] = {
         ...lines[index],
         translation: lines[index].translation ?? (translation && translation !== getLyricLineText(lines[index]) ? translation : undefined),
         romanization: lines[index].romanization ?? romanization,
+        ...(romanizationWords ? { romanizationWords } : {}),
       }
     }
   })

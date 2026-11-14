@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { LYRIC_COLORS } from './colors'
 import { parseTtml, parseTtmlTime } from './parse-ttml'
 
 const TTML = `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata" xmlns:itunes="http://music.apple.com/lyric-ttml-internal">
@@ -95,6 +96,180 @@ describe('解析 TTML 歌词', () => {
     expect(line.words[1].ruby).toBeUndefined()
     expect(line.words[2].ruby).toEqual([
       { text: 'ゆ', start: 10800, end: 11200 },
+    ])
+  })
+
+  it('合唱居中（group / 多 agent）、祖先 ttm:agent 继承与背景人声独立演唱者', () => {
+    const ttml = `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata">
+<head><metadata>
+  <ttm:agent type="person" xml:id="v1"/>
+  <ttm:agent type="person" xml:id="v2"/>
+  <ttm:agent type="group" xml:id="v1000"/>
+</metadata></head>
+<body>
+  <div ttm:agent="v1">
+    <p begin="00:01.000" end="00:02.000">
+      <span begin="00:01.000" end="00:02.000">主唱继承div</span>
+      <span ttm:role="x-bg" ttm:agent="v2"><span begin="00:01.500" end="00:01.900">(对唱和声)</span></span>
+    </p>
+    <p begin="00:03.000" end="00:04.000" ttm:agent="v1000"><span begin="00:03.000" end="00:04.000">群组合唱</span></p>
+    <p begin="00:05.000" end="00:06.000" ttm:agent="v1 v2"><span begin="00:05.000" end="00:06.000">双人同唱</span></p>
+  </div>
+  <div ttm:agent="v2">
+    <p begin="00:07.000" end="00:08.000"><span begin="00:07.000" end="00:08.000">对唱继承div</span></p>
+  </div>
+</body></tt>`
+    const parsed = parseTtml(ttml, 'ttml-amll')!
+    const [inheritedMain, bgOverride, groupChorus, multiAgentChorus, inheritedDuet] = parsed.lines
+    expect(inheritedMain.align).toBe('left')
+    expect(inheritedMain.isDuet).toBe(false)
+    expect(inheritedMain.paragraphStart).toBeUndefined()
+    expect(bgOverride.isBackground).toBe(true)
+    expect(bgOverride.align).toBe('right')
+    expect(bgOverride.isDuet).toBe(true)
+    expect(bgOverride.backgroundPosition).toBe('below')
+    expect(groupChorus.align).toBe('center')
+    expect(groupChorus.isDuet).toBe(false)
+    expect(multiAgentChorus.align).toBe('center')
+    expect(multiAgentChorus.isDuet).toBe(false)
+    expect(inheritedDuet.align).toBe('right')
+    expect(inheritedDuet.isDuet).toBe(true)
+    expect(inheritedDuet.paragraphStart).toBe(true)
+  })
+
+  it('解析 head 中背景人声（x-bg）音译与翻译且不混入主行，并区分前后背景位置', () => {
+    const ttml = `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata" xmlns:itunes="http://music.apple.com/lyric-ttml-internal">
+<head><metadata><iTunesMetadata xmlns="http://music.apple.com/lyric-ttml-internal">
+  <translations><translation>
+    <text for="L1">光明<span ttm:role="x-bg">(微光)</span></text>
+  </translation></translations>
+  <transliterations><transliteration xml:lang="ja-Latn">
+    <text for="L1"><span begin="2.000" end="2.500">hi ka ri</span> <span ttm:role="x-bg"><span begin="1.200" end="1.800">(a ha)</span></span></text>
+  </transliteration></transliterations>
+</iTunesMetadata></metadata></head>
+<body><div>
+  <p begin="1.200" end="3.000" itunes:key="L1">
+    <span begin="2.000" end="2.500">光</span>
+    <span ttm:role="x-bg"><span begin="1.200" end="1.800">(あは)</span></span>
+  </p>
+</div></body></tt>`
+    const parsed = parseTtml(ttml, 'ttml-amll')!
+    const [bg, main] = parsed.lines
+    expect(bg.isBackground).toBe(true)
+    expect(bg.backgroundPosition).toBe('above')
+    expect(bg.translation).toBe('(微光)')
+    expect(bg.romanization).toBe('(a ha)')
+    expect(bg.romanizationWords?.length).toBeGreaterThan(0)
+    expect(main.isBackground).toBe(false)
+    expect(main.translation).toBe('光明')
+    expect(main.romanization).toBe('hi ka ri')
+    expect(main.romanizationWords?.map(p => p.text)).toEqual(['hi', 'ka', 'ri'])
+  })
+
+  it('3+ 演唱者按出场顺序奇偶左/右对齐，识别 <ttm:name>、合唱成员与单人独唱清理', () => {
+    const multiTtml = `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata">
+<head><metadata>
+  <ttm:agent type="person" xml:id="v1"><ttm:name type="full">林俊杰</ttm:name></ttm:agent>
+  <ttm:agent type="person" xml:id="v2"/>
+  <ttm:agent type="person" xml:id="v3"><ttm:name>周杰伦</ttm:name></ttm:agent>
+  <ttm:agent type="group" xml:id="v1000"/>
+</metadata></head>
+<body>
+  <div ttm:agent="v1">
+    <p begin="1.000" end="2.000"><span begin="1.000" end="2.000">第一句</span></p>
+  </div>
+  <div>
+    <p begin="2.500" end="3.500" ttm:agent="v2"><span begin="2.500" end="3.500">第二句</span><span ttm:role="x-bg"><span begin="2.800" end="3.400">(和声)</span></span></p>
+    <p begin="4.000" end="5.000" ttm:agent="v3"><span begin="4.000" end="5.000">第三句</span></p>
+    <p begin="5.500" end="6.500" ttm:agent="v1 v3"><span begin="5.500" end="6.500">双人合唱</span></p>
+    <p begin="7.000" end="8.000" ttm:agent="v1000"><span begin="7.000" end="8.000">全体大合唱</span></p>
+  </div>
+</body></tt>`
+    const parsed = parseTtml(multiTtml, 'ttml-amll')!
+    expect(parsed.lines.map(l => [l.agent, l.align, l.isDuet, l.isBackground])).toEqual([
+      ['v1', 'left', false, false],
+      ['v2', 'right', true, false],
+      ['v2', 'right', true, true],
+      ['v3', 'left', false, false],
+      ['v1+v3', 'center', false, false],
+      ['v1000', 'center', false, false],
+    ])
+    expect(parsed.agents?.v1).toMatchObject({ id: 'v1', name: '林俊杰', color: 'sky' })
+    expect(parsed.agents?.v2).toMatchObject({ id: 'v2', color: 'rose' })
+    expect(parsed.agents?.v2.name).toBeUndefined()
+    expect(parsed.agents?.v3).toMatchObject({ id: 'v3', name: '周杰伦', color: 'jade' })
+    expect(parsed.agents?.['v1+v3']).toMatchObject({ id: 'v1+v3', isGroup: true, members: ['v1', 'v3'] })
+    expect(parsed.agents?.v1000).toMatchObject({ id: 'v1000', isGroup: true, color: 'lavender' })
+
+    const soloTtml = `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata">
+<head><metadata><ttm:agent type="person" xml:id="v1"><ttm:name>独唱者</ttm:name></ttm:agent></metadata></head>
+<body><div><p begin="1.000" end="2.000" ttm:agent="v1"><span begin="1.000" end="2.000">只一个人唱</span></p></div></body></tt>`
+    const solo = parseTtml(soloTtml, 'ttml-amll')!
+    expect(solo.agents).toBeUndefined()
+    expect(solo.lines[0].agent).toBeUndefined()
+    expect(solo.lines[0].align).toBe('left')
+
+    // 即使对唱歌手 v2 先开口唱引子，仍按 <head> 声明顺序保持 v1 左对齐、v2 右对齐；无 <head> 声明但正文带 ttm:agent 时同样识别
+    const v2FirstTtml = `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata">
+<head><metadata>
+  <ttm:agent type="person" xml:id="v1"/>
+  <ttm:agent type="person" xml:id="v2"/>
+</metadata></head>
+<body><div>
+  <p begin="1.000" end="2.000" ttm:agent="v2"><span begin="1.000" end="2.000">引子</span></p>
+  <p begin="3.000" end="4.000" ttm:agent="v1"><span begin="3.000" end="4.000">主歌</span></p>
+</div></body></tt>`
+    const v2First = parseTtml(v2FirstTtml, 'ttml-amll')!
+    expect(v2First.lines.map(l => [l.agent, l.align, l.isDuet])).toEqual([
+      ['v2', 'right', true],
+      ['v1', 'left', false],
+    ])
+  })
+
+  it('兼容 StarryPlayer 扩展属性（ttd:agents / ttd:position / ttv:color）与四人合唱', () => {
+    const starryTtml = `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata" xmlns:ttv="urn:ttml:extensions:vocalist-style:1" xmlns:ttd="urn:ttml:extensions:display-position:1">
+<head><metadata>
+  <ttm:agent type="person" xml:id="v1_2" ttd:position="primary"/>
+  <ttm:agent type="other" xml:id="v2_2" ttd:position="secondary"/>
+  <ttm:agent type="person" xml:id="v1" ttv:color="#D9695B"><ttm:name type="full">可莉（花玲）</ttm:name></ttm:agent>
+  <ttm:agent type="person" xml:id="v2" ttv:color="#3F9A66"><ttm:name type="full">温迪（喵☆酱）</ttm:name></ttm:agent>
+  <ttm:agent type="person" xml:id="v4" ttv:color="#2F93A3"><ttm:name type="full">魈（kinsen）</ttm:name></ttm:agent>
+  <ttm:agent type="person" xml:id="v3" ttv:color="#8462CC"><ttm:name type="full">七七（宴宁）</ttm:name></ttm:agent>
+</metadata></head>
+<body><div>
+  <p begin="00:01.000" end="00:03.000" ttm:agent="v1_2" ttd:agents="v1"><span begin="00:01.000" end="00:03.000">可莉主歌</span></p>
+  <p begin="00:04.000" end="00:06.000" ttm:agent="v2_2" ttd:agents="v2"><span begin="00:04.000" end="00:06.000">温迪右侧</span></p>
+  <p begin="00:07.000" end="00:09.000" ttm:agent="v1_2" ttd:agents="v1"><span begin="00:07.000" end="00:09.000">吃饱了再去想吧</span><span ttm:role="x-bg" ttm:agent="v4"><span begin="00:08.000" end="00:09.000">(这东西能吃吗)</span></span></p>
+  <p begin="00:10.000" end="00:12.000" ttm:agent="v1_2" ttd:agents="v1 v2 v4 v3"><span begin="00:10.000" end="00:12.000">烦恼都走开</span></p>
+  <p begin="00:13.000" end="00:15.000" ttm:agent="v1_2" ttd:agents="v3"><span begin="00:13.000" end="00:15.000">七七左侧</span></p>
+  <p begin="00:16.000" end="00:18.000" ttm:agent="v2_2" ttd:agents="v4"><span begin="00:16.000" end="00:18.000">魈右侧</span></p>
+  <p begin="00:19.000" end="00:21.000" ttm:agent="v1_2" ttd:agents="v2"><span begin="00:19.000" end="00:21.000">温迪切回左侧</span></p>
+</div></body></tt>`
+    const parsed = parseTtml(starryTtml, 'ttml-custom')!
+    expect(parsed.agents).toBeDefined()
+    expect(Object.keys(parsed.agents!).sort()).toEqual(['v1', 'v1+v2+v4+v3', 'v2', 'v3', 'v4'])
+    expect(parsed.agents?.v1_2).toBeUndefined()
+    expect(parsed.agents?.v2_2).toBeUndefined()
+    expect(parsed.agents?.v1).toMatchObject({ id: 'v1', name: '可莉（花玲）', colorHex: '#d9695b' })
+    expect(parsed.agents?.v2).toMatchObject({ id: 'v2', name: '温迪（喵☆酱）', colorHex: '#3f9a66' })
+    expect(parsed.agents?.v3).toMatchObject({ id: 'v3', name: '七七（宴宁）', colorHex: '#8462cc' })
+    expect(parsed.agents?.v4).toMatchObject({ id: 'v4', name: '魈（kinsen）', colorHex: '#2f93a3' })
+    for (const id of ['v1', 'v2', 'v3', 'v4'])
+      expect(LYRIC_COLORS[parsed.agents![id].color]).toBeTruthy()
+    expect(parsed.agents?.['v1+v2+v4+v3']).toMatchObject({
+      id: 'v1+v2+v4+v3',
+      isGroup: true,
+      members: ['v1', 'v2', 'v4', 'v3'],
+    })
+    expect(parsed.lines.map(l => [l.agent, l.align, l.isDuet, l.isBackground])).toEqual([
+      ['v1', 'left', false, false],
+      ['v2', 'right', true, false],
+      ['v1', 'left', false, false],
+      ['v4', 'right', true, true],
+      ['v1+v2+v4+v3', 'center', false, false],
+      ['v3', 'left', false, false],
+      ['v4', 'right', true, false],
+      ['v2', 'left', false, false],
     ])
   })
 })

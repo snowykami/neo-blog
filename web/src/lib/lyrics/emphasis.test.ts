@@ -72,4 +72,33 @@ describe('歌词强调', () => {
     const lyrics: ResolvedLyrics = { source: 'ncm-lrc', wordTimed: false, instrumental: false, lines: [line([['一句歌词', 0, 5000]])] }
     expect(applyEmphasis(lyrics)).toBe(lyrics)
   })
+
+  it('合并 AI singers 标注：TTML 原生 name 优先、AI color 覆盖默认轮换色，单人无 agents 不生成', () => {
+    const multiLyrics: ResolvedLyrics = {
+      source: 'ttml-amll',
+      wordTimed: true,
+      instrumental: false,
+      agents: {
+        v1: { id: 'v1', name: '原生甲', color: 'sky' },
+        v2: { id: 'v2', color: 'rose' },
+        v3: { id: 'v3', name: '原生丙', color: 'crimson', colorHex: '#d9695b' },
+      },
+      lines: [HEARTBEAT],
+    }
+    const merged = applyEmphasis(multiLyrics, {
+      lines: [],
+      singers: [
+        { id: 'v1', name: 'AI 覆盖甲', color: 'amber' },
+        { id: 'v2', name: 'AI 补全乙', color: 'violet' },
+        { id: 'v3', name: 'AI 覆盖丙', color: 'gold' },
+      ],
+    })
+    expect(merged.agents?.v1).toEqual({ id: 'v1', name: '原生甲', color: 'amber' })
+    expect(merged.agents?.v2).toEqual({ id: 'v2', name: 'AI 补全乙', color: 'violet' })
+    expect(merged.agents?.v3).toEqual({ id: 'v3', name: '原生丙', color: 'crimson', colorHex: '#d9695b' })
+
+    const soloLyrics: ResolvedLyrics = { source: 'ttml-amll', wordTimed: true, instrumental: false, lines: [HEARTBEAT] }
+    const soloMerged = applyEmphasis(soloLyrics, { lines: [], singers: [{ id: 'v1', name: '甲', color: 'gold' }] })
+    expect(soloMerged.agents).toBeUndefined()
+  })
 })

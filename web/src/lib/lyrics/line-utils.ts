@@ -1,4 +1,4 @@
-import type { LyricLine } from './types'
+import type { LyricAlign, LyricLine } from './types'
 
 /** 没有歌词时歌词接口返回的占位文本，不应作为歌词展示 */
 export const LYRIC_PLACEHOLDERS = new Set(['no_lyric', 'pure_music_without_lyric'])
@@ -28,6 +28,45 @@ export function getLyricLineVocalStart(line: LyricLine): number {
 /** 过滤掉背景人声行，只保留主唱行 */
 export function getVocalLyricLines(lines: LyricLine[]): LyricLine[] {
   return lines.filter(line => !line.isBackground)
+}
+
+/** 歌词行的对齐方向：未显式指定时按 isDuet 推导 */
+export function getLyricLineAlign(line: Pick<LyricLine, 'align' | 'isDuet'>): LyricAlign {
+  return line.align ?? (line.isDuet ? 'right' : 'left')
+}
+
+/**
+ * 为每个背景人声行查找所属主唱行下标：
+ * - backgroundPosition === 'above' 时优先向后寻找最近的主唱行，找不到再向前找
+ * - 否则（below 或未标明位置）优先向前寻找最近的主唱行，找不到再向后找
+ */
+export function getBackgroundOwnerMap(lines: LyricLine[]): Map<number, number> {
+  const owners = new Map<number, number>()
+  const findForward = (from: number) => {
+    for (let j = from + 1; j < lines.length; j++) {
+      if (!lines[j].isBackground)
+        return j
+    }
+    return -1
+  }
+  const findBackward = (from: number) => {
+    for (let j = from - 1; j >= 0; j--) {
+      if (!lines[j].isBackground)
+        return j
+    }
+    return -1
+  }
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    if (!line.isBackground)
+      continue
+    const owner = line.backgroundPosition === 'above'
+      ? (findForward(i) >= 0 ? findForward(i) : findBackward(i))
+      : (findBackward(i) >= 0 ? findBackward(i) : findForward(i))
+    if (owner >= 0)
+      owners.set(i, owner)
+  }
+  return owners
 }
 
 /**

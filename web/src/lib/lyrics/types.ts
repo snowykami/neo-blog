@@ -17,6 +17,24 @@ export interface LyricWord {
   ruby?: LyricRuby[]
 }
 
+/** 歌词行对齐方向：主唱左对齐、合唱居中、对唱右对齐 */
+export type LyricAlign = 'left' | 'center' | 'right'
+
+/** 演唱者身份元信息（TTML agent 与 AI 标注合并后的展示信息） */
+export interface LyricAgent {
+  id: string
+  // 显示名称：TTML <ttm:name> 优先，否则回退 AI 标注推断名；未提供时为 undefined
+  name?: string
+  // 分配的 32 色主题色名（用于边缘光丝、切换胶囊圆点、舞台方向性洗光与默认行级微光）
+  color: LyricColor
+  // TTML 原生 ttv:color 自定义十六进制色（#rrggbb）；存在时优先用于边缘光丝、切换胶囊圆点与默认行级微光
+  colorHex?: string
+  // true 表示合唱/群组 agent
+  isGroup?: boolean
+  // 群组由多个个人 agent 并列构成时记录成员 ID，供双色光丝与双色圆点使用
+  members?: string[]
+}
+
 export interface LyricLine {
   words: LyricWord[]
   // 行的开始时间：经过预处理的「提前起唱」后可能早于第一个词，用于高亮与滚动
@@ -30,6 +48,14 @@ export interface LyricLine {
   isDuet: boolean
   // 背景人声：附着在主行上
   isBackground: boolean
+  // 对齐方向：未指定时按 isDuet 推导（true -> 'right'，false -> 'left'）；多人/群组合唱为 'center'
+  align?: LyricAlign
+  // 演唱者/组合标识，对应 ResolvedLyrics.agents 的键（单声部曲目省略）
+  agent?: string
+  // 背景人声相对所属主唱行的位置（above 紧邻在主行之前，below 紧邻在主行之后）
+  backgroundPosition?: 'above' | 'below'
+  // 新段落（TTML <div>）的首行主唱：在上一行之后额外留出段落间距
+  paragraphStart?: boolean
   // 强调特效（只有逐字歌词有）：按演唱时长规则与歌词标注计算，见 emphasis.ts
   emphasis?: LyricEmphasis[]
   // 这一行的情绪基调（来自歌词标注），影响强调辉光的颜色
@@ -142,6 +168,8 @@ export interface ResolvedLyrics {
   spotlights?: number[]
   // 这首歌的主题色（来自歌词标注，#rrggbb）：歌词辉光与背景呼吸的默认颜色，没有时用封面主色
   accent?: string
+  // 多声部曲目的演唱者/群组元信息表（单人独唱曲目不设置）
+  agents?: Record<string, LyricAgent>
 }
 
 /** 关键节点的「时刻」：在 start（毫秒，对应歌词行开唱）时显示的热评或模型写的旁白 */

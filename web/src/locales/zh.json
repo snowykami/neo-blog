@@ -4720,6 +4720,7 @@
     "lyric_badge_none": "无歌词",
     "lyric_badge_instrumental": "纯音乐",
     "lyric_footer": "歌词来源：{source}",
+    "lyric_chorus_together": "合唱",
     "lyric_badge_auto": "自动（按质量选择）",
     "lyric_badge_upgrading": "正在获取更高质量的歌词",
     "lyric_badge_ai_effects": "AI 歌词特效",

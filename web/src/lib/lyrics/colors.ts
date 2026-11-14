@@ -1,4 +1,4 @@
-import type { LyricColor, LyricMood } from './types'
+import type { LyricAgent, LyricColor, LyricMood } from './types'
 
 /**
  * 歌词标注的语义化色板（强调短语上色、播放器页背景染色共用；名称与后端 lyricAnnotationPalette 一致）：
@@ -53,6 +53,45 @@ export type Rgb = [number, number, number]
 export function hexToRgb(hex: string): Rgb {
   const n = Number.parseInt(hex.slice(1), 16)
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+}
+
+const HEX_COLOR_RE = /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i
+
+/** 解析 #rgb / #rgba / #rrggbb / #rrggbbaa，统一归一化为小写 #rrggbb（忽略 alpha）；非法值返回 undefined */
+export function parseHexColor(raw?: string | null): string | undefined {
+  if (!raw)
+    return undefined
+  const match = HEX_COLOR_RE.exec(raw.trim())
+  if (!match)
+    return undefined
+  const hex = match[1].toLowerCase()
+  if (hex.length <= 4)
+    return `#${hex[0]}${hex[0]}${hex[1]}${hex[1]}${hex[2]}${hex[2]}`
+  return `#${hex.slice(0, 6)}`
+}
+
+/** 按 RGB 欧氏距离将任意 #rrggbb 映射到 32 色语义色板中最近的颜色（供舞台洗光等读取 LYRIC_COLORS 使用） */
+export function nearestLyricColor(hex: string): LyricColor {
+  const normalized = parseHexColor(hex)
+  if (!normalized)
+    return 'sky'
+  const [r, g, b] = hexToRgb(normalized)
+  let bestColor: LyricColor = 'sky'
+  let bestDist = Number.POSITIVE_INFINITY
+  for (const [name, paletteHex] of Object.entries(LYRIC_COLORS) as [LyricColor, string][]) {
+    const [pr, pg, pb] = hexToRgb(paletteHex)
+    const dist = (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2
+    if (dist < bestDist) {
+      bestDist = dist
+      bestColor = name
+    }
+  }
+  return bestColor
+}
+
+/** 解析演唱者实际渲染用十六进制色（TTML 原生 colorHex 优先，否则取语义色板映射色） */
+export function resolveAgentHex(agent: Pick<LyricAgent, 'color' | 'colorHex'>): string {
+  return agent.colorHex ?? LYRIC_COLORS[agent.color]
 }
 
 // 情绪基调对应的辉光颜色（偏淡，叠在白色文字上只带一点色温；后台编辑器用作情绪标记的颜色）

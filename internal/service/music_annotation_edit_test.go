@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"reflect"
 	"slices"
 	"testing"
@@ -12,6 +13,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/tools"
+	"github.com/snowykami/neo-blog/pkg/sharedstate"
 )
 
 func TestLyricOffset(t *testing.T) {
@@ -191,4 +193,44 @@ func TestEditedLyricAnnotationLocked(t *testing.T) {
 func lyricAnnotationKeyOf(id int64, lines []string) string {
 	key, _ := lyricAnnotationKey(id, lines)
 	return key
+}
+
+func TestSaveLyricAnnotationsPreservesSingers(t *testing.T) {
+	setupTTMLDB(t)
+	sharedstate.UseMemory()
+	stubLyricSources(t, map[string]lyricSourceResult{
+		"ncm": {data: &dto.MusicLyricDto{Lrc: lyricPart(pipaNCMLrc), Yrc: lyricPart(pipaNCMYrc)}, outcome: lyricOutcomeHit},
+	})
+	s := NewMusicService()
+	ctx := context.Background()
+	editor, svcerr := s.GetLyricAnnotationEditor(ctx, 13)
+	if svcerr != nil || len(editor.Lines) == 0 {
+		t.Fatalf("editor = %+v %v", editor, svcerr)
+	}
+	_, hash := lyricAnnotationKey(13, editor.Lines)
+	singers := []dto.MusicLyricAnnotationSinger{
+		{ID: "v1", Name: "甲", Color: "sky"},
+		{ID: "v2", Name: "乙", Color: "cherry-blossom"},
+	}
+	raw, _ := json.Marshal(lyricAnnotationData{
+		Lines:   []dto.MusicLyricAnnotationLine{},
+		Singers: singers,
+	})
+	if err := repo.GetDB().Create(&model.LyricAnnotation{SongID: 13, LyricHash: hash, Data: string(raw), Model: "test"}).Error; err != nil {
+		t.Fatal(err)
+	}
+	req := &dto.MusicLyricAnnotationsEditReq{
+		Intro: "保留声部信息",
+		Lines: []dto.MusicLyricAnnotationLine{{
+			Text:    editor.Lines[0],
+			Phrases: []dto.MusicLyricAnnotationPhrase{{Text: "浔阳江头", Effect: "glow"}},
+		}},
+	}
+	saved, svcerr := s.SaveLyricAnnotations(ctx, 13, req)
+	if svcerr != nil || saved.Annotation == nil {
+		t.Fatalf("save = %+v %v", saved, svcerr)
+	}
+	if !reflect.DeepEqual(saved.Annotation.Singers, singers) {
+		t.Fatalf("singers after edit = %+v, want %+v", saved.Annotation.Singers, singers)
+	}
 }

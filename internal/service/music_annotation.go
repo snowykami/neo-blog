@@ -61,6 +61,9 @@ const (
 	// 聚光灯的上限：不同的句子最多 3 句，选定的出现次数（同一句重复时可以只选其中几次）合计最多 6 处
 	lyricAnnotationMaxSpotlights     = 3
 	lyricAnnotationMaxSpotlightLines = 6
+	// 多声部歌手标注上限：最多声部数与单个声部名称长度上限
+	lyricAnnotationMaxSingers     = 12
+	lyricAnnotationMaxSingerRunes = 24
 	// 标注的温度：调高让演出设计更大胆
 	lyricAnnotationTemperature = 0.9
 	// 思考强度（reasoning_effort）：思考型模型默认的思考内容是正式输出的 3～9 倍，是生成慢的主要原因
@@ -72,6 +75,8 @@ var (
 	lyricAnnotationMoods = map[string]bool{"calm": true, "bright": true, "sad": true, "intense": true}
 	// 主题色：#rrggbb
 	lyricAccentPattern = regexp.MustCompile(`^#[0-9a-f]{6}$`)
+	// 多声部 TTML agent ID 校验
+	lyricSingerIDPattern = regexp.MustCompile(`^[A-Za-z0-9_.:+-]{1,32}$`)
 	// 消散、破碎、流光、心跳全曲每种最多 lyricAnnotationMaxSpecialEffect 处，超出的换成相近的常规特效（破碎换成同样有冲击感的 shake）
 	lyricAnnotationSpecialEffects = map[string]string{"dissolve": "glow", "shatter": "shake", "shimmer": "glow", "heartbeat": "swell"}
 	lyricAnnotationEffects        = map[string]bool{"swell": true, "glow": true, "wave": true, "shake": true, "focus": true, "dissolve": true, "shatter": true, "shimmer": true, "heartbeat": true}
@@ -356,6 +361,7 @@ func (s *MusicService) annotationSource(ctx context.Context, track *dto.MusicTra
 		Aliases:      track.Aliases,
 		Translations: version.Lines.Translations,
 		Timed:        version.Lines.Timed,
+		Agents:       version.Lines.Agents,
 		WordTimed:    version.Lines.WordTimed,
 		Source:       version.Lines.Source,
 		Duration:     track.Duration,
@@ -394,7 +400,7 @@ func (a *lyricAnnotationService) get(id int64, lines []string, info lyricAnnotat
 
 	if found {
 		data := parseLyricAnnotationData(record.Data)
-		result := &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Spotlights: data.spotlightsFor(lines), Accent: data.Accent, Lines: data.Lines, Sprites: data.Sprites, Edited: record.EditedAt != nil}
+		result := &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Spotlights: data.spotlightsFor(lines), Accent: data.Accent, Lines: data.Lines, Sprites: data.Sprites, Singers: data.Singers, Edited: record.EditedAt != nil}
 		// 已过期：先返回旧结果，在后台重新生成（失败冷却期内不重试，继续使用旧结果）；管理员手动编辑过的不自动重新生成
 		// 全站 AI 预算已用完时不重新生成，继续使用旧结果
 		if !running && !coolingDown && record.EditedAt == nil && time.Since(record.CreatedAt) > ttl && checkSiteAIBudget(time.Now()) == nil {
@@ -674,6 +680,7 @@ type lyricAnnotationData struct {
 	Accent     string                              `json:"accent,omitempty"`
 	Lines      []dto.MusicLyricAnnotationLine      `json:"lines"`
 	Sprites    []dto.MusicLyricSprite              `json:"sprites,omitempty"`
+	Singers    []dto.MusicLyricAnnotationSinger    `json:"singers,omitempty"`
 	// 旧版聚光灯：只记句子（每次出现都放大），或更早的只有一句的一次出现；读取后由 spotlightsFor 按歌词换算
 	LegacySpotlightTexts []string                           `json:"spotlights,omitempty"`
 	LegacySpotlight      *dto.MusicLyricAnnotationSpotlight `json:"spotlight,omitempty"`
@@ -715,7 +722,28 @@ func parseLyricAnnotationData(data string) lyricAnnotationData {
 		result.Lines = []dto.MusicLyricAnnotationLine{}
 	}
 	normalizeLegacyLyricLines(result.Lines)
+	normalizeLegacyLyricSingers(&result.Singers)
 	return result
+}
+
+func normalizeLegacyLyricSingers(singers *[]dto.MusicLyricAnnotationSinger) {
+	if singers == nil || len(*singers) == 0 {
+		return
+	}
+	kept := (*singers)[:0]
+	for _, s := range *singers {
+		s.ID = strings.TrimSpace(s.ID)
+		s.Color = normalizeLyricColor(s.Color)
+		if s.ID == "" || (s.Name == "" && s.Color == "") {
+			continue
+		}
+		kept = append(kept, s)
+	}
+	if len(kept) == 0 {
+		*singers = nil
+		return
+	}
+	*singers = kept
 }
 
 // normalizeLegacyLyricLines 兼容旧版标注：旧版颜色名映射到新色板，已取消的字形（删除线 strike，已由「消散 + 下划线」代替）去掉。
@@ -796,6 +824,7 @@ func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment,
 		Spotlights   []int                `json:"spotlights"` // 聚光灯的行号（选定的那几次出现）
 		Accent       string               `json:"accent"`     // 主题色 #rrggbb
 		Sprites      []lyricSpriteRequest `json:"sprites"`
+		Singers      json.RawMessage      `json:"singers"`
 		Intro        string               `json:"intro"`
 		OutroComment int                  `json:"outro_comment"`
 		Moments      []struct {
@@ -938,7 +967,85 @@ func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment,
 	data.Moments = sanitizeLyricMoments(lines, comments, parsed.Moments, usedComments)
 	data.Spotlights = lyricSpotlightLines(lines, parsed.Spotlights)
 	data.Accent = sanitizeLyricAccent(parsed.Accent)
+	data.Singers = sanitizeLyricSingers(parsed.Singers)
 	return data, nil
+}
+
+func sanitizeLyricSingerName(name string) string {
+	name = strings.TrimSpace(whitespaceRe.ReplaceAllString(name, " "))
+	name = strings.Trim(name, "\"'“”「」『』 ")
+	if runes := []rune(name); len(runes) > lyricAnnotationMaxSingerRunes {
+		name = string(runes[:lyricAnnotationMaxSingerRunes])
+	}
+	return name
+}
+
+// sanitizeLyricSingers 校验模型输出的多声部视觉信息（兼容对象 {"v1":{"name":"","color":"sky"}} 与数组两种格式），
+// 过滤非法 id、未知颜色与全空项，按 id 排序，最多保留 lyricAnnotationMaxSingers 个；无有效项时返回 nil
+func sanitizeLyricSingers(raw json.RawMessage) []dto.MusicLyricAnnotationSinger {
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" || trimmed == "null" {
+		return nil
+	}
+	var candidates []dto.MusicLyricAnnotationSinger
+	switch trimmed[0] {
+	case '{':
+		var obj map[string]struct {
+			Name  string `json:"name"`
+			Color string `json:"color"`
+		}
+		if json.Unmarshal([]byte(trimmed), &obj) != nil {
+			return nil
+		}
+		for id, val := range obj {
+			candidates = append(candidates, dto.MusicLyricAnnotationSinger{ID: id, Name: val.Name, Color: val.Color})
+		}
+	case '[':
+		if json.Unmarshal([]byte(trimmed), &candidates) != nil {
+			return nil
+		}
+	default:
+		return nil
+	}
+	byID := map[string]dto.MusicLyricAnnotationSinger{}
+	for _, c := range candidates {
+		id := strings.TrimSpace(c.ID)
+		if !lyricSingerIDPattern.MatchString(id) {
+			continue
+		}
+		name := sanitizeLyricSingerName(c.Name)
+		color := normalizeLyricColor(strings.TrimSpace(c.Color))
+		if name == "" && color == "" {
+			continue
+		}
+		if prev, seen := byID[id]; seen {
+			if prev.Name == "" {
+				prev.Name = name
+			}
+			if prev.Color == "" {
+				prev.Color = color
+			}
+			byID[id] = prev
+			continue
+		}
+		byID[id] = dto.MusicLyricAnnotationSinger{ID: id, Name: name, Color: color}
+	}
+	if len(byID) == 0 {
+		return nil
+	}
+	ids := make([]string, 0, len(byID))
+	for id := range byID {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	if len(ids) > lyricAnnotationMaxSingers {
+		ids = ids[:lyricAnnotationMaxSingers]
+	}
+	out := make([]dto.MusicLyricAnnotationSinger, len(ids))
+	for i, id := range ids {
+		out[i] = byID[id]
+	}
+	return out
 }
 
 // sanitizeLyricMoments 关键节点的「时刻」：行号必须存在、每行最多一个、最多 lyricAnnotationMaxMoments 个，按行号排序；

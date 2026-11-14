@@ -46,7 +46,7 @@ export function MusicLyricsEngine({
   const annotations = storedAnnotations?.source === rawLyrics.source ? storedAnnotations : null
   const lyrics = useMemo(() => applyEmphasis(rawLyrics, annotations), [annotations, rawLyrics])
   const annotationsGenerating = useLyricAnnotationsGenerating(showLyricEffects && rawLyrics.wordTimed && isSiteVersion ? trackId : null)
-  const annotated = showLyricEffects && rawLyrics.wordTimed && (annotations?.lines.length ?? 0) > 0
+  const annotated = showLyricEffects && rawLyrics.wordTimed && ((annotations?.lines.length ?? 0) > 0 || (annotations?.singers?.length ?? 0) > 0)
 
   const state = useMemo<MusicLyricsState>(() => ({
     lyrics,

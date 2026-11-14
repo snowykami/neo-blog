@@ -133,6 +133,7 @@ export function MusicStageEffects({ contained = false, paused = false }: { conta
     let pulseOpacity = ''
     let tintOpacity = ''
     let tintColor = ''
+    let tintShift = ''
     let push = 0
     let spotlight = ''
     // 镜头推近作用于页面中标了 data-stage-push 的层（小窗不推近）；每次推近开始时重新查找，推近期间复用
@@ -177,16 +178,25 @@ export function MusicStageEffects({ contained = false, paused = false }: { conta
         pulseOpacity = nextPulse
         pulseEl.style.opacity = nextPulse
       }
-      const tint = signals?.tint
-      const nextTintOpacity = ((tint?.strength ?? 0) * TINT_MAX_OPACITY).toFixed(3)
+      const phraseTint = signals?.tint ?? null
+      const vocal = signals?.vocal ?? null
+      const activeTint = phraseTint && (!vocal || phraseTint.strength >= vocal.strength) ? phraseTint : vocal
+      const nextTintOpacity = ((activeTint?.strength ?? 0) * TINT_MAX_OPACITY).toFixed(3)
       if (nextTintOpacity !== tintOpacity) {
         tintOpacity = nextTintOpacity
         tintEl.style.opacity = nextTintOpacity
       }
-      // 淡出时保留最后的颜色
-      if (tint && LYRIC_COLORS[tint.color] !== tintColor) {
-        tintColor = LYRIC_COLORS[tint.color]
+      // 淡出时保留最后的颜色；多声部曲目随演唱方向温柔偏移光晕，弱于短语染色时不夺主
+      if (activeTint && LYRIC_COLORS[activeTint.color] !== tintColor) {
+        tintColor = LYRIC_COLORS[activeTint.color]
         tintEl.style.setProperty('--stage-tint', tintColor)
+      }
+      const nextShift = vocal
+        ? (vocal.align === 'left' ? '-7% 0' : vocal.align === 'right' ? '7% 0' : '0 0')
+        : (!phraseTint ? '0 0' : tintShift)
+      if (nextShift !== tintShift) {
+        tintShift = nextShift
+        tintEl.style.translate = nextShift
       }
       const nextSpotlight = (signals?.spotlight ?? 0).toFixed(3)
       if (nextSpotlight !== spotlight) {
@@ -219,6 +229,7 @@ export function MusicStageEffects({ contained = false, paused = false }: { conta
       presenter?.dispose()
       pulseEl.style.opacity = '0'
       tintEl.style.opacity = '0'
+      tintEl.style.removeProperty('translate')
       spotlightEl.style.opacity = '0'
       pushTargets.forEach(el => el.style.removeProperty('scale'))
     }
@@ -236,7 +247,7 @@ export function MusicStageEffects({ contained = false, paused = false }: { conta
       {/* 三层的透明度逐帧变化：各自提升为合成层，只改合成参数，不必每帧重新光栅化整屏渐变 */}
       <div
         ref={tintRef}
-        className="absolute inset-0 opacity-0 mix-blend-screen will-change-[opacity]"
+        className="absolute -inset-[16%] opacity-0 mix-blend-screen transition-[translate] duration-700 ease-out will-change-[opacity,translate] motion-reduce:transition-none"
         style={{ background: 'radial-gradient(ellipse at 65% 45%, var(--stage-tint, transparent), transparent 70%)' }}
       />
       <div

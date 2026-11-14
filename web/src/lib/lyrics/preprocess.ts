@@ -1,4 +1,5 @@
 import type { LyricLine } from './types'
+import { getBackgroundOwnerMap } from './line-utils'
 
 /**
  * 歌词预处理（见 spec 8.8）：解析后、渲染前统一执行
@@ -52,19 +53,81 @@ function trimUnintentionalOverlap(prev: LyricLine, next: LyricLine): number {
 }
 
 export function preprocessLyricLines(input: LyricLine[]): LyricLine[] {
-  const lines = input
-    .map(normalizeLine)
-    .filter(line => line.words.some(word => word.text.trim() !== ''))
-    .sort((a, b) => a.start - b.start)
+  const ownerMap = getBackgroundOwnerMap(input)
+  const normalized = input.map(normalizeLine)
+  const isNonEmpty = (line: LyricLine) => line.words.some(word => word.text.trim() !== '')
 
-  // 清洗重叠（按原始时间判断），同时截断上一行越过新结束时间的词
-  for (let i = 0; i + 1 < lines.length; i++) {
-    const end = trimUnintentionalOverlap(lines[i], lines[i + 1])
-    if (end !== lines[i].end) {
-      lines[i] = {
-        ...lines[i],
+  interface LineGroup {
+    main: LyricLine
+    above: LyricLine[]
+    below: LyricLine[]
+  }
+
+  const groupByIndex = new Map<number, LineGroup>()
+  const groups: LineGroup[] = []
+  let paragraphPending = false
+
+  for (let i = 0; i < normalized.length; i++) {
+    if (input[i].isBackground)
+      continue
+    if (!isNonEmpty(normalized[i])) {
+      if (input[i].paragraphStart)
+        paragraphPending = true
+      continue
+    }
+    const main = paragraphPending && !normalized[i].paragraphStart
+      ? { ...normalized[i], paragraphStart: true }
+      : normalized[i]
+    paragraphPending = false
+    const group: LineGroup = { main, above: [], below: [] }
+    groupByIndex.set(i, group)
+    groups.push(group)
+  }
+
+  // 极端兜底：全曲没有主唱行时只做归一化与空行过滤
+  if (groups.length === 0)
+    return normalized.filter(isNonEmpty)
+
+  for (let i = 0; i < normalized.length; i++) {
+    if (!input[i].isBackground || !isNonEmpty(normalized[i]))
+      continue
+    const ownerIdx = ownerMap.get(i)
+    const group = ownerIdx != null ? groupByIndex.get(ownerIdx) : undefined
+    if (!group)
+      continue
+    const isAbove = input[i].backgroundPosition === 'above' || (input[i].backgroundPosition == null && ownerIdx != null && i < ownerIdx)
+    const canInheritOwnerAlign = input[i].align == null && (!input[i].agent || input[i].agent === group.main.agent)
+    const inheritedAlign = canInheritOwnerAlign && group.main.align != null
+      ? { align: group.main.align, isDuet: group.main.isDuet }
+      : (canInheritOwnerAlign && group.main.isDuet ? { isDuet: true } : {})
+    const bgLine: LyricLine = {
+      ...normalized[i],
+      ...inheritedAlign,
+      backgroundPosition: isAbove ? 'above' : 'below',
+    }
+    if (isAbove)
+      group.above.push(bgLine)
+    else
+      group.below.push(bgLine)
+  }
+
+  groups.sort((a, b) => a.main.start - b.main.start)
+  // 首段第一句主唱行上方不留段落间距（同 StarryPlayer LyricsView 首行规则，含前奏间奏之后）
+  if (groups[0].main.paragraphStart) {
+    const { paragraphStart: _, ...firstMain } = groups[0].main
+    groups[0].main = firstMain
+  }
+
+  // 清洗重叠（只针对相邻主唱行按原始时间判断，不与背景行互裁），同时截断越过新结束时间的词
+  for (let i = 0; i + 1 < groups.length; i++) {
+    const cur = groups[i].main
+    const next = groups[i + 1].main
+    const end = trimUnintentionalOverlap(cur, next)
+    if (end !== cur.end) {
+      groups[i].main = {
+        ...cur,
         end,
-        words: lines[i].words.map(word => ({
+        words: cur.words.map(word => ({
           ...word,
           end: Math.min(word.end, end),
           start: Math.min(word.start, end),
@@ -80,16 +143,30 @@ export function preprocessLyricLines(input: LyricLine[]): LyricLine[] {
     }
   }
 
-  // 提前起唱：基于清洗后的时间，不早于上一行的开始与 0。
-  // 与上一行之间没有重叠时，最多提前到上一行结束为止（只用掉句间的空隙）：紧挨着的快歌短行若都提前 600ms，
-  // 会被提前到同一时刻、同时高亮，焦点停在最早的一行，看起来像卡住
-  return lines.map((line, i) => {
-    const prev = lines[i - 1]
-    const overlap = prev ? prev.end - line.start : 0
-    const advance = overlap > 0
-      ? (overlap >= EARLY_START_OVERLAP_MS ? EARLY_START_OVERLAP_MS : overlap * EARLY_START_OVERLAP_RATIO)
-      : Math.min(EARLY_START_MS, prev ? -overlap : EARLY_START_MS)
-    const start = Math.max(0, prev ? prev.start : 0, line.start - advance)
-    return start === line.start ? line : { ...line, start }
-  })
+  // 提前起唱：仅在主唱行序列上推进，不早于上一主唱行的开始与 0，且绝不提前抢占上一句尚未唱完的后置背景人声（同 StarryPlayer releaseTime）
+  for (let i = 0; i < groups.length; i++) {
+    const cur = groups[i].main
+    const prevGroup = i > 0 ? groups[i - 1] : undefined
+    const prev = prevGroup?.main
+    const prevGroupEnd = prevGroup
+      ? Math.max(prevGroup.main.end, ...prevGroup.above.map(b => b.end), ...prevGroup.below.map(b => b.end))
+      : 0
+    const mainOverlap = prev ? prev.end - cur.start : 0
+    let advance: number
+    if (mainOverlap > 0) {
+      advance = mainOverlap >= EARLY_START_OVERLAP_MS ? EARLY_START_OVERLAP_MS : mainOverlap * EARLY_START_OVERLAP_RATIO
+    }
+    else if (prev) {
+      const freeGap = cur.start - prevGroupEnd
+      advance = freeGap > 0 ? Math.min(EARLY_START_MS, freeGap) : 0
+    }
+    else {
+      advance = EARLY_START_MS
+    }
+    const start = Math.max(0, prev ? prev.start : 0, cur.start - advance)
+    if (start !== cur.start)
+      groups[i].main = { ...cur, start }
+  }
+
+  return groups.flatMap(group => [...group.above, group.main, ...group.below])
 }

@@ -73,7 +73,7 @@ func (s *MusicService) GetLyricAnnotationEditor(ctx context.Context, id int64) (
 		return nil, errs.Internal("failed_to_get_target", err)
 	}
 	data := parseLyricAnnotationData(record.Data)
-	result.Annotation = &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Spotlights: data.spotlightsFor(lines), Accent: data.Accent, Lines: data.Lines, Sprites: data.Sprites, Edited: record.EditedAt != nil}
+	result.Annotation = &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Spotlights: data.spotlightsFor(lines), Accent: data.Accent, Lines: data.Lines, Sprites: data.Sprites, Singers: data.Singers, Edited: record.EditedAt != nil}
 	result.EditedAt = record.EditedAt
 	result.GeneratedAt = &record.CreatedAt
 	result.Model = record.Model
@@ -111,8 +111,8 @@ func (s *MusicService) SaveLyricAnnotations(ctx context.Context, id int64, req *
 	now := time.Now()
 	record := &model.LyricAnnotation{SongID: id, LyricHash: hash, Model: "manual", Source: info.Source, CreatedAt: now, EditedAt: &now}
 	if err == nil {
-		// 时刻、尾奏热评与自定义粒子不在编辑范围内，保持原样（行的场景可以选用这首歌已有的自定义粒子）
-		data.Outro, data.Moments, data.Sprites = previous.Outro, previous.Moments, previous.Sprites
+		// 时刻、尾奏热评、自定义粒子与多声部演唱者标识不在编辑范围内，保持原样（行的场景可以选用这首歌已有的自定义粒子）
+		data.Outro, data.Moments, data.Sprites, data.Singers = previous.Outro, previous.Moments, previous.Sprites, previous.Singers
 		record.Model, record.CreatedAt = existing.Model, existing.CreatedAt
 	}
 	raw, _ := json.Marshal(data)

@@ -1,4 +1,4 @@
-import type { LyricColor, LyricEffect, LyricEmphasis, LyricFont, LyricLine, LyricMood, LyricNote, LyricOutro, LyricSceneName, LyricSprite, LyricTextStyle, ResolvedLyrics } from './types'
+import type { LyricAgent, LyricColor, LyricEffect, LyricEmphasis, LyricFont, LyricLine, LyricMood, LyricNote, LyricOutro, LyricSceneName, LyricSprite, LyricTextStyle, ResolvedLyrics } from './types'
 import { normalizeForMatch } from './strip-credits'
 
 /**
@@ -46,6 +46,12 @@ export interface LyricAnnotationSpotlight {
   occurrence: number
 }
 
+export interface LyricAnnotationSinger {
+  id: string
+  name?: string
+  color?: LyricColor
+}
+
 export interface LyricAnnotations {
   font?: LyricFont
   intro?: string
@@ -57,6 +63,7 @@ export interface LyricAnnotations {
   accent?: string
   lines: LyricAnnotationLine[]
   sprites?: LyricSprite[]
+  singers?: LyricAnnotationSinger[]
   // 管理员在后台手动编辑过（重新生成会覆盖编辑）
   edited?: boolean
 }
@@ -231,10 +238,33 @@ export function lineEmphasis(line: LyricLine, annotation?: LyricAnnotationLine |
     .filter(group => group.factor > 0 || group.color || group.font || group.styles)
 }
 
+function mergeLyricAgents(
+  base?: Record<string, LyricAgent>,
+  singers?: LyricAnnotationSinger[],
+): Record<string, LyricAgent> | undefined {
+  if (!base)
+    return undefined
+  if (!singers?.length)
+    return base
+  const aiById = new Map(singers.map(s => [s.id, s]))
+  const merged: Record<string, LyricAgent> = {}
+  for (const [id, agent] of Object.entries(base)) {
+    const ai = aiById.get(id)
+    merged[id] = {
+      ...agent,
+      // TTML 原生 <ttm:name> 与 ttv:color 始终优先于 AI 推断值；未声明原生颜色时允许 AI 调色盘覆盖默认轮换色
+      name: agent.name || ai?.name?.trim() || undefined,
+      color: agent.colorHex ? agent.color : (ai?.color ?? agent.color),
+    }
+  }
+  return merged
+}
+
 /** 给逐字歌词加上全曲字体，并给每一行加上强调分组、情绪基调、副歌起点与粒子场景（含颜色主题）；标注按行文本（归一化后）匹配，同一文本的行共用一条标注 */
 export function applyEmphasis(lyrics: ResolvedLyrics, annotations?: LyricAnnotations | null): ResolvedLyrics {
   if (!lyrics.wordTimed || lyrics.lines.length === 0)
     return lyrics
+  const agents = mergeLyricAgents(lyrics.agents, annotations?.singers)
   const byText = new Map<string, LyricAnnotationLine>()
   for (const line of annotations?.lines ?? []) {
     const key = normalizeForMatch(line.text)
@@ -251,6 +281,7 @@ export function applyEmphasis(lyrics: ResolvedLyrics, annotations?: LyricAnnotat
     spotlights: resolveSpotlights(lyrics.lines, annotations?.spotlights),
     accent: annotations?.accent,
     sprites: annotations?.sprites?.length ? Object.fromEntries(annotations.sprites.map(sprite => [sprite.name, sprite])) : undefined,
+    ...(agents ? { agents } : {}),
     lines: lyrics.lines.map((line) => {
       const annotation = byText.get(normalizeForMatch(line.words.map(word => word.text).join(''))) ?? null
       const emphasis = lineEmphasis(line, annotation)

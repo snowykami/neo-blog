@@ -8,37 +8,47 @@ export const LYRIC_ALIGN_POSITION = 0.35
 // 手动滚动后，停手多久回到自动对齐（毫秒）；期间冻结焦点，不跟随播放进度
 export const LYRIC_USER_SCROLL_HOLD_MS = 3000
 
-// 位移与缩放弹簧（重量 / 刚度 / 阻尼）
-export const LYRIC_POSITION_SPRING = { mass: 1, stiffness: 100, damping: 10 }
+// 位移与缩放弹簧（重量 / 刚度 / 阻尼）：阻尼 18 接近临界阻尼，换行顺滑不回弹晃动
+export const LYRIC_POSITION_SPRING = { mass: 1, stiffness: 100, damping: 18 }
 export const LYRIC_SCALE_SPRING = { mass: 1, stiffness: 100, damping: 20 }
+export const LYRIC_BG_EXPAND_SPRING = { mass: 1, stiffness: 170, damping: 26 }
 
 // 阶梯入场：同一帧内多行位移逐行增加的延迟（秒），越靠后的行递减为上一级的 1/1.05
 export const LYRIC_STAGGER_BASE_S = 0.05
 export const LYRIC_STAGGER_DECAY = 1.05
 
-// 焦点行缩放为 1，其余行的缩放
+// 焦点行缩放为 1，其余行的缩放；背景人声收起缩放；鼠标/触控按压缩放
 export const LYRIC_INACTIVE_SCALE = 0.97
+export const LYRIC_BG_COLLAPSED_SCALE = 0.88
+export const LYRIC_PRESS_SCALE = 0.96
 
-// 不在高亮中的行的文字不透明度：逐字歌词与行级歌词（行级歌词没有擦除，拉开对比）
+// 不在高亮中的行的文字不透明度：逐字歌词与行级歌词（行级歌词没有擦除，拉开对比）；手动滚动时整体提亮
 export const LYRIC_INACTIVE_ALPHA = 0.35
 export const LYRIC_INACTIVE_ALPHA_LINE_TIMED = 0.25
+export const LYRIC_SCROLL_INACTIVE_ALPHA = 0.5
+export const LYRIC_SCROLL_INACTIVE_ALPHA_LINE_TIMED = 0.4
 
 // 底栏的不透明度：默认 / 曲末聚焦时
 export const LYRIC_FOOTER_ALPHA = 0.2
 export const LYRIC_FOOTER_FOCUSED_ALPHA = 0.85
 
-// 按距焦点的行距模糊：1 + 距离（px），上限 5px；窄视口（≤ 1024px）乘以 0.8
-export const LYRIC_BLUR_MAX_PX = 5
+// 非对称行距模糊：已唱行统一温和模糊 3px；待唱行按 1 + 距离（px）递增，上限 4px；窄视口（≤ 1024px）乘以 0.8
+export const LYRIC_BLUR_PAST_PX = 3
+export const LYRIC_BLUR_MAX_PX = 4
 export const LYRIC_BLUR_NARROW_FACTOR = 0.8
 
 // 逐字擦除的羽化宽度（主字号的倍数，不得为 0）
 export const LYRIC_FEATHER_EM = 0.5
 
+// 逐字扫词与普通词上浮的视觉提前量（毫秒，参考 StarryPlayer LyricsSpecs.animationHeadstart = 0.1s）
+export const LYRIC_ANIMATION_HEADSTART_MS = 100
+
 // 词上浮：演唱时最多上移的距离（主字号的倍数）
 export const LYRIC_WORD_FLOAT_EM = 0.05
 
-// 相邻歌词行的空隙不短于此时长（毫秒）时判定为间奏
+// 相邻歌词行的空隙不短于此时长（毫秒）时判定为间奏；句间间奏在上一句结束后延后此时长入场
 export const LYRIC_INTERLUDE_MIN_GAP_MS = 7000
+export const LYRIC_INTERLUDE_DELAY_MS = 100
 
 // 视口外的预渲染范围（px）
 export const LYRIC_OVERSCAN_PX = 300

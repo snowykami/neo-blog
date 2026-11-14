@@ -4720,6 +4720,7 @@
     "lyric_badge_none": "가사 없음",
     "lyric_badge_instrumental": "연주곡",
     "lyric_footer": "가사 출처: {source}",
+    "lyric_chorus_together": "합창",
     "lyric_badge_auto": "자동 (품질 우선)",
     "lyric_badge_upgrading": "더 좋은 가사를 찾는 중",
     "lyric_badge_ai_effects": "AI 가사 효과",

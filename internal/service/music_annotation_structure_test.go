@@ -163,3 +163,100 @@ func TestLyricRepeatGroupsVaried(t *testing.T) {
 		t.Fatalf("length mismatch similarity = %v", got)
 	}
 }
+
+func TestTTMLMultiVocalAgentsAndPrompt(t *testing.T) {
+	raw := `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata">
+<head><metadata>
+  <ttm:agent type="person" xml:id="v1"><ttm:name type="full">林俊杰</ttm:name></ttm:agent>
+  <ttm:agent type="person" xml:id="v2"/>
+  <ttm:agent type="person" xml:id="v3"><ttm:name>周杰伦</ttm:name></ttm:agent>
+  <ttm:agent type="group" xml:id="v1000"/>
+</metadata></head>
+<body>
+  <div ttm:agent="v1"><p begin="00:01.000" end="00:03.000"><span begin="00:01.000" end="00:03.000">第一句</span></p></div>
+  <div ttm:agent="v2"><p begin="00:03.000" end="00:05.000"><span begin="00:03.000" end="00:05.000">第二句</span></p></div>
+  <div>
+    <p begin="00:05.000" end="00:07.000" ttm:agent="v3"><span begin="00:05.000" end="00:07.000">第三句</span></p>
+    <p begin="00:07.000" end="00:09.000" ttm:agent="v1000"><span begin="00:07.000" end="00:09.000">大合唱</span></p>
+  </div>
+</body></tt>`
+	parsed := parseTTMLLyrics(raw)
+	wantAgents := []lyricTTMLAgent{{ID: "v1", Name: "林俊杰"}, {ID: "v2", Name: ""}, {ID: "v3", Name: "周杰伦"}}
+	if !reflect.DeepEqual(parsed.Agents, wantAgents) {
+		t.Fatalf("agents = %+v, want %+v", parsed.Agents, wantAgents)
+	}
+	var lineAgents []string
+	for _, line := range parsed.Lines {
+		lineAgents = append(lineAgents, line.Agent)
+	}
+	if want := []string{"v1", "v2", "v3", lyricSingerTogether}; !reflect.DeepEqual(lineAgents, want) {
+		t.Fatalf("lineAgents = %q, want %q", lineAgents, want)
+	}
+	info := lyricAnnotationInfo{Title: "合唱曲", Artists: []string{"林俊杰", "周杰伦"}, Source: "ttml-amll", Timed: parsed.Lines, Agents: parsed.Agents}
+	texts := make([]string, len(parsed.Lines))
+	for i, l := range parsed.Lines {
+		texts[i] = l.Text
+	}
+	prompt := buildLyricAnnotationPrompt(info, texts)
+	for _, part := range []string{
+		"0: 第一句　〔2.0s〕　〔vocal: v1〕",
+		"1: 第二句　〔2.0s〕　〔vocal: v2〕",
+		"2: 第三句　〔2.0s〕　〔vocal: v3〕",
+		"3: 大合唱　〔2.0s〕　〔together〕",
+		`Known vocal names from lyric metadata: v1="林俊杰", v3="周杰伦".`,
+		"〔vocal: id〕 / 〔together〕:",
+	} {
+		if !strings.Contains(prompt, part) {
+			t.Errorf("prompt missing %q:\n%s", part, prompt)
+		}
+	}
+
+	// 单歌手 TTML 不产生多声部 Agents，保持简洁提示词
+	singleTTML := `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata">
+<head><metadata><ttm:agent type="person" xml:id="v1"/></metadata></head>
+<body><div><p begin="00:01.000" end="00:03.000" ttm:agent="v1"><span begin="00:01.000" end="00:03.000">独唱</span></p></div></body></tt>`
+	single := parseTTMLLyrics(singleTTML)
+	if len(single.Agents) != 0 || single.Lines[0].Agent != "" {
+		t.Fatalf("single vocalist should not produce agents: agents=%+v line=%+v", single.Agents, single.Lines[0])
+	}
+}
+
+func TestTTMLStarryExtendedAgentsAndChorus(t *testing.T) {
+	raw := `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata" xmlns:ttv="urn:ttml:extensions:vocalist-style:1" xmlns:ttd="urn:ttml:extensions:display-position:1">
+<head><metadata>
+  <ttm:agent type="person" xml:id="v1_2" ttd:position="primary"/>
+  <ttm:agent type="other" xml:id="v2_2" ttd:position="secondary"/>
+  <ttm:agent type="person" xml:id="v1" ttv:color="#D9695B"><ttm:name type="full">可莉（花玲）</ttm:name></ttm:agent>
+  <ttm:agent type="person" xml:id="v2" ttv:color="#3F9A66"><ttm:name type="full">温迪（喵☆酱）</ttm:name></ttm:agent>
+  <ttm:agent type="person" xml:id="v4" ttv:color="#2F93A3"><ttm:name type="full">魈（kinsen）</ttm:name></ttm:agent>
+  <ttm:agent type="person" xml:id="v3" ttv:color="#8462CC"><ttm:name type="full">七七（宴宁）</ttm:name></ttm:agent>
+</metadata></head>
+<body><div>
+  <p begin="00:01.000" end="00:03.000" ttm:agent="v1_2" ttd:agents="v1"><span begin="00:01.000" end="00:03.000">第一句</span></p>
+  <p begin="00:03.000" end="00:05.000" ttm:agent="v2_2" ttd:agents="v2"><span begin="00:03.000" end="00:05.000">第二句</span></p>
+  <p begin="00:05.000" end="00:07.000" ttm:agent="v1_2" ttd:agents="v1 v2 v4 v3"><span begin="00:05.000" end="00:07.000">四人合唱</span></p>
+  <p begin="00:07.000" end="00:09.000" ttm:agent="v1_2" ttd:agents="v3"><span begin="00:07.000" end="00:09.000">七七句</span></p>
+  <p begin="00:09.000" end="00:11.000" ttm:agent="v2_2" ttd:agents="v4"><span begin="00:09.000" end="00:11.000">魈句</span></p>
+</div></body></tt>`
+	parsed := parseTTMLLyrics(raw)
+	wantAgents := []lyricTTMLAgent{
+		{ID: "v1", Name: "可莉（花玲）"},
+		{ID: "v2", Name: "温迪（喵☆酱）"},
+		{ID: "v4", Name: "魈（kinsen）"},
+		{ID: "v3", Name: "七七（宴宁）"},
+	}
+	if !reflect.DeepEqual(parsed.Agents, wantAgents) {
+		t.Fatalf("agents = %+v, want %+v", parsed.Agents, wantAgents)
+	}
+	var singers, lineAgents []string
+	for _, line := range parsed.Lines {
+		singers = append(singers, line.Singer)
+		lineAgents = append(lineAgents, line.Agent)
+	}
+	if wantSingers := []string{"", lyricSingerSecond, lyricSingerTogether, lyricSingerSecond, lyricSingerSecond}; !reflect.DeepEqual(singers, wantSingers) {
+		t.Fatalf("singers = %q, want %q", singers, wantSingers)
+	}
+	if wantLineAgents := []string{"v1", "v2", lyricSingerTogether, "v3", "v4"}; !reflect.DeepEqual(lineAgents, wantLineAgents) {
+		t.Fatalf("lineAgents = %q, want %q", lineAgents, wantLineAgents)
+	}
+}

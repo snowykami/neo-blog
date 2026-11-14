@@ -91,10 +91,11 @@ export function MusicLyricStage({ className, compact = false, strip = false, the
   // 底栏注明实际显示的歌词来源
   const sourceLabel = lyricSourceLabel(lyrics, pageT)
   const footerText = sourceLabel ? pageT('lyric_footer', { source: sourceLabel }) : ''
+  const togetherLabel = pageT('lyric_chorus_together')
   useEffect(() => {
     // 单行条只有一行高，不显示翻译与音译
-    playerRef.current?.setDisplay({ showTranslation: showTranslation && !strip, showRomanization: showRomaji && !strip, footerText, effects: showLyricEffects, hdr })
-  }, [footerText, hasLines, hdr, showLyricEffects, showRomaji, showTranslation, strip])
+    playerRef.current?.setDisplay({ showTranslation: showTranslation && !strip, showRomanization: showRomaji && !strip, footerText, togetherLabel, effects: showLyricEffects, hdr })
+  }, [footerText, hasLines, hdr, showLyricEffects, showRomaji, showTranslation, strip, togetherLabel])
 
   const colorStyle = themed ? { '--lyric-color': 'var(--foreground)' } as React.CSSProperties : undefined
   // 单行条：加载中留空，没有歌词时只注明纯音乐（不放重新获取的按钮）

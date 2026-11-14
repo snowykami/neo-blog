@@ -1,6 +1,6 @@
 import type { LyricLine, ResolvedLyrics } from './types'
 import { describe, expect, it } from 'vitest'
-import { getStageSignals, SCENE_MAX_LINES, spotlightAt, spotlightLevel } from './stage-effects'
+import { getStageSignals, SCENE_MAX_LINES, spotlightAt, spotlightLevel, VOCAL_TINT_FACTOR } from './stage-effects'
 
 /** 每行 1 秒、间隔 1 秒的歌词：第 i 行在 [2i, 2i+1) 秒演唱 */
 function lyricsOf(lines: Partial<LyricLine>[]): ResolvedLyrics {
@@ -101,5 +101,35 @@ describe('播放器页全屏特效信号', () => {
     const lyrics = { ...lyricsOf([{ scene: 'custom:doll' }, {}]), sprites: { doll: sprite } }
     expect(getStageSignals(lyrics, 500).scene).toEqual({ name: 'custom:doll', color: null, sprite })
     expect(getStageSignals({ ...lyrics, sprites: undefined }, 500).scene).toBeNull()
+  })
+
+  it('多声部方向性洗光：按主行 align 与歌手色输出强度，单人无 agents 为 null，背景行不抢占', () => {
+    expect(getStageSignals(lyricsOf([{ agent: 'v1' }]), 500).vocal).toBeNull()
+
+    const multi: ResolvedLyrics = {
+      ...lyricsOf([
+        { agent: 'v1', align: 'left' },
+        { agent: 'v2', align: 'right', isDuet: true },
+        { agent: 'v1', align: 'left', isBackground: true, start: 2200, end: 2800, words: [{ text: '和', start: 2200, end: 2800 }] },
+        { agent: 'v1000', align: 'center' },
+      ]),
+      agents: {
+        v1: { id: 'v1', color: 'sky' },
+        v2: { id: 'v2', color: 'rose' },
+        v1000: { id: 'v1000', color: 'lavender', isGroup: true },
+      },
+    }
+    const atV1 = getStageSignals(multi, 500).vocal
+    expect(atV1?.align).toBe('left')
+    expect(atV1?.color).toBe('sky')
+    expect(atV1?.strength).toBeCloseTo(VOCAL_TINT_FACTOR, 3)
+
+    const atV2 = getStageSignals(multi, 2500).vocal
+    expect(atV2?.align).toBe('right')
+    expect(atV2?.color).toBe('rose')
+
+    const atChorus = getStageSignals(multi, 6500).vocal
+    expect(atChorus?.align).toBe('center')
+    expect(atChorus?.color).toBe('lavender')
   })
 })

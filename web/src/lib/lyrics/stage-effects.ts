@@ -1,6 +1,7 @@
 import type { RhythmModel } from './rhythm/model'
-import type { LyricColor, LyricLine, LyricSceneName, LyricSprite, ResolvedLyrics } from './types'
+import type { LyricAlign, LyricColor, LyricLine, LyricSceneName, LyricSprite, ResolvedLyrics } from './types'
 import { swellCurve } from './easing'
+import { getLyricLineAlign } from './line-utils'
 import { envelopeScale, heartbeatLevel, rhythmContext } from './rhythm/effects'
 import { shatterFlash } from './word-effects'
 
@@ -16,12 +17,19 @@ import { shatterFlash } from './word-effects'
  * - spotlight 聚光灯：唱到全曲最点题的句子（1～3 句，每次出现）时身后亮起暖光、四周略微压暗（与歌词引擎的聚光灯共用 spotlightAt）
  */
 
+export interface StageVocalBias {
+  align: LyricAlign
+  color: LyricColor
+  strength: number
+}
+
 export interface StageSignals {
   pulse: number
   burst: number
   push: number
   spotlight: number
   tint: { color: LyricColor, strength: number } | null
+  vocal: StageVocalBias | null
   scene: StageScene | null
 }
 
@@ -49,8 +57,10 @@ const SPOTLIGHT_ATTACK_MS = 500
 const SPOTLIGHT_RELEASE_MS = 600
 // 粒子场景持续的行数（含标注行）
 export const SCENE_MAX_LINES = 8
+// 多声部方向性洗光相对于短语级染色的柔和系数（有更强短语染色时让位）
+export const VOCAL_TINT_FACTOR = 0.42
 
-const NO_SIGNALS: StageSignals = { pulse: 0, burst: 0, push: 0, spotlight: 0, tint: null, scene: null }
+const NO_SIGNALS: StageSignals = { pulse: 0, burst: 0, push: 0, spotlight: 0, tint: null, vocal: null, scene: null }
 
 /** rhythm 为这首歌的节拍模型（没有时回退到固定快慢，见 rhythm/effects.ts） */
 export function getStageSignals(lyrics: ResolvedLyrics, timeMs: number, rhythm: RhythmModel | null = null): StageSignals {
@@ -83,7 +93,28 @@ export function getStageSignals(lyrics: ResolvedLyrics, timeMs: number, rhythm: 
       }
     }
   }
-  return { pulse, burst, push, spotlight: spotlightLevel(lyrics, timeMs), tint, scene: sceneAt(lyrics, timeMs) }
+  return { pulse, burst, push, spotlight: spotlightLevel(lyrics, timeMs), tint, vocal: vocalAt(lyrics, timeMs), scene: sceneAt(lyrics, timeMs) }
+}
+
+/** 当前在唱多声部主唱行的舞台方向性洗光（按演唱进度包络柔化后输出，仅多声部曲目生效） */
+function vocalAt(lyrics: ResolvedLyrics, timeMs: number): StageVocalBias | null {
+  const agents = lyrics.agents
+  if (!agents)
+    return null
+  let best: { align: LyricAlign, color: LyricColor, strength: number, start: number } | null = null
+  for (const line of lyrics.lines) {
+    if (line.isBackground || !line.agent)
+      continue
+    const agent = agents[line.agent]
+    if (!agent)
+      continue
+    const strength = tintEnvelope(line.start, line.end, timeMs) * VOCAL_TINT_FACTOR
+    if (strength <= 0)
+      continue
+    if (!best || strength > best.strength || (strength === best.strength && line.start > best.start))
+      best = { align: getLyricLineAlign(line), color: agent.color, strength, start: line.start }
+  }
+  return best ? { align: best.align, color: best.color, strength: best.strength } : null
 }
 
 /**

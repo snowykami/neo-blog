@@ -4720,6 +4720,7 @@
     "lyric_badge_none": "歌詞なし",
     "lyric_badge_instrumental": "インスト",
     "lyric_footer": "歌詞提供：{source}",
+    "lyric_chorus_together": "合唱",
     "lyric_badge_auto": "自動（品質順）",
     "lyric_badge_upgrading": "より高品質な歌詞を取得中",
     "lyric_badge_ai_effects": "AI 歌詞エフェクト",
