@@ -23,6 +23,7 @@ import {
   LYRIC_PLACEHOLDERS,
 } from '@/lib/lyrics/line-utils'
 import { registerTelemetryContext } from '@/lib/telemetry/context'
+import { formatMusicCoverUrl } from '@/utils/common/image'
 import { EMPTY_MUSIC_LYRICS_STATE } from './music-lyrics-engine-state'
 
 // 歌词引擎（来源选择、平台歌词解析、音译对齐、强调标注）与节拍分析按需加载：MusicProvider 在根布局里，
@@ -373,8 +374,8 @@ function makeMediaArtwork(url?: string) {
   if (!url)
     return []
   return [
-    { src: url, sizes: '512x512', type: 'image/png' },
-    { src: url, sizes: '96x96', type: 'image/png' },
+    { src: formatMusicCoverUrl(url, 512), sizes: '512x512', type: 'image/jpeg' },
+    { src: formatMusicCoverUrl(url, 96), sizes: '96x96', type: 'image/jpeg' },
   ]
 }
 

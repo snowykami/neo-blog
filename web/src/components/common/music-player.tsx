@@ -50,6 +50,9 @@ function normalizeThemeColor(r: number, g: number, b: number) {
 }
 
 function getThemeSampleImageSrc(src: string) {
+  const formatted = formatMusicCoverUrl(src, 48)
+  if (formatted !== src)
+    return formatted
   // 仅站内 / 白名单图片经优化器取小图；站外图片直连（依赖对方 CORS，失败时回退默认色）
   return shouldOptimize(src) ? `/_next/image?url=${encodeURIComponent(src)}&w=64&q=75` : src
 }
@@ -429,7 +432,7 @@ export function MusicPlayer() {
           )}
         >
           <CrossfadeAlbumImage
-            src={currentTrack.albumPic}
+            src={formatMusicCoverUrl(currentTrack.albumPic, 128)}
             alt={currentTrack.album}
             priority
             sizes="(min-width: 1024px) 64px, 48px"

@@ -13,6 +13,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { isComposingKey } from '@/lib/ime'
 import { cn } from '@/lib/utils'
 import { formatDurationMMSS } from '@/utils/common/datetime'
+import { formatMusicCoverUrl } from '@/utils/common/image'
 
 type Status = { type: 'idle' } | { type: 'busy' } | { type: 'message', key: 'no_results' | 'failed', error?: boolean }
 
@@ -86,7 +87,7 @@ export function NeteaseSongSearch({ value, onSelect }: { value: number, onSelect
                 >
                   <span className="relative size-10 shrink-0 overflow-hidden rounded-md bg-muted">
                     {song.albumPic
-                      ? <SafeImage src={song.albumPic} alt="" fill sizes="40px" className="object-cover" />
+                      ? <SafeImage src={formatMusicCoverUrl(song.albumPic, 80)} alt="" fill sizes="40px" className="object-cover" />
                       : <Music2Icon className="absolute inset-0 m-auto size-4 text-muted-foreground" />}
                   </span>
                   <span className="grid min-w-0 flex-1">

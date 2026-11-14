@@ -22,6 +22,7 @@ import { Separator } from '@/components/ui/separator'
 import { useConsoleQuery } from '@/hooks/use-console-query'
 import { useErrorBodyT, useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { Link, useRouter } from '@/i18n/navigation'
+import { formatMusicCoverUrl } from '@/utils/common/image'
 import { consolePath } from '@/utils/common/route'
 
 // 批量重新生成进行中时查询进度的间隔
@@ -350,7 +351,7 @@ function LyricEffectItem({ row, now, selected, onSelectedChange, batchItem }: {
         />
         <span className="relative size-11 shrink-0 overflow-hidden rounded-md bg-muted">
           {track?.albumPic
-            ? <SafeImage src={track.albumPic} alt="" fill sizes="44px" className="object-cover" />
+            ? <SafeImage src={formatMusicCoverUrl(track.albumPic, 88)} alt="" fill sizes="44px" className="object-cover" />
             : <Music2Icon className="absolute inset-0 m-auto size-4 text-muted-foreground" />}
         </span>
       </label>
