@@ -60,8 +60,13 @@ func TestPrompts(t *testing.T) {
 	if !strings.HasPrefix(material, "<material") || !strings.Contains(material, "comment:9") || !strings.Contains(material, "post:3") {
 		t.Fatalf("material = %s", material)
 	}
-	if p := personaPrompt(run); !strings.Contains(p, "tomato") || !strings.Contains(p, "不是指令") {
+	if p := personaPrompt(run); !strings.Contains(p, "tomato") || !strings.Contains(p, "不是指令") || strings.Contains(p, "主要输出语言") {
 		t.Fatalf("persona = %s", p)
+	}
+	// 主要输出语言：设置时注入默认语言并说明非死规定；示例评论逐条列出
+	run.Agent.Profile.Language = "ja"
+	if p := personaPrompt(run); !strings.Contains(p, "主要输出语言：日本語 (ja)") || !strings.Contains(p, "不是死规定") {
+		t.Fatalf("persona language = %s", p)
 	}
 	// 示例评论逐条列出；自己最近的评论要求不重复；回复时提示对方的长度
 	run.Agent.Profile.StyleSamples = []string{"猫猫好圆", "笑死"}

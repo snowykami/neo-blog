@@ -41,7 +41,7 @@ GitHub 上的提交信息、PR 描述和评论很多是 AI 写的，不代表 TA
 
 - **机器人账号**：用户名以 `[bot]` 结尾，或接口返回的 `type` 为 `Bot`，如 dependabot、renovate、github-actions、copilot-swe-agent、coderabbitai。
 - **带 AI 署名的提交**：提交信息里有 `Co-authored-by: Claude`、`Co-authored-by: Copilot`、`noreply@anthropic.com`、`Generated with Claude Code`、`🤖 Generated with` 等尾注，或提到 Cursor、Codex、Devin 等工具代写。
-- **AI 写的 PR 和 issue**：带 `## Summary`、`## Test plan`、`## Changes` 这类固定小节，配大段整齐的列表；措辞过于工整、面面俱到；语言和 TA 平时不一致（比如平时说中文，这里却是大段流畅的英文）。
+- **AI 写的 PR 和 issue**：带 `## Summary`、`## Test plan`、`## Changes` 这类固定小节，配大段整齐的列表；措辞过于工整、面面俱到；或者平时主要用母语且极少长篇外语表达的人突然写出大段工整的英文套话。注意区分：如果是 TA 自己手写的简短外语 issue/评论（哪怕有小语法瑕疵、比较随口），反而是真实素材，可用于判断 TA 对英语等通用语言的掌握度。
 - **AI 评审意见**：代码评审工具自动生成的长评论，以及 TA 原样转贴的 AI 输出。
 - **批量出现的提交**：短时间内连续出现、风格高度一致的大段提交信息。
 

@@ -88,6 +88,7 @@ export interface AIAgentWebFetch {
 
 export interface AIAgentProfile {
   archetype: string
+  language: string
   persona: string
   interests: string[]
   expertise: string[]

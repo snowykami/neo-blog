@@ -89,6 +89,7 @@ var errorHints = map[string]string{
 	"invalid_ai_agent_profile": "the profile has an invalid field type or value; run skills/neo-blog-persona-distill/scripts/validate_agent_file.py on the file",
 	"invalid_ai_agent_tier":    "tier must be ambient or expert",
 	"invalid_timezone":         "activity.timezone must be an IANA time zone such as Asia/Shanghai",
+	"invalid_language":         "profile.language must be a BCP 47 language code such as zh, zh-tw, en, ja, ko, fr, de (or empty)",
 	"invalid_active_hours":     "activity.active_hours must look like 9-12,20-24",
 	"invalid_preferred_color":  "preferred_color is not one of the site's color schemes",
 	"invalid_ai_agent_count":   "pass 1 to 200 AI users",

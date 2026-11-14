@@ -12,6 +12,7 @@ import (
 // AIAgentProfile AI 用户的性格档案：数字参数决定多常出现、更爱做什么，文字参数决定说什么、怎么说
 type AIAgentProfile struct {
 	Archetype     string               `json:"archetype"`      // 原型，如「夜猫子音乐党」
+	Language      string               `json:"language"`       // 主要输出语言（如 zh / zh-tw / en / ja），留空时跟随人设与示例
 	Persona       string               `json:"persona"`        // 第一人称人设简介
 	Interests     []string             `json:"interests"`      // 兴趣，用于推荐流匹配
 	Expertise     []string             `json:"expertise"`      // 专长（专业型）

@@ -2,7 +2,9 @@
 
 import type { Control, FieldPathByValue } from 'react-hook-form'
 import type { AIAgent, AIAgentProfile, AIAgentSelfEditField, AIAgentTier, AIAgentTrigger } from '@/models/ai-agent'
-import { Bot, Brain, Clock, Gauge, Loader2, Shield, SlidersHorizontal, Wand } from 'lucide-react'
+import { Bot, Brain, Check, ChevronsUpDown, Clock, Gauge, Loader2, Shield, SlidersHorizontal, Wand } from 'lucide-react'
+import { useLocale } from 'next-intl'
+import { useMemo, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 import { updateAIAgent } from '@/api/ai-agent'
@@ -10,12 +12,15 @@ import { TimeZoneCombobox } from '@/components/common/time-zone-combobox'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
+import { cn } from '@/lib/utils'
 import { AI_AGENT_SELF_EDIT_FIELDS, AI_AGENT_TRIGGERS } from '@/models/ai-agent'
 import { isValidTimeZone } from '@/utils/common/time-zone'
 import { TierToggle } from './create-agent-dialog'
@@ -23,6 +28,11 @@ import { linesToList, listToLines, triggerKey, useAIAgentT } from './shared'
 
 // 作息：逗号分隔的小时区间，如 9-12,20-24；跨零点写成 22-2
 const ACTIVE_HOURS_PATTERN = /^\s*\d{1,2}\s*-\s*\d{1,2}(?:\s*,\s*\d{1,2}\s*-\s*\d{1,2})*\s*$/
+// 主要输出语言：BCP 47 语言代码（与后端 internal/service/ai_agent.go 的 NormalizeAgentLanguage 一致）
+const LANGUAGE_CODE_PATTERN = /^[a-z]{2,3}(?:-[a-z]{4})?(?:-(?:[a-z]{2}|\d{3}))?$/
+const PROFILE_LANGUAGE_PRESETS = ['zh', 'zh-tw', 'en', 'ja', 'ko', 'fr', 'de', 'es', 'pt', 'ru', 'it', 'ar', 'vi', 'th', 'id', 'yue'] as const
+const ZH_SIMPLIFIED_ALIASES = new Set(['zh', 'zh-cn', 'zh-sg', 'zh-my', 'zh-hans', 'zh-hans-cn', 'zh-hans-sg'])
+const ZH_TRADITIONAL_ALIASES = new Set(['zh-tw', 'zh-hk', 'zh-mo', 'zh-hant', 'zh-hant-tw', 'zh-hant-hk', 'zh-hant-mo'])
 // 与后端一致（internal/service/ai_agent.go 的 agentPersonaMaxRunes），导入的长人设也能编辑保存
 const PERSONA_MAX = 2000
 
@@ -30,6 +40,7 @@ const PERSONA_MAX = 2000
 export interface ProfileFormValues {
   tier: AIAgentTier
   archetype: string
+  language: string
   persona: string
   interests: string
   expertise: string
@@ -52,6 +63,7 @@ export function toFormValues(agent: AIAgent): ProfileFormValues {
   return {
     tier: agent.tier,
     archetype: p.archetype ?? '',
+    language: p.language ?? '',
     persona: p.persona ?? '',
     interests: listToLines(p.interests),
     expertise: listToLines(p.expertise),
@@ -73,6 +85,7 @@ export function toFormValues(agent: AIAgent): ProfileFormValues {
 function toProfile(values: ProfileFormValues): AIAgentProfile {
   return {
     archetype: values.archetype.trim(),
+    language: normalizeLanguageCode(values.language),
     persona: values.persona.trim(),
     interests: linesToList(values.interests),
     expertise: linesToList(values.expertise),
@@ -89,6 +102,148 @@ function toProfile(values: ProfileFormValues): AIAgentProfile {
     memory: values.memory,
     webFetch: { enabled: values.webFetch.enabled, allowedDomains: linesToList(values.webFetch.allowedDomains) },
   }
+}
+
+function normalizeLanguageCode(raw: string) {
+  const code = raw.trim().toLowerCase().replaceAll('_', '-')
+  if (ZH_SIMPLIFIED_ALIASES.has(code))
+    return 'zh'
+  if (ZH_TRADITIONAL_ALIASES.has(code))
+    return 'zh-tw'
+  return code
+}
+
+function formatLanguageLabel(displayNames: Intl.DisplayNames | null, code: string) {
+  if (!code || !displayNames)
+    return code
+  const lookup = code === 'zh' ? 'zh-Hans' : code === 'zh-tw' ? 'zh-Hant' : code
+  try {
+    return displayNames.of(lookup) ?? code
+  }
+  catch {
+    return code
+  }
+}
+
+// 主要输出语言选择器：支持常用预设与任意合法 BCP 47 语言代码
+function PersonaLanguageCombobox({ value, onChange }: {
+  value: string
+  onChange: (value: string) => void
+}) {
+  const t = useAIAgentT()
+  const locale = useLocale()
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+
+  const displayNames = useMemo(() => {
+    try {
+      return new Intl.DisplayNames([locale], { type: 'language' })
+    }
+    catch {
+      return null
+    }
+  }, [locale])
+
+  const normalizedValue = normalizeLanguageCode(value)
+  const options = useMemo(() => {
+    const codes: string[] = [...PROFILE_LANGUAGE_PRESETS]
+    if (normalizedValue && !codes.includes(normalizedValue))
+      codes.unshift(normalizedValue)
+    return codes.map(code => ({
+      code,
+      label: formatLanguageLabel(displayNames, code),
+    }))
+  }, [displayNames, normalizedValue])
+
+  const customCandidate = normalizeLanguageCode(query)
+  const showCustom = Boolean(customCandidate)
+    && LANGUAGE_CODE_PATTERN.test(customCandidate)
+    && !options.some(option => option.code === customCandidate)
+
+  const selected = options.find(option => option.code === normalizedValue)
+  const selectValue = (next: string) => {
+    onChange(next)
+    setQuery('')
+    setOpen(false)
+  }
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen)
+        if (!nextOpen)
+          setQuery('')
+      }}
+    >
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className={cn('grid w-full grid-cols-[minmax(0,1fr)_auto] font-normal', !normalizedValue && 'text-muted-foreground')}
+        >
+          <span className="truncate text-left">
+            {normalizedValue
+              ? (
+                  <>
+                    {selected?.label ?? normalizedValue}
+                    {selected && selected.label !== normalizedValue && (
+                      <span className="ml-2 text-xs text-muted-foreground">{normalizedValue}</span>
+                    )}
+                  </>
+                )
+              : t('profile.language_auto')}
+          </span>
+          <ChevronsUpDown className="opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-(--radix-popover-trigger-width) min-w-64 p-0" align="start">
+        <Command>
+          <CommandInput value={query} onValueChange={setQuery} placeholder={t('profile.language_search')} className="h-9" />
+          <CommandList>
+            <CommandEmpty>{t('profile.language_empty')}</CommandEmpty>
+            <CommandGroup>
+              <CommandItem
+                value="__auto__"
+                keywords={[t('profile.language_auto'), 'auto', 'default']}
+                onSelect={() => selectValue('')}
+              >
+                <span className="truncate text-muted-foreground">{t('profile.language_auto')}</span>
+                <Check className={cn('ml-auto', !normalizedValue ? 'opacity-100' : 'opacity-0')} />
+              </CommandItem>
+              {options.map(option => (
+                <CommandItem
+                  key={option.code}
+                  value={option.code}
+                  keywords={[option.label, option.code]}
+                  onSelect={() => selectValue(option.code)}
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="truncate">{option.label}</span>
+                    {option.label !== option.code && (
+                      <span className="text-xs text-muted-foreground">{option.code}</span>
+                    )}
+                  </span>
+                  <Check className={cn('ml-auto', normalizedValue === option.code ? 'opacity-100' : 'opacity-0')} />
+                </CommandItem>
+              ))}
+              {showCustom && (
+                <CommandItem
+                  value={customCandidate}
+                  keywords={[query, customCandidate, t('profile.language_use_code', { code: customCandidate })]}
+                  onSelect={() => selectValue(customCandidate)}
+                >
+                  <span className="truncate">{t('profile.language_use_code', { code: customCandidate })}</span>
+                </CommandItem>
+              )}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
 }
 
 function Section({ icon: Icon, title, description, children }: {
@@ -317,15 +472,35 @@ export function AgentProfileForm({ agent, onSaved }: { agent: AIAgent, onSaved: 
             />
             <FormField
               control={control}
-              name="tone"
+              name="language"
+              rules={{
+                validate: (v) => {
+                  const normalized = normalizeLanguageCode(v)
+                  return !normalized || LANGUAGE_CODE_PATTERN.test(normalized) || t('profile.invalid_language')
+                },
+              }}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('profile.tone')}</FormLabel>
-                  <FormControl><Input {...field} placeholder={t('profile.tone_placeholder')} /></FormControl>
+                  <FormLabel>{t('profile.language')}</FormLabel>
+                  <FormControl>
+                    <PersonaLanguageCombobox value={field.value} onChange={field.onChange} />
+                  </FormControl>
+                  <FormDescription>{t('profile.language_desc')}</FormDescription>
+                  <FormMessage />
                 </FormItem>
               )}
             />
           </div>
+          <FormField
+            control={control}
+            name="tone"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('profile.tone')}</FormLabel>
+                <FormControl><Input {...field} placeholder={t('profile.tone_placeholder')} /></FormControl>
+              </FormItem>
+            )}
+          />
           <FormField
             control={control}
             name="persona"

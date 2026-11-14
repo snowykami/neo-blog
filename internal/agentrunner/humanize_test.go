@@ -25,6 +25,8 @@ func TestCleanComment(t *testing.T) {
 		{"这段写得很细\n\n\n收藏了", nil, "这段写得很细\n收藏了"},
 		{"「」", nil, ""},
 		{"他说“行吧”就走了", nil, "他说“行吧”就走了"},
+		{"**WAL** mode is fast —— just watch `checkpoint`", nil, "WAL mode is fast, just watch checkpoint"},
+		{"Great point — totally agree.", nil, "Great point, totally agree."},
 	}
 	for _, c := range cases {
 		if got := cleanComment(c.in, c.samples); got != c.want {
@@ -57,6 +59,9 @@ func TestToneIssues(t *testing.T) {
 		"我们正在对系统进行全面测试",
 		"专家认为这样能减少误操作",
 		"仅供参考，具体以官方为准",
+		"Great post! Thanks for sharing.",
+		"It's worth noting that WAL mode needs checkpoints.",
+		"とても参考になりました！",
 	}
 	for _, c := range aiLike {
 		if len(toneIssues(c, "ambient")) == 0 {
@@ -74,6 +79,7 @@ func TestToneIssues(t *testing.T) {
 		"我需要先进行一次备份才敢动",
 		"专家说的那个版本我也踩过坑",
 		"该版本号以前确实存在，不过后来改掉了",
+		"I hit the same SQLite lock spike on an old NVMe drive, bumping wal_autocheckpoint helped a lot once I stopped syncing on every tiny write.",
 	}
 	for _, c := range human {
 		if issues := toneIssues(c, "ambient"); len(issues) > 0 {
@@ -83,6 +89,10 @@ func TestToneIssues(t *testing.T) {
 	long := strings.Repeat("长", 150)
 	if len(toneIssues(long, "ambient")) == 0 || len(toneIssues(long, "expert")) != 0 {
 		t.Error("length budget: ambient 100, expert 200")
+	}
+	longEn := strings.Repeat("word ", 55) // ~275 chars
+	if len(toneIssues(longEn, "ambient")) == 0 || len(toneIssues(longEn, "expert")) != 0 {
+		t.Error("english length budget: ambient 240, expert 420")
 	}
 }
 

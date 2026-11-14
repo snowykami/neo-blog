@@ -28,14 +28,14 @@ func systemPrompt(site dto.AgentLeaseSite) string {
 
 怎么说话（读者一眼就能看出是不是 AI，这一部分最重要）：
 - 一条评论只说一件事：文章里的一个细节、一个疑问、一句感慨或玩笑都行，不要面面俱到，也不要正反两面都讲。
-- 大多数评论很短，一句话、5～30 字；只有真有具体的东西要补充时才写长，最多 200 字。回复别人时长度和对方差不多。
+- 大多数评论很短，一句话（中文/日文约 5～30 字，英文等约 5～25 词）；只有真有具体的东西要补充时才写长，最多不超过 200 字（英文约 60 词）。回复别人时长度和对方差不多。
 - 口语化：可以省略主语、用不完整的句子、用你自己的口头禅和网络用语，句末不一定加标点。按设定里的说话习惯来，每条的开头和句式都不一样。
 - 跟上评论区的气氛：看看别人怎么说话，自然地接话，而不是另起一段正式的发言。
 - 不要先客套夸赞「写得很详细」「干货满满」「受益匪浅」再发表看法，直接从触动你的那一个具体细节切入。
 - 不要写成「先肯定、再转折补充、最后给建议或总结」的三段式，不要用总结、升华、建议或反问收尾。
 - 不说元叙述：不说「看完这篇文章」「作为一个……」「我注意到」，也不复述文章内容，读者已经看过了。
 - 不给普通的事戴高帽：不写「标志着」「彰显了」「堪称」「前所未有」，也不写「让我们」「下面来看看」这类预告句。
-- 这些 AI 腔一律不用：「感谢分享」「学到了」「写得真好」「受益匪浅」「值得一提的是」「总的来说」「不仅……而且……」「不是……而是……」「从……角度来看」「希望对大家有帮助」「期待更多」「加油」，以及破折号、排比、列点和 Markdown。表情和颜文字按设定里的习惯来，没有这个习惯就不用。`, site.Name)
+- 这些 AI 腔一律不用：「感谢分享」「学到了」「写得真好」「受益匪浅」「值得一提的是」「总的来说」「不仅……而且……」「不是……而是……」「从……角度来看」「希望对大家有帮助」「期待更多」「加油」，以及破折号、排比、列点和 Markdown。用其他语言发言时同样避开对应的客套开场、总结套话与三段式（如 Great post、Thanks for sharing、It's worth noting、参考になりました 等）。表情和颜文字按设定里的习惯来，没有这个习惯就不用。`, site.Name)
 }
 
 func list(items []string) string {
@@ -114,6 +114,36 @@ func materialPrompt(run *dto.AgentLeaseRun, post *readPost, comments string) str
 	return b.String()
 }
 
+var languageLabels = map[string]string{
+	"zh":    "简体中文 (zh)",
+	"zh-tw": "繁體中文 (zh-tw)",
+	"en":    "English (en)",
+	"en-gb": "English - UK (en-gb)",
+	"en-us": "English - US (en-us)",
+	"ja":    "日本語 (ja)",
+	"ko":    "한국어 (ko)",
+	"fr":    "Français (fr)",
+	"de":    "Deutsch (de)",
+	"es":    "Español (es)",
+	"pt":    "Português (pt)",
+	"pt-br": "Português - Brasil (pt-br)",
+	"ru":    "Русский (ru)",
+	"it":    "Italiano (it)",
+	"ar":    "العربية (ar)",
+	"vi":    "Tiếng Việt (vi)",
+	"th":    "ไทย (th)",
+	"id":    "Bahasa Indonesia (id)",
+	"yue":   "粵語 (yue)",
+}
+
+func languageLabel(code string) string {
+	normalized := strings.ToLower(strings.TrimSpace(code))
+	if label, ok := languageLabels[normalized]; ok {
+		return label
+	}
+	return code
+}
+
 // personaPrompt 人设与记忆
 func personaPrompt(run *dto.AgentLeaseRun) string {
 	a := run.Agent
@@ -122,6 +152,9 @@ func personaPrompt(run *dto.AgentLeaseRun) string {
 	fmt.Fprintf(&b, "<you>\n昵称：%s（用户名 @%s）\n", a.Nickname, a.Username)
 	if p.Archetype != "" {
 		fmt.Fprintf(&b, "类型：%s\n", p.Archetype)
+	}
+	if p.Language != "" {
+		fmt.Fprintf(&b, "主要输出语言：%s（日常评论和回复默认用这种语言写，不要因为文章、评论区或这里的规则说明是别的语言就跟着切换；不过这不是死规定——如果按你的人设还会英语等通用语或其他语言，平时夹杂常用词/技术术语，或者别人直接用你懂的语言和你搭话时顺着回，都完全可以）\n", languageLabel(p.Language))
 	}
 	if p.Persona != "" {
 		fmt.Fprintf(&b, "人设：%s\n", p.Persona)

@@ -66,16 +66,17 @@ func TestAIAgentExportImport(t *testing.T) {
 	roundTrip := exported[1]
 	roundTrip.Username = "ai_two_copy"
 	items := []dto.AIAgentFileItem{
-		{Username: "distilled", Nickname: "蒸馏", Profile: json.RawMessage(`{"persona":"我是一个爱折腾的后端","activity":{"active_hours":"20-24"},"interests":["Go","猫"]}`)},
+		{Username: "distilled", Nickname: "蒸馏", Profile: json.RawMessage(`{"language":"zh_TW","persona":"我是一个爱折腾的后端","activity":{"active_hours":"20-24"},"interests":["Go","猫"]}`)},
 		roundTrip,
 		{Username: "ai_one", Nickname: "改名", Tier: constant.AIAgentTierExpert, Profile: json.RawMessage(`{"tone":"新的语气","activity":{"daily_actions":4}}`)},
 		{Username: "other"},
 		{Username: "bad_tz", Profile: json.RawMessage(`{"activity":{"timezone":"Mars/Base"}}`)},
 		{Username: "bad_type", Profile: json.RawMessage(`{"activity":{"daily_actions":"many"}}`)},
 		{Username: "bad_color", PreferredColor: "nope"},
-		{Username: "expert_one", Tier: constant.AIAgentTierExpert, Profile: json.RawMessage(`{"expertise":["数据库"]}`)},
+		{Username: "expert_one", Tier: constant.AIAgentTierExpert, Profile: json.RawMessage(`{"language":"ja","expertise":["数据库"]}`)},
+		{Username: "bad_lang", Profile: json.RawMessage(`{"language":"invalid_lang_code"}`)},
 	}
-	want := []string{"create", "create", "update", "ai_agent_username_taken", "invalid_timezone", "invalid_ai_agent_profile", "invalid_preferred_color", "create"}
+	want := []string{"create", "create", "update", "ai_agent_username_taken", "invalid_timezone", "invalid_ai_agent_profile", "invalid_preferred_color", "create", "invalid_language"}
 
 	// 试运行：给出每一项的操作，不写入
 	before, _ := repo.AIAgent.CountBy("", "")
@@ -104,7 +105,7 @@ func TestAIAgentExportImport(t *testing.T) {
 	distilled, _ := svc.Get(admin, results[0].AgentID)
 	defaults := DefaultAIAgentProfile(constant.AIAgentTierAmbient)
 	p := distilled.Profile
-	if p.Persona != "我是一个爱折腾的后端" || p.Activity.ActiveHours != "20-24" || !reflect.DeepEqual(p.Interests, []string{"Go", "猫"}) {
+	if p.Language != "zh-tw" || p.Persona != "我是一个爱折腾的后端" || p.Activity.ActiveHours != "20-24" || !reflect.DeepEqual(p.Interests, []string{"Go", "猫"}) {
 		t.Fatalf("imported fields lost: %+v", p)
 	}
 	if p.Activity.DailyActions != defaults.Activity.DailyActions || p.Behavior != defaults.Behavior || p.Limits != defaults.Limits || !reflect.DeepEqual(p.BlockedTopics, defaults.BlockedTopics) {
@@ -132,7 +133,7 @@ func TestAIAgentExportImport(t *testing.T) {
 	}
 	// 专业型取专业型的默认值
 	expert, _ := svc.Get(admin, results[7].AgentID)
-	if !expert.Profile.WebFetch.Enabled || expert.Profile.Behavior != DefaultAIAgentProfile(constant.AIAgentTierExpert).Behavior {
+	if expert.Profile.Language != "ja" || !expert.Profile.WebFetch.Enabled || expert.Profile.Behavior != DefaultAIAgentProfile(constant.AIAgentTierExpert).Behavior {
 		t.Fatalf("expert defaults = %+v", expert.Profile)
 	}
 }

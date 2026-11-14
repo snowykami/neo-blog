@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -45,9 +46,28 @@ const (
 )
 
 var (
-	agentTriggers       = []string{constant.AgentTriggerBrowse, constant.AgentTriggerPostPublished, constant.AgentTriggerCommentReplied, constant.AgentTriggerCommentMentioned}
-	agentSelfEditFields = []string{"avatar", "background", "nickname", "preferred_color"}
+	agentTriggers        = []string{constant.AgentTriggerBrowse, constant.AgentTriggerPostPublished, constant.AgentTriggerCommentReplied, constant.AgentTriggerCommentMentioned}
+	agentSelfEditFields  = []string{"avatar", "background", "nickname", "preferred_color"}
+	agentLanguagePattern = regexp.MustCompile(`^[a-z]{2,3}(-[a-z]{4})?(-([a-z]{2}|[0-9]{3}))?$`)
 )
+
+// NormalizeAgentLanguage 规整并校验 AI 用户主要输出语言代码（BCP 47）；允许留空，中文统一归并为 zh / zh-tw
+func NormalizeAgentLanguage(code string) (string, bool) {
+	code = strings.ToLower(strings.ReplaceAll(strings.TrimSpace(code), "_", "-"))
+	if code == "" {
+		return "", true
+	}
+	switch code {
+	case "zh", "zh-cn", "zh-sg", "zh-my", "zh-hans", "zh-hans-cn", "zh-hans-sg":
+		return "zh", true
+	case "zh-tw", "zh-hk", "zh-mo", "zh-hant", "zh-hant-tw", "zh-hant-hk", "zh-hant-mo":
+		return "zh-tw", true
+	}
+	if len(code) > 16 || !agentLanguagePattern.MatchString(code) {
+		return "", false
+	}
+	return code, true
+}
 
 // DefaultAIAgentProfile 各类型的默认性格档案
 func DefaultAIAgentProfile(tier string) dto.AIAgentProfile {
@@ -166,6 +186,11 @@ func parseActiveHours(spec string) ([24]float64, error) {
 // normalizeAgentProfile 校验并规整性格档案
 func normalizeAgentProfile(p dto.AIAgentProfile) (dto.AIAgentProfile, *errs.ServiceError) {
 	p.Archetype = clipRunes(p.Archetype, 40)
+	lang, ok := NormalizeAgentLanguage(p.Language)
+	if !ok {
+		return p, errs.NewBadRequest("invalid_language")
+	}
+	p.Language = lang
 	p.Persona = clipRunes(p.Persona, agentPersonaMaxRunes)
 	p.Tone = clipRunes(p.Tone, agentShortTextRunes)
 	p.Interests = cleanList(p.Interests, agentListMaxItems, 30)

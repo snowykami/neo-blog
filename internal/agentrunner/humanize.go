@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/snowykami/neo-blog/internal/dto"
@@ -31,11 +32,11 @@ type toneTell struct {
 // aiToneTells 常见的 AI 腔；名称会原样告诉模型。清单参考 op7418/humanizer-zh（MIT，源自 blader/humanizer），
 // 只取能稳定用正则判定、误伤少的那几条；命中只是线索，不是修改命令（见 rewritePrompt）
 var aiToneTells = []toneTell{
-	{"客套话", regexp.MustCompile(`感谢(你的|您的|楼主|博主|作者)?分享|学到了|受益(匪浅|良多)|(写|讲|总结|分析)得(真|很|非常|太|好)?(好|棒|到位|清晰|透彻|详细)([^听]|$)`)},
-	{"总结和强调用语", regexp.MustCompile(`值得(一提|注意)的是|需要(注意|指出)的是|不难发现|归根结底|一言以蔽之|总的来说|总而言之|综上所述|总之[，,]`)},
+	{"客套话", regexp.MustCompile(`感谢(你的|您的|楼主|博主|作者)?分享|学到了|受益(匪浅|良多)|(写|讲|总结|分析)得(真|很|非常|太|好)?(好|棒|到位|清晰|透彻|详细)([^听]|$)|(?i)\b(thanks|thank\s+you)\s+for\s+sharing\b|(?i)^(great|nice|wonderful|excellent|fantastic|awesome)\s+(post|article|write-up|read|piece)\b|参考になりました|勉強になりました`)},
+	{"总结和强调用语", regexp.MustCompile(`值得(一提|注意)的是|需要(注意|指出)的是|不难发现|归根结底|一言以蔽之|总的来说|总而言之|综上所述|总之[，,]|(?i)\b(it['’]?s\s+worth\s+(noting|mentioning)|in\s+(conclusion|summary)|to\s+sum\s+up)\b|いかがでしたでしょうか|結論から言うと`)},
 	{"固定句式（不仅……而且、不是……而是、一方面……另一方面）", regexp.MustCompile(`不仅[^。！？\n]{1,24}而且|不仅[^，。！？\n]{1,20}(还|更)|不是[^，。！？\n]{1,12}而是|一方面[^。！？\n]*另一方面|首先[^。！？\n]*其次`)},
 	{"讲道理的腔调（从……角度来看、让人深思）", regexp.MustCompile(`从[^，。！？\n]{1,12}(角度|层面|维度)(来看|而言|出发|看)|让人(深思|反思|感慨|动容)|这让我(想到|想起)`)},
-	{"元叙述（看完这篇、作为一个）", regexp.MustCompile(`(看|读)完(这篇|文章|你的|了这篇)|作为一(个|名)|我注意到`)},
+	{"元叙述（看完这篇、作为一个）", regexp.MustCompile(`(看|读)完(这篇|文章|你的|了这篇)|作为一(个|名)|我注意到|(?i)\b(after\s+reading\s+this\s+(post|article)|as\s+an?\s+ai)\b`)},
 	{"客套收尾（希望、期待、加油）", regexp.MustCompile(`希望[^，。！？\n]{0,20}(帮助|有用|继续)|期待(更多|后续|下一篇|你的)|加油[！!～~]*$`)},
 	{"先肯定再转折", regexp.MustCompile(`^[^，。！？\n]{0,16}(挺|很|真|确实|非常)(对|好|有道理|实用|到位|中肯|准确)[的啊呀]?[，,](不过|但是?|只是)`)},
 	{"拔高和宣传语（标志着、彰显、堪称）", regexp.MustCompile(`彰显|堪称|被誉为|前所未有|里程碑(式|性)?的?|标志(着|了)[^。！？\n]{0,12}(时代|阶段|新篇|里程碑|转折|开端)|奠定(了)?[^。！？\n]{0,6}基础|完美的?(结合|诠释|演绎|融合)`)},
@@ -47,6 +48,34 @@ var aiToneTells = []toneTell{
 	{"免责式收尾（仅供参考、资料有限）", regexp.MustCompile(`仅(供|作)参考|仅供参考|资料(有限|不全)|以上(内容)?仅(供|作)参考`)},
 }
 
+func isEastAsianRune(r rune) bool {
+	return (r >= 0x3400 && r <= 0x4DBF) ||
+		(r >= 0x4E00 && r <= 0x9FFF) ||
+		(r >= 0xF900 && r <= 0xFAFF) ||
+		(r >= 0x3040 && r <= 0x30FF) ||
+		(r >= 0x31F0 && r <= 0x31FF) ||
+		(r >= 0xFF66 && r <= 0xFF9F) ||
+		(r >= 0xAC00 && r <= 0xD7AF)
+}
+
+// isMostlyEastAsian 判断文本是否以中日韩等字密语言为主（未包含足够东亚字符时视为英文等分词语言）
+func isMostlyEastAsian(s string) bool {
+	total, eastAsian := 0, 0
+	for _, r := range s {
+		if unicode.IsSpace(r) {
+			continue
+		}
+		total++
+		if isEastAsianRune(r) {
+			eastAsian++
+		}
+	}
+	if total == 0 {
+		return true
+	}
+	return eastAsian*5 >= total
+}
+
 // cleanComment 清理评论里格式上的 AI 痕迹；samples 为设定里的示例评论，用来判断这个人平时用不用句号和 emoji
 func cleanComment(content string, samples []string) string {
 	s := unwrapQuotes(strings.TrimSpace(content))
@@ -54,8 +83,16 @@ func cleanComment(content string, samples []string) string {
 	s = markdownCode.ReplaceAllString(s, "$1")
 	s = headingMarker.ReplaceAllString(s, "")
 	s = listMarker.ReplaceAllString(s, "")
-	s = strings.ReplaceAll(s, "——", "，")
-	s = strings.ReplaceAll(s, "，，", "，")
+	if isMostlyEastAsian(s) {
+		s = strings.ReplaceAll(s, "——", "，")
+		s = strings.ReplaceAll(s, "，，", "，")
+	} else {
+		s = strings.ReplaceAll(s, " —— ", ", ")
+		s = strings.ReplaceAll(s, "——", ", ")
+		s = strings.ReplaceAll(s, " — ", ", ")
+		s = strings.ReplaceAll(s, " , ", ", ")
+		s = strings.ReplaceAll(s, ", ,", ",")
+	}
 	s = blankLines.ReplaceAllString(s, "\n")
 	if !anySample(samples, emojiPattern.MatchString) {
 		s = emojiPattern.ReplaceAllString(s, "")
@@ -108,6 +145,12 @@ func toneIssues(content, tier string) []string {
 	limit := 100
 	if tier == "expert" {
 		limit = 200
+	}
+	if !isMostlyEastAsian(content) {
+		limit = 240
+		if tier == "expert" {
+			limit = 420
+		}
 	}
 	if n := utf8.RuneCountInString(content); n > limit {
 		issues = append(issues, fmt.Sprintf("太长（%d 字），像在写短文", n))

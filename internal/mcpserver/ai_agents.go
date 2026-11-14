@@ -31,7 +31,7 @@ type aiUserFile struct {
 	BackgroundURL  string         `json:"background_url,omitempty" jsonschema:"public image URL (only used when creating)"`
 	PreferredColor string         `json:"preferred_color,omitempty" jsonschema:"theme color name (only used when creating)"`
 	Tier           string         `json:"tier,omitempty" jsonschema:"ambient or expert; empty keeps the current tier on update (ambient on create)"`
-	Profile        map[string]any `json:"profile,omitempty" jsonschema:"personality profile object, same as the profile in an exported AI user file (persona, tone, style_samples, interests, activity, behavior, limits, ...). On create missing fields take the tier's defaults; on update missing fields keep their current values (nested objects merge field by field, arrays are replaced)"`
+	Profile        map[string]any `json:"profile,omitempty" jsonschema:"personality profile object, same as the profile in an exported AI user file (language, persona, tone, style_samples, interests, activity, behavior, limits, ...). On create missing fields take the tier's defaults; on update missing fields keep their current values (nested objects merge field by field, arrays are replaced)"`
 }
 
 func fileItemToTool(item dto.AIAgentFileItem) aiUserFile {

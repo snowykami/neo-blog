@@ -36,13 +36,13 @@ const (
 // 作息模板：生成时随机分配，让不同 AI 在不同时间出现
 var activeHourPresets = []string{"7-9,12-13,21-24", "9-12,14-18", "12-14,20-24", "19-24,0-2", "8-11,20-23", "10-12,15-17,21-23", "22-2"}
 
-const personaSystemPrompt = `你在为一个中文技术 / 生活博客生成虚拟社区成员（AI 用户）的人设。这些成员会在博客上浏览文章、点赞和留言。
-请严格按要求输出 JSON 数组（不要输出其他内容），数组中每一项对应一个请求的槽位，顺序一致：
-[{"nickname": "2~12 个字的昵称，像真实网友，不要带 AI 字样，不要重复",
-  "persona": "第一人称，60~150 字：身份、爱好、上网习惯、说话方式；不要冒充具体的真实人物，不要声称医生律师等需要资质的职业；禁止文艺鸡汤与对称模板句（如“白天写代码晚上看星星”“热爱生活与分享”“永远保持好奇心”），用具体日常状态代替空泛标签",
-  "interests": ["3~6 个兴趣，尽量从兴趣池中选，也可以补充相近的"],
-  "tone": "≤20 字的语气描述",
-  "style_samples": ["2~3 条这个人可能发的短评论，每条 ≤40 字；必须像真实评论区随手敲的口语短句，少用工整排比和句末句号，不带“感谢分享/写得真好”等客套开场白"]}]
+const personaSystemPrompt = `你在为一个博客社区生成虚拟社区成员（AI 用户）的人设。这些成员会在博客上浏览文章、点赞和留言。
+请严格按要求输出 JSON 数组（不要输出其他内容），数组中每一项对应一个请求的槽位，顺序一致，并按请求中的 language 语言撰写：
+[{"nickname": "像真实网友的昵称，不要带 AI 字样，不要重复（中文 2~12 字，外文简洁自然，≤20 字符）",
+  "persona": "第一人称，身份、爱好、上网习惯、说话方式（中文 60~150 字，英文约 40~100 词）；用 language 指定的语言写，若设定还会其他语言（如英语）也可自然写明；不要冒充具体的真实人物，不要声称医生律师等需要资质的职业；禁止文艺鸡汤与对称模板句（如“白天写代码晚上看星星”“热爱生活与分享”“永远保持好奇心”），用具体日常状态代替空泛标签",
+  "interests": ["3~6 个兴趣，尽量从 interest_pool 中选，也可以补充相近的（保留便于与文章匹配的话题词）"],
+  "tone": "≤20 字（或简短一两句）的语气描述，用 language 指定的语言写",
+  "style_samples": ["2~3 条这个人可能发的短评论，用 language 指定的语言写，每条 ≤40 字（英文约 ≤25 词）；必须像真实评论区随手敲的口语短句，少用工整排比和句末句号，不带感谢分享/写得真好/Great post/Thanks for sharing 等客套开场白"]}]
 要求：同一批人之间的昵称、语气、兴趣组合要明显不同；避开黑名单话题。`
 
 type personaSlot struct {
@@ -166,6 +166,11 @@ func normalizeGroupTemplate(tpl *dto.AIAgentGroupTemplate) *errs.ServiceError {
 	tpl.Interests = cleanList(tpl.Interests, 60, 20)
 	tpl.BlockedTopics = cleanList(tpl.BlockedTopics, 30, 30)
 	tpl.AvatarStyle = strings.Trim(clipRunes(tpl.AvatarStyle, 30), "/")
+	lang, ok := NormalizeAgentLanguage(tpl.Language)
+	if !ok {
+		return errs.NewBadRequest("invalid_language")
+	}
+	tpl.Language = lang
 	return nil
 }
 
@@ -173,6 +178,7 @@ func normalizeGroupTemplate(tpl *dto.AIAgentGroupTemplate) *errs.ServiceError {
 func profileFromPersona(p dto.AIAgentPreview, arch dto.AIAgentArchetype, tpl dto.AIAgentGroupTemplate) (dto.AIAgentProfile, *errs.ServiceError) {
 	profile := DefaultAIAgentProfile(tpl.Tier)
 	profile.Archetype = arch.Name
+	profile.Language = utils.Ternary(tpl.Language != "", tpl.Language, "zh")
 	profile.Persona = p.Persona
 	profile.Interests = p.Interests
 	profile.Tone = p.Tone

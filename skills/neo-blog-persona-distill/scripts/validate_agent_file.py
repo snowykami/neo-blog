@@ -21,8 +21,14 @@ except ImportError:  # Python < 3.9
 MAX_AGENTS = 200
 TIERS = ("ambient", "expert")
 DEFAULT_COLORS = ("blue", "green", "orange", "red", "rose", "pink", "violet", "yellow")
-TRIGGERS = ("browse", "post.published", "comment.replied")
+TRIGGERS = ("browse", "post.published", "comment.replied", "comment.mentioned")
 SELF_EDIT_FIELDS = ("avatar", "background", "nickname", "preferred_color")
+ZH_SIMPLIFIED_CODES = {"zh", "zh-cn", "zh-sg", "zh-my", "zh-hans", "zh-hans-cn", "zh-hans-sg"}
+ZH_TRADITIONAL_CODES = {"zh-tw", "zh-hk", "zh-mo", "zh-hant", "zh-hant-tw", "zh-hant-hk", "zh-hant-mo"}
+LANGUAGE_PATTERN = re.compile(r"^[a-z]{2,3}(-[a-z]{4})?(-([a-z]{2}|[0-9]{3}))?$")
+EAST_ASIAN_PREFIXES = ("zh", "ja", "ko")
+EAST_ASIAN_CHAR_RE = re.compile(r"[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF\u3040-\u30FF\u31F0-\u31FF\uFF66-\uFF9F\uAC00-\uD7AF]")
+WORD_TOKEN_RE = re.compile(r"[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*|\S")
 
 # 字段类型与范围：(类型, 最小值, 最大值)；文字为 (str, 最大长度)；数组为 (list, 最多条数, 每条最大长度)
 TEXT_FIELDS = {"archetype": 40, "persona": 2000, "tone": 200, "model_override": 128}
@@ -59,25 +65,73 @@ OBJECT_FIELDS = {
     },
     "web_fetch": {"enabled": ("bool",), "allowed_domains": ("list",)},
 }
-KNOWN_PROFILE_KEYS = set(TEXT_FIELDS) | set(LIST_FIELDS) | set(OBJECT_FIELDS) | {"triggers"}
+KNOWN_PROFILE_KEYS = set(TEXT_FIELDS) | set(LIST_FIELDS) | set(OBJECT_FIELDS) | {"language", "triggers"}
 
 # 常见的 AI 腔：与博客生成评论后的检查一致（internal/agentrunner/humanize.go 的 aiToneTells），示例里带这些，模型会照着说
 AI_TONE_TELLS = [
-    ("客套话", r"感谢(你的|您的|楼主|博主|作者)?分享|学到了|受益(匪浅|良多)|(写|讲|总结|分析)得(真|很|非常|太|好)?(好|棒|到位|清晰|透彻|详细)([^听]|$)"),
-    ("总结和强调用语", r"值得(一提|注意)的是|需要注意的是|总的来说|总而言之|综上所述|总之[，,]"),
-    ("固定句式", r"不仅[^。！？\n]{1,24}而且|不仅[^，。！？\n]{1,20}(还|更)|不是[^，。！？\n]{1,12}而是|一方面[^。！？\n]*另一方面|首先[^。！？\n]*其次"),
+    ("客套话", r"感谢(你的|您的|楼主|博主|作者)?分享|学到了|受益(匪浅|良多)|(写|讲|总结|分析)得(真|很|非常|太|好)?(好|棒|到位|清晰|透彻|详细)([^听]|$)|(?i:\b(?:thanks|thank\s+you)\s+for\s+sharing\b|^(?:great|nice|wonderful|excellent|fantastic|awesome)\s+(?:post|article|write-up|read|piece)\b)|参考になりました|勉強になりました"),
+    ("总结和强调用语", r"值得(一提|注意)的是|需要注意的是|总的来说|总而言之|综上所述|总之[，,]|(?i:\b(?:it['’]?s\s+worth\s+(?:noting|mentioning)|in\s+(?:conclusion|summary)|to\s+sum\s+up)\b)|いかがでしたでしょうか|結論から言うと"),
+    ("固定句式", r"不仅[^。！？\n]{1,24}而且|不仅[^，。！？\n]{1,20}(还|更)|不是[^，。！？\n]{1,12}而是|一方面[^。！？\n]*另一方面|首先[^。！？\n]*其次|(?i:\bnot\s+only\b[^.!?\n]{1,40}\bbut\s+also\b)"),
     ("讲道理的腔调", r"从[^，。！？\n]{1,12}(角度|层面|维度)(来看|而言|出发|看)|让人(深思|反思|感慨|动容)|这让我(想到|想起)"),
-    ("元叙述", r"(看|读)完(这篇|文章|你的|了这篇)|作为一(个|名)|我注意到"),
-    ("客套收尾", r"希望[^，。！？\n]{0,20}(帮助|有用|继续)|期待(更多|后续|下一篇|你的)|加油[！!～~]*$"),
+    ("元叙述", r"(看|读)完(这篇|文章|你的|了这篇)|作为一(个|名)|我注意到|(?i:\b(?:after\s+reading\s+this\s+(?:post|article)|as\s+an?\s+(?:ai|assistant|language\s+model))\b)"),
+    ("客套收尾", r"希望[^，。！？\n]{0,20}(帮助|有用|继续)|期待(更多|后续|下一篇|你的)|加油[！!～~]*$|(?i:\b(?:hope\s+this\s+helps|looking\s+forward\s+to\s+more|keep\s+up\s+the\s+great\s+work)\b)"),
     ("先肯定再转折", r"^[^，。！？\n]{0,16}(挺|很|真|确实|非常)(对|好|有道理|实用|到位|中肯|准确)[的啊呀]?[，,](不过|但是?|只是)"),
-    ("破折号", r"——"),
+    ("破折号", r"——|(?:^|\s)—(?:\s|$)"),
     ("列点或标题", r"(?m)^[ \t]*(?:[-*•]|\d+[.、)）]|#{1,6})[ \t]+"),
     ("Markdown", r"\*\*.+?\*\*|`[^`]*`"),
 ]
 # persona / tone 里的句式套路：模型会照着写成固定的三段式
-STRUCTURE_TELL = r"先(肯定|夸|认可|赞同|表扬|共情)[^。；\n]{0,12}(再|然后|后)|(最后|结尾)再?(总结|升华|给出?(建议|总结))|总结(一下|收尾)|三段式"
-SAMPLE_SHORT = 30  # 大多数示例应在这个字数以内
-SAMPLE_LONG = 60  # 超过这个字数的示例单独提示
+STRUCTURE_TELL = r"先(肯定|夸|认可|赞同|表扬|共情)[^。；\n]{0,12}(再|然后|后)|(最后|结尾)再?(总结|升华|给出?(建议|总结))|总结(一下|收尾)|三段式|(?i:\b(?:start\s+by\s+praising|end\s+with\s+a\s+summary)\b)"
+SAMPLE_SHORT = 30  # 中日韩大多数示例应在这个字数以内
+SAMPLE_LONG = 60  # 超过这个字数的中日韩示例单独提示
+SAMPLE_SHORT_WORDS = 25  # 英文等分词语言大多数示例应在这个词数以内
+SAMPLE_LONG_WORDS = 45  # 超过这个词数的分词语言示例单独提示
+PERSONA_MIN_CHARS = 80
+PERSONA_MIN_WORDS = 35
+
+
+def normalize_language(code):
+    s = code.strip().lower().replace("_", "-")
+    if not s:
+        return "", True
+    if s in ZH_SIMPLIFIED_CODES:
+        return "zh", True
+    if s in ZH_TRADITIONAL_CODES:
+        return "zh-tw", True
+    if len(s) > 16 or not LANGUAGE_PATTERN.match(s):
+        return "", False
+    return s, True
+
+
+def is_east_asian_text(text):
+    total, east_asian = 0, 0
+    for ch in text:
+        if ch.isspace():
+            continue
+        total += 1
+        if EAST_ASIAN_CHAR_RE.match(ch):
+            east_asian += 1
+    if total == 0:
+        return True
+    return east_asian * 5 >= total
+
+
+def is_east_asian_profile(profile):
+    lang = profile.get("language")
+    if isinstance(lang, str):
+        norm, ok = normalize_language(lang)
+        if ok and norm:
+            return norm.split("-", 1)[0] in EAST_ASIAN_PREFIXES
+    chunks = []
+    if isinstance(profile.get("persona"), str):
+        chunks.append(profile["persona"])
+    if isinstance(profile.get("style_samples"), list):
+        chunks.extend(s for s in profile["style_samples"] if isinstance(s, str))
+    return is_east_asian_text(" ".join(chunks))
+
+
+def word_count(text):
+    return len(WORD_TOKEN_RE.findall(text.strip()))
 
 
 def ai_tone_issues(text):
@@ -87,13 +141,15 @@ def ai_tone_issues(text):
 def structure_tell(text):
     """返回 text 中没有被否定（如「不会先肯定再补充」）的句式套路"""
     for m in re.finditer(STRUCTURE_TELL, text):
-        if not re.search(r"不|别|避免|很少", text[max(0, m.start() - 6):m.start()]):
+        prefix = text[max(0, m.start() - 16):m.start()]
+        if not re.search(r"不|别|避免|很少|(?i:\b(?:never|avoid|don't|do\s+not)\b)", prefix):
             return m.group(0)
     return None
 
 
 def check_speaking_style(r, path, profile):
     """说话方式的效果提示：示例评论的长度与 AI 腔、persona / tone 里的句式套路"""
+    east_asian = is_east_asian_profile(profile)
     samples = profile.get("style_samples")
     if isinstance(samples, list):
         texts = [s.strip() for s in samples if isinstance(s, str) and s.strip()]
@@ -103,10 +159,19 @@ def check_speaking_style(r, path, profile):
             issues = ai_tone_issues(s)
             if issues:
                 r.warn(f"{path}.style_samples[{i}]", f"有 AI 腔（{'、'.join(issues)}）：模型会照着说，博客生成评论后也会因此要求重写；除非 TA 本人真这么说，否则改掉")
-            if len(s.strip()) > SAMPLE_LONG:
-                r.warn(f"{path}.style_samples[{i}]", f"偏长（{len(s.strip())} 字）：博客评论大多 5～{SAMPLE_SHORT} 字，长的示例留一两条就够")
-        if len(texts) >= 3 and sum(len(t) > SAMPLE_SHORT for t in texts) * 2 > len(texts):
-            r.warn(f"{path}.style_samples", f"超过一半的示例在 {SAMPLE_SHORT} 字以上，模型会照着写长评论；除非 TA 本来就话多，否则多写几条短的")
+            if east_asian:
+                if len(s.strip()) > SAMPLE_LONG:
+                    r.warn(f"{path}.style_samples[{i}]", f"偏长（{len(s.strip())} 字）：博客评论大多 5～{SAMPLE_SHORT} 字，长的示例留一两条就够")
+            else:
+                words = word_count(s)
+                if words > SAMPLE_LONG_WORDS:
+                    r.warn(f"{path}.style_samples[{i}]", f"偏长（{words} 词）：博客评论大多 5～{SAMPLE_SHORT_WORDS} 词，长的示例留一两条就够")
+        if east_asian:
+            if len(texts) >= 3 and sum(len(t) > SAMPLE_SHORT for t in texts) * 2 > len(texts):
+                r.warn(f"{path}.style_samples", f"超过一半的示例在 {SAMPLE_SHORT} 字以上，模型会照着写长评论；除非 TA 本来就话多，否则多写几条短的")
+        else:
+            if len(texts) >= 3 and sum(word_count(t) > SAMPLE_SHORT_WORDS for t in texts) * 2 > len(texts):
+                r.warn(f"{path}.style_samples", f"超过一半的示例在 {SAMPLE_SHORT_WORDS} 词以上，模型会照着写长评论；除非 TA 本来就话多，否则多写几条短的")
     for key in ("persona", "tone"):
         value = profile.get(key)
         tell = structure_tell(value) if isinstance(value, str) else None
@@ -247,6 +312,15 @@ def check_profile(r, path, profile):
             for i, item in enumerate(items):
                 if len(item) > max_len:
                     r.warn(f"{p}[{i}]", f"超过 {max_len} 字，导入时截断")
+        elif key == "language":
+            if not isinstance(value, str):
+                r.error(p, "应为字符串")
+            else:
+                normalized, ok = normalize_language(value)
+                if not ok:
+                    r.error(p, f"无效语言代码「{value}」，请使用 BCP 47 简短代码（如 zh、zh-tw、en、ja、ko）或留空")
+                elif normalized and normalized != value.strip():
+                    r.warn(p, f"建议写为规范化语言代码「{normalized}」（导入时会自动规范化）")
         elif key == "triggers":
             if not (isinstance(value, list) and all(isinstance(x, str) for x in value)):
                 r.error(p, "应为字符串数组")
@@ -264,8 +338,13 @@ def check_profile(r, path, profile):
 
     # 效果提示：不影响导入
     persona = profile.get("persona")
-    if not isinstance(persona, str) or len(persona.strip()) < 80:
-        r.warn(f"{path}.persona", "人设缺失或太短（建议 200～600 字），说话会很像默认风格")
+    east_asian = is_east_asian_profile(profile)
+    persona_too_short = (
+        not isinstance(persona, str)
+        or (len(persona.strip()) < PERSONA_MIN_CHARS if east_asian else word_count(persona) < PERSONA_MIN_WORDS)
+    )
+    if persona_too_short:
+        r.warn(f"{path}.persona", "人设缺失或太短（建议中文/日韩文 200～600 字，英文等约 80～250 词），说话会很像默认风格")
     samples = profile.get("style_samples")
     if not isinstance(samples, list) or len(samples) < 3:
         r.warn(f"{path}.style_samples", "示例评论少于 3 条，风格不容易稳定（建议 5～10 条）")
