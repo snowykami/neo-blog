@@ -82,14 +82,23 @@ func (s *CommentTranslateService) Available() bool {
 	return tools.GetAIConfig().Configured()
 }
 
+// normalizeCommentTargetLang 规范化并校验目标语言代码；不支持或为空时返回空字符串
+func normalizeCommentTargetLang(lang string) string {
+	targetLang := strings.ToLower(strings.TrimSpace(lang))
+	if _, ok := commentTranslateLanguages[targetLang]; !ok {
+		return ""
+	}
+	return targetLang
+}
+
 // Translate 把评论翻译成目标语言：已知评论语言与目标语言相同时直接说明无需翻译；已有译文且评论内容的 MD5 一致时直接返回；
 // 内容变化后先删除该评论的全部旧译文（所有语言），再调用模型重新翻译并保存。AI 识别出的源语言同时记为评论语言
 func (s *CommentTranslateService) Translate(ctx context.Context, req *dto.TranslateCommentReq) (*dto.CommentTranslationDto, *errs.ServiceError) {
-	targetLang := strings.ToLower(strings.TrimSpace(req.TargetLang))
-	langName, ok := commentTranslateLanguages[targetLang]
-	if !ok {
+	targetLang := normalizeCommentTargetLang(req.TargetLang)
+	if targetLang == "" {
 		return nil, errs.NewBadRequest("invalid_request_parameters")
 	}
+	langName := commentTranslateLanguages[targetLang]
 	// 只能翻译自己看得到的评论
 	comment, svcerr := NewCommentService().loadVisibleComment(ctx, req.ID)
 	if svcerr != nil {

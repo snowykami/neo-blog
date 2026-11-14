@@ -19,6 +19,22 @@ func (r *commentTranslationRepo) Get(commentID uint, targetLang string) (*model.
 	return &translation, nil
 }
 
+// ListByTarget 批量读取一组评论在指定目标语言下的译文，按评论 ID 索引
+func (r *commentTranslationRepo) ListByTarget(commentIDs []uint, targetLang string) (map[uint]model.CommentTranslation, error) {
+	result := make(map[uint]model.CommentTranslation)
+	if len(commentIDs) == 0 || targetLang == "" {
+		return result, nil
+	}
+	var rows []model.CommentTranslation
+	if err := GetDB().Where("comment_id IN ? AND target_lang = ?", commentIDs, targetLang).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		result[row.CommentID] = row
+	}
+	return result, nil
+}
+
 // Save 写入译文，同一评论同一目标语言已有译文时覆盖
 func (r *commentTranslationRepo) Save(translation *model.CommentTranslation) error {
 	return GetDB().Clauses(clause.OnConflict{

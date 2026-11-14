@@ -310,7 +310,7 @@ func (cs *CommentService) BatchDeleteComments(ctx context.Context, ids []uint) (
 	return deleted, nil
 }
 
-func (cs *CommentService) GetComment(ctx context.Context, commentID uint) (*dto.CommentDto, *errs.ServiceError) {
+func (cs *CommentService) GetComment(ctx context.Context, commentID uint, targetLang ...string) (*dto.CommentDto, *errs.ServiceError) {
 	comment, svcerr := cs.loadVisibleComment(ctx, commentID)
 	if svcerr != nil {
 		return nil, svcerr
@@ -319,7 +319,11 @@ func (cs *CommentService) GetComment(ctx context.Context, commentID uint) (*dto.
 	if currentUser, ok := ctxutils.GetCurrentUser(ctx); ok {
 		currentUserID = currentUser.ID
 	}
-	commentDtos := cs.toGetCommentDtos([]model.Comment{*comment}, currentUserID, false)
+	lang := ""
+	if len(targetLang) > 0 {
+		lang = targetLang[0]
+	}
+	commentDtos := cs.toGetCommentDtos([]model.Comment{*comment}, currentUserID, false, lang)
 	return &commentDtos[0], nil
 }
 
@@ -373,7 +377,7 @@ func (cs *CommentService) GetCommentList(ctx context.Context, req *dto.GetCommen
 	if err != nil {
 		return nil, errs.Internal("failed_to_get_target", err).WithResource("comment")
 	}
-	commentDtos := cs.toGetCommentDtos(comments, currentUserID, false)
+	commentDtos := cs.toGetCommentDtos(comments, currentUserID, false, req.TargetLang)
 	// 主评论列表附带回复线程的摘要（可见回复数与最早回复的几位用户），前端折叠时展示
 	if req.RootID == 0 && req.CommentID == 0 && depth != nil && *depth == 0 && len(commentDtos) > 0 {
 		rootIDs := make([]uint, len(commentDtos))
@@ -401,7 +405,7 @@ func (cs *CommentService) ListCommentsAdmin(ctx context.Context, pagination *dto
 		return nil, 0, errs.Internal("failed_to_get_target", err).WithResource("comment")
 	}
 	// 后台评论管理只对管理员开放（路由中间件），设备与归属地照常返回
-	commentDtos := cs.toGetCommentDtos(comments, currentUserID, true)
+	commentDtos := cs.toGetCommentDtos(comments, currentUserID, true, "")
 
 	// 附带所属文章 / 页面的标题，后台直接显示标题并链接（私密目标链接到后台预览）
 	idsByType := map[string][]uint{}
@@ -452,7 +456,7 @@ func (cs *CommentService) ListUserComments(ctx context.Context, req *dto.ListUse
 		briefsByType[targetType] = briefs
 	}
 
-	commentDtos := cs.toGetCommentDtos(comments, currentUserID, false)
+	commentDtos := cs.toGetCommentDtos(comments, currentUserID, false, "")
 	result := make([]dto.UserCommentDto, 0, len(commentDtos))
 	for _, commentDto := range commentDtos {
 		brief := briefsByType[commentDto.TargetType][commentDto.TargetID]
@@ -469,18 +473,29 @@ func (cs *CommentService) ListUserComments(ctx context.Context, req *dto.ListUse
 	return result, total, nil
 }
 
-// toGetCommentDtos 批量转换评论，点赞状态与附件各一次查询完成，避免逐条查询
+// toGetCommentDtos 批量转换评论，点赞状态、已有译文与附件各一次查询完成，避免逐条查询
 // revealClient 为 true 时无论评论者是否公开都返回设备与归属地，只用于管理员后台
-func (cs *CommentService) toGetCommentDtos(comments []model.Comment, currentUserID uint, revealClient bool) []dto.CommentDto {
-	likedIDs := map[uint]bool{}
-	if currentUserID != 0 && len(comments) > 0 {
-		ids := make([]uint, len(comments))
+func (cs *CommentService) toGetCommentDtos(comments []model.Comment, currentUserID uint, revealClient bool, targetLang string) []dto.CommentDto {
+	targetLang = normalizeCommentTargetLang(targetLang)
+	var ids []uint
+	if len(comments) > 0 && (currentUserID != 0 || targetLang != "") {
+		ids = make([]uint, len(comments))
 		for i, comment := range comments {
 			ids[i] = comment.ID
 		}
+	}
+	likedIDs := map[uint]bool{}
+	if currentUserID != 0 && len(ids) > 0 {
 		var err error
 		if likedIDs, err = repo.Like.LikedTargetIDs(currentUserID, constant.TargetTypeComment, ids); err != nil {
 			logrus.Errorf("toGetCommentDtos: LikedTargetIDs error: %s", err.Error())
+		}
+	}
+	translations := map[uint]model.CommentTranslation{}
+	if targetLang != "" && len(ids) > 0 {
+		var err error
+		if translations, err = repo.CommentTranslation.ListByTarget(ids, targetLang); err != nil {
+			logrus.Errorf("toGetCommentDtos: CommentTranslation.ListByTarget error: %s", err.Error())
 		}
 	}
 	files := commentAttachmentFiles(comments)
@@ -488,6 +503,14 @@ func (cs *CommentService) toGetCommentDtos(comments []model.Comment, currentUser
 	commentDtos := make([]dto.CommentDto, 0, len(comments))
 	for i := range comments {
 		commentDto := cs.toGetCommentDto(&comments[i], likedIDs[comments[i].ID], revealClient)
+		if tr, ok := translations[comments[i].ID]; ok && tr.ContentMD5 == model.CommentContentMD5(comments[i].Content) {
+			if commentDto.Language == "" && tr.SourceLang != "" {
+				commentDto.Language = tr.SourceLang
+			}
+			if commentDto.Language != targetLang && tr.SourceLang != tr.TargetLang && tr.Content != "" && strings.TrimSpace(comments[i].Content) != "" {
+				commentDto.Translation = toCommentTranslationDto(&tr)
+			}
+		}
 		commentDto.Attachments = toCommentAttachmentDtos(comments[i].AttachmentIDs, files)
 		// 被 @ 的人按 id 取当前用户名：正文里是评论当时的写法，渲染以这份为准
 		for _, id := range comments[i].MentionUserIDs {

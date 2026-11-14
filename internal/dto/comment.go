@@ -5,25 +5,26 @@ import "time"
 // CommentDto 评论；时间字段为 time.Time，按 RFC 3339 输出。不能用 time.Time.String()：
 // 其时区缩写（如 CST）会被浏览器误解析，刚创建的评论时间还带单调时钟读数，前端会得到 Invalid Date
 type CommentDto struct {
-	ID             uint               `json:"id"`
-	TargetID       uint               `json:"target_id"`
-	TargetType     string             `json:"target_type"` // 目标类型，如 "post", "page"
-	Content        string             `json:"content"`
-	Language       string             `json:"language"` // 评论语言（AI 翻译时识别），未知时为空；与界面语言相同时前端不显示翻译按钮
-	ReplyID        uint               `json:"reply_id"` // 回复的评论ID
-	RootID         uint               `json:"root_id"`  // 线程根评论ID：通知深链据此定位整条线程
-	Depth          int                `json:"depth"`    // 评论的层级深度
-	CreatedAt      time.Time          `json:"created_at"`
-	UpdatedAt      time.Time          `json:"updated_at"`
-	User           UserDto            `json:"user"`        // 评论的
-	ReplyCount     uint64             `json:"reply_count"` // 回复数量
-	LikeCount      uint64             `json:"like_count"`  // 点赞数量
-	IsLiked        bool               `json:"is_liked"`    // 当前用户是否点赞
-	IsPrivate      bool               `json:"is_private"`
-	Location       CommentLocationDto `json:"location"` // 用户地理位置
-	OS             string             `json:"os"`       // 用户操作系统，基于User-Agent
-	Browser        string             `json:"browser"`  // 用户浏览器，基于User-Agent
-	ShowClientInfo bool               `json:"show_client_info"`
+	ID             uint                   `json:"id"`
+	TargetID       uint                   `json:"target_id"`
+	TargetType     string                 `json:"target_type"` // 目标类型，如 "post", "page"
+	Content        string                 `json:"content"`
+	Language       string                 `json:"language"`              // 评论语言（AI 翻译时识别），未知时为空；与界面语言相同时前端不显示翻译按钮
+	Translation    *CommentTranslationDto `json:"translation,omitempty"` // 当前目标语言下的已有译文；传入 target_lang 且存在有效译文时随评论直接返回
+	ReplyID        uint                   `json:"reply_id"`              // 回复的评论ID
+	RootID         uint                   `json:"root_id"`               // 线程根评论ID：通知深链据此定位整条线程
+	Depth          int                    `json:"depth"`                 // 评论的层级深度
+	CreatedAt      time.Time              `json:"created_at"`
+	UpdatedAt      time.Time              `json:"updated_at"`
+	User           UserDto                `json:"user"`        // 评论的
+	ReplyCount     uint64                 `json:"reply_count"` // 回复数量
+	LikeCount      uint64                 `json:"like_count"`  // 点赞数量
+	IsLiked        bool                   `json:"is_liked"`    // 当前用户是否点赞
+	IsPrivate      bool                   `json:"is_private"`
+	Location       CommentLocationDto     `json:"location"` // 用户地理位置
+	OS             string                 `json:"os"`       // 用户操作系统，基于User-Agent
+	Browser        string                 `json:"browser"`  // 用户浏览器，基于User-Agent
+	ShowClientInfo bool                   `json:"show_client_info"`
 	// 附件按添加顺序展示在正文之后；已删除的文件不返回
 	Attachments []CommentAttachmentDto `json:"attachments"`
 	// MentionUserIDs 正文里被 @ 的用户 id，编辑评论时原样带回
@@ -90,6 +91,7 @@ type GetCommentListReq struct {
 	CommentID  uint   `query:"comment_id"`                  // 获取某条评论的所有子评论
 	RootID     uint   `query:"root_id"`                     // 获取某条主评论下整个回复线程（不限层级，忽略 depth）
 	Depth      *int   `query:"depth" default:"1" vd:"$>-1"` // 评论的层级深度
+	TargetLang string `query:"target_lang"`                 // 目标语言：传入时随评论返回已缓存的译文
 }
 
 type ListUserCommentsReq struct {

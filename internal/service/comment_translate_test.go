@@ -133,6 +133,94 @@ func TestCommentLanguage(t *testing.T) {
 	}
 }
 
+// 评论列表与单条查询传入 target_lang 时直接附带已有译文；源语言相同、未翻译或内容已过期时不附带
+func TestCommentListInlineTranslation(t *testing.T) {
+	author, _, other, _, _ := setupEditTest(t)
+	configureTestAI(t)
+	postID := createPublicPost(t, author, nil)
+	rootID, _ := createComment(other, postID, 0, false)
+	replyID, _ := createComment(author, postID, rootID, false)
+
+	s := NewCommentTranslateService()
+	var calls atomic.Int32
+	s.complete = fakeCommentTranslate(&calls)
+	defer func() { s.complete = commentTranslateCompletion }()
+
+	// 只把主评论和回复翻译成英文（源语言识别为 zh）
+	for _, id := range []uint{rootID, replyID} {
+		if _, svcerr := s.Translate(context.Background(), &dto.TranslateCommentReq{ID: id, TargetLang: "en", RemoteAddr: "203.0.113.1"}); svcerr != nil {
+			t.Fatalf("translate %d: %v", id, svcerr)
+		}
+	}
+
+	cs := NewCommentService()
+	depthZero := 0
+	listWithLang := func(lang string) []dto.CommentDto {
+		t.Helper()
+		list, svcerr := cs.GetCommentList(context.Background(), &dto.GetCommentListReq{
+			PaginationParams: dto.PaginationParams{Page: 1, Size: 10, OrderBy: "created_at", Desc: true},
+			TargetID:         postID,
+			TargetType:       "post",
+			Depth:            &depthZero,
+			TargetLang:       lang,
+		})
+		if svcerr != nil {
+			t.Fatalf("list comments (%s): %v", lang, svcerr)
+		}
+		return list
+	}
+
+	// 英文界面：直接拿到已缓存译文与源语言，不触发额外模型调用
+	beforeCalls := calls.Load()
+	enList := listWithLang("EN")
+	if len(enList) != 1 || enList[0].Language != "zh" || enList[0].Translation == nil || enList[0].Translation.Content != "[en] c" || enList[0].Translation.SameLanguage {
+		t.Fatalf("en list = %+v", enList)
+	}
+	// 回复线程与单条获取同样附带译文
+	thread, svcerr := cs.GetCommentList(context.Background(), &dto.GetCommentListReq{
+		PaginationParams: dto.PaginationParams{Page: 1, Size: 10, OrderBy: "created_at"},
+		TargetID:         postID,
+		TargetType:       "post",
+		RootID:           rootID,
+		TargetLang:       "en",
+	})
+	if svcerr != nil || len(thread) != 1 || thread[0].Translation == nil || thread[0].Translation.Content != "[en] c" {
+		t.Fatalf("en thread = %+v, %v", thread, svcerr)
+	}
+	single, svcerr := cs.GetComment(context.Background(), rootID, "en")
+	if svcerr != nil || single.Translation == nil || single.Translation.Content != "[en] c" {
+		t.Fatalf("en single = %+v, %v", single, svcerr)
+	}
+
+	// 中文界面（与评论源语言一致）：即使库里有同语言的空译文记录，也不返回 Translation，但保留 Language="zh" 供前端隐藏按钮
+	if _, svcerr := s.Translate(context.Background(), &dto.TranslateCommentReq{ID: rootID, TargetLang: "zh", RemoteAddr: "203.0.113.1"}); svcerr != nil {
+		t.Fatalf("translate zh: %v", svcerr)
+	}
+	zhList := listWithLang("zh")
+	if len(zhList) != 1 || zhList[0].Language != "zh" || zhList[0].Translation != nil {
+		t.Fatalf("zh list = %+v", zhList)
+	}
+
+	// 未翻译过的语言（ja）、不支持的语言（fr）、未传 target_lang：均不附带 Translation，但保留已识别的 Language
+	for _, lang := range []string{"ja", "fr", ""} {
+		got := listWithLang(lang)
+		if len(got) != 1 || got[0].Language != "zh" || got[0].Translation != nil {
+			t.Fatalf("list(%q) = %+v", lang, got)
+		}
+	}
+	if calls.Load() != beforeCalls {
+		t.Fatalf("unexpected model calls during list: %d -> %d", beforeCalls, calls.Load())
+	}
+
+	// 内容变化导致 MD5 不一致时不返回过期译文
+	if err := repo.GetDB().Model(&model.Comment{}).Where("id = ?", rootID).UpdateColumn("content", "modified").Error; err != nil {
+		t.Fatalf("modify content: %v", err)
+	}
+	if stale := listWithLang("en"); len(stale) != 1 || stale[0].Translation != nil {
+		t.Fatalf("stale list = %+v", stale)
+	}
+}
+
 // 缓存命中、多语言分开存储、源语言相同、MD5 变化后删除重建、编辑与删除评论时清理译文
 func TestCommentTranslateCache(t *testing.T) {
 	author, _, other, _, _ := setupEditTest(t)

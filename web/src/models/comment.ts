@@ -7,6 +7,7 @@ export interface Comment {
   targetId: number
   content: string
   language: string // 评论语言（AI 翻译时识别），未知时为空
+  translation?: CommentTranslation // 当前目标语言下的已有译文；存在时默认直接展示
   replyId: number
   rootId: number // 线程根评论ID：通知深链据此定位整条线程
   depth: number

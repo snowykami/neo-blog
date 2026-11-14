@@ -4,7 +4,7 @@ import type { ActiveInput } from './comment-item'
 import type { Comment } from '@/models/comment'
 import type { UserBrief } from '@/models/user'
 import { Loader2, MessageCircleHeartIcon } from 'lucide-react'
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { createComment, deleteComment, getComment, listComments } from '@/api/comment'
@@ -15,6 +15,7 @@ import { useAuth } from '@/contexts/auth-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { usePostStats } from '@/hooks/use-post-stats'
 import { useErrorMessageT } from '@/hooks/use-translations'
+import { toServiceLanguage } from '@/locales/registry'
 import { OrderBy } from '@/models/common'
 import { TargetType } from '@/models/types'
 import { OrderSelector } from '../common/orderby-selector'
@@ -37,6 +38,8 @@ export function CommentSection({
   owner?: UserBrief
 }) {
   const { siteInfo } = useSiteInfo()
+  const locale = useLocale()
+  const targetLang = toServiceLanguage(locale)
   const t = useTranslations('Comment')
   const errorMessageT = useErrorMessageT()
   const pageSize = siteInfo.commentsPerPage || 8
@@ -93,10 +96,10 @@ export function CommentSection({
   }
   const viewerEpoch = viewer.epoch
 
-  // 加载顶层评论。条件（目标、排序、身份）变化时从第一页重新加载并显示骨架；
+  // 加载顶层评论。条件（目标、排序、身份、界面语言）变化时从第一页重新加载并显示骨架；
   // 条件没变（Activity 隐藏后重新显示，effect 会重跑）时保留已加载的各页，在后台一次取回同样多的条数替换，页面高度不跳
   useEffect(() => {
-    const key = JSON.stringify([targetType, targetId, pageSize, orderBy, desc, viewerEpoch])
+    const key = JSON.stringify([targetType, targetId, pageSize, orderBy, desc, viewerEpoch, targetLang])
     const seq = ++requestSeqRef.current
     const background = loadedKeyRef.current === key
     const pages = background ? pageRef.current : 1
@@ -117,6 +120,7 @@ export function CommentSection({
       page: 1,
       size: pageSize * pages,
       commentId: 0,
+      targetLang,
     }).then((response) => {
       if (seq !== requestSeqRef.current)
         return
@@ -137,7 +141,7 @@ export function CommentSection({
       if (seq === requestSeqRef.current)
         setInitialLoading(false)
     })
-  }, [targetId, targetType, pageSize, orderBy, desc, t, viewerEpoch])
+  }, [targetId, targetType, pageSize, orderBy, desc, t, viewerEpoch, targetLang])
 
   const onCommentSubmitted = async ({
     commentContent,
@@ -160,7 +164,7 @@ export function CommentSection({
       notifySuccess(t('comment_success'), { key: 'comment', icon: <MessageCircleHeartIcon aria-hidden className="text-sky-400" /> })
       setTotalCommentCount(c => c + 1)
       setActiveInput(null)
-      getComment({ id: res.data.id }).then((response) => {
+      getComment({ id: res.data.id, targetLang }).then((response) => {
         // 按 id 去重，避免与后续“加载更多”的结果重复
         setComments(prevComments => [response.data, ...prevComments.filter(c => c.id !== response.data.id)])
       }).catch(() => {})
@@ -204,12 +208,12 @@ export function CommentSection({
       setFocus(null)
       return
     }
-    const resolveKey = `${targetKey}:${commentId}:${viewerEpoch}`
+    const resolveKey = `${targetKey}:${commentId}:${viewerEpoch}:${targetLang}`
     if (resolvedLinkRef.current === resolveKey)
       return
     pinnedRootRef.current = null
     let cancelled = false
-    getComment({ id: commentId }).then(async (response) => {
+    getComment({ id: commentId, targetLang }).then(async (response) => {
       if (cancelled)
         return
       const target = response.data
@@ -221,7 +225,7 @@ export function CommentSection({
       }
       const rootId = target.rootId || target.id
       setFocus({ rootId, commentId: target.id })
-      const root = rootId === target.id ? target : (await getComment({ id: rootId })).data
+      const root = rootId === target.id ? target : (await getComment({ id: rootId, targetLang })).data
       if (cancelled || root.targetType !== targetType || root.targetId !== targetId)
         return
       resolvedLinkRef.current = resolveKey
@@ -237,7 +241,7 @@ export function CommentSection({
     return () => {
       cancelled = true
     }
-  }, [targetId, targetType, viewerEpoch])
+  }, [targetId, targetType, viewerEpoch, targetLang])
 
   const handleLoadMore = () => {
     if (loadingMore || initialLoading)
@@ -256,6 +260,7 @@ export function CommentSection({
       page: refetchAll ? 1 : nextPage,
       size: refetchAll ? pageSize * nextPage : pageSize,
       commentId: 0,
+      targetLang,
     }).then((response) => {
       if (seq !== requestSeqRef.current)
         return

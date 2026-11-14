@@ -80,7 +80,7 @@ func (cc *CommentController) BatchDeleteComments(ctx context.Context, c *app.Req
 
 func (cc *CommentController) GetComment(ctx context.Context, c *app.RequestContext) {
 	id := ctxutils.GetIDParam(c).Uint
-	resp, svcerr := cc.service.GetComment(ctx, id)
+	resp, svcerr := cc.service.GetComment(ctx, id, c.Query("target_lang"))
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return

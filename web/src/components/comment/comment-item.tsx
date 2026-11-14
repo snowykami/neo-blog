@@ -64,16 +64,23 @@ export function CommentItem({
   focusRootId?: number
   focusCommentId?: number
 }) {
+  const locale = useLocale()
+  const targetLang = toServiceLanguage(locale)
   const t = useTranslations('Comment')
   const errorMessageT = useErrorMessageT()
   const [root, setRoot] = useState(comment)
+  const [prevComment, setPrevComment] = useState(comment)
+  if (prevComment !== comment) {
+    setPrevComment(comment)
+    setRoot(comment)
+  }
   const [replies, setReplies] = useState<Comment[] | null>(null) // 展开后才加载
   const [expanded, setExpanded] = useState(false)
   const [shown, setShown] = useState(THREAD_PAGE)
 
   const loadThread = useCallback(async () => {
     try {
-      const res = await listCommentThread({ targetType: root.targetType, targetId: root.targetId, rootId: root.id })
+      const res = await listCommentThread({ targetType: root.targetType, targetId: root.targetId, rootId: root.id, targetLang })
       setReplies(res.data.comments ?? [])
       return res.data.comments?.length ?? 0
     }
@@ -81,7 +88,16 @@ export function CommentItem({
       toast.error(`${t('load_failed')}: ${errorMessageT(error)}`)
       return null
     }
-  }, [root.targetType, root.targetId, root.id, t, errorMessageT])
+  }, [root.targetType, root.targetId, root.id, targetLang, t, errorMessageT])
+
+  const threadLangRef = useRef(targetLang)
+  useEffect(() => {
+    if (threadLangRef.current === targetLang)
+      return
+    threadLangRef.current = targetLang
+    if (replies !== null)
+      void loadThread()
+  }, [targetLang, replies, loadThread])
 
   const toggleThread = () => {
     if (!expanded && replies === null)
@@ -313,14 +329,20 @@ function CommentBody({
   const [likeCount, setLikeCount] = useState(comment.likeCount)
   const [liked, setLiked] = useState(comment.isLiked)
   const [liking, setLiking] = useState(false)
-  // 译文连同翻译时的原文一起记录：评论被编辑或界面语言变化后旧译文不再使用
-  const [translation, setTranslation] = useState<{ source: string, data: CommentTranslation } | null>(null)
-  const [showTranslation, setShowTranslation] = useState(false)
+  // 本页刚点击翻译得到的译文连同当时的原文一起记录；未点击时直接使用随评论返回的已缓存译文
+  const [localTranslation, setLocalTranslation] = useState<{ source: string, data: CommentTranslation } | null>(null)
+  // 已有目标语言译文时默认直接展示；读者点「显示原文」后记下当前语言与原文，再点切回译文
+  const [hiddenKey, setHiddenKey] = useState<string | null>(null)
   const [translating, setTranslating] = useState(false)
-  const currentTranslation = translation?.source === comment.content && translation.data.targetLang === targetLang ? translation.data : null
-  const translated = showTranslation && currentTranslation && !currentTranslation.sameLanguage ? currentTranslation : null
+  const translationKey = `${targetLang}:${comment.content}`
+  const currentTranslation = localTranslation?.source === comment.content && localTranslation.data.targetLang === targetLang
+    ? localTranslation.data
+    : (comment.translation?.targetLang === targetLang ? comment.translation : null)
+  const translated = hiddenKey !== translationKey && currentTranslation && !currentTranslation.sameLanguage ? currentTranslation : null
   // 评论语言：本页刚识别出的优先（内容未变时），否则用后端记录的；与界面语言相同时不显示翻译按钮
-  const language = translation?.source === comment.content ? translation.data.sourceLang : comment.language
+  const language = localTranslation?.source === comment.content
+    ? localTranslation.data.sourceLang
+    : (comment.language || currentTranslation?.sourceLang || '')
 
   // 未登录时由 requireLogin 弹出快捷登录，登录后接着执行，因此这里不再判断登录状态
   const like = () => {
@@ -350,13 +372,13 @@ function CommentBody({
     if (result.sameLanguage)
       toast.info(t('translate_same_language'))
     else
-      setShowTranslation(true)
+      setHiddenKey(null)
   }
 
-  // 翻译成当前界面语言；已显示译文时切回原文，已翻译过的不再请求
+  // 已有译文时默认展示，点击可在译文与原文间切换；尚无译文时请求翻译成当前界面语言
   const toggleTranslation = () => {
     if (translated) {
-      setShowTranslation(false)
+      setHiddenKey(translationKey)
       return
     }
     if (currentTranslation) {
@@ -370,7 +392,7 @@ function CommentBody({
     translateComment({ id: comment.id, targetLang })
       .then((res) => {
         // 等待期间评论被编辑时，原文对不上，译文不会显示
-        setTranslation({ source, data: res.data })
+        setLocalTranslation({ source, data: res.data })
         showTranslationResult(res.data)
       })
       .catch(error => toast.error(`${t('translate_failed')}: ${errorMessageT(error)}`))
@@ -393,7 +415,9 @@ function CommentBody({
         showClientInfo,
       })
       toast.success(t('edit_success'))
-      getComment({ id: comment.id }).then(res => onUpdated({ ...comment, ...res.data })).catch(() => {})
+      getComment({ id: comment.id, targetLang })
+        .then(res => onUpdated({ ...res.data, threadCount: comment.threadCount, threadUsers: comment.threadUsers }))
+        .catch(() => {})
       setActiveInputId(null)
     }
     catch (error) {
@@ -417,6 +441,7 @@ function CommentBody({
   const editing = activeInput?.type === 'edit' && activeInput.id === comment.id
   const isRoot = variant === 'root'
   const hasText = comment.content.trim() !== ''
+  const canTranslate = (translatable || Boolean(currentTranslation && !currentTranslation.sameLanguage)) && hasText && language !== targetLang
   const canEdit = Boolean(user && (user.id === comment.user.id || isAdmin({ user })))
   const canDelete = Boolean(canEdit || (user && ownerId && user.id === ownerId))
 
@@ -456,39 +481,22 @@ function CommentBody({
           {/* 只有附件的评论没有正文，回复时仍显示 @某人 */}
           {(hasText || replyToUser) && (
             <p lang={translated?.targetLang} className={cn('mt-1 mb-0.5 break-words whitespace-pre-wrap text-foreground/85', !isRoot && 'text-[0.95em]')}>
-              {translated
-                ? (
-                    <>
-                      {replyToUser && (
-                        <Link
-                          href={getUserUrl(replyToUser, 'comments')}
-                          data-user-color={userColor(replyToUser)}
-                          className="mr-1 font-semibold text-primary hover:underline"
-                        >
-                          @
-                          {name(replyToUser)}
-                        </Link>
-                      )}
-                      {translated.content}
-                    </>
-                  )
-                : (
-                    <CommentText
-                      content={comment.content}
-                      mentions={comment.mentions}
-                      lines={collapsedLines}
-                      prefix={replyToUser && (
-                        <Link
-                          href={getUserUrl(replyToUser, 'comments')}
-                          data-user-color={userColor(replyToUser)}
-                          className="mr-1 font-semibold text-primary hover:underline"
-                        >
-                          @
-                          {name(replyToUser)}
-                        </Link>
-                      )}
-                    />
-                  )}
+              <CommentText
+                key={translated ? `tr:${translated.targetLang}` : 'orig'}
+                content={translated ? translated.content : comment.content}
+                mentions={translated ? undefined : comment.mentions}
+                lines={collapsedLines}
+                prefix={replyToUser && (
+                  <Link
+                    href={getUserUrl(replyToUser, 'comments')}
+                    data-user-color={userColor(replyToUser)}
+                    className="mr-1 font-semibold text-primary hover:underline"
+                  >
+                    @
+                    {name(replyToUser)}
+                  </Link>
+                )}
+              />
             </p>
           )}
           {translated && (
@@ -522,7 +530,7 @@ function CommentBody({
               <LikeIcon className={cn('size-3.5', liked && 'fill-current')} />
               {likeCount > 0 && likeCount}
             </button>
-            {translatable && hasText && language !== targetLang && (
+            {canTranslate && (
               <button
                 type="button"
                 title={translating ? t('translating') : translated ? t('show_original') : t('translate')}

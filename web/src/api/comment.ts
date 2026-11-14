@@ -80,11 +80,13 @@ export async function listComments({
   desc = true,
   page = 1,
   size = 10,
+  targetLang,
 }: {
   targetType: TargetType
   targetId: number
   depth: number
   commentId: number
+  targetLang?: string
 } & PaginationParams) {
   const res = await axiosClient.get(`/comment/list`, {
     params: {
@@ -96,6 +98,7 @@ export async function listComments({
       page,
       size,
       commentId,
+      targetLang,
     },
   })
   return res.data
@@ -106,19 +109,23 @@ export async function listCommentThread({
   targetType,
   targetId,
   rootId,
+  targetLang,
 }: {
   targetType: TargetType
   targetId: number
   rootId: number
+  targetLang?: string
 }): Promise<BaseResponse<{ comments: Comment[] }>> {
   const res = await axiosClient.get(`/comment/list`, {
-    params: { targetType, targetId, rootId, orderBy: OrderBy.CreatedAt, desc: false, page: 1, size: 1000 },
+    params: { targetType, targetId, rootId, orderBy: OrderBy.CreatedAt, desc: false, page: 1, size: 1000, targetLang },
   })
   return res.data
 }
 
-export async function getComment({ id }: { id: number }): Promise<BaseResponse<Comment>> {
-  const res = await axiosClient.get(`/comment/c/${id}`)
+export async function getComment({ id, targetLang }: { id: number, targetLang?: string }): Promise<BaseResponse<Comment>> {
+  const res = await axiosClient.get(`/comment/c/${id}`, {
+    params: targetLang ? { targetLang } : undefined,
+  })
   return res.data
 }
 
