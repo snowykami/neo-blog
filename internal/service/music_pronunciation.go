@@ -36,17 +36,12 @@ import (
 // - 逐字歌词严格按 frontend normalizeLine + 可发音词元规则对齐，保证每个含字母/数字的词与 AI 输出 tokens 一一对应
 
 const (
-	lyricPronunciationMaxLines        = 320
-	lyricPronunciationFirstChunkLines = 25
-	lyricPronunciationChunkLines      = 25
-	lyricPronunciationMaxChunks       = 14
-	lyricPronunciationMaxBgWorkers    = 3
-	lyricPronunciationMaxRetries      = 1
-	lyricPronunciationTimeout         = 2 * time.Minute
-	lyricPronunciationJobTTL          = 5 * time.Minute
-	lyricPronunciationRetryAfter      = 5 * time.Minute
-	lyricPronunciationTemperature     = 0.15
-	lyricPronunciationWriteLockTTL    = 20 * time.Second
+	lyricPronunciationMaxLines     = 320
+	lyricPronunciationMaxRetries   = 1
+	lyricPronunciationTimeout      = 3 * time.Minute
+	lyricPronunciationJobTTL       = 5 * time.Minute
+	lyricPronunciationRetryAfter   = 5 * time.Minute
+	lyricPronunciationTemperature  = 0.15
 )
 
 var (
@@ -55,19 +50,35 @@ var (
 	lyricQrcWordRe  = regexp.MustCompile(`([\s\S]*?)\((\d+),(\d+)\)`)
 )
 
+type musicLyricPronunciationStreamDone struct {
+	Status           string `json:"status"`
+	Source           string `json:"source,omitempty"`
+	Lang             string `json:"lang,omitempty"`
+	CompleteUpstream bool   `json:"complete_upstream,omitempty"`
+}
+
 type lyricPronunciationService struct {
 	name        string
 	initOnce    sync.Once
 	mu          sync.Mutex
 	limiter     *llmclient.Limiter
+	stream      func(ctx context.Context, cfg tools.AIConfig, system, user string, onChunk func(content string) error) error
 	complete    func(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error)
 	concurrency func() int
 	done        func()
+	hubOnce     sync.Once
+	hubVal      *lyricStreamHub[dto.MusicLyricPronunciationLine, musicLyricPronunciationStreamDone]
 }
 
 var lyricPronunciations = &lyricPronunciationService{
 	name:    "lyric_pronunciation",
 	limiter: llmclient.DefaultLimiter,
+	stream: func(ctx context.Context, cfg tools.AIConfig, system, user string, onChunk func(content string) error) error {
+		temp := lyricPronunciationTemperature
+		return chatCompletionStreamWithOptions(ctx, cfg, system, user, &temp, tools.GetAILyricPronunciationThinking(), func(content, _ string) error {
+			return onChunk(content)
+		})
+	},
 	complete: func(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error) {
 		return chatCompletionWithReasoning(ctx, cfg, system, user, lyricPronunciationTemperature, tools.GetAILyricPronunciationThinking())
 	},
@@ -111,13 +122,16 @@ type lyricPronunciationInput struct {
 	Tasks            []lyricPronunciationTask
 }
 
+type lyricPronunciationNDJSONItem struct {
+	I             int      `json:"i"`
+	Lang          string   `json:"lang"`
+	Pronunciation string   `json:"pronunciation"`
+	Tokens        []string `json:"tokens"`
+}
+
 type lyricPronunciationAIResp struct {
-	Items []struct {
-		I             int      `json:"i"`
-		Lang          string   `json:"lang"`
-		Pronunciation string   `json:"pronunciation"`
-		Tokens        []string `json:"tokens"`
-	} `json:"items"`
+	lyricPronunciationNDJSONItem
+	Items []lyricPronunciationNDJSONItem `json:"items"`
 }
 
 // GetLyricPronunciations 获取指定词源的 AI 歌词读音；缺失且尚未生成时触发后台任务并返回 pending
@@ -157,6 +171,50 @@ func (s *MusicService) GetLyricPronunciations(ctx context.Context, id int64, sou
 	return lyricPronunciations.getOrStart(input)
 }
 
+// StreamLyricPronunciations 以 SSE 推送指定词源的 AI 歌词读音：
+// 已就绪/完全自带读音时立即发送回放与 done；生成中时先回放 sharedstate 中的历史行再无缝接入单生产者实时广播流。
+func (s *MusicService) StreamLyricPronunciations(
+	ctx context.Context,
+	id int64,
+	source string,
+	onReady func(),
+	send func(event string, data any) error,
+) *errs.ServiceError {
+	track, resolvedSource, svcerr := s.resolvePronunciationTrackAndSource(ctx, id, source, 10*time.Second)
+	if svcerr != nil {
+		return svcerr
+	}
+	input, svcerr := s.extractLyricPronunciationInput(ctx, track, resolvedSource)
+	if svcerr != nil {
+		return svcerr
+	}
+	if input.CompleteUpstream && len(input.BorrowedLines) == 0 {
+		onReady()
+		_ = send("done", musicLyricPronunciationStreamDone{
+			Status:           lyricTranslationStatusReady,
+			Source:           input.Source,
+			Lang:             input.SongLang,
+			CompleteUpstream: true,
+		})
+		return nil
+	}
+	if len(input.Tasks) == 0 {
+		onReady()
+		if len(input.BorrowedLines) > 0 {
+			if err := send("replay", input.BorrowedLines); err != nil {
+				return nil
+			}
+		}
+		_ = send("done", musicLyricPronunciationStreamDone{
+			Status: lyricTranslationStatusReady,
+			Source: input.Source,
+			Lang:   input.SongLang,
+		})
+		return nil
+	}
+	return lyricPronunciations.streamWithReplay(ctx, input, onReady, send)
+}
+
 // RefreshLyricPronunciations 管理员手动重新生成指定词源的 AI 歌词读音
 func (s *MusicService) RefreshLyricPronunciations(ctx context.Context, id int64, source string) (*dto.MusicLyricPronunciationsDto, *errs.ServiceError) {
 	track, resolvedSource, pendingDto, svcerr := s.preparePronunciationAccess(ctx, id, source)
@@ -194,8 +252,22 @@ func (s *MusicService) RefreshLyricPronunciations(ctx context.Context, id int64,
 }
 
 func (s *MusicService) preparePronunciationAccess(ctx context.Context, id int64, source string) (*dto.MusicTrackDto, string, *dto.MusicLyricPronunciationsDto, *errs.ServiceError) {
+	track, resolvedSource, svcerr := s.resolvePronunciationTrackAndSource(ctx, id, source, lyricVersionPollWait)
+	if svcerr == errLyricVersionPending {
+		return nil, "", &dto.MusicLyricPronunciationsDto{
+			Status: lyricTranslationStatusPending,
+			Lines:  []dto.MusicLyricPronunciationLine{},
+		}, nil
+	}
+	if svcerr != nil {
+		return nil, "", nil, svcerr
+	}
+	return track, resolvedSource, nil, nil
+}
+
+func (s *MusicService) resolvePronunciationTrackAndSource(ctx context.Context, id int64, source string, versionWait time.Duration) (*dto.MusicTrackDto, string, *errs.ServiceError) {
 	if id <= 0 || (source != "" && !lyricSettingSources[source]) {
-		return nil, "", nil, errs.NewBadRequest("invalid_request_parameters")
+		return nil, "", errs.NewBadRequest("invalid_request_parameters")
 	}
 	track := s.annotatableTrack(ctx, id)
 	if track == nil && ctxutils.IsAdmin(ctx) {
@@ -212,25 +284,19 @@ func (s *MusicService) preparePronunciationAccess(ctx context.Context, id int64,
 		}
 	}
 	if track == nil {
-		return nil, "", nil, errs.NewNotFound("lyric_translations_unavailable")
+		return nil, "", errs.NewNotFound("lyric_translations_unavailable")
 	}
 	if source != "" {
-		return track, source, nil, nil
+		return track, source, nil
 	}
-	version, svcerr := s.siteLyricVersion(withLyricVersionWait(ctx, lyricVersionPollWait), id)
+	version, svcerr := s.siteLyricVersion(withLyricVersionWait(ctx, versionWait), id)
 	if svcerr != nil {
-		if svcerr == errLyricVersionPending {
-			return nil, "", &dto.MusicLyricPronunciationsDto{
-				Status: lyricTranslationStatusPending,
-				Lines:  []dto.MusicLyricPronunciationLine{},
-			}, nil
-		}
-		return nil, "", nil, svcerr
+		return nil, "", svcerr
 	}
 	if version == nil || version.Lines == nil {
-		return nil, "", nil, errs.NewNotFound("lyric_not_found")
+		return nil, "", errs.NewNotFound("lyric_not_found")
 	}
-	return track, version.Lines.Source, nil, nil
+	return track, version.Lines.Source, nil
 }
 
 func (s *MusicService) extractLyricPronunciationInput(ctx context.Context, track *dto.MusicTrackDto, resolvedSource string) (*lyricPronunciationInput, *errs.ServiceError) {
@@ -617,37 +683,19 @@ func (a *lyricPronunciationService) prefix() string {
 	return a.name
 }
 
+func (a *lyricPronunciationService) hub() *lyricStreamHub[dto.MusicLyricPronunciationLine, musicLyricPronunciationStreamDone] {
+	a.hubOnce.Do(func() {
+		a.hubVal = newLyricStreamHub[dto.MusicLyricPronunciationLine, musicLyricPronunciationStreamDone](a.prefix())
+	})
+	return a.hubVal
+}
+
 func (a *lyricPronunciationService) stateKey(input *lyricPronunciationInput) string {
 	return strconv.FormatInt(input.Track.ID, 10) + ":" + input.Source + ":" + input.LyricHash
 }
 
 func (a *lyricPronunciationService) stateKeys(key string) (job, failed string) {
 	return a.prefix() + ":job:" + key, a.prefix() + ":failed:" + key
-}
-
-func (a *lyricPronunciationService) partialKey(key string) string {
-	return a.prefix() + ":partial:" + key
-}
-
-func (a *lyricPronunciationService) savePartial(key string, lines []dto.MusicLyricPronunciationLine) {
-	if key == "" || len(lines) == 0 {
-		return
-	}
-	if err := sharedstate.SetJSON(a.partialKey(key), lines, lyricPronunciationTimeout+time.Minute); err != nil {
-		logrus.Warnf("save partial lyric pronunciation %s: %v", key, err)
-	}
-}
-
-func (a *lyricPronunciationService) loadPartial(key string) []dto.MusicLyricPronunciationLine {
-	if key == "" {
-		return nil
-	}
-	var lines []dto.MusicLyricPronunciationLine
-	found, err := sharedstate.GetJSON(a.partialKey(key), &lines)
-	if err != nil || !found {
-		return nil
-	}
-	return lines
 }
 
 func (a *lyricPronunciationService) jobState(key string) (running, coolingDown bool) {
@@ -659,6 +707,103 @@ func (a *lyricPronunciationService) jobState(key string) (running, coolingDown b
 	_, running = values[jobKey]
 	_, coolingDown = values[failedKey]
 	return running, coolingDown
+}
+
+func (a *lyricPronunciationService) ensureProducer(key string, input *lyricPronunciationInput) (
+	replay []dto.MusicLyricPronunciationLine,
+	doneMeta *musicLyricPronunciationStreamDone,
+	alreadyDone bool,
+	svcerr *errs.ServiceError,
+) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	running, coolingDown := a.jobState(key)
+	var record model.LyricPronunciation
+	err := repo.GetDB().Where("song_id = ? AND source = ? AND lyric_hash = ?", input.Track.ID, input.Source, input.LyricHash).First(&record).Error
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil, false, errs.Internal("failed_to_get_target", err)
+	}
+	if err == nil && !running {
+		lines := parseLyricPronunciationLines(record.Data)
+		if lines == nil {
+			lines = []dto.MusicLyricPronunciationLine{}
+		}
+		meta := &musicLyricPronunciationStreamDone{
+			Status: lyricTranslationStatusReady,
+			Source: input.Source,
+			Lang:   record.Lang,
+		}
+		return lines, meta, true, nil
+	}
+
+	cfg := tools.GetAIConfig()
+	if !cfg.Configured() {
+		return nil, nil, false, errs.NewNotFound("lyric_translations_unavailable")
+	}
+	if running {
+		return nil, nil, false, nil
+	}
+	if coolingDown {
+		return nil, nil, false, errs.NewNotFound("lyric_translations_failed")
+	}
+	if svcerr := checkSiteAIBudget(time.Now()); svcerr != nil {
+		return nil, nil, false, svcerr
+	}
+	a.startLocked(key, input, cfg)
+	return nil, nil, false, nil
+}
+
+func (a *lyricPronunciationService) streamWithReplay(
+	ctx context.Context,
+	input *lyricPronunciationInput,
+	onReady func(),
+	send func(event string, data any) error,
+) *errs.ServiceError {
+	key := a.stateKey(input)
+	hub := a.hub()
+	// 必须在启动/检查生产者前先挂载订阅，避免回放快照与实时广播衔接窗口丢失增量行
+	sub := hub.subscribe(key)
+	defer sub.Close()
+
+	replay, doneMeta, alreadyDone, svcerr := a.ensureProducer(key, input)
+	if svcerr != nil {
+		return svcerr
+	}
+	onReady()
+	if alreadyDone {
+		if len(replay) > 0 {
+			if err := send("replay", replay); err != nil {
+				return nil
+			}
+		}
+		if doneMeta != nil {
+			_ = send("done", *doneMeta)
+		}
+		return nil
+	}
+
+	consumeLyricStream(ctx, hub, key, sub, send, func() ([]dto.MusicLyricPronunciationLine, *musicLyricPronunciationStreamDone, bool, string) {
+		running, coolingDown := a.jobState(key)
+		var record model.LyricPronunciation
+		err := repo.GetDB().Where("song_id = ? AND source = ? AND lyric_hash = ?", input.Track.ID, input.Source, input.LyricHash).First(&record).Error
+		if err == nil && !running {
+			lines := parseLyricPronunciationLines(record.Data)
+			return lines, &musicLyricPronunciationStreamDone{
+				Status: lyricTranslationStatusReady,
+				Source: input.Source,
+				Lang:   record.Lang,
+			}, true, ""
+		}
+		if coolingDown && !running {
+			return nil, nil, false, "lyric_translations_failed"
+		}
+		if !running {
+			return nil, nil, false, "lyric_translations_aborted"
+		}
+		return nil, nil, false, ""
+	})
+	return nil
 }
 
 func (a *lyricPronunciationService) getOrStart(input *lyricPronunciationInput) (*dto.MusicLyricPronunciationsDto, *errs.ServiceError) {
@@ -691,7 +836,10 @@ func (a *lyricPronunciationService) getOrStart(input *lyricPronunciationInput) (
 		return nil, errs.NewNotFound("lyric_translations_unavailable")
 	}
 	if running {
-		lines := a.loadPartial(key)
+		var lines []dto.MusicLyricPronunciationLine
+		if snap := a.hub().loadSnapshot(key); snap != nil {
+			lines = snap.Lines
+		}
 		hasPartial := len(lines) > 0
 		if lines == nil {
 			lines = []dto.MusicLyricPronunciationLine{}
@@ -756,10 +904,28 @@ func (a *lyricPronunciationService) startLocked(key string, input *lyricPronunci
 		return
 	}
 	_ = sharedstate.Current().Delete(failedKey)
-	go a.execute(lease, key, input, cfg)
+	// 先用借用的原生音译行初始化进度快照，确保回放与流式增量行共享同一单调序号
+	writer := a.hub().initSnapshot(key, input.BorrowedLines, lyricPronunciationTimeout+2*time.Minute)
+	go a.run(lease, key, writer, input, cfg)
 }
 
-func (a *lyricPronunciationService) execute(lease *sharedstate.Lease, key string, input *lyricPronunciationInput, cfg tools.AIConfig) {
+func (a *lyricPronunciationService) run(
+	lease *sharedstate.Lease,
+	key string,
+	writer *lyricStreamWriter[dto.MusicLyricPronunciationLine, musicLyricPronunciationStreamDone],
+	input *lyricPronunciationInput,
+	cfg tools.AIConfig,
+) {
+	a.execute(lease, key, writer, input, cfg)
+}
+
+func (a *lyricPronunciationService) execute(
+	lease *sharedstate.Lease,
+	key string,
+	writer *lyricStreamWriter[dto.MusicLyricPronunciationLine, musicLyricPronunciationStreamDone],
+	input *lyricPronunciationInput,
+	cfg tools.AIConfig,
+) {
 	var jobErr error
 	defer func() {
 		if r := recover(); r != nil {
@@ -769,15 +935,17 @@ func (a *lyricPronunciationService) execute(lease *sharedstate.Lease, key string
 		if jobErr != nil {
 			_, failedKey := a.stateKeys(key)
 			_ = sharedstate.Current().Set(failedKey, "1", lyricPronunciationRetryAfter)
+			if writer != nil {
+				writer.Fail(jobErr.Error())
+			}
 		}
-		_ = sharedstate.Current().Delete(a.partialKey(key))
 		lease.Release()
 		if a.done != nil {
 			a.done()
 		}
 	}()
 
-	lines, err := a.generateWithPartial(key, cfg, input)
+	lines, err := a.generateStream(cfg, input, writer)
 	if err != nil {
 		logrus.Warnf("lyric pronunciation failed for song %d (%s): %v", input.Track.ID, input.Source, err)
 		jobErr = err
@@ -785,12 +953,13 @@ func (a *lyricPronunciationService) execute(lease *sharedstate.Lease, key string
 	}
 	combined := append([]dto.MusicLyricPronunciationLine(nil), input.BorrowedLines...)
 	combined = append(combined, lines...)
+	resolvedLang := resolvePronunciationRecordLang(combined, input.SongLang)
 	encoded, _ := json.Marshal(combined)
 	record := &model.LyricPronunciation{
 		SongID:    input.Track.ID,
 		Source:    input.Source,
 		LyricHash: input.LyricHash,
-		Lang:      resolvePronunciationRecordLang(combined, input.SongLang),
+		Lang:      resolvedLang,
 		Data:      string(encoded),
 		Model:     cfg.Model,
 		CreatedAt: time.Now(),
@@ -803,117 +972,208 @@ func (a *lyricPronunciationService) execute(lease *sharedstate.Lease, key string
 	if dbErr := repo.GetDB().Clauses(upsert).Create(record).Error; dbErr != nil {
 		logrus.Errorf("save lyric pronunciation failed for song %d (%s): %v", input.Track.ID, input.Source, dbErr)
 		jobErr = dbErr
+		return
+	}
+	if writer != nil {
+		writer.Finish(musicLyricPronunciationStreamDone{
+			Status: lyricTranslationStatusReady,
+			Source: input.Source,
+			Lang:   resolvedLang,
+		})
 	}
 }
 
-func (a *lyricPronunciationService) callTier(cfg tools.AIConfig, tier llmclient.PriorityTier, system, user string) (string, error) {
-	_ = a.limiter.AcquireTier(context.Background(), a.concurrency, tier, nil)
+func (a *lyricPronunciationService) callStream(
+	ctx context.Context,
+	cfg tools.AIConfig,
+	system, user string,
+	onChunk func(content string) error,
+) error {
+	_ = a.limiter.AcquireTier(ctx, a.concurrency, llmclient.TierFirstScreen, nil)
 	defer a.limiter.Release()
-	ctx, cancel := context.WithTimeout(withLLMPurpose(context.Background(), constant.LLMPurposeTranslation, 0), lyricPronunciationTimeout)
+	callCtx, cancel := context.WithTimeout(withLLMPurpose(ctx, constant.LLMPurposeTranslation, 0), lyricPronunciationTimeout)
 	defer cancel()
-	return a.complete(ctx, cfg, system, user)
+	if a.stream != nil {
+		return a.stream(callCtx, cfg, system, user, onChunk)
+	}
+	if a.complete != nil {
+		raw, err := a.complete(callCtx, cfg, system, user)
+		if err != nil {
+			return err
+		}
+		return onChunk(raw)
+	}
+	return errors.New("lyric pronunciation provider not configured")
 }
 
-func (a *lyricPronunciationService) generateWithPartial(key string, cfg tools.AIConfig, input *lyricPronunciationInput) ([]dto.MusicLyricPronunciationLine, error) {
-	chunks := splitPronunciationChunks(input.Tasks)
-	if len(chunks) == 0 {
+func buildPronunciationLine(
+	task lyricPronunciationTask,
+	item lyricPronunciationNDJSONItem,
+	wordTimed bool,
+	defaultLang string,
+) (lineOut dto.MusicLyricPronunciationLine, valid bool, wrongScript bool) {
+	lang := normalizePronunciationLang(item.Lang, defaultLang)
+	pron := collapseLyricSpace(item.Pronunciation)
+	if pron == "" {
+		return lineOut, false, false
+	}
+	if !isValidPronunciationText(pron, task.VocalText, lang) {
+		return lineOut, false, true
+	}
+	lineOut = dto.MusicLyricPronunciationLine{
+		Text:          task.OrigText,
+		Occurrence:    task.Occurrence,
+		Bg:            task.Bg,
+		Lang:          lang,
+		Pronunciation: pron,
+	}
+	if wordTimed && len(task.Tokens) > 0 {
+		if len(item.Tokens) == len(task.Tokens) {
+			validTokens := make([]string, len(item.Tokens))
+			tokensOk := true
+			for idx, tok := range item.Tokens {
+				cleaned := collapseLyricSpace(tok)
+				if cleaned != "" && !isValidPronunciationText(cleaned, task.VocalText, lang) {
+					tokensOk = false
+					break
+				}
+				validTokens[idx] = cleaned
+			}
+			if tokensOk {
+				lineOut.Tokens = validTokens
+			}
+		} else if fields := strings.Fields(pron); len(fields) == len(task.Tokens) {
+			lineOut.Tokens = fields
+		}
+	}
+	return lineOut, true, false
+}
+
+// generateStream 整篇单流生成整首歌音译/读音：整曲任务一次性输入大模型以保证注音体系与地区变体前后一致，
+// 每产出合法的一行 NDJSON 立即经 writer 广播给订阅客户端。
+func (a *lyricPronunciationService) generateStream(
+	cfg tools.AIConfig,
+	input *lyricPronunciationInput,
+	writer *lyricStreamWriter[dto.MusicLyricPronunciationLine, musicLyricPronunciationStreamDone],
+) ([]dto.MusicLyricPronunciationLine, error) {
+	if len(input.Tasks) == 0 {
 		return []dto.MusicLyricPronunciationLine{}, nil
 	}
 	system := buildPronunciationSystemPrompt(input.WordTimed, input.SongLang)
-
-	chunkResults := make([][]dto.MusicLyricPronunciationLine, len(chunks))
-	chunk0, err := a.generateChunk(cfg, llmclient.TierFirstScreen, system, input, chunks[0])
-	if err != nil {
-		return nil, err
-	}
-	chunkResults[0] = chunk0
-	if len(chunks) > 1 {
-		partial := append([]dto.MusicLyricPronunciationLine(nil), input.BorrowedLines...)
-		partial = append(partial, chunk0...)
-		a.savePartial(key, partial)
+	baseUser := buildPronunciationUserPrompt(input, input.Tasks)
+	posByIndex := make(map[int]int, len(input.Tasks))
+	for pos, task := range input.Tasks {
+		posByIndex[task.Index] = pos
 	}
 
-	if len(chunks) > 1 {
-		errsCh := make(chan error, len(chunks)-1)
-		sem := make(chan struct{}, lyricPronunciationMaxBgWorkers)
-		var wg sync.WaitGroup
-		for cIdx := 1; cIdx < len(chunks); cIdx++ {
-			wg.Add(1)
-			go func(idx int) {
-				defer wg.Done()
-				sem <- struct{}{}
-				defer func() { <-sem }()
-				res, chunkErr := a.generateChunk(cfg, llmclient.TierBackground, system, input, chunks[idx])
-				if chunkErr != nil {
-					errsCh <- chunkErr
-					return
-				}
-				chunkResults[idx] = res
-			}(cIdx)
+	results := make([]dto.MusicLyricPronunciationLine, len(input.Tasks))
+	decidedPos := make([]bool, len(input.Tasks))
+	emittedTotal := 0
+
+	var lastErr error
+	user := baseUser
+	for attempt := 0; attempt <= lyricPronunciationMaxRetries; attempt++ {
+		if attempt > 0 && lyricTranslationRetryDelay > 0 {
+			time.Sleep(lyricTranslationRetryDelay)
 		}
-		wg.Wait()
-		close(errsCh)
-		if firstErr := <-errsCh; firstErr != nil {
-			return nil, firstErr
+
+		parsedAttempt := 0
+		validAttempt := 0
+		wrongAttempt := 0
+		var scanner ndjsonLineScanner
+
+		handleItem := func(it lyricPronunciationNDJSONItem) {
+			pos, ok := posByIndex[it.I]
+			if !ok {
+				return
+			}
+			parsedAttempt++
+			lineOut, valid, wrong := buildPronunciationLine(input.Tasks[pos], it, input.WordTimed, input.SongLang)
+			if wrong {
+				wrongAttempt++
+				return
+			}
+			if !valid || decidedPos[pos] {
+				return
+			}
+			decidedPos[pos] = true
+			results[pos] = lineOut
+			emittedTotal++
+			validAttempt++
+			if writer != nil {
+				writer.EmitLine(lineOut)
+			}
+		}
+
+		handleObj := func(objJSON string) {
+			var parsed lyricPronunciationAIResp
+			if err := json.Unmarshal([]byte(objJSON), &parsed); err != nil {
+				return
+			}
+			if len(parsed.Items) > 0 {
+				for _, it := range parsed.Items {
+					handleItem(it)
+				}
+				return
+			}
+			if parsed.I > 0 {
+				handleItem(parsed.lyricPronunciationNDJSONItem)
+			}
+		}
+
+		callErr := a.callStream(context.Background(), cfg, system, user, func(content string) error {
+			scanner.Feed(content, handleObj)
+			return nil
+		})
+		if callErr != nil {
+			lastErr = callErr
+			continue
+		}
+		if parsedAttempt == 0 {
+			lastErr = errors.New("lyric pronunciation returned no matching indices")
+			continue
+		}
+
+		needsScriptRetry := (emittedTotal == 0 && wrongAttempt > 0) || (len(input.Tasks) >= 4 && wrongAttempt*2 >= len(input.Tasks))
+		if attempt < lyricPronunciationMaxRetries && needsScriptRetry {
+			var pendingIndices []int
+			for pos, task := range input.Tasks {
+				if !decidedPos[pos] {
+					pendingIndices = append(pendingIndices, task.Index)
+				}
+			}
+			notice := "\nCRITICAL RETRY NOTICE: Your previous output copied source characters (Hanzi/Kana/Hangul) instead of phonetic notation, or omitted Bopomofo for zh-tw. Every line MUST use pure phonetic notation according to the rules. For Taiwan Mandarin songs/artists, Mandarin lines MUST use Bopomofo (注音符號) with lang \"zh-tw\" (never Hanyu Pinyin); for Taiwanese Hokkien/Minnan lines, use Tâi-lô Latin romanization with lang \"other\"."
+			if emittedTotal > 0 && len(pendingIndices) > 0 && len(pendingIndices) < len(input.Tasks) {
+				pendingJSON, _ := json.Marshal(pendingIndices)
+				notice += fmt.Sprintf(" Emit NDJSON lines ONLY for remaining indices %s.", string(pendingJSON))
+			}
+			user = baseUser + notice
+			lastErr = errors.New("lyric pronunciation returned wrong script")
+			continue
+		}
+		lastErr = nil
+		break
+	}
+
+	if lastErr != nil && emittedTotal == 0 {
+		// 若已有部分合法结构只是错语种行被全部过滤且重试已耗尽，容错保存为空而非挂起错误
+		if lastErr.Error() != "lyric pronunciation returned wrong script" {
+			return nil, lastErr
 		}
 	}
 
 	out := make([]dto.MusicLyricPronunciationLine, 0, len(input.Tasks))
-	for _, part := range chunkResults {
-		out = append(out, part...)
+	for pos := range input.Tasks {
+		if decidedPos[pos] {
+			out = append(out, results[pos])
+		}
 	}
 	return out, nil
 }
 
-func (a *lyricPronunciationService) generateChunk(
-	cfg tools.AIConfig,
-	tier llmclient.PriorityTier,
-	system string,
-	input *lyricPronunciationInput,
-	tasks []lyricPronunciationTask,
-) ([]dto.MusicLyricPronunciationLine, error) {
-	baseUser := buildPronunciationUserPrompt(input, tasks)
-	user := baseUser
-	var lastErr error
-
-	for attempt := 0; attempt <= lyricPronunciationMaxRetries; attempt++ {
-		raw, err := a.callTier(cfg, tier, system, user)
-		if err == nil {
-			lines, wrongScript, parseErr := parseAndValidatePronunciationResp(raw, tasks, input.WordTimed, input.SongLang)
-			if parseErr == nil {
-				if !wrongScript || attempt >= lyricPronunciationMaxRetries {
-					return lines, nil
-				}
-				user = baseUser + "\nCRITICAL RETRY NOTICE: Your previous output copied source characters (Hanzi/Kana/Hangul) instead of phonetic notation, or omitted Bopomofo for zh-tw. Every line MUST use pure phonetic notation according to the rules. For Taiwan Mandarin songs/artists, Mandarin lines MUST use Bopomofo (注音符號) with lang \"zh-tw\" (never Hanyu Pinyin); for Taiwanese Hokkien/Minnan lines, use Tâi-lô Latin romanization with lang \"other\"."
-				continue
-			}
-			err = parseErr
-		}
-		lastErr = err
-		if attempt < lyricPronunciationMaxRetries {
-			time.Sleep(lyricTranslationRetryDelay)
-		}
-	}
-	return nil, lastErr
-}
-
-func splitPronunciationChunks(tasks []lyricPronunciationTask) [][]lyricPronunciationTask {
-	if len(tasks) == 0 {
-		return nil
-	}
-	var chunks [][]lyricPronunciationTask
-	firstSize := min(lyricPronunciationFirstChunkLines, len(tasks))
-	chunks = append(chunks, tasks[:firstSize])
-	for start := firstSize; start < len(tasks) && len(chunks) < lyricPronunciationMaxChunks; start += lyricPronunciationChunkLines {
-		end := min(start+lyricPronunciationChunkLines, len(tasks))
-		chunks = append(chunks, tasks[start:end])
-	}
-	return chunks
-}
-
 func buildPronunciationSystemPrompt(wordTimed bool, songLang string) string {
 	var b strings.Builder
-	b.WriteString("You generate accurate phonetic pronunciation transcriptions for song lyrics.\n\n")
+	b.WriteString("You generate accurate phonetic pronunciation transcriptions for full-song lyrics, keeping the chosen phonetic system and regional variety 100% consistent across the whole song.\n\n")
 	b.WriteString(fmt.Sprintf("Detected primary song script/language hint: %s.\n\n", songLang))
 	b.WriteString("REGIONAL VARIETY & SCRIPT JUDGMENT (YOUR RESPONSIBILITY):\n")
 	b.WriteString("- Inspect `title`, `artists`, `album`, `aliases`, `artist_hints`, `credits`, and the lyrics themselves to determine each line's exact spoken/sung language variety:\n")
@@ -934,9 +1194,9 @@ func buildPronunciationSystemPrompt(wordTimed bool, songLang string) string {
 	b.WriteString("3. Follow the style of `upstream_samples` if provided (e.g. Jyutping format on partially romanized songs).\n")
 	if wordTimed {
 		b.WriteString("4. WORD-TIMED ALIGNMENT: Every line provides a `tokens` array of pronounceable words (`token_count`). You MUST output a `tokens` array of strings with the EXACT SAME length and 1-to-1 order matching each input token's pronunciation (use `\"\"` only for non-sung cue prefixes).\n")
-		b.WriteString("5. Output strictly ONE JSON object: {\"items\":[{\"i\":1,\"lang\":\"zh\",\"pronunciation\":\"wǒ ài nǐ\",\"tokens\":[\"wǒ\",\"ài\",\"nǐ\"]}]}. No markdown fences.\n")
+		b.WriteString("5. STRICT NDJSON STREAMING OUTPUT: Emit ONE compact JSON object per line followed immediately by a newline in ascending order of i:\n{\"i\":1,\"lang\":\"zh\",\"pronunciation\":\"wǒ ài nǐ\",\"tokens\":[\"wǒ\",\"ài\",\"nǐ\"]}\nNEVER wrap output in {\"items\":[...]}, NEVER output a JSON array [...], and NEVER output markdown fences (```) or conversational prose.\n")
 	} else {
-		b.WriteString("4. Output strictly ONE JSON object: {\"items\":[{\"i\":1,\"lang\":\"zh\",\"pronunciation\":\"wǒ ài nǐ\"}]}. No markdown fences.\n")
+		b.WriteString("4. STRICT NDJSON STREAMING OUTPUT: Emit ONE compact JSON object per line followed immediately by a newline in ascending order of i:\n{\"i\":1,\"lang\":\"zh\",\"pronunciation\":\"wǒ ài nǐ\"}\nNEVER wrap output in {\"items\":[...]}, NEVER output a JSON array [...], and NEVER output markdown fences (```) or conversational prose.\n")
 	}
 	return b.String()
 }
@@ -986,88 +1246,6 @@ func buildPronunciationUserPrompt(input *lyricPronunciationInput, tasks []lyricP
 	}
 	raw, _ := json.Marshal(payload)
 	return string(raw)
-}
-
-func parseAndValidatePronunciationResp(
-	raw string,
-	tasks []lyricPronunciationTask,
-	wordTimed bool,
-	defaultLang string,
-) ([]dto.MusicLyricPronunciationLine, bool, error) {
-	obj, err := extractJSONObject(raw)
-	if err != nil {
-		return nil, false, err
-	}
-	var parsed lyricPronunciationAIResp
-	if err := json.Unmarshal([]byte(obj), &parsed); err != nil {
-		return nil, false, err
-	}
-
-	byIndex := make(map[int]struct {
-		lang   string
-		pron   string
-		tokens []string
-	}, len(parsed.Items))
-	for _, it := range parsed.Items {
-		byIndex[it.I] = struct {
-			lang   string
-			pron   string
-			tokens []string
-		}{
-			lang:   normalizePronunciationLang(it.Lang, defaultLang),
-			pron:   collapseLyricSpace(it.Pronunciation),
-			tokens: it.Tokens,
-		}
-	}
-
-	wrongCount := 0
-	out := make([]dto.MusicLyricPronunciationLine, 0, len(tasks))
-	for _, task := range tasks {
-		entry, ok := byIndex[task.Index]
-		if !ok || entry.pron == "" {
-			continue
-		}
-		if !isValidPronunciationText(entry.pron, task.VocalText, entry.lang) {
-			wrongCount++
-			continue
-		}
-
-		lineOut := dto.MusicLyricPronunciationLine{
-			Text:          task.OrigText,
-			Occurrence:    task.Occurrence,
-			Bg:            task.Bg,
-			Lang:          entry.lang,
-			Pronunciation: entry.pron,
-		}
-		if wordTimed && len(task.Tokens) > 0 {
-			if len(entry.tokens) == len(task.Tokens) {
-				validTokens := make([]string, len(entry.tokens))
-				tokensOk := true
-				for idx, tok := range entry.tokens {
-					cleaned := collapseLyricSpace(tok)
-					if cleaned != "" && !isValidPronunciationText(cleaned, task.VocalText, entry.lang) {
-						tokensOk = false
-						break
-					}
-					validTokens[idx] = cleaned
-				}
-				if tokensOk {
-					lineOut.Tokens = validTokens
-				}
-			} else if fields := strings.Fields(entry.pron); len(fields) == len(task.Tokens) {
-				lineOut.Tokens = fields
-			}
-		}
-		out = append(out, lineOut)
-	}
-
-	if len(out) == 0 && len(tasks) > 0 && wrongCount > 0 {
-		return nil, true, nil
-	}
-	if len(tasks) >= 4 && wrongCount*2 >= len(tasks) {
-		return out, true, nil
-	}
-	return out, false, nil
 }
 
 func isBopomofoRune(r rune) bool {

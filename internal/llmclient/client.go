@@ -349,10 +349,18 @@ func ChatCompletionStreamCall(ctx context.Context, cfg tools.AIConfig, system, u
 
 // ChatCompletionStreamCallWithEffort 同 ChatCompletionStreamCall，可指定思考强度并在 400 时按参数分别自动降级重试
 func ChatCompletionStreamCallWithEffort(ctx context.Context, cfg tools.AIConfig, system, user, effort string, onChunk func(content, reasoning string) error) (Usage, error) {
+	return ChatCompletionStreamCallWithOptions(ctx, cfg, system, user, nil, effort, onChunk)
+}
+
+// ChatCompletionStreamCallWithOptions 同 ChatCompletionStreamCallWithEffort，支持额外指定采样温度
+func ChatCompletionStreamCallWithOptions(ctx context.Context, cfg tools.AIConfig, system, user string, temperature *float64, effort string, onChunk func(content, reasoning string) error) (Usage, error) {
 	payload := map[string]any{
 		"model":    cfg.Model,
 		"messages": ChatMessages(system, user),
 		"stream":   true,
+	}
+	if temperature != nil {
+		payload["temperature"] = *temperature
 	}
 	key := modelEndpointKey(cfg.BaseURL, cfg.Model)
 	if _, unsupported := streamUsageUnsupported.Load(key); !unsupported {

@@ -40,17 +40,13 @@ const (
 	lyricTranslationStatusReady   = "ready"
 	lyricTranslationStatusPending = "pending"
 
-	lyricTranslationMaxLines        = 320
-	lyricTranslationMaxLineRunes    = 500
-	lyricTranslationFirstChunkLines = 24
-	lyricTranslationChunkLines      = 80
-	lyricTranslationMaxChunks       = 4
-	lyricTranslationMaxRetries      = 1
-	lyricTranslationTimeout         = 2 * time.Minute
-	lyricTranslationJobTTL          = 5 * time.Minute
-	lyricTranslationRetryAfter      = 5 * time.Minute
-	lyricTranslationTemperature     = 0.3
-	lyricTranslationContextLines    = 4
+	lyricTranslationMaxLines     = 320
+	lyricTranslationMaxLineRunes = 500
+	lyricTranslationMaxRetries   = 1
+	lyricTranslationTimeout      = 2 * time.Minute
+	lyricTranslationJobTTL       = 5 * time.Minute
+	lyricTranslationRetryAfter   = 5 * time.Minute
+	lyricTranslationTemperature  = 0.3
 )
 
 var (
@@ -58,22 +54,42 @@ var (
 	lyricAllLRCTimesRe         = regexp.MustCompile(`\[(\d+):(\d+)(?:[.:](\d+))?\]`)
 )
 
-// lyricTranslationService 管理多语言歌词 AI 翻译任务的生命周期（共享状态互斥 + 失败冷却）
+type musicLyricTranslationStreamDone struct {
+	Status       string `json:"status"`
+	Source       string `json:"source,omitempty"`
+	TargetLang   string `json:"target_lang"`
+	Native       bool   `json:"native,omitempty"`
+	SameLanguage bool   `json:"same_language,omitempty"`
+}
+
+// lyricTranslationService 管理多语言歌词 AI 翻译任务的生命周期（共享状态互斥 + 单产多消广播 + 失败冷却）
 type lyricTranslationService struct {
 	name        string
 	initOnce    sync.Once
 	mu          sync.Mutex
 	limiter     *llmclient.Limiter
 	director    *lyricDirectorService
+	stream      func(ctx context.Context, cfg tools.AIConfig, system, user string, onChunk func(content string) error) error
 	complete    func(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error)
 	concurrency func() int
 	done        func()
+	hubOnce     sync.Once
+	hubVal      *lyricStreamHub[dto.MusicLyricTranslationLine, musicLyricTranslationStreamDone]
 }
 
 var lyricTranslations = &lyricTranslationService{
 	name:     "lyric_translation",
 	limiter:  llmclient.DefaultLimiter,
 	director: lyricDirectors,
+	stream: func(ctx context.Context, cfg tools.AIConfig, system, user string, onChunk func(content string) error) error {
+		temp := lyricTranslationTemperature
+		return chatCompletionStreamWithOptions(ctx, cfg, system, user, &temp, tools.GetAILyricTranslationThinking(), func(content, _ string) error {
+			if content == "" {
+				return nil
+			}
+			return onChunk(content)
+		})
+	},
 	complete: func(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error) {
 		return chatCompletionWithReasoning(ctx, cfg, system, user, lyricTranslationTemperature, tools.GetAILyricTranslationThinking())
 	},
@@ -155,6 +171,47 @@ func (s *MusicService) GetLyricTranslations(ctx context.Context, id int64, sourc
 	return lyricTranslations.getOrStart(input)
 }
 
+// StreamLyricTranslations 以 SSE 推送指定歌曲、歌词来源、目标语言的 AI 翻译：
+// 已就绪时立即回放完整行并发送 done；生成中时先回放共享状态中的历史行再无缝接入单生产者实时广播流。
+// 权限、参数、冷却或预算等校验失败均在调用 onReady 之前返回，便于控制器输出常规 JSON 错误响应。
+func (s *MusicService) StreamLyricTranslations(
+	ctx context.Context,
+	id int64,
+	source, lang string,
+	onReady func(),
+	send func(event string, data any) error,
+) *errs.ServiceError {
+	targetLang, track, svcerr := s.prepareTranslationAccess(ctx, id, source, lang)
+	if svcerr != nil {
+		return svcerr
+	}
+	input, svcerr := s.extractTranslationInput(withLyricVersionWait(ctx, 10*time.Second), track, source, targetLang)
+	if svcerr != nil {
+		return svcerr
+	}
+	if input.NativeTarget {
+		onReady()
+		_ = send("done", musicLyricTranslationStreamDone{
+			Status:     lyricTranslationStatusReady,
+			Source:     input.Source,
+			TargetLang: targetLang,
+			Native:     true,
+		})
+		return nil
+	}
+	if input.SameLanguage {
+		onReady()
+		_ = send("done", musicLyricTranslationStreamDone{
+			Status:       lyricTranslationStatusReady,
+			Source:       input.Source,
+			TargetLang:   targetLang,
+			SameLanguage: true,
+		})
+		return nil
+	}
+	return lyricTranslations.streamWithReplay(ctx, input, onReady, send)
+}
+
 // RefreshLyricTranslations 管理员手动触发重新翻译一首歌指定来源与目标语言的歌词（忽略冷却与已有缓存），返回 pending
 func (s *MusicService) RefreshLyricTranslations(ctx context.Context, id int64, source, lang string) (*dto.MusicLyricTranslationsDto, *errs.ServiceError) {
 	targetLang, track, svcerr := s.prepareTranslationAccess(ctx, id, source, lang)
@@ -225,6 +282,119 @@ func (s *MusicService) prepareTranslationAccess(ctx context.Context, id int64, s
 	return targetLang, track, nil
 }
 
+func (a *lyricTranslationService) hub() *lyricStreamHub[dto.MusicLyricTranslationLine, musicLyricTranslationStreamDone] {
+	a.hubOnce.Do(func() {
+		a.hubVal = newLyricStreamHub[dto.MusicLyricTranslationLine, musicLyricTranslationStreamDone](a.prefix())
+	})
+	return a.hubVal
+}
+
+func (a *lyricTranslationService) ensureProducer(key string, input *lyricTranslationInput) (
+	replay []dto.MusicLyricTranslationLine,
+	doneMeta *musicLyricTranslationStreamDone,
+	alreadyDone bool,
+	svcerr *errs.ServiceError,
+) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	running, coolingDown := a.jobState(key)
+	var record model.LyricTranslation
+	err := repo.GetDB().Where(
+		"song_id = ? AND source = ? AND lyric_hash = ? AND target_lang = ?",
+		input.Track.ID, input.Source, input.LyricHash, input.TargetLang,
+	).First(&record).Error
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil, false, errs.Internal("failed_to_get_target", err)
+	}
+	if err == nil && !running {
+		data := parseLyricTranslationData(record.Data)
+		lines := data.Lines
+		if lines == nil {
+			lines = []dto.MusicLyricTranslationLine{}
+		}
+		meta := &musicLyricTranslationStreamDone{
+			Status:       lyricTranslationStatusReady,
+			Source:       input.Source,
+			TargetLang:   input.TargetLang,
+			SameLanguage: len(lines) == 0,
+		}
+		return lines, meta, true, nil
+	}
+
+	cfg := tools.GetAIConfig()
+	if !cfg.Configured() {
+		return nil, nil, false, errs.NewNotFound("lyric_translations_unavailable")
+	}
+	if running {
+		return nil, nil, false, nil
+	}
+	if coolingDown {
+		return nil, nil, false, errs.NewNotFound("lyric_translations_failed")
+	}
+	if svcerr := checkSiteAIBudget(time.Now()); svcerr != nil {
+		return nil, nil, false, svcerr
+	}
+	a.startLocked(key, input, cfg, false)
+	return nil, nil, false, nil
+}
+
+func (a *lyricTranslationService) streamWithReplay(
+	ctx context.Context,
+	input *lyricTranslationInput,
+	onReady func(),
+	send func(event string, data any) error,
+) *errs.ServiceError {
+	key := translationStateKey(input)
+	hub := a.hub()
+	// 必须在启动/检查生产者前先挂载订阅，避免回放快照与实时广播衔接窗口丢失增量行
+	sub := hub.subscribe(key)
+	defer sub.Close()
+
+	replay, doneMeta, alreadyDone, svcerr := a.ensureProducer(key, input)
+	if svcerr != nil {
+		return svcerr
+	}
+	onReady()
+	if alreadyDone {
+		if len(replay) > 0 {
+			if err := send("replay", replay); err != nil {
+				return nil
+			}
+		}
+		if doneMeta != nil {
+			_ = send("done", *doneMeta)
+		}
+		return nil
+	}
+
+	consumeLyricStream(ctx, hub, key, sub, send, func() ([]dto.MusicLyricTranslationLine, *musicLyricTranslationStreamDone, bool, string) {
+		running, coolingDown := a.jobState(key)
+		var record model.LyricTranslation
+		err := repo.GetDB().Where(
+			"song_id = ? AND source = ? AND lyric_hash = ? AND target_lang = ?",
+			input.Track.ID, input.Source, input.LyricHash, input.TargetLang,
+		).First(&record).Error
+		if err == nil && !running {
+			data := parseLyricTranslationData(record.Data)
+			return data.Lines, &musicLyricTranslationStreamDone{
+				Status:       lyricTranslationStatusReady,
+				Source:       input.Source,
+				TargetLang:   input.TargetLang,
+				SameLanguage: len(data.Lines) == 0,
+			}, true, ""
+		}
+		if coolingDown && !running {
+			return nil, nil, false, "lyric_translations_failed"
+		}
+		if !running {
+			return nil, nil, false, "lyric_translations_aborted"
+		}
+		return nil, nil, false, ""
+	})
+	return nil
+}
+
 func (a *lyricTranslationService) getOrStart(input *lyricTranslationInput) (*dto.MusicLyricTranslationsDto, *errs.ServiceError) {
 	key := translationStateKey(input)
 	a.mu.Lock()
@@ -261,7 +431,10 @@ func (a *lyricTranslationService) getOrStart(input *lyricTranslationInput) (*dto
 	}
 
 	if running {
-		lines := a.loadPartial(key)
+		var lines []dto.MusicLyricTranslationLine
+		if snap := a.hub().loadSnapshot(key); snap != nil {
+			lines = snap.Lines
+		}
 		if lines == nil {
 			lines = []dto.MusicLyricTranslationLine{}
 		}
@@ -338,31 +511,6 @@ func (a *lyricTranslationService) stateKeys(key string) (job, failed string) {
 	return a.prefix() + ":job:" + key, a.prefix() + ":failed:" + key
 }
 
-func (a *lyricTranslationService) partialKey(key string) string {
-	return a.prefix() + ":partial:" + key
-}
-
-func (a *lyricTranslationService) savePartial(key string, lines []dto.MusicLyricTranslationLine) {
-	if key == "" || len(lines) == 0 {
-		return
-	}
-	if err := sharedstate.SetJSON(a.partialKey(key), lines, lyricTranslationTimeout+time.Minute); err != nil {
-		logrus.Warnf("save partial lyric translation %s: %v", key, err)
-	}
-}
-
-func (a *lyricTranslationService) loadPartial(key string) []dto.MusicLyricTranslationLine {
-	if key == "" {
-		return nil
-	}
-	var lines []dto.MusicLyricTranslationLine
-	found, err := sharedstate.GetJSON(a.partialKey(key), &lines)
-	if err != nil || !found {
-		return nil
-	}
-	return lines
-}
-
 func (a *lyricTranslationService) jobState(key string) (running, coolingDown bool) {
 	jobKey, failedKey := a.stateKeys(key)
 	values, err := sharedstate.Current().GetMany(jobKey, failedKey)
@@ -385,14 +533,29 @@ func (a *lyricTranslationService) startLocked(key string, input *lyricTranslatio
 		return
 	}
 	_ = sharedstate.Current().Delete(failedKey)
-	go a.run(lease, key, input, cfg, forceRefresh)
+	writer := a.hub().initSnapshot(key, nil, lyricTranslationTimeout+2*time.Minute)
+	go a.run(lease, key, writer, input, cfg, forceRefresh)
 }
 
-func (a *lyricTranslationService) run(lease *sharedstate.Lease, key string, input *lyricTranslationInput, cfg tools.AIConfig, forceRefresh bool) {
-	_ = a.execute(lease, key, input, cfg, forceRefresh)
+func (a *lyricTranslationService) run(
+	lease *sharedstate.Lease,
+	key string,
+	writer *lyricStreamWriter[dto.MusicLyricTranslationLine, musicLyricTranslationStreamDone],
+	input *lyricTranslationInput,
+	cfg tools.AIConfig,
+	forceRefresh bool,
+) {
+	_ = a.execute(lease, key, writer, input, cfg, forceRefresh)
 }
 
-func (a *lyricTranslationService) execute(lease *sharedstate.Lease, key string, input *lyricTranslationInput, cfg tools.AIConfig, forceRefresh bool) (err error) {
+func (a *lyricTranslationService) execute(
+	lease *sharedstate.Lease,
+	key string,
+	writer *lyricStreamWriter[dto.MusicLyricTranslationLine, musicLyricTranslationStreamDone],
+	input *lyricTranslationInput,
+	cfg tools.AIConfig,
+	forceRefresh bool,
+) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			logrus.Errorf("lyric translation panic for song %d (%s/%s): %v", input.Track.ID, input.Source, input.TargetLang, r)
@@ -403,15 +566,17 @@ func (a *lyricTranslationService) execute(lease *sharedstate.Lease, key string, 
 			if setErr := sharedstate.Current().Set(failedKey, "1", lyricTranslationRetryAfter); setErr != nil {
 				logrus.Warnf("save lyric translation failure %s: %v", key, setErr)
 			}
+			if writer != nil {
+				writer.Fail(err.Error())
+			}
 		}
-		_ = sharedstate.Current().Delete(a.partialKey(key))
 		lease.Release()
 		if a.done != nil {
 			a.done()
 		}
 	}()
 
-	lines, genErr := a.generateWithOptions(key, cfg, input, forceRefresh)
+	lines, genErr := a.generateStream(cfg, input, writer, forceRefresh)
 	if genErr != nil {
 		logrus.Warnf("lyric translation failed for song %d (%s/%s): %v", input.Track.ID, input.Source, input.TargetLang, genErr)
 		err = genErr
@@ -442,6 +607,14 @@ func (a *lyricTranslationService) execute(lease *sharedstate.Lease, key string, 
 		err = dbErr
 		return err
 	}
+	if writer != nil {
+		writer.Finish(musicLyricTranslationStreamDone{
+			Status:       lyricTranslationStatusReady,
+			Source:       input.Source,
+			TargetLang:   input.TargetLang,
+			SameLanguage: len(lines) == 0,
+		})
+	}
 	return nil
 }
 
@@ -453,41 +626,34 @@ func parseLyricTranslationData(raw string) lyricTranslationData {
 	return data
 }
 
-func (a *lyricTranslationService) call(cfg tools.AIConfig, system, user string) (string, error) {
-	return a.callTier(cfg, llmclient.TierBackground, system, user)
-}
-
-func (a *lyricTranslationService) callFirstScreen(cfg tools.AIConfig, system, user string) (string, error) {
-	return a.callTier(cfg, llmclient.TierFirstScreen, system, user)
-}
-
-func (a *lyricTranslationService) callTier(cfg tools.AIConfig, tier llmclient.PriorityTier, system, user string) (string, error) {
-	_ = a.limiter.AcquireTier(context.Background(), a.concurrency, tier, nil)
+func (a *lyricTranslationService) callStream(
+	ctx context.Context,
+	cfg tools.AIConfig,
+	system, user string,
+	onChunk func(content string) error,
+) error {
+	_ = a.limiter.AcquireTier(ctx, a.concurrency, llmclient.TierFirstScreen, nil)
 	defer a.limiter.Release()
-	ctx, cancel := context.WithTimeout(withLLMPurpose(context.Background(), constant.LLMPurposeTranslation, 0), lyricTranslationTimeout)
+	callCtx, cancel := context.WithTimeout(withLLMPurpose(ctx, constant.LLMPurposeTranslation, 0), lyricTranslationTimeout)
 	defer cancel()
-	return a.complete(ctx, cfg, system, user)
+	if a.stream != nil {
+		return a.stream(callCtx, cfg, system, user, onChunk)
+	}
+	if a.complete != nil {
+		raw, err := a.complete(callCtx, cfg, system, user)
+		if err != nil {
+			return err
+		}
+		return onChunk(raw)
+	}
+	return errors.New("lyric translation provider not configured")
 }
 
-func lyricTranslationChunks(n int) [][2]int {
-	if n <= 0 {
-		return nil
-	}
-	if n <= lyricTranslationFirstChunkLines+4 {
-		return [][2]int{{0, n}}
-	}
-	chunks := [][2]int{{0, lyricTranslationFirstChunkLines}}
-	rem := n - lyricTranslationFirstChunkLines
-	restCount := min((rem+lyricTranslationChunkLines-1)/lyricTranslationChunkLines, max(1, lyricTranslationMaxChunks-1))
-	size := (rem + restCount - 1) / restCount
-	for from := lyricTranslationFirstChunkLines; from < n; from += size {
-		chunks = append(chunks, [2]int{from, min(from+size, n)})
-	}
-	return chunks
-}
-
-type lyricTranslationModelResponse struct {
-	Lines []struct {
+type lyricTranslationNDJSONLine struct {
+	I           int    `json:"i"`
+	T           string `json:"t"`
+	Translation string `json:"translation"`
+	Lines       []struct {
 		I           int    `json:"i"`
 		T           string `json:"t"`
 		Translation string `json:"translation"`
@@ -511,35 +677,17 @@ func buildTranslatedLinesResult(tasks []lyricTranslationLineTask, translated []s
 }
 
 func (a *lyricTranslationService) generate(cfg tools.AIConfig, input *lyricTranslationInput) ([]dto.MusicLyricTranslationLine, error) {
-	return a.generateWithPartial("", cfg, input)
+	return a.generateStream(cfg, input, nil, false)
 }
 
-func (a *lyricTranslationService) generateWithPartial(key string, cfg tools.AIConfig, input *lyricTranslationInput) ([]dto.MusicLyricTranslationLine, error) {
-	return a.generateWithOptions(key, cfg, input, false)
-}
-
-// lyricTranslationChunksForTasks 按首屏/常规阈值切段，并尽量避免将背景和声行拆离主唱段落在段首孤立翻译
-func lyricTranslationChunksForTasks(tasks []lyricTranslationLineTask) [][2]int {
-	chunks := lyricTranslationChunks(len(tasks))
-	if len(chunks) <= 1 {
-		return chunks
-	}
-	for i := 0; i < len(chunks)-1; i++ {
-		split := chunks[i][1]
-		steps := 0
-		for steps < 2 && split < chunks[i+1][1] && tasks[split].Bg {
-			split++
-			steps++
-		}
-		chunks[i][1] = split
-		chunks[i+1][0] = split
-	}
-	return chunks
-}
-
-// generateWithOptions 双阶段协同翻译整首歌：若配置了 Stage 1 Director，先完成/复用全曲曲风与借代锦囊，
-// 再将 Blueprint 注入 Stage 2 提示词；chunk 0 优先抢占首屏名额并在多段任务中先落共享状态，随后与其余分段并发完成。
-func (a *lyricTranslationService) generateWithOptions(key string, cfg tools.AIConfig, input *lyricTranslationInput, forceRefresh bool) ([]dto.MusicLyricTranslationLine, error) {
+// generateStream 双阶段协同+整篇单流翻译整首歌：若配置了 Stage 1 Director，先完成/复用全曲曲风与借代锦囊，
+// 再将整首歌文本一次性送往大模型流式输出 NDJSON（每译完一行立即校验并经 writer 广播给所有订阅客户端）。
+func (a *lyricTranslationService) generateStream(
+	cfg tools.AIConfig,
+	input *lyricTranslationInput,
+	writer *lyricStreamWriter[dto.MusicLyricTranslationLine, musicLyricTranslationStreamDone],
+	forceRefresh bool,
+) ([]dto.MusicLyricTranslationLine, error) {
 	if len(input.Tasks) == 0 {
 		return []dto.MusicLyricTranslationLine{}, nil
 	}
@@ -557,126 +705,147 @@ func (a *lyricTranslationService) generateWithOptions(key string, cfg tools.AICo
 			return nil, dirErr
 		}
 	}
+
 	system := buildLyricTranslationSystemPromptWithBlueprint(input.TargetLang, input.ClassicalMode, blueprint)
-	chunks := lyricTranslationChunksForTasks(input.Tasks)
+	baseUser := buildLyricTranslationUserPrompt(input, input.Tasks)
+	posByIndex := make(map[int]int, len(input.Tasks))
+	for pos, task := range input.Tasks {
+		posByIndex[task.Index] = pos
+	}
+
 	translated := make([]string, len(input.Tasks))
-	errsList := make([]error, len(chunks))
+	decidedPos := make([]bool, len(input.Tasks))
+	skippedEmptyPos := make([]bool, len(input.Tasks))
+	emittedTotal := 0
 
-	var wg sync.WaitGroup
-	for chunkIdx, chunk := range chunks {
-		wg.Add(1)
-		go func(chunkIdx int, from, to int) {
-			defer wg.Done()
-			beforeStart := max(0, from-lyricTranslationContextLines)
-			afterEnd := min(len(input.Tasks), to+lyricTranslationContextLines)
-			baseUser := buildLyricTranslationUserPrompt(
-				input,
-				input.Tasks[beforeStart:from],
-				input.Tasks[from:to],
-				input.Tasks[to:afterEnd],
-			)
+	var lastErr error
+	user := baseUser
+	for attempt := 0; attempt <= lyricTranslationMaxRetries; attempt++ {
+		if attempt > 0 && lyricTranslationRetryDelay > 0 {
+			time.Sleep(lyricTranslationRetryDelay)
+		}
 
-			var chunkMap map[int]string
-			var lastErr error
-			user := baseUser
-			for attempt := 0; attempt <= lyricTranslationMaxRetries; attempt++ {
-				if attempt > 0 {
-					time.Sleep(lyricTranslationRetryDelay)
-				}
-				var raw string
-				var callErr error
-				if chunkIdx == 0 {
-					raw, callErr = a.callFirstScreen(cfg, system, user)
-				} else {
-					raw, callErr = a.call(cfg, system, user)
-				}
-				if callErr != nil {
-					lastErr = callErr
-					continue
-				}
-				parsedMap, parseErr := parseLyricTranslationChunk(raw, input.Tasks[from:to])
-				if parseErr != nil {
-					lastErr = parseErr
-					continue
-				}
-				nonEmptyOut, rejectedScript := countRejectedChunkScripts(input.Tasks[from:to], parsedMap, input.TargetLang)
-				if attempt < lyricTranslationMaxRetries && rejectedScript >= 2 && rejectedScript*100 >= max(nonEmptyOut, 1)*40 {
-					user = baseUser + fmt.Sprintf("\nCRITICAL RETRY NOTICE: Your previous output used the wrong language/script (e.g. copying Chinese characters instead of translating). You MUST translate every non-target lyric into %s (%s).", input.TargetLang, lyricTranslateLanguages[input.TargetLang])
-					lastErr = errors.New("lyric translation chunk returned wrong target script")
-					chunkMap = parsedMap
-					continue
-				}
-				chunkMap = parsedMap
-				lastErr = nil
-				break
-			}
-			if lastErr != nil && chunkMap == nil {
-				errsList[chunkIdx] = lastErr
+		parsedCount := 0
+		emittedAttempt := 0
+		rejectedAttempt := 0
+		var scanner ndjsonLineScanner
+
+		handleItem := func(idx int, rawText string) {
+			pos, ok := posByIndex[idx]
+			if !ok {
 				return
 			}
-			for idx := from; idx < to; idx++ {
-				task := input.Tasks[idx]
-				translated[idx] = finalizeSingleLineTranslation(task, chunkMap[task.Index], input.TargetLang)
+			parsedCount++
+			task := input.Tasks[pos]
+			cleaned := collapseLyricSpace(rawText)
+			if cleaned == "" {
+				if !decidedPos[pos] {
+					skippedEmptyPos[pos] = true
+				}
+				return
 			}
-			if chunkIdx == 0 && len(chunks) > 1 && key != "" {
-				partial := buildTranslatedLinesResult(input.Tasks[:to], translated[:to])
-				a.savePartial(key, partial)
+			if !task.Hint {
+				cleaned = collapseLyricSpace(stripLeakedCuePrefix(task.OrigText, task.VocalText, cleaned))
 			}
-		}(chunkIdx, chunk[0], chunk[1])
+			if cleaned == "" {
+				if !decidedPos[pos] {
+					skippedEmptyPos[pos] = true
+				}
+				return
+			}
+			if !isValidTargetScriptTranslation(task.VocalText, cleaned, input.TargetLang) {
+				rejectedAttempt++
+				return
+			}
+			if normTr := normalizeLyricMatch(cleaned); normTr != "" && normTr == normalizeLyricMatch(task.VocalText) {
+				if !decidedPos[pos] {
+					skippedEmptyPos[pos] = true
+				}
+				return
+			}
+			if !decidedPos[pos] {
+				decidedPos[pos] = true
+				translated[pos] = cleaned
+				emittedTotal++
+				emittedAttempt++
+				if writer != nil {
+					writer.EmitLine(dto.MusicLyricTranslationLine{
+						Text:        task.OrigText,
+						Occurrence:  task.Occurrence,
+						Bg:          task.Bg,
+						Translation: cleaned,
+					})
+				}
+			}
+		}
+
+		handleObj := func(objJSON string) {
+			var parsed lyricTranslationNDJSONLine
+			if err := json.Unmarshal([]byte(objJSON), &parsed); err != nil {
+				return
+			}
+			if len(parsed.Lines) > 0 {
+				for _, line := range parsed.Lines {
+					text := line.T
+					if text == "" {
+						text = line.Translation
+					}
+					handleItem(line.I, text)
+				}
+				return
+			}
+			if parsed.I > 0 {
+				text := parsed.T
+				if text == "" {
+					text = parsed.Translation
+				}
+				handleItem(parsed.I, text)
+			}
+		}
+
+		callErr := a.callStream(context.Background(), cfg, system, user, func(content string) error {
+			scanner.Feed(content, handleObj)
+			return nil
+		})
+		if callErr != nil {
+			lastErr = callErr
+			continue
+		}
+		if parsedCount == 0 {
+			lastErr = errors.New("lyric translation returned no matching indices")
+			continue
+		}
+
+		nonEmptyAttempt := emittedAttempt + rejectedAttempt
+		needsScriptRetry := (rejectedAttempt >= 2 && rejectedAttempt*100 >= max(nonEmptyAttempt, 1)*40) ||
+			(emittedTotal == 0 && rejectedAttempt > 0)
+		if attempt < lyricTranslationMaxRetries && needsScriptRetry {
+			var pendingIndices []int
+			for pos, task := range input.Tasks {
+				if !decidedPos[pos] && !skippedEmptyPos[pos] {
+					pendingIndices = append(pendingIndices, task.Index)
+				}
+			}
+			notice := fmt.Sprintf("\nCRITICAL RETRY NOTICE: Your previous output used the wrong language/script (e.g. copying Chinese characters instead of translating). You MUST translate every non-target lyric into %s (%s).", input.TargetLang, lyricTranslateLanguages[input.TargetLang])
+			if emittedTotal > 0 && len(pendingIndices) > 0 && len(pendingIndices) < len(input.Tasks) {
+				pendingJSON, _ := json.Marshal(pendingIndices)
+				notice += fmt.Sprintf(" Emit NDJSON lines ONLY for remaining indices %s.", string(pendingJSON))
+			}
+			user = baseUser + notice
+			lastErr = errors.New("lyric translation returned wrong target script")
+			continue
+		}
+		lastErr = nil
+		break
 	}
-	wg.Wait()
-	for _, chunkErr := range errsList {
-		if chunkErr != nil {
-			return nil, chunkErr
+
+	if lastErr != nil && emittedTotal == 0 {
+		// 若已有部分合法结构只是错语种行被全部过滤且重试已耗尽，容错保存为空而非挂起错误
+		if lastErr.Error() != "lyric translation returned wrong target script" {
+			return nil, lastErr
 		}
 	}
 	return buildTranslatedLinesResult(input.Tasks, translated), nil
-}
-
-func countRejectedChunkScripts(tasks []lyricTranslationLineTask, parsedMap map[int]string, targetLang string) (nonEmptyOut, rejected int) {
-	for _, task := range tasks {
-		raw := collapseLyricSpace(parsedMap[task.Index])
-		if raw == "" {
-			continue
-		}
-		nonEmptyOut++
-		if !isValidTargetScriptTranslation(task.VocalText, raw, targetLang) {
-			rejected++
-		}
-	}
-	return nonEmptyOut, rejected
-}
-
-func parseLyricTranslationChunk(raw string, tasks []lyricTranslationLineTask) (map[int]string, error) {
-	obj, err := extractJSONObject(raw)
-	if err != nil {
-		return nil, err
-	}
-	var parsed lyricTranslationModelResponse
-	if err := json.Unmarshal([]byte(obj), &parsed); err != nil {
-		return nil, err
-	}
-	validIndices := make(map[int]bool, len(tasks))
-	for _, task := range tasks {
-		validIndices[task.Index] = true
-	}
-	out := make(map[int]string, len(tasks))
-	matched := 0
-	for _, item := range parsed.Lines {
-		if !validIndices[item.I] {
-			continue
-		}
-		matched++
-		text := item.T
-		if text == "" {
-			text = item.Translation
-		}
-		out[item.I] = text
-	}
-	if len(tasks) > 0 && matched == 0 {
-		return nil, errors.New("lyric translation chunk returned no matching indices")
-	}
-	return out, nil
 }
 
 func finalizeSingleLineTranslation(task lyricTranslationLineTask, raw, targetLang string) string {
@@ -709,7 +878,7 @@ func buildLyricTranslationSystemPromptWithBlueprint(targetLang string, classical
 	targetDesc := lyricTranslateLanguages[targetLang]
 	var b strings.Builder
 	b.WriteString("You are an accomplished literary music lyric translator.\n")
-	b.WriteString(fmt.Sprintf("Translate the provided song lyrics STRICTLY into %s (Language Code: %s).\n\n", targetDesc, targetLang))
+	b.WriteString(fmt.Sprintf("Translate the provided full-song lyrics STRICTLY into %s (Language Code: %s), keeping pronouns (e.g. 你/您/我/吾), voice, rhyme, and refrain wording 100%% consistent from start to finish.\n\n", targetDesc, targetLang))
 	if blueprint != nil && !blueprint.isEmpty() {
 		b.WriteString("=== SONG DIRECTOR BLUEPRINT (from Stage 1) ===\n")
 		if blueprint.Genre != "" {
@@ -744,10 +913,10 @@ func buildLyricTranslationSystemPromptWithBlueprint(targetLang string, classical
 	b.WriteString("   - If \"ref\" contains a leaked speaker prefix before a colon, strip it as well.\n")
 	b.WriteString("   - By contrast, when a colon is genuine narrative speech/punctuation inside the sung lyric itself (e.g. \"她问我：你明天还会回来吗\"), keep the clause and punctuation normally.\n")
 	b.WriteString("   - NEVER translate a pure structural section tag (such as \"Verse\", \"Chorus\", \"主歌\", \"副歌\"); return \"\" if a line is purely non-sung structural metadata.\n")
-	b.WriteString("5. Cross-line Clause Linking (串句合译与自然断句): Lyrics often split one connected sentence across adjacent lines (e.g., \"春风吹不倒\" + \"我的杨柳腰\" forms \"春风吹不倒我的杨柳腰\"). When consecutive lines (including background vocals and context_before / context_after) form one connected clause or modifier phrase, translate the combined thought naturally in targetLang grammar first, then split it cleanly across the exact item indices i at natural phrasing pauses so adjacent lines flow smoothly together. Do NOT cram two lines into one index while leaving the companion line \"\".\n")
+	b.WriteString("5. Cross-line Clause Linking (串句合译与自然断句): Lyrics often split one connected sentence across adjacent lines (e.g., \"春风吹不倒\" + \"我的杨柳腰\" forms \"春风吹不倒我的杨柳腰\"). Because you see all lines of the entire song together, when consecutive lines (including background vocals and neighboring verses) form one connected clause or modifier phrase, translate the combined thought naturally in targetLang grammar first, then split it cleanly across the exact item indices i at natural phrasing pauses so adjacent lines flow smoothly together. Do NOT cram two lines into one index while leaving the companion line \"\".\n")
 	b.WriteString("6. Reference Translations (\"ref\"), Constructed Languages & Target-Script Integrity:\n")
 	b.WriteString("   - You may receive both \"orig\" (original lyrics) and \"ref\" (an upstream/sibling reference translation, e.g. Simplified Chinese, English, or multi-language \"[lang] ...\"). Use BOTH together to grasp idioms, wordplay, implied subjects, and emotion accurately.\n")
-	b.WriteString("   - CONSTRUCTED / FICTIONAL / OBSCURE LANGUAGES: When \"orig\" appears to be a self-invented/constructed language (e.g., *LaVI-Bavellabion* or fantasy lyrics) or an unfamiliar non-standard language AND a meaningful \"ref\" is provided, you MUST use \"ref\" (plus \"context_before\" / \"context_after\") as the primary semantic basis and translate it naturally into targetLang. NEVER mistake constructed-language lines with \"ref\" for empty non-lexical scat! If \"ref\" is already in targetLang borrowed from a sibling source, refine it smoothly for this line split instead of returning \"\"; if \"ref\" is in another language, translate it rather than copying \"ref\" verbatim.\n")
+	b.WriteString("   - CONSTRUCTED / FICTIONAL / OBSCURE LANGUAGES: When \"orig\" appears to be a self-invented/constructed language (e.g., *LaVI-Bavellabion* or fantasy lyrics) or an unfamiliar non-standard language AND a meaningful \"ref\" is provided, you MUST use \"ref\" and surrounding song lines as the primary semantic basis and translate it naturally into targetLang. NEVER mistake constructed-language lines with \"ref\" for empty non-lexical scat! If \"ref\" is already in targetLang borrowed from a sibling source, refine it smoothly for this line split instead of returning \"\"; if \"ref\" is in another language, translate it rather than copying \"ref\" verbatim.\n")
 	if targetLang == "ja" || targetLang == "ko" || targetLang == "en" {
 		b.WriteString(fmt.Sprintf("   - CRITICAL TARGET-LANGUAGE RULE: When target_lang is %s (%s), NEVER copy or echo Chinese sentences from \"ref\" or Chinese \"orig\" into your output! You MUST translate Chinese/foreign lines naturally into %s using authentic target-language script and grammar", targetLang, targetDesc, targetDesc))
 		if targetLang == "ja" {
@@ -782,11 +951,11 @@ func buildLyricTranslationSystemPromptWithBlueprint(targetLang string, classical
 	step++
 	b.WriteString(fmt.Sprintf("%d. Repeated lines should keep consistent wording for recurring refrains, except first-occurrence parenthetical notes need not repeat and phrasing may adapt when linked with different neighboring lines.\n", step))
 	step++
-	b.WriteString(fmt.Sprintf("%d. Output strictly a single valid JSON object with NO markdown code fences or conversational text:\n{\"lines\":[{\"i\":<int>,\"t\":\"<string>\"}]} containing every requested index i in order.\n", step))
+	b.WriteString(fmt.Sprintf("%d. STRICT NDJSON STREAMING OUTPUT: Output strictly in NDJSON — emit ONE compact JSON object per line followed immediately by a newline as soon as each line is translated, in ascending order of i:\n{\"i\":1,\"t\":\"<translated text>\"}\nFor lines needing no translation, output {\"i\":<int>,\"t\":\"\"} or omit.\nNEVER wrap the output in an outer JSON object (no {\"lines\":[...]}), NEVER output a JSON array [...], and NEVER output markdown code fences (```) or conversational text.\n", step))
 	return b.String()
 }
 
-func buildLyricTranslationUserPrompt(input *lyricTranslationInput, before, chunk, after []lyricTranslationLineTask) string {
+func buildLyricTranslationUserPrompt(input *lyricTranslationInput, tasks []lyricTranslationLineTask) string {
 	type promptItem struct {
 		I    int    `json:"i"`
 		Orig string `json:"orig"`
@@ -794,24 +963,17 @@ func buildLyricTranslationUserPrompt(input *lyricTranslationInput, before, chunk
 		Bg   bool   `json:"bg,omitempty"`
 		Hint bool   `json:"hint,omitempty"`
 	}
-	type contextItem struct {
-		Orig string `json:"orig"`
-		Ref  string `json:"ref,omitempty"`
-		Bg   bool   `json:"bg,omitempty"`
-	}
 
 	payload := struct {
-		TargetLang    string        `json:"target_lang"`
-		Title         string        `json:"title,omitempty"`
-		Artists       []string      `json:"artists,omitempty"`
-		Album         string        `json:"album,omitempty"`
-		Aliases       []string      `json:"aliases,omitempty"`
-		OrigLang      string        `json:"orig_lang,omitempty"`
-		RefLang       string        `json:"ref_lang,omitempty"`
-		ClassicalMode bool          `json:"classical_mode,omitempty"`
-		ContextBefore []contextItem `json:"context_before,omitempty"`
-		Items         []promptItem  `json:"items"`
-		ContextAfter  []contextItem `json:"context_after,omitempty"`
+		TargetLang    string       `json:"target_lang"`
+		Title         string       `json:"title,omitempty"`
+		Artists       []string     `json:"artists,omitempty"`
+		Album         string       `json:"album,omitempty"`
+		Aliases       []string     `json:"aliases,omitempty"`
+		OrigLang      string       `json:"orig_lang,omitempty"`
+		RefLang       string       `json:"ref_lang,omitempty"`
+		ClassicalMode bool         `json:"classical_mode,omitempty"`
+		Items         []promptItem `json:"items"`
 	}{
 		TargetLang:    fmt.Sprintf("%s (%s)", input.TargetLang, lyricTranslateLanguages[input.TargetLang]),
 		Title:         input.Track.Name,
@@ -823,14 +985,8 @@ func buildLyricTranslationUserPrompt(input *lyricTranslationInput, before, chunk
 		ClassicalMode: input.ClassicalMode,
 	}
 
-	for _, item := range before {
-		payload.ContextBefore = append(payload.ContextBefore, contextItem{Orig: item.VocalText, Ref: item.RefText, Bg: item.Bg})
-	}
-	for _, item := range after {
-		payload.ContextAfter = append(payload.ContextAfter, contextItem{Orig: item.VocalText, Ref: item.RefText, Bg: item.Bg})
-	}
-	payload.Items = make([]promptItem, 0, len(chunk))
-	for _, item := range chunk {
+	payload.Items = make([]promptItem, 0, len(tasks))
+	for _, item := range tasks {
 		payload.Items = append(payload.Items, promptItem{
 			I:    item.Index,
 			Orig: item.VocalText,

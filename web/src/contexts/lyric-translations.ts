@@ -3,11 +3,11 @@
 import type { MusicLyricTranslationLine, MusicLyricTranslations } from '@/api/music'
 import type { LyricSource } from '@/lib/lyrics/types'
 import { isAxiosError } from 'axios'
-import { useSyncExternalStore } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import {
   fetchLyricTranslations,
-
   refreshLyricTranslations,
+  streamLyricTranslations,
 } from '@/api/music'
 
 export interface SiteLyricTranslations {
@@ -18,12 +18,8 @@ export interface SiteLyricTranslations {
   lines: MusicLyricTranslationLine[]
 }
 
-const POLL_MS = 2000
-const MAX_POLLS = 90
-
-function pollDelayMs(polls: number): number {
-  return polls <= 1 ? 800 : polls === 2 ? 1200 : POLL_MS
-}
+const FAILURE_RETRY_MS = 30_000
+const UNMOUNT_ABORT_DELAY_MS = 1500
 
 interface CacheEntry {
   data: SiteLyricTranslations | null
@@ -32,13 +28,21 @@ interface CacheEntry {
 
 const EMPTY_ENTRY: CacheEntry = { data: null, generating: false }
 const cache = new Map<string, CacheEntry>()
-const inFlight = new Set<string>()
-const pollCounts = new Map<string, number>()
-const retryTimers = new Map<string, ReturnType<typeof setTimeout>>()
+const inFlightRequests = new Set<string>()
+const inFlightStreams = new Map<string, AbortController>()
+const failedAt = new Map<string, number>()
+const activeRefs = new Map<string, number>()
+const abortTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const listeners = new Set<() => void>()
 
 function cacheKey(id: number, source: string, lang: string): string {
   return `${id}:${source}:${lang}`
+}
+
+function validKey(id: number | null, source: string | null | undefined, lang: string): string | null {
+  if (id == null || !Number.isFinite(id) || id <= 0 || !source || source === 'none' || !lang)
+    return null
+  return cacheKey(id, source, lang)
 }
 
 function emit() {
@@ -53,119 +57,195 @@ function setEntry(key: string, next: CacheEntry) {
   emit()
 }
 
-function clearRetry(key: string) {
-  const timer = retryTimers.get(key)
-  if (timer) {
-    clearTimeout(timer)
-    retryTimers.delete(key)
-  }
-  pollCounts.delete(key)
-}
-
-function toSiteTranslations(res: MusicLyricTranslations): SiteLyricTranslations {
+function toSiteTranslations(res: MusicLyricTranslations, fallbackSource?: string, fallbackLang?: string): SiteLyricTranslations {
   return {
-    source: res.source,
-    targetLang: res.targetLang,
+    source: res.source || (fallbackSource as LyricSource | undefined),
+    targetLang: res.targetLang || fallbackLang,
     native: res.native,
     sameLanguage: res.sameLanguage,
     lines: Array.isArray(res.lines) ? res.lines : [],
   }
 }
 
-function schedulePoll(id: number, source: string, lang: string) {
-  const key = cacheKey(id, source, lang)
-  if (retryTimers.has(key))
-    return
-  const nextCount = (pollCounts.get(key) ?? 0) + 1
-  if (nextCount > MAX_POLLS) {
-    pollCounts.delete(key)
-    const prev = cache.get(key) ?? EMPTY_ENTRY
-    setEntry(key, { ...prev, generating: false })
-    return
+function lineIdentity(line: MusicLyricTranslationLine): string {
+  return `${Boolean(line.bg)}:${line.occurrence}:${line.text}`
+}
+
+function upsertTranslationLine(list: MusicLyricTranslationLine[], item: MusicLyricTranslationLine): MusicLyricTranslationLine[] {
+  const id = lineIdentity(item)
+  const idx = list.findIndex(existing => lineIdentity(existing) === id)
+  if (idx >= 0) {
+    const next = [...list]
+    next[idx] = item
+    return next
   }
-  pollCounts.set(key, nextCount)
-  const timer = setTimeout(() => {
-    retryTimers.delete(key)
-    void loadTranslations(id, source, lang, true)
-  }, pollDelayMs(nextCount))
-  retryTimers.set(key, timer)
+  return [...list, item]
+}
+
+function mergeStaleLines(base: MusicLyricTranslationLine[], streamed: MusicLyricTranslationLine[]): MusicLyricTranslationLine[] {
+  if (base.length === 0)
+    return streamed
+  let merged = [...base]
+  for (const item of streamed)
+    merged = upsertTranslationLine(merged, item)
+  return merged
+}
+
+async function openTranslationStream(
+  id: number,
+  source: string,
+  lang: string,
+  initial: MusicLyricTranslations,
+): Promise<void> {
+  const key = cacheKey(id, source, lang)
+  if (inFlightStreams.has(key))
+    return
+
+  const controller = new AbortController()
+  inFlightStreams.set(key, controller)
+
+  const staleBase = initial.status === 'ready' && initial.lines?.length ? initial.lines : []
+  let streamedLines: MusicLyricTranslationLine[] = initial.status === 'pending' && initial.lines?.length
+    ? [...initial.lines]
+    : []
+  const resolvedSource: LyricSource | '' = initial.source || (source as LyricSource)
+  const resolvedLang = initial.targetLang || lang
+  let gotError = false
+  let doneReceived = false
+
+  const emitProgress = () => {
+    const lines = staleBase.length > 0 ? mergeStaleLines(staleBase, streamedLines) : [...streamedLines]
+    if (lines.length === 0 && !cache.get(key)?.data)
+      return
+    setEntry(key, {
+      data: {
+        source: resolvedSource,
+        targetLang: resolvedLang,
+        lines,
+      },
+      generating: true,
+    })
+  }
+
+  try {
+    const completed = await streamLyricTranslations(id, source, lang, {
+      signal: controller.signal,
+      onEvent: (event) => {
+        switch (event.event) {
+          case 'replay':
+            streamedLines = [...event.lines]
+            emitProgress()
+            break
+          case 'line':
+            streamedLines = upsertTranslationLine(streamedLines, event.line)
+            emitProgress()
+            break
+          case 'done':
+            doneReceived = true
+            failedAt.delete(key)
+            setEntry(key, {
+              data: {
+                source: event.meta.source || resolvedSource,
+                targetLang: event.meta.targetLang || resolvedLang,
+                native: event.meta.native,
+                sameLanguage: event.meta.sameLanguage,
+                lines: streamedLines.length > 0 ? [...streamedLines] : (event.meta.sameLanguage || event.meta.native ? [] : staleBase),
+              },
+              generating: false,
+            })
+            break
+          case 'error':
+            gotError = true
+            break
+        }
+      },
+    })
+
+    if (controller.signal.aborted)
+      return
+    if (!completed || !doneReceived || gotError) {
+      failedAt.set(key, Date.now())
+      const prev = cache.get(key)
+      setEntry(key, { data: prev?.data ?? null, generating: false })
+    }
+  }
+  finally {
+    if (inFlightStreams.get(key) === controller)
+      inFlightStreams.delete(key)
+  }
 }
 
 async function loadTranslations(id: number, source: string, lang: string, force = false): Promise<void> {
-  if (!Number.isFinite(id) || id <= 0 || !source || source === 'none' || !lang)
+  const key = validKey(id, source, lang)
+  if (!key)
     return
-  const key = cacheKey(id, source, lang)
-  if (inFlight.has(key))
+  if (inFlightRequests.has(key) || inFlightStreams.has(key))
     return
-  if (!force && cache.has(key)) {
+  if (!force) {
+    const failed = failedAt.get(key)
+    if (failed != null && Date.now() - failed < FAILURE_RETRY_MS)
+      return
     const existing = cache.get(key)
-    if (!existing?.generating)
+    if (existing && !existing.generating)
       return
   }
 
-  inFlight.add(key)
+  inFlightRequests.add(key)
   try {
     const res = await fetchLyricTranslations(id, source, lang)
     if (!res) {
-      clearRetry(key)
       setEntry(key, EMPTY_ENTRY)
       return
     }
-    const generating = res.status === 'pending' || Boolean(res.stale)
+    const needsStream = res.status === 'pending' || Boolean(res.stale)
     const prev = cache.get(key)
     const acceptPartial = res.status === 'pending' && Boolean(res.lines?.length) && !prev?.data?.lines.length
     const hasUsableData = res.status === 'ready' || acceptPartial
     setEntry(key, {
-      data: hasUsableData ? toSiteTranslations(res) : (prev?.data ?? null),
-      generating,
+      data: hasUsableData ? toSiteTranslations(res, source, lang) : (prev?.data ?? null),
+      generating: needsStream,
     })
-    if (generating) {
-      schedulePoll(id, source, lang)
-    }
-    else {
-      clearRetry(key)
-    }
+    if (needsStream)
+      void openTranslationStream(id, source, lang, res)
+    else
+      failedAt.delete(key)
   }
-  catch (error) {
-    clearRetry(key)
-    const status = isAxiosError(error) ? error.response?.status : undefined
+  catch {
+    failedAt.set(key, Date.now())
     const prev = cache.get(key)
-    if (status === 404 || status === 400 || status === 403 || status === 429 || status === 503) {
-      setEntry(key, { data: prev?.data ?? null, generating: false })
-      return
-    }
-    // 网络抖动等临时失败保留已有缓存但停止转圈，避免无限轮询
     setEntry(key, { data: prev?.data ?? null, generating: false })
   }
   finally {
-    inFlight.delete(key)
+    inFlightRequests.delete(key)
   }
 }
 
 export function requestLyricTranslations(id: number | null, source: string | null | undefined, lang: string) {
-  if (id == null || id <= 0 || !source || source === 'none' || !lang)
+  if (!validKey(id, source, lang))
     return
-  void loadTranslations(id, source, lang, false)
+  void loadTranslations(id!, source!, lang, false)
 }
 
 // 管理员手动重新生成指定词源与目标语言的 AI 歌词翻译，返回 'started' 或 'unavailable'
 export async function refreshTranslations(id: number, source: string, lang: string): Promise<'started' | 'unavailable'> {
-  if (!Number.isFinite(id) || id <= 0 || !source || source === 'none' || !lang)
+  const key = validKey(id, source, lang)
+  if (!key)
     return 'unavailable'
-  const key = cacheKey(id, source, lang)
-  clearRetry(key)
+  failedAt.delete(key)
+  inFlightStreams.get(key)?.abort()
+  inFlightStreams.delete(key)
   try {
     const res = await refreshLyricTranslations(id, source, lang)
-    const generating = res.status === 'pending' || Boolean(res.stale)
+    const needsStream = res.status === 'pending' || Boolean(res.stale)
     const prev = cache.get(key)
     const acceptPartial = res.status === 'pending' && Boolean(res.lines?.length) && !prev?.data?.lines.length
     const hasUsableData = res.status === 'ready' || acceptPartial
     setEntry(key, {
-      data: hasUsableData ? toSiteTranslations(res) : (prev?.data ?? null),
-      generating,
+      data: hasUsableData ? toSiteTranslations(res, source, lang) : (prev?.data ?? null),
+      generating: needsStream,
     })
-    if (generating)
-      schedulePoll(id, source, lang)
+    if (needsStream)
+      void openTranslationStream(id, source, lang, res)
     return 'started'
   }
   catch (error) {
@@ -180,9 +260,10 @@ export async function refreshTranslations(id: number, source: string, lang: stri
 }
 
 function getEntry(id: number | null, source: string | null | undefined, lang: string): CacheEntry {
-  if (id == null || id <= 0 || !source || source === 'none' || !lang)
+  const key = validKey(id, source, lang)
+  if (!key)
     return EMPTY_ENTRY
-  return cache.get(cacheKey(id, source, lang)) ?? EMPTY_ENTRY
+  return cache.get(key) ?? EMPTY_ENTRY
 }
 
 function subscribe(listener: () => void): () => void {
@@ -190,11 +271,42 @@ function subscribe(listener: () => void): () => void {
   return () => listeners.delete(listener)
 }
 
+function useRetainTranslationStream(id: number | null, source: string | null | undefined, lang: string) {
+  const key = validKey(id, source, lang)
+  useEffect(() => {
+    if (!key)
+      return
+    const pendingTimer = abortTimers.get(key)
+    if (pendingTimer) {
+      clearTimeout(pendingTimer)
+      abortTimers.delete(key)
+    }
+    activeRefs.set(key, (activeRefs.get(key) ?? 0) + 1)
+    return () => {
+      const next = (activeRefs.get(key) ?? 1) - 1
+      if (next > 0) {
+        activeRefs.set(key, next)
+        return
+      }
+      activeRefs.delete(key)
+      const timer = setTimeout(() => {
+        abortTimers.delete(key)
+        if ((activeRefs.get(key) ?? 0) === 0) {
+          inFlightStreams.get(key)?.abort()
+          inFlightStreams.delete(key)
+        }
+      }, UNMOUNT_ABORT_DELAY_MS)
+      abortTimers.set(key, timer)
+    }
+  }, [key])
+}
+
 export function useLyricTranslations(
   id: number | null,
   source: string | null | undefined,
   lang: string,
 ): SiteLyricTranslations | null {
+  useRetainTranslationStream(id, source, lang)
   return useSyncExternalStore(
     subscribe,
     () => getEntry(id, source, lang).data,
@@ -212,4 +324,18 @@ export function useLyricTranslationsGenerating(
     () => getEntry(id, source, lang).generating,
     () => false,
   )
+}
+
+/** 测试辅助：重置模块内缓存与进行中流 */
+export function resetLyricTranslationsStoreForTest() {
+  for (const timer of abortTimers.values())
+    clearTimeout(timer)
+  abortTimers.clear()
+  for (const controller of inFlightStreams.values())
+    controller.abort()
+  inFlightStreams.clear()
+  inFlightRequests.clear()
+  failedAt.clear()
+  activeRefs.clear()
+  cache.clear()
 }

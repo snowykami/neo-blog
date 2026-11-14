@@ -635,4 +635,78 @@ describe('振假名渲染与 HDR 跨行平滑退场', () => {
 
     ctx.cleanup()
   })
+
+  it('流式补丁更新译文与逐字音译时原地复用来行 DOM 与激活状态，不触发重建或瞬移', () => {
+    const initial: ResolvedLyrics = {
+      source: 'ncm-yrc',
+      wordTimed: true,
+      instrumental: false,
+      lines: [
+        {
+          words: [
+            { text: '夜', start: 1000, end: 1500 },
+            { text: '空', start: 1500, end: 2200 },
+          ],
+          start: 1000,
+          end: 2200,
+          isDuet: false,
+          isBackground: false,
+        },
+        {
+          words: [{ text: '星光', start: 2500, end: 3200 }],
+          start: 2500,
+          end: 3200,
+          isDuet: false,
+          isBackground: false,
+        },
+      ],
+    }
+
+    const ctx = mountPlayer(initial)
+    ctx.container.querySelectorAll<HTMLElement>('.lyric-line').forEach((el) => {
+      Object.defineProperty(el, 'offsetHeight', { value: 48, configurable: true })
+    })
+    ctx.container.querySelectorAll<HTMLElement>('.lyric-word').forEach((el) => {
+      Object.defineProperty(el, 'offsetWidth', { value: 32, configurable: true })
+    })
+
+    // 推入第 0 行在唱状态
+    ctx.step(1.2, 16)
+    const line0 = ctx.container.querySelectorAll<HTMLElement>('.lyric-line')[0]!
+    const main0 = line0.querySelector<HTMLElement>('.lyric-main')!
+    const mainWord0 = main0.querySelector<HTMLElement>('.lyric-word')!
+    expect(line0.classList.contains('lyric-line--active')).toBe(true)
+
+    // 流式到达第 0 行翻译与逐字音译
+    const patched: ResolvedLyrics = {
+      ...initial,
+      lines: [
+        {
+          ...initial.lines[0],
+          translation: 'Night sky',
+          romanizationWords: [
+            { text: 'ye ', start: 1000, end: 1500, word: 0 },
+            { text: 'kong', start: 1500, end: 2200, word: 1 },
+          ],
+        },
+        initial.lines[1],
+      ],
+    }
+    ctx.player.setLyrics(patched)
+    ctx.step(1.25, 16)
+
+    expect(ctx.container.querySelectorAll<HTMLElement>('.lyric-line')[0]).toBe(line0)
+    expect(line0.querySelector<HTMLElement>('.lyric-main')).toBe(main0)
+    expect(main0.querySelector<HTMLElement>('.lyric-word')).toBe(mainWord0)
+    expect(line0.classList.contains('lyric-line--active')).toBe(true)
+
+    const extra = line0.querySelector<HTMLElement>('.lyric-extra[data-kind="translation"]')!
+    expect(extra.textContent).toBe('Night sky')
+    expect(extra.classList.contains('lyric-extra--enter')).toBe(true)
+
+    const ruby = line0.querySelector<HTMLElement>('.lyric-ruby')!
+    expect(ruby.classList.contains('lyric-ruby--enter')).toBe(true)
+
+    ctx.cleanup()
+  })
 })

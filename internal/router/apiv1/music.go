@@ -31,9 +31,11 @@ func registerMusicRoutes(group *route.RouterGroup) {
 		musicGroup.GET("/song/:id/lyric/kugou", controller.Music.SongKugouLyric)
 		musicGroup.GET("/song/:id/lyric/annotations", controller.Music.SongLyricAnnotations)
 		musicGroup.GET("/song/:id/lyric/translations", controller.Music.SongLyricTranslations)
+		musicGroup.GET("/song/:id/lyric/translations/stream", controller.Music.SongLyricTranslationsStream)
 		musicGroup.GET("/song/:id/translation-meta", controller.Music.SongTranslationMeta)
 		musicGroup.GET("/song/:id/lyric/singers", controller.Music.SongLyricSingers)
 		musicGroup.GET("/song/:id/lyric/pronunciations", controller.Music.SongLyricPronunciations)
+		musicGroup.GET("/song/:id/lyric/pronunciations/stream", controller.Music.SongLyricPronunciationsStream)
 		musicGroup.GET("/song/:id/chorus", controller.Music.SongChorus)
 		musicGroup.GET("/song/:id/hot-comment", controller.Music.SongHotComment)
 		// 歌词缓存：全站歌词版本的快照，由后端选出版本后用自己获取的来源数据写入（歌词流会先推送它，这里供歌词流不可用时使用）

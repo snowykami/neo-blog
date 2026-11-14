@@ -464,6 +464,18 @@
   opacity: 0.75;
 }
 
+@keyframes lyric-secondary-enter {
+  from {
+    opacity: 0;
+  }
+}
+
+/* 流式到达的翻译行与逐字音译以温和透明度淡入（动画终点回落到各自默认 opacity） */
+.lyric-extra--enter,
+.lyric-ruby--enter {
+  animation: lyric-secondary-enter 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 .lyric-player--no-roman .lyric-ruby {
   display: none;
 }
@@ -688,5 +700,10 @@
   .lyric-edge,
   .lyric-footer {
     transition: none;
+  }
+
+  .lyric-extra--enter,
+  .lyric-ruby--enter {
+    animation: none;
   }
 }

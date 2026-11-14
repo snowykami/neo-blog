@@ -1,6 +1,14 @@
-import type { MusicLyricStreamEvent } from './music'
+import type {
+  MusicLyricPronunciationStreamEvent,
+  MusicLyricStreamEvent,
+  MusicLyricTranslationStreamEvent,
+} from './music'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { streamSongLyrics } from './music'
+import {
+  streamLyricPronunciations,
+  streamLyricTranslations,
+  streamSongLyrics,
+} from './music'
 
 const client = vi.hoisted(() => ({ get: vi.fn() }))
 vi.mock('./client', () => ({ default: client }))
@@ -50,5 +58,52 @@ describe('歌词流（SSE）', () => {
     const events: MusicLyricStreamEvent[] = []
     await expect(streamSongLyrics(1, { onEvent: event => events.push(event) })).resolves.toBe(false)
     expect(events).toHaveLength(1)
+  })
+
+  it('streamLyricTranslations 忽略心跳注释并按 replay / line / done 解析，遇 error 返回 false', async () => {
+    const body = [
+      ': ok\n\n',
+      'event: replay\ndata: [{"text":"Line 1","occurrence":1,"bg":false,"translation":"第一行"}]\n\n',
+      'event: line\ndata: {"text":"Line 2","occurrence":1,"bg":true,"translation":"第二行"}\n\n',
+      'event: done\ndata: {"status":"ready","source":"ncm-lrc","target_lang":"zh"}\n\n',
+    ].join('')
+    client.get.mockResolvedValue({ data: textStream(body, [5, 42, 99, 150]) })
+
+    const events: MusicLyricTranslationStreamEvent[] = []
+    await expect(streamLyricTranslations(101, 'ncm-lrc', 'zh', { onEvent: ev => events.push(ev) })).resolves.toBe(true)
+    expect(client.get).toHaveBeenCalledWith(
+      '/music/song/101/lyric/translations/stream',
+      expect.objectContaining({ adapter: 'fetch', responseType: 'stream', params: { source: 'ncm-lrc', lang: 'zh' } }),
+    )
+    expect(events).toEqual([
+      { event: 'replay', lines: [{ text: 'Line 1', occurrence: 1, bg: false, translation: '第一行' }] },
+      { event: 'line', line: { text: 'Line 2', occurrence: 1, bg: true, translation: '第二行' } },
+      { event: 'done', meta: { status: 'ready', source: 'ncm-lrc', targetLang: 'zh' } },
+    ])
+
+    client.get.mockResolvedValue({ data: textStream('event: error\ndata: {"message":"upstream 502"}\n\n', []) })
+    const errEvents: MusicLyricTranslationStreamEvent[] = []
+    await expect(streamLyricTranslations(101, 'ncm-lrc', 'zh', { onEvent: ev => errEvents.push(ev) })).resolves.toBe(false)
+    expect(errEvents).toEqual([{ event: 'error', message: 'upstream 502' }])
+  })
+
+  it('streamLyricPronunciations 正确解析逐字 tokens 与完成事件', async () => {
+    const body = [
+      ': ok\n\n',
+      'event: line\ndata: {"text":"夢を見た","occurrence":1,"lang":"ja","pronunciation":"yume o mita","tokens":["yume","o","mi","ta"]}\n\n',
+      'event: done\ndata: {"status":"ready","source":"ncm-yrc","lang":"ja","complete_upstream":false}\n\n',
+    ].join('')
+    client.get.mockResolvedValue({ data: textStream(body, [12, 68]) })
+
+    const events: MusicLyricPronunciationStreamEvent[] = []
+    await expect(streamLyricPronunciations(202, 'ncm-yrc', { onEvent: ev => events.push(ev) })).resolves.toBe(true)
+    expect(client.get).toHaveBeenCalledWith(
+      '/music/song/202/lyric/pronunciations/stream',
+      expect.objectContaining({ adapter: 'fetch', responseType: 'stream', params: { source: 'ncm-yrc' } }),
+    )
+    expect(events).toEqual([
+      { event: 'line', line: { text: '夢を見た', occurrence: 1, lang: 'ja', pronunciation: 'yume o mita', tokens: ['yume', 'o', 'mi', 'ta'] } },
+      { event: 'done', meta: { status: 'ready', source: 'ncm-yrc', lang: 'ja', completeUpstream: false } },
+    ])
   })
 })

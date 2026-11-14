@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/tools"
+	"github.com/snowykami/neo-blog/pkg/errs"
 )
 
 func setupMusicTranslationEnv(t *testing.T, tracks []dto.MusicTrackDto) {
@@ -525,7 +527,7 @@ func TestLyricTranslationZHHKAndMixedScatDetection(t *testing.T) {
 	}
 }
 
-func TestLyricTranslationParallelFirstScreenPartialAndStaleRefresh(t *testing.T) {
+func TestLyricTranslationWholeSongStreamPartialAndStaleRefresh(t *testing.T) {
 	track := dto.MusicTrackDto{ID: 406, Name: "Long Ballad", Artists: []string{"Singer"}}
 	setupMusicTranslationEnv(t, []dto.MusicTrackDto{track})
 
@@ -542,53 +544,54 @@ func TestLyricTranslationParallelFirstScreenPartialAndStaleRefresh(t *testing.T)
 		},
 	})
 
-	// 验证首屏 24 行切段规则
-	chunks := lyricTranslationChunks(35)
-	if len(chunks) != 2 || chunks[0] != [2]int{0, 24} || chunks[1] != [2]int{24, 35} {
-		t.Fatalf("unexpected chunks for 35 lines: %+v", chunks)
-	}
-
 	orig := lyricTranslations
 	origRetry := lyricTranslationRetryDelay
 	lyricTranslationRetryDelay = 0
 	doneCh := make(chan struct{}, 8)
-	releaseChunk1 := make(chan struct{})
+	firstBatchEmitted := make(chan struct{}, 4)
+	releaseTail := make(chan struct{})
 	var blockRefresh atomic.Bool
 	releaseRefresh := make(chan struct{})
 	refreshStarted := make(chan struct{}, 4)
 
-	buildResp := func(from, to int, prefix string) string {
-		var items []map[string]any
+	buildNDJSON := func(from, to int, prefix string) string {
+		var b strings.Builder
 		for i := from; i <= to; i++ {
-			items = append(items, map[string]any{"i": i, "t": fmt.Sprintf("%s%d", prefix, i)})
+			row, _ := json.Marshal(map[string]any{"i": i, "t": fmt.Sprintf("%s%d", prefix, i)})
+			b.Write(row)
+			b.WriteByte('\n')
 		}
-		raw, _ := json.Marshal(map[string]any{"lines": items})
-		return string(raw)
+		return b.String()
 	}
 
+	var calls atomic.Int32
 	svc := &lyricTranslationService{
 		name:        "test_tr_partial_" + t.Name(),
 		limiter:     &llmclient.Limiter{},
 		concurrency: func() int { return 3 },
-		complete: func(_ context.Context, _ tools.AIConfig, _, user string) (string, error) {
+		stream: func(_ context.Context, _ tools.AIConfig, _, user string, onChunk func(content string) error) error {
+			calls.Add(1)
 			if blockRefresh.Load() {
 				select {
 				case refreshStarted <- struct{}{}:
 				default:
 				}
 				<-releaseRefresh
+				return onChunk(buildNDJSON(1, 35, "新版译文"))
 			}
-			if strings.Contains(user, `"i":1,`) {
-				if !strings.Contains(user, `"context_after"`) {
-					t.Errorf("first-screen chunk prompt missing context_after: %s", user)
-				}
-				return buildResp(1, 24, "首屏译文"), nil
+			// 整篇一次性喂给大模型（包含第 1 行与第 35 行），不再拆块调用
+			if !strings.Contains(user, `"i":1,`) || !strings.Contains(user, `"i":35,`) {
+				t.Errorf("whole-song prompt should include lines 1..35 in single request: %s", user)
 			}
-			if !strings.Contains(user, `"context_before"`) {
-				t.Errorf("background chunk prompt missing context_before: %s", user)
+			if err := onChunk(buildNDJSON(1, 24, "首屏译文")); err != nil {
+				return err
 			}
-			<-releaseChunk1
-			return buildResp(25, 35, "后续译文"), nil
+			select {
+			case firstBatchEmitted <- struct{}{}:
+			default:
+			}
+			<-releaseTail
+			return onChunk(buildNDJSON(25, 35, "后续译文"))
 		},
 		done: func() { doneCh <- struct{}{} },
 	}
@@ -606,7 +609,7 @@ func TestLyricTranslationParallelFirstScreenPartialAndStaleRefresh(t *testing.T)
 		t.Fatalf("first get = %+v, err=%v", first, svcerr)
 	}
 
-	// chunk 1 尚未完成前，轮询应先拿到 chunk 0 的 24 行 partial 译文
+	<-firstBatchEmitted
 	var partial *dto.MusicLyricTranslationsDto
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
@@ -618,19 +621,19 @@ func TestLyricTranslationParallelFirstScreenPartialAndStaleRefresh(t *testing.T)
 		time.Sleep(10 * time.Millisecond)
 	}
 	if partial == nil || partial.Lines[0].Translation != "首屏译文1" {
-		close(releaseChunk1)
-		t.Fatalf("expected 24 Stage-1 partial translation lines while chunk 1 blocked, got %+v", partial)
+		close(releaseTail)
+		t.Fatalf("expected 24 partial translation lines while stream mid-flight, got %+v", partial)
 	}
 
-	close(releaseChunk1)
+	close(releaseTail)
 	<-doneCh
 
 	ready, svcerr := s.GetLyricTranslations(ctx, 406, "ncm-lrc", "zh")
-	if svcerr != nil || ready.Status != "ready" || ready.Stale || len(ready.Lines) != 35 || ready.Lines[34].Translation != "后续译文35" {
-		t.Fatalf("ready = %+v, err=%v", ready, svcerr)
+	if svcerr != nil || ready.Status != "ready" || ready.Stale || len(ready.Lines) != 35 || ready.Lines[34].Translation != "后续译文35" || calls.Load() != 1 {
+		t.Fatalf("ready = %+v, err=%v, calls=%d", ready, svcerr, calls.Load())
 	}
 
-	// 已有缓存时管理员刷新：返回 ready + stale=true，且轮询期间保持 stale=true 直到新结果落库
+	// 已有缓存时管理员刷新：返回 ready + stale=true，且刷新完成前保持 stale=true
 	admin := &model.User{Username: "admin_tr", Email: "atr@example.com", Password: "x", Role: "admin"}
 	if err := repo.GetDB().Create(admin).Error; err != nil {
 		t.Fatal(err)
@@ -651,8 +654,8 @@ func TestLyricTranslationParallelFirstScreenPartialAndStaleRefresh(t *testing.T)
 	close(releaseRefresh)
 	<-doneCh
 	settled, svcerr := s.GetLyricTranslations(ctx, 406, "ncm-lrc", "zh")
-	if svcerr != nil || settled.Status != "ready" || settled.Stale {
-		t.Fatalf("after refresh completed, Stale should be false: %+v, err=%v", settled, svcerr)
+	if svcerr != nil || settled.Status != "ready" || settled.Stale || settled.Lines[0].Translation != "新版译文1" {
+		t.Fatalf("after refresh completed, Stale should be false with new lines: %+v, err=%v", settled, svcerr)
 	}
 }
 
@@ -853,5 +856,270 @@ func TestConlangRefBorrowingWithOffsetAndPromptRules(t *testing.T) {
 	}
 	if len(ready.Lines) != 2 || ready.Lines[0].Translation != "Sacred light awakens all things" {
 		t.Fatalf("unexpected translated conlang lines: %+v", ready.Lines)
+	}
+}
+
+func TestStreamLyricTranslationsSingleProducerMultiConsumerAndReplay(t *testing.T) {
+	track := dto.MusicTrackDto{ID: 504, Name: "Streamed Harmony", Artists: []string{"Artist"}}
+	setupMusicTranslationEnv(t, []dto.MusicTrackDto{track})
+
+	lrc := "[00:01.00]Line one\n[00:03.00]Line two\n[00:05.00]Line three\n[00:07.00]Line four\n"
+	stubLyricSources(t, map[string]lyricSourceResult{
+		"ncm": {
+			data:    &dto.MusicLyricDto{Lrc: lyricPart(lrc)},
+			outcome: lyricOutcomeHit,
+		},
+	})
+
+	orig := lyricTranslations
+	origRetry := lyricTranslationRetryDelay
+	lyricTranslationRetryDelay = 0
+
+	var calls atomic.Int32
+	doneCh := make(chan struct{}, 4)
+	firstTwoSent := make(chan struct{}, 1)
+	releaseTail := make(chan struct{})
+
+	svc := &lyricTranslationService{
+		name:        "test_tr_stream_" + t.Name(),
+		limiter:     &llmclient.Limiter{},
+		concurrency: func() int { return 2 },
+		stream: func(_ context.Context, _ tools.AIConfig, _, _ string, onChunk func(content string) error) error {
+			calls.Add(1)
+			// 刻意按半截 JSON 分片推送，验证 ndjsonLineScanner 对任意字节边界拆包的能力
+			for _, chunk := range []string{
+				"```json\n{\"i\":1,\"t\":\"译",
+				"文一\"}\n{\"i\":2,\"t\":\"译文二\"}\n",
+			} {
+				if err := onChunk(chunk); err != nil {
+					return err
+				}
+			}
+			select {
+			case firstTwoSent <- struct{}{}:
+			default:
+			}
+			<-releaseTail
+			return onChunk("{\"i\":3,\"t\":\"译文三\"}\n{\"i\":4,\"t\":\"译文四\"}\n```")
+		},
+		done: func() { doneCh <- struct{}{} },
+	}
+	lyricTranslations = svc
+	t.Cleanup(func() {
+		lyricTranslations = orig
+		lyricTranslationRetryDelay = origRetry
+	})
+
+	type recordedEvent struct {
+		name string
+		raw  string
+	}
+	runClient := func(id int, onEvent func(name string, data any)) ([]recordedEvent, *errs.ServiceError) {
+		var mu sync.Mutex
+		var events []recordedEvent
+		svcerr := NewMusicService().StreamLyricTranslations(
+			context.Background(),
+			504,
+			"ncm-lrc",
+			"zh",
+			func() {},
+			func(event string, data any) error {
+				raw, _ := json.Marshal(data)
+				mu.Lock()
+				events = append(events, recordedEvent{name: event, raw: string(raw)})
+				mu.Unlock()
+				if onEvent != nil {
+					onEvent(event, data)
+				}
+				return nil
+			},
+		)
+		return events, svcerr
+	}
+
+	var client1Events, client2Events, client3Events []recordedEvent
+	var client1Err, client2Err, client3Err *errs.ServiceError
+	var client1Count, client2Count atomic.Int32
+	bothGotTwo := make(chan struct{}, 1)
+	countLines := func(counter *atomic.Int32, name string, data any) {
+		switch name {
+		case "line":
+			counter.Add(1)
+		case "replay":
+			if lines, ok := data.([]dto.MusicLyricTranslationLine); ok {
+				counter.Add(int32(len(lines)))
+			}
+		}
+		if client1Count.Load() >= 2 && client2Count.Load() >= 2 {
+			select {
+			case bothGotTwo <- struct{}{}:
+			default:
+			}
+		}
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		client1Events, client1Err = runClient(1, func(name string, data any) {
+			countLines(&client1Count, name, data)
+		})
+	}()
+	go func() {
+		defer wg.Done()
+		client2Events, client2Err = runClient(2, func(name string, data any) {
+			countLines(&client2Count, name, data)
+		})
+	}()
+
+	<-firstTwoSent
+	select {
+	case <-bothGotTwo:
+	case <-time.After(3 * time.Second):
+		close(releaseTail)
+		t.Fatal("initial clients did not receive first 2 lines in time")
+	}
+
+	// 中途加入第 3 个消费者：应先一次性收到 replay（前 2 行），再无缝收到第 3、4 行 line 事件
+	client3Replayed := make(chan struct{}, 1)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		client3Events, client3Err = runClient(3, func(name string, _ any) {
+			if name == "replay" {
+				select {
+				case client3Replayed <- struct{}{}:
+				default:
+				}
+			}
+		})
+	}()
+
+	select {
+	case <-client3Replayed:
+	case <-time.After(3 * time.Second):
+		close(releaseTail)
+		t.Fatal("late joiner did not receive replay event in time")
+	}
+	close(releaseTail)
+	<-doneCh
+	wg.Wait()
+
+	if calls.Load() != 1 {
+		t.Fatalf("expected single LLM call across 3 consumers, got %d", calls.Load())
+	}
+	for idx, err := range []*errs.ServiceError{client1Err, client2Err, client3Err} {
+		if err != nil {
+			t.Fatalf("client %d returned unexpected error: %v", idx+1, err)
+		}
+	}
+
+	extractLines := func(events []recordedEvent) (replay []dto.MusicLyricTranslationLine, streamed []dto.MusicLyricTranslationLine, doneCount int) {
+		for _, ev := range events {
+			switch ev.name {
+			case "replay":
+				_ = json.Unmarshal([]byte(ev.raw), &replay)
+			case "line":
+				var line dto.MusicLyricTranslationLine
+				_ = json.Unmarshal([]byte(ev.raw), &line)
+				streamed = append(streamed, line)
+			case "done":
+				doneCount++
+			}
+		}
+		return replay, streamed, doneCount
+	}
+
+	r1, s1, d1 := extractLines(client1Events)
+	r2, s2, d2 := extractLines(client2Events)
+	if len(r1)+len(s1) != 4 || d1 != 1 {
+		t.Fatalf("client1 events mismatch: replay=%+v streamed=%+v done=%d", r1, s1, d1)
+	}
+	if len(r2)+len(s2) != 4 || d2 != 1 {
+		t.Fatalf("client2 events mismatch: replay=%+v streamed=%+v done=%d", r2, s2, d2)
+	}
+
+	r3, s3, d3 := extractLines(client3Events)
+	if len(r3) != 2 || len(s3) != 2 || d3 != 1 {
+		t.Fatalf("client3 mid-stream joiner mismatch: replay=%+v streamed=%+v done=%d", r3, s3, d3)
+	}
+	if r3[0].Translation != "译文一" || r3[1].Translation != "译文二" || s3[0].Translation != "译文三" || s3[1].Translation != "译文四" {
+		t.Fatalf("client3 order/content mismatch: replay=%+v streamed=%+v", r3, s3)
+	}
+
+	// 热读取路径直接命中 DB 缓存，不触发新流也不调 LLM
+	cached, svcerr := NewMusicService().GetLyricTranslations(context.Background(), 504, "ncm-lrc", "zh")
+	if svcerr != nil || cached.Status != "ready" || len(cached.Lines) != 4 || calls.Load() != 1 {
+		t.Fatalf("post-stream cached get = %+v, err=%v, calls=%d", cached, svcerr, calls.Load())
+	}
+}
+
+func TestStreamLyricTranslationsErrorCooldownAndLeaseRelease(t *testing.T) {
+	track := dto.MusicTrackDto{ID: 505, Name: "Failed Stream", Artists: []string{"Artist"}}
+	setupMusicTranslationEnv(t, []dto.MusicTrackDto{track})
+
+	lrc := "[00:01.00]Line one\n[00:03.00]Line two\n"
+	stubLyricSources(t, map[string]lyricSourceResult{
+		"ncm": {
+			data:    &dto.MusicLyricDto{Lrc: lyricPart(lrc)},
+			outcome: lyricOutcomeHit,
+		},
+	})
+
+	orig := lyricTranslations
+	origRetry := lyricTranslationRetryDelay
+	lyricTranslationRetryDelay = 0
+	doneCh := make(chan struct{}, 2)
+
+	svc := &lyricTranslationService{
+		name:        "test_tr_err_" + t.Name(),
+		limiter:     &llmclient.Limiter{},
+		concurrency: func() int { return 1 },
+		stream: func(_ context.Context, _ tools.AIConfig, _, _ string, _ func(content string) error) error {
+			return errors.New("upstream 502")
+		},
+		done: func() { doneCh <- struct{}{} },
+	}
+	lyricTranslations = svc
+	t.Cleanup(func() {
+		lyricTranslations = orig
+		lyricTranslationRetryDelay = origRetry
+	})
+
+	var eventNames []string
+	var errMsg string
+	svcerr := NewMusicService().StreamLyricTranslations(
+		context.Background(),
+		505,
+		"ncm-lrc",
+		"zh",
+		func() {},
+		func(event string, data any) error {
+			eventNames = append(eventNames, event)
+			if event == "error" {
+				raw, _ := json.Marshal(data)
+				var payload struct {
+					Message string `json:"message"`
+				}
+				_ = json.Unmarshal(raw, &payload)
+				errMsg = payload.Message
+			}
+			return nil
+		},
+	)
+	if svcerr != nil {
+		t.Fatalf("unexpected pre-stream error: %v", svcerr)
+	}
+	<-doneCh
+
+	if len(eventNames) != 1 || eventNames[0] != "error" || !strings.Contains(errMsg, "upstream 502") {
+		t.Fatalf("expected error SSE event with upstream 502, got events=%v msg=%q", eventNames, errMsg)
+	}
+
+	// 失败后租约已释放且冷却键生效，后续请求立即得到 404 lyric_translations_failed
+	_, cooldownErr := NewMusicService().GetLyricTranslations(context.Background(), 505, "ncm-lrc", "zh")
+	if cooldownErr == nil || cooldownErr.Code != http.StatusNotFound {
+		t.Fatalf("expected cooldown 404 after stream failure, got %v", cooldownErr)
 	}
 }

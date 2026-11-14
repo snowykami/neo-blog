@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -10,6 +12,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/llmclient"
 	"github.com/snowykami/neo-blog/internal/tools"
+	"github.com/snowykami/neo-blog/pkg/errs"
 )
 
 func stubLyricPronunciationService(t *testing.T, fn func(system, user string) (string, error)) (*atomic.Int32, func()) {
@@ -23,6 +26,7 @@ func stubLyricPronunciationService(t *testing.T, fn func(system, user string) (s
 	svc := *origPtr
 	svc.name = "test_pron_" + t.Name()
 	svc.limiter = &llmclient.Limiter{}
+	svc.stream = nil
 	svc.concurrency = func() int { return 1 }
 	svc.complete = func(_ context.Context, _ tools.AIConfig, system, user string) (string, error) {
 		calls.Add(1)
@@ -270,4 +274,143 @@ func TestPronunciationTaiwanMandarinSimplifiedAndCreditsAndHokkienExclusion(t *t
 			t.Fatalf("expected Hokkien Tâi-lô with lang=other, got %+v", ready)
 		}
 	})
+}
+
+func TestStreamLyricPronunciationsSingleProducerAndReplay(t *testing.T) {
+	tracks := []dto.MusicTrackDto{
+		{ID: 806, Name: "夢を叶えて", Artists: []string{"Singer"}},
+	}
+	setupMusicTranslationEnv(t, tracks)
+
+	yrc := "[0,3000](0,1000,0)夢(1000,1000,0)を(2000,1000,0)見(2500,500,0)た\n" +
+		"[3500,3000](3500,1500,0)風(5000,1500,0)が\n" +
+		"[7000,3000](7000,1500,0)空(8500,1500,0)へ\n"
+	stubLyricSources(t, map[string]lyricSourceResult{
+		"ncm": {
+			data:    &dto.MusicLyricDto{Yrc: lyricPart(yrc)},
+			outcome: lyricOutcomeHit,
+		},
+	})
+
+	origPtr := lyricPronunciations
+	origRetry := lyricTranslationRetryDelay
+	lyricTranslationRetryDelay = 0
+	var calls atomic.Int32
+	doneCh := make(chan struct{}, 4)
+	firstSent := make(chan struct{}, 1)
+	releaseTail := make(chan struct{})
+
+	svc := lyricPronunciationService{
+		name:        "test_pron_stream_" + t.Name(),
+		limiter:     &llmclient.Limiter{},
+		concurrency: func() int { return 2 },
+		stream: func(_ context.Context, _ tools.AIConfig, _, _ string, onChunk func(content string) error) error {
+			calls.Add(1)
+			if err := onChunk(`{"i":1,"lang":"ja","pronunciation":"yume o mita","tokens":["yume","o","mi","ta"]}` + "\n"); err != nil {
+				return err
+			}
+			select {
+			case firstSent <- struct{}{}:
+			default:
+			}
+			<-releaseTail
+			return onChunk(
+				`{"i":2,"lang":"ja","pronunciation":"kaze ga","tokens":["kaze","ga"]}` + "\n" +
+					`{"i":3,"lang":"ja","pronunciation":"sora e","tokens":["sora","e"]}` + "\n",
+			)
+		},
+		done: func() { doneCh <- struct{}{} },
+	}
+	lyricPronunciations = &svc
+	t.Cleanup(func() {
+		lyricPronunciations = origPtr
+		lyricTranslationRetryDelay = origRetry
+	})
+
+	type ev struct {
+		name string
+		raw  string
+	}
+	consume := func(onEv func(string)) ([]ev, *errs.ServiceError) {
+		var mu sync.Mutex
+		var out []ev
+		svcerr := NewMusicService().StreamLyricPronunciations(
+			context.Background(),
+			806,
+			"ncm-yrc",
+			func() {},
+			func(event string, data any) error {
+				raw, _ := json.Marshal(data)
+				mu.Lock()
+				out = append(out, ev{name: event, raw: string(raw)})
+				mu.Unlock()
+				if onEv != nil {
+					onEv(event)
+				}
+				return nil
+			},
+		)
+		return out, svcerr
+	}
+
+	c1GotFirst := make(chan struct{}, 1)
+	var c1Events, c2Events []ev
+	var c1Err, c2Err *errs.ServiceError
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		c1Events, c1Err = consume(func(name string) {
+			if name == "line" || name == "replay" {
+				select {
+				case c1GotFirst <- struct{}{}:
+				default:
+				}
+			}
+		})
+	}()
+
+	<-firstSent
+	<-c1GotFirst
+
+	c2Replayed := make(chan struct{}, 1)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		c2Events, c2Err = consume(func(name string) {
+			if name == "replay" {
+				select {
+				case c2Replayed <- struct{}{}:
+				default:
+				}
+			}
+		})
+	}()
+
+	<-c2Replayed
+	close(releaseTail)
+	<-doneCh
+	wg.Wait()
+
+	if calls.Load() != 1 || c1Err != nil || c2Err != nil {
+		t.Fatalf("calls=%d c1Err=%v c2Err=%v", calls.Load(), c1Err, c2Err)
+	}
+	if len(c1Events) != 4 {
+		t.Fatalf("expected c1 3 line + 1 done, got %+v", c1Events)
+	}
+	var replay []dto.MusicLyricPronunciationLine
+	var c2Lines []dto.MusicLyricPronunciationLine
+	for _, item := range c2Events {
+		switch item.name {
+		case "replay":
+			_ = json.Unmarshal([]byte(item.raw), &replay)
+		case "line":
+			var ln dto.MusicLyricPronunciationLine
+			_ = json.Unmarshal([]byte(item.raw), &ln)
+			c2Lines = append(c2Lines, ln)
+		}
+	}
+	if len(replay) != 1 || len(c2Lines) != 2 || len(replay[0].Tokens) != 4 || c2Lines[1].Pronunciation != "sora e" {
+		t.Fatalf("unexpected c2 replay/lines: replay=%+v lines=%+v", replay, c2Lines)
+	}
 }

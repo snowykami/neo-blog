@@ -268,11 +268,16 @@ func chatCompletionStream(ctx context.Context, cfg tools.AIConfig, system, user 
 
 // chatCompletionStreamWithReasoning 同 chatCompletionStream，可指定思考强度
 func chatCompletionStreamWithReasoning(ctx context.Context, cfg tools.AIConfig, system, user, effort string, onChunk func(content, reasoning string) error) error {
+	return chatCompletionStreamWithOptions(ctx, cfg, system, user, nil, effort, onChunk)
+}
+
+// chatCompletionStreamWithOptions 同 chatCompletionStreamWithReasoning，可额外指定采样温度
+func chatCompletionStreamWithOptions(ctx context.Context, cfg tools.AIConfig, system, user string, temperature *float64, effort string, onChunk func(content, reasoning string) error) error {
 	finish, err := beginLLMCall(ctx, cfg.Model)
 	if err != nil {
 		return err
 	}
-	usage, err := llmclient.ChatCompletionStreamCallWithEffort(ctx, cfg, system, user, effort, onChunk)
+	usage, err := llmclient.ChatCompletionStreamCallWithOptions(ctx, cfg, system, user, temperature, effort, onChunk)
 	finish(usage, err)
 	return err
 }

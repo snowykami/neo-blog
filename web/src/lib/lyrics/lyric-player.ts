@@ -3,7 +3,7 @@ import type { RhythmModel } from './rhythm/model'
 import type { RubyMetrics } from './ruby-layout'
 import type { StripLine, StripSlot } from './strip-slots'
 import type { TimelineItem, TimelineState } from './timeline'
-import type { LyricAgent, LyricEmphasis, LyricLine, LyricWord, ResolvedLyrics } from './types'
+import type { LyricAgent, LyricEmphasis, LyricLine, LyricRomanWord, LyricRuby, LyricWord, ResolvedLyrics } from './types'
 import { HDR_BRIGHTNESS, hdrColorUrl, hdrShimmerUrl, shimmerPosition } from '@/lib/hdr-color'
 import { LYRIC_COLORS, MOOD_GLOW, resolveAgentHex } from './colors'
 import {
@@ -562,6 +562,127 @@ function allowLyricWebFonts() {
   return !connection?.saveData && !['slow-2g', '2g'].includes(connection?.effectiveType ?? '')
 }
 
+function sameStringArray(a?: readonly string[], b?: readonly string[]): boolean {
+  if (a === b)
+    return true
+  if (!a || !b || a.length !== b.length)
+    return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i])
+      return false
+  }
+  return true
+}
+
+function sameSpotlights(a?: readonly number[], b?: readonly number[]): boolean {
+  if (a === b)
+    return true
+  const la = a?.length ?? 0
+  const lb = b?.length ?? 0
+  if (la !== lb)
+    return false
+  for (let i = 0; i < la; i++) {
+    if (a![i] !== b![i])
+      return false
+  }
+  return true
+}
+
+function sameAgents(a?: Record<string, LyricAgent>, b?: Record<string, LyricAgent>): boolean {
+  if (a === b)
+    return true
+  const keysA = a ? Object.keys(a) : []
+  const keysB = b ? Object.keys(b) : []
+  if (keysA.length !== keysB.length)
+    return false
+  for (const key of keysA) {
+    const va = a![key]
+    const vb = b?.[key]
+    if (!vb || va.id !== vb.id || va.name !== vb.name || va.color !== vb.color || va.colorHex !== vb.colorHex || Boolean(va.isGroup) !== Boolean(vb.isGroup) || !sameStringArray(va.members, vb.members))
+      return false
+  }
+  return true
+}
+
+function sameWordRuby(a?: readonly LyricRuby[], b?: readonly LyricRuby[]): boolean {
+  if (a === b)
+    return true
+  const la = a?.length ?? 0
+  const lb = b?.length ?? 0
+  if (la !== lb)
+    return false
+  for (let i = 0; i < la; i++) {
+    if (a![i].text !== b![i].text || a![i].start !== b![i].start || a![i].end !== b![i].end)
+      return false
+  }
+  return true
+}
+
+function sameWords(a: readonly LyricWord[], b: readonly LyricWord[]): boolean {
+  if (a === b)
+    return true
+  if (a.length !== b.length)
+    return false
+  for (let i = 0; i < a.length; i++) {
+    const wa = a[i]
+    const wb = b[i]
+    if (wa === wb)
+      continue
+    if (wa.text !== wb.text || wa.start !== wb.start || wa.end !== wb.end || !sameWordRuby(wa.ruby, wb.ruby))
+      return false
+  }
+  return true
+}
+
+function sameEmphasisList(a?: readonly LyricEmphasis[], b?: readonly LyricEmphasis[]): boolean {
+  if (a === b)
+    return true
+  const la = a?.length ?? 0
+  const lb = b?.length ?? 0
+  if (la !== lb)
+    return false
+  for (let i = 0; i < la; i++) {
+    const ea = a![i]
+    const eb = b![i]
+    if (ea === eb)
+      continue
+    if (
+      ea.from !== eb.from
+      || ea.to !== eb.to
+      || ea.start !== eb.start
+      || ea.end !== eb.end
+      || ea.factor !== eb.factor
+      || ea.effect !== eb.effect
+      || ea.color !== eb.color
+      || ea.font !== eb.font
+      || ea.hold?.start !== eb.hold?.start
+      || ea.hold?.end !== eb.hold?.end
+      || !sameStringArray(ea.styles, eb.styles)
+    ) {
+      return false
+    }
+  }
+  return true
+}
+
+function sameRomanizationWords(a?: readonly LyricRomanWord[], b?: readonly LyricRomanWord[]): boolean {
+  if (a === b)
+    return true
+  const la = a?.length ?? 0
+  const lb = b?.length ?? 0
+  if (la !== lb)
+    return false
+  for (let i = 0; i < la; i++) {
+    const ra = a![i]
+    const rb = b![i]
+    if (ra === rb)
+      continue
+    if (ra.text !== rb.text || ra.start !== rb.start || ra.end !== rb.end || ra.word !== rb.word)
+      return false
+  }
+  return true
+}
+
 /** 把强调的词拆成单字放进 wordEl，非空白的字加入 chars 逐字演出；同时带上该组的字体与字形。timing 为这个音节的演唱时段 */
 function fillEmphasisChars(wordEl: HTMLElement, text: string, chars: CharView[], group: LyricEmphasis, timing: { start: number, end: number }) {
   const doc = wordEl.ownerDocument
@@ -704,6 +825,10 @@ export class LyricPlayer {
   setLyrics(lyrics: ResolvedLyrics) {
     if (lyrics === this.lyrics)
       return
+    if (this.canPatchSecondaryLyrics(this.lyrics, lyrics)) {
+      this.patchSecondaryLyrics(lyrics)
+      return
+    }
     this.lyrics = lyrics
     // 全曲字体（来自歌词标注），字体栈见 lyric-player.css
     if (lyrics.font)
@@ -719,6 +844,142 @@ export class LyricPlayer {
     this.pressedView = -1
     this.lastTimeMs = null
     this.build()
+  }
+
+  /**
+   * 当仅流式译文 / 音译 / 逐字音译更新、主歌词时间轴与词元完全一致时，走原地增量修补，
+   * 保留既有 .lyric-item DOM 与弹簧位置（不触发 build 与 teleport 瞬移）。
+   */
+  private canPatchSecondaryLyrics(prev: ResolvedLyrics, next: ResolvedLyrics): boolean {
+    if (this.views.length === 0)
+      return false
+    if (
+      prev.source !== next.source
+      || prev.wordTimed !== next.wordTimed
+      || prev.instrumental !== next.instrumental
+      || prev.font !== next.font
+      || prev.lines.length !== next.lines.length
+      || !sameSpotlights(prev.spotlights, next.spotlights)
+      || !sameAgents(prev.agents, next.agents)
+    ) {
+      return false
+    }
+    for (let i = 0; i < prev.lines.length; i++) {
+      const a = prev.lines[i]
+      const b = next.lines[i]
+      if (a === b)
+        continue
+      if (
+        a.start !== b.start
+        || a.end !== b.end
+        || a.isBackground !== b.isBackground
+        || a.isDuet !== b.isDuet
+        || a.align !== b.align
+        || a.agent !== b.agent
+        || a.paragraphStart !== b.paragraphStart
+        || a.mood !== b.mood
+        || !sameEmphasisList(a.emphasis, b.emphasis)
+        || !sameWords(a.words, b.words)
+      ) {
+        return false
+      }
+    }
+    return true
+  }
+
+  private patchSecondaryLyrics(next: ResolvedLyrics) {
+    const prev = this.lyrics
+    this.lyrics = next
+    const doc = this.container.ownerDocument
+    let changed = false
+
+    for (const view of this.views) {
+      if (view.item.kind !== 'line')
+        continue
+      const prevLine = prev.lines[view.item.line]
+      const nextLine = next.lines[view.item.line]
+      if (view.marquee)
+        view.marquee.line = nextLine
+      if (prevLine === nextLine)
+        continue
+
+      if (next.wordTimed && view.main && !sameRomanizationWords(prevLine.romanizationWords, nextLine.romanizationWords)) {
+        changed = true
+        const mainWords = view.words.slice(0, nextLine.words.length)
+        const baseEmphasisCount = nextLine.emphasis?.length ?? 0
+        view.emphasis.length = baseEmphasisCount
+        const rubyEmphasis: EmphasisView[] = (nextLine.emphasis ?? []).map(group => ({ group, chars: [] }))
+        const groupOf = (index: number) => nextLine.emphasis?.findIndex(group => index >= group.from && index < group.to) ?? -1
+        view.main.replaceChildren()
+        view.rubyUnits = []
+        const extraWords = this.buildWords(view.main, nextLine, mainWords, view.rubyUnits, (index) => {
+          const group = groupOf(index)
+          return group >= 0 ? rubyEmphasis[group] : null
+        })
+        view.words = [...mainWords, ...extraWords]
+        view.emphasis.push(...rubyEmphasis.filter(item => item.chars.length > 0))
+        if (!(prevLine.romanizationWords?.length) && (nextLine.romanizationWords?.length ?? 0) > 0 && !this.reducedMotion) {
+          for (const unit of view.rubyUnits)
+            unit.ruby?.classList.add('lyric-ruby--enter')
+        }
+      }
+
+      const byKind = new Map<string, HTMLElement>()
+      for (const el of view.extras) {
+        if (el.dataset.kind)
+          byKind.set(el.dataset.kind, el)
+      }
+      const nextRomText = nextLine.romanizationWords ? undefined : nextLine.romanization
+      const prevRomText = prevLine.romanizationWords ? undefined : prevLine.romanization
+      const desired = [['romanization', nextRomText], ['translation', nextLine.translation]] as const
+      const prevTexts = { romanization: prevRomText, translation: prevLine.translation }
+      const existingTrans = byKind.get('translation')
+      const nextExtras: HTMLElement[] = []
+
+      for (const [kind, text] of desired) {
+        const existing = byKind.get(kind)
+        if (!text) {
+          if (existing) {
+            existing.remove()
+            changed = true
+          }
+          continue
+        }
+        const hidden = kind === 'translation' ? !this.display.showTranslation : !this.display.showRomanization
+        if (existing) {
+          if (existing.textContent !== text) {
+            existing.textContent = text
+            changed = true
+          }
+          if (existing.hidden !== hidden) {
+            existing.hidden = hidden
+            changed = true
+          }
+          nextExtras.push(existing)
+          continue
+        }
+        const extra = doc.createElement('span')
+        extra.className = 'lyric-extra'
+        extra.dataset.kind = kind
+        extra.textContent = text
+        extra.hidden = hidden
+        if (!prevTexts[kind] && !this.reducedMotion)
+          extra.classList.add('lyric-extra--enter')
+        if (kind === 'romanization' && existingTrans && existingTrans.isConnected)
+          view.el.insertBefore(extra, existingTrans)
+        else
+          view.el.append(extra)
+        changed = true
+        nextExtras.push(extra)
+      }
+      view.extras = nextExtras
+    }
+
+    if (changed) {
+      this.layoutDirty = true
+      this.lastDetail = Number.NEGATIVE_INFINITY
+      this.wake()
+    }
   }
 
   setDisplay(display: LyricPlayerDisplay) {

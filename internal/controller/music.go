@@ -25,6 +25,10 @@ var Music = &musicType{service: service.NewMusicService()}
 // streamLyrics 歌词流的事件来源（测试时替换，只验证 SSE 的写出）
 var streamLyrics = (*service.MusicService).StreamLyrics
 
+// streamLyricTranslations 翻译流与读音流的事件来源（测试时替换，只验证 SSE 的写出与校验前错误响应）
+var streamLyricTranslations = (*service.MusicService).StreamLyricTranslations
+var streamLyricPronunciations = (*service.MusicService).StreamLyricPronunciations
+
 // Playlist 博客歌单的曲目
 func (m *musicType) Playlist(ctx context.Context, c *app.RequestContext) {
 	tracks, version, svcerr := m.service.GetPlaylistWithVersion(ctx)
@@ -274,6 +278,29 @@ func (m *musicType) RefreshLyricAnnotations(ctx context.Context, c *app.RequestC
 	resps.Ok(c, resps.Success, result)
 }
 
+func prepareMusicSSE(c *app.RequestContext) (onReady func(), send func(event string, data any) error) {
+	onReady = func() {
+		c.SetStatusCode(http.StatusOK)
+		c.Response.Header.Set("Content-Type", "text/event-stream; charset=utf-8")
+		c.Response.Header.Set("Cache-Control", "no-cache, no-transform")
+		c.Response.Header.Set("X-Accel-Buffering", "no")
+		c.Response.HijackWriter(resp.NewChunkedBodyWriter(&c.Response, c.GetWriter()))
+		_, _ = c.Write([]byte(": ok\n\n"))
+		_ = c.Flush()
+	}
+	send = func(event string, data any) error {
+		payload, err := json.Marshal(data)
+		if err != nil {
+			return err
+		}
+		if _, err := c.Write([]byte("event: " + event + "\ndata: " + string(payload) + "\n\n")); err != nil {
+			return err
+		}
+		return c.Flush()
+	}
+	return onReady, send
+}
+
 // SongLyricTranslations 歌词多语言 AI 翻译（按词源与目标语言缓存，生成中返回 status=pending）
 func (m *musicType) SongLyricTranslations(ctx context.Context, c *app.RequestContext) {
 	var req dto.MusicLyricTranslationsReq
@@ -287,6 +314,19 @@ func (m *musicType) SongLyricTranslations(ctx context.Context, c *app.RequestCon
 		return
 	}
 	resps.Ok(c, resps.Success, result)
+}
+
+// SongLyricTranslationsStream 歌词多语言 AI 翻译流式接口（SSE：replay + 逐行 line + done/error）
+func (m *musicType) SongLyricTranslationsStream(ctx context.Context, c *app.RequestContext) {
+	var req dto.MusicLyricTranslationsReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	onReady, send := prepareMusicSSE(c)
+	if svcerr := streamLyricTranslations(m.service, ctx, ctxutils.GetIDParam(c).Int64, req.Source, req.Lang, onReady, send); svcerr != nil {
+		resps.Error(c, svcerr)
+	}
 }
 
 // RefreshLyricTranslations 管理员手动重新生成一首歌指定词源和目标语言的歌词翻译
@@ -377,6 +417,19 @@ func (m *musicType) SongLyricPronunciations(ctx context.Context, c *app.RequestC
 		return
 	}
 	resps.Ok(c, resps.Success, result)
+}
+
+// SongLyricPronunciationsStream AI 歌词读音流式接口（SSE：replay + 逐行 line + done/error）
+func (m *musicType) SongLyricPronunciationsStream(ctx context.Context, c *app.RequestContext) {
+	var req dto.MusicLyricPronunciationsReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	onReady, send := prepareMusicSSE(c)
+	if svcerr := streamLyricPronunciations(m.service, ctx, ctxutils.GetIDParam(c).Int64, req.Source, onReady, send); svcerr != nil {
+		resps.Error(c, svcerr)
+	}
 }
 
 // RefreshLyricPronunciations 管理员手动重新生成指定词源的 AI 歌词读音

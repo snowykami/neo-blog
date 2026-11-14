@@ -1,7 +1,7 @@
 import type { SiteLyricSingers } from '@/lib/lyrics/apply-singers'
 import type { LyricAnnotations } from '@/lib/lyrics/emphasis'
 import type { LyricTargetLang } from '@/lib/lyrics/lyric-language'
-import type { SiteLyricPronunciations } from '@/lib/lyrics/lyric-pronunciation'
+import type { SiteLyricPronunciationLine, SiteLyricPronunciations } from '@/lib/lyrics/lyric-pronunciation'
 import type { LyricSourceKind } from '@/lib/lyrics/resolve'
 import type { LyricOutro, LyricSource } from '@/lib/lyrics/types'
 import type { MusicSearchSong, MusicSong, MusicTrack, NCMPlaylists } from '@/models/music'
@@ -383,8 +383,34 @@ export type MusicLyricStreamEvent
 
 const LYRIC_STREAM_KINDS = new Set(['ncm', 'ttml', 'qq', 'kugou'])
 
-/** 解析一条 SSE 消息（event + data 行，data 为 snake_case 的 JSON），无法识别时返回 null */
-function parseLyricStreamMessage(raw: string): MusicLyricStreamEvent | null {
+export interface MusicLyricTranslationStreamDone {
+  status: 'ready'
+  source?: LyricSource | ''
+  targetLang?: string
+  native?: boolean
+  sameLanguage?: boolean
+}
+
+export type MusicLyricTranslationStreamEvent
+  = | { event: 'replay', lines: MusicLyricTranslationLine[] }
+    | { event: 'line', line: MusicLyricTranslationLine }
+    | { event: 'done', meta: MusicLyricTranslationStreamDone }
+    | { event: 'error', message: string }
+
+export interface MusicLyricPronunciationStreamDone {
+  status: 'ready'
+  source?: LyricSource | ''
+  lang?: string
+  completeUpstream?: boolean
+}
+
+export type MusicLyricPronunciationStreamEvent
+  = | { event: 'replay', lines: SiteLyricPronunciationLine[] }
+    | { event: 'line', line: SiteLyricPronunciationLine }
+    | { event: 'done', meta: MusicLyricPronunciationStreamDone }
+    | { event: 'error', message: string }
+
+function parseRawSseFrame(raw: string): { event: string, payload: unknown } | null {
   let event = 'message'
   const data: string[] = []
   for (const line of raw.split('\n')) {
@@ -393,45 +419,40 @@ function parseLyricStreamMessage(raw: string): MusicLyricStreamEvent | null {
     else if (line.startsWith('data:'))
       data.push(line.slice(5).trimStart())
   }
-  let payload: Record<string, unknown>
+  if (data.length === 0 && event === 'message')
+    return null
   try {
-    payload = snakeToCamelObj(JSON.parse(data.join('\n') || 'null') ?? {})
+    const parsed: unknown = JSON.parse(data.join('\n') || 'null')
+    return {
+      event,
+      payload: parsed != null ? snakeToCamelObj(parsed) : {},
+    }
   }
   catch {
     return null
   }
-  switch (event) {
-    case 'cache':
-      return { event, cache: payload as unknown as MusicLyricCache }
-    case 'source':
-      if (!LYRIC_STREAM_KINDS.has(String(payload.kind)))
-        return null
-      return { event, kind: payload.kind, data: payload.data ?? null, failed: !!payload.failed } as MusicLyricStreamEvent
-    case 'decided':
-      return { event, version: { kind: (payload.kind ?? '') as MusicLyricVersion['kind'], source: (payload.source ?? '') as MusicLyricVersion['source'] } }
-    case 'done':
-      return { event }
-    default:
-      return null
-  }
 }
 
-/**
- * 歌词流：后端并发获取各来源，到达即推送，最后推送选出的全站歌词版本（见 spec 7.2o）。逐个回调事件，收到 done 时返回 true；
- * 请求失败或流在 done 之前中断时返回 false（调用方改用各来源的接口）。refresh 为「重新获取歌词」
- */
-export async function streamSongLyrics(id: number, { refresh, signal, onEvent }: {
-  refresh?: boolean
-  signal?: AbortSignal
-  onEvent: (event: MusicLyricStreamEvent) => void
-}): Promise<boolean> {
+async function consumeSseStream<E extends { event: string }>(
+  url: string,
+  {
+    params,
+    signal,
+    parse,
+    onEvent,
+  }: {
+    params?: Record<string, unknown>
+    signal?: AbortSignal
+    parse: (event: string, payload: unknown) => E | null
+    onEvent: (event: E) => void
+  },
+): Promise<boolean> {
   let stream: ReadableStream<Uint8Array>
   try {
-    const res = await axiosClient.get(`/music/song/${id}/lyric/stream`, {
+    const res = await axiosClient.get(url, {
       adapter: 'fetch',
       responseType: 'stream',
-      params: refreshParams(refresh),
-      // 各来源最多等 8 秒，整个流很快结束；不使用默认超时，避免慢来源被截断
+      params,
       timeout: 0,
       signal,
     })
@@ -454,11 +475,14 @@ export async function streamSongLyrics(id: number, { refresh, signal, onEvent }:
       buffer += decoder.decode(chunk.value, { stream: true }).replace(/\r\n?/g, '\n')
       let index = buffer.indexOf('\n\n')
       while (index >= 0) {
-        const message = parseLyricStreamMessage(buffer.slice(0, index))
+        const frame = parseRawSseFrame(buffer.slice(0, index))
         buffer = buffer.slice(index + 2)
-        if (message) {
-          done = done || message.event === 'done'
-          onEvent(message)
+        if (frame) {
+          const message = parse(frame.event, frame.payload)
+          if (message) {
+            done = done || message.event === 'done'
+            onEvent(message)
+          }
         }
         index = buffer.indexOf('\n\n')
       }
@@ -468,6 +492,124 @@ export async function streamSongLyrics(id: number, { refresh, signal, onEvent }:
     return done
   }
   return done
+}
+
+/** 解析一条歌词获取 SSE 消息，无法识别时返回 null */
+function parseLyricStreamMessage(event: string, payload: unknown): MusicLyricStreamEvent | null {
+  const rec = (payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {}) as Record<string, unknown>
+  switch (event) {
+    case 'cache':
+      return { event, cache: rec as unknown as MusicLyricCache }
+    case 'source':
+      if (!LYRIC_STREAM_KINDS.has(String(rec.kind)))
+        return null
+      return { event, kind: rec.kind, data: rec.data ?? null, failed: !!rec.failed } as MusicLyricStreamEvent
+    case 'decided':
+      return { event, version: { kind: (rec.kind ?? '') as MusicLyricVersion['kind'], source: (rec.source ?? '') as MusicLyricVersion['source'] } }
+    case 'done':
+      return { event }
+    default:
+      return null
+  }
+}
+
+/**
+ * 歌词流：后端并发获取各来源，到达即推送，最后推送选出的全站歌词版本（见 spec 7.2o）。逐个回调事件，收到 done 时返回 true；
+ * 请求失败或流在 done 之前中断时返回 false（调用方改用各来源的接口）。refresh 为「重新获取歌词」
+ */
+export function streamSongLyrics(id: number, { refresh, signal, onEvent }: {
+  refresh?: boolean
+  signal?: AbortSignal
+  onEvent: (event: MusicLyricStreamEvent) => void
+}): Promise<boolean> {
+  return consumeSseStream(`/music/song/${id}/lyric/stream`, {
+    params: refreshParams(refresh),
+    signal,
+    parse: parseLyricStreamMessage,
+    onEvent,
+  })
+}
+
+function parseTranslationStreamMessage(event: string, payload: unknown): MusicLyricTranslationStreamEvent | null {
+  switch (event) {
+    case 'replay':
+      return { event, lines: Array.isArray(payload) ? payload as MusicLyricTranslationLine[] : [] }
+    case 'line':
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload))
+        return null
+      return { event, line: payload as MusicLyricTranslationLine }
+    case 'done': {
+      const rec = (payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {}) as MusicLyricTranslationStreamDone
+      return { event, meta: { ...rec, status: 'ready' } }
+    }
+    case 'error': {
+      const rec = (payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {}) as { message?: string }
+      return { event, message: rec.message || 'generation_failed' }
+    }
+    default:
+      return null
+  }
+}
+
+/**
+ * AI 歌词翻译流（SSE）：先收到已生成行 replay，再逐行接收增量 line，完成时收到 done。
+ */
+export function streamLyricTranslations(
+  id: number,
+  source: string,
+  lang: string,
+  { signal, onEvent }: {
+    signal?: AbortSignal
+    onEvent: (event: MusicLyricTranslationStreamEvent) => void
+  },
+): Promise<boolean> {
+  return consumeSseStream(`/music/song/${id}/lyric/translations/stream`, {
+    params: { source, lang },
+    signal,
+    parse: parseTranslationStreamMessage,
+    onEvent,
+  })
+}
+
+function parsePronunciationStreamMessage(event: string, payload: unknown): MusicLyricPronunciationStreamEvent | null {
+  switch (event) {
+    case 'replay':
+      return { event, lines: Array.isArray(payload) ? payload as SiteLyricPronunciationLine[] : [] }
+    case 'line':
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload))
+        return null
+      return { event, line: payload as SiteLyricPronunciationLine }
+    case 'done': {
+      const rec = (payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {}) as MusicLyricPronunciationStreamDone
+      return { event, meta: { ...rec, status: 'ready' } }
+    }
+    case 'error': {
+      const rec = (payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {}) as { message?: string }
+      return { event, message: rec.message || 'generation_failed' }
+    }
+    default:
+      return null
+  }
+}
+
+/**
+ * AI 歌词读音流（SSE）：先收到已生成行 replay，再逐行接收增量 line，完成时收到 done。
+ */
+export function streamLyricPronunciations(
+  id: number,
+  source?: LyricSource,
+  { signal, onEvent }: {
+    signal?: AbortSignal
+    onEvent: (event: MusicLyricPronunciationStreamEvent) => void
+  } = { onEvent: () => {} },
+): Promise<boolean> {
+  const params = source && source !== 'none' ? { source } : undefined
+  return consumeSseStream(`/music/song/${id}/lyric/pronunciations/stream`, {
+    params,
+    signal,
+    parse: parsePronunciationStreamMessage,
+    onEvent,
+  })
 }
 
 // 网易云标出的副歌 / 高潮片段（毫秒）；没有时为空数组

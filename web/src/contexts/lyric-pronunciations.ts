@@ -1,17 +1,17 @@
 'use client'
 
-import type { SiteLyricPronunciations } from '@/lib/lyrics/lyric-pronunciation'
+import type { SiteLyricPronunciationLine, SiteLyricPronunciations } from '@/lib/lyrics/lyric-pronunciation'
 import type { LyricSource } from '@/lib/lyrics/types'
 import { isAxiosError } from 'axios'
-import { useSyncExternalStore } from 'react'
-import { fetchLyricPronunciations, refreshLyricPronunciations } from '@/api/music'
+import { useEffect, useSyncExternalStore } from 'react'
+import {
+  fetchLyricPronunciations,
+  refreshLyricPronunciations,
+  streamLyricPronunciations,
+} from '@/api/music'
 
-const POLL_MS = 2000
-const MAX_POLLS = 90
-
-function pollDelayMs(polls: number): number {
-  return polls <= 1 ? 800 : polls === 2 ? 1200 : POLL_MS
-}
+const FAILURE_RETRY_MS = 30_000
+const UNMOUNT_ABORT_DELAY_MS = 1500
 
 interface CacheEntry {
   data: SiteLyricPronunciations | null
@@ -20,13 +20,21 @@ interface CacheEntry {
 
 const EMPTY_ENTRY: CacheEntry = { data: null, generating: false }
 const cache = new Map<string, CacheEntry>()
-const inFlight = new Set<string>()
-const pollCounts = new Map<string, number>()
-const retryTimers = new Map<string, ReturnType<typeof setTimeout>>()
+const inFlightRequests = new Set<string>()
+const inFlightStreams = new Map<string, AbortController>()
+const failedAt = new Map<string, number>()
+const activeRefs = new Map<string, number>()
+const abortTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const listeners = new Set<() => void>()
 
 function cacheKey(id: number, source: string): string {
   return `${id}:${source}`
+}
+
+function validKey(id: number | null, source: string | null | undefined): string | null {
+  if (id == null || !Number.isFinite(id) || id <= 0 || !source || source === 'none')
+    return null
+  return cacheKey(id, source)
 }
 
 function emit() {
@@ -41,15 +49,6 @@ function setEntry(key: string, next: CacheEntry) {
   emit()
 }
 
-function clearRetry(key: string) {
-  const timer = retryTimers.get(key)
-  if (timer) {
-    clearTimeout(timer)
-    retryTimers.delete(key)
-  }
-  pollCounts.delete(key)
-}
-
 function shouldUsePronunciationPayload(res: SiteLyricPronunciations, prev?: CacheEntry): boolean {
   if (res.status === 'ready')
     return true
@@ -60,89 +59,186 @@ function shouldUsePronunciationPayload(res: SiteLyricPronunciations, prev?: Cach
   return prevCount === 0 || nextCount > prevCount
 }
 
-function schedulePoll(id: number, source: string) {
-  const key = cacheKey(id, source)
-  if (retryTimers.has(key))
-    return
-  const nextCount = (pollCounts.get(key) ?? 0) + 1
-  if (nextCount > MAX_POLLS) {
-    pollCounts.delete(key)
-    const prev = cache.get(key) ?? EMPTY_ENTRY
-    setEntry(key, { ...prev, generating: false })
-    return
+function lineIdentity(line: SiteLyricPronunciationLine): string {
+  return `${Boolean(line.bg)}:${line.occurrence}:${line.text}`
+}
+
+function upsertPronunciationLine(list: SiteLyricPronunciationLine[], item: SiteLyricPronunciationLine): SiteLyricPronunciationLine[] {
+  const id = lineIdentity(item)
+  const idx = list.findIndex(existing => lineIdentity(existing) === id)
+  if (idx >= 0) {
+    const next = [...list]
+    next[idx] = item
+    return next
   }
-  pollCounts.set(key, nextCount)
-  const timer = setTimeout(() => {
-    retryTimers.delete(key)
-    void loadPronunciations(id, source, true)
-  }, pollDelayMs(nextCount))
-  retryTimers.set(key, timer)
+  return [...list, item]
+}
+
+function mergeStaleLines(base: SiteLyricPronunciationLine[], streamed: SiteLyricPronunciationLine[]): SiteLyricPronunciationLine[] {
+  if (base.length === 0)
+    return streamed
+  let merged = [...base]
+  for (const item of streamed)
+    merged = upsertPronunciationLine(merged, item)
+  return merged
+}
+
+async function openPronunciationStream(
+  id: number,
+  source: string,
+  initial: SiteLyricPronunciations,
+): Promise<void> {
+  const key = cacheKey(id, source)
+  if (inFlightStreams.has(key))
+    return
+
+  const controller = new AbortController()
+  inFlightStreams.set(key, controller)
+
+  const staleBase = initial.status === 'ready' && initial.lines?.length ? initial.lines : []
+  let streamedLines: SiteLyricPronunciationLine[] = initial.status === 'pending' && initial.lines?.length
+    ? [...initial.lines]
+    : []
+  const resolvedSource = initial.source || source
+  const resolvedLang = initial.lang
+  let gotError = false
+  let doneReceived = false
+
+  const emitProgress = () => {
+    const lines = staleBase.length > 0 ? mergeStaleLines(staleBase, streamedLines) : [...streamedLines]
+    if (lines.length === 0 && !cache.get(key)?.data)
+      return
+    setEntry(key, {
+      data: {
+        status: 'pending',
+        source: resolvedSource,
+        lang: resolvedLang,
+        lines,
+      },
+      generating: true,
+    })
+  }
+
+  try {
+    const completed = await streamLyricPronunciations(id, source as LyricSource, {
+      signal: controller.signal,
+      onEvent: (event) => {
+        switch (event.event) {
+          case 'replay':
+            streamedLines = [...event.lines]
+            emitProgress()
+            break
+          case 'line':
+            streamedLines = upsertPronunciationLine(streamedLines, event.line)
+            emitProgress()
+            break
+          case 'done':
+            doneReceived = true
+            failedAt.delete(key)
+            setEntry(key, {
+              data: {
+                status: 'ready',
+                source: event.meta.source || resolvedSource,
+                lang: event.meta.lang || resolvedLang,
+                completeUpstream: event.meta.completeUpstream,
+                lines: streamedLines.length > 0 ? [...streamedLines] : (event.meta.completeUpstream ? [] : staleBase),
+              },
+              generating: false,
+            })
+            break
+          case 'error':
+            gotError = true
+            break
+        }
+      },
+    })
+
+    if (controller.signal.aborted)
+      return
+    if (!completed || !doneReceived || gotError) {
+      failedAt.set(key, Date.now())
+      const prev = cache.get(key)
+      setEntry(key, { data: prev?.data ?? null, generating: false })
+    }
+  }
+  finally {
+    if (inFlightStreams.get(key) === controller)
+      inFlightStreams.delete(key)
+  }
 }
 
 async function loadPronunciations(id: number, source: string, force = false): Promise<void> {
-  if (!Number.isFinite(id) || id <= 0 || !source || source === 'none')
+  const key = validKey(id, source)
+  if (!key)
     return
-  const key = cacheKey(id, source)
-  if (inFlight.has(key))
+  if (inFlightRequests.has(key) || inFlightStreams.has(key))
     return
-  if (!force && cache.has(key)) {
+  if (!force) {
+    const failed = failedAt.get(key)
+    if (failed != null && Date.now() - failed < FAILURE_RETRY_MS)
+      return
     const existing = cache.get(key)
-    if (!existing?.generating)
+    if (existing && !existing.generating)
       return
   }
 
-  inFlight.add(key)
+  inFlightRequests.add(key)
   try {
     const res = await fetchLyricPronunciations(id, source as LyricSource)
     if (!res) {
-      clearRetry(key)
       const prev = cache.get(key)
       setEntry(key, { data: prev?.data ?? null, generating: false })
       return
     }
-    const generating = res.status === 'pending' || Boolean(res.stale)
+    const needsStream = res.status === 'pending' || Boolean(res.stale)
     const prev = cache.get(key)
     setEntry(key, {
-      data: shouldUsePronunciationPayload(res, prev) ? res : (prev?.data ?? null),
-      generating,
+      data: shouldUsePronunciationPayload(res, prev)
+        ? { ...res, source: res.source || source }
+        : (prev?.data ?? null),
+      generating: needsStream,
     })
-    if (generating)
-      schedulePoll(id, source)
+    if (needsStream)
+      void openPronunciationStream(id, source, res)
     else
-      clearRetry(key)
+      failedAt.delete(key)
   }
   catch {
-    clearRetry(key)
+    failedAt.set(key, Date.now())
     const prev = cache.get(key)
     setEntry(key, { data: prev?.data ?? null, generating: false })
   }
   finally {
-    inFlight.delete(key)
+    inFlightRequests.delete(key)
   }
 }
 
 export function requestLyricPronunciations(id: number | null, source: string | null | undefined) {
-  if (id == null || id <= 0 || !source || source === 'none')
+  if (!validKey(id, source))
     return
-  void loadPronunciations(id, source, false)
+  void loadPronunciations(id!, source!, false)
 }
 
 /** 管理员手动重新生成指定词源的 AI 标准读音，返回 'started' 或 'unavailable' */
 export async function refreshPronunciations(id: number, source: string): Promise<'started' | 'unavailable'> {
-  if (!Number.isFinite(id) || id <= 0 || !source || source === 'none')
+  const key = validKey(id, source)
+  if (!key)
     return 'unavailable'
-  const key = cacheKey(id, source)
-  clearRetry(key)
+  failedAt.delete(key)
+  inFlightStreams.get(key)?.abort()
+  inFlightStreams.delete(key)
   try {
     const res = await refreshLyricPronunciations(id, source as LyricSource)
-    const generating = res.status === 'pending' || Boolean(res.stale)
+    const needsStream = res.status === 'pending' || Boolean(res.stale)
     const prev = cache.get(key)
     setEntry(key, {
-      data: shouldUsePronunciationPayload(res, prev) ? res : (prev?.data ?? null),
-      generating,
+      data: shouldUsePronunciationPayload(res, prev)
+        ? { ...res, source: res.source || source }
+        : (prev?.data ?? null),
+      generating: needsStream,
     })
-    if (generating)
-      schedulePoll(id, source)
+    if (needsStream)
+      void openPronunciationStream(id, source, res)
     return 'started'
   }
   catch (error) {
@@ -157,9 +253,10 @@ export async function refreshPronunciations(id: number, source: string): Promise
 }
 
 function getEntry(id: number | null, source: string | null | undefined): CacheEntry {
-  if (id == null || id <= 0 || !source || source === 'none')
+  const key = validKey(id, source)
+  if (!key)
     return EMPTY_ENTRY
-  return cache.get(cacheKey(id, source)) ?? EMPTY_ENTRY
+  return cache.get(key) ?? EMPTY_ENTRY
 }
 
 function subscribe(listener: () => void): () => void {
@@ -167,10 +264,41 @@ function subscribe(listener: () => void): () => void {
   return () => listeners.delete(listener)
 }
 
+function useRetainPronunciationStream(id: number | null, source: string | null | undefined) {
+  const key = validKey(id, source)
+  useEffect(() => {
+    if (!key)
+      return
+    const pendingTimer = abortTimers.get(key)
+    if (pendingTimer) {
+      clearTimeout(pendingTimer)
+      abortTimers.delete(key)
+    }
+    activeRefs.set(key, (activeRefs.get(key) ?? 0) + 1)
+    return () => {
+      const next = (activeRefs.get(key) ?? 1) - 1
+      if (next > 0) {
+        activeRefs.set(key, next)
+        return
+      }
+      activeRefs.delete(key)
+      const timer = setTimeout(() => {
+        abortTimers.delete(key)
+        if ((activeRefs.get(key) ?? 0) === 0) {
+          inFlightStreams.get(key)?.abort()
+          inFlightStreams.delete(key)
+        }
+      }, UNMOUNT_ABORT_DELAY_MS)
+      abortTimers.set(key, timer)
+    }
+  }, [key])
+}
+
 export function useLyricPronunciations(
   id: number | null,
   source: string | null | undefined,
 ): SiteLyricPronunciations | null {
+  useRetainPronunciationStream(id, source)
   return useSyncExternalStore(
     subscribe,
     () => getEntry(id, source).data,
@@ -187,4 +315,18 @@ export function useLyricPronunciationsGenerating(
     () => getEntry(id, source).generating,
     () => false,
   )
+}
+
+/** 测试辅助：重置模块内缓存与进行中流 */
+export function resetLyricPronunciationsStoreForTest() {
+  for (const timer of abortTimers.values())
+    clearTimeout(timer)
+  abortTimers.clear()
+  for (const controller of inFlightStreams.values())
+    controller.abort()
+  inFlightStreams.clear()
+  inFlightRequests.clear()
+  failedAt.clear()
+  activeRefs.clear()
+  cache.clear()
 }
