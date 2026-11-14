@@ -13,8 +13,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/llmclient"
 	"github.com/snowykami/neo-blog/internal/tools"
+	"github.com/snowykami/neo-blog/pkg/sharedstate"
 )
 
 func TestLyricAnnotationChunks(t *testing.T) {
@@ -180,5 +182,112 @@ func TestLyricAnnotationLinesPromptSpotlight(t *testing.T) {
 	}
 	if prompt := buildLyricAnnotationLinesPrompt(lyricAnnotationInfo{}, lines, plan, 3, 3, 2); strings.Contains(prompt, "spotlight\n") {
 		t.Fatal("spotlight outside the chunk should not be marked")
+	}
+}
+
+func TestLyricAnnotationStage1PartialAndParallelPrefetch(t *testing.T) {
+	setupTTMLDB(t)
+	resetLyricSharedState(t)
+
+	lines := []string{"第一句歌词", "第二句歌词"}
+	validPlan := `{"font":"song","accent":"#ff6b8b","intro":"一段导语","outro_comment":1,"moments":[{"text":"第一句歌词","content":"旁白时刻","source":"ai"}],"spotlights":[1],"lines":[{"i":0,"mood":"calm"},{"i":1,"chorus_start":true,"chorus":true,"mood":"intense"}]}`
+	validChunk := `{"lines":[{"i":0,"phrases":[{"text":"第一句","effect":"glow","color":"amber"}]}]}`
+
+	// 三个前置依赖（热评、副歌、借长音）通过屏障同步，若串行执行会阻塞超时
+	var arrived atomic.Int32
+	allArrived := make(chan struct{})
+	barrier := func() {
+		if arrived.Add(1) == 3 {
+			close(allArrived)
+		}
+		select {
+		case <-allArrived:
+		case <-time.After(2 * time.Second):
+			t.Error("upstream prefetch did not execute in parallel")
+		}
+	}
+
+	planDone := make(chan struct{})
+	releaseChunk := make(chan struct{})
+	var callIdx atomic.Int32
+	svc := &lyricAnnotationService{
+		name:    "test_partial_" + t.Name(),
+		limiter: &llmclient.Limiter{},
+		complete: func(_ context.Context, _ tools.AIConfig, system, _ string) (string, error) {
+			if callIdx.Add(1) == 1 || strings.Contains(system, lyricAnnotationText.PlanPrompt) {
+				if strings.Contains(system, lyricAnnotationText.PlanPrompt) {
+					return validPlan, nil
+				}
+			}
+			// 进入 chunk 阶段前，Stage-1 结果应已写入共享状态
+			select {
+			case <-planDone:
+			default:
+				close(planDone)
+			}
+			<-releaseChunk
+			return validChunk, nil
+		},
+		hotComments: func(_ context.Context, _ int64) []lyricAnnotationComment {
+			barrier()
+			return []lyricAnnotationComment{{Content: "精选热评故事真感人", Liked: 120}}
+		},
+		chorus: func(_ context.Context, _ int64) []dto.MusicChorusDto {
+			barrier()
+			return []dto.MusicChorusDto{{Start: 1000, End: 4000}}
+		},
+		wordTimed: func(_ context.Context, _ int64) string {
+			barrier()
+			return "[1000,2000]第(1000,300)一(1300,300)"
+		},
+		concurrency: func() int { return 2 },
+	}
+
+	key, hash := lyricAnnotationKey(777, lines)
+	jobKey, _ := svc.stateKeys(key)
+	lease, err := sharedstate.AcquireLease(jobKey, lyricAnnotationJobTTL)
+	if err != nil || lease == nil {
+		t.Fatalf("acquire lease: %v", err)
+	}
+	done := make(chan error, 1)
+	info := lyricAnnotationInfo{
+		Title: "歌",
+		Timed: []lyricTimedLine{{Start: 0, Text: lines[0]}, {Start: 1000, Text: lines[1]}},
+	}
+	go func() {
+		done <- svc.execute(lease, key, 777, hash, lines, info, tools.AIConfig{Model: "m"}, false)
+	}()
+
+	<-planDone
+	// 短暂等待 savePartial 落共享状态
+	var partial *dto.MusicLyricAnnotationsDto
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		partial = svc.loadPartial(key, lines)
+		if partial != nil {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if partial == nil {
+		close(releaseChunk)
+		t.Fatal("expected Stage-1 partial annotation while chunks are still running")
+	}
+	if partial.Status != lyricAnnotationStatusPending || partial.Font != "song" || partial.Accent != "#ff6b8b" || partial.Intro != "一段导语" || partial.Outro == nil || len(partial.Moments) != 1 || len(partial.Spotlights) != 1 {
+		close(releaseChunk)
+		t.Fatalf("unexpected partial dto: %+v", partial)
+	}
+
+	close(releaseChunk)
+	if execErr := <-done; execErr != nil {
+		t.Fatalf("execute failed: %v", execErr)
+	}
+	// 完成后应清理 partial，并写入最终 DB 记录
+	if svc.loadPartial(key, lines) != nil {
+		t.Fatal("partial cache should be deleted after execute finishes")
+	}
+	got, svcerr := svc.get(777, lines, info, tools.AIConfig{Model: "m"}, time.Hour)
+	if svcerr != nil || got.Status != lyricAnnotationStatusReady || len(got.Lines) == 0 {
+		t.Fatalf("final get = %+v, err=%v", got, svcerr)
 	}
 }

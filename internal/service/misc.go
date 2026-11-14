@@ -47,6 +47,8 @@ func (s *MiscService) GetSiteInfo() map[string]any {
 	info["comment_collapsed_lines"] = tools.GetCommentCollapsedLines()
 	// 歌单只来自网易云：填好 API 地址并选定歌单才显示音乐播放器，前台据此决定是否挂载播放器（不暴露 API 地址本身）
 	info["music_enabled"] = tools.GetNCMConfig().Configured()
+	// 音乐播放器是否可用站点 AI（仅给布尔值，供前端判断是否允许在无原生翻译时开启并触发 AI 歌词翻译）
+	info["music_ai_enabled"] = tools.GetAIConfig().Configured()
 	// 注册、找回密码要不要邮箱验证码、邮件服务能不能发信：只给布尔值，前台据此隐藏验证码或提示联系管理员（不暴露任何邮件配置）
 	info["email_verify_enabled"] = EmailVerifyEnabled()
 	info["email_available"] = tools.GetEmailConfig().Usable()

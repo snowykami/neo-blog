@@ -116,7 +116,13 @@ export interface MusicLyricsValue {
   lyricAnnotated: boolean
   lyricAnnotationsGenerating: boolean
   hasTranslationLyric: boolean
+  canToggleTranslation: boolean
+  lyricAiTranslated: boolean
+  lyricTranslationsGenerating: boolean
   hasRomajiLyric: boolean
+  canToggleRomaji: boolean
+  lyricAiRomanized: boolean
+  lyricPronunciationsGenerating: boolean
 }
 
 /**
@@ -451,7 +457,9 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isMuted, setIsMuted] = useState(false)
   // 翻译与音译默认都打开；读者切换后的选择保存在本地，以读者的选择为准
   const [showTranslation, setShowTranslationState] = useState(true)
+  const [translationRequested, setTranslationRequested] = useState(false)
   const [showRomaji, setShowRomajiState] = useState(true)
+  const [romajiRequested, setRomajiRequested] = useState(false)
   const [showLyricEffects, setShowLyricEffectsState] = useState(true)
   // 热评与旁白默认显示，读者关掉后记在本地
   const [showLyricMoments, setShowLyricMomentsState] = useState(true)
@@ -972,6 +980,17 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [])
   const lyricAnnotationsGenerating = lyricsState.annotationsGenerating
   const lyricAnnotated = lyricsState.annotated
+  const lyricAiTranslated = lyricsState.aiTranslated
+  const lyricTranslationsGenerating = lyricsState.translationsGenerating
+  const lyricCanAiTranslate = lyricsState.canAiTranslate
+  const lyricAiRomanized = lyricsState.aiRomanized
+  const lyricPronunciationsGenerating = lyricsState.pronunciationsGenerating
+  const lyricCanAiPronounce = lyricsState.canAiPronounce
+
+  useEffect(() => {
+    setTranslationRequested(false)
+    setRomajiRequested(false)
+  }, [currentTrackId])
   const lyricCandidates = lyricsState.candidates
   const lyricKind = lyricsState.kind
   const lyricSiteKind = lyricsState.siteKind
@@ -1160,6 +1179,8 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const setShowTranslation = useCallback((show: boolean) => {
     setShowTranslationState(show)
+    if (show)
+      setTranslationRequested(true)
     writeStored(STORAGE_KEY_SHOW_TRANSLATION, show)
   }, [])
 
@@ -1180,6 +1201,8 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const setShowRomaji = useCallback((show: boolean) => {
     setShowRomajiState(show)
+    if (show)
+      setRomajiRequested(true)
     writeStored(STORAGE_KEY_SHOW_ROMAJI, show)
   }, [])
 
@@ -1279,7 +1302,9 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [currentTrack, isPlaying, lyricCursor, lyricLines])
 
   const hasTranslationLyric = useMemo(() => lyrics.lines.some(line => line.translation), [lyrics])
+  const canToggleTranslation = hasTranslationLyric || lyricCanAiTranslate
   const hasRomajiLyric = useMemo(() => lyrics.lines.some(line => line.romanization), [lyrics])
+  const canToggleRomaji = hasRomajiLyric || lyricCanAiPronounce
 
   const actionsValue = useMemo<MusicActionsValue>(() => ({
     getAudio,
@@ -1403,7 +1428,13 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     lyricAnnotated,
     lyricAnnotationsGenerating,
     hasTranslationLyric,
+    canToggleTranslation,
+    lyricAiTranslated,
+    lyricTranslationsGenerating,
     hasRomajiLyric,
+    canToggleRomaji,
+    lyricAiRomanized,
+    lyricPronunciationsGenerating,
   }), [
     lyricCursor,
     lyricLines,
@@ -1418,7 +1449,13 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     lyricAnnotated,
     lyricAnnotationsGenerating,
     hasTranslationLyric,
+    canToggleTranslation,
+    lyricAiTranslated,
+    lyricTranslationsGenerating,
     hasRomajiLyric,
+    canToggleRomaji,
+    lyricAiRomanized,
+    lyricPronunciationsGenerating,
   ])
 
   const combinedValue = useMemo<MusicContextValue>(() => ({
@@ -1443,6 +1480,11 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                       track={currentTrack}
                       isPlaying={isPlaying}
                       showLyricEffects={showLyricEffects}
+                      showLyricMoments={showLyricMoments}
+                      showTranslation={showTranslation}
+                      translationRequested={translationRequested}
+                      showRomaji={showRomaji}
+                      romajiRequested={romajiRequested}
                       onChange={setLyricsState}
                     />
                   )}

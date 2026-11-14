@@ -8,7 +8,8 @@ import type { LyricRomanWord } from './types'
  * - 排版：第一个音拍的中心对准字的中心；音译可以伸到相邻的字下面，只有与前一个字的音译重叠时才把这个字连同后面的内容往后推
  */
 
-const EDGE_RE = /^[\s\p{P}\p{S}]+|[\s\p{P}\p{S}]+$/gu
+// 豁免注音符号轻声点 ˙ (\u02D9，Unicode 分类 Sk)，避免把台湾注音 "˙ㄉㄜ" 的轻声号剥掉
+const EDGE_RE = /^(?:[\s\p{P}]|(?!\u02D9)\p{S})+|(?:[\s\p{P}]|(?!\u02D9)\p{S})+$/gu
 
 /** 音译段显示的文字：去掉首尾的空白与标点 */
 export function rubyText(text: string): string {

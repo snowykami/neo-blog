@@ -15,9 +15,11 @@ import { readMusicShareParamsFromLocation } from '@/components/music-page/music-
 import { MusicStageEffects } from '@/components/music-page/music-stage-effects'
 import { useSongAccent } from '@/components/music-page/use-cover-accent'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { useCurrentLyric, useMusicActions, useMusicClockStore, useMusicPlayback } from '@/contexts/music-context'
+import { useCurrentLyric, useMusicActions, useMusicClockStore, useMusicPlayback, useMusicPreferences } from '@/contexts/music-context'
+import { useCachedSongMetaTranslation } from '@/contexts/song-meta-translations'
 import { Link, usePathname } from '@/i18n/navigation'
 import { isConsolePath } from '@/i18n/routing'
+import { formatDisplayArtists, formatTitleAliases } from '@/lib/lyrics/song-meta-format'
 import { readPlaylistCache, touchPlaylistCache, writePlaylistCache } from '@/lib/music-playlist-cache'
 import { cn } from '@/lib/utils'
 import { shouldOptimize } from '@/utils/common/image'
@@ -474,6 +476,8 @@ function LyricLineStandIn() {
 export function MiniPlayer({ onOpenPage }: { onOpenPage?: () => void }) {
   const t = useTranslations('MusicPlayer')
   const { currentTrack, isPlaying } = useMusicPlayback()
+  const { showTranslation } = useMusicPreferences()
+  const meta = useCachedSongMetaTranslation(currentTrack?.id ?? null)
   const { ensurePlaylist } = useMusicActions()
   // 打开悬浮播放器时补全歌单（恢复播放时可能只取了一首），歌单浮层与上一首 / 下一首都要用
   useEffect(() => {
@@ -491,6 +495,9 @@ export function MiniPlayer({ onOpenPage }: { onOpenPage?: () => void }) {
   const accent = useSongAccent(currentTrack?.albumPic)
   if (!currentTrack)
     return null
+
+  const titleExtra = formatTitleAliases(currentTrack.name, currentTrack.aliases, meta?.title, showTranslation)
+  const displayArtists = formatDisplayArtists(currentTrack.artists, meta?.artists, showTranslation)
 
   return (
     <div role="region" aria-label={t('floating_player')} className="relative isolate" style={accent ? { '--lyric-accent': accent } as React.CSSProperties : undefined}>
@@ -515,10 +522,10 @@ export function MiniPlayer({ onOpenPage }: { onOpenPage?: () => void }) {
             {/* key：切歌时重新测量并从头滚动 */}
             <MarqueeText key={`name-${currentTrack.id}`} className="text-base leading-snug font-semibold">
               {currentTrack.name}
-              {currentTrack.aliases.length > 0 && <span className="ml-1 font-normal text-white/50">{`(${currentTrack.aliases.join(', ')})`}</span>}
+              {titleExtra && <span className="ml-1 font-normal text-white/50">{`(${titleExtra})`}</span>}
             </MarqueeText>
             <MarqueeText key={`artist-${currentTrack.id}`} className="text-sm leading-snug text-white/60">
-              {[currentTrack.artists.join(' / '), currentTrack.album].filter(Boolean).join(' · ')}
+              {[displayArtists.join(' / '), currentTrack.album].filter(Boolean).join(' · ')}
             </MarqueeText>
           </div>
           <Link

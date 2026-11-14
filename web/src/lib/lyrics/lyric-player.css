@@ -265,26 +265,29 @@
 .lyric-player--hdr .lyric-line--active .lyric-main:not(:has(.lyric-word)),
 .lyric-player--hdr .lyric-line--hdr-exit .lyric-word:not(.lyric-word--emphasis),
 .lyric-player--hdr .lyric-line--hdr-exit .lyric-main:not(:has(.lyric-word)) {
-  background-image: var(--lyric-hdr-line, var(--lyric-hdr));
+  background-image: var(--lyric-hdr);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
 /*
- * 点题句必须同时在唱：聚光灯在行尾之后还要淡出一会儿，只看 lyric-line--spot 时，唱完的行没有上面的 background-clip: text，
- * 素材会把每个词的整个盒子画成一块极亮的白色矩形
+ * 点题句必须处于激活或 HDR 退场窗口内：聚光灯在行尾之后还要淡出一会儿，若脱离 background-clip: text 单独设置素材，
+ * 会把每个词的整个盒子画成一块极亮的白色矩形
  */
 .lyric-player--hdr .lyric-line--active.lyric-line--spot .lyric-word:not(.lyric-word--emphasis),
-.lyric-player--hdr .lyric-line--active.lyric-line--spot .lyric-main:not(:has(.lyric-word)) {
+.lyric-player--hdr .lyric-line--active.lyric-line--spot .lyric-main:not(:has(.lyric-word)),
+.lyric-player--hdr .lyric-line--hdr-exit.lyric-line--spot .lyric-word:not(.lyric-word--emphasis),
+.lyric-player--hdr .lyric-line--hdr-exit.lyric-line--spot .lyric-main:not(:has(.lyric-word)) {
   background-image: var(--lyric-hdr-spot);
 }
 
 /*
- * 单字的裁剪不跟随 lyric-line--active：字的素材由引擎写入，与类名的切换可能差一两帧，
- * 若裁剪随类名先撤掉，素材会把整个字的盒子画成一块 HDR 白
+ * 单字的裁剪跟随激活与 0.4s HDR 退场类名（引擎在同一同步帧内更新类名与单字素材）：
+ * 退场结束加上景深 blur(3px) 时已撤掉 -webkit-background-clip: text，避免 WebKit 离屏滤镜重绘闪烁
  */
-.lyric-player--hdr .lyric-char {
+.lyric-player--hdr .lyric-line--active .lyric-char,
+.lyric-player--hdr .lyric-line--hdr-exit .lyric-char {
   -webkit-background-clip: text;
   background-clip: text;
 }

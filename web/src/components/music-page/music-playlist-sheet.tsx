@@ -8,8 +8,10 @@ import { SafeImage } from '@/components/common/safe-image'
 import { Input } from '@/components/ui/input'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useMusicActions, useMusicPlayback } from '@/contexts/music-context'
+import { useMusicActions, useMusicPlayback, useMusicPreferences } from '@/contexts/music-context'
+import { useCachedSongMetaTranslation } from '@/contexts/song-meta-translations'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { formatDisplayArtists, formatTitleAliases } from '@/lib/lyrics/song-meta-format'
 import { cn } from '@/lib/utils'
 import { filterPlaylist } from './playlist-filter'
 
@@ -25,6 +27,11 @@ export const MusicPlaylistItem = memo(({ track, index, active, playing, onSelect
   onSelect: (index: number) => void
   compact?: boolean
 }) => {
+  const { showTranslation } = useMusicPreferences()
+  const meta = useCachedSongMetaTranslation(track.id)
+  const titleExtra = formatTitleAliases(track.name, track.aliases, meta?.title, showTranslation)
+  const displayArtists = formatDisplayArtists(track.artists, meta?.artists, showTranslation)
+
   return (
     <li className={cn('[content-visibility:auto]', compact ? '[contain-intrinsic-size:auto_40px]' : '[contain-intrinsic-size:auto_56px]')}>
       <button
@@ -46,9 +53,9 @@ export const MusicPlaylistItem = memo(({ track, index, active, playing, onSelect
         <span className="grid min-w-0 flex-1">
           <span className={cn('truncate font-medium', compact ? 'text-[13px]' : 'text-sm', active ? 'text-white' : 'text-white/85')}>
             {track.name}
-            {track.aliases.length > 0 && <span className="ml-1 font-normal text-white/45">{`(${track.aliases.join(', ')})`}</span>}
+            {titleExtra && <span className="ml-1 font-normal text-white/45">{`(${titleExtra})`}</span>}
           </span>
-          <span className="truncate text-xs text-white/50">{[track.artists.join(' / '), track.album].filter(Boolean).join(' · ')}</span>
+          <span className="truncate text-xs text-white/50">{[displayArtists.join(' / '), track.album].filter(Boolean).join(' · ')}</span>
         </span>
         {active && <AudioLinesIcon aria-hidden className={cn('size-4 shrink-0 text-white/80', playing && 'motion-safe:animate-pulse')} />}
       </button>

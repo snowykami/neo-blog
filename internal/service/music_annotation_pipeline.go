@@ -13,6 +13,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/internal/llmclient"
 	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/constant"
 )
@@ -86,7 +87,15 @@ func extractJSONObject(raw string) (string, error) {
 
 // call 排队等待全局 AI 并发名额（与 AI 摘要共用），拿到后才开始计算超时
 func (a *lyricAnnotationService) call(cfg tools.AIConfig, system, user string) (string, error) {
-	_ = a.limiter.Acquire(context.Background(), a.concurrency, false, nil)
+	return a.callTier(cfg, llmclient.TierBackground, system, user)
+}
+
+func (a *lyricAnnotationService) callFirstScreen(cfg tools.AIConfig, system, user string) (string, error) {
+	return a.callTier(cfg, llmclient.TierFirstScreen, system, user)
+}
+
+func (a *lyricAnnotationService) callTier(cfg tools.AIConfig, tier llmclient.PriorityTier, system, user string) (string, error) {
+	_ = a.limiter.AcquireTier(context.Background(), a.concurrency, tier, nil)
 	defer a.limiter.Release()
 	// 歌词标注由访客打开歌词触发，不记触发用户
 	ctx, cancel := context.WithTimeout(withLLMPurpose(context.Background(), constant.LLMPurposeLyricAnnotation, 0), lyricAnnotationTimeout)
@@ -103,7 +112,7 @@ func (a *lyricAnnotationService) plan(id int64, cfg tools.AIConfig, info lyricAn
 			time.Sleep(lyricAnnotationPlanRetryDelay)
 		}
 		var raw, planJSON string
-		raw, err = a.call(cfg, lyricAnnotationText.PlanPrompt, user)
+		raw, err = a.callFirstScreen(cfg, lyricAnnotationText.PlanPrompt, user)
 		if err == nil {
 			planJSON, err = extractJSONObject(raw)
 		}
@@ -121,12 +130,22 @@ func (a *lyricAnnotationService) plan(id int64, cfg tools.AIConfig, info lyricAn
 
 // generate 先规划、再并行逐段标注，返回合并后的标注 JSON（交给 sanitizeLyricAnnotations 校验）
 func (a *lyricAnnotationService) generate(id int64, cfg tools.AIConfig, info lyricAnnotationInfo, lines []string) (string, error) {
+	return a.generateWithPartial("", id, cfg, info, lines)
+}
+
+func (a *lyricAnnotationService) generateWithPartial(key string, id int64, cfg tools.AIConfig, info lyricAnnotationInfo, lines []string) (string, error) {
 	start := time.Now()
 	planJSON, plan, err := a.plan(id, cfg, info, lines)
 	if err != nil {
 		return "", err
 	}
 	planned := time.Now()
+	// Stage-1 规划完成后立即可发布首屏字段（导语/尾奏/时刻/聚光灯/主题色/情绪基调），不必等全部逐段短语和粒子完成
+	if key != "" {
+		if partial, pErr := sanitizeLyricAnnotations(lines, info.Comments, planJSON); pErr == nil {
+			a.savePartial(key, partial)
+		}
+	}
 
 	chunks := lyricAnnotationChunks(len(lines))
 	results := make([]string, len(chunks))

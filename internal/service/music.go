@@ -163,6 +163,44 @@ var musicSongCache = cache.NewIDCache("music:song", 1000, 4<<20)
 // musicSongTTL 单曲信息的缓存时间
 const musicSongTTL = 7 * 24 * time.Hour
 
+// 单曲的额外翻译线索缓存（网易云 ar[].tns / ar[].alias 与 song.alia / song.tns），仅作歌名/歌手翻译参考，不改变歌单指纹
+var musicSongHintsCache = cache.NewIDCache("music:song_hints", 1000, 4<<20)
+
+type musicSongHints struct {
+	TrackAliases []string   `json:"track_aliases,omitempty"`
+	ArtistHints  [][]string `json:"artist_hints,omitempty"`
+}
+
+func storeSongHints(id int64, aliases []string, artistHints [][]string) {
+	if id <= 0 {
+		return
+	}
+	hasArtistHint := false
+	for _, h := range artistHints {
+		if len(h) > 0 {
+			hasArtistHint = true
+			break
+		}
+	}
+	if len(aliases) == 0 && !hasArtistHint {
+		return
+	}
+	if data, err := json.Marshal(musicSongHints{TrackAliases: aliases, ArtistHints: artistHints}); err == nil {
+		musicSongHintsCache.Put(uint(id), data, musicSongTTL)
+	}
+}
+
+func loadSongHints(id int64) musicSongHints {
+	var hints musicSongHints
+	if id <= 0 {
+		return hints
+	}
+	if data, ok := musicSongHintsCache.Get(uint(id)); ok {
+		_ = json.Unmarshal(data, &hints)
+	}
+	return hints
+}
+
 // ListNCMPlaylists 获取 Cookie 对应账号的歌单，供后台选择博客歌单
 func (s *MusicService) ListNCMPlaylists(ctx context.Context, req *dto.NCMPlaylistsReq) (*dto.NCMPlaylistsDto, *errs.ServiceError) {
 	cfg := tools.GetNCMConfig()
@@ -403,12 +441,10 @@ func storePlaylist(key string, tracks []dto.MusicTrackDto) string {
 func fetchNCMTracks(ctx context.Context, cfg tools.NCMConfig) ([]dto.MusicTrackDto, error) {
 	var result struct {
 		Songs []struct {
-			ID   int64  `json:"id"`
-			Name string `json:"name"`
-			Ar   []struct {
-				Name string `json:"name"`
-			} `json:"ar"`
-			Al struct {
+			ID   int64          `json:"id"`
+			Name string         `json:"name"`
+			Ar   []ncmNamedItem `json:"ar"`
+			Al   struct {
 				Name   string `json:"name"`
 				PicURL string `json:"picUrl"`
 			} `json:"al"`
@@ -438,9 +474,13 @@ func fetchNCMTracks(ctx context.Context, cfg tools.NCMConfig) ([]dto.MusicTrackD
 			continue
 		}
 		artists := make([]string, 0, len(song.Ar))
+		artistHints := make([][]string, 0, len(song.Ar))
 		for _, ar := range song.Ar {
 			artists = append(artists, ar.Name)
+			artistHints = append(artistHints, mergeAliases(ar.Tns, ar.Alias))
 		}
+		trackAliases := mergeAliases(song.Alia, song.Tns)
+		storeSongHints(song.ID, trackAliases, artistHints)
 		id := strconv.FormatInt(song.ID, 10)
 		tracks = append(tracks, dto.MusicTrackDto{
 			ID:       song.ID,
@@ -451,7 +491,7 @@ func fetchNCMTracks(ctx context.Context, cfg tools.NCMConfig) ([]dto.MusicTrackD
 			Audio:    constant.ApiPrefix + "/music/song/" + id + "/audio",
 			Lyric:    constant.ApiPrefix + "/music/song/" + id + "/lyric",
 			Link:     "https://music.163.com/#/song?id=" + id,
-			Aliases:  mergeAliases(song.Alia, song.Tns),
+			Aliases:  trackAliases,
 			Duration: song.Dt,
 		})
 	}
@@ -677,6 +717,7 @@ func (s *MusicService) GetSong(ctx context.Context, id int64) (*dto.MusicSongDto
 
 	item := raw.Songs[0]
 	album, albumPic := item.album()
+	storeSongHints(id, mergeAliases(item.Alia, item.Tns), item.artistHintLists())
 	song := dto.MusicSongDto{
 		ID:       id,
 		Name:     item.Name,
@@ -753,7 +794,9 @@ type ncmSong struct {
 }
 
 type ncmNamedItem struct {
-	Name string `json:"name"`
+	Name  string   `json:"name"`
+	Tns   []string `json:"tns"`
+	Alias []string `json:"alias"`
 }
 
 type ncmAlbum struct {
@@ -771,6 +814,18 @@ func (s ncmSong) artistNames() []string {
 		names = append(names, item.Name)
 	}
 	return names
+}
+
+func (s ncmSong) artistHintLists() [][]string {
+	items := s.Ar
+	if len(items) == 0 {
+		items = s.Artists
+	}
+	hints := make([][]string, 0, len(items))
+	for _, item := range items {
+		hints = append(hints, mergeAliases(item.Tns, item.Alias))
+	}
+	return hints
 }
 
 // duration 时长（毫秒）：新版接口为 dt，旧接口为 duration

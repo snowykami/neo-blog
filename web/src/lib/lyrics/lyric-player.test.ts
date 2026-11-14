@@ -144,7 +144,7 @@ describe('振假名渲染与 HDR 跨行平滑退场', () => {
     strip.cleanup()
   })
 
-  it('跨行退场时 HDR 亮度在 0.4s 内平滑过渡且避让模糊滤镜，结束后清理退场态', () => {
+  it('跨行退场时 HDR 保持静态素材并经由不透明度在 0.4s 内平滑过渡且避让模糊滤镜，结束后清理退场态', () => {
     const ctx = mountPlayer(sampleLyrics, { hdr: true })
     // 第一行正在唱
     ctx.step(1.2, 16)
@@ -152,28 +152,94 @@ describe('振假名渲染与 HDR 跨行平滑退场', () => {
     expect(lines[0].classList.contains('lyric-line--active')).toBe(true)
     expect(lines[0].style.filter).toBe('')
 
-    // 推进到第二行：第一行进入 400ms HDR 退场窗口，filter 保持为空防止白块闪烁
+    // 推进到第二行：第一行进入 400ms HDR 退场窗口，filter 保持为空防止白块闪烁，且不写入逐帧变化的 --lyric-hdr-line
     ctx.step(1.8, 600)
     expect(lines[0].classList.contains('lyric-line--active')).toBe(false)
     expect(lines[0].classList.contains('lyric-line--hdr-exit')).toBe(true)
-    expect(lines[0].style.getPropertyValue('--lyric-hdr-line')).toContain('data:image/png;base64,')
+    expect(lines[0].style.getPropertyValue('--lyric-hdr-line')).toBe('')
     expect(lines[0].style.filter).toBe('')
 
-    // 退场进行到 200ms：词透明度处于中间插值态
+    // 退场进行到 200ms：词透明度处于平滑衰减中间插值态（0.115 ~ 1 之间）
     ctx.step(2.0, 200)
     expect(lines[0].classList.contains('lyric-line--hdr-exit')).toBe(true)
     const mainWord = lines[0].querySelector<HTMLElement>(':scope .lyric-unit > .lyric-word')!
     const midOpacity = Number.parseFloat(mainWord.style.opacity)
-    expect(midOpacity).toBeGreaterThan(0.21)
+    expect(midOpacity).toBeGreaterThan(0.115)
     expect(midOpacity).toBeLessThan(1)
     expect(lines[0].style.filter).toBe('')
 
-    // 超过 400ms 退场结束：移除 .lyric-line--hdr-exit 与 --lyric-hdr-line，恢复景深模糊
+    // 超过 400ms 退场结束：移除 .lyric-line--hdr-exit，清理词 opacity，恢复景深模糊
     ctx.step(2.3, 250)
     expect(lines[0].classList.contains('lyric-line--hdr-exit')).toBe(false)
-    expect(lines[0].style.getPropertyValue('--lyric-hdr-line')).toBe('')
     expect(mainWord.style.opacity).toBe('')
     expect(lines[0].style.filter).toContain('blur(')
+    ctx.cleanup()
+  })
+
+  it('强调特效词在 HDR 跨行退场期间零素材切换（防 WebKit 异步解码闪烁）并由单字 opacity 平滑衰减', () => {
+    const emphasisLyrics: ResolvedLyrics = {
+      source: 'ttml-amll',
+      wordTimed: true,
+      instrumental: false,
+      spotlights: [0],
+      lines: [
+        {
+          words: [
+            { text: '星光', start: 1000, end: 1500 },
+            { text: '璀璨', start: 1500, end: 2000 },
+          ],
+          emphasis: [{ from: 1, to: 2, start: 1500, end: 2000, factor: 1, effect: 'swell', color: 'amber' }],
+          start: 1000,
+          end: 2000,
+          isDuet: false,
+          isBackground: false,
+        },
+        {
+          words: [{ text: '下一句', start: 2100, end: 3000 }],
+          start: 2100,
+          end: 3000,
+          isDuet: false,
+          isBackground: false,
+        },
+      ],
+    }
+
+    const ctx = mountPlayer(emphasisLyrics, { hdr: true })
+    ctx.step(1.8, 16)
+    const line0 = ctx.container.querySelectorAll<HTMLElement>('.lyric-line')[0]
+    const emphasisWord = line0.querySelector<HTMLElement>('.lyric-word--emphasis')!
+    const chars = emphasisWord.querySelectorAll<HTMLElement>('.lyric-char')
+    const activeBg = chars[0].style.backgroundImage
+    expect(activeBg).toContain('data:image/png;base64,')
+    expect(line0.classList.contains('lyric-line--spot')).toBe(true)
+
+    // 切到下一行，逐帧走过退场窗口：单字 backgroundImage 必须与激活态完全一致（零重新解码），外层强调词不建组透明度层
+    ctx.step(2.2, 400)
+    expect(line0.classList.contains('lyric-line--hdr-exit')).toBe(true)
+    expect(line0.classList.contains('lyric-line--spot')).toBe(true)
+    expect(chars[0].style.backgroundImage).toBe(activeBg)
+    expect(emphasisWord.style.opacity).toBe('')
+
+    ctx.step(2.3, 100)
+    expect(chars[0].style.backgroundImage).toBe(activeBg)
+    expect(emphasisWord.style.opacity).toBe('')
+    const charOpacity100 = Number.parseFloat(chars[0].style.opacity)
+    expect(charOpacity100).toBeGreaterThan(0.05)
+    expect(charOpacity100).toBeLessThan(1)
+
+    ctx.step(2.45, 150)
+    expect(chars[0].style.backgroundImage).toBe(activeBg)
+    const charOpacity250 = Number.parseFloat(chars[0].style.opacity)
+    expect(charOpacity250).toBeLessThan(charOpacity100)
+
+    // 退场满 400ms 后彻底卸下 HDR 素材、聚光灯类名与单字 opacity，恢复景深模糊
+    ctx.step(2.7, 200)
+    expect(line0.classList.contains('lyric-line--hdr-exit')).toBe(false)
+    expect(line0.classList.contains('lyric-line--spot')).toBe(false)
+    expect(chars[0].style.backgroundImage).toBe('')
+    expect(chars[0].style.color).toBe('')
+    expect(chars[0].style.opacity).toBe('')
+    expect(line0.style.filter).toContain('blur(')
     ctx.cleanup()
   })
 

@@ -7,10 +7,19 @@ import { EMPTY_LYRICS } from '@/lib/lyrics/types'
 import { MAX_ABNORMAL_AUTO_SKIPS, MAX_MEDIA_SESSION_STORM_SKIPS, MIN_VALID_PLAY_MS, MusicProvider, useMusic } from './music-context'
 
 // 提示文案直接用键名，便于断言
-vi.mock('next-intl', () => ({ useTranslations: () => (key: string) => key }))
+vi.mock('next-intl', () => ({ useLocale: () => 'zh', useTranslations: () => (key: string) => key }))
+vi.mock('@/contexts/site-info-context', () => ({ useSiteInfo: () => ({ siteInfo: {}, setSiteInfo: vi.fn(), isLoaded: true }) }))
 vi.mock('sonner', () => ({ toast: { error: vi.fn() } }))
 
-vi.mock('@/api/music', () => ({ fetchSongAudioURL: vi.fn(() => Promise.resolve('')) }))
+vi.mock('@/api/music', () => ({
+  fetchSongAudioURL: vi.fn(() => Promise.resolve('')),
+  fetchSongHotComment: vi.fn(() => Promise.resolve(null)),
+  fetchSongChorus: vi.fn(() => Promise.resolve(null)),
+  fetchSongTranslationMeta: vi.fn(() => Promise.resolve(null)),
+  fetchLyricSingers: vi.fn(() => Promise.resolve(null)),
+  fetchLyricPronunciations: vi.fn(() => Promise.resolve(null)),
+  fetchLyricTranslations: vi.fn(() => Promise.resolve(null)),
+}))
 vi.mock('@/lib/lyrics/rhythm/source', () => ({ requestRhythm: vi.fn() }))
 vi.mock('./song-lyrics', () => {
   // 与真实实现一样返回稳定的对象（真实实现按依赖缓存），歌词引擎据此判断结果有没有变化

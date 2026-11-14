@@ -2,7 +2,7 @@
 
 import type { LyricSourceKind } from '@/lib/lyrics/resolve'
 import type { LyricSource, ResolvedLyrics } from '@/lib/lyrics/types'
-import { ChevronDownIcon, LoaderCircleIcon, PinIcon, RotateCwIcon, SparklesIcon } from 'lucide-react'
+import { CaseSensitiveIcon, ChevronDownIcon, LanguagesIcon, LoaderCircleIcon, PinIcon, RotateCwIcon, SparklesIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -47,7 +47,7 @@ const AUTO = 'auto'
  */
 export function LyricSourceBadge({ className }: { className?: string }) {
   const t = useTranslations('MusicPage')
-  const { lyrics, lyricStatus, lyricCandidates, lyricKind, lyricSourcesPending, refreshLyrics, lyricAnnotated, lyricAnnotationsGenerating, currentTrack } = useMusic()
+  const { lyrics, lyricStatus, lyricCandidates, lyricKind, lyricSourcesPending, refreshLyrics, lyricAnnotated, lyricAnnotationsGenerating, lyricAiTranslated, lyricTranslationsGenerating, lyricAiRomanized, lyricPronunciationsGenerating, currentTrack } = useMusic()
   const { user } = useAuth()
   const admin = !!user && isAdmin({ user })
   const trackId = currentTrack?.id ?? 0
@@ -85,8 +85,12 @@ export function LyricSourceBadge({ className }: { className?: string }) {
     return [
       lyricSourceLabel(target, t),
       t(target.wordTimed ? 'lyric_badge_word' : 'lyric_badge_line'),
-      target.lines.some(line => line.translation) && t('lyric_badge_translation'),
-      target.lines.some(line => line.romanization) && t('lyric_badge_romanization'),
+      (target.source === lyrics.source && (lyricAiTranslated || lyricTranslationsGenerating))
+        ? t('lyric_badge_ai_translation')
+        : target.lines.some(line => line.translation) && t('lyric_badge_translation'),
+      (target.source === lyrics.source && (lyricAiRomanized || lyricPronunciationsGenerating))
+        ? t('lyric_badge_ai_romanization')
+        : target.lines.some(line => line.romanization) && t('lyric_badge_romanization'),
     ].filter(Boolean).join(' · ')
   }
 
@@ -100,6 +104,18 @@ export function LyricSourceBadge({ className }: { className?: string }) {
         <span title={t(lyricAnnotationsGenerating ? 'lyric_badge_ai_generating' : 'lyric_badge_ai_effects')} className="inline-flex shrink-0">
           <SparklesIcon aria-hidden className={cn('size-3', lyricAnnotationsGenerating && 'motion-safe:animate-pulse')} />
           <span className="sr-only">{t(lyricAnnotationsGenerating ? 'lyric_badge_ai_generating' : 'lyric_badge_ai_effects')}</span>
+        </span>
+      )}
+      {(lyricAiTranslated || lyricTranslationsGenerating) && (
+        <span title={t('lyric_badge_ai_translation')} className="inline-flex shrink-0">
+          <LanguagesIcon aria-hidden className={cn('size-3', lyricTranslationsGenerating && 'motion-safe:animate-pulse')} />
+          <span className="sr-only">{t('lyric_badge_ai_translation')}</span>
+        </span>
+      )}
+      {(lyricAiRomanized || lyricPronunciationsGenerating) && (
+        <span title={t('lyric_badge_ai_romanization')} className="inline-flex shrink-0">
+          <CaseSensitiveIcon aria-hidden className={cn('size-3', lyricPronunciationsGenerating && 'motion-safe:animate-pulse')} />
+          <span className="sr-only">{t('lyric_badge_ai_romanization')}</span>
         </span>
       )}
       {/* 来源标志：网易云、QQ 音乐、AMLL 等各自的标志，统一为与文字相同的单色 */}

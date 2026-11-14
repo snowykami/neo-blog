@@ -13,6 +13,12 @@ export interface MusicLyricsState {
   status: 'loading' | 'ready' | 'none'
   annotated: boolean
   annotationsGenerating: boolean
+  aiTranslated: boolean
+  translationsGenerating: boolean
+  canAiTranslate: boolean
+  aiRomanized: boolean
+  pronunciationsGenerating: boolean
+  canAiPronounce: boolean
 }
 
 export const EMPTY_MUSIC_LYRICS_STATE: MusicLyricsState = {
@@ -25,4 +31,10 @@ export const EMPTY_MUSIC_LYRICS_STATE: MusicLyricsState = {
   status: 'none',
   annotated: false,
   annotationsGenerating: false,
+  aiTranslated: false,
+  translationsGenerating: false,
+  canAiTranslate: false,
+  aiRomanized: false,
+  pronunciationsGenerating: false,
+  canAiPronounce: false,
 }

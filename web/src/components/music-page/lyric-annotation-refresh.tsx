@@ -1,7 +1,7 @@
 'use client'
 
 import { RefreshCwIcon } from 'lucide-react'
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { fetchLyricAnnotations } from '@/api/music'
@@ -9,7 +9,10 @@ import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/auth-context'
 import { refreshAnnotations, useLyricAnnotations } from '@/contexts/lyric-annotations'
+import { refreshSingers } from '@/contexts/lyric-singers'
 import { useMusic } from '@/contexts/music-context'
+import { useSiteInfo } from '@/contexts/site-info-context'
+import { toLyricTargetLang } from '@/lib/lyrics/target-lang'
 import { cn } from '@/lib/utils'
 import { isAdmin } from '@/utils/common/permission'
 
@@ -21,8 +24,11 @@ import { isAdmin } from '@/utils/common/permission'
  */
 export function LyricAnnotationRefresh({ className }: { className?: string }) {
   const t = useTranslations('MusicPage')
+  const locale = useLocale()
+  const targetLang = toLyricTargetLang(locale)
   const { user } = useAuth()
-  const { currentTrack, lyrics, showLyricEffects, lyricIsSiteVersion } = useMusic()
+  const { siteInfo } = useSiteInfo()
+  const { currentTrack, lyrics, showLyricEffects, showTranslation, lyricIsSiteVersion } = useMusic()
   const [refreshing, setRefreshing] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const trackId = currentTrack?.id ?? 0
@@ -32,6 +38,8 @@ export function LyricAnnotationRefresh({ className }: { className?: string }) {
 
   const refresh = async () => {
     setRefreshing(true)
+    if (siteInfo.musicAiEnabled && lyrics.source !== 'none')
+      void refreshSingers(trackId, lyrics.source, showTranslation ? targetLang : '').catch(() => {})
     try {
       await refreshAnnotations(trackId)
       toast.success(t('lyric_ai_refresh_started'))

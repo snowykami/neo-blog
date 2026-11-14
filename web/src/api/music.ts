@@ -1,6 +1,9 @@
+import type { SiteLyricSingers } from '@/lib/lyrics/apply-singers'
 import type { LyricAnnotations } from '@/lib/lyrics/emphasis'
+import type { LyricTargetLang } from '@/lib/lyrics/lyric-language'
+import type { SiteLyricPronunciations } from '@/lib/lyrics/lyric-pronunciation'
 import type { LyricSourceKind } from '@/lib/lyrics/resolve'
-import type { LyricSource } from '@/lib/lyrics/types'
+import type { LyricOutro, LyricSource } from '@/lib/lyrics/types'
 import type { MusicSearchSong, MusicSong, MusicTrack, NCMPlaylists } from '@/models/music'
 import type { BaseResponse } from '@/models/resp'
 import { isAxiosError } from 'axios'
@@ -161,6 +164,55 @@ export async function fetchLyricAnnotations(id: number): Promise<MusicLyricAnnot
 // 管理员手动重新生成一首歌的歌词标注，之后通过 fetchLyricAnnotations 取结果
 export async function refreshLyricAnnotations(id: number): Promise<MusicLyricAnnotations> {
   const res = await axiosClient.post<BaseResponse<MusicLyricAnnotations>>(`/music/song/${id}/lyric/annotations/refresh`)
+  return res.data.data
+}
+
+export interface MusicLyricTranslationLine {
+  text: string
+  occurrence: number
+  bg?: boolean
+  translation: string
+}
+
+export interface MusicLyricTranslations {
+  status: 'ready' | 'pending'
+  stale?: boolean
+  source?: LyricSource | ''
+  targetLang?: string
+  native?: boolean
+  sameLanguage?: boolean
+  lines: MusicLyricTranslationLine[]
+}
+
+// 读取或触发后台生成指定词源与目标语言的 AI 歌词翻译；404 表示当前词源无可翻译歌词
+export async function fetchLyricTranslations(
+  id: number,
+  source: string,
+  lang: string,
+): Promise<MusicLyricTranslations | null> {
+  try {
+    const res = await axiosClient.get<BaseResponse<MusicLyricTranslations>>(`/music/song/${id}/lyric/translations`, {
+      params: { source, lang },
+    })
+    return res.data.data
+  }
+  catch (error) {
+    if (isAxiosError(error) && error.response?.status === 404)
+      return null
+    throw error
+  }
+}
+
+// 管理员手动重新生成指定词源与目标语言的 AI 歌词翻译
+export async function refreshLyricTranslations(
+  id: number,
+  source: string,
+  lang: string,
+): Promise<MusicLyricTranslations> {
+  const res = await axiosClient.post<BaseResponse<MusicLyricTranslations>>(`/music/song/${id}/lyric/translations/refresh`, {
+    source,
+    lang,
+  })
   return res.data.data
 }
 
@@ -429,6 +481,19 @@ export async function fetchSongChorus(id: number): Promise<MusicChorus[]> {
   return res.data.data ?? []
 }
 
+// 歌曲精选网易云热评；404 或无热评时返回 null，供切歌后立即展示尾奏热评
+export async function fetchSongHotComment(id: number): Promise<LyricOutro | null> {
+  try {
+    const res = await axiosClient.get<BaseResponse<LyricOutro | null>>(`/music/song/${id}/hot-comment`)
+    return res.data.data ?? null
+  }
+  catch (error) {
+    if (isAxiosError(error) && error.response?.status === 404)
+      return null
+    throw error
+  }
+}
+
 // 单曲公开信息（任意歌曲），播放仍只限博客歌单内的歌曲
 export async function getMusicSong(id: number): Promise<MusicSong> {
   const res = await axiosClient.get<BaseResponse<MusicSong>>(`/music/song/${id}`)
@@ -451,4 +516,86 @@ export async function listNCMPlaylists(params: { apiBaseUrl: string, cookie: str
 export async function clearMusicTTMLCache(): Promise<void> {
   await axiosClient.post('/music/lyric/ttml-cache/clear')
   clearClientSongLyricsCache()
+}
+
+export interface MusicSongTranslationMeta {
+  status: 'ready' | 'pending'
+  stale?: boolean
+  targetLang: LyricTargetLang | string
+  sameLanguage?: boolean
+  title?: string
+  artists?: string[]
+}
+
+// 获取歌曲标题与歌手的 AI 翻译元数据（404 / 未就绪返回 pending 或 null）
+export async function fetchSongTranslationMeta(id: number, lang: LyricTargetLang): Promise<MusicSongTranslationMeta | null> {
+  try {
+    const res = await axiosClient.get<BaseResponse<MusicSongTranslationMeta>>(`/music/song/${id}/translation-meta`, {
+      params: { lang },
+    })
+    return res.data.data
+  }
+  catch (err) {
+    if (isAxiosError(err) && err.response?.status === 404)
+      return null
+    throw err
+  }
+}
+
+// 重新生成指定目标语言下的曲名与歌手译名（仅管理员）
+export async function refreshSongTranslationMeta(id: number, lang: LyricTargetLang): Promise<MusicSongTranslationMeta> {
+  const res = await axiosClient.post<BaseResponse<MusicSongTranslationMeta>>(`/music/song/${id}/translation-meta/refresh`, {
+    lang,
+  })
+  return res.data.data
+}
+
+// 获取指定歌词源的独立演唱者 / 多声部标注（含目标语言下的歌手译名）
+export async function fetchLyricSingers(id: number, source?: LyricSource, lang?: LyricTargetLang): Promise<SiteLyricSingers | null> {
+  try {
+    const params: Record<string, string> = {}
+    if (source && source !== 'none')
+      params.source = source
+    if (lang)
+      params.lang = lang
+    const res = await axiosClient.get<BaseResponse<SiteLyricSingers>>(`/music/song/${id}/lyric/singers`, { params })
+    return res.data.data
+  }
+  catch (err) {
+    if (isAxiosError(err) && err.response?.status === 404)
+      return null
+    throw err
+  }
+}
+
+// 重新生成指定歌词源的独立演唱者标注与当前语言歌手译名（仅管理员）
+export async function refreshLyricSingers(id: number, source?: LyricSource, lang?: LyricTargetLang): Promise<SiteLyricSingers> {
+  const body: Record<string, string> = {}
+  if (source && source !== 'none')
+    body.source = source
+  if (lang)
+    body.lang = lang
+  const res = await axiosClient.post<BaseResponse<SiteLyricSingers>>(`/music/song/${id}/lyric/singers/refresh`, body)
+  return res.data.data
+}
+
+// 获取指定歌词源的标准读音 / 音译缓存（404 返回 null）
+export async function fetchLyricPronunciations(id: number, source?: LyricSource): Promise<SiteLyricPronunciations | null> {
+  try {
+    const params = source && source !== 'none' ? { source } : undefined
+    const res = await axiosClient.get<BaseResponse<SiteLyricPronunciations>>(`/music/song/${id}/lyric/pronunciations`, { params })
+    return res.data.data
+  }
+  catch (err) {
+    if (isAxiosError(err) && err.response?.status === 404)
+      return null
+    throw err
+  }
+}
+
+// 重新生成指定歌词源的 AI 读音缓存（仅管理员）
+export async function refreshLyricPronunciations(id: number, source?: LyricSource): Promise<SiteLyricPronunciations> {
+  const body = source && source !== 'none' ? { source } : {}
+  const res = await axiosClient.post<BaseResponse<SiteLyricPronunciations>>(`/music/song/${id}/lyric/pronunciations/refresh`, body)
+  return res.data.data
 }

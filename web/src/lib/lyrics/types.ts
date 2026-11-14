@@ -35,12 +35,16 @@ export interface LyricAgent {
   members?: string[]
 }
 
+export type LyricLang = 'zh' | 'zh-tw' | 'zh-hk' | 'en' | 'ja' | 'ko' | 'other'
+
 export interface LyricLine {
   words: LyricWord[]
   // 行的开始时间：经过预处理的「提前起唱」后可能早于第一个词，用于高亮与滚动
   start: number
   end: number
   translation?: string
+  translationLang?: LyricLang
+  translationsByLang?: Partial<Record<LyricLang, string>>
   romanization?: string
   // 逐字音译（与原文的音节对齐，显示在原文下方并随演唱擦除）；对不齐时为空，只显示整行音译
   romanizationWords?: LyricRomanWord[]

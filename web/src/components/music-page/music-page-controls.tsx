@@ -160,7 +160,7 @@ export function MusicPageControls({ onOpenPlaylist, playlistSlot, compact = fals
   const t = useTranslations('MusicPage')
   const playerT = useTranslations('MusicPlayer')
   const { isPlaying, pendingStep, playMode } = useMusicPlayback()
-  const { hasTranslationLyric, hasRomajiLyric } = useMusicLyrics()
+  const { canToggleTranslation, lyricTranslationsGenerating, canToggleRomaji, lyricPronunciationsGenerating } = useMusicLyrics()
   const {
     showTranslation,
     showRomaji,
@@ -205,16 +205,18 @@ export function MusicPageControls({ onOpenPlaylist, playlistSlot, compact = fals
         <div className="flex items-center gap-1 pointer-coarse:gap-1.5">
           <IconButton
             icon={LanguagesIcon}
-            label={hasTranslationLyric ? playerT('show_translation') : playerT('no_extra_lyric')}
-            active={hasTranslationLyric && showTranslation}
-            disabled={!hasTranslationLyric}
+            label={lyricTranslationsGenerating ? playerT('translating_lyric') : canToggleTranslation ? playerT('show_translation') : playerT('no_extra_lyric')}
+            active={canToggleTranslation && showTranslation}
+            disabled={!canToggleTranslation}
+            busy={lyricTranslationsGenerating}
             onClick={() => setShowTranslation(!showTranslation)}
           />
           <IconButton
             icon={CaseSensitiveIcon}
-            label={hasRomajiLyric ? playerT('show_romaji') : playerT('no_extra_lyric')}
-            active={hasRomajiLyric && showRomaji}
-            disabled={!hasRomajiLyric}
+            label={lyricPronunciationsGenerating ? playerT('generating_romaji') : canToggleRomaji ? playerT('show_romaji') : playerT('no_extra_lyric')}
+            active={canToggleRomaji && showRomaji}
+            disabled={!canToggleRomaji}
+            busy={lyricPronunciationsGenerating}
             onClick={() => setShowRomaji(!showRomaji)}
           />
           <IconButton

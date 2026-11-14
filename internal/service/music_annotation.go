@@ -412,6 +412,9 @@ func (a *lyricAnnotationService) get(id int64, lines []string, info lyricAnnotat
 	}
 
 	if running {
+		if partial := a.loadPartial(key, lines); partial != nil {
+			return partial, nil
+		}
 		return &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusPending, Lines: []dto.MusicLyricAnnotationLine{}}, nil
 	}
 	if coolingDown {
@@ -447,6 +450,44 @@ func (a *lyricAnnotationService) prefix() string {
 
 func (a *lyricAnnotationService) stateKeys(key string) (job, failed string) {
 	return a.prefix() + ":job:" + key, a.prefix() + ":failed:" + key
+}
+
+func (a *lyricAnnotationService) partialKey(key string) string {
+	return a.prefix() + ":partial:" + key
+}
+
+func (a *lyricAnnotationService) savePartial(key string, data lyricAnnotationData) {
+	if key == "" {
+		return
+	}
+	if err := sharedstate.SetJSON(a.partialKey(key), data, lyricAnnotationTimeout+time.Minute); err != nil {
+		logrus.Warnf("save partial lyric annotation %s: %v", key, err)
+	}
+}
+
+func (a *lyricAnnotationService) loadPartial(key string, lines []string) *dto.MusicLyricAnnotationsDto {
+	if key == "" {
+		return nil
+	}
+	var data lyricAnnotationData
+	found, err := sharedstate.GetJSON(a.partialKey(key), &data)
+	if err != nil || !found {
+		return nil
+	}
+	if data.Lines == nil {
+		data.Lines = []dto.MusicLyricAnnotationLine{}
+	}
+	return &dto.MusicLyricAnnotationsDto{
+		Status:     lyricAnnotationStatusPending,
+		Font:       data.Font,
+		Intro:      data.Intro,
+		Outro:      data.Outro,
+		Moments:    data.Moments,
+		Spotlights: data.spotlightsFor(lines),
+		Accent:     data.Accent,
+		Lines:      data.Lines,
+		Singers:    data.Singers,
+	}
 }
 
 // jobState 这份歌词文本是否正在生成标注（包括在其他实例上）、是否在失败后的冷却期内
@@ -495,25 +536,54 @@ func (a *lyricAnnotationService) execute(lease *sharedstate.Lease, key string, i
 				logrus.Warnf("save lyric annotation failure %s: %v", key, setErr)
 			}
 		}
+		_ = sharedstate.Current().Delete(a.partialKey(key))
 		lease.Release()
 		if a.done != nil {
 			a.done()
 		}
 	}()
 
-	// 热评与副歌片段只在生成时拉取；每次模型调用各自排队等待并发名额（见 generate）
+	// 热评、副歌与借长音并行拉取，互相不阻塞；每次模型调用各自排队等待并发名额（见 generateWithPartial）
 	ctx, cancel := context.WithTimeout(context.Background(), lyricAnnotationTimeout)
 	defer cancel()
+	var (
+		wg        sync.WaitGroup
+		comments  []lyricAnnotationComment
+		chorus    []dto.MusicChorusDto
+		wordTimed string
+	)
 	if a.hotComments != nil {
-		info.Comments = a.hotComments(ctx, id)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			comments = a.hotComments(ctx, id)
+		}()
 	}
 	if a.chorus != nil {
-		info.Chorus = chorusLineRanges(info.Timed, a.chorus(ctx, id))
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			chorus = a.chorus(ctx, id)
+		}()
 	}
 	if a.wordTimed != nil && !info.WordTimed {
-		info.Timed = borrowHeldNotes(info.Timed, a.wordTimed(ctx, id))
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			wordTimed = a.wordTimed(ctx, id)
+		}()
 	}
-	raw, err := a.generate(id, cfg, info, lines)
+	wg.Wait()
+	if a.hotComments != nil {
+		info.Comments = comments
+	}
+	if a.chorus != nil {
+		info.Chorus = chorusLineRanges(info.Timed, chorus)
+	}
+	if a.wordTimed != nil && !info.WordTimed {
+		info.Timed = borrowHeldNotes(info.Timed, wordTimed)
+	}
+	raw, err := a.generateWithPartial(key, id, cfg, info, lines)
 	if err != nil {
 		logrus.Warnf("lyric annotation failed for song %d: %v", id, err)
 		return err

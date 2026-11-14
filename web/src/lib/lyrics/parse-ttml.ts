@@ -1,7 +1,8 @@
 import type { SharedRubyMark, TtmlWordDraft } from './ttml-ruby'
-import type { LyricAgent, LyricAlign, LyricColor, LyricLine, LyricSource, ResolvedLyrics } from './types'
+import type { LyricAgent, LyricAlign, LyricColor, LyricLang, LyricLine, LyricSource, ResolvedLyrics } from './types'
 import { nearestLyricColor, parseHexColor } from './colors'
 import { getBackgroundOwnerMap } from './line-utils'
+import { normalizeLyricLangTag } from './lyric-language'
 import { preprocessLyricLines } from './preprocess'
 import { romanWordsFromSpans } from './romanization'
 import { applySharedRubyGroups, parseTtmlRubyContainer, retimePlaceholderWords, spreadRubyTexts } from './ttml-ruby'
@@ -580,21 +581,45 @@ function buildAgentResolver(doc: Document, starryExt?: StarryExtensions): {
 interface KeyedTranslation {
   main?: string
   bg?: string
+  defaultLang?: LyricLang
+  mainByLang?: Partial<Record<LyricLang, string>>
+  bgByLang?: Partial<Record<LyricLang, string>>
 }
 
-/** head 中按 itunes:key 提供的翻译（Apple Music 格式），分别提取主行与 x-bg 背景人声翻译 */
+/** head 中按 itunes:key 提供的翻译（Apple Music 格式），分别提取主行与 x-bg 背景人声翻译及多语种映射 */
 function readKeyedTexts(doc: Document, container: string): Map<string, KeyedTranslation> {
   const texts = new Map<string, KeyedTranslation>()
   for (const block of childElements(doc.documentElement, container)) {
+    const blockLang = normalizeLyricLangTag(attr(block, 'lang'))
     for (const text of childElements(block, 'text')) {
       const key = attr(text, 'for')
-      if (!key || texts.has(key))
+      if (!key)
         continue
+      const parentEl = text.parentElement
+      const parentLang = parentEl && (parentEl.localName ?? parentEl.tagName).split(':').pop() === 'translation'
+        ? normalizeLyricLangTag(attr(parentEl, 'lang'))
+        : null
+      const lang = normalizeLyricLangTag(attr(text, 'lang')) ?? parentLang ?? blockLang
       const main = extractBaseText(text).replace(/\s+/g, ' ').trim() || undefined
       const bgEl = childElements(text, 'span').find(el => attr(el, 'role') === 'x-bg')
       const bg = bgEl?.textContent?.replace(/\s+/g, ' ').trim() || undefined
-      if (main || bg)
-        texts.set(key, { main, bg })
+      if (!main && !bg)
+        continue
+      let entry = texts.get(key)
+      if (!entry) {
+        entry = { main, bg, ...(lang ? { defaultLang: lang } : {}) }
+        texts.set(key, entry)
+      }
+      if (lang) {
+        if (main) {
+          entry.mainByLang ??= {}
+          entry.mainByLang[lang] ??= main
+        }
+        if (bg) {
+          entry.bgByLang ??= {}
+          entry.bgByLang[lang] ??= bg
+        }
+      }
     }
   }
   return texts
@@ -677,6 +702,8 @@ interface ParsedLineContent {
   spanStart?: number | null
   spanEnd?: number | null
   translation?: string
+  translationLang?: LyricLang
+  translationsByLang?: Partial<Record<LyricLang, string>>
   romanization?: string
   romanizationSpans?: KeyedRomanization['spans']
   agent?: string | null
@@ -767,7 +794,18 @@ function readLineContent(el: Element): ParsedLineContent {
       continue
     const role = attr(child, 'role')
     if (role === 'x-translation') {
-      content.translation ??= child.textContent?.replace(/\s+/g, ' ').trim() || undefined
+      const text = child.textContent?.replace(/\s+/g, ' ').trim() || undefined
+      const lang = normalizeLyricLangTag(attr(child, 'lang')) ?? undefined
+      if (text) {
+        if (!content.translation) {
+          content.translation = text
+          content.translationLang ??= lang
+        }
+        if (lang) {
+          content.translationsByLang ??= {}
+          content.translationsByLang[lang] ??= text
+        }
+      }
       continue
     }
     if (role === 'x-roman') {
@@ -872,6 +910,8 @@ function toLine(
     start: expandToSpan ? Math.min(start, wordStart) : wordStart,
     end: expandToSpan ? Math.max(end, wordEnd) : wordEnd,
     translation: content.translation,
+    ...(content.translationLang ? { translationLang: content.translationLang } : {}),
+    ...(content.translationsByLang ? { translationsByLang: content.translationsByLang } : {}),
     romanization: content.romanization,
     romanizationWords: content.romanizationSpans?.length ? romanWordsFromSpans(content.romanizationSpans, words) ?? undefined : undefined,
     isDuet: align === 'right',
@@ -922,9 +962,20 @@ export function parseTtml(text: string, source: Extract<LyricSource, 'ttml-custo
     if (key) {
       const tr = translations.get(key)
       if (tr) {
-        content.translation ??= tr.main
-        if (content.background && (tr.bg ?? tr.main))
-          content.background.translation ??= tr.bg
+        if (!content.translation && tr.main) {
+          content.translation = tr.main
+          content.translationLang ??= tr.defaultLang
+        }
+        if (tr.mainByLang)
+          content.translationsByLang = { ...tr.mainByLang, ...content.translationsByLang }
+        if (content.background) {
+          if (!content.background.translation && tr.bg) {
+            content.background.translation = tr.bg
+            content.background.translationLang ??= tr.defaultLang
+          }
+          if (tr.bgByLang)
+            content.background.translationsByLang = { ...tr.bgByLang, ...content.background.translationsByLang }
+        }
       }
       const romanization = transliterations.get(key)
       if (romanization) {
@@ -947,6 +998,9 @@ export function parseTtml(text: string, source: Extract<LyricSource, 'ttml-custo
       content.spanStart = promotedBg.spanStart
       content.spanEnd = promotedBg.spanEnd
       content.translation = promotedBg.translation ?? content.translation
+      content.translationLang = promotedBg.translationLang ?? content.translationLang
+      if (promotedBg.translationsByLang || content.translationsByLang)
+        content.translationsByLang = { ...content.translationsByLang, ...promotedBg.translationsByLang }
       if (promotedBg.romanization) {
         content.romanization = promotedBg.romanization
         content.romanizationSpans = promotedBg.romanizationSpans

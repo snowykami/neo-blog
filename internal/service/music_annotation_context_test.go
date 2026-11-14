@@ -1,11 +1,17 @@
 package service
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/internal/repo"
+	"github.com/snowykami/neo-blog/internal/tools"
 )
 
 func TestLyricHeadStart(t *testing.T) {
@@ -197,5 +203,51 @@ func TestBorrowHeldNotes(t *testing.T) {
 	}
 	if got := borrowHeldNotes(lines, ""); !reflect.DeepEqual(got, lines) {
 		t.Error("no word-timed lyric: unchanged")
+	}
+}
+
+func TestGetSongHotCommentWhitelistAndCache(t *testing.T) {
+	setupMusicTranslationEnv(t, []dto.MusicTrackDto{{ID: 901, Name: "Permitted"}})
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if strings.HasPrefix(r.URL.Path, "/comment/hot") {
+			hits.Add(1)
+			_, _ = w.Write([]byte(`{"code":200,"hotComments":[{"content":"哈哈哈前排","likedCount":9999},{"content":"这首歌陪我度过无数深夜，温柔又坚定","likedCount":500},{"content":"风吹过盛夏的街道，想起那年的约定","likedCount":800}]}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"code":200}`))
+	}))
+	defer srv.Close()
+	if err := repo.KV.SetKV("ncm_api_base_url", srv.URL); err != nil {
+		t.Fatalf("set ncm url: %v", err)
+	}
+	cfg := tools.GetNCMConfig()
+	storePlaylist(cfg.BaseURL+"\n"+cfg.Cookie+"\n12345", []dto.MusicTrackDto{{ID: 901, Name: "Permitted"}})
+	// 清空可能残留的进程内热评缓存
+	musicHotCommentCache.Lock()
+	clear(musicHotCommentCache.items)
+	musicHotCommentCache.Unlock()
+
+	s := NewMusicService()
+	ctx := context.Background()
+
+	// 非白名单歌曲拒绝访问且不请求上游
+	if _, svcerr := s.GetSongHotComment(ctx, 902); svcerr == nil || svcerr.Code != http.StatusNotFound || hits.Load() != 0 {
+		t.Fatalf("non-whitelisted song should return 404 without upstream call: err=%v hits=%d", svcerr, hits.Load())
+	}
+
+	// 白名单歌曲命中过滤排序后的最高赞热评，二次读取命中缓存
+	got, svcerr := s.GetSongHotComment(ctx, 901)
+	if svcerr != nil || got == nil || got.Liked != 800 || !strings.Contains(got.Content, "盛夏") {
+		t.Fatalf("unexpected hot comment: %+v, err=%v", got, svcerr)
+	}
+	got2, svcerr := s.GetSongHotComment(ctx, 901)
+	if svcerr != nil || got2 == nil || got2.Liked != 800 {
+		t.Fatalf("second get = %+v, err=%v", got2, svcerr)
+	}
+	// 与批注预取复用同一份缓存
+	if list := fetchNCMHotComments(ctx, 901); len(list) != 2 || hits.Load() != 1 {
+		t.Fatalf("expected 1 upstream call and 2 picked comments, got hits=%d list=%+v", hits.Load(), list)
 	}
 }

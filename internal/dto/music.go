@@ -401,3 +401,135 @@ type MusicLyricAnnotationBatchStatus struct {
 	Interrupted     bool                            `json:"interrupted,omitempty"`
 	Canceling       bool                            `json:"canceling,omitempty"`
 }
+
+// MusicLyricTranslationsReq 获取一首歌指定歌词来源与目标语言的 AI 歌词翻译：source 为空时取全站歌词版本
+type MusicLyricTranslationsReq struct {
+	Source string `query:"source"`
+	Lang   string `query:"lang"`
+}
+
+// MusicLyricTranslationRefreshReq 管理员强制重新翻译指定歌词来源与目标语言
+type MusicLyricTranslationRefreshReq struct {
+	Source string `json:"source"`
+	Lang   string `json:"lang"`
+}
+
+// MusicLyricTranslationLine 单行 AI 歌词翻译：按完整原词、同轨第 occurrence 次出现与是否背景人声对齐前端歌词行
+type MusicLyricTranslationLine struct {
+	Text        string `json:"text"`
+	Occurrence  int    `json:"occurrence"`
+	Bg          bool   `json:"bg,omitempty"`
+	Translation string `json:"translation"`
+}
+
+// MusicLyricTranslationsDto AI 歌词翻译结果：status 为 ready 或 pending；native 为歌词源已包含目标语言原生翻译，
+// same_language 为原词已是目标语言或模型判定全曲无需额外翻译
+type MusicLyricTranslationsDto struct {
+	Status       string                      `json:"status"`
+	Stale        bool                        `json:"stale,omitempty"`
+	Source       string                      `json:"source,omitempty"`
+	TargetLang   string                      `json:"target_lang,omitempty"`
+	Native       bool                        `json:"native,omitempty"`
+	SameLanguage bool                        `json:"same_language,omitempty"`
+	Lines        []MusicLyricTranslationLine `json:"lines"`
+}
+
+// MusicSongTranslationReq 获取一首歌歌名与歌手名的 AI 翻译
+type MusicSongTranslationReq struct {
+	Lang string `query:"lang"`
+}
+
+// MusicSongTranslationRefreshReq 管理员强制重新生成指定语言的歌名与歌手翻译
+type MusicSongTranslationRefreshReq struct {
+	Lang string `json:"lang"`
+}
+
+// MusicSongTranslationDto 歌曲标题与歌手名的多语言翻译结果（Title / Artists 按需为空字符串表示无需或保持原名）
+type MusicSongTranslationDto struct {
+	Status       string   `json:"status"`
+	Stale        bool     `json:"stale,omitempty"`
+	TargetLang   string   `json:"target_lang"`
+	SameLanguage bool     `json:"same_language,omitempty"`
+	Title        string   `json:"title,omitempty"`
+	Artists      []string `json:"artists,omitempty"`
+}
+
+// MusicLyricSingersReq 获取一首歌指定词源与目标语言的独立歌手分配：source 为空时取全站歌词版本
+type MusicLyricSingersReq struct {
+	Source string `query:"source"`
+	Lang   string `query:"lang"`
+}
+
+// MusicLyricSingersRefreshReq 管理员强制重新生成指定词源与目标语言的歌手分配与译名
+type MusicLyricSingersRefreshReq struct {
+	Source string `json:"source"`
+	Lang   string `json:"lang"`
+}
+
+// LyricSingerItem 一位演唱者或合唱组的基本信息
+type LyricSingerItem struct {
+	ID      string   `json:"id"`
+	Name    string   `json:"name"`
+	Role    string   `json:"role,omitempty"` // "person" | "group"
+	Color   string   `json:"color,omitempty"`
+	Align   string   `json:"align,omitempty"` // "left" | "right" | "center"
+	Members []string `json:"members,omitempty"`
+}
+
+// LyricSingerLine 单行演唱者归属（按原文、同轨第 occurrence 次出现与是否背景人声对齐）
+type LyricSingerLine struct {
+	Text       string `json:"text"`
+	Occurrence int    `json:"occurrence"`
+	Bg         bool   `json:"bg,omitempty"`
+	Agent      string `json:"agent"`
+}
+
+// LyricSingerData 保存在数据库中的歌词多声部结构（Empty 为 true 表示独唱或无需标注）
+type LyricSingerData struct {
+	Empty   bool              `json:"empty,omitempty"`
+	Singers []LyricSingerItem `json:"singers,omitempty"`
+	Lines   []LyricSingerLine `json:"lines,omitempty"`
+}
+
+// MusicLyricSingersDto 独立接口返回的歌词歌手分配及当前语言下的译名映射
+type MusicLyricSingersDto struct {
+	Status             string            `json:"status"`
+	Stale              bool              `json:"stale,omitempty"`
+	TranslationPending bool              `json:"translation_pending,omitempty"`
+	Source             string            `json:"source,omitempty"`
+	Singers            []LyricSingerItem `json:"singers"`
+	TranslatedNames    map[string]string `json:"translated_names,omitempty"`
+	Lines              []LyricSingerLine `json:"lines"`
+}
+
+// MusicLyricPronunciationsReq 获取一首歌指定词源的 AI 歌词读音：source 为空时取全站歌词版本
+type MusicLyricPronunciationsReq struct {
+	Source string `query:"source"`
+}
+
+// MusicLyricPronunciationsRefreshReq 管理员强制重新生成指定词源的 AI 歌词读音
+type MusicLyricPronunciationsRefreshReq struct {
+	Source string `json:"source"`
+}
+
+// MusicLyricPronunciationLine 单行歌词读音：按完整原词、同轨第 occurrence 次出现与是否背景人声对齐；
+// Tokens 在逐字歌词上与可发音词元一一对应（与歌词行中每个含字母/数字的词对齐）
+type MusicLyricPronunciationLine struct {
+	Text          string   `json:"text"`
+	Occurrence    int      `json:"occurrence"`
+	Bg            bool     `json:"bg,omitempty"`
+	Lang          string   `json:"lang"`
+	Pronunciation string   `json:"pronunciation"`
+	Tokens        []string `json:"tokens,omitempty"`
+}
+
+// MusicLyricPronunciationsDto AI 歌词读音结果：Partial 为分块生成中的首屏部分结果，CompleteUpstream 表示原歌词已完整自带音译
+type MusicLyricPronunciationsDto struct {
+	Status           string                        `json:"status"`
+	Stale            bool                          `json:"stale,omitempty"`
+	Partial          bool                          `json:"partial,omitempty"`
+	CompleteUpstream bool                          `json:"complete_upstream,omitempty"`
+	Source           string                        `json:"source,omitempty"`
+	Lang             string                        `json:"lang,omitempty"`
+	Lines            []MusicLyricPronunciationLine `json:"lines"`
+}

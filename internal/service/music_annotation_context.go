@@ -10,10 +10,14 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 	"unicode/utf8"
 
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/tools"
+	"github.com/snowykami/neo-blog/pkg/errs"
+	"golang.org/x/sync/singleflight"
 )
 
 // 歌词标注的上下文（见 docs/music-player-spec.md 7.2b）：除歌词原文外，再给模型歌曲信息、逐行中文翻译与网易云热评，
@@ -267,29 +271,128 @@ func lyricTranslationSource(lyric *dto.MusicLyricDto, wordTimed bool) string {
 	return ""
 }
 
-// fetchNCMHotComments 网易云热评（按点赞数取前几条），只在生成标注时调用；未配置 API 或请求失败时返回 nil
+const (
+	musicHotCommentCacheTTL    = time.Hour
+	musicHotCommentEmptyTTL    = 5 * time.Minute
+	musicHotCommentMaxCached   = 512
+	musicHotCommentFetchWindow = 10 * time.Second
+)
+
+type cachedHotComments struct {
+	baseURL   string
+	comments  []lyricAnnotationComment
+	fetchedAt time.Time
+}
+
+var (
+	musicHotCommentCache = struct {
+		sync.Mutex
+		items map[int64]cachedHotComments
+	}{items: map[int64]cachedHotComments{}}
+	musicHotCommentGroup singleflight.Group
+)
+
+func hotCommentEntryFresh(entry cachedHotComments, baseURL string, now time.Time) bool {
+	if entry.baseURL != baseURL {
+		return false
+	}
+	ttl := musicHotCommentCacheTTL
+	if len(entry.comments) == 0 {
+		ttl = musicHotCommentEmptyTTL
+	}
+	return now.Sub(entry.fetchedAt) < ttl
+}
+
+func getCachedHotComments(id int64, baseURL string) ([]lyricAnnotationComment, bool) {
+	now := time.Now()
+	musicHotCommentCache.Lock()
+	defer musicHotCommentCache.Unlock()
+	entry, ok := musicHotCommentCache.items[id]
+	if !ok || !hotCommentEntryFresh(entry, baseURL, now) {
+		return nil, false
+	}
+	return slices.Clone(entry.comments), true
+}
+
+func setCachedHotComments(id int64, baseURL string, comments []lyricAnnotationComment) {
+	now := time.Now()
+	musicHotCommentCache.Lock()
+	defer musicHotCommentCache.Unlock()
+	if len(musicHotCommentCache.items) >= musicHotCommentMaxCached {
+		for k, v := range musicHotCommentCache.items {
+			if !hotCommentEntryFresh(v, v.baseURL, now) {
+				delete(musicHotCommentCache.items, k)
+			}
+		}
+		if len(musicHotCommentCache.items) >= musicHotCommentMaxCached {
+			clear(musicHotCommentCache.items)
+		}
+	}
+	musicHotCommentCache.items[id] = cachedHotComments{
+		baseURL:   baseURL,
+		comments:  slices.Clone(comments),
+		fetchedAt: now,
+	}
+}
+
+// GetSongHotComment 独立读取网易云精选热评（按点赞排序并过滤灌水/广告后的第一条）；
+// 仅对歌单或公开文章/页面引用的歌曲开放，供切歌时首屏立即显示，不等待歌词特效与 AI 生成。
+func (s *MusicService) GetSongHotComment(ctx context.Context, id int64) (*dto.MusicLyricAnnotationComment, *errs.ServiceError) {
+	if !(id > 0 && s.songPublic(ctx, id)) {
+		return nil, errs.NewNotFound("music_song_not_found")
+	}
+	comments := fetchNCMHotComments(ctx, id)
+	if len(comments) == 0 {
+		return nil, nil
+	}
+	return &dto.MusicLyricAnnotationComment{
+		Content: comments[0].Content,
+		Liked:   comments[0].Liked,
+	}, nil
+}
+
+// fetchNCMHotComments 网易云热评（按点赞数取前几条），带进程内缓存与 singleflight 合并，未配置 API 或请求失败时返回 nil
 func fetchNCMHotComments(ctx context.Context, id int64) []lyricAnnotationComment {
 	cfg := tools.GetNCMConfig()
-	if !validMusicAPIBaseURL(cfg.BaseURL) {
+	if !(id > 0 && validMusicAPIBaseURL(cfg.BaseURL)) {
 		return nil
 	}
-	var raw struct {
-		HotComments []struct {
-			Content    string `json:"content"`
-			LikedCount int64  `json:"likedCount"`
-		} `json:"hotComments"`
+	if cached, ok := getCachedHotComments(id, cfg.BaseURL); ok {
+		return cached
 	}
-	// 多取一些：过滤掉灌水与广告后仍有足够的评论给模型挑
-	params := url.Values{"id": {strconv.FormatInt(id, 10)}, "type": {"0"}, "limit": {"50"}}
-	// 热评不需要登录，不携带 Cookie
-	if err := ncmGet(ctx, tools.NCMConfig{BaseURL: cfg.BaseURL}, "/comment/hot", params, &raw); err != nil {
+	key := cfg.BaseURL + ":" + strconv.FormatInt(id, 10)
+	value, err, _ := musicHotCommentGroup.Do(key, func() (any, error) {
+		if cached, ok := getCachedHotComments(id, cfg.BaseURL); ok {
+			return cached, nil
+		}
+		var raw struct {
+			HotComments []struct {
+				Content    string `json:"content"`
+				LikedCount int64  `json:"likedCount"`
+			} `json:"hotComments"`
+		}
+		// 多取一些：过滤掉灌水与广告后仍有足够的评论给模型挑
+		params := url.Values{"id": {strconv.FormatInt(id, 10)}, "type": {"0"}, "limit": {"50"}}
+		// 独立超时 + WithoutCancel：避免单个前台请求取消连带中止正在等待的后台 AI 任务
+		fetchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), musicHotCommentFetchWindow)
+		defer cancel()
+		// 热评不需要登录，不携带 Cookie
+		if err := ncmGet(fetchCtx, tools.NCMConfig{BaseURL: cfg.BaseURL}, "/comment/hot", params, &raw); err != nil {
+			return nil, err
+		}
+		comments := make([]lyricAnnotationComment, 0, len(raw.HotComments))
+		for _, item := range raw.HotComments {
+			comments = append(comments, lyricAnnotationComment{Content: item.Content, Liked: item.LikedCount})
+		}
+		picked := pickHotComments(comments)
+		setCachedHotComments(id, cfg.BaseURL, picked)
+		return picked, nil
+	})
+	if err != nil {
 		return nil
 	}
-	comments := make([]lyricAnnotationComment, 0, len(raw.HotComments))
-	for _, item := range raw.HotComments {
-		comments = append(comments, lyricAnnotationComment{Content: item.Content, Liked: item.LikedCount})
-	}
-	return pickHotComments(comments)
+	picked, _ := value.([]lyricAnnotationComment)
+	return slices.Clone(picked)
 }
 
 // pickHotComments 按点赞数从高到低取前几条：合并空白、截断过长的评论，过滤灌水与广告（见 isLowQualityComment）

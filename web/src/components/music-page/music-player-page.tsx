@@ -11,14 +11,18 @@ import { VisitReporter } from '@/components/common/visit-reporter'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/contexts/auth-context'
-import { useMusicActions, useMusicPlayback } from '@/contexts/music-context'
+import { useMusicActions, useMusicPlayback, useMusicPreferences } from '@/contexts/music-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
+import { useCachedSongMetaTranslation } from '@/contexts/song-meta-translations'
 import { useRouter } from '@/i18n/navigation'
+import { formatDisplayArtists, formatTitleAliases } from '@/lib/lyrics/song-meta-format'
 import { cn } from '@/lib/utils'
 import { isAdmin } from '@/utils/common/permission'
 import { LyricAnnotationRefresh } from './lyric-annotation-refresh'
 import { LyricOffsetControl } from './lyric-offset-control'
+import { LyricPronunciationRefresh } from './lyric-pronunciation-refresh'
 import { LyricSourceBadge } from './lyric-source-badge'
+import { LyricTranslationRefresh } from './lyric-translation-refresh'
 import { MusicBackground } from './music-background'
 import { MusicLyricMoments } from './music-lyric-moments'
 import { MusicLyricStage } from './music-lyric-stage'
@@ -39,6 +43,10 @@ const PAGE_STYLE = { '--primary': 'oklch(0.97 0 0)', '--primary-foreground': 'ok
 function TrackHero({ track, playing, onCoverClick, className }: { track: MusicTrack, playing: boolean, onCoverClick: () => void, className?: string }) {
   const t = useTranslations('MusicPage')
   const { user } = useAuth()
+  const { showTranslation } = useMusicPreferences()
+  const meta = useCachedSongMetaTranslation(track.id)
+  const titleExtra = formatTitleAliases(track.name, track.aliases, meta?.title, showTranslation)
+  const displayArtists = formatDisplayArtists(track.artists, meta?.artists, showTranslation)
   // 歌词来源、重新生成 AI 歌词特效与整体偏移都是站长的工具：读者只看全站版本，不显示这些按钮
   const admin = !!user && isAdmin({ user })
   return (
@@ -60,16 +68,18 @@ function TrackHero({ track, playing, onCoverClick, className }: { track: MusicTr
         <div role="heading" aria-level={1} className="min-w-0">
           <MarqueeText key={`name-${track.id}`} className="text-2xl font-bold text-white">
             {track.name}
-            {track.aliases.length > 0 && <span className="ml-2 text-lg font-medium text-white/50">{`(${track.aliases.join(', ')})`}</span>}
+            {titleExtra && <span className="ml-2 text-lg font-medium text-white/50">{`(${titleExtra})`}</span>}
           </MarqueeText>
         </div>
         <MarqueeText key={`artist-${track.id}`} className="text-base text-white/65">
-          {[track.artists.join(' / '), track.album].filter(Boolean).join(' · ')}
+          {[displayArtists.join(' / '), track.album].filter(Boolean).join(' · ')}
         </MarqueeText>
         {admin && (
           <div className="mt-1 flex items-center gap-1.5 justify-self-center lg:justify-self-start">
             <LyricSourceBadge />
             <LyricAnnotationRefresh />
+            <LyricTranslationRefresh />
+            <LyricPronunciationRefresh />
             <LyricOffsetControl />
           </div>
         )}

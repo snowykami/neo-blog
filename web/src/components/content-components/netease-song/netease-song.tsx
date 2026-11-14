@@ -5,8 +5,10 @@ import { useTranslations } from 'next-intl'
 import dynamic from 'next/dynamic'
 import { getMusicSong } from '@/api/music'
 import { prefetchMusicPlayer } from '@/components/music-page/prefetch-music-player'
-import { useCurrentLyric, useMusicActions, useMusicClock, useMusicPlayback } from '@/contexts/music-context'
+import { useCurrentLyric, useMusicActions, useMusicClock, useMusicPlayback, useMusicPreferences } from '@/contexts/music-context'
+import { useCachedSongMetaTranslation } from '@/contexts/song-meta-translations'
 import { LYRIC_PLACEHOLDERS } from '@/lib/lyrics/line-utils'
+import { formatDisplayArtists, formatInlineSongTitle } from '@/lib/lyrics/song-meta-format'
 import { songToTrack } from '@/models/music'
 import { useCachedRequest } from '../use-cached-request'
 import { useComponentHeight } from '../use-component-height'
@@ -30,12 +32,23 @@ const MusicLyricStage = dynamic(() => import('@/components/music-page/music-lyri
 function NeteaseSongCard({ id }: { id: number }) {
   const t = useTranslations('ContentComponents.neteaseSong')
   const { playlist, currentTrack, isPlaying, duration } = useMusicPlayback()
+  const { showTranslation } = useMusicPreferences()
   const { playTrack, playSong, togglePlay, seek } = useMusicActions()
   const index = playlist.findIndex(track => track.id === id)
   const track = index >= 0 ? playlist[index] : null
   // 歌单内的歌曲直接使用歌单数据，否则请求单曲公开信息
   const state = useCachedRequest(track ? null : `ncm-song:${id}`, () => getMusicSong(id))
   const song = track ?? (state.status === 'success' ? state.data : null)
+  const meta = useCachedSongMetaTranslation(song?.id ?? null)
+  const displayTitle = song
+    ? formatInlineSongTitle(
+        song.name,
+        'aliases' in song && Array.isArray(song.aliases) ? song.aliases : [],
+        meta?.title,
+        showTranslation,
+      )
+    : undefined
+  const displayArtists = song ? formatDisplayArtists(song.artists, meta?.artists, showTranslation) : []
   const link = song?.link || `https://music.163.com/#/song?id=${id}`
   // 不在歌单内的歌曲由后端判断能否在站内播放
   const fetched = !track && state.status === 'success' ? state.data : null
@@ -55,7 +68,7 @@ function NeteaseSongCard({ id }: { id: number }) {
     ? state.status === 'error' && <p className="text-sm text-muted-foreground">{t('load_failed')}</p>
     : showLyric
       ? <MusicLyricStage strip themed className="-mx-2.5 h-5 min-w-0 text-sm" />
-      : <p className="truncate text-sm text-muted-foreground">{[song.artists.join(' / '), song.album].filter(Boolean).join(' · ')}</p>
+      : <p className="truncate text-sm text-muted-foreground">{[displayArtists.join(' / '), song.album].filter(Boolean).join(' · ')}</p>
 
   // 指针移到播放键上就先取回播放器与歌词引擎的代码块，点下去不用等下载
   const action = (
@@ -71,7 +84,7 @@ function NeteaseSongCard({ id }: { id: number }) {
   return (
     <MusicCardView
       cover={song?.albumPic}
-      title={song?.name}
+      title={displayTitle}
       href={link}
       subtitle={subtitle}
       action={action}

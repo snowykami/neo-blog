@@ -274,6 +274,126 @@ func (m *musicType) RefreshLyricAnnotations(ctx context.Context, c *app.RequestC
 	resps.Ok(c, resps.Success, result)
 }
 
+// SongLyricTranslations 歌词多语言 AI 翻译（按词源与目标语言缓存，生成中返回 status=pending）
+func (m *musicType) SongLyricTranslations(ctx context.Context, c *app.RequestContext) {
+	var req dto.MusicLyricTranslationsReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	result, svcerr := m.service.GetLyricTranslations(ctx, ctxutils.GetIDParam(c).Int64, req.Source, req.Lang)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, result)
+}
+
+// RefreshLyricTranslations 管理员手动重新生成一首歌指定词源和目标语言的歌词翻译
+func (m *musicType) RefreshLyricTranslations(ctx context.Context, c *app.RequestContext) {
+	var req dto.MusicLyricTranslationRefreshReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	result, svcerr := m.service.RefreshLyricTranslations(ctx, ctxutils.GetIDParam(c).Int64, req.Source, req.Lang)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, result)
+}
+
+// SongTranslationMeta 歌曲标题与歌手名的多语言 AI 翻译（按歌曲 ID 与目标语言缓存，生成中返回 status=pending）
+func (m *musicType) SongTranslationMeta(ctx context.Context, c *app.RequestContext) {
+	var req dto.MusicSongTranslationReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	result, svcerr := m.service.GetSongTranslationMeta(ctx, ctxutils.GetIDParam(c).Int64, req.Lang)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, result)
+}
+
+// RefreshSongTranslationMeta 管理员手动重新生成指定语言的歌名与歌手翻译
+func (m *musicType) RefreshSongTranslationMeta(ctx context.Context, c *app.RequestContext) {
+	var req dto.MusicSongTranslationRefreshReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	result, svcerr := m.service.RefreshSongTranslationMeta(ctx, ctxutils.GetIDParam(c).Int64, req.Lang)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, result)
+}
+
+// SongLyricSingers 获取指定词源下独立的歌词演唱者分配及目标语言下的歌手译名
+func (m *musicType) SongLyricSingers(ctx context.Context, c *app.RequestContext) {
+	var req dto.MusicLyricSingersReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	result, svcerr := m.service.GetLyricSingers(ctx, ctxutils.GetIDParam(c).Int64, req.Source, req.Lang)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, result)
+}
+
+// RefreshLyricSingers 管理员手动重新生成指定词源与目标语言的歌手分配及歌手译名
+func (m *musicType) RefreshLyricSingers(ctx context.Context, c *app.RequestContext) {
+	var req dto.MusicLyricSingersRefreshReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	result, svcerr := m.service.RefreshLyricSingers(ctx, ctxutils.GetIDParam(c).Int64, req.Source, req.Lang)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, result)
+}
+
+// SongLyricPronunciations 获取指定词源的 AI 歌词读音（拼音 / 粤拼 / 注音 / IPA / 罗马音，按词源与词文本哈希缓存）
+func (m *musicType) SongLyricPronunciations(ctx context.Context, c *app.RequestContext) {
+	var req dto.MusicLyricPronunciationsReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	result, svcerr := m.service.GetLyricPronunciations(ctx, ctxutils.GetIDParam(c).Int64, req.Source)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, result)
+}
+
+// RefreshLyricPronunciations 管理员手动重新生成指定词源的 AI 歌词读音
+func (m *musicType) RefreshLyricPronunciations(ctx context.Context, c *app.RequestContext) {
+	var req dto.MusicLyricPronunciationsRefreshReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	result, svcerr := m.service.RefreshLyricPronunciations(ctx, ctxutils.GetIDParam(c).Int64, req.Source)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, result)
+}
+
 // ListLyricAnnotations 后台歌词特效列表（分页）：博客歌单中的歌曲与已有标注的歌曲，标注状态与生成 / 编辑时间（仅管理员）
 func (m *musicType) ListLyricAnnotations(ctx context.Context, c *app.RequestContext) {
 	var req dto.MusicLyricAnnotationListReq
@@ -406,6 +526,16 @@ func (m *musicType) SaveLyricOffset(ctx context.Context, c *app.RequestContext) 
 // SongChorus 网易云标出的副歌 / 高潮片段（进度条标记）
 func (m *musicType) SongChorus(ctx context.Context, c *app.RequestContext) {
 	result, svcerr := m.service.GetSongChorus(ctx, ctxutils.GetIDParam(c).Int64)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, result)
+}
+
+// SongHotComment 歌曲精选网易云热评（切歌后独立返回，无需等待歌词特效与 AI 生成）
+func (m *musicType) SongHotComment(ctx context.Context, c *app.RequestContext) {
+	result, svcerr := m.service.GetSongHotComment(ctx, ctxutils.GetIDParam(c).Int64)
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return

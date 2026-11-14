@@ -7,12 +7,14 @@ import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { AlbumNavIcon, MINI_PLAYER_POPOVER_CLASSNAME, MINI_PLAYER_POPOVER_STYLE, useMiniPlayerHolding } from '@/components/common/music-player-shared'
 import { useCoverAccent } from '@/components/music-page/use-cover-accent'
-import { useMusicActions, useMusicClockStore, useMusicLyrics, useMusicPlayback } from '@/contexts/music-context'
+import { useMusicActions, useMusicClockStore, useMusicLyrics, useMusicPlayback, useMusicPreferences } from '@/contexts/music-context'
 import { useSongChorus } from '@/contexts/song-chorus'
+import { useCachedSongMetaTranslation } from '@/contexts/song-meta-translations'
 import { dismissIslandAlert, pushIslandAlert, useIslandActivity } from '@/contexts/topbar-island'
 import { usePathname } from '@/i18n/navigation'
 import { getLyricLineVocalStart } from '@/lib/lyrics/line-utils'
 import { lyricGlowAt } from '@/lib/lyrics/lyric-glow'
+import { formatDisplayArtists, formatInlineSongTitle } from '@/lib/lyrics/song-meta-format'
 import { buildTimeline, getLineTextAt } from '@/lib/lyrics/timeline'
 
 // 胶囊内容（舞台特效、粒子、HDR、节拍模型、歌词引擎）与展开后的播放器都很重，而灵动岛每页都挂着：
@@ -35,8 +37,10 @@ const noopSubscribe = () => () => {}
 const falseSnapshot = () => false
 const emptySnapshot = () => ''
 
-function trackTitle(track: MusicTrack) {
-  return [track.name, track.artists.join(' / ')].filter(Boolean).join(' - ')
+function trackTitle(track: MusicTrack, translatedTitle?: string | null, translatedArtists?: string[] | null, showTranslation = true) {
+  const displayName = formatInlineSongTitle(track.name, [], translatedTitle, showTranslation)
+  const displayArtists = formatDisplayArtists(track.artists, translatedArtists, showTranslation)
+  return [displayName, displayArtists.join(' / ')].filter(Boolean).join(' - ')
 }
 
 /**
@@ -73,7 +77,9 @@ export function MusicIsland({ settings }: { settings: IslandSettings }) {
   const glow = useLyricGlow(inChorus, coverAccent)
   const lyricStarted = useLyricStarted(isPlaying)
   const pausedLine = usePausedLine(!showPlaying && hasPlayed)
-  const title = currentTrack ? trackTitle(currentTrack) : ''
+  const { showTranslation } = useMusicPreferences()
+  const meta = useCachedSongMetaTranslation(currentTrack?.id ?? null)
+  const title = currentTrack ? trackTitle(currentTrack, meta?.title, meta?.artists, showTranslation) : ''
   const wanted = Boolean(currentTrack) && !onPlayerPage
   const compactModule = useLazyModule(loadCompact, wanted)
   const playerModule = useLazyModule(loadPlayer, wanted)
@@ -135,8 +141,8 @@ export function MusicIsland({ settings }: { settings: IslandSettings }) {
       resume: 'drop',
       // 与胶囊平时一样的圆形封面（播放时转动）
       icon: currentTrack.albumPic ? <AlbumNavIcon /> : undefined,
-      text: trackTitle(currentTrack),
-      announce: t('music_now_playing', { title: trackTitle(currentTrack) }),
+      text: title,
+      announce: t('music_now_playing', { title }),
       duration: PEEK_MS,
     })
     // lyricStarted、floatingOpen 不放进依赖：只在切歌、开始播放时判断一次，歌词开唱后由下面的 effect 撤下提示

@@ -16,9 +16,44 @@ import { fetchLyricAnnotations, refreshLyricAnnotations } from '@/api/music'
 /** 一首歌的标注与它所属的全站歌词版本（具体来源） */
 export type SiteLyricAnnotations = LyricAnnotations & { source?: LyricSource }
 
-// 每 2 秒取一次，最多等 3 分钟
+// 首次较快探测（800ms -> 1200ms -> 2000ms），最多等约 3 分钟
 const POLL_MS = 2000
 const MAX_POLLS = 90
+
+function pollDelayMs(polls: number): number {
+  return polls <= 1 ? 800 : polls === 2 ? 1200 : POLL_MS
+}
+
+type LyricAnnotationResponse = NonNullable<Awaited<ReturnType<typeof fetchLyricAnnotations>>>
+
+function hasPartialAnnotations(result: LyricAnnotationResponse): boolean {
+  return Boolean(
+    result.font
+    || result.intro
+    || result.outro
+    || result.accent
+    || result.moments?.length
+    || result.spotlights?.length
+    || result.lines?.length
+    || result.singers?.length,
+  )
+}
+
+function toSiteAnnotations(result: LyricAnnotationResponse): SiteLyricAnnotations {
+  return {
+    font: result.font,
+    intro: result.intro,
+    outro: result.outro,
+    moments: result.moments,
+    spotlights: result.spotlights,
+    accent: result.accent,
+    lines: result.lines,
+    sprites: result.sprites,
+    singers: result.singers,
+    edited: result.edited,
+    source: result.source,
+  }
+}
 
 interface Entry {
   // undefined 为尚未取到（请求中或等待生成）
@@ -75,14 +110,16 @@ export function requestLyricAnnotations(id: number) {
       }
       const generating = result.status === 'pending' || !!result.stale
       if (result.status === 'ready')
-        settle(entry, { font: result.font, intro: result.intro, outro: result.outro, moments: result.moments, spotlights: result.spotlights, accent: result.accent, lines: result.lines, sprites: result.sprites, singers: result.singers, edited: result.edited, source: result.source }, generating)
+        settle(entry, toSiteAnnotations(result), generating)
+      else if (!entry.value && hasPartialAnnotations(result))
+        settle(entry, toSiteAnnotations(result), generating)
       else
         setGenerating(entry, generating)
       if (!generating)
         return
       polls++
       if (polls < MAX_POLLS)
-        setTimeout(load, POLL_MS)
+        setTimeout(load, pollDelayMs(polls))
       else
         settle(entry, entry.value ?? null)
     }, () => {

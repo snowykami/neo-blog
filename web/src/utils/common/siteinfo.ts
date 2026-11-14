@@ -88,6 +88,7 @@ export interface SiteInfo {
   sidebarIframeUrl?: string // 旧配置：侧边栏嵌入页面地址，仅在未配置 sidebarCards 时生效
   sidebarIframeTitle?: string // 旧配置：侧边栏嵌入卡片标题
   musicEnabled?: boolean // 后台已配置网易云歌单（API 地址与歌单），为 false 时不挂载音乐播放器（后端按配置算出，见 controller/misc.go）
+  musicAiEnabled?: boolean // 后台已配置大模型（用于 AI 歌词特效与多语言歌词翻译）
   enableThirdPartyScript?: boolean // 是否在前台加载全局第三方脚本
   pageBackground?: PageBackground // 前台全站背景（底色 / 背景图 / 模糊 / 节日装饰）
   island?: IslandSettings // 顶栏灵动岛（实验性）的开关
@@ -129,6 +130,7 @@ export const fallbackSiteInfo: SiteInfo = {
   },
   aboutBackground: '',
   musicEnabled: false,
+  musicAiEnabled: false,
   enableThirdPartyScript: true,
   pageBackground: {
     // 有背景图（或自定义底色）即生效；没有图时这一层不会渲染

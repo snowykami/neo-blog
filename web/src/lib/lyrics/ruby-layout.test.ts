@@ -9,6 +9,9 @@ describe('注音行', () => {
     expect(rubyText('u  。')).toBe('u')
     expect(rubyText('ka ')).toBe('ka')
     expect(rubyText('、')).toBe('')
+    // 台式注音轻声点 `˙`（U+02D9）不得当作边缘标点剥离
+    expect(rubyText('˙ㄇㄣ')).toBe('˙ㄇㄣ')
+    expect(rubyText('˙ㄇㄣ ，')).toBe('˙ㄇㄣ')
   })
 
   it('按字分组：网易云每个音拍后都有空格，同一个字的音拍连在一起；只剩标点的段丢弃', () => {

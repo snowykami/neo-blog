@@ -30,7 +30,12 @@ func registerMusicRoutes(group *route.RouterGroup) {
 		musicGroup.GET("/song/:id/lyric/qq", controller.Music.SongQQLyric)
 		musicGroup.GET("/song/:id/lyric/kugou", controller.Music.SongKugouLyric)
 		musicGroup.GET("/song/:id/lyric/annotations", controller.Music.SongLyricAnnotations)
+		musicGroup.GET("/song/:id/lyric/translations", controller.Music.SongLyricTranslations)
+		musicGroup.GET("/song/:id/translation-meta", controller.Music.SongTranslationMeta)
+		musicGroup.GET("/song/:id/lyric/singers", controller.Music.SongLyricSingers)
+		musicGroup.GET("/song/:id/lyric/pronunciations", controller.Music.SongLyricPronunciations)
 		musicGroup.GET("/song/:id/chorus", controller.Music.SongChorus)
+		musicGroup.GET("/song/:id/hot-comment", controller.Music.SongHotComment)
 		// 歌词缓存：全站歌词版本的快照，由后端选出版本后用自己获取的来源数据写入（歌词流会先推送它，这里供歌词流不可用时使用）
 		musicGroup.GET("/song/:id/lyric/cache", controller.Music.SongLyricCache)
 		// 歌词的人工设置（整体偏移）：所有人播放时都要用到，公开读取
@@ -39,8 +44,12 @@ func registerMusicRoutes(group *route.RouterGroup) {
 		// 搜索歌曲只在编辑器中使用，限编辑者及以上，避免被当作公开的搜索代理
 		musicGroupWithEditor.GET("/search", controller.Music.Search)
 
-		// 手动重新生成歌词标注会消耗模型额度，仅管理员可用
+		// 手动重新生成歌词标注或歌词多语言翻译会消耗模型额度，仅管理员可用
 		musicGroupWithAdmin.POST("/song/:id/lyric/annotations/refresh", controller.Music.RefreshLyricAnnotations)
+		musicGroupWithAdmin.POST("/song/:id/lyric/translations/refresh", controller.Music.RefreshLyricTranslations)
+		musicGroupWithAdmin.POST("/song/:id/translation-meta/refresh", controller.Music.RefreshSongTranslationMeta)
+		musicGroupWithAdmin.POST("/song/:id/lyric/singers/refresh", controller.Music.RefreshLyricSingers)
+		musicGroupWithAdmin.POST("/song/:id/lyric/pronunciations/refresh", controller.Music.RefreshLyricPronunciations)
 		// 后台歌词特效页：列表、编辑器数据与保存手动编辑的标注，仅管理员可用
 		musicGroupWithAdmin.GET("/lyric/annotations", controller.Music.ListLyricAnnotations)
 		// 批量操作：删除标注、后台重新生成（进度保存在共享状态中，见 music_annotation_batch.go）

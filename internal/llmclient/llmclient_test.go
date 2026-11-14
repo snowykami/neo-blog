@@ -126,3 +126,46 @@ func TestChatCompletionStreamOptionsFallback(t *testing.T) {
 		t.Fatalf("expected 2 HTTP calls, got %d", calls.Load())
 	}
 }
+
+func TestLimiterFirstScreenPreemptsBackground(t *testing.T) {
+	limiter := Limiter{Name: "test_tier_" + t.Name()}
+	limit := func() int { return 1 }
+
+	// 占满唯一的名额，让首屏与后台同时进入等待队列
+	if err := limiter.AcquireTier(context.Background(), limit, TierBackground, nil); err != nil {
+		t.Fatalf("initial acquire: %v", err)
+	}
+
+	bgWaiting := make(chan struct{})
+	fsWaiting := make(chan struct{})
+	order := make(chan string, 2)
+
+	go func() {
+		if err := limiter.AcquireTier(context.Background(), limit, TierBackground, func() { close(bgWaiting) }); err != nil {
+			t.Errorf("bg acquire: %v", err)
+			return
+		}
+		order <- "background"
+		limiter.Release()
+	}()
+	<-bgWaiting
+
+	go func() {
+		if err := limiter.AcquireTier(context.Background(), limit, TierFirstScreen, func() { close(fsWaiting) }); err != nil {
+			t.Errorf("first-screen acquire: %v", err)
+			return
+		}
+		order <- "first-screen"
+		limiter.Release()
+	}()
+	<-fsWaiting
+
+	limiter.Release()
+
+	if first := <-order; first != "first-screen" {
+		t.Fatalf("expected first-screen to preempt background, got %q first", first)
+	}
+	if second := <-order; second != "background" {
+		t.Fatalf("expected background second, got %q", second)
+	}
+}

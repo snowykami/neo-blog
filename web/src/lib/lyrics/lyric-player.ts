@@ -89,6 +89,8 @@ interface WordView {
   pad: number
   // 仅主文音节允许普通词上浮；振假名与逐字音译行只擦除不上浮（同 StarryPlayer liftsSyllables 规则）
   lifts: boolean
+  // 是否已拆分为 .lyric-char 单字节点（即携带 .lyric-word--emphasis）
+  split: boolean
   // 是否携带非零强度的强调动效（开启歌词特效时由 .lyric-char 自行上浮，不再叠加外层词上浮）
   emphasized: boolean
   mask: string
@@ -184,11 +186,10 @@ interface ItemView {
   // 是否正在唱（lyric-line--active）、是否是聚光灯下的点题句（lyric-line--spot）：HDR 高光据此给字上色，见 lyric-player.css
   active: boolean
   spotlit: boolean
-  // HDR 跨行退场：在 HDR_EXIT_MS 内将亮度与不透明度平滑过渡到非激活 SDR 态，避免瞬间熄灭跳变
+  // HDR 跨行退场：在 HDR_EXIT_MS 内保持静态已解码 HDR 素材不变，通过合成层 opacity 平滑过渡到非激活 SDR 亮度，避免瞬间熄灭与 WebKit 闪烁
   hdrExitStart: number | null
   hdrExitFromSpot: boolean
   hdrExiting: boolean
-  hdrLineVar: string
   mainOpacity: string
   // 多声部视觉装饰（边缘光丝与切换低语胶囊）：聚光灯亮起时同步让路淡出
   ornaments: HTMLElement[]
@@ -215,13 +216,24 @@ const HDR_EXIT_MS = 400
 const HDR_SHINE_COLOR = '#fffae6'
 
 /**
- * 强调短语在 HDR 高光下的颜色：开始上色后固定为峰值的上色程度（色板颜色与白色混合，同 color-mix in srgb），不随演出逐帧变化——
- * 每换一次颜色就换一张素材、整个字重新光栅化，频繁更换时偶尔露出没画完的色块；上色的起落交给辉光表现；跨行退场时按 fade 衰减回白色
+ * HDR 素材（线性亮度 gain 倍 SDR 白）在扩展 sRGB 合成层中的等效通道值：
+ * 跨行退场期间保持已解码的静态 HDR 素材不变（避免逐帧生成 16 位 cICP PNG 触发 WebKit ImageIO 异步解码空帧闪烁），
+ * 仅通过合成层 opacity 衰减；退场终点将不透明度压到 targetAlpha / esrgb(gain)，使切换回 SDR 文字的瞬间亮度连续无跳变
  */
-function hdrTint(tintColor: string | null, tint: number, fade = 1) {
-  if (!tintColor || tint <= 0.005 || fade <= 0.01)
+function hdrExitEndAlpha(targetAlpha: number, gain: number): number {
+  if (gain <= 1)
+    return targetAlpha
+  return targetAlpha / (1.055 * gain ** (1 / 2.4) - 0.055)
+}
+
+/**
+ * 强调短语在 HDR 高光下的颜色：开始上色后固定为峰值的上色程度（色板颜色与白色混合，同 color-mix in srgb），不随演出或退场逐帧变化——
+ * 每换一次颜色就换一张 16 位 PNG 素材，WebKit 异步解码未完成时透明文字会短暂消失闪烁；上色的起落与退场分别交给辉光与合成层不透明度表现
+ */
+function hdrTint(tintColor: string | null, tint: number) {
+  if (!tintColor || tint <= 0.005)
     return '#fff'
-  const t = EMPHASIS_TINT_PEAK * fade
+  const t = EMPHASIS_TINT_PEAK
   const hex = /^#([0-9a-f]{6})$/i.exec(tintColor)?.[1]
   if (!hex)
     return tintColor
@@ -814,7 +826,6 @@ export class LyricPlayer {
         hdrExitStart: null,
         hdrExitFromSpot: false,
         hdrExiting: false,
-        hdrLineVar: '',
         mainOpacity: '',
         ornaments: [],
         ornamentOpacity: '',
@@ -869,7 +880,7 @@ export class LyricPlayer {
             else
               wordEl.textContent = preserveEdgeSpaces(word.text)
             const emphasized = group >= 0 && view.emphasis[group].group.factor > 0
-            return { word, el: wordEl, width: 0, pad: 0, lifts: true, emphasized, mask: '', opacity: '', transform: '' }
+            return { word, el: wordEl, width: 0, pad: 0, lifts: true, split: group >= 0, emphasized, mask: '', opacity: '', transform: '' }
           })
           view.words = [...mainWords, ...this.buildWords(main, line, mainWords, view.rubyUnits, (index) => {
             const group = groupOf(index)
@@ -1036,7 +1047,7 @@ export class LyricPlayer {
           el.textContent = item.text
           furiganaEl.append(el)
           furiganaParts.push({ el, text: item.text })
-          extraWords.push({ word: { text: item.text, start: item.start, end: item.end }, el, width: 0, pad: 0, lifts: false, emphasized: false, mask: '', opacity: '', transform: '' })
+          extraWords.push({ word: { text: item.text, start: item.start, end: item.end }, el, width: 0, pad: 0, lifts: false, split: false, emphasized: false, mask: '', opacity: '', transform: '' })
         }
         unitEl.append(furiganaEl)
       }
@@ -1057,7 +1068,7 @@ export class LyricPlayer {
             el.textContent = text
           ruby.append(el)
           unitParts.push({ el, text })
-          extraWords.push({ word: { text, start: part.start, end: part.end }, el, width: 0, pad: 0, lifts: false, emphasized: false, mask: '', opacity: '', transform: '' })
+          extraWords.push({ word: { text, start: part.start, end: part.end }, el, width: 0, pad: 0, lifts: false, split: Boolean(emphasis), emphasized: false, mask: '', opacity: '', transform: '' })
         }
         unitEl.append(ruby)
       }
@@ -1266,13 +1277,14 @@ export class LyricPlayer {
 
   private clearHdrExit(view: ItemView) {
     view.hdrExitStart = null
+    view.hdrExitFromSpot = false
     if (view.hdrExiting) {
       view.hdrExiting = false
       view.el.classList.remove('lyric-line--hdr-exit')
     }
-    if (view.hdrLineVar) {
-      view.hdrLineVar = ''
-      view.el.style.removeProperty('--lyric-hdr-line')
+    if (view.spotlit && !view.active) {
+      view.spotlit = false
+      view.el.classList.remove('lyric-line--spot')
     }
     if (view.mainOpacity && view.main) {
       view.mainOpacity = ''
@@ -1566,38 +1578,27 @@ export class LyricPlayer {
           view.hdrExiting = hdrExiting
           view.el.classList.toggle('lyric-line--hdr-exit', hdrExiting)
         }
-        let hdrLineVar = ''
-        if (hdrExiting) {
-          const peakGain = view.hdrExitFromSpot ? this.spotGain() : HDR_BRIGHTNESS.lyric
-          const gain = Math.max(1, Math.round((1 + (peakGain - 1) * hdrExitWeight) * 20) / 20)
-          const url = hdrColorUrl('#fff', gain)
-          if (url)
-            hdrLineVar = `url("${url}")`
-        }
-        if (hdrLineVar !== view.hdrLineVar) {
-          view.hdrLineVar = hdrLineVar
-          if (hdrLineVar)
-            view.el.style.setProperty('--lyric-hdr-line', hdrLineVar)
-          else
-            view.el.style.removeProperty('--lyric-hdr-line')
-        }
+        const linePeakGain = view.hdrExitFromSpot ? this.spotGain() : HDR_BRIGHTNESS.lyric
         if (!this.lyrics.wordTimed && view.main) {
-          const mainOpacity = hdrExiting ? (alpha + (1 - alpha) * hdrExitWeight).toFixed(3) : ''
+          const endAlpha = hdrExitEndAlpha(alpha, linePeakGain)
+          const nextAlpha = endAlpha + (1 - endAlpha) * hdrExitWeight
+          const mainOpacity = hdrExiting && nextAlpha < 0.9995 ? nextAlpha.toFixed(3) : ''
           if (mainOpacity !== view.mainOpacity) {
             view.mainOpacity = mainOpacity
             view.main.style.opacity = mainOpacity
           }
         }
-        // 只在这一行还在唱时：聚光灯在行尾之后还要淡出一会儿（见 lyric-player.css）
-        const spotlit = active && i === this.hdrSpotView
+        // 在唱或处于 0.4s HDR 退场窗口内的点题句保持聚光灯档位素材（脱离这两个类名时必须撤下，见 lyric-player.css）
+        const spotlit = (active && i === this.hdrSpotView) || (hdrExiting && view.hdrExitFromSpot)
         if (spotlit !== view.spotlit) {
           view.spotlit = spotlit
           view.el.classList.toggle('lyric-line--spot', spotlit)
         }
-        this.paintWords(view, active, timeMs + LYRIC_ANIMATION_HEADSTART_MS, feather, wordDimAlpha, hdrExiting ? { weight: hdrExitWeight, targetAlpha: alpha } : null)
+        const hdrExit = hdrExiting ? { weight: hdrExitWeight, targetAlpha: alpha, dimAlpha: wordDimAlpha, lineGain: linePeakGain } : null
+        this.paintWords(view, active, timeMs + LYRIC_ANIMATION_HEADSTART_MS, feather, wordDimAlpha, hdrExit)
         if (view.emphasis.length > 0) {
           if (this.display.effects && !this.reducedMotion)
-            this.paintEmphasis(view, active, timeMs, hdrExitWeight)
+            this.paintEmphasis(view, active, timeMs, hdrExit)
           else
             this.resetEmphasis(view)
         }
@@ -1679,10 +1680,18 @@ export class LyricPlayer {
    * 只有正在唱的词用遮罩，还没唱到的词改用等效的整体不透明度压暗：每个遮罩都要单独离屏绘制，
    * 整行都挂着遮罩时，正在唱的词每帧重绘都会连带重绘这些遮罩（实测去掉遮罩后 GPU 进程主线程约少 3.4 个百分点）
    */
-  private paintWords(view: ItemView, active: boolean, timeMs: number, feather: number, dimAlpha: number, hdrExit: { weight: number, targetAlpha: number } | null = null) {
+  private paintWords(
+    view: ItemView,
+    active: boolean,
+    timeMs: number,
+    feather: number,
+    dimAlpha: number,
+    hdrExit: { weight: number, targetAlpha: number, dimAlpha: number, lineGain: number } | null = null,
+  ) {
     const bg = view.item.kind === 'line' && Boolean(this.lyrics.lines[view.item.line]?.isBackground)
     const floatPx = LYRIC_WORD_FLOAT_EM * this.fontSize * (bg ? 2 : 1)
     const effectsOn = this.display.effects && !this.reducedMotion
+    const wordEndAlpha = hdrExit ? hdrExitEndAlpha(hdrExit.targetAlpha, hdrExit.lineGain) : 0
     for (const word of view.words) {
       let mask = ''
       let opacity = ''
@@ -1701,10 +1710,16 @@ export class LyricPlayer {
         if (!this.reducedMotion && progress > 0 && word.lifts && (!word.emphasized || !effectsOn))
           transform = `translateY(${(-floatPx * easeOut(progress)).toFixed(2)}px)`
       }
-      else if (hdrExit) {
+      else if (hdrExit && !word.split) {
         const progress = getWordProgress(word.word.start, word.word.end, timeMs)
-        const startAlpha = progress > 0 ? 1 : dimAlpha
-        opacity = (hdrExit.targetAlpha + (startAlpha - hdrExit.targetAlpha) * hdrExit.weight).toFixed(3)
+        const startAlpha = dimAlpha + (1 - dimAlpha) * progress
+        const nextAlpha = wordEndAlpha + (startAlpha - wordEndAlpha) * hdrExit.weight
+        opacity = nextAlpha < 0.9995 ? nextAlpha.toFixed(3) : ''
+        if (!this.reducedMotion && progress > 0 && word.lifts) {
+          const dy = -floatPx * easeOut(progress) * hdrExit.weight
+          if (Math.abs(dy) >= 0.02)
+            transform = `translateY(${dy.toFixed(2)}px)`
+        }
       }
       if (mask !== word.mask) {
         word.mask = mask
@@ -1735,16 +1750,20 @@ export class LyricPlayer {
     return this.options.strip ? HDR_BRIGHTNESS.stripSpotlight : HDR_BRIGHTNESS.spotlight
   }
 
-  private paintEmphasis(view: ItemView, active: boolean, timeMs: number, hdrExitWeight = 0) {
+  private paintEmphasis(
+    view: ItemView,
+    active: boolean,
+    timeMs: number,
+    hdrExit: { weight: number, targetAlpha: number, dimAlpha: number } | null = null,
+  ) {
     const bg = view.item.kind === 'line' && this.lyrics.lines[view.item.line]?.isBackground
     // 聚光灯下的点题句：辉光与字的放大随聚光灯强度收敛（见 SPOTLIGHT_EMPHASIS_GLOW）
     const spot = this.views[this.spotView] === view ? this.spot : 0
-    // HDR 高光：正在唱或处于 0.4s 退场窗口内的行里强调词的字由该颜色的 HDR 素材绘制（退场时平滑降到 SDR 1.0x）
-    const hdrExiting = !active && hdrExitWeight > 0
+    // HDR 高光：正在唱或处于 0.4s 退场窗口内的行里强调词的字由静态 HDR 素材绘制，退场期间不换素材、仅通过单字 opacity 平滑降到 SDR 亮度
+    const hdrExiting = !active && hdrExit != null
     const hdr = this.display.hdr && (active || hdrExiting)
-    const peakGain = (active ? this.views[this.hdrSpotView] === view : view.hdrExitFromSpot) ? this.spotGain() : HDR_BRIGHTNESS.emphasis
-    const hdrGain = active ? peakGain : Math.max(1, Math.round((1 + (peakGain - 1) * hdrExitWeight) * 20) / 20)
-    const hdrTintFade = active ? 1 : Math.round(hdrExitWeight * 10) / 10
+    const hdrGain = (active ? this.views[this.hdrSpotView] === view : view.hdrExitFromSpot) ? this.spotGain() : HDR_BRIGHTNESS.emphasis
+    const charEndAlpha = hdrExit ? hdrExitEndAlpha(hdrExit.targetAlpha, hdrGain) : 0
     const glowScale = 1 - (1 - SPOTLIGHT_EMPHASIS_GLOW) * spot
     const growScale = 1 - (1 - SPOTLIGHT_EMPHASIS_SCALE) * spot
     // 柔光持续到这一行结束
@@ -1766,7 +1785,7 @@ export class LyricPlayer {
       // 长音：放大到峰值后保持到长音唱完再收住；颤音从延迟后渐强，随长音结束收住
       const hold = group.effect === 'shake' && group.hold ? holdVibrato(group.hold, timeMs, pace) : null
       // 流光的光带位置、心跳的强度、放大的拍上重音、柔光的门控与呼吸、抖动的调幅（整个词同步）；波浪每个字一个上浮
-      const shine = group.effect === 'shimmer' ? shimmerCenter(rhythm, group.start, timeMs, count) : null
+      const shine = group.effect === 'shimmer' && (active || hdrExiting || !view.filter) ? shimmerCenter(rhythm, group.start, timeMs, count) : null
       const beat = group.effect === 'heartbeat' ? heartbeatLevel(rhythm, group.start, group.end, timeMs) : 0
       const accent = group.effect === 'swell' ? swellAccent(rhythm, group.start, timeMs) : 0
       const breath = group.effect === 'glow' ? glowLevel(rhythm, group.start, lineEnd || group.end, timeMs) : null
@@ -1907,21 +1926,31 @@ export class LyricPlayer {
           // 碎之前的颤：每个字相位不同，越接近碎越明显
           transform = `${transform} translate(${(Math.sin(timeMs * 0.09 + i * 1.7) * 0.03 * crack).toFixed(3)}em, ${(Math.cos(timeMs * 0.11 + i) * 0.02 * crack).toFixed(3)}em)`.trim()
         }
-        if (shine != null) {
+        const canShine = shine != null && !(hdr && hdrExiting && !char.shine)
+        let usedHdrBg = false
+        if (canShine) {
           // 流光：字的颜色改由背景绘制（裁剪到字形，见 lyric-player.css），叠上一道光带；文字本身透明，辉光会盖住背景所以不用
           const pos = (shine - i) * 100
-          // HDR 高光：底色与光带都是 HDR——一张「底色 → 光带 → 底色」的横条素材随光带移动，底下再铺一层底色素材（横条移出字外时兜底）。
-          // CSS 不能给图片层加渐变遮罩，所以光带直接画进素材里（见 hdrShimmerUrl）；扫光期间整个字就是 HDR，扫完不会突然变亮
-          const hdrBase = hdr ? hdrTint(tintColor, tint, hdrTintFade) : null
-          const strip = hdrBase ? hdrShimmerUrl(hdrBase, hdrGain, HDR_SHINE_COLOR, Math.max(HDR_BRIGHTNESS.shimmer, hdrGain)) : null
-          const baseUrl = hdrBase ? hdrColorUrl(hdrBase, hdrGain) : null
-          if (strip && baseUrl) {
-            background = `url("${strip}"), url("${baseUrl}")`
+          if (hdr && hdrExiting && char.shine && char.background) {
+            background = char.background
             shineX = shimmerPosition(pos)
+            usedHdrBg = true
           }
           else {
-            const base = color ? color.replace('currentColor', 'var(--lyric-color, #fff)') : 'var(--lyric-color, #fff)'
-            background = `linear-gradient(105deg, transparent ${(pos - 40).toFixed(1)}%, rgb(255 250 230 / 0.95) ${pos.toFixed(1)}%, transparent ${(pos + 40).toFixed(1)}%), linear-gradient(${base}, ${base})`
+            // HDR 高光：底色与光带都是 HDR——一张「底色 → 光带 → 底色」的横条素材随光带移动，底下再铺一层底色素材（横条移出字外时兜底）。
+            // CSS 不能给图片层加渐变遮罩，所以光带直接画进素材里（见 hdrShimmerUrl）；扫光期间整个字就是 HDR，扫完不会突然变亮
+            const hdrBase = hdr ? hdrTint(tintColor, tint) : null
+            const strip = hdrBase ? hdrShimmerUrl(hdrBase, hdrGain, HDR_SHINE_COLOR, Math.max(HDR_BRIGHTNESS.shimmer, hdrGain)) : null
+            const baseUrl = hdrBase ? hdrColorUrl(hdrBase, hdrGain) : null
+            if (strip && baseUrl) {
+              background = `url("${strip}"), url("${baseUrl}")`
+              shineX = shimmerPosition(pos)
+              usedHdrBg = true
+            }
+            else {
+              const base = color ? color.replace('currentColor', 'var(--lyric-color, #fff)') : 'var(--lyric-color, #fff)'
+              background = `linear-gradient(105deg, transparent ${(pos - 40).toFixed(1)}%, rgb(255 250 230 / 0.95) ${pos.toFixed(1)}%, transparent ${(pos + 40).toFixed(1)}%), linear-gradient(${base}, ${base})`
+            }
           }
           color = 'transparent'
           shadow = ''
@@ -1930,13 +1959,31 @@ export class LyricPlayer {
           // 字的颜色改由 HDR 素材绘制、裁剪到字形（见 lyric-player.css）。辉光不画：text-shadow 会盖在背景上，
           // 改用 drop-shadow 等滤镜与 background-clip: text 叠在同一个元素上时，Chrome 偶尔按整个盒子而不是字形绘制，闪出白色矩形；
           // HDR 的亮度本身代替辉光。消散时（带模糊、正在淡出）这个字退回 SDR 颜色；聚焦的模糊例外，整个词从头到尾都是 HDR——
-          // 逐字等模糊消失再切换会一个一个字跳亮，而单纯的 blur 与 background-clip: text 叠加实测渲染正常
-          const url = hdrColorUrl(hdrTint(tintColor, tint, hdrTintFade), hdrGain)
-          if (url) {
-            background = `url("${url}")`
+          // 逐字等模糊消失再切换会一个一个字跳亮，而单纯的 blur 与 background-clip: text 叠加实测渲染正常。
+          // 跨行退场期间直接复用激活态已解码的素材（若流光刚扫完则取已在第二层解码的底色素材），杜绝 WebKit 异步解码空帧闪烁
+          if (hdrExiting && char.background) {
+            const commaIdx = char.shine ? char.background.indexOf(', url(') : -1
+            background = commaIdx >= 0 ? char.background.slice(commaIdx + 2) : char.background
             color = 'transparent'
             shadow = ''
+            usedHdrBg = true
           }
+          else {
+            const url = hdrColorUrl(hdrTint(tintColor, tint), hdrGain)
+            if (url) {
+              background = `url("${url}")`
+              color = 'transparent'
+              shadow = ''
+              usedHdrBg = true
+            }
+          }
+        }
+        if (hdrExit && usedHdrBg) {
+          const charProgress = getWordProgress(char.start, char.end, timeMs + LYRIC_ANIMATION_HEADSTART_MS)
+          const startAlpha = hdrExit.dimAlpha + (1 - hdrExit.dimAlpha) * charProgress
+          const exitAlpha = charEndAlpha + (startAlpha - charEndAlpha) * hdrExit.weight
+          const combined = (opacity ? Number.parseFloat(opacity) : 1) * exitAlpha
+          opacity = combined < 0.9995 ? combined.toFixed(3) : ''
         }
         if (transform !== char.transform) {
           char.transform = transform
