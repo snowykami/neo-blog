@@ -196,8 +196,8 @@ func TestPronunciationTaiwanMandarinSimplifiedAndCreditsAndHokkienExclusion(t *t
 		calls, wait := stubLyricPronunciationService(t, func(system, user string) (string, error) {
 			prompts = append(prompts, system+"\n"+user)
 			if attempt.Add(1) == 1 {
-				// 第一次错误返回大陆拼音 lang="zh"，应触发脚本/注音纠偏重试
-				return `{"items":[{"i":1,"lang":"zh","pronunciation":"wǎn fēng qīng fú péng hú wān"},{"i":2,"lang":"zh","pronunciation":"bái làng zhú shā tān"}]}`, nil
+				// 第一次声称 zh-tw 却返回了汉语拼音，应被脚本校验拦下并触发注音纠偏重试
+				return `{"items":[{"i":1,"lang":"zh-tw","pronunciation":"wǎn fēng qīng fú péng hú wān"},{"i":2,"lang":"zh-tw","pronunciation":"bái làng zhú shā tān"}]}`, nil
 			}
 			return `{"items":[{"i":1,"lang":"zh-tw","pronunciation":"ㄨㄢˇ ㄈㄥ ㄑㄧㄥ ㄈㄨˊ ㄆㄥˊ ㄏㄨˊ ㄨㄢ"},{"i":2,"lang":"zh-tw","pronunciation":"ㄅㄞˊ ㄌㄤˋ ㄓㄨˊ ㄕㄚ ㄊㄢ"}]}`, nil
 		})
@@ -216,10 +216,13 @@ func TestPronunciationTaiwanMandarinSimplifiedAndCreditsAndHokkienExclusion(t *t
 			t.Fatalf("ready 804 = %+v, err=%v", ready, svcerr)
 		}
 		if calls.Load() != 2 || len(prompts) != 2 {
-			t.Fatalf("expected retry on mainland pinyin for Taiwan Mandarin, calls=%d", calls.Load())
+			t.Fatalf("expected retry on pinyin under zh-tw, calls=%d", calls.Load())
 		}
-		if !strings.Contains(prompts[0], `"taiwan_origin_hint":true`) || !strings.Contains(prompts[0], "词曲：叶佳修") {
-			t.Fatalf("expected taiwan_origin_hint and credits in prompt: %s", prompts[0])
+		if strings.Contains(prompts[0], "taiwan_origin_hint") {
+			t.Fatalf("unexpected hardcoded taiwan_origin_hint in prompt: %s", prompts[0])
+		}
+		if !strings.Contains(prompts[0], "词曲：叶佳修") || !strings.Contains(prompts[0], "zh-tw") {
+			t.Fatalf("expected credits and Bopomofo prompt rules in prompt: %s", prompts[0])
 		}
 		if ready.Lang != "zh-tw" || len(ready.Lines) != 2 || ready.Lines[0].Lang != "zh-tw" {
 			t.Fatalf("expected zh-tw bopomofo result, got %+v", ready)
@@ -260,8 +263,8 @@ func TestPronunciationTaiwanMandarinSimplifiedAndCreditsAndHokkienExclusion(t *t
 			t.Fatalf("ready 805 = %+v, err=%v, calls=%d", ready, svcerr, calls.Load())
 		}
 		prompt := gotUser.Load().(string)
-		if !strings.Contains(prompt, `"primary_lang_hint":"other"`) {
-			t.Fatalf("expected Hokkien primary_lang_hint=other in prompt: %s", prompt)
+		if !strings.Contains(prompt, "茄子蛋") {
+			t.Fatalf("expected artist metadata in prompt: %s", prompt)
 		}
 		if ready.Lang != "other" || len(ready.Lines) != 2 || ready.Lines[1].Lang != "other" {
 			t.Fatalf("expected Hokkien Tâi-lô with lang=other, got %+v", ready)

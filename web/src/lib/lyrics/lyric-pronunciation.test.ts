@@ -254,7 +254,7 @@ describe('独立演唱者声部与曲名歌手译名格式化', () => {
     expect(applyPronunciationsAndFilter(hokkienLyrics, 'zh-tw', hokkienPron).lines[0].romanization).toBe('m̄ tsai-iánn sī siánn-mih tsu-bī buē-kì-leh')
   })
 
-  it('仅具名/多声部 TTML、显式段落提示或具备多人/企划特征时才允许触发声部归属查询', () => {
+  it('只要存在非器乐且非空的已解析歌词行即允许请求声部归属查询，不在前端用硬编码规则拦截', () => {
     const soloPlainLyrics: ResolvedLyrics = {
       source: 'qq-qrc',
       wordTimed: true,
@@ -263,28 +263,19 @@ describe('独立演唱者声部与曲名歌手译名格式化', () => {
         { words: [{ text: '窗外的麻雀', start: 1000, end: 3000 }], start: 1000, end: 3000, isDuet: false, isBackground: false },
       ],
     }
-    expect(canResolveLyricSingers(soloPlainLyrics, { name: '七里香', artists: ['周杰伦'] })).toBe(false)
+    expect(canResolveLyricSingers(soloPlainLyrics)).toBe(true)
 
-    const qqDuetLyrics: ResolvedLyrics = {
-      source: 'qq-qrc',
-      wordTimed: true,
-      instrumental: false,
-      lines: [
-        { words: [{ text: 'Поплыли туманы над рекой', start: 1000, end: 3000 }], start: 1000, end: 3000, isDuet: false, isBackground: false },
-        { words: [{ text: 'Выходила на берег Катюша', start: 4000, end: 6000 }], start: 4000, end: 6000, isDuet: false, isBackground: false },
-      ],
-    }
-    expect(canResolveLyricSingers(qqDuetLyrics, { name: 'カチューシャ', artists: ['上坂すみれ', '金元寿子'] })).toBe(true)
-
-    const genshinProjectLyrics: ResolvedLyrics = {
+    const youdiantianLyrics: ResolvedLyrics = {
       source: 'ncm-lrc',
       wordTimed: false,
       instrumental: false,
       lines: [
-        { words: [{ text: '第一句歌词', start: 1000, end: 3000 }], start: 1000, end: 3000, isDuet: false, isBackground: false },
+        { words: [{ text: '合：眼神坚定着我们的选择', start: 1000, end: 3000 }], start: 1000, end: 3000, isDuet: false, isBackground: false },
+        { words: [{ text: 'BY2：是你让我的世界从那刻变成粉红色', start: 4000, end: 6000 }], start: 4000, end: 6000, isDuet: false, isBackground: false },
+        { words: [{ text: '汪：我是米开朗基罗', start: 7000, end: 9000 }], start: 7000, end: 9000, isDuet: false, isBackground: false },
       ],
     }
-    expect(canResolveLyricSingers(genshinProjectLyrics, { name: '经过', artists: ['HOYO-MiX'], album: '原神-经过' })).toBe(true)
+    expect(canResolveLyricSingers(youdiantianLyrics)).toBe(true)
 
     const singleUnnamedTtml: ResolvedLyrics = {
       source: 'ttml-amll',
@@ -297,44 +288,28 @@ describe('独立演唱者声部与曲名歌手译名格式化', () => {
         { words: [{ text: '天干物燥', start: 1000, end: 3000 }], start: 1000, end: 3000, isDuet: false, isBackground: false, agent: 'v1' },
       ],
     }
-    expect(canResolveLyricSingers(singleUnnamedTtml)).toBe(false)
+    expect(canResolveLyricSingers(singleUnnamedTtml)).toBe(true)
 
-    const unnamedMultiTtml: ResolvedLyrics = {
-      ...singleUnnamedTtml,
-      agents: {
-        v1: { id: 'v1', color: 'sky' },
-        v2: { id: 'v2', color: 'rose' },
-      },
+    const instrumentalLyrics: ResolvedLyrics = {
+      ...soloPlainLyrics,
+      instrumental: true,
     }
-    expect(canResolveLyricSingers(unnamedMultiTtml)).toBe(true)
+    expect(canResolveLyricSingers(instrumentalLyrics)).toBe(false)
 
-    const namedTtmlLyrics: ResolvedLyrics = {
-      ...singleUnnamedTtml,
-      agents: {
-        v1: { id: 'v1', name: '筱白白', color: 'sky' },
-      },
-    }
-    expect(canResolveLyricSingers(namedTtmlLyrics)).toBe(true)
-
-    const lrcInlineCueLyrics: ResolvedLyrics = {
+    const emptyLyrics: ResolvedLyrics = {
       source: 'ncm-lrc',
       wordTimed: false,
       instrumental: false,
-      lines: [
-        { words: [{ text: '男：给你一张过去的CD', start: 1000, end: 3000 }], start: 1000, end: 3000, isDuet: false, isBackground: false },
-      ],
+      lines: [],
     }
-    expect(canResolveLyricSingers(lrcInlineCueLyrics)).toBe(true)
+    expect(canResolveLyricSingers(emptyLyrics)).toBe(false)
 
-    const lrcSectionCueLyrics: ResolvedLyrics = {
-      source: 'ncm-lrc',
+    const noneLyrics: ResolvedLyrics = {
+      source: 'none',
       wordTimed: false,
       instrumental: false,
-      lines: [
-        { words: [{ text: '【王菲】', start: 1000, end: 1500 }], start: 1000, end: 1500, isDuet: false, isBackground: false },
-        { words: [{ text: '听听那时我们的爱情', start: 2000, end: 4000 }], start: 2000, end: 4000, isDuet: false, isBackground: false },
-      ],
+      lines: soloPlainLyrics.lines,
     }
-    expect(canResolveLyricSingers(lrcSectionCueLyrics)).toBe(true)
+    expect(canResolveLyricSingers(noneLyrics)).toBe(false)
   })
 })

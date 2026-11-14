@@ -596,7 +596,7 @@ func (a *lyricTranslationService) generateWithPartial(key string, cfg tools.AICo
 			}
 			for idx := from; idx < to; idx++ {
 				task := input.Tasks[idx]
-				translated[idx] = finalizeSingleLineTranslation(task, chunkMap[task.Index], input.TargetLang, input.Track.Artists)
+				translated[idx] = finalizeSingleLineTranslation(task, chunkMap[task.Index], input.TargetLang)
 			}
 			if chunkIdx == 0 && len(chunks) > 1 && key != "" {
 				partial := buildTranslatedLinesResult(input.Tasks[:to], translated[:to])
@@ -659,13 +659,13 @@ func parseLyricTranslationChunk(raw string, tasks []lyricTranslationLineTask) (m
 	return out, nil
 }
 
-func finalizeSingleLineTranslation(task lyricTranslationLineTask, raw, targetLang string, artists []string) string {
+func finalizeSingleLineTranslation(task lyricTranslationLineTask, raw, targetLang string) string {
 	cleaned := collapseLyricSpace(raw)
 	if cleaned == "" {
 		return ""
 	}
 	if !task.Hint {
-		cleaned = stripLeakedCuePrefix(task.OrigText, task.VocalText, cleaned, artists)
+		cleaned = stripLeakedCuePrefix(task.OrigText, task.VocalText, cleaned)
 		cleaned = collapseLyricSpace(cleaned)
 		if cleaned == "" {
 			return ""
@@ -731,7 +731,13 @@ func buildLyricTranslationSystemPrompt(targetLang string, classicalMode bool) st
 		b.WriteString(fmt.Sprintf("%d. CLASSICAL CHINESE -> MODERN VERNACULAR MODE (古文转白话): This song contains Classical Chinese (文言文 / 古诗词 / 古风文言句). For every line written in Classical Chinese or archaic poetic diction, translate it into concise, graceful, poetic modern Chinese vernacular (%s) suited for lyric subtitles. Do NOT leave Classical Chinese lines untranslated; however, return \"\" for lines that are already plain modern Chinese, and return \"\" for immediate short echo fragments that merely repeat a few trailing syllables of the preceding classical line without adding new meaning.\n", step, targetDesc))
 		step++
 	}
-	b.WriteString(fmt.Sprintf("%d. Hint/credit lines (items with \"hint\": true, such as \"词作者：XXX\", \"曲作者：XXX\", \"作词：XXX\") -> translate the role label and artist/creator name concisely into targetLang ONLY when an established/confident localized form exists (for creator names, use only publicly recognized names or keep the original name; NEVER invent translations). Return \"\" if uncertain or already in targetLang. For non-hint lines, NEVER prepend singer names or colons.\n", step))
+	b.WriteString(fmt.Sprintf("%d. Hint/credit lines (items with \"hint\": true, such as \"词作者：XXX\", \"曲作者：XXX\", \"作词：XXX\") -> translate the role label and artist/creator name concisely into targetLang ONLY when an established/confident localized form exists (for creator names, use only publicly recognized names or keep the original name; NEVER invent translations). Return \"\" if uncertain or already in targetLang.\n", step))
+	step++
+	b.WriteString(fmt.Sprintf("%d. INLINE SINGER / PART CUE PREFIXES (CRITICAL for non-hint lines): Platform lyrics often prepend a singer name, surname abbreviation, group/duet tag, or character cue before a colon or in brackets — e.g. \"汪：我是米开朗基罗\", \"BY2：爱要精心来雕刻\", \"合：眼神坚定着我们的选择\", \"男：...\", \"女：...\", \"李荣浩：...\", \"A: ...\", \"[可莉] ...\".\n", step))
+	b.WriteString("   - Recognize any leading speaker/part cue (using `artists`, `title`, `aliases`, and surrounding lines) and STRIP both the speaker label AND its colon completely from your translation! Translate ONLY the sung lyric after the colon (for example: \"汪：我是米开朗基罗\" -> \"I am Michelangelo\", NEVER \"Wang: I am Michelangelo\"; \"合：眼神坚定\" -> \"Our eyes firm\", NEVER \"Chorus: Our eyes firm\").\n")
+	b.WriteString("   - If \"ref\" contains a leaked speaker prefix before a colon, strip it as well.\n")
+	b.WriteString("   - By contrast, when a colon is genuine narrative speech/punctuation inside the sung lyric itself (e.g. \"她问我：你明天还会回来吗\"), keep the clause and punctuation normally.\n")
+	b.WriteString("   - NEVER translate a pure structural section tag (such as \"Verse\", \"Chorus\", \"主歌\", \"副歌\"); return \"\" if a line is purely non-sung structural metadata.\n")
 	step++
 	b.WriteString(fmt.Sprintf("%d. Repeated lines should keep consistent wording for recurring refrains, except first-occurrence parenthetical notes need not repeat and phrasing may adapt when linked with different neighboring lines.\n", step))
 	step++
@@ -860,7 +866,7 @@ func (s *MusicService) extractTranslationInput(ctx context.Context, track *dto.M
 		occ := occCounts[key]
 		occCounts[key] = occ + 1
 
-		vocalText, skip, isHint := classifyLyricTranslationLine(line.Text, track.Artists)
+		vocalText, skip, isHint := classifyLyricTranslationLine(line.Text)
 		if skip {
 			continue
 		}
@@ -902,6 +908,7 @@ func (s *MusicService) extractTranslationInput(ctx context.Context, track *dto.M
 
 func computeLyricTranslationHash(source string, extracted []lyricTranslationExtracted, refLang string, refTexts []string, classicalMode bool, tasks []lyricTranslationLineTask) string {
 	var b strings.Builder
+	b.WriteString("v2\n")
 	b.WriteString(source)
 	b.WriteByte('\n')
 	b.WriteString(refLang)
@@ -1568,296 +1575,20 @@ func alignExpandedTranslations(lines []lyricTimedLine, raw string) []string {
 	return result
 }
 
-type ttmlKeyedLangPair struct {
-	main string
-	bg   string
-}
-
-// ttmlHeadTranslationsByLang 读取 head 中各语种的 itunes:key 翻译块；返回按归一化语言标签分组的 map
-func ttmlHeadTranslationsByLang(root *ttmlNode) map[string]map[string]ttmlKeyedLangPair {
-	out := map[string]map[string]ttmlKeyedLangPair{}
-	readTextNode := func(tag string, textNode *ttmlNode) {
-		key := ttmlAttr(textNode, "for")
-		if key == "" {
-			return
-		}
-		if _, ok := out[tag]; !ok {
-			out[tag] = map[string]ttmlKeyedLangPair{}
-		}
-		if _, exists := out[tag][key]; exists {
-			return
-		}
-		var mainBuilder strings.Builder
-		var bgText string
-		for _, ch := range textNode.children {
-			if ch.name == "" {
-				mainBuilder.WriteString(ch.text)
-				continue
-			}
-			if ch.name == "span" && ttmlAttr(ch, "role") == "x-bg" {
-				if bgText == "" {
-					bgText = collapseLyricSpace(ttmlTextWithoutRuby(ch))
-				}
-				continue
-			}
-			mainBuilder.WriteString(ttmlTextWithoutRuby(ch))
-		}
-		mainText := collapseLyricSpace(mainBuilder.String())
-		if mainText != "" || bgText != "" {
-			out[tag][key] = ttmlKeyedLangPair{main: mainText, bg: bgText}
-		}
-	}
-
-	walkTTML(root, func(block *ttmlNode) bool {
-		if block.name != "translations" {
-			return true
-		}
-		defaultTag := normalizeLyricLangTag(ttmlAttr(block, "lang"))
-		walkTTML(block, func(transNode *ttmlNode) bool {
-			if transNode.name == "text" {
-				tag := normalizeLyricLangTag(ttmlAttr(transNode, "lang"))
-				if tag == "" {
-					tag = defaultTag
-				}
-				readTextNode(tag, transNode)
-				return false
-			}
-			if transNode.name != "translation" {
-				return true
-			}
-			tag := normalizeLyricLangTag(ttmlAttr(transNode, "lang"))
-			if tag == "" {
-				tag = defaultTag
-			}
-			walkTTML(transNode, func(textNode *ttmlNode) bool {
-				if textNode.name != "text" {
-					return true
-				}
-				readTextNode(tag, textNode)
-				return false
-			})
-			return false
-		})
-		return false
-	})
-	return out
-}
-
-func ttmlTextWithoutRuby(node *ttmlNode) string {
-	if node.name == "" {
-		return node.text
-	}
-	ruby := ttmlAttr(node, "ruby")
-	if ruby == "text" || ruby == "textContainer" || ruby == "delimiter" {
-		return ""
-	}
-	var b strings.Builder
-	for _, ch := range node.children {
-		b.WriteString(ttmlTextWithoutRuby(ch))
-	}
-	return b.String()
-}
-
-type ttmlParsedRichLine struct {
-	text       string
-	start, end int64
-	hasTiming  bool
-	inlineTr   map[string]string
-	bg         *ttmlParsedRichLine
-	bgFirst    bool
-}
-
-func readTTMLRichLine(p *ttmlNode) ttmlParsedRichLine {
-	var res ttmlParsedRichLine
-	var buf strings.Builder
-	res.start, res.end = int64(math.MaxInt64), -1
-	bgSeen := false
-	hasMainContent := false
-
-	appendWordText := func(s string) {
-		if s == "" {
-			return
-		}
-		if strings.TrimSpace(s) == "" {
-			if buf.Len() > 0 {
-				buf.WriteByte(' ')
-			}
-			return
-		}
-		buf.WriteString(s)
-		hasMainContent = true
-	}
-
-	var collectChild func(node *ttmlNode)
-	collectChild = func(node *ttmlNode) {
-		if node.name == "" {
-			appendWordText(node.text)
-			return
-		}
-		if node.name != "span" {
-			for _, ch := range node.children {
-				collectChild(ch)
-			}
-			return
-		}
-		ruby := ttmlAttr(node, "ruby")
-		if ruby == "text" || ruby == "textContainer" || ruby == "delimiter" {
-			return
-		}
-		switch ttmlAttr(node, "role") {
-		case "x-translation":
-			trText := collapseLyricSpace(ttmlTextWithoutRuby(node))
-			if trText != "" {
-				tag := normalizeLyricLangTag(ttmlAttr(node, "lang"))
-				if res.inlineTr == nil {
-					res.inlineTr = map[string]string{}
-				}
-				if _, exists := res.inlineTr[tag]; !exists {
-					res.inlineTr[tag] = trText
-				}
-			}
-			return
-		case "x-roman":
-			return
-		case "x-bg":
-			if res.bg == nil {
-				if !hasMainContent && !bgSeen {
-					res.bgFirst = true
-				}
-				bgSeen = true
-				parsedBg := readTTMLRichLine(node)
-				res.bg = &parsedBg
-			}
-			return
-		}
-		if st, stOK := parseTTMLTime(ttmlAttr(node, "begin")); stOK {
-			if ed, edOK := parseTTMLTime(ttmlAttr(node, "end")); edOK {
-				if !(st == 0 && ed == 0) {
-					res.hasTiming = true
-					res.start = min(res.start, st)
-					res.end = max(res.end, max(st, ed))
-				}
-			}
-		}
-		txt := ttmlTextWithoutRuby(node)
-		if strings.TrimSpace(txt) != "" {
-			buf.WriteString(txt)
-			hasMainContent = true
-		}
-	}
-
-	for _, ch := range p.children {
-		collectChild(ch)
-	}
-	res.text = collapseLyricSpace(buf.String())
-	if runes := []rune(res.text); len(runes) > lyricTranslationMaxLineRunes {
-		res.text = string(runes[:lyricTranslationMaxLineRunes])
-	}
-	return res
-}
-
-// parseTTMLTranslationLines 解析 TTML 并拆出与前端 parse-ttml.ts 一致的主唱行与 x-bg 背景行（含仅 bg 提升为主唱及多语种翻译提取）
+// parseTTMLTranslationLines 解析 TTML 并拆出与前端 parse-ttml.ts 一致的主唱行与 x-bg 背景行（复用 parseTTMLRichDoc）
 func parseTTMLTranslationLines(raw string) []lyricTranslationExtracted {
-	root := parseTTMLTree(raw)
-	if root == nil {
+	doc := parseTTMLRichDoc(raw)
+	if doc == nil {
 		return nil
 	}
-	headByLang := ttmlHeadTranslationsByLang(root)
-	var out []lyricTranslationExtracted
-
-	walkTTML(root, func(p *ttmlNode) bool {
-		if p.name != "p" {
-			return true
+	out := make([]lyricTranslationExtracted, len(doc.Lines))
+	for i, line := range doc.Lines {
+		out[i] = lyricTranslationExtracted{
+			Start:         line.Start,
+			Text:          line.Text,
+			Bg:            line.Bg,
+			BuiltInByLang: line.BuiltInByLang,
 		}
-		pBegin, pBeginOK := parseTTMLTime(ttmlAttr(p, "begin"))
-		_, pEndOK := parseTTMLTime(ttmlAttr(p, "end"))
-		rich := readTTMLRichLine(p)
-		if !pBeginOK && rich.hasTiming {
-			pBegin, pBeginOK = rich.start, true
-		}
-		if !pEndOK && rich.hasTiming && rich.end >= 0 {
-			pEndOK = true
-		}
-		if !pBeginOK || !pEndOK {
-			return false
-		}
-		mainStart := pBegin
-		if rich.hasTiming && rich.start < math.MaxInt64 {
-			mainStart = rich.start
-		}
-
-		key := ttmlAttr(p, "key")
-		mainBuiltIn := map[string]string{}
-		for tag, text := range rich.inlineTr {
-			mainBuiltIn[tag] = text
-		}
-		bgBuiltIn := map[string]string{}
-		if rich.bg != nil {
-			for tag, text := range rich.bg.inlineTr {
-				bgBuiltIn[tag] = text
-			}
-		}
-		if key != "" {
-			for tag, keyed := range headByLang {
-				if pair, ok := keyed[key]; ok {
-					if pair.main != "" && mainBuiltIn[tag] == "" {
-						mainBuiltIn[tag] = pair.main
-					}
-					if pair.bg != "" && bgBuiltIn[tag] == "" {
-						bgBuiltIn[tag] = pair.bg
-					}
-				}
-			}
-		}
-
-		hasMain := rich.text != ""
-		hasBg := rich.bg != nil && rich.bg.text != ""
-		if !hasMain && !hasBg {
-			return false
-		}
-		if !hasMain && hasBg {
-			// 纯背景人声段落提升为主唱行（与前端 parse-ttml.ts promotedBg 一致）
-			bgStart := pBegin
-			if rich.bg.hasTiming && rich.bg.start < math.MaxInt64 {
-				bgStart = rich.bg.start
-			}
-			out = append(out, lyricTranslationExtracted{
-				Start:         bgStart,
-				Text:          rich.bg.text,
-				Bg:            false,
-				BuiltInByLang: bgBuiltIn,
-			})
-			return false
-		}
-
-		mainItem := lyricTranslationExtracted{
-			Start:         mainStart,
-			Text:          rich.text,
-			Bg:            false,
-			BuiltInByLang: mainBuiltIn,
-		}
-		if !hasBg {
-			out = append(out, mainItem)
-			return false
-		}
-		bgStart := pBegin
-		if rich.bg.hasTiming && rich.bg.start < math.MaxInt64 {
-			bgStart = rich.bg.start
-		}
-		bgItem := lyricTranslationExtracted{
-			Start:         bgStart,
-			Text:          rich.bg.text,
-			Bg:            true,
-			BuiltInByLang: bgBuiltIn,
-		}
-		if rich.bgFirst && bgStart <= mainStart {
-			out = append(out, bgItem, mainItem)
-		} else {
-			out = append(out, mainItem, bgItem)
-		}
-		return false
-	})
-
-	sort.SliceStable(out, func(i, j int) bool { return out[i].Start < out[j].Start })
+	}
 	return out
 }

@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"regexp"
 	"sort"
 	"strconv"
@@ -52,31 +51,9 @@ const (
 )
 
 var (
-	lyricJyutpingRe    = regexp.MustCompile(`\b[a-z]{1,6}[1-6]\b`)
-	lyricYrcSplitRe    = regexp.MustCompile(`\(\d+,\d+,\d+\)`)
-	lyricQrcWordRe     = regexp.MustCompile(`([\s\S]*?)\((\d+),(\d+)\)`)
-	cantoneseParticles = runeSetFromString("嘅咗喺冇係唔啲嚟咁乜咩仲畀揾搵睇佢哋")
-	hokkienChars       = runeSetFromString("袂毋𨑨迌佇囥")
-	hokkienSubstrings  = []string{"啥物", "歹势", "歹勢", "仝款", "按怎", "家己", "毋知", "袂晓", "袂曉", "佗位", "叨位"}
-	taiwanOriginHints  = []string{
-		"周杰伦", "周杰倫", "jay chou", "方文山", "田馥甄", "hebe tien", "s.h.e", "陈嘉桦", "陳嘉樺", "任家萱",
-		"潘安邦", "叶佳修", "葉佳修", "罗大佑", "羅大祐", "李宗盛", "陈昇", "陳昇", "陈升", "伍佰",
-		"张惠妹", "張惠妹", "a-mei", "五月天", "mayday", "陈信宏", "陳信宏", "蔡依林", "jolin tsai",
-		"苏打绿", "蘇打綠", "鱼丁糸", "魚丁糸", "吴青峰", "吳青峰", "陈绮贞", "陳綺貞", "张雨生", "張雨生",
-		"张信哲", "張信哲", "张韶涵", "張韶涵", "王心凌", "萧敬腾", "蕭敬騰", "林宥嘉", "卢广仲", "盧廣仲",
-		"告五人", "草东没有派对", "草東沒有派對", "茄子蛋", "陶喆", "david tao", "齐秦", "齊秦", "蔡琴",
-		"费玉清", "費玉清", "邓丽君", "鄧麗君", "刘若英", "劉若英", "徐佳莹", "徐佳瑩", "韦礼安", "韋禮安",
-		"杨丞琳", "楊丞琳", "范玮琪", "范瑋琪", "郭静", "郭靜", "周华健", "周華健", "任贤齐", "任賢齊",
-		"张震岳", "張震嶽", "mc hotdog", "热狗", "熱狗", "顽童mj116", "頑童mj116", "周兴哲", "周興哲",
-		"动力火车", "動力火車", "飞儿乐团", "飛兒樂團", "f.i.r.", "信乐团", "信樂團", "八三夭",
-		"落日飞车", "落日飛車", "甜约翰", "甜約翰", "脆乐团", "脆樂團", "魏如萱", "艾怡良",
-		"万芳", "萬芳", "辛晓琪", "辛曉琪", "许茹芸", "許茹芸", "林志炫", "庾澄庆", "庾澄慶",
-		"黄丽玲", "黃麗玲", "a-lin", "徐世珍", "姚若龙", "姚若龍", "施人诚", "施人誠", "葛大为", "葛大為",
-		"陈小霞", "陳小霞", "吴辉福", "吳輝福", "jerryc",
-		"杰威尔", "杰威爾", "jvr music", "华研国际", "華研國際", "滚石国际", "滾石國際", "rock records",
-		"相信音乐", "相信音樂", "添翼创越", "添翼創越", "亚神音乐", "亞神音樂", "福茂唱片", "丰华唱片", "豐華唱片", "飞碟唱片", "飛碟唱片",
-		"小幸运", "小幸運", "外婆的澎湖湾", "外婆的澎湖灣", "孤儿乐园", "孤兒樂園", "澎湖湾", "澎湖灣", "忠孝东路", "忠孝東路", "鹿港小镇", "鹿港小鎮",
-	}
+	lyricJyutpingRe = regexp.MustCompile(`\b[a-z]{1,6}[1-6]\b`)
+	lyricYrcSplitRe = regexp.MustCompile(`\(\d+,\d+,\d+\)`)
+	lyricQrcWordRe  = regexp.MustCompile(`([\s\S]*?)\((\d+),(\d+)\)`)
 )
 
 type lyricPronunciationService struct {
@@ -127,7 +104,6 @@ type lyricPronunciationInput struct {
 	LyricHash        string
 	WordTimed        bool
 	SongLang         string
-	TaiwanOrigin     bool
 	ArtistHints      [][]string
 	Credits          []string
 	CompleteUpstream bool
@@ -275,7 +251,7 @@ func (s *MusicService) extractLyricPronunciationInput(ctx context.Context, track
 	upstreamSamples := make([]lyricPronunciationUpstreamSample, 0, 3)
 
 	var hashBuilder strings.Builder
-	hashBuilder.WriteString("v2:")
+	hashBuilder.WriteString("v3:")
 	hashBuilder.WriteString(resolvedSource)
 	if wordTimed {
 		hashBuilder.WriteString("|wt")
@@ -304,7 +280,7 @@ func (s *MusicService) extractLyricPronunciationInput(ctx context.Context, track
 			hashBuilder.WriteString(strings.Join(line.Tokens, "\x1f"))
 		}
 
-		vocalText, skip := classifyLyricVocalLine(line.Text, track.Artists)
+		vocalText, skip := classifyLyricVocalLine(line.Text)
 		if !skip {
 			vocalText = collapseLyricSpace(vocalText)
 			if !hasPronounceableRune(vocalText) {
@@ -333,8 +309,7 @@ func (s *MusicService) extractLyricPronunciationInput(ctx context.Context, track
 	}
 
 	hints := loadSongHints(track.ID)
-	taiwanOrigin := hasTaiwanOriginHint(track, hints.ArtistHints, credits)
-	songLang := detectPronunciationSongLang(vocalTexts, upstreamSamples, taiwanOrigin)
+	songLang := detectPronunciationSongLang(vocalTexts, upstreamSamples)
 	var (
 		tasks         []lyricPronunciationTask
 		borrowedLines []dto.MusicLyricPronunciationLine
@@ -387,7 +362,6 @@ func (s *MusicService) extractLyricPronunciationInput(ctx context.Context, track
 		LyricHash:        lyricHash,
 		WordTimed:        wordTimed,
 		SongLang:         songLang,
-		TaiwanOrigin:     taiwanOrigin,
 		ArtistHints:      hints.ArtistHints,
 		Credits:          credits,
 		CompleteUpstream: completeUpstream,
@@ -846,7 +820,7 @@ func (a *lyricPronunciationService) generateWithPartial(key string, cfg tools.AI
 	if len(chunks) == 0 {
 		return []dto.MusicLyricPronunciationLine{}, nil
 	}
-	system := buildPronunciationSystemPrompt(input.WordTimed, input.SongLang, input.TaiwanOrigin)
+	system := buildPronunciationSystemPrompt(input.WordTimed, input.SongLang)
 
 	chunkResults := make([][]dto.MusicLyricPronunciationLine, len(chunks))
 	chunk0, err := a.generateChunk(cfg, llmclient.TierFirstScreen, system, input, chunks[0])
@@ -906,7 +880,7 @@ func (a *lyricPronunciationService) generateChunk(
 	for attempt := 0; attempt <= lyricPronunciationMaxRetries; attempt++ {
 		raw, err := a.callTier(cfg, tier, system, user)
 		if err == nil {
-			lines, wrongScript, parseErr := parseAndValidatePronunciationResp(raw, tasks, input.WordTimed, input.SongLang, input.TaiwanOrigin)
+			lines, wrongScript, parseErr := parseAndValidatePronunciationResp(raw, tasks, input.WordTimed, input.SongLang)
 			if parseErr == nil {
 				if !wrongScript || attempt >= lyricPronunciationMaxRetries {
 					return lines, nil
@@ -938,26 +912,26 @@ func splitPronunciationChunks(tasks []lyricPronunciationTask) [][]lyricPronuncia
 	return chunks
 }
 
-func buildPronunciationSystemPrompt(wordTimed bool, songLang string, taiwanOrigin bool) string {
+func buildPronunciationSystemPrompt(wordTimed bool, songLang string) string {
 	var b strings.Builder
 	b.WriteString("You generate accurate phonetic pronunciation transcriptions for song lyrics.\n\n")
-	b.WriteString(fmt.Sprintf("Detected primary song language hint: %s", songLang))
-	if taiwanOrigin {
-		b.WriteString(" (taiwan_origin_hint: true)")
-	}
-	b.WriteString(".\n\n")
+	b.WriteString(fmt.Sprintf("Detected primary song script/language hint: %s.\n\n", songLang))
+	b.WriteString("REGIONAL VARIETY & SCRIPT JUDGMENT (YOUR RESPONSIBILITY):\n")
+	b.WriteString("- Inspect `title`, `artists`, `album`, `aliases`, `artist_hints`, `credits`, and the lyrics themselves to determine each line's exact spoken/sung language variety:\n")
+	b.WriteString("  * Taiwan Mandarin (台灣國語) vs Mainland Mandarin (普通话) vs Hong Kong/Macau Cantonese (粵語) vs Taiwanese Hokkien/Minnan (閩南語/台語).\n")
+	b.WriteString("  * Even when input lyrics are written in Simplified Chinese, if the song, performing artist/band, or songwriter/lyricist/composer/record label is from Taiwan (e.g., 周杰伦, 田馥甄《小幸运》, 潘安邦/叶佳修《外婆的澎湖湾》, 《孤儿乐园》, etc.) AND the line is sung in **Mandarin (國語)**, you MUST judge it as Taiwan Mandarin (`\"lang\": \"zh-tw\"`) and output **Bopomofo (注音符號)** — NEVER Hanyu Pinyin!\n")
+	b.WriteString("  * **STRICT HOKKIEN / MINNAN (閩南語 / 台語) EXCLUSION**: NEVER use Bopomofo or Mandarin Pinyin for Hokkien / Minnan songs or Hokkien lines mixed into a Taiwan song (e.g., 《愛拚才會贏》, 《浪子回頭》). Tag Hokkien lines `\"lang\": \"other\"` and output standard **Tâi-lô Romanization (台灣閩南語羅馬字拼音方案)**.\n\n")
 	b.WriteString("STANDARD PHONETIC SYSTEMS BY LINE LANGUAGE (`lang`):\n")
-	b.WriteString("- `zh` (Mainland Mandarin / 普通话): Standard Hanyu Pinyin with tone marks (e.g. `wǒ ài nǐ`), lowercase, space-separated per syllable — use ONLY for non-Taiwan Mandarin songs/lines.\n")
-	b.WriteString("- `zh-hk` (Hong Kong Cantonese): LSHK Jyutping with tone numbers 1–6 (e.g. `ngo5 oi3 nei5`), lowercase, space-separated per syllable. For bilingual Mandarin+Cantonese songs, accurately tag Cantonese lines `zh-hk` (Jyutping) and Mandarin lines `zh` (or `zh-tw` if sung in Taiwan Mandarin).\n")
-	b.WriteString("- `zh-tw` (Taiwan Mandarin / 台灣國語): Standard Bopomofo / Zhuyin (注音符號, e.g. `ㄒㄧㄠˇ ㄒㄧㄥˋ ㄩㄣˋ`, `ㄨㄢˇ ㄈㄥ ㄑㄧㄥ ㄈㄨˊ ㄆㄥˊ ㄏㄨˊ ㄨㄢ`, neutral tone `˙`), space-separated per syllable, following authentic Taiwan Guoyu standard readings (教育部國語一字多音 / local Taiwan Mandarin usage). **TAIWAN ORIGIN PRIORITY**: Even if the input lyrics are in Simplified Chinese, whenever the song, performing artist/band, or songwriter/lyricist/composer (check `title`, `artists`, `album`, `aliases`, `artist_hints`, `credits`, or `taiwan_origin_hint: true` — e.g. 周杰伦, 田馥甄《小幸运》, 潘安邦/叶佳修《外婆的澎湖湾》, 《孤儿乐园》, or any Taiwanese creator) is from Taiwan AND the line is sung in **Mandarin (國語)**, you MUST tag `\"lang\": \"zh-tw\"` and output **Bopomofo (注音符號)**, NEVER Hanyu Pinyin!\n")
-	b.WriteString("- **STRICT HOKKIEN / MINNAN (閩南語 / 台語) EXCLUSION**: NEVER use Bopomofo (注音符號) or Mandarin Pinyin for Taiwanese Hokkien / Minnan (閩南語 / 台語) songs or lines (e.g. 《愛拚才會贏》, 《浪子回頭》, or Hokkien lines mixed into a Taiwan song)! Bopomofo is strictly for Taiwan Mandarin (國語). For Hokkien / Minnan lines, tag `\"lang\": \"other\"` and output standard **Taiwanese Hokkien Romanization (Tâi-lô 台灣閩南語羅馬字拼音方案)** in lowercase Latin with tone marks, space-separated per syllable (e.g. `ài piahn tsiah ē iânn`).\n")
+	b.WriteString("- `zh` (Mainland Mandarin / 普通话): Standard Hanyu Pinyin with tone marks (e.g. `wǒ ài nǐ`), lowercase, space-separated per syllable — use ONLY for non-Taiwan Mandarin.\n")
+	b.WriteString("- `zh-hk` (Cantonese): LSHK Jyutping with tone numbers 1–6 (e.g. `ngo5 oi3 nei5`), lowercase, space-separated per syllable.\n")
+	b.WriteString("- `zh-tw` (Taiwan Mandarin / 台灣國語): Standard Bopomofo / Zhuyin (注音符號, e.g. `ㄒㄧㄠˇ ㄒㄧㄥˋ ㄩㄣˋ`, `ㄨㄢˇ ㄈㄥ ㄑㄧㄥ ㄈㄨˊ ㄆㄥˊ ㄏㄨˊ ㄨㄢ`, neutral tone `˙`), space-separated per syllable, following authentic Taiwan Guoyu standard readings.\n")
 	b.WriteString("- `ja` (Japanese): Standard Hepburn Romaji, lowercase, space-separated per word/phrase.\n")
 	b.WriteString("- `ko` (Korean): Revised Romanization of Korean, lowercase.\n")
 	b.WriteString("- `en` (English): Standard General American IPA WITHOUT surrounding slashes `/` (e.g. `həˈloʊ wɜːrld`).\n")
-	b.WriteString("- `other` (Russian, French, Thai, Arabic, Hokkien Tâi-lô, etc.): Standard international Latin romanization (ISO / BGN-PCGN / RTGS / Tâi-lô) or IPA for Latin-script foreign words.\n\n")
+	b.WriteString("- `other` (Hokkien Tâi-lô, Russian, French, Thai, Arabic, etc.): Standard international Latin romanization (ISO / BGN-PCGN / RTGS / Tâi-lô) or IPA for Latin-script foreign words.\n\n")
 	b.WriteString("RULES:\n")
 	b.WriteString("1. NEVER copy source Hanzi, Kana, or Hangul characters into `pronunciation` or `tokens`!\n")
-	b.WriteString("2. Inline singer cue prefixes before a colon (e.g. `男：`, `周杰伦：`) are NOT sung: omit the cue prefix from `pronunciation`, and for word-timed tokens representing ONLY the cue prefix, output `\"\"`.\n")
+	b.WriteString("2. INLINE SINGER / PART CUE PREFIXES (e.g. `汪：`, `BY2：`, `合：`, `男：`, `周杰伦：`, `[可莉]`): Recognizable singer/part cue labels before a colon or in brackets are NOT sung — omit the cue prefix completely from `pronunciation`, and output `\"\"` for word-timed `tokens` belonging only to the cue prefix (conversely, if a colon introduces genuine sung speech inside a lyric, pronounce the whole sung line).\n")
 	b.WriteString("3. Follow the style of `upstream_samples` if provided (e.g. Jyutping format on partially romanized songs).\n")
 	if wordTimed {
 		b.WriteString("4. WORD-TIMED ALIGNMENT: Every line provides a `tokens` array of pronounceable words (`token_count`). You MUST output a `tokens` array of strings with the EXACT SAME length and 1-to-1 order matching each input token's pronunciation (use `\"\"` only for non-sung cue prefixes).\n")
@@ -991,27 +965,25 @@ func buildPronunciationUserPrompt(input *lyricPronunciationInput, tasks []lyricP
 		}
 	}
 	payload := struct {
-		Title            string                             `json:"title"`
-		Artists          []string                           `json:"artists,omitempty"`
-		Album            string                             `json:"album,omitempty"`
-		Aliases          []string                           `json:"aliases,omitempty"`
-		ArtistHints      [][]string                         `json:"artist_hints,omitempty"`
-		Credits          []string                           `json:"credits,omitempty"`
-		TaiwanOriginHint bool                               `json:"taiwan_origin_hint,omitempty"`
-		PrimaryLangHint  string                             `json:"primary_lang_hint"`
-		UpstreamSamples  []lyricPronunciationUpstreamSample `json:"upstream_samples,omitempty"`
-		Lines            []promptLine                       `json:"lines"`
+		Title           string                             `json:"title"`
+		Artists         []string                           `json:"artists,omitempty"`
+		Album           string                             `json:"album,omitempty"`
+		Aliases         []string                           `json:"aliases,omitempty"`
+		ArtistHints     [][]string                         `json:"artist_hints,omitempty"`
+		Credits         []string                           `json:"credits,omitempty"`
+		PrimaryLangHint string                             `json:"primary_lang_hint"`
+		UpstreamSamples []lyricPronunciationUpstreamSample `json:"upstream_samples,omitempty"`
+		Lines           []promptLine                       `json:"lines"`
 	}{
-		Title:            input.Track.Name,
-		Artists:          input.Track.Artists,
-		Album:            input.Track.Album,
-		Aliases:          input.Track.Aliases,
-		ArtistHints:      input.ArtistHints,
-		Credits:          input.Credits,
-		TaiwanOriginHint: input.TaiwanOrigin,
-		PrimaryLangHint:  input.SongLang,
-		UpstreamSamples:  input.UpstreamSamples,
-		Lines:            lines,
+		Title:           input.Track.Name,
+		Artists:         input.Track.Artists,
+		Album:           input.Track.Album,
+		Aliases:         input.Track.Aliases,
+		ArtistHints:     input.ArtistHints,
+		Credits:         input.Credits,
+		PrimaryLangHint: input.SongLang,
+		UpstreamSamples: input.UpstreamSamples,
+		Lines:           lines,
 	}
 	raw, _ := json.Marshal(payload)
 	return string(raw)
@@ -1022,7 +994,6 @@ func parseAndValidatePronunciationResp(
 	tasks []lyricPronunciationTask,
 	wordTimed bool,
 	defaultLang string,
-	taiwanOrigin bool,
 ) ([]dto.MusicLyricPronunciationLine, bool, error) {
 	obj, err := extractJSONObject(raw)
 	if err != nil {
@@ -1060,13 +1031,6 @@ func parseAndValidatePronunciationResp(
 		if !isValidPronunciationText(entry.pron, task.VocalText, entry.lang) {
 			wrongCount++
 			continue
-		}
-		if taiwanOrigin && entry.lang == "zh" {
-			stats, _ := countLyricScripts([]string{task.VocalText})
-			if stats.han > 0 && stats.latin == 0 && !hasCantoneseMarkers([]string{task.VocalText}) && !hasHokkienMarkers([]string{task.VocalText}) {
-				wrongCount++
-				continue
-			}
 		}
 
 		lineOut := dto.MusicLyricPronunciationLine{
@@ -1144,67 +1108,19 @@ func isValidPronunciationText(pron, origVocal, lineLang string) bool {
 }
 
 func normalizePronunciationLang(raw, fallback string) string {
-	switch normalizeLyricLangTag(raw) {
-	case "zh", "zh-tw", "zh-hk", "ja", "ko", "en", "other":
-		return normalizeLyricLangTag(raw)
+	trimmed := strings.TrimSpace(raw)
+	if strings.EqualFold(trimmed, "other") {
+		return "other"
+	}
+	switch lang := normalizeLyricLangTag(trimmed); lang {
+	case "zh", "zh-tw", "zh-hk", "ja", "ko", "en":
+		return lang
 	default:
 		if fallback != "" {
 			return fallback
 		}
 		return "other"
 	}
-}
-
-func hasCantoneseMarkers(texts []string) bool {
-	for _, t := range texts {
-		for _, r := range t {
-			if cantoneseParticles[r] {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func hasHokkienMarkers(texts []string) bool {
-	for _, t := range texts {
-		for _, r := range t {
-			if hokkienChars[r] {
-				return true
-			}
-		}
-		for _, sub := range hokkienSubstrings {
-			if strings.Contains(t, sub) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func hasTaiwanOriginHint(track *dto.MusicTrackDto, artistHints [][]string, credits []string) bool {
-	var candidates []string
-	if track != nil {
-		candidates = append(candidates, track.Name, track.Album)
-		candidates = append(candidates, track.Artists...)
-		candidates = append(candidates, track.Aliases...)
-	}
-	for _, group := range artistHints {
-		candidates = append(candidates, group...)
-	}
-	candidates = append(candidates, credits...)
-	for _, raw := range candidates {
-		lower := strings.ToLower(strings.TrimSpace(raw))
-		if lower == "" {
-			continue
-		}
-		for _, hint := range taiwanOriginHints {
-			if strings.Contains(lower, hint) {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // resolvePronunciationRecordLang 根据最终各行读音语种汇总整首读音记录的归属语言
@@ -1232,7 +1148,7 @@ func resolvePronunciationRecordLang(lines []dto.MusicLyricPronunciationLine, fal
 	return "other"
 }
 
-func detectPronunciationSongLang(vocalTexts []string, samples []lyricPronunciationUpstreamSample, taiwanOrigin bool) string {
+func detectPronunciationSongLang(vocalTexts []string, samples []lyricPronunciationUpstreamSample) string {
 	for _, s := range samples {
 		if lyricJyutpingRe.MatchString(strings.ToLower(s.Pronunciation)) {
 			return "zh-hk"
@@ -1242,17 +1158,6 @@ func detectPronunciationSongLang(vocalTexts []string, samples []lyricPronunciati
 		}
 	}
 	lang := detectLyricTextLang(vocalTexts, "")
-	if lang == "zh" || lang == "zh-tw" || lang == "zh-hk" {
-		if hasCantoneseMarkers(vocalTexts) {
-			return "zh-hk"
-		}
-		if hasHokkienMarkers(vocalTexts) {
-			return "other"
-		}
-		if taiwanOrigin {
-			return "zh-tw"
-		}
-	}
 	if lang == "" {
 		return "other"
 	}
@@ -1265,12 +1170,6 @@ func detectPronunciationLineLang(vocalText, roman, songLang string) string {
 	}
 	if lyricJyutpingRe.MatchString(strings.ToLower(roman)) {
 		return "zh-hk"
-	}
-	if hasCantoneseMarkers([]string{vocalText}) {
-		return "zh-hk"
-	}
-	if hasHokkienMarkers([]string{vocalText}) {
-		return "other"
 	}
 	if detected := detectLyricTextLang([]string{vocalText}, ""); detected != "" {
 		return detected
@@ -1320,311 +1219,42 @@ func filterPronounceableTokens(words []string) []string {
 }
 
 // parseTTMLPronunciationLines 解析 TTML 各行（与前端 parse-ttml.ts / preprocess.ts 一致的可发音词元数组与 x-roman 音译提取）
+// parseTTMLPronunciationLines 解析 TTML 各行（复用 parseTTMLRichDoc，保持与前端一致的可发音词元数组与 x-roman 音译提取）
 func parseTTMLPronunciationLines(raw string) ([]lyricPronunciationExtracted, []string, bool) {
-	root := parseTTMLTree(raw)
-	if root == nil {
+	doc := parseTTMLRichDoc(raw)
+	if doc == nil {
 		return nil, nil, false
 	}
-	headRomans := ttmlHeadRomanizations(root)
-	var out []lyricPronunciationExtracted
 	var credits []string
 	seenCredits := map[string]bool{}
-	songWordTimed := false
-
-	walkTTML(root, func(p *ttmlNode) bool {
-		if p.name == "songwriter" {
-			credits = appendPronunciationCredit(credits, seenCredits, ttmlTextContent(p))
-			return false
-		}
-		if p.name != "p" {
-			return true
-		}
-		pBegin, pBeginOK := parseTTMLTime(ttmlAttr(p, "begin"))
-		_, pEndOK := parseTTMLTime(ttmlAttr(p, "end"))
-		rich := readTTMLPronunciationLine(p)
-		if !pBeginOK && rich.hasTiming {
-			pBegin, pBeginOK = rich.start, true
-		}
-		if !pEndOK && rich.hasTiming && rich.end >= 0 {
-			pEndOK = true
-		}
-		if !pBeginOK || !pEndOK {
-			return false
-		}
-		mainStart := pBegin
-		if rich.hasTiming && rich.start < math.MaxInt64 {
-			mainStart = rich.start
-		}
-
-		key := ttmlAttr(p, "key")
-		mainRoman := rich.roman
-		bgRoman := ""
-		if rich.bg != nil {
-			bgRoman = rich.bg.roman
-		}
-		if key != "" {
-			if pair, ok := headRomans[key]; ok {
-				if mainRoman == "" && pair.main != "" {
-					mainRoman = pair.main
-				}
-				if bgRoman == "" && pair.bg != "" {
-					bgRoman = pair.bg
-				}
-			}
-		}
-
-		mainTokens := filterPronounceableTokens(rich.words)
-		if len(rich.words) == 0 && rich.text != "" {
-			mainTokens = filterPronounceableTokens([]string{rich.text})
-		}
-		songWordTimed = songWordTimed || rich.wordTimed
-
-		hasMain := rich.text != ""
-		hasBg := rich.bg != nil && rich.bg.text != ""
-		if !hasMain && !hasBg {
-			return false
-		}
-		if !hasMain && hasBg {
-			bgStart := pBegin
-			if rich.bg.hasTiming && rich.bg.start < math.MaxInt64 {
-				bgStart = rich.bg.start
-			}
-			bgTokens := filterPronounceableTokens(rich.bg.words)
-			if len(rich.bg.words) == 0 && rich.bg.text != "" {
-				bgTokens = filterPronounceableTokens([]string{rich.bg.text})
-			}
-			songWordTimed = songWordTimed || rich.bg.wordTimed
-			if !isValidNativeRomanText(rich.bg.text, bgRoman) {
-				bgRoman = ""
-			}
-			if isLyricCreditText(rich.bg.text) {
-				credits = appendPronunciationCredit(credits, seenCredits, rich.bg.text)
-			}
-			out = append(out, lyricPronunciationExtracted{
-				Start:    bgStart,
-				Text:     rich.bg.text,
-				Bg:       false,
-				Tokens:   bgTokens,
-				OwnRoman: bgRoman,
-			})
-			return false
-		}
-
-		if isLyricCreditText(rich.text) {
-			credits = appendPronunciationCredit(credits, seenCredits, rich.text)
-		}
-		if !isValidNativeRomanText(rich.text, mainRoman) {
-			mainRoman = ""
-		}
-		mainItem := lyricPronunciationExtracted{
-			Start:    mainStart,
-			Text:     rich.text,
-			Bg:       false,
-			Tokens:   mainTokens,
-			OwnRoman: mainRoman,
-		}
-		if !hasBg {
-			out = append(out, mainItem)
-			return false
-		}
-		bgStart := pBegin
-		if rich.bg.hasTiming && rich.bg.start < math.MaxInt64 {
-			bgStart = rich.bg.start
-		}
-		bgTokens := filterPronounceableTokens(rich.bg.words)
-		if len(rich.bg.words) == 0 && rich.bg.text != "" {
-			bgTokens = filterPronounceableTokens([]string{rich.bg.text})
-		}
-		songWordTimed = songWordTimed || rich.bg.wordTimed
-		if !isValidNativeRomanText(rich.bg.text, bgRoman) {
-			bgRoman = ""
-		}
-		bgItem := lyricPronunciationExtracted{
-			Start:    bgStart,
-			Text:     rich.bg.text,
-			Bg:       true,
-			Tokens:   bgTokens,
-			OwnRoman: bgRoman,
-		}
-		if rich.bgFirst && bgStart <= mainStart {
-			out = append(out, bgItem, mainItem)
-		} else {
-			out = append(out, mainItem, bgItem)
-		}
-		return false
-	})
-
-	sort.SliceStable(out, func(i, j int) bool { return out[i].Start < out[j].Start })
-	if len(out) > lyricAnnotationMaxLines {
-		out = out[:lyricAnnotationMaxLines]
+	for _, sw := range doc.Songwriters {
+		credits = appendPronunciationCredit(credits, seenCredits, sw)
 	}
-	return out, credits, songWordTimed
-}
-
-type ttmlPronunciationRichLine struct {
-	text       string
-	words      []string
-	roman      string
-	start, end int64
-	hasTiming  bool
-	wordTimed  bool
-	bg         *ttmlPronunciationRichLine
-	bgFirst    bool
-}
-
-func readTTMLPronunciationLine(p *ttmlNode) ttmlPronunciationRichLine {
-	var res ttmlPronunciationRichLine
-	res.start, res.end = int64(math.MaxInt64), -1
-	pendingSpace := false
-	hasMainContent := false
-	bgSeen := false
-
-	flushSpace := func() {
-		if !pendingSpace {
-			return
-		}
-		pendingSpace = false
-		if len(res.words) > 0 {
-			res.words[len(res.words)-1] += " "
-		}
+	for _, cl := range doc.CreditLines {
+		credits = appendPronunciationCredit(credits, seenCredits, cl)
 	}
-	appendText := func(text string) {
-		if text == "" {
-			return
+	out := make([]lyricPronunciationExtracted, 0, min(len(doc.Lines), lyricAnnotationMaxLines))
+	for _, line := range doc.Lines {
+		tokens := filterPronounceableTokens(line.Words)
+		if len(line.Words) == 0 && line.Text != "" {
+			tokens = filterPronounceableTokens([]string{line.Text})
 		}
-		flushSpace()
-		if len(res.words) > 0 {
-			res.words[len(res.words)-1] += text
+		roman := line.OwnRoman
+		if !isValidNativeRomanText(line.Text, roman) {
+			roman = ""
 		}
-	}
-
-	for _, ch := range p.children {
-		if ch.name == "" {
-			if ch.text != "" && strings.TrimSpace(ch.text) == "" {
-				pendingSpace = len(res.words) > 0
-			} else {
-				appendText(ch.text)
-				if strings.TrimSpace(ch.text) != "" {
-					hasMainContent = true
-				}
-			}
-			continue
-		}
-		if ch.name != "span" {
-			continue
-		}
-		ruby := ttmlAttr(ch, "ruby")
-		if ruby == "delimiter" || ruby == "text" || ruby == "textContainer" {
-			continue
-		}
-		switch ttmlAttr(ch, "role") {
-		case "x-translation":
-			continue
-		case "x-roman":
-			if res.roman == "" {
-				res.roman = collapseLyricSpace(ttmlTextWithoutRuby(ch))
-			}
-			continue
-		case "x-bg":
-			if res.bg == nil {
-				if !hasMainContent && !bgSeen {
-					res.bgFirst = true
-				}
-				bgSeen = true
-				parsedBg := readTTMLPronunciationLine(ch)
-				if len(parsedBg.words) == 0 {
-					if pt := collapseLyricSpace(ttmlTextWithoutRuby(ch)); pt != "" {
-						parsedBg.text = pt
-						parsedBg.words = []string{pt}
-					}
-				}
-				res.bg = &parsedBg
-			}
-			continue
-		}
-
-		txt := ttmlTextWithoutRuby(ch)
-		st, stOK := parseTTMLTime(ttmlAttr(ch, "begin"))
-		ed, edOK := parseTTMLTime(ttmlAttr(ch, "end"))
-		if !stOK || !edOK {
-			appendText(txt)
-			if strings.TrimSpace(txt) != "" {
-				hasMainContent = true
-			}
-			continue
-		}
-		if !(st == 0 && ed == 0) {
-			res.hasTiming = true
-			res.start = min(res.start, st)
-			res.end = max(res.end, max(st, ed))
-		}
-		if txt != "" {
-			flushSpace()
-		}
-		res.words = append(res.words, txt)
-		if strings.TrimSpace(txt) != "" {
-			hasMainContent = true
-		}
-	}
-
-	var b strings.Builder
-	for _, w := range res.words {
-		b.WriteString(w)
-	}
-	res.text = collapseLyricSpace(b.String())
-	if res.text == "" {
-		if plain := collapseLyricSpace(ttmlUntimedText(p)); plain != "" {
-			res.text = plain
-		}
-	}
-	if runes := []rune(res.text); len(runes) > lyricTranslationMaxLineRunes {
-		res.text = string(runes[:lyricTranslationMaxLineRunes])
-	}
-	res.wordTimed = len(res.words) > 1
-	return res
-}
-
-func ttmlHeadRomanizations(root *ttmlNode) map[string]ttmlKeyedLangPair {
-	out := map[string]ttmlKeyedLangPair{}
-	walkTTML(root, func(block *ttmlNode) bool {
-		if block.name != "transliteration" {
-			return true
-		}
-		walkTTML(block, func(textNode *ttmlNode) bool {
-			if textNode.name != "text" {
-				return true
-			}
-			key := ttmlAttr(textNode, "for")
-			if key == "" {
-				return false
-			}
-			if _, exists := out[key]; exists {
-				return false
-			}
-			var mainB strings.Builder
-			var bgText string
-			for _, ch := range textNode.children {
-				if ch.name == "" {
-					mainB.WriteString(ch.text)
-					continue
-				}
-				if ch.name == "span" && ttmlAttr(ch, "role") == "x-bg" {
-					if bgText == "" {
-						bgText = collapseLyricSpace(ttmlTextWithoutRuby(ch))
-					}
-					continue
-				}
-				mainB.WriteString(ttmlTextWithoutRuby(ch))
-			}
-			mainText := collapseLyricSpace(mainB.String())
-			if mainText != "" || bgText != "" {
-				out[key] = ttmlKeyedLangPair{main: mainText, bg: bgText}
-			}
-			return false
+		out = append(out, lyricPronunciationExtracted{
+			Start:    line.Start,
+			Text:     line.Text,
+			Bg:       line.Bg,
+			Tokens:   tokens,
+			OwnRoman: roman,
 		})
-		return false
-	})
-	return out
+		if len(out) >= lyricAnnotationMaxLines {
+			break
+		}
+	}
+	return out, credits, doc.WordTimed
 }
 
 // parsePlatformPronunciationLines 解析 YRC / QRC(KRC) / LRC，抽取出与前端 parse-platform.ts 一致的可发音词元与原生音译

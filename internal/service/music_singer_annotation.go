@@ -3,19 +3,15 @@ package service
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
-	"slices"
 	"sort"
 	"strings"
 	"sync"
 	"time"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
@@ -80,24 +76,11 @@ var lyricSingers = &lyricSingerService{
 	concurrency: defaultLyricSingerConcurrency,
 }
 
-type lyricSingerDeclaredAgent struct {
-	ID       string
-	Name     string
-	Type     string // "person" | "other" | "group"
-	Role     string // "person" | "group"
-	Position string // "" | "left" | "right" | "center"
-	ColorHex string
-	Members  []string
-	IsGroup  bool
-}
-
 type lyricSingerExtractedLine struct {
 	Text       string
 	Occurrence int
 	Bg         bool
 	RawAgent   string
-	HasCue     bool
-	IsNonVocal bool
 }
 
 type lyricSingerLineTask struct {
@@ -106,8 +89,6 @@ type lyricSingerLineTask struct {
 	Occurrence int
 	Bg         bool
 	RawAgent   string
-	SectionCue string // 紧邻该行之前的独立段落提示（如 "【周杰伦】" 或单独成行的 "男："）
-	InlineCue  string // 该行行首的歌手/声部提示（如 "男"、"周杰伦"）
 }
 
 type lyricSingerInput struct {
@@ -119,11 +100,10 @@ type lyricSingerInput struct {
 	Agents           []lyricSingerDeclaredAgent
 	Lines            []lyricSingerExtractedLine
 	Tasks            []lyricSingerLineTask
-	HasExplicitCues  bool            // 歌词正文是否包含至少 2 处且至少 2 个不同角色的显式段落/行内演唱提示
-	MultiAgentSys    bool            // TTML 是否存在 >=2 独唱或群组声部
-	VocalArtists     []string        // 剔除纯幕后创作者（词/曲/编/制作等）后的候选演唱者
-	ExcludedCreators []string        // 从署名行识别出的非演唱幕后人员（作词/作曲/编曲/制作等）
-	ObservedCueNames map[string]bool // 歌词提示中实际字面出现过的归一化名称
+	HasInlineMarkers bool // 歌词自身是否包含结构化行首/独立段声部标点（冒号或方括号）
+	MultiAgentSys    bool // TTML 是否存在 >=2 独唱或群组声部
+	Credits          []string
+	Songwriters      []string
 	ArtistHints      [][]string
 }
 
@@ -237,361 +217,63 @@ func (s *MusicService) resolveLyricSingerSource(ctx context.Context, id int64, s
 	return version.Lines.Source, nil, nil
 }
 
-var lyricAttributionCueRoles = map[string]bool{
-	"男": true, "女": true, "合": true, "合唱": true, "齐": true, "齊": true, "齐唱": true, "齊唱": true,
-	"男声": true, "男聲": true, "女声": true, "女聲": true, "童声": true, "童聲": true,
-	"男女": true, "男女合": true, "对唱": true, "對唱": true,
-	"念白": true, "旁白": true, "独白": true, "獨白": true,
-	"male": true, "female": true, "both": true, "together": true,
-}
-
-var (
-	lyricCreditVocalDisqualifiers = []string{
-		"制作", "製作", "监制", "監製", "编", "編", "混音", "缩混", "录音", "錄音", "母带", "母帶",
-		"和声", "和聲", "合声", "合聲", "伴唱", "配唱", "调教", "調教",
-		"engineer", "produc", "mix", "master", "edit", "record", "arrang", "direct",
-	}
-	lyricCreditExplicitVocalKeys = []string{
-		"演唱", "主唱", "原唱", "翻唱", "女声", "女聲", "男声", "男聲", "童声", "童聲", "对唱", "對唱", "歌手",
-		"vocal", "singer", "performed", "feat",
-	}
-	lyricCreditPrefixRoles = []struct {
-		prefix string
-		kind   string // "vocal" | "composer" | "nonvocal"
-	}{
-		{prefix: "lyrics by ", kind: "nonvocal"},
-		{prefix: "written by ", kind: "nonvocal"},
-		{prefix: "arranged by ", kind: "nonvocal"},
-		{prefix: "produced by ", kind: "nonvocal"},
-		{prefix: "mixed by ", kind: "nonvocal"},
-		{prefix: "mastered by ", kind: "nonvocal"},
-		{prefix: "music by ", kind: "composer"},
-		{prefix: "composed by ", kind: "composer"},
-		{prefix: "vocal by ", kind: "vocal"},
-		{prefix: "performed by ", kind: "vocal"},
-		{prefix: "sung by ", kind: "vocal"},
-	}
-)
-
-func classifyCreditLineRole(line string) (kind string, peopleRaw string) {
-	trimmed := strings.TrimSpace(line)
-	if trimmed == "" || utf8.RuneCountInString(trimmed) > 120 {
-		return "", ""
-	}
-	lower := strings.ToLower(trimmed)
-	for _, notice := range lyricCreditNotices {
-		if strings.Contains(lower, notice) {
-			return "", ""
-		}
-	}
-	for _, item := range lyricCreditPrefixRoles {
-		if strings.HasPrefix(lower, item.prefix) {
-			return item.kind, strings.TrimSpace(trimmed[len(item.prefix):])
-		}
-	}
-	prefix, rest, ok := cutLeadingColon(trimmed, 24)
-	if !ok || rest == "" {
-		return "", ""
-	}
-	lowerKey := strings.ToLower(strings.TrimSpace(prefix))
-	normKey := normalizeLyricMatch(prefix)
-	if normKey == "" {
-		return "", ""
-	}
-
-	isDisqualifiedVocal := false
-	for _, dq := range lyricCreditVocalDisqualifiers {
-		if strings.Contains(lowerKey, dq) {
-			isDisqualifiedVocal = true
-			break
-		}
-	}
-	if !isDisqualifiedVocal {
-		if normKey == "cv" {
-			return "vocal", rest
-		}
-		for _, vk := range lyricCreditExplicitVocalKeys {
-			if strings.Contains(lowerKey, vk) {
-				return "vocal", rest
-			}
-		}
-	}
-
-	isNonVocalCredit := isLyricCreditText(trimmed)
-	if !isNonVocalCredit {
-		return "", ""
-	}
-	// 「词曲：…」「作词/作曲：…」同时包含填词等纯幕后职能时优先记作纯幕后，仅纯粹「作曲/曲」记为 composer
-	hasPureNonVocalMark := strings.Contains(lowerKey, "词") || strings.Contains(lowerKey, "詞") ||
-		strings.Contains(lowerKey, "编") || strings.Contains(lowerKey, "編") ||
-		strings.Contains(lowerKey, "制作") || strings.Contains(lowerKey, "製作") ||
-		strings.Contains(lowerKey, "监制") || strings.Contains(lowerKey, "監製") ||
-		isDisqualifiedVocal
-	if !hasPureNonVocalMark && (strings.Contains(lowerKey, "作曲") || strings.Contains(lowerKey, "compos") || normKey == "曲") {
-		return "composer", rest
-	}
-	return "nonvocal", rest
-}
-
-// analyzeSingerCreditRoles 从平台/TTML 署名行提取纯幕后创作者（词/曲/编/制作等）并剔除候选列表中的非演唱艺人
-func analyzeSingerCreditRoles(track *dto.MusicTrackDto, rawLines []string, ttmlSongwriters []string) (vocalArtists []string, excludedDisplay []string, excludedNorms map[string]bool) {
-	explicitVocalists := map[string]bool{}
-	composers := map[string]bool{}
-	pureNonVocal := map[string]bool{}
-	displayByNorm := map[string]string{}
-	var seenOrder []string
-
-	recordNames := func(dst map[string]bool, rawVal string) {
-		for _, part := range lyricArtistSplitRe.Split(rawVal, -1) {
-			trimmedPart := strings.TrimSpace(part)
-			if trimmedPart == "" {
-				continue
-			}
-			bare := strings.TrimSpace(lyricParensCleanupRe.ReplaceAllString(trimmedPart, ""))
-			for _, cand := range []string{trimmedPart, bare} {
-				cand = strings.TrimSpace(cand)
-				norm := normalizeLyricMatch(cand)
-				if norm == "" || utf8.RuneCountInString(norm) < 2 {
-					continue
-				}
-				dst[norm] = true
-				if _, exists := displayByNorm[norm]; !exists {
-					displayByNorm[norm] = cand
-					seenOrder = append(seenOrder, norm)
-				}
-			}
-		}
-	}
-
-	for _, line := range rawLines {
-		kind, peopleRaw := classifyCreditLineRole(line)
-		switch kind {
-		case "vocal":
-			recordNames(explicitVocalists, peopleRaw)
-		case "composer":
-			recordNames(composers, peopleRaw)
-		case "nonvocal":
-			recordNames(pureNonVocal, peopleRaw)
-		}
-	}
-	for _, sw := range ttmlSongwriters {
-		recordNames(composers, sw)
-	}
-
-	if track != nil {
-		for _, artist := range track.Artists {
-			if isKnownNonVocalStudio(artist) {
-				recordNames(pureNonVocal, artist)
-			}
-		}
-	}
-
-	trackArtistNorms := map[string]bool{}
-	leadArtistNorms := map[string]bool{}
-	if track != nil && len(track.Artists) > 0 {
-		for _, tok := range collectArtistMatchTokens(track.Artists[:1]) {
-			leadArtistNorms[tok] = true
-		}
-		for _, tok := range collectArtistMatchTokens(track.Artists) {
-			trackArtistNorms[tok] = true
-		}
-	}
-
-	excludedNorms = map[string]bool{}
-	for _, norm := range seenOrder {
-		inComposer := composers[norm]
-		inPure := pureNonVocal[norm]
-		if !inComposer && !inPure {
+// isAllAsciiDigits 检查字符串是否全为 ASCII 数字/空白/分隔符（排除 mm:ss 类时间格式伪误判）
+func isAllAsciiDigits(s string) bool {
+	hasDigit := false
+	for _, r := range s {
+		if r >= '0' && r <= '9' {
+			hasDigit = true
 			continue
 		}
-		if inPure && isKnownNonVocalStudio(norm) {
-			excludedNorms[norm] = true
+		if r == ' ' || r == '.' || r == '-' || r == ':' {
 			continue
 		}
-		if len(explicitVocalists) > 0 {
-			if !explicitVocalists[norm] {
-				excludedNorms[norm] = true
-			}
-			continue
-		}
-		if !trackArtistNorms[norm] || (inPure && !leadArtistNorms[norm]) {
-			excludedNorms[norm] = true
-		}
+		return false
 	}
-
-	seenExcludedDisplay := map[string]bool{}
-	for _, norm := range seenOrder {
-		if !excludedNorms[norm] {
-			continue
-		}
-		disp := displayByNorm[norm]
-		if disp != "" && !seenExcludedDisplay[norm] {
-			seenExcludedDisplay[norm] = true
-			excludedDisplay = append(excludedDisplay, disp)
-		}
-	}
-
-	if track != nil && len(track.Artists) > 0 {
-		for _, artist := range track.Artists {
-			tokens := collectArtistMatchTokens([]string{artist})
-			excluded := isKnownNonVocalStudio(artist)
-			for _, tok := range tokens {
-				if excludedNorms[tok] {
-					excluded = true
-					break
-				}
-			}
-			if !excluded {
-				vocalArtists = append(vocalArtists, artist)
-			}
-		}
-		if len(vocalArtists) == 0 && len(track.Artists) > 0 {
-			leadExcluded := isKnownNonVocalStudio(track.Artists[0])
-			if !leadExcluded {
-				for _, tok := range collectArtistMatchTokens(track.Artists[:1]) {
-					if excludedNorms[tok] {
-						leadExcluded = true
-						break
-					}
-				}
-			}
-			if !leadExcluded {
-				vocalArtists = append(vocalArtists, track.Artists[0])
-			}
-		}
-	}
-	return vocalArtists, excludedDisplay, excludedNorms
+	return hasDigit
 }
 
-func unwrapBalancedBrackets(s string) string {
-	trimmed := strings.TrimSpace(s)
-	pairs := [][2]string{{"[", "]"}, {"【", "】"}, {"(", ")"}, {"（", "）"}}
-	for _, p := range pairs {
-		if strings.HasPrefix(trimmed, p[0]) && strings.HasSuffix(trimmed, p[1]) {
-			inner := strings.TrimSpace(trimmed[len(p[0]) : len(trimmed)-len(p[1])])
-			if inner != "" {
-				return inner
-			}
+// hasStructuralInlineMarker 检查单行是否具备声部/段落标记标点形态（如 "汪：..." / "BY2：..." / "[可莉]" / "【A】"），不依赖任何词表枚举
+func hasStructuralInlineMarker(trimmed string) bool {
+	if trimmed == "" || isLyricCreditText(trimmed) {
+		return false
+	}
+	if prefix, rest, hasColon := cutLeadingColon(trimmed, 16); hasColon {
+		if prefix != "" && !strings.HasPrefix(rest, "//") && !isAllAsciiDigits(prefix) {
+			return true
 		}
 	}
-	return trimmed
-}
-
-func splitLeadingBracket(text string) (inner, rest string, allowLetter, ok bool) {
 	var closeChar rune
 	switch {
-	case strings.HasPrefix(text, "["):
-		closeChar, allowLetter = ']', true
-	case strings.HasPrefix(text, "【"):
-		closeChar, allowLetter = '】', true
-	case strings.HasPrefix(text, "("):
-		closeChar, allowLetter = ')', false
-	case strings.HasPrefix(text, "（"):
-		closeChar, allowLetter = '）', false
+	case strings.HasPrefix(trimmed, "["):
+		closeChar = ']'
+	case strings.HasPrefix(trimmed, "【"):
+		closeChar = '】'
 	default:
-		return "", "", false, false
+		return false
 	}
-	_, firstSize := utf8.DecodeRuneInString(text)
-	tail := text[firstSize:]
-	closeIdx := strings.IndexRune(tail, closeChar)
-	if closeIdx <= 0 {
-		return "", "", false, false
-	}
-	inner = strings.TrimSpace(tail[:closeIdx])
-	if inner == "" || utf8.RuneCountInString(inner) > 24 {
-		return "", "", false, false
-	}
-	rest = strings.TrimSpace(tail[closeIdx+utf8.RuneLen(closeChar):])
-	rest = strings.TrimSpace(strings.TrimLeft(rest, ":："))
-	return inner, rest, allowLetter, true
-}
-
-func hasNonLatinScriptRune(s string) bool {
-	for _, r := range s {
-		if unicode.In(r, unicode.Han, unicode.Hiragana, unicode.Katakana, unicode.Hangul) {
-			return true
+	runes := []rune(trimmed)
+	for i := 1; i < len(runes) && i <= 25; i++ {
+		if runes[i] == closeChar {
+			inner := strings.TrimSpace(string(runes[1:i]))
+			return inner != "" && !isAllAsciiDigits(inner)
 		}
 	}
 	return false
 }
 
-// extractExplicitSingerCue 仅识别明确的段落标题或行内演唱者提示（如「男：」「周杰伦：」「【王菲】」「[A] xxx」）
-func extractExplicitSingerCue(trimmed string, vocalArtists []string) (cueLabel, rest, normKey string, cueParts []string, isHeader, isLetter, ok bool) {
-	if trimmed == "" || isLyricCreditText(trimmed) {
-		return "", "", "", nil, false, false, false
-	}
-	artistTokens := collectArtistMatchTokens(vocalArtists)
-
-	matchCueLabel := func(rawLabel string, allowParenLetter bool) (cleanLabel, outNormKey string, outParts []string, letterFlag, matched bool) {
-		unwrapped := unwrapBalancedBrackets(rawLabel)
-		cleanLabel = strings.TrimSpace(lyricParensCleanupRe.ReplaceAllString(unwrapped, ""))
-		if cleanLabel == "" || isLyricCreditText(cleanLabel+": x") {
-			return "", "", nil, false, false
-		}
-		wholeNorm := normalizeLyricMatch(cleanLabel)
-		if wholeNorm == "" || lyricSectionWords[wholeNorm] || isNonLyricCueLine("["+cleanLabel+"]") {
-			return "", "", nil, false, false
-		}
-		if len([]rune(cleanLabel)) == 1 {
-			r, _ := utf8.DecodeRuneInString(cleanLabel)
-			if r >= 'A' && r <= 'D' {
-				if !allowParenLetter {
-					return "", "", nil, false, false
-				}
-				return string(r), string(r), []string{string(r)}, true, true
-			}
-		}
-
-		parts := lyricArtistSplitRe.Split(cleanLabel, -1)
-		var normParts []string
-		for _, part := range parts {
-			part = strings.TrimSpace(part)
-			if part == "" {
-				continue
-			}
-			normPart := normalizeLyricMatch(part)
-			if normPart == "" {
-				return "", "", nil, false, false
-			}
-			if lyricAttributionCueRoles[normPart] || lyricAttributionCueRoles[strings.ToLower(part)] {
-				normParts = append(normParts, normPart)
-				continue
-			}
-			if (utf8.RuneCountInString(normPart) >= 2 || hasNonLatinScriptRune(normPart)) && slices.Contains(artistTokens, normPart) {
-				normParts = append(normParts, normPart)
-				continue
-			}
-			return "", "", nil, false, false
-		}
-		if len(normParts) == 0 {
-			return "", "", nil, false, false
-		}
-		return cleanLabel, strings.Join(normParts, "+"), normParts, false, true
-	}
-
-	if prefix, afterColon, hasColon := cutLeadingColon(trimmed, 24); hasColon {
-		cleanLabel, key, parts, letterFlag, matched := matchCueLabel(prefix, true)
-		if matched {
-			if afterColon == "" || isNonLyricCueLine(afterColon) {
-				return cleanLabel, "", key, parts, true, letterFlag, true
-			}
-			return cleanLabel, afterColon, key, parts, false, letterFlag, true
-		}
-	}
-
-	if inner, afterBracket, allowLetter, hasBracket := splitLeadingBracket(trimmed); hasBracket {
-		cleanLabel, key, parts, letterFlag, matched := matchCueLabel(inner, allowLetter)
-		if matched {
-			if afterBracket == "" {
-				return cleanLabel, "", key, parts, true, letterFlag, true
-			}
-			if !isNonLyricCueLine(afterBracket) {
-				return cleanLabel, afterBracket, key, parts, false, letterFlag, true
+// hasStructuralCueMarkers 仅从标点形态判断歌词是否含 >=2 处结构化行首/段落标记，具体语义交由 AI 判定
+func hasStructuralCueMarkers(tasks []lyricSingerLineTask) bool {
+	count := 0
+	for _, task := range tasks {
+		if hasStructuralInlineMarker(strings.TrimSpace(task.Text)) {
+			count++
+			if count >= 2 {
+				return true
 			}
 		}
 	}
-
-	return "", "", "", nil, false, false, false
+	return false
 }
 
 func (s *MusicService) extractLyricSingerInput(ctx context.Context, track *dto.MusicTrackDto, resolvedSource string) (*lyricSingerInput, *errs.ServiceError) {
@@ -599,19 +281,26 @@ func (s *MusicService) extractLyricSingerInput(ctx context.Context, track *dto.M
 	var (
 		lines           []lyricSingerExtractedLine
 		agents          []lyricSingerDeclaredAgent
-		rawCreditLines  []string
+		credits         []string
 		ttmlSongwriters []string
 		isTTML          bool
 		hasSeparatedPos bool
-		openingHeader   string
 	)
 	if resolvedSource == "ttml-amll" || resolvedSource == "ttml-custom" {
 		rawTTML := s.resolveRawTTMLForSource(ctx, track.ID, resolvedSource, snapshot)
 		if rawTTML == "" {
 			return nil, errs.NewNotFound("lyric_not_found")
 		}
+		var rawCreditLines []string
 		lines, agents, ttmlSongwriters, rawCreditLines, hasSeparatedPos = parseTTMLSingerLines(rawTTML)
 		isTTML = true
+		seenCredits := map[string]bool{}
+		for _, cl := range rawCreditLines {
+			credits = appendPronunciationCredit(credits, seenCredits, cl)
+		}
+		for _, cl := range s.cachedNCMCreditLines(track, snapshot) {
+			credits = appendPronunciationCredit(credits, seenCredits, cl)
+		}
 	} else {
 		extracted, svcerr := s.extractSourceLines(ctx, track.ID, resolvedSource, snapshot)
 		if svcerr != nil {
@@ -621,15 +310,17 @@ func (s *MusicService) extractLyricSingerInput(ctx context.Context, track *dto.M
 		for i, item := range extracted {
 			texts[i] = item.Text
 		}
-		rawCreditLines = texts
 		head, tail := lyricCreditRange(texts, track.Name, track.Artists)
-		if head > 0 {
-			prev := strings.TrimSpace(texts[head-1])
-			if strings.HasSuffix(prev, ":") || strings.HasSuffix(prev, "：") ||
-				strings.HasPrefix(prev, "[") || strings.HasPrefix(prev, "【") ||
-				strings.HasPrefix(prev, "(") || strings.HasPrefix(prev, "（") {
-				openingHeader = prev
-			}
+		// 首尾署名前后若有结构化声部提示（如开篇第一行就是 `【陈奕迅】` / `合：`），保留在唱词序列中避免被当成标题行误裁
+		for head > 0 && hasStructuralInlineMarker(strings.TrimSpace(texts[head-1])) {
+			head--
+		}
+		seenCredits := map[string]bool{}
+		for _, cl := range texts[:head] {
+			credits = appendPronunciationCredit(credits, seenCredits, cl)
+		}
+		for _, cl := range texts[tail:] {
+			credits = appendPronunciationCredit(credits, seenCredits, cl)
 		}
 		extracted = extracted[head:tail]
 		lines = make([]lyricSingerExtractedLine, len(extracted))
@@ -640,8 +331,6 @@ func (s *MusicService) extractLyricSingerInput(ctx context.Context, track *dto.M
 	if len(lines) == 0 {
 		return nil, errs.NewNotFound("lyric_not_found")
 	}
-
-	vocalArtists, excludedCreators, _ := analyzeSingerCreditRoles(track, rawCreditLines, ttmlSongwriters)
 
 	type occKey struct {
 		bg   bool
@@ -658,40 +347,9 @@ func (s *MusicService) extractLyricSingerInput(ctx context.Context, track *dto.M
 		}
 	}
 
-	nonLetterCueLines := 0
-	distinctNonLetterCues := map[string]bool{}
-	letterCueLines := 0
-	distinctLetterCues := map[string]bool{}
-	observedCueNames := map[string]bool{}
-	pendingSectionCue := ""
-
-	recordCue := func(cueParts []string, normKey string, letterFlag bool) {
-		if letterFlag {
-			letterCueLines++
-			distinctLetterCues[normKey] = true
-			return
-		}
-		nonLetterCueLines++
-		distinctNonLetterCues[normKey] = true
-		for _, p := range cueParts {
-			observedCueNames[p] = true
-		}
-	}
-
-	if openingHeader != "" {
-		if cueLabel, _, normKey, cueParts, isHeader, isLetter, cueOK := extractExplicitSingerCue(openingHeader, vocalArtists); cueOK && isHeader {
-			recordCue(cueParts, normKey, isLetter)
-			pendingSectionCue = cueLabel
-		}
-	}
-
 	var hashBuilder strings.Builder
-	hashBuilder.WriteString("v4:")
+	hashBuilder.WriteString("v5:")
 	hashBuilder.WriteString(resolvedSource)
-	if pendingSectionCue != "" {
-		hashBuilder.WriteString("\nsec:")
-		hashBuilder.WriteString(pendingSectionCue)
-	}
 	for i := range lines {
 		line := &lines[i]
 		key := occKey{bg: line.Bg, norm: normalizeLyricMatch(line.Text)}
@@ -709,15 +367,7 @@ func (s *MusicService) extractLyricSingerInput(ctx context.Context, track *dto.M
 		}
 
 		trimmed := strings.TrimSpace(line.Text)
-		cueLabel, _, normKey, cueParts, isHeader, isLetter, cueOK := extractExplicitSingerCue(trimmed, vocalArtists)
-		if cueOK && isHeader {
-			recordCue(cueParts, normKey, isLetter)
-			pendingSectionCue = cueLabel
-			line.IsNonVocal = true
-			continue
-		}
-		if isNonLyricCueLine(trimmed) {
-			line.IsNonVocal = true
+		if trimmed == "" || normalizeLyricMatch(trimmed) == "" || lyricInstrumentalRe.MatchString(trimmed) || isLyricCreditText(trimmed) {
 			continue
 		}
 		for _, id := range strings.Fields(line.RawAgent) {
@@ -730,37 +380,14 @@ func (s *MusicService) extractLyricSingerInput(ctx context.Context, track *dto.M
 		if len(strings.Fields(line.RawAgent)) > 1 {
 			usedGroup = true
 		}
-		task := lyricSingerLineTask{
+		tasks = append(tasks, lyricSingerLineTask{
 			Index:      len(tasks) + 1,
 			Text:       trimmed,
 			Occurrence: line.Occurrence,
 			Bg:         line.Bg,
 			RawAgent:   line.RawAgent,
-		}
-		if pendingSectionCue != "" {
-			task.SectionCue = pendingSectionCue
-			pendingSectionCue = ""
-		}
-		if cueOK && !isHeader {
-			recordCue(cueParts, normKey, isLetter)
-			line.HasCue = true
-			task.InlineCue = cueLabel
-		}
-		tasks = append(tasks, task)
+		})
 	}
-
-	totalCueLines := nonLetterCueLines
-	distinctTotal := make(map[string]bool, len(distinctNonLetterCues)+len(distinctLetterCues))
-	for k := range distinctNonLetterCues {
-		distinctTotal[k] = true
-	}
-	if letterCueLines >= 2 && len(distinctLetterCues) >= 2 {
-		totalCueLines += letterCueLines
-		for k := range distinctLetterCues {
-			distinctTotal[k] = true
-		}
-	}
-	hasExplicitCues := totalCueLines >= 2 && len(distinctTotal) >= 2
 
 	sum := sha256.Sum256([]byte(hashBuilder.String()))
 	lyricHash := hex.EncodeToString(sum[:])
@@ -776,11 +403,10 @@ func (s *MusicService) extractLyricSingerInput(ctx context.Context, track *dto.M
 		Agents:           agents,
 		Lines:            lines,
 		Tasks:            tasks,
-		HasExplicitCues:  hasExplicitCues,
+		HasInlineMarkers: hasStructuralCueMarkers(tasks),
 		MultiAgentSys:    multiAgentSys,
-		VocalArtists:     vocalArtists,
-		ExcludedCreators: excludedCreators,
-		ObservedCueNames: observedCueNames,
+		Credits:          credits,
+		Songwriters:      ttmlSongwriters,
 		ArtistHints:      hints.ArtistHints,
 	}, nil
 }
@@ -818,53 +444,6 @@ func (a *lyricSingerService) jobState(jobKey, failedKey string) (running, coolin
 	return running, coolingDown
 }
 
-var ensembleCollabKeywords = []string{
-	"hoyo-mix", "hoyomix", "原神", "genshin", "崩坏", "星穹铁道", "honkai",
-	"明日方舟", "arknights", "塞壬唱片", "monster siren", "鸣潮", "wuthering",
-	"少女与战车", "girls und panzer", "girls & panzer", "ガールズ&パンツァー",
-	"lovelive", "love live", "ラブライブ", "idolmaster", "偶像大师", "アイドルマスター",
-	"bang dream", "バンドリ", "project sekai", "プロセカ", "世界计划",
-	"合唱", "对唱", "對唱", "群星", "feat.", "ft.", "duet", "chorus",
-}
-
-func hasCollaboratorOrEnsembleSignal(track *dto.MusicTrackDto) bool {
-	if track == nil {
-		return false
-	}
-	if len(track.Artists) >= 2 {
-		return true
-	}
-	for _, artist := range track.Artists {
-		if len(lyricArtistSplitRe.Split(strings.TrimSpace(artist), -1)) >= 2 {
-			return true
-		}
-	}
-	haystack := strings.ToLower(strings.TrimSpace(track.Name + " " + strings.Join(track.Artists, " ") + " " + track.Album))
-	for _, kw := range ensembleCollabKeywords {
-		if strings.Contains(haystack, kw) {
-			return true
-		}
-	}
-	return false
-}
-
-// shouldAttemptSingerAttribution 判断是否具备发起轻量 AgentLoop 查证分角色的价值；纯普通独唱直接零开销跳过
-func shouldAttemptSingerAttribution(input *lyricSingerInput) bool {
-	if input == nil || len(input.Tasks) == 0 {
-		return false
-	}
-	if input.HasExplicitCues || input.MultiAgentSys {
-		return true
-	}
-	if len(input.VocalArtists) >= 2 {
-		return true
-	}
-	if input.Track != nil && len(input.Track.Artists) >= 2 && len(input.VocalArtists) >= 1 && hasCollaboratorOrEnsembleSignal(input.Track) {
-		return true
-	}
-	return len(input.VocalArtists) == 1 && hasCollaboratorOrEnsembleSignal(input.Track)
-}
-
 func emptyReadyLyricSingersDto(source string) *dto.MusicLyricSingersDto {
 	return &dto.MusicLyricSingersDto{
 		Status:  lyricTranslationStatusReady,
@@ -897,8 +476,7 @@ func (a *lyricSingerService) getOrStart(input *lyricSingerInput, targetLang stri
 		return a.buildReadyResponse(input, rec, fastData, targetLang, false, false)
 	}
 
-	// 普通单人独唱：无多声部、无歌词提示、无合作/企划特征时直接返回空声部，零 DB/AI 开销
-	if !shouldAttemptSingerAttribution(input) {
+	if len(input.Tasks) == 0 {
 		a.mu.Unlock()
 		return emptyReadyLyricSingersDto(input.Source), nil
 	}
@@ -980,7 +558,7 @@ func (a *lyricSingerService) refresh(input *lyricSingerInput, targetLang string,
 		return a.buildReadyResponse(input, &record, data, targetLang, false, true)
 	}
 
-	if !shouldAttemptSingerAttribution(input) {
+	if len(input.Tasks) == 0 {
 		return emptyReadyLyricSingersDto(input.Source), nil
 	}
 
@@ -1225,19 +803,13 @@ func (a *lyricSingerService) buildReadyResponse(
 	deterministic := make(map[string]string)
 	var needAI []dto.LyricSingerItem
 	for _, singer := range data.Singers {
-		if generic := translateGenericSingerRole(singer.Name, targetLang); generic != "" {
-			if !strings.EqualFold(generic, singer.Name) {
-				deterministic[singer.ID] = generic
-			}
-			continue
-		}
 		if tr, found := cachedSongArtists[normalizeLyricMatch(singer.Name)]; found {
 			if tr != "" && !strings.EqualFold(tr, singer.Name) {
 				deterministic[singer.ID] = tr
 			}
 			continue
 		}
-		if songMetaAlreadyInTargetLang("", []string{singer.Name}, targetLang) {
+		if singer.Role != "group" && songMetaAlreadyInTargetLang("", []string{singer.Name}, targetLang) {
 			continue
 		}
 		needAI = append(needAI, singer)
@@ -1344,12 +916,10 @@ func (a *lyricSingerService) generateAttribution(cfg tools.AIConfig, input *lyri
 
 func buildLyricSingerAttributionUserPrompt(input *lyricSingerInput, comments []lyricAnnotationComment) string {
 	type promptLine struct {
-		I          int    `json:"i"`
-		Text       string `json:"text"`
-		Bg         bool   `json:"bg,omitempty"`
-		SectionCue string `json:"section_cue,omitempty"`
-		InlineCue  string `json:"inline_cue,omitempty"`
-		Agent      string `json:"ttml_agent,omitempty"`
+		I     int    `json:"i"`
+		Text  string `json:"text"`
+		Bg    bool   `json:"bg,omitempty"`
+		Agent string `json:"ttml_agent,omitempty"`
 	}
 	type promptAgent struct {
 		ID       string `json:"id"`
@@ -1360,12 +930,10 @@ func buildLyricSingerAttributionUserPrompt(input *lyricSingerInput, comments []l
 	lines := make([]promptLine, len(input.Tasks))
 	for idx, task := range input.Tasks {
 		lines[idx] = promptLine{
-			I:          task.Index,
-			Text:       task.Text,
-			Bg:         task.Bg,
-			SectionCue: task.SectionCue,
-			InlineCue:  task.InlineCue,
-			Agent:      task.RawAgent,
+			I:     task.Index,
+			Text:  task.Text,
+			Bg:    task.Bg,
+			Agent: task.RawAgent,
 		}
 	}
 	var ttmlAgents []promptAgent
@@ -1387,55 +955,30 @@ func buildLyricSingerAttributionUserPrompt(input *lyricSingerInput, comments []l
 		}
 	}
 	payload := struct {
-		Title            string        `json:"title"`
-		Artists          []string      `json:"artists"`
-		ExcludedCreators []string      `json:"excluded_non_vocal_creators,omitempty"`
-		ArtistHints      [][]string    `json:"artist_hints,omitempty"`
-		Album            string        `json:"album,omitempty"`
-		TTMLAgents       []promptAgent `json:"ttml_agents,omitempty"`
-		Comments         []string      `json:"hot_comments,omitempty"`
-		Lines            []promptLine  `json:"lines"`
+		Title       string        `json:"title"`
+		Artists     []string      `json:"artists"`
+		Aliases     []string      `json:"aliases,omitempty"`
+		Songwriters []string      `json:"songwriters,omitempty"`
+		Credits     []string      `json:"credits,omitempty"`
+		ArtistHints [][]string    `json:"artist_hints,omitempty"`
+		Album       string        `json:"album,omitempty"`
+		TTMLAgents  []promptAgent `json:"ttml_agents,omitempty"`
+		Comments    []string      `json:"hot_comments,omitempty"`
+		Lines       []promptLine  `json:"lines"`
 	}{
-		Title:            input.Track.Name,
-		Artists:          input.VocalArtists,
-		ExcludedCreators: input.ExcludedCreators,
-		ArtistHints:      input.ArtistHints,
-		Album:            input.Track.Album,
-		TTMLAgents:       ttmlAgents,
-		Comments:         commentTexts,
-		Lines:            lines,
+		Title:       input.Track.Name,
+		Artists:     input.Track.Artists,
+		Aliases:     input.Track.Aliases,
+		Songwriters: input.Songwriters,
+		Credits:     input.Credits,
+		ArtistHints: input.ArtistHints,
+		Album:       input.Track.Album,
+		TTMLAgents:  ttmlAgents,
+		Comments:    commentTexts,
+		Lines:       lines,
 	}
 	raw, _ := json.Marshal(payload)
 	return string(raw)
-}
-
-func isExcludedSingerName(name, role string, excludedSet, observedCueNames map[string]bool) bool {
-	if role == "group" {
-		return false
-	}
-	normFull := normalizeLyricMatch(name)
-	if normFull == "" {
-		return true
-	}
-	if isKnownNonVocalStudio(name) && !observedCueNames[normFull] {
-		return true
-	}
-	if len(excludedSet) == 0 {
-		return false
-	}
-	if excludedSet[normFull] && !observedCueNames[normFull] {
-		return true
-	}
-	parts := lyricArtistSplitRe.Split(name, -1)
-	if len(parts) > 1 {
-		for _, p := range parts {
-			pn := normalizeLyricMatch(p)
-			if pn != "" && (excludedSet[pn] || isKnownNonVocalStudio(p)) && !observedCueNames[pn] {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func parseAndSanitizeLyricSingerAIResp(raw string, input *lyricSingerInput) (dto.LyricSingerData, error) {
@@ -1460,12 +1003,6 @@ func sanitizeLyricSingerRespStruct(parsed *lyricSingerAIResp, input *lyricSinger
 	for _, t := range tasks {
 		taskMap[t.Index] = t
 	}
-	excludedSet := make(map[string]bool, len(input.ExcludedCreators))
-	for _, c := range input.ExcludedCreators {
-		if norm := normalizeLyricMatch(c); norm != "" {
-			excludedSet[norm] = true
-		}
-	}
 
 	validSingers := make([]dto.LyricSingerItem, 0, len(parsed.Singers))
 	singerSeen := map[string]bool{}
@@ -1481,9 +1018,6 @@ func sanitizeLyricSingerRespStruct(parsed *lyricSingerAIResp, input *lyricSinger
 		role := strings.ToLower(strings.TrimSpace(item.Role))
 		if role != "group" {
 			role = "person"
-		}
-		if isExcludedSingerName(name, role, excludedSet, input.ObservedCueNames) {
-			continue
 		}
 		color := normalizeLyricColor(strings.TrimSpace(item.Color))
 		if color == "" {
@@ -1674,23 +1208,24 @@ func (a *lyricSingerService) generateSingerTranslations(
 
 	targetDesc := lyricTranslateLanguages[targetLang]
 	var sys strings.Builder
-	sys.WriteString("You localize lyric singer names strictly according to established naming conventions.\n")
+	sys.WriteString("You localize lyric singer names and generic vocal role labels strictly according to established naming conventions.\n")
 	sys.WriteString(fmt.Sprintf("Target language: %s (code: %s).\n\n", targetDesc, targetLang))
 	sys.WriteString("STRICT NAMING PRINCIPLE:\n")
 	sys.WriteString("1. NEVER invent or fabricate literal translations for artist/character names!\n")
-	sys.WriteString("2. Use established/officially recognized names in target_lang first (including regional zh-tw / zh-hk conventions).\n")
-	sys.WriteString("3. If an artist is canonically referred to by their original name in target_lang (e.g. Aimer, YOASOBI), return \"\" for that ID.\n")
-	sys.WriteString("4. Only phonetically transliterate into target_lang's script when in a foreign script and no official name exists.\n")
+	sys.WriteString("2. Generic vocal role/group labels (such as `合唱`, `合`, `男`, `女`, `男声`, `女声`, `念白`, `旁白`, `Male`, `Female`, `Chorus`, `All`): translate concisely into natural idiomatic target_lang labels (for example in `en`: \"Chorus\", \"Male\", \"Female\", \"Spoken\"). Return \"\" if the input name is already in target_lang.\n")
+	sys.WriteString("3. Artist/character names: use established/officially recognized names in target_lang first (including regional zh-tw / zh-hk conventions); if an artist is canonically referred to by their original name in target_lang (e.g. Aimer, YOASOBI, BY2), return \"\" for that ID.\n")
+	sys.WriteString("4. Only phonetically transliterate an artist name into target_lang's script when in a foreign script and no official name exists.\n")
 	sys.WriteString("5. For Chinese <-> zh-tw / zh-hk, convert orthography accurately or return \"\" if identical.\n")
 	sys.WriteString("6. Output strictly one JSON object: {\"names\":{\"<id>\":\"<translated or empty string>\"}}. No markdown fences.\n")
 
 	type singerPayloadItem struct {
 		ID   string `json:"id"`
 		Name string `json:"name"`
+		Role string `json:"role,omitempty"`
 	}
 	items := make([]singerPayloadItem, len(needAI))
 	for i, s := range needAI {
-		items[i] = singerPayloadItem{ID: s.ID, Name: s.Name}
+		items[i] = singerPayloadItem{ID: s.ID, Name: s.Name, Role: s.Role}
 	}
 	userPayload := struct {
 		TargetLang  string              `json:"target_lang"`
@@ -1792,514 +1327,19 @@ func loadCachedSongArtistTranslationMap(track *dto.MusicTrackDto, targetLang str
 	return out
 }
 
-func translateGenericSingerRole(name, targetLang string) string {
-	norm := strings.ToLower(strings.TrimSpace(name))
-	switch norm {
-	case "合唱", "合", "齐唱", "齊唱", "chorus", "all", "group", "together", "everyone":
-		switch targetLang {
-		case "en":
-			return "Chorus"
-		case "ko":
-			return "합창"
-		default:
-			return "合唱"
-		}
-	case "男", "男声", "男聲", "male", "man", "boy":
-		switch targetLang {
-		case "en":
-			return "Male"
-		case "zh-tw", "zh-hk":
-			return "男"
-		case "ja":
-			return "男性ボーカル"
-		case "ko":
-			return "남성"
-		default:
-			return "男"
-		}
-	case "女", "女声", "女聲", "female", "woman", "girl":
-		switch targetLang {
-		case "en":
-			return "Female"
-		case "zh-tw", "zh-hk":
-			return "女"
-		case "ja":
-			return "女性ボーカル"
-		case "ko":
-			return "여성"
-		default:
-			return "女"
-		}
-	default:
-		return ""
-	}
-}
-
-type ttmlStarryExtLine struct {
-	AgentAttr   string
-	HasAgent    bool
-	BgAgentAttr string
-	HasBgAgent  bool
-}
-
-type ttmlStarryExtensions struct {
-	Agents     []lyricSingerDeclaredAgent
-	LinesByKey map[string]ttmlStarryExtLine
-}
-
-func parseTTMLDeclaredPosition(value string) string {
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "primary", "left":
-		return "left"
-	case "secondary", "right":
-		return "right"
-	case "duet", "center":
-		return "center"
-	default:
-		return ""
-	}
-}
-
-func hasNativeTTMLStarryExtensions(root *ttmlNode) bool {
-	found := false
-	walkTTML(root, func(node *ttmlNode) bool {
-		if found {
-			return false
-		}
-		if node.name == "tt" {
-			for _, attr := range node.attrs {
-				if (attr.Name.Space == "xmlns" || attr.Name.Local == "xmlns") && strings.HasPrefix(attr.Value, "urn:ttml:extensions:") {
-					found = true
-					return false
-				}
-			}
-		}
-		for _, attrName := range []string{"position", "agents", "color", "members", "rubyGroup"} {
-			if ttmlHasAttr(node, attrName) {
-				found = true
-				return false
-			}
-		}
-		return true
-	})
-	return found
-}
-
-func parseStarryExtColorRaw(raw json.RawMessage) string {
-	if len(raw) == 0 || string(raw) == "null" {
-		return ""
-	}
-	var s string
-	if err := json.Unmarshal(raw, &s); err == nil {
-		return strings.TrimSpace(s)
-	}
-	var obj struct {
-		Hex   string  `json:"hex"`
-		Red   float64 `json:"red"`
-		Green float64 `json:"green"`
-		Blue  float64 `json:"blue"`
-	}
-	if err := json.Unmarshal(raw, &obj); err == nil {
-		if hexStr := strings.TrimSpace(obj.Hex); hexStr != "" {
-			return hexStr
-		}
-		if strings.Contains(string(raw), `"red"`) {
-			clamp := func(v float64) int {
-				n := int(math.Round(v))
-				if n < 0 {
-					return 0
-				}
-				if n > 255 {
-					return 255
-				}
-				return n
-			}
-			return fmt.Sprintf("#%02x%02x%02x", clamp(obj.Red), clamp(obj.Green), clamp(obj.Blue))
-		}
-	}
-	return ""
-}
-
-func readTTMLStarryExtensions(root *ttmlNode) *ttmlStarryExtensions {
-	if hasNativeTTMLStarryExtensions(root) {
-		return nil
-	}
-	encoded := ""
-	walkTTML(root, func(node *ttmlNode) bool {
-		if node.name == "meta" && ttmlAttr(node, "key") == "starry:extensions:v1" {
-			encoded = strings.TrimSpace(ttmlAttr(node, "value"))
-			return false
-		}
-		return true
-	})
-	if encoded == "" {
-		return nil
-	}
-	rawBytes, err := base64.StdEncoding.DecodeString(encoded)
-	if err != nil {
-		rawBytes, err = base64.RawStdEncoding.DecodeString(encoded)
-		if err != nil {
-			return nil
-		}
-	}
-	var payload struct {
-		Version int `json:"version"`
-		Agents  []struct {
-			ID    string `json:"id"`
-			Kind  string `json:"kind"`
-			Names []struct {
-				Text string `json:"text"`
-				Kind string `json:"kind"`
-			} `json:"names"`
-			Color     json.RawMessage `json:"color"`
-			MemberIDs []string        `json:"memberIDs"`
-		} `json:"agents"`
-		Lines []struct {
-			Key        string    `json:"key"`
-			AgentIDs   *[]string `json:"agentIDs"`
-			Background *struct {
-				AgentIDs *[]string `json:"agentIDs"`
-			} `json:"background"`
-		} `json:"lines"`
-	}
-	if err := json.Unmarshal(rawBytes, &payload); err != nil || payload.Version != 1 {
-		return nil
-	}
-	ext := &ttmlStarryExtensions{
-		Agents:     make([]lyricSingerDeclaredAgent, 0, len(payload.Agents)),
-		LinesByKey: make(map[string]ttmlStarryExtLine, len(payload.Lines)),
-	}
-	for _, entry := range payload.Agents {
-		id := strings.TrimSpace(entry.ID)
-		if id == "" {
-			continue
-		}
-		name := ""
-		for _, n := range entry.Names {
-			if strings.TrimSpace(n.Text) != "" {
-				if n.Kind == "full" || name == "" {
-					name = strings.TrimSpace(n.Text)
-				}
-				if n.Kind == "full" {
-					break
-				}
-			}
-		}
-		kind := strings.TrimSpace(entry.Kind)
-		if kind == "" {
-			kind = "person"
-		}
-		isGroup := strings.EqualFold(kind, "group") || isConventionalTTMLGroupID(id)
-		var members []string
-		if isGroup {
-			for _, m := range entry.MemberIDs {
-				if trimmed := strings.TrimSpace(m); trimmed != "" {
-					members = append(members, trimmed)
-				}
-			}
-		}
-		role := "person"
-		if isGroup {
-			role = "group"
-		}
-		ext.Agents = append(ext.Agents, lyricSingerDeclaredAgent{
-			ID:       id,
-			Name:     name,
-			Type:     kind,
-			Role:     role,
-			ColorHex: parseStarryExtColorRaw(entry.Color),
-			Members:  members,
-			IsGroup:  isGroup,
-		})
-	}
-	joinPtrIDs := func(ids *[]string) (string, bool) {
-		if ids == nil {
-			return "", false
-		}
-		cleaned := make([]string, 0, len(*ids))
-		for _, s := range *ids {
-			if trimmed := strings.TrimSpace(s); trimmed != "" {
-				cleaned = append(cleaned, trimmed)
-			}
-		}
-		return strings.Join(cleaned, " "), true
-	}
-	for _, line := range payload.Lines {
-		key := strings.TrimSpace(line.Key)
-		if key == "" {
-			continue
-		}
-		if _, exists := ext.LinesByKey[key]; exists {
-			continue
-		}
-		agentAttr, hasAgent := joinPtrIDs(line.AgentIDs)
-		var bgAgentAttr string
-		var hasBgAgent bool
-		if line.Background != nil {
-			bgAgentAttr, hasBgAgent = joinPtrIDs(line.Background.AgentIDs)
-		}
-		ext.LinesByKey[key] = ttmlStarryExtLine{
-			AgentAttr:   agentAttr,
-			HasAgent:    hasAgent,
-			BgAgentAttr: bgAgentAttr,
-			HasBgAgent:  hasBgAgent,
-		}
-	}
-	return ext
-}
-
-func readTTMLBgAgentAttr(p *ttmlNode) (string, bool) {
-	var found bool
-	var out string
-	var visit func(node *ttmlNode)
-	visit = func(node *ttmlNode) {
-		if found {
-			return
-		}
-		for _, ch := range node.children {
-			if ch.name == "" {
-				continue
-			}
-			if ch.name == "span" && ttmlAttr(ch, "role") == "x-bg" {
-				found = true
-				if ttmlHasAttr(ch, "agents") {
-					out = strings.TrimSpace(ttmlAttr(ch, "agents"))
-				} else {
-					out = strings.TrimSpace(ttmlAttr(ch, "agent"))
-				}
-				return
-			}
-			visit(ch)
-			if found {
-				return
-			}
-		}
-	}
-	visit(p)
-	return out, found && (out != "" || ttmlHasAttrPrefixBg(p))
-}
-
-func ttmlHasAttrPrefixBg(p *ttmlNode) bool {
-	has := false
-	walkTTML(p, func(node *ttmlNode) bool {
-		if has {
-			return false
-		}
-		if node.name == "span" && ttmlAttr(node, "role") == "x-bg" {
-			has = ttmlHasAttr(node, "agents")
-			return false
-		}
-		return true
-	})
-	return has
-}
-
-func filterTTMLCarrierAgents(rawAgent string, carrierIDs map[string]bool) string {
-	fields := strings.Fields(rawAgent)
-	if len(fields) == 0 {
-		return ""
-	}
-	kept := make([]string, 0, len(fields))
-	seen := map[string]bool{}
-	for _, id := range fields {
-		if carrierIDs[id] || seen[id] {
-			continue
-		}
-		seen[id] = true
-		kept = append(kept, id)
-	}
-	return strings.Join(kept, " ")
-}
-
-// parseTTMLSingerLines 解析 TTML 中的声部声明、创作者署名与歌词主行/x-bg 背景行（按与前端 parse-ttml.ts 一致的排序、carrier 过滤与 starry:extensions 支持）
+// parseTTMLSingerLines 解析 TTML 中的声部声明、创作者署名与歌词主行/x-bg 背景行（复用 parseTTMLRichDoc）
 func parseTTMLSingerLines(raw string) ([]lyricSingerExtractedLine, []lyricSingerDeclaredAgent, []string, []string, bool) {
-	root := parseTTMLTree(raw)
-	if root == nil {
+	doc := parseTTMLRichDoc(raw)
+	if doc == nil {
 		return nil, nil, nil, nil, false
 	}
-
-	starryExt := readTTMLStarryExtensions(root)
-
-	var xmlDeclared []lyricSingerDeclaredAgent
-	xmlSeen := map[string]bool{}
-	var songwriters []string
-	walkTTML(root, func(node *ttmlNode) bool {
-		if node.name == "songwriter" {
-			if name := collapseLyricSpace(ttmlTextContent(node)); name != "" {
-				songwriters = append(songwriters, name)
-			}
-			return false
-		}
-		if node.name != "agent" {
-			return true
-		}
-		id := strings.TrimSpace(ttmlAttr(node, "id"))
-		if id == "" || xmlSeen[id] {
-			return false
-		}
-		xmlSeen[id] = true
-		agType := strings.TrimSpace(ttmlAttr(node, "type"))
-		if agType == "" {
-			agType = "person"
-		}
-		isGroup := strings.EqualFold(agType, "group") || isConventionalTTMLGroupID(id)
-		role := "person"
-		if isGroup {
-			role = "group"
-		}
-		xmlDeclared = append(xmlDeclared, lyricSingerDeclaredAgent{
-			ID:       id,
-			Name:     readTTMLAgentName(node),
-			Type:     agType,
-			Role:     role,
-			Position: parseTTMLDeclaredPosition(ttmlAttr(node, "position")),
-			ColorHex: strings.TrimSpace(ttmlAttr(node, "color")),
-			Members:  strings.Fields(ttmlAttr(node, "members")),
-			IsGroup:  isGroup,
-		})
-		return false
-	})
-
-	declaredList := make([]lyricSingerDeclaredAgent, 0, len(xmlDeclared))
-	declaredSeen := map[string]bool{}
-	if starryExt != nil && len(starryExt.Agents) > 0 {
-		for _, ag := range starryExt.Agents {
-			if !declaredSeen[ag.ID] {
-				declaredSeen[ag.ID] = true
-				declaredList = append(declaredList, ag)
-			}
+	out := make([]lyricSingerExtractedLine, len(doc.Lines))
+	for i, line := range doc.Lines {
+		out[i] = lyricSingerExtractedLine{
+			Text:     line.Text,
+			Bg:       line.Bg,
+			RawAgent: line.RawAgent,
 		}
 	}
-	for _, ag := range xmlDeclared {
-		if !declaredSeen[ag.ID] {
-			declaredSeen[ag.ID] = true
-			declaredList = append(declaredList, ag)
-		}
-	}
-
-	hasPerformerDecl := false
-	for _, ag := range declaredList {
-		if ag.Position == "" || ag.Name != "" || ag.ColorHex != "" || len(ag.Members) > 0 {
-			hasPerformerDecl = true
-			break
-		}
-	}
-	carrierIDs := map[string]bool{}
-	agents := make([]lyricSingerDeclaredAgent, 0, len(declaredList))
-	hasDeclaredPos := false
-	for _, ag := range declaredList {
-		if ag.Position != "" {
-			hasDeclaredPos = true
-		}
-		if hasPerformerDecl && ag.Position != "" && ag.Name == "" && ag.ColorHex == "" && len(ag.Members) == 0 {
-			carrierIDs[ag.ID] = true
-			continue
-		}
-		agents = append(agents, ag)
-	}
-
-	hasSeparatedPos := starryExt != nil || hasDeclaredPos
-	type item struct {
-		start int64
-		line  lyricSingerExtractedLine
-	}
-	var items []item
-	var creditLines []string
-	walkTTMLWithAgent(root, "", "", func(p *ttmlNode, inheritedAgent string) bool {
-		if p.name != "p" {
-			return true
-		}
-		if ttmlHasAttr(p, "agents") || ttmlHasAttr(p, "position") {
-			hasSeparatedPos = true
-		}
-		pBegin, pBeginOK := parseTTMLTime(ttmlAttr(p, "begin"))
-		_, pEndOK := parseTTMLTime(ttmlAttr(p, "end"))
-		rich := readTTMLRichLine(p)
-		if !pBeginOK && rich.hasTiming {
-			pBegin, pBeginOK = rich.start, true
-		}
-		if !pEndOK && rich.hasTiming && rich.end >= 0 {
-			pEndOK = true
-		}
-		if !pBeginOK || !pEndOK {
-			return false
-		}
-		mainStart := pBegin
-		if rich.hasTiming && rich.start < math.MaxInt64 {
-			mainStart = rich.start
-		}
-		hasMain := rich.text != ""
-		hasBg := rich.bg != nil && rich.bg.text != ""
-		if !hasMain && !hasBg {
-			return false
-		}
-
-		mainRaw := inheritedAgent
-		key := strings.TrimSpace(ttmlAttr(p, "key"))
-		var extLine ttmlStarryExtLine
-		var hasExtLine bool
-		if starryExt != nil && key != "" {
-			extLine, hasExtLine = starryExt.LinesByKey[key]
-			if hasExtLine && extLine.HasAgent {
-				mainRaw = extLine.AgentAttr
-			}
-		}
-		mainRaw = filterTTMLCarrierAgents(mainRaw, carrierIDs)
-
-		bgRaw := mainRaw
-		if hasBg {
-			if hasExtLine && extLine.HasBgAgent {
-				bgRaw = filterTTMLCarrierAgents(extLine.BgAgentAttr, carrierIDs)
-			} else if ownBg, ok := readTTMLBgAgentAttr(p); ok {
-				bgRaw = filterTTMLCarrierAgents(ownBg, carrierIDs)
-			}
-		}
-
-		if !hasMain && hasBg {
-			if isLyricCreditText(rich.bg.text) {
-				creditLines = append(creditLines, rich.bg.text)
-			}
-			bgStart := pBegin
-			if rich.bg.hasTiming && rich.bg.start < math.MaxInt64 {
-				bgStart = rich.bg.start
-			}
-			items = append(items, item{
-				start: bgStart,
-				line:  lyricSingerExtractedLine{Text: rich.bg.text, Bg: false, RawAgent: bgRaw},
-			})
-			return false
-		}
-		if isLyricCreditText(rich.text) {
-			creditLines = append(creditLines, rich.text)
-		}
-		mainItem := item{
-			start: mainStart,
-			line:  lyricSingerExtractedLine{Text: rich.text, Bg: false, RawAgent: mainRaw},
-		}
-		if !hasBg {
-			items = append(items, mainItem)
-			return false
-		}
-		bgStart := pBegin
-		if rich.bg.hasTiming && rich.bg.start < math.MaxInt64 {
-			bgStart = rich.bg.start
-		}
-		bgItem := item{
-			start: bgStart,
-			line:  lyricSingerExtractedLine{Text: rich.bg.text, Bg: true, RawAgent: bgRaw},
-		}
-		if rich.bgFirst && bgStart <= mainStart {
-			items = append(items, bgItem, mainItem)
-		} else {
-			items = append(items, mainItem, bgItem)
-		}
-		return false
-	})
-
-	sort.SliceStable(items, func(i, j int) bool { return items[i].start < items[j].start })
-	out := make([]lyricSingerExtractedLine, len(items))
-	for i, it := range items {
-		out[i] = it.line
-	}
-	return out, agents, songwriters, creditLines, hasSeparatedPos
+	return out, doc.Agents, doc.Songwriters, doc.CreditLines, doc.HasSeparatedPos
 }

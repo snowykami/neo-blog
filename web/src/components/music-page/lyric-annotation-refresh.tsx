@@ -39,7 +39,7 @@ export function LyricAnnotationRefresh({ className }: { className?: string }) {
 
   const refresh = async () => {
     setRefreshing(true)
-    if (siteInfo.musicAiEnabled && canResolveLyricSingers(lyrics, currentTrack))
+    if (siteInfo.musicAiEnabled && canResolveLyricSingers(lyrics))
       void refreshSingers(trackId, lyrics.source, showTranslation ? targetLang : '').catch(() => {})
     try {
       await refreshAnnotations(trackId)

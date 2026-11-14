@@ -95,10 +95,10 @@ func TestLyricSingersSoloFastPathAndNamedTTML(t *testing.T) {
 
 	attrCalls, transCalls, wait := stubLyricSingerService(t,
 		func(_, _ string) (string, error) {
-			return "", nil
+			return `{"empty":true}`, nil
 		},
 		func(_, _ string) (string, error) {
-			return `{"names":{"v1":"Jay Chou","v2":"Lara Veronin"}}`, nil
+			return `{"names":{"v1":"Jay Chou","v2":"Lara Veronin","v1000":"Chorus","together":"Chorus"}}`, nil
 		},
 		nil,
 	)
@@ -106,15 +106,25 @@ func TestLyricSingersSoloFastPathAndNamedTTML(t *testing.T) {
 	s := NewMusicService()
 	ctx := context.Background()
 
-	// 1. 单歌手且无多声部 / 无行内 "歌手：" 提示：零 LLM 开销直接返回空声部 ready
+	// 1. 单歌手且无多声部：首次异步触发 AI 返回 {"empty":true}，随后命中缓存不再重复调用
+	soloPending, svcerr := s.GetLyricSingers(ctx, 701, "ncm-lrc", "")
+	if svcerr != nil || soloPending.Status != "pending" {
+		t.Fatalf("solo first get = %+v, err=%v", soloPending, svcerr)
+	}
+	wait()
+
 	solo, svcerr := s.GetLyricSingers(ctx, 701, "ncm-lrc", "")
-	if svcerr != nil || solo.Status != "ready" || len(solo.Singers) != 0 || attrCalls.Load() != 0 {
-		t.Fatalf("solo fast path = %+v, err=%v, calls=%d", solo, svcerr, attrCalls.Load())
+	if svcerr != nil || solo.Status != "ready" || len(solo.Singers) != 0 || attrCalls.Load() != 1 {
+		t.Fatalf("solo ready = %+v, err=%v, calls=%d", solo, svcerr, attrCalls.Load())
+	}
+	soloCached, svcerr := s.GetLyricSingers(ctx, 701, "ncm-lrc", "")
+	if svcerr != nil || soloCached.Status != "ready" || len(soloCached.Singers) != 0 || attrCalls.Load() != 1 {
+		t.Fatalf("solo cached = %+v, err=%v, calls=%d", soloCached, svcerr, attrCalls.Load())
 	}
 
-	// 2. 具名 TTML 多声部：确定性解析无需归属 LLM，且开启 en 译名时异步翻译歌手名
+	// 2. 具名 TTML 多声部：确定性解析无需归属 LLM（attrCalls 保持 1），且开启 en 译名时异步翻译歌手名
 	duet, svcerr := s.GetLyricSingers(ctx, 702, "ttml-amll", "en")
-	if svcerr != nil || duet.Status != "ready" || attrCalls.Load() != 0 || !duet.TranslationPending {
+	if svcerr != nil || duet.Status != "ready" || attrCalls.Load() != 1 || !duet.TranslationPending {
 		t.Fatalf("named TTML duet = %+v, err=%v, attrCalls=%d", duet, svcerr, attrCalls.Load())
 	}
 	if len(duet.Singers) < 3 || len(duet.Lines) != 3 {
@@ -150,10 +160,9 @@ func TestLyricSingersAIAttributionWithLRC(t *testing.T) {
 				outcome: lyricOutcomeHit,
 			},
 		})
-		attrCalls, transCalls, _ := stubLyricSingerService(t,
+		attrCalls, transCalls, wait := stubLyricSingerService(t,
 			func(_, _ string) (string, error) {
-				t.Fatalf("unexpected AI attribution call for solo qq-qrc")
-				return "", nil
+				return `{"empty":true}`, nil
 			},
 			func(_, _ string) (string, error) {
 				t.Fatalf("unexpected AI translation call for solo qq-qrc")
@@ -161,12 +170,22 @@ func TestLyricSingersAIAttributionWithLRC(t *testing.T) {
 			},
 			nil,
 		)
+		first, svcerr := s.GetLyricSingers(ctx, 713, "qq-qrc", "en")
+		if svcerr != nil || first.Status != "pending" {
+			t.Fatalf("first get solo qq-qrc = %+v, err=%v", first, svcerr)
+		}
+		wait()
+
 		resp, svcerr := s.GetLyricSingers(ctx, 713, "qq-qrc", "en")
 		if svcerr != nil || resp.Status != "ready" || len(resp.Singers) != 0 || len(resp.Lines) != 0 {
 			t.Fatalf("unexpected solo qq-qrc resp = %+v, err=%v", resp, svcerr)
 		}
-		if attrCalls.Load() != 0 || transCalls.Load() != 0 {
-			t.Fatalf("expected 0 AI calls for solo qq-qrc, got attr=%d trans=%d", attrCalls.Load(), transCalls.Load())
+		cached, svcerr := s.GetLyricSingers(ctx, 713, "qq-qrc", "en")
+		if svcerr != nil || cached.Status != "ready" || len(cached.Singers) != 0 || len(cached.Lines) != 0 {
+			t.Fatalf("unexpected cached solo qq-qrc resp = %+v, err=%v", cached, svcerr)
+		}
+		if attrCalls.Load() != 1 || transCalls.Load() != 0 {
+			t.Fatalf("expected 1 AI attribution call and 0 translation calls for solo qq-qrc, got attr=%d trans=%d", attrCalls.Load(), transCalls.Load())
 		}
 	})
 
@@ -182,27 +201,27 @@ func TestLyricSingersAIAttributionWithLRC(t *testing.T) {
 			},
 		})
 
-		var capturedUser string
+		var capturedSystem, capturedUser string
 		attrCalls, transCalls, wait := stubLyricSingerService(t,
-			func(_, user string) (string, error) {
+			func(system, user string) (string, error) {
+				capturedSystem = system
 				capturedUser = user
 				return `{
 					"singers":[
 						{"id":"v1","name":"王菲","role":"person","color":"cherry-blossom","align":"left"},
 						{"id":"v2","name":"陈奕迅","role":"person","color":"ocean","align":"right"},
-						{"id":"v3","name":"小柯","role":"person","color":"amber","align":"right"},
 						{"id":"together","name":"合唱","role":"group","color":"lavender","align":"center"}
 					],
 					"lines":[
 						{"i":1,"agent":"v2"},
 						{"i":2,"agent":"v1"},
-						{"i":3,"agent":"v3"},
+						{"i":3,"agent":"v2"},
 						{"i":4,"agent":"together"}
 					]
 				}`, nil
 			},
 			func(_, _ string) (string, error) {
-				return `{"names":{"v1":"Faye Wong","v2":"Eason Chan","v3":"Xiao Ke","together":"Chorus"}}`, nil
+				return `{"names":{"v1":"Faye Wong","v2":"Eason Chan","together":"Chorus"}}`, nil
 			},
 			[]lyricAnnotationComment{{Content: "第一句是陈奕迅唱起，王菲接唱", Liked: 120}},
 		)
@@ -216,11 +235,14 @@ func TestLyricSingersAIAttributionWithLRC(t *testing.T) {
 		}
 		wait() // 完成 AI 声部归属
 
-		if !strings.Contains(capturedUser, "excluded_non_vocal_creators") || !strings.Contains(capturedUser, "小柯") {
-			t.Fatalf("expected excluded_non_vocal_creators containing 小柯 in user prompt, got %s", capturedUser)
+		if !strings.Contains(capturedSystem, "HOYO-MiX") {
+			t.Fatalf("expected non-vocal creator/studio exclusion rules in system prompt, got %s", capturedSystem)
 		}
-		if !strings.Contains(capturedUser, "inline_cue") || !strings.Contains(capturedUser, "男") {
-			t.Fatalf("expected inline_cue containing 男 in user prompt, got %s", capturedUser)
+		if strings.Contains(capturedUser, "excluded_non_vocal_creators") || strings.Contains(capturedUser, "inline_cue") {
+			t.Fatalf("user prompt should not inject hardcoded excluded_non_vocal_creators or inline_cue fields: %s", capturedUser)
+		}
+		if !strings.Contains(capturedUser, "作词：小柯") || !strings.Contains(capturedUser, "男：给你一张过去的CD") {
+			t.Fatalf("expected credits and raw inline cue text in user prompt: %s", capturedUser)
 		}
 
 		// 取一次 en 译名触发翻译任务
@@ -239,15 +261,8 @@ func TestLyricSingersAIAttributionWithLRC(t *testing.T) {
 		if attrCalls.Load() != 1 || transCalls.Load() != 1 {
 			t.Fatalf("unexpected call counts: attr=%d trans=%d", attrCalls.Load(), transCalls.Load())
 		}
-		names := make([]string, 0, len(ready.Singers))
-		for _, sg := range ready.Singers {
-			if sg.Name == "小柯" {
-				t.Fatalf("expected non-vocal creator 小柯 stripped from singers, got %+v", ready.Singers)
-			}
-			names = append(names, sg.Name)
-		}
 		if len(ready.Singers) != 3 {
-			t.Fatalf("expected 3 valid singers after stripping 小柯, got %+v (%v)", ready.Singers, names)
+			t.Fatalf("expected 3 valid singers, got %+v", ready.Singers)
 		}
 		if ready.TranslatedNames["v1"] != "Faye Wong" || ready.TranslatedNames["v2"] != "Eason Chan" || ready.TranslatedNames["together"] != "Chorus" {
 			t.Fatalf("translated names = %+v", ready.TranslatedNames)
@@ -276,8 +291,8 @@ func TestLyricSingersAIAttributionWithLRC(t *testing.T) {
 						{"id":"v2","name":"王菲","role":"person","color":"cherry-blossom","align":"right"}
 					],
 					"lines":[
-						{"i":1,"agent":"v1"},
-						{"i":2,"agent":"v2"}
+						{"i":2,"agent":"v1"},
+						{"i":4,"agent":"v2"}
 					]
 				}`, nil
 			},
@@ -300,11 +315,88 @@ func TestLyricSingersAIAttributionWithLRC(t *testing.T) {
 		if attrCalls.Load() != 1 {
 			t.Fatalf("expected 1 AI call, got %d", attrCalls.Load())
 		}
-		if !strings.Contains(capturedUser, `"section_cue":"陈奕迅"`) || !strings.Contains(capturedUser, `"section_cue":"王菲"`) {
-			t.Fatalf("expected section_cue for 陈奕迅 and 王菲 in user prompt, got %s", capturedUser)
+		if !strings.Contains(capturedUser, "【陈奕迅】") || !strings.Contains(capturedUser, "【王菲】") {
+			t.Fatalf("expected bracket cue lines kept in user prompt, got %s", capturedUser)
 		}
 		if len(ready.Lines) != 2 || ready.Lines[0].Agent != "v1" || ready.Lines[1].Agent != "v2" {
 			t.Fatalf("lines = %+v", ready.Lines)
+		}
+	})
+
+	t.Run("youdiantian_surname_abbrev_and_unlisted_partner", func(t *testing.T) {
+		track := dto.MusicTrackDto{ID: 714, Name: "有点甜", Artists: []string{"汪苏泷"}}
+		setupMusicTranslationEnv(t, []dto.MusicTrackDto{track})
+		stubLyricSources(t, map[string]lyricSourceResult{
+			"ncm": {
+				data: &dto.MusicLyricDto{
+					Lrc: lyricPart("[00:01.00]合：眼神坚定着我们的选择\n[00:05.00]BY2：是你让我的世界从那刻变成粉红色\n[00:09.00]汪：是你让我的生活从此都只要你配合\n[00:13.00]BY2：爱要精心来雕刻\n[00:16.00]汪：我是米开朗基罗\n[00:19.00]合：用心刻画最幸福的风格\n"),
+				},
+				outcome: lyricOutcomeHit,
+			},
+		})
+
+		var capturedSystem, capturedUser string
+		attrCalls, _, wait := stubLyricSingerService(t,
+			func(system, user string) (string, error) {
+				capturedSystem = system
+				capturedUser = user
+				return `{
+					"empty":false,
+					"evidence_source":"inline_cues",
+					"evidence_url":"inline_cues",
+					"singers":[
+						{"id":"v1","name":"汪苏泷","role":"person","color":"ocean","align":"left"},
+						{"id":"v2","name":"BY2","role":"person","color":"cherry-blossom","align":"right"},
+						{"id":"together","name":"合唱","role":"group","color":"lavender","align":"center","members":["v1","v2"]}
+					],
+					"lines":[
+						{"i":1,"agent":"together"},
+						{"i":2,"agent":"v2"},
+						{"i":3,"agent":"v1"},
+						{"i":4,"agent":"v2"},
+						{"i":5,"agent":"v1"},
+						{"i":6,"agent":"together"}
+					]
+				}`, nil
+			},
+			func(_, _ string) (string, error) { return `{}`, nil },
+			nil,
+		)
+
+		s := NewMusicService()
+		ctx := context.Background()
+		first, svcerr := s.GetLyricSingers(ctx, 714, "ncm-lrc", "")
+		if svcerr != nil || first.Status != "pending" {
+			t.Fatalf("first get = %+v, err=%v", first, svcerr)
+		}
+		wait()
+
+		if !strings.Contains(capturedSystem, "汪苏泷") || !strings.Contains(capturedSystem, "BY2") {
+			t.Fatalf("expected inline cue resolution & alignment example in system prompt: %s", capturedSystem)
+		}
+		if !strings.Contains(capturedUser, "合：眼神坚定着我们的选择") || !strings.Contains(capturedUser, "汪：我是米开朗基罗") {
+			t.Fatalf("expected raw inline cues in user prompt: %s", capturedUser)
+		}
+
+		ready, svcerr := s.GetLyricSingers(ctx, 714, "ncm-lrc", "")
+		if svcerr != nil || ready.Status != "ready" || attrCalls.Load() != 1 {
+			t.Fatalf("ready = %+v, err=%v, calls=%d", ready, svcerr, attrCalls.Load())
+		}
+		if len(ready.Singers) != 3 || len(ready.Lines) != 6 {
+			t.Fatalf("unexpected singers/lines: %+v", ready)
+		}
+		alignByID := map[string]string{}
+		for _, sg := range ready.Singers {
+			alignByID[sg.ID] = sg.Align
+		}
+		if alignByID["v1"] != "left" || alignByID["v2"] != "right" || alignByID["together"] != "center" {
+			t.Fatalf("unexpected alignments = %+v", alignByID)
+		}
+		wantAgents := []string{"together", "v2", "v1", "v2", "v1", "together"}
+		for i, want := range wantAgents {
+			if ready.Lines[i].Agent != want {
+				t.Fatalf("line[%d] = %q, want %q", i, ready.Lines[i].Agent, want)
+			}
 		}
 	})
 }
@@ -659,7 +751,9 @@ func TestLyricSingersLightweightAgentLoop(t *testing.T) {
 		_, _, waitB := stubLyricSingerService(t, nil, func(_, _ string) (string, error) { return `{}`, nil }, nil)
 		lyricSingers.moegirlAPIBase = srv.URL + "/api.php"
 		lyricSingers.agentChat = func(_ context.Context, _ tools.AIConfig, messages []singerAgentMessage, _ []singerAgentToolDef) (*singerAgentChatResult, error) {
-			if len(messages) >= 2 && messages[1].Content != nil && strings.Contains(*messages[1].Content, "HOYO-MiX") && strings.Contains(*messages[1].Content, "excluded_non_vocal_creators") {
+			if len(messages) >= 2 &&
+				messages[0].Content != nil && strings.Contains(*messages[0].Content, "HOYO-MiX") &&
+				messages[1].Content != nil && !strings.Contains(*messages[1].Content, "excluded_non_vocal_creators") {
 				promptHadExcludedStudio = true
 			}
 			if stepB.Add(1) == 1 {
@@ -669,16 +763,16 @@ func TestLyricSingersLightweightAgentLoop(t *testing.T) {
 				c.Function.Arguments = `{"page_title":"经过(原神)"}`
 				return &singerAgentChatResult{ToolCalls: []singerAgentToolCall{c}}, nil
 			}
+			// 模型遵守提示词排除制作厂牌 HOYO-MiX 后仅剩 1 位真唱歌手，服务端结构性 <2 人校验将其收口为空
 			return &singerAgentChatResult{
 				Content: `{
 					"empty":false,
 					"evidence_source":"moegirl",
 					"evidence_url":"https://zh.moegirl.org.cn/经过(原神)",
 					"singers":[
-						{"id":"v1","name":"张杰","role":"person","color":"ocean","align":"left"},
-						{"id":"v2","name":"HOYO-MiX","role":"person","color":"gold","align":"right"}
+						{"id":"v1","name":"张杰","role":"person","color":"ocean","align":"left"}
 					],
-					"lines":[{"i":1,"agent":"v1"},{"i":2,"agent":"v2"}]
+					"lines":[{"i":1,"agent":"v1"},{"i":2,"agent":"v1"}]
 				}`,
 			}, nil
 		}
@@ -686,7 +780,7 @@ func TestLyricSingersLightweightAgentLoop(t *testing.T) {
 		waitB()
 		respB, svcerr := s.GetLyricSingers(ctx, 723, "ncm-lrc", "")
 		if svcerr != nil || !promptHadExcludedStudio || len(respB.Singers) != 0 || len(respB.Lines) != 0 {
-			t.Fatalf("expected HOYO-MiX excluded leaving empty result, promptHadStudio=%v, resp=%+v, err=%v", promptHadExcludedStudio, respB, svcerr)
+			t.Fatalf("expected solo vocalist after prompt studio exclusion leaving empty result, promptHadStudio=%v, resp=%+v, err=%v", promptHadExcludedStudio, respB, svcerr)
 		}
 	})
 

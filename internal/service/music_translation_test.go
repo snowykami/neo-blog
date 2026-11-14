@@ -112,44 +112,48 @@ func TestLyricTranslationLanguageDetection(t *testing.T) {
 }
 
 func TestClassifyLyricVocalLineAndPrefix(t *testing.T) {
-	artists := []string{"李荣浩", "可莉 (花玲)"}
-
-	if _, skip := classifyLyricVocalLine("李荣浩：", artists); !skip {
-		t.Fatal("standalone artist cue should be skipped")
+	if _, skip := classifyLyricVocalLine("李荣浩："); !skip {
+		t.Fatal("standalone cue with empty rest should be skipped")
 	}
-	if _, skip := classifyLyricVocalLine("女：", artists); !skip {
-		t.Fatal("standalone role cue should be skipped")
+	if _, skip := classifyLyricVocalLine("女："); !skip {
+		t.Fatal("standalone short colon cue with empty rest should be skipped")
 	}
-	if _, skip := classifyLyricVocalLine("[Chorus]", artists); !skip {
-		t.Fatal("section header should be skipped")
+	if _, skip := classifyLyricVocalLine("[Chorus]"); !skip {
+		t.Fatal("square bracket section header should be skipped")
 	}
-	if _, skip := classifyLyricVocalLine("作词：方文山", artists); !skip {
+	if _, skip := classifyLyricVocalLine("作词：方文山"); !skip {
 		t.Fatal("credit line should be skipped")
 	}
-	if _, skip := classifyLyricVocalLine("纯音乐，请欣赏", artists); !skip {
+	if _, skip := classifyLyricVocalLine("纯音乐，请欣赏"); !skip {
 		t.Fatal("instrumental line should be skipped")
 	}
 
-	vocal, skip := classifyLyricVocalLine("李荣浩：如果有一天我回到从前", artists)
-	if skip || vocal != "如果有一天我回到从前" {
-		t.Fatalf("artist prefix = (%q, %v)", vocal, skip)
+	// 去硬编码后，非空前缀行原文保留送给 AI，由提示词负责剥离发言人前缀
+	vocal, skip := classifyLyricVocalLine("李荣浩：如果有一天我回到从前")
+	if skip || vocal != "李荣浩：如果有一天我回到从前" {
+		t.Fatalf("inline cue line = (%q, %v)", vocal, skip)
 	}
-	vocal, skip = classifyLyricVocalLine("花玲：烦恼都走开", artists)
-	if skip || vocal != "烦恼都走开" {
-		t.Fatalf("sub-artist prefix = (%q, %v)", vocal, skip)
+	vocal, skip = classifyLyricVocalLine("汪：我是米开朗基罗")
+	if skip || vocal != "汪：我是米开朗基罗" {
+		t.Fatalf("surname abbrev cue line = (%q, %v)", vocal, skip)
 	}
-	vocal, skip = classifyLyricVocalLine("女：你在我身边", artists)
-	if skip || vocal != "你在我身边" {
-		t.Fatalf("role prefix = (%q, %v)", vocal, skip)
-	}
-	// 普通歌词中出现较晚或非歌手名的冒号不应误判为歌手提示
-	vocal, skip = classifyLyricVocalLine("她问我：你明天还会回来吗", artists)
+	// 普通歌词中的冒号同样完整保留
+	vocal, skip = classifyLyricVocalLine("她问我：你明天还会回来吗")
 	if skip || vocal != "她问我：你明天还会回来吗" {
 		t.Fatalf("ordinary colon lyric = (%q, %v)", vocal, skip)
 	}
 
-	if leaked := stripLeakedCuePrefix("李荣浩：年少有为", "年少有为", "李荣浩：If I were young", artists); leaked != "If I were young" {
-		t.Fatalf("stripLeakedCuePrefix = %q", leaked)
+	// 若 AI 仍原样带出原文前缀，兜底应按前缀长度剥离；普通叙事冒号句不误剥
+	if leaked := stripLeakedCuePrefix("李荣浩：年少有为", "李荣浩：年少有为", "李荣浩：If I were young"); leaked != "If I were young" {
+		t.Fatalf("stripLeakedCuePrefix same cue = %q", leaked)
+	}
+	if kept := stripLeakedCuePrefix("她问我：你明天还会回来吗", "她问我：你明天还会回来吗", "She asked me: will you come back tomorrow"); kept != "She asked me: will you come back tomorrow" {
+		t.Fatalf("stripLeakedCuePrefix narrative colon should stay intact = %q", kept)
+	}
+
+	sysPrompt := buildLyricTranslationSystemPrompt("en", false)
+	if !strings.Contains(sysPrompt, "汪：我是米开朗基罗") || !strings.Contains(sysPrompt, "NEVER") {
+		t.Fatalf("translation system prompt should instruct stripping speaker prefix like 汪：: %s", sysPrompt)
 	}
 }
 
@@ -319,8 +323,8 @@ func TestGetLyricTranslationsMultiSourceAndBorrowedRefAndCues(t *testing.T) {
 	wait()
 
 	prompt := gotUser.Load().(string)
-	if strings.Contains(prompt, "李荣浩：") {
-		t.Fatalf("prompt should strip singer prefix and skip cue line: %s", prompt)
+	if !strings.Contains(prompt, `"orig":"李荣浩：君の名前を呼ぶ"`) || strings.Contains(prompt, `"orig":"李荣浩："`) {
+		t.Fatalf("prompt should skip standalone cue line and keep non-empty inline prefix line for AI: %s", prompt)
 	}
 	if !strings.Contains(prompt, `"ref":"呼唤你的名字"`) {
 		t.Fatalf("prompt should include borrowed ref translation: %s", prompt)

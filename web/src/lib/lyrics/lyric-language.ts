@@ -208,77 +208,8 @@ const INTERJECTION_WORDS = new Set([
   'wo',
 ])
 
-const SINGER_CUE_ROLES = new Set([
-  '男',
-  '女',
-  '合',
-  '合唱',
-  '齐',
-  '齊',
-  '齐唱',
-  '齊唱',
-  '男声',
-  '男聲',
-  '女声',
-  '女聲',
-  '童声',
-  '童聲',
-  '主唱',
-  '伴唱',
-  '和声',
-  '和聲',
-  '独白',
-  '獨白',
-  '念白',
-  '旁白',
-  '说唱',
-  '說唱',
-  'rap',
-  'male',
-  'female',
-  'all',
-  'both',
-  'chorus',
-  'together',
-  'vocal',
-])
-
-const SECTION_WORDS = new Set([
-  'intro',
-  'verse',
-  'chorus',
-  'bridge',
-  'outro',
-  'prechorus',
-  'hook',
-  'interlude',
-  'solo',
-  'instrumental',
-  'music',
-  'rap',
-  'break',
-  'ending',
-  'coda',
-  '前奏',
-  '主歌',
-  '副歌',
-  '间奏',
-  '間奏',
-  '尾奏',
-  '桥段',
-  '橋段',
-  '独奏',
-  '獨奏',
-  '伴奏',
-  '纯音乐',
-  '純音樂',
-])
-
-const SECTION_TAG_RE = /^(?:\[[^\]]{1,32}\]|【[^】]{1,32}】|\([^)]{1,32}\)|（[^）]{1,32}）)$/
+const SECTION_TAG_RE = /^(?:\[[^\]]{1,32}\]|【[^】]{1,32}】)$/
 const INSTRUMENTAL_RE = /纯音乐，请您?欣赏/
-const ARTIST_SPLIT_RE = /[/、&,，·+]+/
-const PARENS_CLEANUP_RE = /\([^)]*\)|（[^）]*）/g
-const PARENS_INNER_RE = /\(([^)]+)\)|（([^）]+)）/g
 
 const RE_KANA = /[\p{Script=Hiragana}\p{Script=Katakana}]/u
 const RE_HANGUL = /\p{Script=Hangul}/u
@@ -481,83 +412,21 @@ function cutLeadingColon(text: string, maxRunes: number): { prefix: string, rest
   return null
 }
 
-function collectArtistTokens(artists: string[]): Set<string> {
-  const tokens = new Set<string>()
-  const add = (value: string) => {
-    const norm = normalizeForMatch(value)
-    if (norm)
-      tokens.add(norm)
-  }
-  for (const artist of artists) {
-    add(artist)
-    for (const sub of artist.split(ARTIST_SPLIT_RE)) {
-      const trimmed = sub.trim()
-      add(trimmed)
-      const bare = trimmed.replace(PARENS_CLEANUP_RE, '').trim()
-      if (bare && Array.from(normalizeForMatch(bare)).length >= 2)
-        add(bare)
-      for (const m of trimmed.matchAll(PARENS_INNER_RE)) {
-        const inner = m[1] ?? m[2] ?? ''
-        for (const part of inner.split(ARTIST_SPLIT_RE)) {
-          const p = part.trim()
-          if (p && Array.from(normalizeForMatch(p)).length >= 2)
-            add(p)
-        }
-      }
-    }
-  }
-  return tokens
-}
-
-function isSingerCuePrefix(prefix: string, artistTokens: Set<string>): boolean {
-  const clean = prefix.replace(PARENS_CLEANUP_RE, '').trim()
-  if (!clean)
-    return false
-  if (Array.from(clean).length === 1 && clean >= 'A' && clean <= 'F')
-    return true
-  const parts = clean.split(ARTIST_SPLIT_RE).map(p => p.trim()).filter(Boolean)
-  if (parts.length === 0)
-    return false
-  return parts.every((part) => {
-    const norm = normalizeForMatch(part)
-    return !norm || SINGER_CUE_ROLES.has(norm) || SINGER_CUE_ROLES.has(part.toLowerCase()) || artistTokens.has(norm)
-  }) && parts.some((part) => {
-    const norm = normalizeForMatch(part)
-    return Boolean(norm && (SINGER_CUE_ROLES.has(norm) || SINGER_CUE_ROLES.has(part.toLowerCase()) || artistTokens.has(norm)))
-  })
-}
-
 export function isNonLyricCueText(text: string): boolean {
   const trimmed = text.trim()
   const norm = normalizeForMatch(trimmed)
   if (!norm || INSTRUMENTAL_RE.test(trimmed) || isCreditText(trimmed))
     return true
-  if (SECTION_WORDS.has(norm))
-    return true
-  if (SECTION_TAG_RE.test(trimmed)) {
-    const clean = norm.replace(/\d+$/, '')
-    if (SECTION_WORDS.has(clean) || clean === 'bg')
-      return true
-    for (const kw of SECTION_WORDS) {
-      if (kw.length >= 2 && clean.includes(kw))
-        return true
-    }
-  }
-  return false
+  return SECTION_TAG_RE.test(trimmed)
 }
 
-export function classifyVocalLine(text: string, artists: string[] = []): string | null {
+export function classifyVocalLine(text: string, _artists: string[] = []): string | null {
   const trimmed = text.trim()
   if (isNonLyricCueText(trimmed))
     return null
   const colon = cutLeadingColon(trimmed, 24)
-  if (colon) {
-    if (!colon.rest && Array.from(colon.prefix).length <= 16)
-      return null
-    const tokens = collectArtistTokens(artists)
-    if (isSingerCuePrefix(colon.prefix, tokens))
-      return isNonLyricCueText(colon.rest) ? null : colon.rest
-  }
+  if (colon && !colon.rest && Array.from(colon.prefix).length <= 16)
+    return null
   return trimmed
 }
 
@@ -874,7 +743,13 @@ export function songAlreadyInTargetLang(vocalLines: string[], targetLang: LyricT
   let hasOtherScript = false
 
   for (const raw of vocalLines) {
-    const trimmed = raw.trim()
+    let trimmed = raw.trim()
+    const colon = cutLeadingColon(trimmed, 24)
+    if (colon && Array.from(colon.prefix).length <= 16 && !colon.rest.startsWith('//')) {
+      if (!colon.rest)
+        continue
+      trimmed = colon.rest
+    }
     if (!trimmed || isShortInterjectionLatin(trimmed))
       continue
     const stats = countScripts([trimmed])

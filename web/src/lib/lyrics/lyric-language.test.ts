@@ -34,12 +34,14 @@ describe('歌词语言检测与多语种翻译匹配', () => {
   })
 
   it('非唱词过滤与双语混唱判断', () => {
-    expect(classifyVocalLine('李荣浩：', ['李荣浩'])).toBeNull()
-    expect(classifyVocalLine('女：', ['张三'])).toBeNull()
-    expect(classifyVocalLine('[Chorus]', ['张三'])).toBeNull()
-    expect(classifyVocalLine('李荣浩：如果有一天我回到从前', ['李荣浩'])).toBe('如果有一天我回到从前')
-    expect(classifyVocalLine('花玲：烦恼都走开', ['可莉 (花玲)'])).toBe('烦恼都走开')
+    expect(classifyVocalLine('李荣浩：')).toBeNull()
+    expect(classifyVocalLine('女：')).toBeNull()
+    expect(classifyVocalLine('[Chorus]')).toBeNull()
+    expect(classifyVocalLine('李荣浩：如果有一天我回到从前')).toBe('李荣浩：如果有一天我回到从前')
+    expect(classifyVocalLine('汪：我是米开朗基罗')).toBe('汪：我是米开朗基罗')
 
+    expect(songAlreadyInTargetLang(['BY2：是你让我的世界从那刻变成粉红色', '汪：我是米开朗基罗'], 'zh')).toBe(true)
+    expect(songAlreadyInTargetLang(['BY2：You turned my world into pink', '汪：I am the one with you'], 'en')).toBe(true)
     expect(songAlreadyInTargetLang(['Oh yeah', '君の名前を呼ぶ', '夜空に星が流れる'], 'ja')).toBe(true)
     expect(songAlreadyInTargetLang(['君の名前を呼ぶ', 'Underneath the moonlight tonight', 'Hold me closer till morning light'], 'ja')).toBe(false)
     expect(songAlreadyInTargetLang(['君の名前を呼ぶ', 'Underneath the moonlight tonight', 'Hold me closer till morning light'], 'zh')).toBe(false)

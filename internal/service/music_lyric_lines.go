@@ -1,8 +1,11 @@
 package service
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"encoding/xml"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"regexp"
@@ -721,4 +724,834 @@ func parseTTMLTime(value string) (int64, bool) {
 // collapseLyricSpace 合并连续空白并去掉首尾空白
 func collapseLyricSpace(text string) string {
 	return strings.TrimSpace(whitespaceRe.ReplaceAllString(text, " "))
+}
+
+// 以下是统一 TTML 富文本解析器（合并翻译 / 音译读音 / 多声部注释共用的 XML/head/x-bg/starry:extensions 提取逻辑）
+
+type lyricSingerDeclaredAgent struct {
+	ID       string
+	Name     string
+	Type     string // "person" | "other" | "group"
+	Role     string // "person" | "group"
+	Position string // "" | "left" | "right" | "center"
+	ColorHex string
+	Members  []string
+	IsGroup  bool
+}
+
+type ttmlStarryExtLine struct {
+	AgentAttr   string
+	HasAgent    bool
+	BgAgentAttr string
+	HasBgAgent  bool
+}
+
+type ttmlStarryExtensions struct {
+	Agents     []lyricSingerDeclaredAgent
+	LinesByKey map[string]ttmlStarryExtLine
+}
+
+type ttmlKeyedLangPair struct {
+	main string
+	bg   string
+}
+
+type ttmlRichLineItem struct {
+	Start         int64
+	Text          string
+	Bg            bool
+	RawAgent      string
+	Words         []string
+	WordTimed     bool
+	OwnRoman      string
+	BuiltInByLang map[string]string
+}
+
+type ttmlRichDoc struct {
+	Lines           []ttmlRichLineItem
+	Agents          []lyricSingerDeclaredAgent
+	Songwriters     []string
+	CreditLines     []string
+	HasSeparatedPos bool
+	WordTimed       bool
+}
+
+type ttmlRichParsedNode struct {
+	text       string
+	words      []string
+	roman      string
+	start, end int64
+	hasTiming  bool
+	wordTimed  bool
+	inlineTr   map[string]string
+	bg         *ttmlRichParsedNode
+	bgFirst    bool
+}
+
+func parseTTMLDeclaredPosition(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "primary", "left":
+		return "left"
+	case "secondary", "right":
+		return "right"
+	case "duet", "center":
+		return "center"
+	default:
+		return ""
+	}
+}
+
+func hasNativeTTMLStarryExtensions(root *ttmlNode) bool {
+	found := false
+	walkTTML(root, func(node *ttmlNode) bool {
+		if found {
+			return false
+		}
+		if node.name == "tt" {
+			for _, attr := range node.attrs {
+				if (attr.Name.Space == "xmlns" || attr.Name.Local == "xmlns") && strings.HasPrefix(attr.Value, "urn:ttml:extensions:") {
+					found = true
+					return false
+				}
+			}
+		}
+		for _, attrName := range []string{"position", "agents", "color", "members", "rubyGroup"} {
+			if ttmlHasAttr(node, attrName) {
+				found = true
+				return false
+			}
+		}
+		return true
+	})
+	return found
+}
+
+func parseStarryExtColorRaw(raw json.RawMessage) string {
+	if len(raw) == 0 || string(raw) == "null" {
+		return ""
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return strings.TrimSpace(s)
+	}
+	var obj struct {
+		Hex   string  `json:"hex"`
+		Red   float64 `json:"red"`
+		Green float64 `json:"green"`
+		Blue  float64 `json:"blue"`
+	}
+	if err := json.Unmarshal(raw, &obj); err == nil {
+		if hexStr := strings.TrimSpace(obj.Hex); hexStr != "" {
+			return hexStr
+		}
+		if strings.Contains(string(raw), `"red"`) {
+			clamp := func(v float64) int {
+				return min(255, max(0, int(math.Round(v))))
+			}
+			return fmt.Sprintf("#%02x%02x%02x", clamp(obj.Red), clamp(obj.Green), clamp(obj.Blue))
+		}
+	}
+	return ""
+}
+
+func readTTMLStarryExtensions(root *ttmlNode) *ttmlStarryExtensions {
+	if hasNativeTTMLStarryExtensions(root) {
+		return nil
+	}
+	encoded := ""
+	walkTTML(root, func(node *ttmlNode) bool {
+		if node.name == "meta" && ttmlAttr(node, "key") == "starry:extensions:v1" {
+			encoded = strings.TrimSpace(ttmlAttr(node, "value"))
+			return false
+		}
+		return true
+	})
+	if encoded == "" {
+		return nil
+	}
+	rawBytes, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		rawBytes, err = base64.RawStdEncoding.DecodeString(encoded)
+		if err != nil {
+			return nil
+		}
+	}
+	var payload struct {
+		Version int `json:"version"`
+		Agents  []struct {
+			ID    string `json:"id"`
+			Kind  string `json:"kind"`
+			Names []struct {
+				Text string `json:"text"`
+				Kind string `json:"kind"`
+			} `json:"names"`
+			Color     json.RawMessage `json:"color"`
+			MemberIDs []string        `json:"memberIDs"`
+		} `json:"agents"`
+		Lines []struct {
+			Key        string    `json:"key"`
+			AgentIDs   *[]string `json:"agentIDs"`
+			Background *struct {
+				AgentIDs *[]string `json:"agentIDs"`
+			} `json:"background"`
+		} `json:"lines"`
+	}
+	if err := json.Unmarshal(rawBytes, &payload); err != nil || payload.Version != 1 {
+		return nil
+	}
+	ext := &ttmlStarryExtensions{
+		Agents:     make([]lyricSingerDeclaredAgent, 0, len(payload.Agents)),
+		LinesByKey: make(map[string]ttmlStarryExtLine, len(payload.Lines)),
+	}
+	for _, entry := range payload.Agents {
+		id := strings.TrimSpace(entry.ID)
+		if id == "" {
+			continue
+		}
+		name := ""
+		for _, n := range entry.Names {
+			if strings.TrimSpace(n.Text) != "" {
+				if n.Kind == "full" || name == "" {
+					name = strings.TrimSpace(n.Text)
+				}
+				if n.Kind == "full" {
+					break
+				}
+			}
+		}
+		kind := strings.TrimSpace(entry.Kind)
+		if kind == "" {
+			kind = "person"
+		}
+		isGroup := strings.EqualFold(kind, "group") || isConventionalTTMLGroupID(id)
+		var members []string
+		if isGroup {
+			for _, m := range entry.MemberIDs {
+				if trimmed := strings.TrimSpace(m); trimmed != "" {
+					members = append(members, trimmed)
+				}
+			}
+		}
+		role := "person"
+		if isGroup {
+			role = "group"
+		}
+		ext.Agents = append(ext.Agents, lyricSingerDeclaredAgent{
+			ID:       id,
+			Name:     name,
+			Type:     kind,
+			Role:     role,
+			ColorHex: parseStarryExtColorRaw(entry.Color),
+			Members:  members,
+			IsGroup:  isGroup,
+		})
+	}
+	joinPtrIDs := func(ids *[]string) (string, bool) {
+		if ids == nil {
+			return "", false
+		}
+		cleaned := make([]string, 0, len(*ids))
+		for _, s := range *ids {
+			if trimmed := strings.TrimSpace(s); trimmed != "" {
+				cleaned = append(cleaned, trimmed)
+			}
+		}
+		return strings.Join(cleaned, " "), true
+	}
+	for _, line := range payload.Lines {
+		key := strings.TrimSpace(line.Key)
+		if key == "" {
+			continue
+		}
+		if _, exists := ext.LinesByKey[key]; exists {
+			continue
+		}
+		agentAttr, hasAgent := joinPtrIDs(line.AgentIDs)
+		var bgAgentAttr string
+		var hasBgAgent bool
+		if line.Background != nil {
+			bgAgentAttr, hasBgAgent = joinPtrIDs(line.Background.AgentIDs)
+		}
+		ext.LinesByKey[key] = ttmlStarryExtLine{
+			AgentAttr:   agentAttr,
+			HasAgent:    hasAgent,
+			BgAgentAttr: bgAgentAttr,
+			HasBgAgent:  hasBgAgent,
+		}
+	}
+	return ext
+}
+
+func readTTMLBgAgentAttr(p *ttmlNode) (string, bool) {
+	var found bool
+	var out string
+	var visit func(node *ttmlNode)
+	visit = func(node *ttmlNode) {
+		if found {
+			return
+		}
+		for _, ch := range node.children {
+			if ch.name == "" {
+				continue
+			}
+			if ch.name == "span" && ttmlAttr(ch, "role") == "x-bg" {
+				found = true
+				if ttmlHasAttr(ch, "agents") {
+					out = strings.TrimSpace(ttmlAttr(ch, "agents"))
+				} else {
+					out = strings.TrimSpace(ttmlAttr(ch, "agent"))
+				}
+				return
+			}
+			visit(ch)
+			if found {
+				return
+			}
+		}
+	}
+	visit(p)
+	return out, found && (out != "" || ttmlHasAttrPrefixBg(p))
+}
+
+func ttmlHasAttrPrefixBg(p *ttmlNode) bool {
+	has := false
+	walkTTML(p, func(node *ttmlNode) bool {
+		if has {
+			return false
+		}
+		if node.name == "span" && ttmlAttr(node, "role") == "x-bg" {
+			has = ttmlHasAttr(node, "agents")
+			return false
+		}
+		return true
+	})
+	return has
+}
+
+func filterTTMLCarrierAgents(rawAgent string, carrierIDs map[string]bool) string {
+	fields := strings.Fields(rawAgent)
+	if len(fields) == 0 {
+		return ""
+	}
+	kept := make([]string, 0, len(fields))
+	seen := map[string]bool{}
+	for _, id := range fields {
+		if carrierIDs[id] || seen[id] {
+			continue
+		}
+		seen[id] = true
+		kept = append(kept, id)
+	}
+	return strings.Join(kept, " ")
+}
+
+func ttmlTextWithoutRuby(node *ttmlNode) string {
+	if node.name == "" {
+		return node.text
+	}
+	ruby := ttmlAttr(node, "ruby")
+	if ruby == "text" || ruby == "textContainer" || ruby == "delimiter" {
+		return ""
+	}
+	var b strings.Builder
+	for _, ch := range node.children {
+		b.WriteString(ttmlTextWithoutRuby(ch))
+	}
+	return b.String()
+}
+
+func readTTMLKeyedPairNode(textNode *ttmlNode) (ttmlKeyedLangPair, bool) {
+	var mainB strings.Builder
+	var bgText string
+	for _, ch := range textNode.children {
+		if ch.name == "" {
+			mainB.WriteString(ch.text)
+			continue
+		}
+		if ch.name == "span" && ttmlAttr(ch, "role") == "x-bg" {
+			if bgText == "" {
+				bgText = collapseLyricSpace(ttmlTextWithoutRuby(ch))
+			}
+			continue
+		}
+		mainB.WriteString(ttmlTextWithoutRuby(ch))
+	}
+	mainText := collapseLyricSpace(mainB.String())
+	if mainText == "" && bgText == "" {
+		return ttmlKeyedLangPair{}, false
+	}
+	return ttmlKeyedLangPair{main: mainText, bg: bgText}, true
+}
+
+// ttmlHeadTranslationsByLang 读取 head 中各语种的 itunes:key 翻译块；返回按归一化语言标签分组的 map
+func ttmlHeadTranslationsByLang(root *ttmlNode) map[string]map[string]ttmlKeyedLangPair {
+	out := map[string]map[string]ttmlKeyedLangPair{}
+	readTextNode := func(tag string, textNode *ttmlNode) {
+		key := ttmlAttr(textNode, "for")
+		if key == "" {
+			return
+		}
+		if _, ok := out[tag]; !ok {
+			out[tag] = map[string]ttmlKeyedLangPair{}
+		}
+		if _, exists := out[tag][key]; exists {
+			return
+		}
+		if pair, ok := readTTMLKeyedPairNode(textNode); ok {
+			out[tag][key] = pair
+		}
+	}
+
+	walkTTML(root, func(block *ttmlNode) bool {
+		if block.name != "translations" {
+			return true
+		}
+		defaultTag := normalizeLyricLangTag(ttmlAttr(block, "lang"))
+		walkTTML(block, func(transNode *ttmlNode) bool {
+			if transNode.name == "text" {
+				tag := normalizeLyricLangTag(ttmlAttr(transNode, "lang"))
+				if tag == "" {
+					tag = defaultTag
+				}
+				readTextNode(tag, transNode)
+				return false
+			}
+			if transNode.name != "translation" {
+				return true
+			}
+			tag := normalizeLyricLangTag(ttmlAttr(transNode, "lang"))
+			if tag == "" {
+				tag = defaultTag
+			}
+			walkTTML(transNode, func(textNode *ttmlNode) bool {
+				if textNode.name != "text" {
+					return true
+				}
+				readTextNode(tag, textNode)
+				return false
+			})
+			return false
+		})
+		return false
+	})
+	return out
+}
+
+func ttmlHeadRomanizations(root *ttmlNode) map[string]ttmlKeyedLangPair {
+	out := map[string]ttmlKeyedLangPair{}
+	walkTTML(root, func(block *ttmlNode) bool {
+		if block.name != "transliteration" {
+			return true
+		}
+		walkTTML(block, func(textNode *ttmlNode) bool {
+			if textNode.name != "text" {
+				return true
+			}
+			key := ttmlAttr(textNode, "for")
+			if key == "" {
+				return false
+			}
+			if _, exists := out[key]; exists {
+				return false
+			}
+			if pair, ok := readTTMLKeyedPairNode(textNode); ok {
+				out[key] = pair
+			}
+			return false
+		})
+		return false
+	})
+	return out
+}
+
+func readTTMLRichParsedNode(p *ttmlNode) ttmlRichParsedNode {
+	var res ttmlRichParsedNode
+	var buf strings.Builder
+	res.start, res.end = int64(math.MaxInt64), -1
+	pendingSpace := false
+	bgSeen := false
+	hasMainContent := false
+
+	appendBufText := func(s string) {
+		if s == "" {
+			return
+		}
+		if strings.TrimSpace(s) == "" {
+			if buf.Len() > 0 {
+				buf.WriteByte(' ')
+			}
+			return
+		}
+		buf.WriteString(s)
+		hasMainContent = true
+	}
+
+	flushWordSpace := func() {
+		if !pendingSpace {
+			return
+		}
+		pendingSpace = false
+		if len(res.words) > 0 {
+			res.words[len(res.words)-1] += " "
+		}
+	}
+	appendWordText := func(text string) {
+		if text == "" {
+			return
+		}
+		flushWordSpace()
+		if len(res.words) > 0 {
+			res.words[len(res.words)-1] += text
+		}
+	}
+
+	var collectChild func(node *ttmlNode, direct bool)
+	collectChild = func(node *ttmlNode, direct bool) {
+		if node.name == "" {
+			appendBufText(node.text)
+			if direct {
+				if node.text != "" && strings.TrimSpace(node.text) == "" {
+					pendingSpace = len(res.words) > 0
+				} else {
+					appendWordText(node.text)
+				}
+			}
+			return
+		}
+		if node.name != "span" {
+			for _, ch := range node.children {
+				collectChild(ch, false)
+			}
+			return
+		}
+		ruby := ttmlAttr(node, "ruby")
+		if ruby == "text" || ruby == "textContainer" || ruby == "delimiter" {
+			return
+		}
+		switch ttmlAttr(node, "role") {
+		case "x-translation":
+			trText := collapseLyricSpace(ttmlTextWithoutRuby(node))
+			if trText != "" {
+				tag := normalizeLyricLangTag(ttmlAttr(node, "lang"))
+				if res.inlineTr == nil {
+					res.inlineTr = map[string]string{}
+				}
+				if _, exists := res.inlineTr[tag]; !exists {
+					res.inlineTr[tag] = trText
+				}
+			}
+			return
+		case "x-roman":
+			if direct && res.roman == "" {
+				res.roman = collapseLyricSpace(ttmlTextWithoutRuby(node))
+			}
+			return
+		case "x-bg":
+			if res.bg == nil {
+				if !hasMainContent && !bgSeen {
+					res.bgFirst = true
+				}
+				bgSeen = true
+				parsedBg := readTTMLRichParsedNode(node)
+				if len(parsedBg.words) == 0 {
+					if pt := collapseLyricSpace(ttmlTextWithoutRuby(node)); pt != "" {
+						if parsedBg.text == "" {
+							parsedBg.text = pt
+						}
+						parsedBg.words = []string{pt}
+					}
+				}
+				res.bg = &parsedBg
+			}
+			return
+		}
+
+		txt := ttmlTextWithoutRuby(node)
+		st, stOK := parseTTMLTime(ttmlAttr(node, "begin"))
+		ed, edOK := parseTTMLTime(ttmlAttr(node, "end"))
+		if stOK && edOK && !(st == 0 && ed == 0) {
+			res.hasTiming = true
+			res.start = min(res.start, st)
+			res.end = max(res.end, max(st, ed))
+		}
+		if direct {
+			if !stOK || !edOK {
+				appendWordText(txt)
+			} else {
+				if txt != "" {
+					flushWordSpace()
+				}
+				res.words = append(res.words, txt)
+			}
+		}
+		if strings.TrimSpace(txt) != "" {
+			buf.WriteString(txt)
+			hasMainContent = true
+		}
+	}
+
+	for _, ch := range p.children {
+		collectChild(ch, true)
+	}
+	res.text = collapseLyricSpace(buf.String())
+	if res.text == "" {
+		if plain := collapseLyricSpace(ttmlUntimedText(p)); plain != "" {
+			res.text = plain
+		}
+	}
+	if runes := []rune(res.text); len(runes) > lyricTranslationMaxLineRunes {
+		res.text = string(runes[:lyricTranslationMaxLineRunes])
+	}
+	res.wordTimed = len(res.words) > 1
+	return res
+}
+
+// parseTTMLRichDoc 统一解析 TTML 声部声明、创作者署名、主唱/x-bg 行、逐字词元、音译及多语种翻译
+func parseTTMLRichDoc(raw string) *ttmlRichDoc {
+	root := parseTTMLTree(raw)
+	if root == nil {
+		return nil
+	}
+
+	starryExt := readTTMLStarryExtensions(root)
+	headByLang := ttmlHeadTranslationsByLang(root)
+	headRomans := ttmlHeadRomanizations(root)
+
+	var xmlDeclared []lyricSingerDeclaredAgent
+	xmlSeen := map[string]bool{}
+	var songwriters []string
+	walkTTML(root, func(node *ttmlNode) bool {
+		if node.name == "songwriter" {
+			if name := collapseLyricSpace(ttmlTextContent(node)); name != "" {
+				songwriters = append(songwriters, name)
+			}
+			return false
+		}
+		if node.name != "agent" {
+			return true
+		}
+		id := strings.TrimSpace(ttmlAttr(node, "id"))
+		if id == "" || xmlSeen[id] {
+			return false
+		}
+		xmlSeen[id] = true
+		agType := strings.TrimSpace(ttmlAttr(node, "type"))
+		if agType == "" {
+			agType = "person"
+		}
+		isGroup := strings.EqualFold(agType, "group") || isConventionalTTMLGroupID(id)
+		role := "person"
+		if isGroup {
+			role = "group"
+		}
+		xmlDeclared = append(xmlDeclared, lyricSingerDeclaredAgent{
+			ID:       id,
+			Name:     readTTMLAgentName(node),
+			Type:     agType,
+			Role:     role,
+			Position: parseTTMLDeclaredPosition(ttmlAttr(node, "position")),
+			ColorHex: strings.TrimSpace(ttmlAttr(node, "color")),
+			Members:  strings.Fields(ttmlAttr(node, "members")),
+			IsGroup:  isGroup,
+		})
+		return false
+	})
+
+	declaredList := make([]lyricSingerDeclaredAgent, 0, len(xmlDeclared))
+	declaredSeen := map[string]bool{}
+	if starryExt != nil && len(starryExt.Agents) > 0 {
+		for _, ag := range starryExt.Agents {
+			if !declaredSeen[ag.ID] {
+				declaredSeen[ag.ID] = true
+				declaredList = append(declaredList, ag)
+			}
+		}
+	}
+	for _, ag := range xmlDeclared {
+		if !declaredSeen[ag.ID] {
+			declaredSeen[ag.ID] = true
+			declaredList = append(declaredList, ag)
+		}
+	}
+
+	hasPerformerDecl := false
+	for _, ag := range declaredList {
+		if ag.Position == "" || ag.Name != "" || ag.ColorHex != "" || len(ag.Members) > 0 {
+			hasPerformerDecl = true
+			break
+		}
+	}
+	carrierIDs := map[string]bool{}
+	agents := make([]lyricSingerDeclaredAgent, 0, len(declaredList))
+	hasDeclaredPos := false
+	for _, ag := range declaredList {
+		if ag.Position != "" {
+			hasDeclaredPos = true
+		}
+		if hasPerformerDecl && ag.Position != "" && ag.Name == "" && ag.ColorHex == "" && len(ag.Members) == 0 {
+			carrierIDs[ag.ID] = true
+			continue
+		}
+		agents = append(agents, ag)
+	}
+
+	doc := &ttmlRichDoc{
+		Agents:          agents,
+		Songwriters:     songwriters,
+		HasSeparatedPos: starryExt != nil || hasDeclaredPos,
+	}
+
+	walkTTMLWithAgent(root, "", "", func(p *ttmlNode, inheritedAgent string) bool {
+		if p.name != "p" {
+			return true
+		}
+		if ttmlHasAttr(p, "agents") || ttmlHasAttr(p, "position") {
+			doc.HasSeparatedPos = true
+		}
+		pBegin, pBeginOK := parseTTMLTime(ttmlAttr(p, "begin"))
+		_, pEndOK := parseTTMLTime(ttmlAttr(p, "end"))
+		rich := readTTMLRichParsedNode(p)
+		if !pBeginOK && rich.hasTiming {
+			pBegin, pBeginOK = rich.start, true
+		}
+		if !pEndOK && rich.hasTiming && rich.end >= 0 {
+			pEndOK = true
+		}
+		if !pBeginOK || !pEndOK {
+			return false
+		}
+		mainStart := pBegin
+		if rich.hasTiming && rich.start < math.MaxInt64 {
+			mainStart = rich.start
+		}
+
+		key := strings.TrimSpace(ttmlAttr(p, "key"))
+		mainBuiltIn := map[string]string{}
+		for tag, text := range rich.inlineTr {
+			mainBuiltIn[tag] = text
+		}
+		bgBuiltIn := map[string]string{}
+		if rich.bg != nil {
+			for tag, text := range rich.bg.inlineTr {
+				bgBuiltIn[tag] = text
+			}
+		}
+		mainRoman := rich.roman
+		bgRoman := ""
+		if rich.bg != nil {
+			bgRoman = rich.bg.roman
+		}
+		if key != "" {
+			for tag, keyed := range headByLang {
+				if pair, ok := keyed[key]; ok {
+					if pair.main != "" && mainBuiltIn[tag] == "" {
+						mainBuiltIn[tag] = pair.main
+					}
+					if pair.bg != "" && bgBuiltIn[tag] == "" {
+						bgBuiltIn[tag] = pair.bg
+					}
+				}
+			}
+			if pair, ok := headRomans[key]; ok {
+				if mainRoman == "" && pair.main != "" {
+					mainRoman = pair.main
+				}
+				if bgRoman == "" && pair.bg != "" {
+					bgRoman = pair.bg
+				}
+			}
+		}
+
+		mainRaw := inheritedAgent
+		var extLine ttmlStarryExtLine
+		var hasExtLine bool
+		if starryExt != nil && key != "" {
+			extLine, hasExtLine = starryExt.LinesByKey[key]
+			if hasExtLine && extLine.HasAgent {
+				mainRaw = extLine.AgentAttr
+			}
+		}
+		mainRaw = filterTTMLCarrierAgents(mainRaw, carrierIDs)
+
+		hasMain := rich.text != ""
+		hasBg := rich.bg != nil && rich.bg.text != ""
+		if !hasMain && !hasBg {
+			return false
+		}
+
+		bgRaw := mainRaw
+		if hasBg {
+			if hasExtLine && extLine.HasBgAgent {
+				bgRaw = filterTTMLCarrierAgents(extLine.BgAgentAttr, carrierIDs)
+			} else if ownBg, ok := readTTMLBgAgentAttr(p); ok {
+				bgRaw = filterTTMLCarrierAgents(ownBg, carrierIDs)
+			}
+		}
+
+		doc.WordTimed = doc.WordTimed || rich.wordTimed
+		if !hasMain && hasBg {
+			bgStart := pBegin
+			if rich.bg.hasTiming && rich.bg.start < math.MaxInt64 {
+				bgStart = rich.bg.start
+			}
+			doc.WordTimed = doc.WordTimed || rich.bg.wordTimed
+			if isLyricCreditText(rich.bg.text) {
+				doc.CreditLines = append(doc.CreditLines, rich.bg.text)
+			}
+			doc.Lines = append(doc.Lines, ttmlRichLineItem{
+				Start:         bgStart,
+				Text:          rich.bg.text,
+				Bg:            false,
+				RawAgent:      bgRaw,
+				Words:         rich.bg.words,
+				WordTimed:     rich.bg.wordTimed,
+				OwnRoman:      bgRoman,
+				BuiltInByLang: bgBuiltIn,
+			})
+			return false
+		}
+
+		if isLyricCreditText(rich.text) {
+			doc.CreditLines = append(doc.CreditLines, rich.text)
+		}
+		mainItem := ttmlRichLineItem{
+			Start:         mainStart,
+			Text:          rich.text,
+			Bg:            false,
+			RawAgent:      mainRaw,
+			Words:         rich.words,
+			WordTimed:     rich.wordTimed,
+			OwnRoman:      mainRoman,
+			BuiltInByLang: mainBuiltIn,
+		}
+		if !hasBg {
+			doc.Lines = append(doc.Lines, mainItem)
+			return false
+		}
+
+		bgStart := pBegin
+		if rich.bg.hasTiming && rich.bg.start < math.MaxInt64 {
+			bgStart = rich.bg.start
+		}
+		doc.WordTimed = doc.WordTimed || rich.bg.wordTimed
+		bgItem := ttmlRichLineItem{
+			Start:         bgStart,
+			Text:          rich.bg.text,
+			Bg:            true,
+			RawAgent:      bgRaw,
+			Words:         rich.bg.words,
+			WordTimed:     rich.bg.wordTimed,
+			OwnRoman:      bgRoman,
+			BuiltInByLang: bgBuiltIn,
+		}
+		if rich.bgFirst && bgStart <= mainStart {
+			doc.Lines = append(doc.Lines, bgItem, mainItem)
+		} else {
+			doc.Lines = append(doc.Lines, mainItem, bgItem)
+		}
+		return false
+	})
+
+	sort.SliceStable(doc.Lines, func(i, j int) bool { return doc.Lines[i].Start < doc.Lines[j].Start })
+	return doc
 }

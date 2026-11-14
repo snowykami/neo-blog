@@ -89,9 +89,9 @@ export function MusicLyricsEngine({
       requestSongMetaTranslation(validTrackId, targetLang)
   }, [targetLang, validTrackId, wantsMetaTranslation])
 
-  // 独立演唱者 / 多声部归属（具名/多声部 TTML、含显式提示歌词或具备多人/企划特征时请求后端查证，与翻译等任务进度完全隔离）
+  // 独立演唱者 / 多声部归属（有非器乐歌词行即请求后端查证，与翻译等任务进度完全隔离）
   const singerLang = showTranslation ? targetLang : ''
-  const canResolveSingers = useMemo(() => canResolveLyricSingers(rawLyrics, track), [rawLyrics, track])
+  const canResolveSingers = useMemo(() => canResolveLyricSingers(rawLyrics), [rawLyrics])
   const wantsSingers = Boolean(siteInfo.musicAiEnabled)
     && isPlaying
     && validTrackId != null

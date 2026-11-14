@@ -79,93 +79,13 @@ function sameAgentRecord(a?: Record<string, LyricAgent>, b?: Record<string, Lyri
   return true
 }
 
-const POTENTIAL_COLON_CUE_RE = /^[^:：]{1,24}[：:]/
-const POTENTIAL_BRACKET_CUE_RE = /^(?:\[[^\]]{1,24}\]|【[^】]{1,24}】|\([^)]{1,24}\)|（[^）]{1,24}）)/
-const ARTIST_COLLAB_SPLIT_RE = /[/&×、,]|\b(?:feat\.?|ft\.?|vs\.?|with|cv)\b/i
-const ENSEMBLE_COLLAB_KEYWORDS = [
-  'hoyo-mix',
-  'hoyomix',
-  '原神',
-  'genshin',
-  '崩坏',
-  '星穹铁道',
-  'honkai',
-  '明日方舟',
-  'arknights',
-  '塞壬唱片',
-  'monster siren',
-  '鸣潮',
-  'wuthering',
-  '少女与战车',
-  'girls und panzer',
-  'girls & panzer',
-  'ガールズ&パンツァー',
-  'lovelive',
-  'love live',
-  'ラブライブ',
-  'idolmaster',
-  '偶像大师',
-  'アイドルマスター',
-  'bang dream',
-  'バンドリ',
-  'project sekai',
-  'プロセカ',
-  '世界计划',
-  '合唱',
-  '对唱',
-  '對唱',
-  '群星',
-  'feat.',
-  'ft.',
-  'duet',
-  'chorus',
-]
-
-export interface SingerEligibilityTrackInfo {
-  name?: string
-  artists?: string[]
-  album?: string
-}
-
-function hasEnsembleOrCollabSignal(track?: SingerEligibilityTrackInfo | null): boolean {
-  if (!track)
-    return false
-  const artists = track.artists ?? []
-  if (artists.length >= 2)
-    return true
-  if (artists.some(artist => ARTIST_COLLAB_SPLIT_RE.test(artist)))
-    return true
-  const haystack = `${track.name ?? ''} ${artists.join(' ')} ${track.album ?? ''}`.toLowerCase()
-  return ENSEMBLE_COLLAB_KEYWORDS.some(keyword => haystack.includes(keyword))
-}
-
 /**
  * 判断歌词是否需要请求后端 `/lyric/singers`：
- * - 具名多声部 TTML（需要获取当前界面语言下的歌手译名）或匿名多声部 TTML（至少 2 个 declared agents）
- * - 歌词正文中存在潜在的段落/行内演唱者提示（如 `男：`/`周杰伦：`、`【王菲】`）
- * - 曲目元数据包含多艺人、合作分隔符或知名合唱/游戏企划特征（交由后端联网核实确切分唱证据，宁缺毋滥）
- * 普通无提示的单人独唱歌词不发请求，避免无谓的 AI/网络开销
+ * 只要存在非器乐、非空的已解析歌词行，即交由后端检查 TTML 多声部或交由 AI + 联网证据判断，
+ * 不在前端基于艺人名、企划关键词或格式白名单预先过滤。
  */
-export function canResolveLyricSingers(
-  lyrics: ResolvedLyrics,
-  track?: SingerEligibilityTrackInfo | null,
-): boolean {
-  if (lyrics.source === 'none' || lyrics.instrumental || lyrics.lines.length === 0)
-    return false
-  if (lyrics.agents) {
-    const agentValues = Object.values(lyrics.agents)
-    if (agentValues.length >= 2 || agentValues.some(agent => Boolean(agent.name?.trim())))
-      return true
-  }
-  const hasLineCue = lyrics.lines.some((line) => {
-    if (line.isBackground)
-      return false
-    const text = getLyricLineText(line).trim()
-    return POTENTIAL_COLON_CUE_RE.test(text) || POTENTIAL_BRACKET_CUE_RE.test(text)
-  })
-  if (hasLineCue)
-    return true
-  return hasEnsembleOrCollabSignal(track)
+export function canResolveLyricSingers(lyrics: ResolvedLyrics): boolean {
+  return lyrics.source !== 'none' && !lyrics.instrumental && lyrics.lines.length > 0
 }
 
 /**
