@@ -49,6 +49,7 @@ type lyricAnnotationInfo struct {
 	Artists      []string
 	Album        string
 	Aliases      []string
+	VisualTheme  string
 	Translations []string
 	Comments     []lyricAnnotationComment
 	// 网易云标出的副歌片段对应的歌词行（副歌起点的参考），生成时根据 Timed 换算
@@ -493,6 +494,9 @@ func writeLyricAnnotationSong(b *strings.Builder, info lyricAnnotationInfo, albu
 	}
 	if len(info.Aliases) > 0 {
 		b.WriteString(text.Aliases + strings.Join(info.Aliases, "; ") + "\n")
+	}
+	if album && info.VisualTheme != "" {
+		b.WriteString(text.VisualTheme + info.VisualTheme + "\n")
 	}
 	b.WriteString(text.SongEnd)
 }

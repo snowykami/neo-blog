@@ -16,8 +16,8 @@ type lyricAnnotationLocale struct {
 	SpritePrompt               string
 	SpriteSubject, SpriteLyric string
 
-	// 用户消息的各部分用 XML 标签包住（Anthropic 的提示词建议：不同类型的输入分块标出，模型更不容易混淆）：歌曲信息的开始与结束标签、各字段
-	SongInfo, SongEnd, Title, Artists, Album, Aliases string
+	// 用户消息的各部分用 XML 标签包住（Anthropic 的提示词建议：不同类型的输入分块标出，模型更不容易混淆）：歌曲信息的开始与结束标签、各字段与导演视觉基调建议
+	SongInfo, SongEnd, Title, Artists, Album, Aliases, VisualTheme string
 	// 热评的开始与结束标签；一条热评：序号、内容、点赞数
 	Comments, CommentsEnd, Comment string
 	// 网易云高潮片段在歌词行末的标记：片段开始、片段结束
@@ -46,7 +46,7 @@ var lyricAnnotationEN = lyricAnnotationLocale{
 	LinesPrompt:  fillLyricAnnotationPrompt(lyricAnnotationENHead + lyricAnnotationENLines),
 	SpritePrompt: fillLyricAnnotationPrompt(lyricAnnotationENSprite), SpriteSubject: "Image: ", SpriteLyric: "Lyric: ",
 
-	SongInfo: "<song>\n", SongEnd: "</song>\n", Title: "Title: ", Artists: "Artists: ", Album: "Album: ", Aliases: "Aliases / description: ",
+	SongInfo: "<song>\n", SongEnd: "</song>\n", Title: "Title: ", Artists: "Artists: ", Album: "Album: ", Aliases: "Aliases / description: ", VisualTheme: "Director visual theme suggestion: ",
 	Comments: "\n<listener_comments>\n", CommentsEnd: "</listener_comments>\n", Comment: "%d. %s (%d likes)\n",
 	ClimaxStart: "　〔climax starts〕", ClimaxEnd: "　〔climax ends〕",
 	Lyrics: "\n<lyrics>\n", LyricsEnd: "</lyrics>\n",

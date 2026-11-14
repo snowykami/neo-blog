@@ -66,9 +66,6 @@ const (
 	lyricAnnotationMaxSingerRunes = 24
 	// 标注的温度：调高让演出设计更大胆
 	lyricAnnotationTemperature = 0.9
-	// 思考强度（reasoning_effort）：思考型模型默认的思考内容是正式输出的 3～9 倍，是生成慢的主要原因
-	// （实测一首歌 70～145 秒）；提示词已给出完整的步骤与约束，关闭思考后质量相当，一首歌 10～20 秒
-	lyricAnnotationReasoningEffort = "none"
 )
 
 var (
@@ -234,7 +231,7 @@ var lyricAnnotations = &lyricAnnotationService{
 	name:    "lyric_annotation",
 	limiter: llmclient.DefaultLimiter,
 	complete: func(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error) {
-		return chatCompletionWithReasoning(ctx, cfg, system, user, lyricAnnotationTemperature, lyricAnnotationReasoningEffort)
+		return chatCompletionWithReasoning(ctx, cfg, system, user, lyricAnnotationTemperature, tools.GetAILyricAnnotationThinking())
 	},
 	hotComments: fetchNCMHotComments,
 	chorus:      fetchSongChorus,
@@ -582,6 +579,9 @@ func (a *lyricAnnotationService) execute(lease *sharedstate.Lease, key string, i
 	}
 	if a.wordTimed != nil && !info.WordTimed {
 		info.Timed = borrowHeldNotes(info.Timed, wordTimed)
+	}
+	if info.VisualTheme == "" {
+		info.VisualTheme = lookupLyricDirectorVisualTheme(id, lines)
 	}
 	raw, err := a.generateWithPartial(key, id, cfg, info, lines)
 	if err != nil {

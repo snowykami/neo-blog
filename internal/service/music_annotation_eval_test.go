@@ -264,10 +264,14 @@ func evalGenerate(variant string, run int, song evalSong, cfg tools.AIConfig) ev
 		limiter:     &llmclient.Limiter{},
 		concurrency: func() int { return 6 },
 		complete: func(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error) {
-			resp, err := llmclient.PostChatCompletions(ctx, cfg, map[string]any{
+			payload := map[string]any{
 				"model": cfg.Model, "messages": llmclient.ChatMessages(system, user), "temperature": lyricAnnotationTemperature,
-				"stream": false, "reasoning_effort": lyricAnnotationReasoningEffort,
-			})
+				"stream": false,
+			}
+			if effort := tools.GetAILyricAnnotationThinking(); effort != "" {
+				payload["reasoning_effort"] = effort
+			}
+			resp, err := llmclient.PostChatCompletions(ctx, cfg, payload)
 			if err != nil {
 				return "", err
 			}

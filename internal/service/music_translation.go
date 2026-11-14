@@ -50,7 +50,6 @@ const (
 	lyricTranslationJobTTL          = 5 * time.Minute
 	lyricTranslationRetryAfter      = 5 * time.Minute
 	lyricTranslationTemperature     = 0.3
-	lyricTranslationReasoning       = "none"
 	lyricTranslationContextLines    = 4
 )
 
@@ -65,16 +64,18 @@ type lyricTranslationService struct {
 	initOnce    sync.Once
 	mu          sync.Mutex
 	limiter     *llmclient.Limiter
+	director    *lyricDirectorService
 	complete    func(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error)
 	concurrency func() int
 	done        func()
 }
 
 var lyricTranslations = &lyricTranslationService{
-	name:    "lyric_translation",
-	limiter: llmclient.DefaultLimiter,
+	name:     "lyric_translation",
+	limiter:  llmclient.DefaultLimiter,
+	director: lyricDirectors,
 	complete: func(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error) {
-		return chatCompletionWithReasoning(ctx, cfg, system, user, lyricTranslationTemperature, lyricTranslationReasoning)
+		return chatCompletionWithReasoning(ctx, cfg, system, user, lyricTranslationTemperature, tools.GetAILyricTranslationThinking())
 	},
 	concurrency: tools.GetAISummaryConcurrency,
 }
@@ -277,7 +278,7 @@ func (a *lyricTranslationService) getOrStart(input *lyricTranslationInput) (*dto
 	if svcerr := checkSiteAIBudget(time.Now()); svcerr != nil {
 		return nil, svcerr
 	}
-	a.startLocked(key, input, cfg)
+	a.startLocked(key, input, cfg, false)
 	return &dto.MusicLyricTranslationsDto{
 		Status:     lyricTranslationStatusPending,
 		Source:     input.Source,
@@ -291,7 +292,7 @@ func (a *lyricTranslationService) refresh(input *lyricTranslationInput, cfg tool
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if running, _ := a.jobState(key); !running {
-		a.startLocked(key, input, cfg)
+		a.startLocked(key, input, cfg, true)
 	}
 	var record model.LyricTranslation
 	if err := repo.GetDB().Where(
@@ -374,7 +375,7 @@ func (a *lyricTranslationService) jobState(key string) (running, coolingDown boo
 	return running, coolingDown
 }
 
-func (a *lyricTranslationService) startLocked(key string, input *lyricTranslationInput, cfg tools.AIConfig) {
+func (a *lyricTranslationService) startLocked(key string, input *lyricTranslationInput, cfg tools.AIConfig, forceRefresh bool) {
 	jobKey, failedKey := a.stateKeys(key)
 	lease, err := sharedstate.AcquireLease(jobKey, lyricTranslationJobTTL)
 	if err != nil || lease == nil {
@@ -384,14 +385,14 @@ func (a *lyricTranslationService) startLocked(key string, input *lyricTranslatio
 		return
 	}
 	_ = sharedstate.Current().Delete(failedKey)
-	go a.run(lease, key, input, cfg)
+	go a.run(lease, key, input, cfg, forceRefresh)
 }
 
-func (a *lyricTranslationService) run(lease *sharedstate.Lease, key string, input *lyricTranslationInput, cfg tools.AIConfig) {
-	_ = a.execute(lease, key, input, cfg)
+func (a *lyricTranslationService) run(lease *sharedstate.Lease, key string, input *lyricTranslationInput, cfg tools.AIConfig, forceRefresh bool) {
+	_ = a.execute(lease, key, input, cfg, forceRefresh)
 }
 
-func (a *lyricTranslationService) execute(lease *sharedstate.Lease, key string, input *lyricTranslationInput, cfg tools.AIConfig) (err error) {
+func (a *lyricTranslationService) execute(lease *sharedstate.Lease, key string, input *lyricTranslationInput, cfg tools.AIConfig, forceRefresh bool) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			logrus.Errorf("lyric translation panic for song %d (%s/%s): %v", input.Track.ID, input.Source, input.TargetLang, r)
@@ -410,7 +411,7 @@ func (a *lyricTranslationService) execute(lease *sharedstate.Lease, key string, 
 		}
 	}()
 
-	lines, genErr := a.generateWithPartial(key, cfg, input)
+	lines, genErr := a.generateWithOptions(key, cfg, input, forceRefresh)
 	if genErr != nil {
 		logrus.Warnf("lyric translation failed for song %d (%s/%s): %v", input.Track.ID, input.Source, input.TargetLang, genErr)
 		err = genErr
@@ -513,6 +514,10 @@ func (a *lyricTranslationService) generate(cfg tools.AIConfig, input *lyricTrans
 	return a.generateWithPartial("", cfg, input)
 }
 
+func (a *lyricTranslationService) generateWithPartial(key string, cfg tools.AIConfig, input *lyricTranslationInput) ([]dto.MusicLyricTranslationLine, error) {
+	return a.generateWithOptions(key, cfg, input, false)
+}
+
 // lyricTranslationChunksForTasks 按首屏/常规阈值切段，并尽量避免将背景和声行拆离主唱段落在段首孤立翻译
 func lyricTranslationChunksForTasks(tasks []lyricTranslationLineTask) [][2]int {
 	chunks := lyricTranslationChunks(len(tasks))
@@ -532,12 +537,27 @@ func lyricTranslationChunksForTasks(tasks []lyricTranslationLineTask) [][2]int {
 	return chunks
 }
 
-// generateWithPartial 并行分段翻译整首歌：chunk 0 优先抢占首屏名额并在多段任务中先落共享状态，随后与其余分段并发完成。
-func (a *lyricTranslationService) generateWithPartial(key string, cfg tools.AIConfig, input *lyricTranslationInput) ([]dto.MusicLyricTranslationLine, error) {
+// generateWithOptions 双阶段协同翻译整首歌：若配置了 Stage 1 Director，先完成/复用全曲曲风与借代锦囊，
+// 再将 Blueprint 注入 Stage 2 提示词；chunk 0 优先抢占首屏名额并在多段任务中先落共享状态，随后与其余分段并发完成。
+func (a *lyricTranslationService) generateWithOptions(key string, cfg tools.AIConfig, input *lyricTranslationInput, forceRefresh bool) ([]dto.MusicLyricTranslationLine, error) {
 	if len(input.Tasks) == 0 {
 		return []dto.MusicLyricTranslationLine{}, nil
 	}
-	system := buildLyricTranslationSystemPrompt(input.TargetLang, input.ClassicalMode)
+	var blueprint *lyricDirectorAnalysis
+	if a.director != nil {
+		vocalLines := make([]string, 0, len(input.Tasks))
+		for _, task := range input.Tasks {
+			if !task.Hint && task.VocalText != "" {
+				vocalLines = append(vocalLines, task.VocalText)
+			}
+		}
+		var dirErr error
+		blueprint, dirErr = a.director.getOrAnalyze(cfg, input.Track, vocalLines, forceRefresh)
+		if dirErr != nil {
+			return nil, dirErr
+		}
+	}
+	system := buildLyricTranslationSystemPromptWithBlueprint(input.TargetLang, input.ClassicalMode, blueprint)
 	chunks := lyricTranslationChunksForTasks(input.Tasks)
 	translated := make([]string, len(input.Tasks))
 	errsList := make([]error, len(chunks))
@@ -682,15 +702,54 @@ func finalizeSingleLineTranslation(task lyricTranslationLineTask, raw, targetLan
 }
 
 func buildLyricTranslationSystemPrompt(targetLang string, classicalMode bool) string {
+	return buildLyricTranslationSystemPromptWithBlueprint(targetLang, classicalMode, nil)
+}
+
+func buildLyricTranslationSystemPromptWithBlueprint(targetLang string, classicalMode bool, blueprint *lyricDirectorAnalysis) string {
 	targetDesc := lyricTranslateLanguages[targetLang]
 	var b strings.Builder
 	b.WriteString("You are an accomplished literary music lyric translator.\n")
-	b.WriteString(fmt.Sprintf("Translate the provided song lyrics STRICTLY into %s (language code: %s).\n\n", targetDesc, targetLang))
-	b.WriteString("Guidelines:\n")
-	b.WriteString("1. You may receive both \"orig\" (original lyrics) and \"ref\" (an upstream/sibling reference translation, e.g. Simplified Chinese, English, or multi-language \"[lang] ...\"). Use BOTH together to grasp idioms, wordplay, implied subjects, and emotion accurately.\n")
-	b.WriteString("   CONSTRUCTED / FICTIONAL / OBSCURE LANGUAGES: When \"orig\" appears to be a self-invented/constructed language (e.g., *LaVI-Bavellabion* or fantasy lyrics) or an unfamiliar non-standard language AND a meaningful \"ref\" is provided, you MUST use \"ref\" (plus \"context_before\" / \"context_after\") as the primary semantic basis and translate it naturally into targetLang. NEVER mistake constructed-language lines with \"ref\" for empty non-lexical scat! If \"ref\" is already in targetLang borrowed from a sibling source, refine it smoothly for this line split instead of returning \"\"; if \"ref\" is in another language, translate it rather than copying \"ref\" verbatim.\n")
+	b.WriteString(fmt.Sprintf("Translate the provided song lyrics STRICTLY into %s (Language Code: %s).\n\n", targetDesc, targetLang))
+	if blueprint != nil && !blueprint.isEmpty() {
+		b.WriteString("=== SONG DIRECTOR BLUEPRINT (from Stage 1) ===\n")
+		if blueprint.Genre != "" {
+			b.WriteString("Genre: " + blueprint.Genre + "\n")
+		}
+		if blueprint.Mood != "" {
+			b.WriteString("Dominant Mood: " + blueprint.Mood + "\n")
+		}
+		if blueprint.TranslationDirective != "" {
+			b.WriteString("Overall Directive: " + blueprint.TranslationDirective + "\n")
+		}
+		b.WriteString("Identified Cultural Metonyms & Hidden Meanings:\n")
+		b.WriteString(blueprint.formatCulturalNotes() + "\n")
+		b.WriteString("Director's Custom Craft Skills for This Song:\n")
+		b.WriteString(blueprint.formatCustomSkills() + "\n\n")
+	}
+	b.WriteString("=== CORE FOUNDATION RULES ===\n")
+	b.WriteString("1. Pursue \"信、达、雅\" (faithfulness, fluency, and poetic elegance) infused with the song's emotion, persona, and expressive tone.\n")
+	b.WriteString("2. Metonymy Preservation: NEVER translate cultural metonyms literally into absurd objects (strictly follow the director's cultural notes above when present, and decode classical idioms/allusions by real contextual meaning).\n")
+	b.WriteString("   - Expressive cultural flavor (apply by analogy): When an iconic emotional or cultural keyword would lose its charm if flattened (e.g., Japanese \"かわい\" / \"かわいい\" in a cute character song translated into English as \"kawaii (cute)\"), you may keep the standout original/romanized keyword paired with a tiny 1–3 word parenthetical gloss in targetLang so readers feel both the original vibe and exact meaning. Use this sparingly and tastefully only where it truly shines.\n")
+	b.WriteString("   - Selective difficult-term notes: For deep local cultural allusions, historical titles, classical references (e.g., allusions in Classical Chinese poems like 琵琶行 translated for foreign listeners), or obscure concepts hard to grasp directly, you may add a concise parenthetical gloss (within 2–5 words) ONLY on the first occurrence of genuinely difficult terms — skip common words and never write lengthy footnotes.\n")
+	switch targetLang {
+	case "zh-tw":
+		b.WriteString("3. Genre Adaptation & CRITICAL zh-tw Fidelity: Honor both the baseline genre norms and any director custom craft skills above, while writing authentic, idiomatic Taiwanese Traditional Chinese (台灣繁體中文與台灣地道書面用語，如台灣習慣詞彙與語氣). Do NOT perform mechanical Simplified-to-Traditional character substitution, and avoid Mainland or Hong Kong Cantonese-specific phrasing.\n")
+	case "zh-hk":
+		b.WriteString("3. Genre Adaptation & CRITICAL zh-hk Fidelity: Honor both the baseline genre norms and any director custom craft skills above, while writing authentic, idiomatic Hong Kong / Macau Traditional Chinese (香港澳門繁體書面語與地道港澳用語). Unless the source lyrics are explicitly colloquial Cantonese, prefer polished written Hong Kong / Macau Chinese; do NOT perform mechanical Simplified-to-Traditional character substitution, and avoid stiff Taiwanese or Mainland-specific phrasing.\n")
+	default:
+		b.WriteString("3. Genre Adaptation: Honor both the baseline genre norms and any director custom craft skills above. If the song is playful/ACG, keep it vibrant; if it is classical/folk, preserve the literary depth and cadence; if it is rap/spoken, maintain attitude and rhythm.\n")
+	}
+	b.WriteString("4. Stripping Speaker Cues (CRITICAL for non-hint lines): Platform lyrics often prepend a singer name, surname abbreviation, group/duet tag, or character cue before a colon or in brackets — e.g. \"汪：我是米开朗基罗\", \"BY2：爱要精心来雕刻\", \"合：眼神坚定着我们的选择\", \"男：...\", \"女：...\", \"李荣浩：...\", \"A: ...\", \"[可莉] ...\".\n")
+	b.WriteString("   - Recognize any leading speaker/part cue (using `artists`, `title`, `aliases`, and surrounding lines) and STRIP both the speaker label AND its colon completely from your translation! Translate ONLY the sung lyric after the colon (for example: \"汪：我是米开朗基罗\" -> \"I am Michelangelo\", NEVER \"Wang: I am Michelangelo\"; \"合：眼神坚定\" -> \"Our eyes firm\", NEVER \"Chorus: Our eyes firm\").\n")
+	b.WriteString("   - If \"ref\" contains a leaked speaker prefix before a colon, strip it as well.\n")
+	b.WriteString("   - By contrast, when a colon is genuine narrative speech/punctuation inside the sung lyric itself (e.g. \"她问我：你明天还会回来吗\"), keep the clause and punctuation normally.\n")
+	b.WriteString("   - NEVER translate a pure structural section tag (such as \"Verse\", \"Chorus\", \"主歌\", \"副歌\"); return \"\" if a line is purely non-sung structural metadata.\n")
+	b.WriteString("5. Cross-line Clause Linking (串句合译与自然断句): Lyrics often split one connected sentence across adjacent lines (e.g., \"春风吹不倒\" + \"我的杨柳腰\" forms \"春风吹不倒我的杨柳腰\"). When consecutive lines (including background vocals and context_before / context_after) form one connected clause or modifier phrase, translate the combined thought naturally in targetLang grammar first, then split it cleanly across the exact item indices i at natural phrasing pauses so adjacent lines flow smoothly together. Do NOT cram two lines into one index while leaving the companion line \"\".\n")
+	b.WriteString("6. Reference Translations (\"ref\"), Constructed Languages & Target-Script Integrity:\n")
+	b.WriteString("   - You may receive both \"orig\" (original lyrics) and \"ref\" (an upstream/sibling reference translation, e.g. Simplified Chinese, English, or multi-language \"[lang] ...\"). Use BOTH together to grasp idioms, wordplay, implied subjects, and emotion accurately.\n")
+	b.WriteString("   - CONSTRUCTED / FICTIONAL / OBSCURE LANGUAGES: When \"orig\" appears to be a self-invented/constructed language (e.g., *LaVI-Bavellabion* or fantasy lyrics) or an unfamiliar non-standard language AND a meaningful \"ref\" is provided, you MUST use \"ref\" (plus \"context_before\" / \"context_after\") as the primary semantic basis and translate it naturally into targetLang. NEVER mistake constructed-language lines with \"ref\" for empty non-lexical scat! If \"ref\" is already in targetLang borrowed from a sibling source, refine it smoothly for this line split instead of returning \"\"; if \"ref\" is in another language, translate it rather than copying \"ref\" verbatim.\n")
 	if targetLang == "ja" || targetLang == "ko" || targetLang == "en" {
-		b.WriteString(fmt.Sprintf("   CRITICAL TARGET-LANGUAGE RULE: When target_lang is %s (%s), NEVER copy or echo Chinese sentences from \"ref\" or Chinese \"orig\" into your output! You MUST translate Chinese/foreign lines naturally into %s using authentic target-language script and grammar", targetLang, targetDesc, targetDesc))
+		b.WriteString(fmt.Sprintf("   - CRITICAL TARGET-LANGUAGE RULE: When target_lang is %s (%s), NEVER copy or echo Chinese sentences from \"ref\" or Chinese \"orig\" into your output! You MUST translate Chinese/foreign lines naturally into %s using authentic target-language script and grammar", targetLang, targetDesc, targetDesc))
 		if targetLang == "ja" {
 			b.WriteString(" (for Japanese, write natural Japanese phrases with Hiragana/Katakana okurigana and particles — NEVER output pure Chinese Kanji sentences)")
 		} else if targetLang == "ko" {
@@ -698,18 +757,7 @@ func buildLyricTranslationSystemPrompt(targetLang string, classicalMode bool) st
 		}
 		b.WriteString(".\n")
 	}
-	b.WriteString("2. Pursue \"信、达、雅\" (faithfulness, fluency, and poetic elegance) infused with the song's emotion, persona, and expressive tone (tender, playful, proud, dramatic, sorrowful, etc.):\n")
-	b.WriteString("   - Expressive cultural flavor (apply by analogy): When an iconic emotional or cultural keyword would lose its charm if flattened (e.g., Japanese \"かわい\" / \"かわいい\" in a cute character song translated into English as \"kawaii (cute)\"), you may keep the standout original/romanized keyword paired with a tiny 1–3 word parenthetical gloss in targetLang so readers feel both the original vibe and exact meaning. Use this sparingly and tastefully only where it truly shines.\n")
-	b.WriteString("   - Selective difficult-term notes: For deep local cultural allusions, historical titles, classical references (e.g., allusions in Classical Chinese poems like 琵琶行 translated for foreign listeners), or obscure concepts hard to grasp directly, you may add a concise parenthetical gloss (within 2–5 words) ONLY on the first occurrence of genuinely difficult terms — skip common words and never write lengthy footnotes.\n")
-	switch targetLang {
-	case "zh-tw":
-		b.WriteString("3. CRITICAL for zh-tw: Write authentic, idiomatic Taiwanese Traditional Chinese (台灣繁體中文與台灣地道書面用語，如台灣習慣詞彙與語氣). Do NOT perform mechanical Simplified-to-Traditional character substitution, and avoid Mainland or Hong Kong Cantonese-specific phrasing.\n")
-	case "zh-hk":
-		b.WriteString("3. CRITICAL for zh-hk: Write authentic, idiomatic Hong Kong / Macau Traditional Chinese (香港澳門繁體書面語與地道港澳用語). Unless the source lyrics are explicitly colloquial Cantonese, prefer polished written Hong Kong / Macau Chinese; do NOT perform mechanical Simplified-to-Traditional character substitution, and avoid stiff Taiwanese or Mainland-specific phrasing.\n")
-	default:
-		b.WriteString("3. Match the natural register, tense, imagery, and emotional tone of the song in the target language.\n")
-	}
-	b.WriteString("4. Mixed-language & scat/onomatopoeia handling: Evaluate each line individually:\n")
+	b.WriteString("7. Mixed-language & scat/onomatopoeia handling: Evaluate each line individually:\n")
 	b.WriteString("   - Pure target-language lines (already written naturally in targetLang) or pure non-lexical scat/onomatopoeia lines WITHOUT meaningful \"ref\" semantics (e.g. \"Ooh\", \"La la la\", \"Pico bala-ba-ba-ba\", \"Nino na-ra-na-na-na\") -> return empty string \"\".\n")
 	switch targetLang {
 	case "zh":
@@ -724,24 +772,17 @@ func buildLyricTranslationSystemPrompt(targetLang string, classicalMode bool) st
 		b.WriteString("   - Lines mixing a foreign semantic phrase WITH inline scat/onomatopoeia vocables (e.g. \"人は猫dala-da-da-da\" or \"收到总部命令 beep-beep\") -> translate ONLY the semantic part into natural English and preserve the inline scat/onomatopoeia intact in place (e.g. \"People are cats dala-da-da-da\", \"Orders received from HQ beep-beep\"). Lines already in English -> return \"\".\n")
 	}
 	b.WriteString("   - Other bilingual hooks/phrases -> translate where it aids understanding; return \"\" only if keeping the original phrase unchanged clearly reads better.\n")
-	b.WriteString("5. Cross-line clause linking (串句合译与自然断句): Lyrics often split one connected sentence across adjacent lines (e.g., \"春风吹不倒\" + \"我的杨柳腰\" forms \"春风吹不倒我的杨柳腰\"). When consecutive lines (including background vocals and context_before / context_after) form one connected clause or modifier phrase, translate the combined thought naturally in targetLang grammar first, then split it cleanly across the exact item indices i at natural phrasing pauses so adjacent lines flow smoothly together. Do NOT cram two lines into one index while leaving the companion line \"\".\n")
-	b.WriteString("6. Proper nouns: Real or fictional place names, games/anime/media (e.g. 《原神》 -> \"Genshin Impact\"), famous historical or modern figures, books, and song titles MUST use standard recognized official translations in targetLang (respecting regional and script conventions of targetLang); fall back to semantic translation or phonetic transliteration only when no official/recognized name exists.\n")
-	step := 7
+	b.WriteString("8. Proper nouns: Real or fictional place names, games/anime/media (e.g. 《原神》 -> \"Genshin Impact\"), famous historical or modern figures, books, and song titles MUST use standard recognized official translations in targetLang (respecting regional and script conventions of targetLang); fall back to semantic translation or phonetic transliteration only when no official/recognized name exists.\n")
+	step := 9
 	if classicalMode {
 		b.WriteString(fmt.Sprintf("%d. CLASSICAL CHINESE -> MODERN VERNACULAR MODE (古文转白话): This song contains Classical Chinese (文言文 / 古诗词 / 古风文言句). For every line written in Classical Chinese or archaic poetic diction, translate it into concise, graceful, poetic modern Chinese vernacular (%s) suited for lyric subtitles. Do NOT leave Classical Chinese lines untranslated; however, return \"\" for lines that are already plain modern Chinese, and return \"\" for immediate short echo fragments that merely repeat a few trailing syllables of the preceding classical line without adding new meaning.\n", step, targetDesc))
 		step++
 	}
 	b.WriteString(fmt.Sprintf("%d. Hint/credit lines (items with \"hint\": true, such as \"词作者：XXX\", \"曲作者：XXX\", \"作词：XXX\") -> translate the role label and artist/creator name concisely into targetLang ONLY when an established/confident localized form exists (for creator names, use only publicly recognized names or keep the original name; NEVER invent translations). Return \"\" if uncertain or already in targetLang.\n", step))
 	step++
-	b.WriteString(fmt.Sprintf("%d. INLINE SINGER / PART CUE PREFIXES (CRITICAL for non-hint lines): Platform lyrics often prepend a singer name, surname abbreviation, group/duet tag, or character cue before a colon or in brackets — e.g. \"汪：我是米开朗基罗\", \"BY2：爱要精心来雕刻\", \"合：眼神坚定着我们的选择\", \"男：...\", \"女：...\", \"李荣浩：...\", \"A: ...\", \"[可莉] ...\".\n", step))
-	b.WriteString("   - Recognize any leading speaker/part cue (using `artists`, `title`, `aliases`, and surrounding lines) and STRIP both the speaker label AND its colon completely from your translation! Translate ONLY the sung lyric after the colon (for example: \"汪：我是米开朗基罗\" -> \"I am Michelangelo\", NEVER \"Wang: I am Michelangelo\"; \"合：眼神坚定\" -> \"Our eyes firm\", NEVER \"Chorus: Our eyes firm\").\n")
-	b.WriteString("   - If \"ref\" contains a leaked speaker prefix before a colon, strip it as well.\n")
-	b.WriteString("   - By contrast, when a colon is genuine narrative speech/punctuation inside the sung lyric itself (e.g. \"她问我：你明天还会回来吗\"), keep the clause and punctuation normally.\n")
-	b.WriteString("   - NEVER translate a pure structural section tag (such as \"Verse\", \"Chorus\", \"主歌\", \"副歌\"); return \"\" if a line is purely non-sung structural metadata.\n")
-	step++
 	b.WriteString(fmt.Sprintf("%d. Repeated lines should keep consistent wording for recurring refrains, except first-occurrence parenthetical notes need not repeat and phrasing may adapt when linked with different neighboring lines.\n", step))
 	step++
-	b.WriteString(fmt.Sprintf("%d. Output strictly a single valid JSON object matching {\"lines\":[{\"i\":<int>,\"t\":\"<string>\"}]} containing every requested index i in order. No markdown fences or extra commentary.\n", step))
+	b.WriteString(fmt.Sprintf("%d. Output strictly a single valid JSON object with NO markdown code fences or conversational text:\n{\"lines\":[{\"i\":<int>,\"t\":\"<string>\"}]} containing every requested index i in order.\n", step))
 	return b.String()
 }
 

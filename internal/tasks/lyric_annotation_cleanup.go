@@ -18,5 +18,10 @@ func StartLyricAnnotationCleanup() {
 		} else if deleted > 0 {
 			logrus.Infof("lyric annotation cleanup: deleted %d outdated annotations", deleted)
 		}
+		if dirDeleted, dirErr := service.CleanupLyricDirectors(time.Now()); dirErr != nil {
+			logrus.Errorf("lyric director cleanup failed: %v", dirErr)
+		} else if dirDeleted > 0 {
+			logrus.Infof("lyric director cleanup: deleted %d outdated blueprints", dirDeleted)
+		}
 	})
 }
