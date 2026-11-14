@@ -117,15 +117,19 @@
   opacity: 0.72;
   backdrop-filter: blur(8px);
   pointer-events: none;
+  /* 水平原点与整行一致、垂直贴合底边，供引擎按 1/s 反向缩放以在聚光灯下保持 1x 视觉大小并紧跟歌词位置 */
+  transform-origin: left bottom;
   transition: opacity 0.35s ease-out, border-color 0.35s ease-out, background-color 0.35s ease-out;
 }
 
 .lyric-line--duet .lyric-singer {
   margin-inline: auto 0;
+  transform-origin: right bottom;
 }
 
 .lyric-line--center .lyric-singer {
   margin-inline: auto;
+  transform-origin: center bottom;
 }
 
 .lyric-line--active .lyric-singer {

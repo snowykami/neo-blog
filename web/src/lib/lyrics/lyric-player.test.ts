@@ -368,7 +368,7 @@ describe('振假名渲染与 HDR 跨行平滑退场', () => {
       source: 'ttml-amll',
       wordTimed: true,
       instrumental: false,
-      spotlights: [1],
+      spotlights: [1, 3],
       agents: {
         v1: { id: 'v1', name: '甲', color: 'sky' },
         v2: { id: 'v2', name: '乙', color: 'rose' },
@@ -404,6 +404,21 @@ describe('振假名渲染与 HDR 跨行平滑退场', () => {
     // 聚光灯激活在第 1 行（start=900ms, end=1800ms）期间，该行光丝透明度淡出让路
     ctx.step(1.2, 600)
     expect(Number.parseFloat(lineEls[1].querySelector<HTMLElement>('.lyric-edge')!.style.opacity)).toBeLessThan(0.2)
+
+    // 第 3 行同时是切换角色句与点题句：聚光灯放大期间仅光丝淡出，角色胶囊不消失且按 1/s 反向缩放保持视觉大小不变
+    ctx.step(3.0, 1800)
+    expect(Number.parseFloat(lineEls[3].querySelector<HTMLElement>('.lyric-edge')!.style.opacity)).toBeLessThan(0.2)
+    const duetPill = lineEls[3].querySelector<HTMLElement>('.lyric-singer')!
+    expect(duetPill.style.opacity).toBe('')
+    const lineScale = Number.parseFloat(/scale\(([-\d.]+)\)/.exec(lineEls[3].style.transform)?.[1] ?? 'NaN')
+    const pillScale = Number.parseFloat(/scale\(([-\d.]+)\)/.exec(duetPill.style.transform)?.[1] ?? 'NaN')
+    expect(lineScale).toBeGreaterThan(1.2)
+    expect(pillScale).toBeLessThan(1)
+    expect(lineScale * pillScale).toBeCloseTo(1, 3)
+
+    // 聚光灯结束后，行恢复非放大态，胶囊行内 transform 清空
+    ctx.step(4.5, 1500)
+    expect(duetPill.style.transform).toBe('')
     ctx.cleanup()
 
     // 无名双人：零胶囊（不展示 v1/v2 等占位文本）
@@ -517,6 +532,9 @@ describe('振假名渲染与 HDR 跨行平滑退场', () => {
 
       const singerPill = lineEls[0].querySelector<HTMLElement>('.lyric-singer')!
       expect(getComputedStyle(singerPill).display).toBe('flex')
+      expect(getComputedStyle(singerPill).transformOrigin).toBe('left bottom')
+      expect(getComputedStyle(lineEls[1].querySelector<HTMLElement>('.lyric-singer')!).transformOrigin).toBe('right bottom')
+      expect(getComputedStyle(lineEls[2].querySelector<HTMLElement>('.lyric-singer')!).transformOrigin).toBe('center bottom')
 
       // 触发重新测量并推进到第 5 行（5.2s），弹簧收敛后焦点中心应落在 640 * 0.35 = 224px，相邻行间距严格等于单倍行高 52px
       ctx.player.setDisplay({ showTranslation: true, showRomanization: false, footerText: '', togetherLabel: '合唱', effects: true, hdr: false })

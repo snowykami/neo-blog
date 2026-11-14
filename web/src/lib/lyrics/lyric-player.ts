@@ -191,9 +191,11 @@ interface ItemView {
   hdrExitFromSpot: boolean
   hdrExiting: boolean
   mainOpacity: string
-  // 多声部视觉装饰（边缘光丝与切换低语胶囊）：聚光灯亮起时同步让路淡出
-  ornaments: HTMLElement[]
-  ornamentOpacity: string
+  // 多声部边缘光丝（聚光灯亮起时淡出让路）与切换低语胶囊（聚光灯下按 1/s 反向缩放，保持 1x 大小并跟随行位置）
+  edge: HTMLElement | null
+  edgeOpacity: string
+  singerPill: HTMLElement | null
+  singerTransform: string
 }
 
 // 字与字的错开比例、上浮提前开始的时长（参考 AMLL）；演出时长下限见 config.ts 的 LYRIC_EMPHASIS_MIN_MS
@@ -827,8 +829,10 @@ export class LyricPlayer {
         hdrExitFromSpot: false,
         hdrExiting: false,
         mainOpacity: '',
-        ornaments: [],
-        ornamentOpacity: '',
+        edge: null,
+        edgeOpacity: '',
+        singerPill: null,
+        singerTransform: '',
       }
       const { el } = view
       el.classList.add('lyric-item')
@@ -911,12 +915,12 @@ export class LyricPlayer {
             edge.className = 'lyric-edge'
             edge.setAttribute('aria-hidden', 'true')
             el.append(edge)
-            view.ornaments.push(edge)
+            view.edge = edge
             if (switched) {
               const pill = buildSingerPill(doc, agent, agents, soloAgents, soloCount, this.display.togetherLabel)
               if (pill) {
                 el.append(pill)
-                view.ornaments.push(pill)
+                view.singerPill = pill
               }
             }
           }
@@ -1242,7 +1246,7 @@ export class LyricPlayer {
         const prev = this.views[i - 1]
         const interludeRatio = prev?.item.kind === 'interlude' ? 1 - (prev.expand?.position ?? 0) : 1
         // 该行已带有切换胶囊时胶囊自身已留出上方呼吸空间，不再全额叠加段落间距
-        const pillScale = view.ornaments.length > 1 ? 0.35 : 1
+        const pillScale = view.singerPill ? 0.35 : 1
         total += paraGap * interludeRatio * pillScale
       }
       tops.push(total)
@@ -1504,7 +1508,8 @@ export class LyricPlayer {
       if (!visible)
         continue
 
-      const transform = `translate3d(0, ${y.toFixed(2)}px, 0) scale(${view.scale.position.toFixed(4)})`
+      const scale = view.scale.position
+      const transform = `translate3d(0, ${y.toFixed(2)}px, 0) scale(${scale.toFixed(4)})`
       if (transform !== view.transform) {
         view.transform = transform
         view.el.style.transform = transform
@@ -1556,14 +1561,20 @@ export class LyricPlayer {
         // 横向滚动只改合成层，逐帧更新；只算此刻在容器内的行
         if (view.marquee && y + view.height > 0 && y < this.containerHeight)
           this.paintMarquee(view.marquee, view.el, (view.half ? this.containerWidth / 2 : this.containerWidth) - view.marquee.padding, timeMs)
-        // 聚光灯亮起时，边缘光丝与切换胶囊先让路淡出，突出点题歌词本身
-        if (view.ornaments.length > 0) {
-          const ornamentAlpha = i === this.spotView && spot > 0 ? Math.max(0, 1 - spot * 1.25) : 1
-          const nextOrnamentOpacity = ornamentAlpha < 0.999 ? ornamentAlpha.toFixed(3) : ''
-          if (nextOrnamentOpacity !== view.ornamentOpacity) {
-            view.ornamentOpacity = nextOrnamentOpacity
-            for (const orn of view.ornaments)
-              orn.style.opacity = nextOrnamentOpacity
+        // 聚光灯亮起时，仅边缘光丝淡出让路；切换胶囊不消失，通过反向缩放保持 1x 视觉尺寸并跟随行位置移动
+        if (view.edge) {
+          const edgeAlpha = i === this.spotView && spot > 0 ? Math.max(0, 1 - spot * 1.25) : 1
+          const nextEdgeOpacity = edgeAlpha < 0.999 ? edgeAlpha.toFixed(3) : ''
+          if (nextEdgeOpacity !== view.edgeOpacity) {
+            view.edgeOpacity = nextEdgeOpacity
+            view.edge.style.opacity = nextEdgeOpacity
+          }
+        }
+        if (view.singerPill) {
+          const nextSingerTransform = scale > 1.0005 ? `scale(${(1 / scale).toFixed(4)})` : ''
+          if (nextSingerTransform !== view.singerTransform) {
+            view.singerTransform = nextSingerTransform
+            view.singerPill.style.transform = nextSingerTransform
           }
         }
         const lineNeedsDetail = detail || active !== view.active || hdrExiting || view.hdrExiting
