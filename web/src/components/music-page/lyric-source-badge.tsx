@@ -2,7 +2,7 @@
 
 import type { LyricSourceKind } from '@/lib/lyrics/resolve'
 import type { LyricSource, ResolvedLyrics } from '@/lib/lyrics/types'
-import { CaseSensitiveIcon, ChevronDownIcon, LanguagesIcon, LoaderCircleIcon, PinIcon, RotateCwIcon, SparklesIcon } from 'lucide-react'
+import { ChevronDownIcon, LoaderCircleIcon, PinIcon, RotateCwIcon, SparklesIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -97,31 +97,32 @@ export function LyricSourceBadge({ className }: { className?: string }) {
   const switchable = lyricCandidates.length > 1 || sitePin != null
   const selected = sitePin ?? AUTO
   const pinned = sitePin != null
+  const aiActive = lyricAnnotated
+    || lyricAnnotationsGenerating
+    || lyricAiTranslated
+    || lyricTranslationsGenerating
+    || lyricAiRomanized
+    || lyricPronunciationsGenerating
+  const aiGenerating = lyricAnnotationsGenerating || lyricTranslationsGenerating || lyricPronunciationsGenerating
+  const aiLabel = [
+    (lyricAnnotated || lyricAnnotationsGenerating) && t(lyricAnnotationsGenerating ? 'lyric_badge_ai_generating' : 'lyric_badge_ai_effects'),
+    (lyricAiTranslated || lyricTranslationsGenerating) && t('lyric_badge_ai_translation'),
+    (lyricAiRomanized || lyricPronunciationsGenerating) && t('lyric_badge_ai_romanization'),
+  ].filter(Boolean).join(' · ')
+  const badgeText = describe(lyrics)
   const badge = (
-    <span className="inline-flex h-[1.125rem] items-center gap-1 rounded-full bg-white/10 px-1.5 text-[10px] leading-none font-medium text-white/70 transition-colors hover:bg-white/15 hover:text-white/90">
-      {/* AI 歌词特效：生成中（首次或重新生成）时标志呼吸闪烁 */}
-      {(lyricAnnotated || lyricAnnotationsGenerating) && (
-        <span title={t(lyricAnnotationsGenerating ? 'lyric_badge_ai_generating' : 'lyric_badge_ai_effects')} className="inline-flex shrink-0">
-          <SparklesIcon aria-hidden className={cn('size-3', lyricAnnotationsGenerating && 'motion-safe:animate-pulse')} />
-          <span className="sr-only">{t(lyricAnnotationsGenerating ? 'lyric_badge_ai_generating' : 'lyric_badge_ai_effects')}</span>
-        </span>
-      )}
-      {(lyricAiTranslated || lyricTranslationsGenerating) && (
-        <span title={t('lyric_badge_ai_translation')} className="inline-flex shrink-0">
-          <LanguagesIcon aria-hidden className={cn('size-3', lyricTranslationsGenerating && 'motion-safe:animate-pulse')} />
-          <span className="sr-only">{t('lyric_badge_ai_translation')}</span>
-        </span>
-      )}
-      {(lyricAiRomanized || lyricPronunciationsGenerating) && (
-        <span title={t('lyric_badge_ai_romanization')} className="inline-flex shrink-0">
-          <CaseSensitiveIcon aria-hidden className={cn('size-3', lyricPronunciationsGenerating && 'motion-safe:animate-pulse')} />
-          <span className="sr-only">{t('lyric_badge_ai_romanization')}</span>
+    <span className="inline-flex h-[1.125rem] max-w-full min-w-0 items-center gap-1 rounded-full bg-white/10 px-1.5 text-[10px] leading-none font-medium whitespace-nowrap text-white/70 transition-colors hover:bg-white/15 hover:text-white/90">
+      {/* AI 能力统一收敛为单个标志（特效 / 翻译 / 读音任一启用即显示，任一生成中呼吸闪烁） */}
+      {aiActive && (
+        <span title={aiLabel} className="inline-flex shrink-0">
+          <SparklesIcon aria-hidden className={cn('size-3', aiGenerating && 'motion-safe:animate-pulse')} />
+          <span className="sr-only">{aiLabel}</span>
         </span>
       )}
       {/* 来源标志：网易云、QQ 音乐、AMLL 等各自的标志，统一为与文字相同的单色 */}
       <LyricSourceIcon source={lyrics.lines.length > 0 ? lyrics.source : 'none'} className="size-3 shrink-0" />
       <span className="sr-only">{t('lyric_badge_label')}</span>
-      {describe(lyrics)}
+      <span className="min-w-0 truncate">{badgeText}</span>
       {pinned && <PinIcon aria-label={t('lyric_badge_site_pinned')} className="size-2.5 shrink-0" />}
       {lyricSourcesPending && <LoaderCircleIcon aria-label={t('lyric_badge_upgrading')} className="size-2.5 shrink-0 motion-safe:animate-spin" />}
       <ChevronDownIcon aria-hidden className="-mr-0.5 size-2.5 shrink-0" />
@@ -132,9 +133,9 @@ export function LyricSourceBadge({ className }: { className?: string }) {
     <>
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger
-          title={t(switchable ? 'lyric_badge_switch_site' : 'lyric_badge_label')}
+          title={`${t(switchable ? 'lyric_badge_switch_site' : 'lyric_badge_label')} · ${badgeText}`}
           // className 加在外层：页面用它控制标签在网格中的位置（移动端居中）
-          className={cn('inline-flex rounded-full focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:outline-none', className)}
+          className={cn('inline-flex max-w-full min-w-0 rounded-full focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:outline-none', className)}
         >
           {badge}
         </DropdownMenuTrigger>

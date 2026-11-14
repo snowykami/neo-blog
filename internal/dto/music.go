@@ -451,6 +451,7 @@ type MusicSongTranslationDto struct {
 	TargetLang   string   `json:"target_lang"`
 	SameLanguage bool     `json:"same_language,omitempty"`
 	Title        string   `json:"title,omitempty"`
+	Aliases      []string `json:"aliases,omitempty"`
 	Artists      []string `json:"artists,omitempty"`
 }
 
@@ -462,8 +463,9 @@ type MusicLyricSingersReq struct {
 
 // MusicLyricSingersRefreshReq 管理员强制重新生成指定词源与目标语言的歌手分配与译名
 type MusicLyricSingersRefreshReq struct {
-	Source string `json:"source"`
-	Lang   string `json:"lang"`
+	Source        string `json:"source"`
+	Lang          string `json:"lang"`
+	TranslateOnly bool   `json:"translate_only,omitempty"`
 }
 
 // LyricSingerItem 一位演唱者或合唱组的基本信息

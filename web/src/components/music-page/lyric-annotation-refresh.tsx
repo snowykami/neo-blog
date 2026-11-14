@@ -12,6 +12,7 @@ import { refreshAnnotations, useLyricAnnotations } from '@/contexts/lyric-annota
 import { refreshSingers } from '@/contexts/lyric-singers'
 import { useMusic } from '@/contexts/music-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
+import { canResolveLyricSingers } from '@/lib/lyrics/apply-singers'
 import { toLyricTargetLang } from '@/lib/lyrics/target-lang'
 import { cn } from '@/lib/utils'
 import { isAdmin } from '@/utils/common/permission'
@@ -38,7 +39,7 @@ export function LyricAnnotationRefresh({ className }: { className?: string }) {
 
   const refresh = async () => {
     setRefreshing(true)
-    if (siteInfo.musicAiEnabled && lyrics.source !== 'none')
+    if (siteInfo.musicAiEnabled && canResolveLyricSingers(lyrics, currentTrack))
       void refreshSingers(trackId, lyrics.source, showTranslation ? targetLang : '').catch(() => {})
     try {
       await refreshAnnotations(trackId)

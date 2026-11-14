@@ -29,7 +29,7 @@ export const MusicPlaylistItem = memo(({ track, index, active, playing, onSelect
 }) => {
   const { showTranslation } = useMusicPreferences()
   const meta = useCachedSongMetaTranslation(track.id)
-  const titleExtra = formatTitleAliases(track.name, track.aliases, meta?.title, showTranslation)
+  const titleExtra = formatTitleAliases(track.name, track.aliases, meta?.title, showTranslation, meta?.aliases)
   const displayArtists = formatDisplayArtists(track.artists, meta?.artists, showTranslation)
 
   return (

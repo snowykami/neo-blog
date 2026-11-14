@@ -9,6 +9,7 @@ export function formatTitleAliases(
   aliases: string[] = [],
   translatedTitle?: string | null,
   showTranslation = true,
+  translatedAliases?: string[] | null,
 ): string {
   const normName = normalizeForMatch(name)
   const items: string[] = []
@@ -28,8 +29,10 @@ export function formatTitleAliases(
   if (showTranslation)
     pushUnique(translatedTitle)
 
-  for (const alias of aliases)
-    pushUnique(alias)
+  for (let i = 0; i < aliases.length; i++) {
+    const translated = showTranslation ? translatedAliases?.[i]?.trim() : undefined
+    pushUnique(translated || aliases[i])
+  }
 
   return items.join(', ')
 }
@@ -40,8 +43,9 @@ export function formatInlineSongTitle(
   aliases: string[] = [],
   translatedTitle?: string | null,
   showTranslation = true,
+  translatedAliases?: string[] | null,
 ): string {
-  const extra = formatTitleAliases(name, aliases, translatedTitle, showTranslation)
+  const extra = formatTitleAliases(name, aliases, translatedTitle, showTranslation, translatedAliases)
   return extra ? `${name} (${extra})` : name
 }
 

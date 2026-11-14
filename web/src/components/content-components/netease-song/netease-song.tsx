@@ -46,6 +46,7 @@ function NeteaseSongCard({ id }: { id: number }) {
         'aliases' in song && Array.isArray(song.aliases) ? song.aliases : [],
         meta?.title,
         showTranslation,
+        meta?.aliases,
       )
     : undefined
   const displayArtists = song ? formatDisplayArtists(song.artists, meta?.artists, showTranslation) : []

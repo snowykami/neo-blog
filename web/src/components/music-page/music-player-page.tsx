@@ -45,7 +45,7 @@ function TrackHero({ track, playing, onCoverClick, className }: { track: MusicTr
   const { user } = useAuth()
   const { showTranslation } = useMusicPreferences()
   const meta = useCachedSongMetaTranslation(track.id)
-  const titleExtra = formatTitleAliases(track.name, track.aliases, meta?.title, showTranslation)
+  const titleExtra = formatTitleAliases(track.name, track.aliases, meta?.title, showTranslation, meta?.aliases)
   const displayArtists = formatDisplayArtists(track.artists, meta?.artists, showTranslation)
   // 歌词来源、重新生成 AI 歌词特效与整体偏移都是站长的工具：读者只看全站版本，不显示这些按钮
   const admin = !!user && isAdmin({ user })
@@ -75,12 +75,12 @@ function TrackHero({ track, playing, onCoverClick, className }: { track: MusicTr
           {[displayArtists.join(' / '), track.album].filter(Boolean).join(' · ')}
         </MarqueeText>
         {admin && (
-          <div className="mt-1 flex items-center gap-1.5 justify-self-center lg:justify-self-start">
-            <LyricSourceBadge />
-            <LyricAnnotationRefresh />
-            <LyricTranslationRefresh />
-            <LyricPronunciationRefresh />
-            <LyricOffsetControl />
+          <div className="mt-1 flex max-w-full min-w-0 items-center gap-1.5 justify-self-center lg:justify-self-start">
+            <LyricSourceBadge className="min-w-0 shrink" />
+            <LyricAnnotationRefresh className="shrink-0" />
+            <LyricTranslationRefresh className="shrink-0" />
+            <LyricPronunciationRefresh className="shrink-0" />
+            <LyricOffsetControl className="shrink-0" />
           </div>
         )}
       </div>

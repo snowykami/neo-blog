@@ -130,6 +130,23 @@ const ENGLISH_FUNCTION_WORDS = new Set([
   'away',
   'never',
   'just',
+  'into',
+  'through',
+  'under',
+  'over',
+  'after',
+  'before',
+  'again',
+  'still',
+  'back',
+  'more',
+  'only',
+  'ever',
+  'every',
+  'there',
+  'about',
+  'around',
+  'without',
 ])
 
 const INTERJECTION_WORDS = new Set([
@@ -326,12 +343,27 @@ function countScripts(texts: string[]) {
 }
 
 function detectLatinLang(words: string[]): 'en' | 'other' {
+  if (words.length === 0)
+    return 'other'
   const hits = new Set<string>()
+  let hitTokens = 0
+  let strongHits = 0
   for (const word of words) {
-    if (ENGLISH_FUNCTION_WORDS.has(word))
+    if (ENGLISH_FUNCTION_WORDS.has(word)) {
       hits.add(word)
+      hitTokens++
+      if (word.length >= 3 || word === 'im')
+        strongHits++
+    }
   }
-  if (hits.size >= 2 || (words.length <= 6 && hits.size >= 1))
+  if (words.length <= 6) {
+    if (strongHits >= 1 && hitTokens * 4 >= words.length)
+      return 'en'
+    if (hits.size >= 2 && hitTokens * 5 >= words.length * 3)
+      return 'en'
+    return 'other'
+  }
+  if (hits.size >= 2 && strongHits >= 1 && hitTokens * 100 >= words.length * 12)
     return 'en'
   return 'other'
 }

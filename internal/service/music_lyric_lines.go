@@ -466,7 +466,9 @@ func (r *ttmlAgentResolver) finalize() []lyricTTMLAgent {
 	return agents
 }
 
-// walkTTMLWithAgent 按文档顺序遍历元素，传递继承自 body / div / p 的 ttd:agents 与 ttm:agent 属性（ttd:agents 优先于 ttm:agent）
+const ttmlExplicitEmptyAgent = "\x00"
+
+// walkTTMLWithAgent 按文档顺序遍历元素，传递继承自 body / div / p 的 ttd:agents 与 ttm:agent 属性（ttd:agents 含空串优先于 ttm:agent）
 func walkTTMLWithAgent(node *ttmlNode, inheritedAgents, inheritedAgent string, visit func(*ttmlNode, string) bool) {
 	for _, child := range node.children {
 		if child.name == "" {
@@ -474,15 +476,25 @@ func walkTTMLWithAgent(node *ttmlNode, inheritedAgents, inheritedAgent string, v
 		}
 		nextAgents, nextAgent := inheritedAgents, inheritedAgent
 		if child.name == "body" || child.name == "div" || child.name == "p" {
-			if own := strings.TrimSpace(ttmlAttr(child, "agents")); own != "" {
-				nextAgents = own
+			if ttmlHasAttr(child, "agents") {
+				own := strings.TrimSpace(ttmlAttr(child, "agents"))
+				if own == "" {
+					nextAgents = ttmlExplicitEmptyAgent
+				} else {
+					nextAgents = own
+				}
 			}
 			if own := strings.TrimSpace(ttmlAttr(child, "agent")); own != "" {
 				nextAgent = own
 			}
 		}
-		effective := nextAgents
-		if effective == "" {
+		effective := ""
+		switch {
+		case nextAgents == ttmlExplicitEmptyAgent:
+			effective = ""
+		case nextAgents != "":
+			effective = nextAgents
+		default:
 			effective = nextAgent
 		}
 		if visit(child, effective) {
@@ -661,6 +673,16 @@ func ttmlAttr(node *ttmlNode, local string) string {
 		}
 	}
 	return ""
+}
+
+// ttmlHasAttr 判断元素是否声明了指定本地名属性（含空串值）
+func ttmlHasAttr(node *ttmlNode, local string) bool {
+	for _, attr := range node.attrs {
+		if attr.Name.Local == local {
+			return true
+		}
+	}
+	return false
 }
 
 // ttmlTextContent 元素之下所有文字

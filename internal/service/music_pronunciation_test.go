@@ -175,3 +175,96 @@ func TestPronunciationWordTimedTokensAndBopomofo(t *testing.T) {
 		t.Fatalf("bopomofo word tokens = %+v", ready.Lines)
 	}
 }
+
+func TestPronunciationTaiwanMandarinSimplifiedAndCreditsAndHokkienExclusion(t *testing.T) {
+	t.Run("taiwan_mandarin_simplified_retries_zh_to_bopomofo", func(t *testing.T) {
+		tracks := []dto.MusicTrackDto{
+			{ID: 804, Name: "外婆的澎湖湾", Artists: []string{"潘安邦"}},
+		}
+		setupMusicTranslationEnv(t, tracks)
+
+		lrc := "[00:00.50]词曲：叶佳修\n[00:02.00]晚风轻拂澎湖湾\n[00:05.00]白浪逐沙滩\n"
+		stubLyricSources(t, map[string]lyricSourceResult{
+			"ncm": {
+				data:    &dto.MusicLyricDto{Lrc: lyricPart(lrc)},
+				outcome: lyricOutcomeHit,
+			},
+		})
+
+		var prompts []string
+		var attempt atomic.Int32
+		calls, wait := stubLyricPronunciationService(t, func(system, user string) (string, error) {
+			prompts = append(prompts, system+"\n"+user)
+			if attempt.Add(1) == 1 {
+				// 第一次错误返回大陆拼音 lang="zh"，应触发脚本/注音纠偏重试
+				return `{"items":[{"i":1,"lang":"zh","pronunciation":"wǎn fēng qīng fú péng hú wān"},{"i":2,"lang":"zh","pronunciation":"bái làng zhú shā tān"}]}`, nil
+			}
+			return `{"items":[{"i":1,"lang":"zh-tw","pronunciation":"ㄨㄢˇ ㄈㄥ ㄑㄧㄥ ㄈㄨˊ ㄆㄥˊ ㄏㄨˊ ㄨㄢ"},{"i":2,"lang":"zh-tw","pronunciation":"ㄅㄞˊ ㄌㄤˋ ㄓㄨˊ ㄕㄚ ㄊㄢ"}]}`, nil
+		})
+
+		s := NewMusicService()
+		ctx := context.Background()
+
+		first, svcerr := s.GetLyricPronunciations(ctx, 804, "ncm-lrc")
+		if svcerr != nil || first.Status != "pending" {
+			t.Fatalf("first get 804 = %+v, err=%v", first, svcerr)
+		}
+		wait()
+
+		ready, svcerr := s.GetLyricPronunciations(ctx, 804, "ncm-lrc")
+		if svcerr != nil || ready.Status != "ready" {
+			t.Fatalf("ready 804 = %+v, err=%v", ready, svcerr)
+		}
+		if calls.Load() != 2 || len(prompts) != 2 {
+			t.Fatalf("expected retry on mainland pinyin for Taiwan Mandarin, calls=%d", calls.Load())
+		}
+		if !strings.Contains(prompts[0], `"taiwan_origin_hint":true`) || !strings.Contains(prompts[0], "词曲：叶佳修") {
+			t.Fatalf("expected taiwan_origin_hint and credits in prompt: %s", prompts[0])
+		}
+		if ready.Lang != "zh-tw" || len(ready.Lines) != 2 || ready.Lines[0].Lang != "zh-tw" {
+			t.Fatalf("expected zh-tw bopomofo result, got %+v", ready)
+		}
+	})
+
+	t.Run("taiwan_hokkien_uses_tailo_not_bopomofo", func(t *testing.T) {
+		tracks := []dto.MusicTrackDto{
+			{ID: 805, Name: "浪子回头", Artists: []string{"茄子蛋"}},
+		}
+		setupMusicTranslationEnv(t, tracks)
+
+		lrc := "[00:01.00]烟一支一支一支地点\n[00:04.00]毋知影是啥物滋味 袂记咧\n"
+		stubLyricSources(t, map[string]lyricSourceResult{
+			"ncm": {
+				data:    &dto.MusicLyricDto{Lrc: lyricPart(lrc)},
+				outcome: lyricOutcomeHit,
+			},
+		})
+
+		var gotUser atomic.Value
+		calls, wait := stubLyricPronunciationService(t, func(_, user string) (string, error) {
+			gotUser.Store(user)
+			return `{"items":[{"i":1,"lang":"other","pronunciation":"ian tsit-ki tsit-ki tsit-ki teh tiám"},{"i":2,"lang":"other","pronunciation":"m̄ tsai-iánn sī siánn-mih tsu-bī buē-kì-leh"}]}`, nil
+		})
+
+		s := NewMusicService()
+		ctx := context.Background()
+
+		first, svcerr := s.GetLyricPronunciations(ctx, 805, "ncm-lrc")
+		if svcerr != nil || first.Status != "pending" {
+			t.Fatalf("first get 805 = %+v, err=%v", first, svcerr)
+		}
+		wait()
+
+		ready, svcerr := s.GetLyricPronunciations(ctx, 805, "ncm-lrc")
+		if svcerr != nil || ready.Status != "ready" || calls.Load() != 1 {
+			t.Fatalf("ready 805 = %+v, err=%v, calls=%d", ready, svcerr, calls.Load())
+		}
+		prompt := gotUser.Load().(string)
+		if !strings.Contains(prompt, `"primary_lang_hint":"other"`) {
+			t.Fatalf("expected Hokkien primary_lang_hint=other in prompt: %s", prompt)
+		}
+		if ready.Lang != "other" || len(ready.Lines) != 2 || ready.Lines[1].Lang != "other" {
+			t.Fatalf("expected Hokkien Tâi-lô with lang=other, got %+v", ready)
+		}
+	})
+}

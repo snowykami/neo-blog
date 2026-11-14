@@ -5,7 +5,7 @@ import type { LyricTrackInfo } from '@/lib/lyrics/strip-credits'
 import { useLocale } from 'next-intl'
 import { useEffect, useMemo } from 'react'
 import { useSiteInfo } from '@/contexts/site-info-context'
-import { applyLyricSingers } from '@/lib/lyrics/apply-singers'
+import { applyLyricSingers, canResolveLyricSingers } from '@/lib/lyrics/apply-singers'
 import { applyEmphasis } from '@/lib/lyrics/emphasis'
 import { applyLanguageTranslations, canAiTranslateLyrics, toLyricTargetLang } from '@/lib/lyrics/lyric-language'
 import { applyPronunciationsAndFilter, canAiPronounceLyrics } from '@/lib/lyrics/lyric-pronunciation'
@@ -36,7 +36,7 @@ export function MusicLyricsEngine({
   onChange,
 }: {
   trackId: number | null
-  track: LyricTrackInfo | null
+  track: (LyricTrackInfo & { album?: string }) | null
   isPlaying: boolean
   showLyricEffects: boolean
   showLyricMoments: boolean
@@ -89,14 +89,14 @@ export function MusicLyricsEngine({
       requestSongMetaTranslation(validTrackId, targetLang)
   }, [targetLang, validTrackId, wantsMetaTranslation])
 
-  // 独立演唱者 / 多声部归属（支持所有词源与未开特效的曲目）
+  // 独立演唱者 / 多声部归属（具名/多声部 TTML、含显式提示歌词或具备多人/企划特征时请求后端查证，与翻译等任务进度完全隔离）
   const singerLang = showTranslation ? targetLang : ''
+  const canResolveSingers = useMemo(() => canResolveLyricSingers(rawLyrics, track), [rawLyrics, track])
   const wantsSingers = Boolean(siteInfo.musicAiEnabled)
     && isPlaying
     && validTrackId != null
     && lyricSource != null
-    && !rawLyrics.instrumental
-    && rawLyrics.lines.length > 0
+    && canResolveSingers
   useEffect(() => {
     if (!wantsSingers || validTrackId == null || lyricSource == null)
       return
@@ -109,7 +109,7 @@ export function MusicLyricsEngine({
     }, 650)
     return () => clearTimeout(timer)
   }, [lyricSource, singerLang, sourceTransitioning, validTrackId, wantsSingers])
-  const rawSingers = useLyricSingers(validTrackId, lyricSource, singerLang)
+  const rawSingers = useLyricSingers(canResolveSingers ? validTrackId : null, lyricSource, singerLang)
   const storedSingers = rawSingers && (!rawSingers.source || rawSingers.source === lyricSource) ? rawSingers : null
 
   // AI 歌词读音（按语种与当前界面语言自动显隐 / 缺口补全）

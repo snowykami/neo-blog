@@ -524,6 +524,7 @@ export interface MusicSongTranslationMeta {
   targetLang: LyricTargetLang | string
   sameLanguage?: boolean
   title?: string
+  aliases?: string[]
   artists?: string[]
 }
 
@@ -568,13 +569,20 @@ export async function fetchLyricSingers(id: number, source?: LyricSource, lang?:
   }
 }
 
-// 重新生成指定歌词源的独立演唱者标注与当前语言歌手译名（仅管理员）
-export async function refreshLyricSingers(id: number, source?: LyricSource, lang?: LyricTargetLang): Promise<SiteLyricSingers> {
-  const body: Record<string, string> = {}
+// 重新生成指定歌词源的独立演唱者标注或仅刷新当前语言歌手译名（仅管理员）
+export async function refreshLyricSingers(
+  id: number,
+  source?: LyricSource,
+  lang?: LyricTargetLang,
+  translateOnly?: boolean,
+): Promise<SiteLyricSingers> {
+  const body: Record<string, string | boolean> = {}
   if (source && source !== 'none')
     body.source = source
   if (lang)
     body.lang = lang
+  if (translateOnly)
+    body.translateOnly = true
   const res = await axiosClient.post<BaseResponse<SiteLyricSingers>>(`/music/song/${id}/lyric/singers/refresh`, body)
   return res.data.data
 }

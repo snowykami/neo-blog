@@ -356,7 +356,7 @@ func (m *musicType) RefreshLyricSingers(ctx context.Context, c *app.RequestConte
 		resps.BadRequest(c, resps.ErrParamInvalid)
 		return
 	}
-	result, svcerr := m.service.RefreshLyricSingers(ctx, ctxutils.GetIDParam(c).Int64, req.Source, req.Lang)
+	result, svcerr := m.service.RefreshLyricSingers(ctx, ctxutils.GetIDParam(c).Int64, req.Source, req.Lang, req.TranslateOnly)
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return

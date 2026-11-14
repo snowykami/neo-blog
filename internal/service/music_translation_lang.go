@@ -61,6 +61,10 @@ var (
 		"here": true, "one": true, "two": true, "why": true, "who": true, "how": true, "what": true,
 		"when": true, "where": true, "this": true, "that": true,
 		"im": true, "dont": true, "away": true, "never": true, "just": true,
+		"into": true, "through": true, "under": true, "over": true, "after": true,
+		"before": true, "again": true, "still": true, "back": true, "more": true,
+		"only": true, "ever": true, "every": true, "there": true, "about": true,
+		"around": true, "without": true,
 	}
 
 	lyricSingerCueRoles = map[string]bool{
@@ -248,13 +252,31 @@ func detectLyricTextLang(texts []string, explicitTag string) string {
 }
 
 func detectLatinLang(words []string) string {
+	if len(words) == 0 {
+		return "other"
+	}
 	hits := map[string]bool{}
+	hitTokens := 0
+	strongHits := 0
 	for _, w := range words {
 		if lyricEnglishFunctionWords[w] {
 			hits[w] = true
+			hitTokens++
+			if len(w) >= 3 || w == "im" {
+				strongHits++
+			}
 		}
 	}
-	if len(hits) >= 2 || (len(words) <= 6 && len(hits) >= 1) {
+	if len(words) <= 6 {
+		if strongHits >= 1 && hitTokens*4 >= len(words) {
+			return "en"
+		}
+		if len(hits) >= 2 && hitTokens*5 >= len(words)*3 {
+			return "en"
+		}
+		return "other"
+	}
+	if len(hits) >= 2 && strongHits >= 1 && hitTokens*100 >= len(words)*12 {
 		return "en"
 	}
 	return "other"

@@ -22,10 +22,10 @@ const MAX_STRAY_LETTERS = 2
 // 每个待分配的汉字最多对应的字母数
 const MAX_LETTERS_PER_HAN = 8
 
-/** 折叠为小写 ASCII 字母与数字：去掉声调符号，长音符号展开（ō → ou） */
+/** 折叠为小写 ASCII 字母、数字与注音符号：去掉声调符号，长音符号展开（ō → ou） */
 function foldChar(char: string): string {
   const lower = char.toLowerCase()
-  return MACRONS[lower] ?? lower.normalize('NFKD').replace(/[^a-z0-9]/g, '')
+  return MACRONS[lower] ?? lower.normalize('NFKD').replace(/[^a-z0-9\u3100-\u312F\u31A0-\u31BF]/g, '')
 }
 
 const fold = (text: string) => [...text].map(foldChar).join('')

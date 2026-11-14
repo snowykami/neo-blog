@@ -31,6 +31,7 @@ const PURE_HAN_WORD_RE = /^\p{Script=Han}+$/u
 const BOPOMOFO_RE = /[\u3100-\u312F\u31A0-\u31BF]/
 const JYUTPING_RE = /\b[a-z]{1,6}[1-6]\b/
 const CANTONESE_PARTICLES_RE = /[嘅咗喺冇係唔啲嚟咁乜咩仲畀揾搵睇佢哋]/
+const HOKKIEN_MARKERS_RE = /[袂毋𨑨迌佇囥]|啥物|歹势|歹勢|仝款|按怎|家己|佗位|叨位/u
 const KANA_OR_HANGUL_RE = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
 const OTHER_NON_LATIN_RE = /[\p{Script=Cyrillic}\p{Script=Arabic}\p{Script=Devanagari}\p{Script=Thai}\p{Script=Greek}\p{Script=Hebrew}]/u
 const SHORT_FILLER_LATIN_WORDS = new Set([
@@ -179,8 +180,12 @@ export function buildRomanWordsFromAiTokens(
           }
         }
         const aligned = romanWordsFromSpans(spans, words)
-        if (aligned && aligned.length > 0)
-          return aligned
+        if (aligned && aligned.length > 0) {
+          return aligned.map((item, idx) => ({
+            ...item,
+            text: idx < aligned.length - 1 ? `${item.text.trim()} ` : item.text.trim(),
+          }))
+        }
       }
     }
   }
@@ -188,7 +193,17 @@ export function buildRomanWordsFromAiTokens(
   return alignRomanization(fallback, words)
 }
 
-/** 识别单行歌词的读音归属语种（区分 Mandarin `zh` / 台式注音 `zh-tw` / 粤语 `zh-hk` / `ja` / `ko` / `en` / `other`） */
+function refineDetectedHanSongLang(detected: LyricLang | null, texts: string[]): LyricLang | null {
+  if (detected === 'zh' || detected === 'zh-tw') {
+    if (texts.some(t => CANTONESE_PARTICLES_RE.test(t)))
+      return 'zh-hk'
+    if (texts.some(t => HOKKIEN_MARKERS_RE.test(t)))
+      return 'other'
+  }
+  return detected
+}
+
+/** 识别单行歌词的读音归属语种（区分 Mandarin `zh` / 台式注音 `zh-tw` / 粤语 `zh-hk` / `ja` / `ko` / `en` / `other`；闽南语归入 `other`） */
 export function detectLinePronunciationLang(text: string, pron?: string, songLang?: string | null): LyricLang {
   const rom = pron?.trim() ?? ''
   if (rom && BOPOMOFO_RE.test(rom))
@@ -197,6 +212,8 @@ export function detectLinePronunciationLang(text: string, pron?: string, songLan
     return 'zh-hk'
   if (CANTONESE_PARTICLES_RE.test(text))
     return 'zh-hk'
+  if (HOKKIEN_MARKERS_RE.test(text))
+    return 'other'
   const detected = detectLyricTextLang([text])
   if (detected)
     return detected
@@ -262,9 +279,7 @@ export function canAiPronounceLyrics(
 
   const vocalTexts = vocalEntries.map(v => v.text)
   const detectedSong = detectLyricTextLang(vocalTexts)
-  const songLang: LyricLang = (detectedSong === 'zh' && vocalTexts.some(t => CANTONESE_PARTICLES_RE.test(t)))
-    ? 'zh-hk'
-    : (detectedSong ?? 'other')
+  const songLang: LyricLang = refineDetectedHanSongLang(detectedSong, vocalTexts) ?? 'other'
 
   return vocalEntries.some(({ line, text }) => {
     if (line.romanization?.trim())
@@ -304,7 +319,7 @@ export function applyPronunciationsAndFilter(
   const detectedSong = detectLyricTextLang(allTexts)
   const songLang = aiMatchesSource && aiPronunciation.lang
     ? aiPronunciation.lang
-    : (detectedSong === 'zh' && allTexts.some(t => CANTONESE_PARTICLES_RE.test(t)) ? 'zh-hk' : detectedSong)
+    : refineDetectedHanSongLang(detectedSong, allTexts)
 
   const occCounts = new Map<string, number>()
   let changed = false

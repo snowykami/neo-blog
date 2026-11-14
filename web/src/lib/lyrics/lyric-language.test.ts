@@ -183,5 +183,22 @@ describe('歌词语言检测与多语种翻译匹配', () => {
       ],
     }
     expect(canAiTranslateLyrics(modernMandarin, 'zh')).toBe(false)
+
+    // 拉丁字母造语（含偶发单字母词）不被误判为英文，在英文界面仍需触发 AI 参考译文翻译
+    const conlangLines = ['LaVI-Bavellabion', 'A kalima sora no mi', 'Feli vanna doris']
+    expect(detectLyricTextLang(conlangLines)).toBe('other')
+    const conlangLyrics: ResolvedLyrics = {
+      source: 'ncm-lrc',
+      wordTimed: false,
+      instrumental: false,
+      lines: conlangLines.map((text, idx) => ({
+        words: [{ text, start: idx * 3000 + 1000, end: (idx + 1) * 3000 }],
+        start: idx * 3000 + 1000,
+        end: (idx + 1) * 3000,
+        isDuet: false,
+        isBackground: false,
+      })),
+    }
+    expect(canAiTranslateLyrics(conlangLyrics, 'en')).toBe(true)
   })
 })

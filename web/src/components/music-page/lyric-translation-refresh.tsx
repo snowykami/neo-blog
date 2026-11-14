@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/auth-context'
-import { refreshSingers, useLyricSingers, useLyricSingersGenerating } from '@/contexts/lyric-singers'
+import { refreshSingers, useLyricSingers } from '@/contexts/lyric-singers'
 import { refreshTranslations } from '@/contexts/lyric-translations'
 import { useMusic } from '@/contexts/music-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
@@ -28,7 +28,6 @@ export function LyricTranslationRefresh({ className }: { className?: string }) {
   const metaTranslation = useSongMetaTranslation(trackId, targetLang)
   const metaGenerating = useSongMetaTranslationGenerating(trackId, targetLang)
   const lyricSingers = useLyricSingers(trackId, lyricSource, targetLang)
-  const singersGenerating = useLyricSingersGenerating(trackId, lyricSource, targetLang)
 
   if (!user || !isAdmin({ user }) || !siteInfo.musicAiEnabled || !currentTrack)
     return null
@@ -37,11 +36,12 @@ export function LyricTranslationRefresh({ className }: { className?: string }) {
     && (lyricAiTranslated || lyricTranslationsGenerating || canAiTranslateLyrics(lyrics, targetLang, currentTrack.artists))
   const canTranslateMeta = Boolean(metaTranslation && !metaTranslation.sameLanguage) || metaGenerating
   const hasSingers = Boolean(lyricSingers && lyricSingers.singers.length > 0 && !metaTranslation?.sameLanguage)
+  const singerNamesTranslating = Boolean(hasSingers && lyricSingers?.translationPending)
 
-  if (!canTranslateLines && !canTranslateMeta && !singersGenerating)
+  if (!canTranslateLines && !canTranslateMeta && !singerNamesTranslating)
     return null
 
-  const busy = refreshing || lyricTranslationsGenerating || metaGenerating || singersGenerating
+  const busy = refreshing || lyricTranslationsGenerating || metaGenerating || singerNamesTranslating
 
   const handleRefresh = async () => {
     if (busy)
@@ -54,7 +54,7 @@ export function LyricTranslationRefresh({ className }: { className?: string }) {
       if (canTranslateMeta || !metaTranslation?.sameLanguage)
         tasks.push(refreshSongMetaTranslations(currentTrack.id, targetLang))
       if (lyricSource && hasSingers)
-        tasks.push(refreshSingers(currentTrack.id, lyricSource, targetLang))
+        tasks.push(refreshSingers(currentTrack.id, lyricSource, targetLang, true))
 
       const results = await Promise.allSettled(tasks)
       const anyStarted = results.some(res => res.status === 'fulfilled' && res.value === 'started')

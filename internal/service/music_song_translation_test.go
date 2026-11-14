@@ -118,29 +118,65 @@ func TestParseAndValidateSongTranslationResp(t *testing.T) {
 	}
 
 	// 模型未按目标语种脚本返回时（如 en 目标返回纯中文）应被 isValidSongMetaScript / sanitize 过滤为空
-	title, artists, err := parseSongTranslationResponse(
-		`{"title":"你好世界","artists":["周杰伦"]}`,
+	title, aliases, artists, err := parseSongTranslationResponse(
+		`{"title":"你好世界","aliases":["副标题"],"artists":["周杰伦"]}`,
 		"Hello World",
+		[]string{"Subtitle"},
 		[]string{"Jay Chou"},
 		"en",
 	)
 	if err != nil {
 		t.Fatalf("parseSongTranslationResponse err = %v", err)
 	}
-	if title != "" || len(artists) != 1 || artists[0] != "" {
-		t.Fatalf("expected invalid script translations filtered, got title=%q artists=%+v", title, artists)
+	if title != "" || len(aliases) != 1 || aliases[0] != "" || len(artists) != 1 || artists[0] != "" {
+		t.Fatalf("expected invalid script translations filtered, got title=%q aliases=%+v artists=%+v", title, aliases, artists)
 	}
 
-	title2, artists2, err := parseSongTranslationResponse(
-		`{"title":"ハロー・ワールド","artists":["ジェイ・チョウ"]}`,
+	title2, aliases2, artists2, err := parseSongTranslationResponse(
+		`{"title":"ハロー・ワールド","aliases":["ゲーム『原神』記念曲"],"artists":["ジェイ・チョウ"]}`,
 		"Hello World",
+		[]string{"游戏《原神》纪念曲"},
 		[]string{"Jay Chou"},
 		"ja",
 	)
 	if err != nil {
 		t.Fatalf("parseSongTranslationResponse ja err = %v", err)
 	}
-	if title2 != "ハロー・ワールド" || len(artists2) != 1 || artists2[0] != "ジェイ・チョウ" {
-		t.Fatalf("valid ja meta = (%q, %+v)", title2, artists2)
+	if title2 != "ハロー・ワールド" || len(aliases2) != 1 || aliases2[0] != "ゲーム『原神』記念曲" || len(artists2) != 1 || artists2[0] != "ジェイ・チョウ" {
+		t.Fatalf("valid ja meta = (%q, %+v, %+v)", title2, aliases2, artists2)
+	}
+
+	// 英文主歌名带中文 aliases 副标题时，en 目标语言不应跳过翻译，且能持久化与返回译后的 aliases
+	if songMetaAndAliasesAlreadyInTargetLang("Rubia", []string{"游戏《原神》2021拜年纪同人曲"}, []string{"Zhou Shen"}, "en") {
+		t.Fatal("english title with Chinese alias should trigger translation under en")
+	}
+	track := dto.MusicTrackDto{
+		ID:      603,
+		Name:    "让风告诉你",
+		Aliases: []string{"游戏《原神》2021拜年纪同人曲"},
+		Artists: []string{"花玲", "喵☆酱"},
+	}
+	setupMusicTranslationEnv(t, []dto.MusicTrackDto{track})
+	var gotSys atomic.Value
+	_, wait := stubSongTranslationService(t, func(system, _ string) (string, error) {
+		gotSys.Store(system)
+		return `{"title":"Let the Wind Tell You","aliases":["Genshin Impact 2021 New Year Fan Song"],"artists":["Hualing","Miaojiang"]}`, nil
+	})
+	s := NewMusicService()
+	ctx := context.Background()
+	first, svcerr := s.GetSongTranslationMeta(ctx, 603, "en")
+	if svcerr != nil || first.Status != "pending" {
+		t.Fatalf("alias song first get = %+v, err=%v", first, svcerr)
+	}
+	wait()
+	if !strings.Contains(gotSys.Load().(string), "Genshin Impact") {
+		t.Fatalf("song system prompt should mention standard game proper noun guidance")
+	}
+	ready, svcerr := s.GetSongTranslationMeta(ctx, 603, "en")
+	if svcerr != nil || ready.Status != "ready" || ready.Title != "Let the Wind Tell You" {
+		t.Fatalf("alias song ready = %+v, err=%v", ready, svcerr)
+	}
+	if len(ready.Aliases) != 1 || ready.Aliases[0] != "Genshin Impact 2021 New Year Fan Song" {
+		t.Fatalf("expected translated aliases persisted, got %+v", ready.Aliases)
 	}
 }

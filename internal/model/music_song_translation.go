@@ -10,6 +10,7 @@ type MusicSongTranslation struct {
 	TargetLang string    `gorm:"type:varchar(16);not null;uniqueIndex:idx_music_song_translation_key,priority:2"`
 	MetaHash   string    `gorm:"type:varchar(64);not null"`
 	Title      string    `gorm:"type:varchar(512);not null;default:''"`
+	Aliases    string    `gorm:"type:text;not null;default:'[]'"`
 	Artists    string    `gorm:"type:text;not null;default:'[]'"`
 	Model      string    `gorm:"type:varchar(128)"`
 	CreatedAt  time.Time `gorm:"index"`

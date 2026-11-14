@@ -1,6 +1,6 @@
 import type { ResolvedLyrics } from './types'
 import { describe, expect, it } from 'vitest'
-import { applyLyricSingers } from './apply-singers'
+import { applyLyricSingers, canResolveLyricSingers } from './apply-singers'
 import {
   applyPronunciationsAndFilter,
   buildRomanWordsFromAiTokens,
@@ -8,6 +8,7 @@ import {
   extractPronounceableWordIndices,
   shouldHideSameLangPronunciation,
 } from './lyric-pronunciation'
+import { parseTtml } from './parse-ttml'
 import { formatDisplayArtists, formatInlineSongTitle, formatTitleAliases } from './song-meta-format'
 
 describe('aI 歌词读音对齐与同语言显隐', () => {
@@ -182,7 +183,158 @@ describe('独立演唱者声部与曲名歌手译名格式化', () => {
     expect(formatTitleAliases('Lemon', ['柠檬', 'lemon'], '柠檬', true)).toBe('柠檬')
     expect(formatInlineSongTitle('打ち上げ花火', ['打上花火'], '升空焰火', true)).toBe('打ち上げ花火 (升空焰火, 打上花火)')
     expect(formatInlineSongTitle('打ち上げ花火', [], '升空焰火', false)).toBe('打ち上げ花火')
+    expect(formatTitleAliases('让风告诉你', ['游戏《原神》2021拜年纪同人曲'], 'Let the Wind Tell You', true, ['Genshin Impact 2021 New Year Fan Song'])).toBe('Let the Wind Tell You, Genshin Impact 2021 New Year Fan Song')
+    expect(formatInlineSongTitle('紫荆花盛开', ['香港回归25周年主题曲'], 'Bauhinia in Full Bloom', true, ['Theme Song for the 25th Anniversary of Hong Kong\'s Return'])).toBe('紫荆花盛开 (Bauhinia in Full Bloom, Theme Song for the 25th Anniversary of Hong Kong\'s Return)')
+    expect(formatTitleAliases('让风告诉你', ['游戏《原神》2021拜年纪同人曲'], 'Let the Wind Tell You', false, ['Genshin Impact 2021 New Year Fan Song'])).toBe('游戏《原神》2021拜年纪同人曲')
     expect(formatDisplayArtists(['米津玄師', 'DAOKO'], ['米津玄师', 'DAOKO'], true)).toEqual(['米津玄師 (米津玄师)', 'DAOKO'])
     expect(formatDisplayArtists(['米津玄師'], ['米津玄师'], false)).toEqual(['米津玄師'])
+  })
+
+  it('tTML 显式声部对齐与 x-bg 对齐不被后端翻转且保留注音空格与闽南语显示', () => {
+    const ttml = `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata" xmlns:ttd="http://www.example.com/ttd">
+<head><metadata>
+  <ttm:agent xml:id="v1" type="person"><ttm:name>筱白白</ttm:name></ttm:agent>
+  <ttm:agent xml:id="v2" type="other"><ttm:name>念白</ttm:name></ttm:agent>
+</metadata></head>
+<body><div>
+  <p begin="00:01.000" end="00:03.000" ttm:agent="v2">天干物燥</p>
+  <p begin="00:04.000" end="00:07.000" ttm:agent="v1">明月爬阁楼<span ttm:role="x-bg" ttm:agent="v2" ttd:position="right">(小心嗯哼)</span></p>
+</div></body></tt>`
+
+    const parsed = parseTtml(ttml, 'ttml-amll')
+    expect(parsed).not.toBeNull()
+    const merged = applyLyricSingers(parsed!, {
+      status: 'ready',
+      source: 'ttml-amll',
+      singers: [
+        { id: 'v2', name: '念白', role: 'person', align: 'left' },
+        { id: 'v1', name: '筱白白', role: 'person', align: 'right' },
+      ],
+      translatedNames: { v1: 'Xiao Baibai', v2: 'Narrator' },
+      lines: [
+        { text: '天干物燥', occurrence: 0, bg: false, agent: 'v2' },
+        { text: '明月爬阁楼', occurrence: 0, bg: false, agent: 'v1' },
+        { text: '(小心嗯哼)', occurrence: 0, bg: true, agent: 'v2' },
+      ],
+    }, true)
+
+    expect(merged.lines[0]).toMatchObject({ align: 'right', isDuet: true, agent: 'v2' })
+    expect(merged.lines[1]).toMatchObject({ align: 'left', isDuet: false, agent: 'v1' })
+    expect(merged.lines[2]).toMatchObject({ align: 'right', isDuet: true, isBackground: true, agent: 'v2' })
+    expect(merged.agents?.v1?.name).toBe('筱白白 (Xiao Baibai)')
+    expect(merged.agents?.v2?.name).toBe('念白 (Narrator)')
+
+    const zhTwWords = [
+      { text: '朋', start: 1000, end: 1500 },
+      { text: '友', start: 1500, end: 2000 },
+      { text: '们', start: 2000, end: 2500 },
+    ]
+    const zhTwSpanFallback = buildRomanWordsFromAiTokens(zhTwWords, undefined, 'ㄆㄥˊ ㄧㄡˇ ˙ㄇㄣ')
+    expect(zhTwSpanFallback?.map(item => item.text)).toEqual(['ㄆㄥˊ ', 'ㄧㄡˇ ', '˙ㄇㄣ'])
+
+    const hokkienLyrics: ResolvedLyrics = {
+      source: 'ncm-lrc',
+      wordTimed: false,
+      instrumental: false,
+      lines: [
+        { words: [{ text: '毋知影是啥物滋味 袂记咧', start: 1000, end: 4000 }], start: 1000, end: 4000, isDuet: false, isBackground: false },
+      ],
+    }
+    expect(canAiPronounceLyrics(hokkienLyrics, 'zh')).toBe(true)
+    expect(canAiPronounceLyrics(hokkienLyrics, 'zh-tw')).toBe(true)
+    const hokkienPron = {
+      status: 'ready' as const,
+      source: 'ncm-lrc',
+      lang: 'other',
+      lines: [
+        { text: '毋知影是啥物滋味 袂记咧', occurrence: 0, bg: false, lang: 'other', pronunciation: 'm̄ tsai-iánn sī siánn-mih tsu-bī buē-kì-leh' },
+      ],
+    }
+    expect(applyPronunciationsAndFilter(hokkienLyrics, 'zh', hokkienPron).lines[0].romanization).toBe('m̄ tsai-iánn sī siánn-mih tsu-bī buē-kì-leh')
+    expect(applyPronunciationsAndFilter(hokkienLyrics, 'zh-tw', hokkienPron).lines[0].romanization).toBe('m̄ tsai-iánn sī siánn-mih tsu-bī buē-kì-leh')
+  })
+
+  it('仅具名/多声部 TTML、显式段落提示或具备多人/企划特征时才允许触发声部归属查询', () => {
+    const soloPlainLyrics: ResolvedLyrics = {
+      source: 'qq-qrc',
+      wordTimed: true,
+      instrumental: false,
+      lines: [
+        { words: [{ text: '窗外的麻雀', start: 1000, end: 3000 }], start: 1000, end: 3000, isDuet: false, isBackground: false },
+      ],
+    }
+    expect(canResolveLyricSingers(soloPlainLyrics, { name: '七里香', artists: ['周杰伦'] })).toBe(false)
+
+    const qqDuetLyrics: ResolvedLyrics = {
+      source: 'qq-qrc',
+      wordTimed: true,
+      instrumental: false,
+      lines: [
+        { words: [{ text: 'Поплыли туманы над рекой', start: 1000, end: 3000 }], start: 1000, end: 3000, isDuet: false, isBackground: false },
+        { words: [{ text: 'Выходила на берег Катюша', start: 4000, end: 6000 }], start: 4000, end: 6000, isDuet: false, isBackground: false },
+      ],
+    }
+    expect(canResolveLyricSingers(qqDuetLyrics, { name: 'カチューシャ', artists: ['上坂すみれ', '金元寿子'] })).toBe(true)
+
+    const genshinProjectLyrics: ResolvedLyrics = {
+      source: 'ncm-lrc',
+      wordTimed: false,
+      instrumental: false,
+      lines: [
+        { words: [{ text: '第一句歌词', start: 1000, end: 3000 }], start: 1000, end: 3000, isDuet: false, isBackground: false },
+      ],
+    }
+    expect(canResolveLyricSingers(genshinProjectLyrics, { name: '经过', artists: ['HOYO-MiX'], album: '原神-经过' })).toBe(true)
+
+    const singleUnnamedTtml: ResolvedLyrics = {
+      source: 'ttml-amll',
+      wordTimed: false,
+      instrumental: false,
+      agents: {
+        v1: { id: 'v1', color: 'sky' },
+      },
+      lines: [
+        { words: [{ text: '天干物燥', start: 1000, end: 3000 }], start: 1000, end: 3000, isDuet: false, isBackground: false, agent: 'v1' },
+      ],
+    }
+    expect(canResolveLyricSingers(singleUnnamedTtml)).toBe(false)
+
+    const unnamedMultiTtml: ResolvedLyrics = {
+      ...singleUnnamedTtml,
+      agents: {
+        v1: { id: 'v1', color: 'sky' },
+        v2: { id: 'v2', color: 'rose' },
+      },
+    }
+    expect(canResolveLyricSingers(unnamedMultiTtml)).toBe(true)
+
+    const namedTtmlLyrics: ResolvedLyrics = {
+      ...singleUnnamedTtml,
+      agents: {
+        v1: { id: 'v1', name: '筱白白', color: 'sky' },
+      },
+    }
+    expect(canResolveLyricSingers(namedTtmlLyrics)).toBe(true)
+
+    const lrcInlineCueLyrics: ResolvedLyrics = {
+      source: 'ncm-lrc',
+      wordTimed: false,
+      instrumental: false,
+      lines: [
+        { words: [{ text: '男：给你一张过去的CD', start: 1000, end: 3000 }], start: 1000, end: 3000, isDuet: false, isBackground: false },
+      ],
+    }
+    expect(canResolveLyricSingers(lrcInlineCueLyrics)).toBe(true)
+
+    const lrcSectionCueLyrics: ResolvedLyrics = {
+      source: 'ncm-lrc',
+      wordTimed: false,
+      instrumental: false,
+      lines: [
+        { words: [{ text: '【王菲】', start: 1000, end: 1500 }], start: 1000, end: 1500, isDuet: false, isBackground: false },
+        { words: [{ text: '听听那时我们的爱情', start: 2000, end: 4000 }], start: 2000, end: 4000, isDuet: false, isBackground: false },
+      ],
+    }
+    expect(canResolveLyricSingers(lrcSectionCueLyrics)).toBe(true)
   })
 })

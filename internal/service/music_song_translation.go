@@ -66,6 +66,7 @@ type songTranslationInput struct {
 
 type songTranslationModelResp struct {
 	Title   string   `json:"title"`
+	Aliases []string `json:"aliases"`
 	Artists []string `json:"artists"`
 }
 
@@ -80,6 +81,7 @@ func (s *MusicService) GetSongTranslationMeta(ctx context.Context, id int64, lan
 			Status:       lyricTranslationStatusReady,
 			TargetLang:   input.TargetLang,
 			SameLanguage: true,
+			Aliases:      make([]string, len(input.Track.Aliases)),
 			Artists:      make([]string, len(input.Track.Artists)),
 		}, nil
 	}
@@ -97,6 +99,7 @@ func (s *MusicService) RefreshSongTranslationMeta(ctx context.Context, id int64,
 			Status:       lyricTranslationStatusReady,
 			TargetLang:   input.TargetLang,
 			SameLanguage: true,
+			Aliases:      make([]string, len(input.Track.Aliases)),
 			Artists:      make([]string, len(input.Track.Artists)),
 		}, nil
 	}
@@ -140,23 +143,33 @@ func (s *MusicService) prepareSongTranslation(ctx context.Context, id int64, raw
 	input := &songTranslationInput{
 		Track:       &copied,
 		TargetLang:  targetLang,
-		MetaHash:    computeSongMetaHash(copied.Name, copied.Artists),
+		MetaHash:    computeSongMetaHash(copied.Name, copied.Aliases, copied.Artists),
 		ArtistHints: hints.ArtistHints,
 	}
-	sameLang := songMetaAlreadyInTargetLang(copied.Name, copied.Artists, targetLang)
+	sameLang := songMetaAndAliasesAlreadyInTargetLang(copied.Name, copied.Aliases, copied.Artists, targetLang)
 	return input, sameLang, nil
 }
 
-func computeSongMetaHash(title string, artists []string) string {
-	sum := sha256.Sum256([]byte(strings.TrimSpace(title) + "\n" + strings.Join(artists, "\x1f")))
+func computeSongMetaHash(title string, aliases, artists []string) string {
+	sum := sha256.Sum256([]byte("v2\n" + strings.TrimSpace(title) + "\n" + strings.Join(aliases, "\x1f") + "\n" + strings.Join(artists, "\x1f")))
 	return hex.EncodeToString(sum[:])
 }
 
-// songMetaAlreadyInTargetLang 判断歌名与全部歌手名是否已完全处于目标语言（避免无意义的模型调用）
+// songMetaAlreadyInTargetLang 判断歌名与歌手名是否已完全处于目标语言（供歌手翻译等调用方复用）
 func songMetaAlreadyInTargetLang(title string, artists []string, targetLang string) bool {
-	texts := make([]string, 0, 1+len(artists))
+	return songMetaAndAliasesAlreadyInTargetLang(title, nil, artists, targetLang)
+}
+
+// songMetaAndAliasesAlreadyInTargetLang 判断歌名、副标题与全部歌手名是否已完全处于目标语言（避免无意义的模型调用）
+func songMetaAndAliasesAlreadyInTargetLang(title string, aliases, artists []string, targetLang string) bool {
+	texts := make([]string, 0, 1+len(aliases)+len(artists))
 	if t := strings.TrimSpace(title); t != "" {
 		texts = append(texts, t)
+	}
+	for _, al := range aliases {
+		if t := strings.TrimSpace(al); t != "" {
+			texts = append(texts, t)
+		}
 	}
 	for _, a := range artists {
 		if t := strings.TrimSpace(a); t != "" {
@@ -223,13 +236,13 @@ func (a *songTranslationService) getOrStart(input *songTranslationInput) (*dto.M
 		return nil, errs.Internal("failed_to_get_target", err)
 	}
 	if err == nil && record.MetaHash == input.MetaHash {
-		artists := parseSongTranslatedArtists(record.Artists, len(input.Track.Artists))
 		return &dto.MusicSongTranslationDto{
 			Status:     lyricTranslationStatusReady,
 			Stale:      running,
 			TargetLang: input.TargetLang,
 			Title:      record.Title,
-			Artists:    artists,
+			Aliases:    parseSongTranslatedList(record.Aliases, len(input.Track.Aliases)),
+			Artists:    parseSongTranslatedArtists(record.Artists, len(input.Track.Artists)),
 		}, nil
 	}
 
@@ -245,12 +258,14 @@ func (a *songTranslationService) getOrStart(input *songTranslationInput) (*dto.M
 				Stale:      true,
 				TargetLang: input.TargetLang,
 				Title:      record.Title,
+				Aliases:    parseSongTranslatedList(record.Aliases, len(input.Track.Aliases)),
 				Artists:    parseSongTranslatedArtists(record.Artists, len(input.Track.Artists)),
 			}, nil
 		}
 		return &dto.MusicSongTranslationDto{
 			Status:     lyricTranslationStatusPending,
 			TargetLang: input.TargetLang,
+			Aliases:    make([]string, len(input.Track.Aliases)),
 			Artists:    make([]string, len(input.Track.Artists)),
 		}, nil
 	}
@@ -264,6 +279,7 @@ func (a *songTranslationService) getOrStart(input *songTranslationInput) (*dto.M
 	return &dto.MusicSongTranslationDto{
 		Status:     lyricTranslationStatusPending,
 		TargetLang: input.TargetLang,
+		Aliases:    make([]string, len(input.Track.Aliases)),
 		Artists:    make([]string, len(input.Track.Artists)),
 	}, nil
 }
@@ -281,12 +297,14 @@ func (a *songTranslationService) refresh(input *songTranslationInput, cfg tools.
 			Stale:      true,
 			TargetLang: input.TargetLang,
 			Title:      record.Title,
+			Aliases:    parseSongTranslatedList(record.Aliases, len(input.Track.Aliases)),
 			Artists:    parseSongTranslatedArtists(record.Artists, len(input.Track.Artists)),
 		}
 	}
 	return &dto.MusicSongTranslationDto{
 		Status:     lyricTranslationStatusPending,
 		TargetLang: input.TargetLang,
+		Aliases:    make([]string, len(input.Track.Aliases)),
 		Artists:    make([]string, len(input.Track.Artists)),
 	}
 }
@@ -318,18 +336,20 @@ func (a *songTranslationService) execute(lease *sharedstate.Lease, input *songTr
 		}
 	}()
 
-	title, artists, err := a.generate(cfg, input)
+	title, aliases, artists, err := a.generate(cfg, input)
 	if err != nil {
 		logrus.Warnf("song translation failed for song %d (%s): %v", input.Track.ID, input.TargetLang, err)
 		jobErr = err
 		return
 	}
+	aliasesJSON, _ := json.Marshal(aliases)
 	artistsJSON, _ := json.Marshal(artists)
 	record := &model.MusicSongTranslation{
 		SongID:     input.Track.ID,
 		TargetLang: input.TargetLang,
 		MetaHash:   input.MetaHash,
 		Title:      title,
+		Aliases:    string(aliasesJSON),
 		Artists:    string(artistsJSON),
 		Model:      cfg.Model,
 		CreatedAt:  time.Now(),
@@ -337,7 +357,7 @@ func (a *songTranslationService) execute(lease *sharedstate.Lease, input *songTr
 	}
 	upsert := clause.OnConflict{
 		Columns:   []clause.Column{{Name: "song_id"}, {Name: "target_lang"}},
-		DoUpdates: clause.AssignmentColumns([]string{"meta_hash", "title", "artists", "model", "updated_at"}),
+		DoUpdates: clause.AssignmentColumns([]string{"meta_hash", "title", "aliases", "artists", "model", "updated_at"}),
 	}
 	if dbErr := repo.GetDB().Clauses(upsert).Create(record).Error; dbErr != nil {
 		logrus.Errorf("save song translation for song %d (%s) failed: %v", input.Track.ID, input.TargetLang, dbErr)
@@ -345,7 +365,7 @@ func (a *songTranslationService) execute(lease *sharedstate.Lease, input *songTr
 	}
 }
 
-func (a *songTranslationService) generate(cfg tools.AIConfig, input *songTranslationInput) (string, []string, error) {
+func (a *songTranslationService) generate(cfg tools.AIConfig, input *songTranslationInput) (string, []string, []string, error) {
 	_ = a.limiter.AcquireTier(context.Background(), a.concurrency, llmclient.TierFirstScreen, nil)
 	defer a.limiter.Release()
 
@@ -356,30 +376,30 @@ func (a *songTranslationService) generate(cfg tools.AIConfig, input *songTransla
 	user := buildSongTranslationUserPrompt(input)
 	raw, err := a.complete(ctx, cfg, system, user)
 	if err != nil {
-		return "", nil, err
+		return "", nil, nil, err
 	}
-	return parseSongTranslationResponse(raw, input.Track.Name, input.Track.Artists, input.TargetLang)
+	return parseSongTranslationResponse(raw, input.Track.Name, input.Track.Aliases, input.Track.Artists, input.TargetLang)
 }
 
 func buildSongTranslationSystemPrompt(targetLang string) string {
 	targetDesc := lyricTranslateLanguages[targetLang]
 	var b strings.Builder
-	b.WriteString("You localize song titles and artist names strictly according to established naming conventions.\n")
+	b.WriteString("You localize song titles, subtitle aliases, and artist names strictly according to established proper-noun naming conventions.\n")
 	b.WriteString(fmt.Sprintf("Target language: %s (code: %s).\n\n", targetDesc, targetLang))
 	b.WriteString("STRICT NAMING PRINCIPLE (MUST OBEY):\n")
-	b.WriteString("1. NEVER invent or fabricate literal/semantic translations for a song title or an artist name!\n")
-	b.WriteString("2. First priority — established / publicly recognized localized name:\n")
-	b.WriteString("   - If there is an officially released or widely established localized name in the target language/region (e.g. from track aliases/artist_hints or well-known official discography titles), use that exact established name.\n")
-	b.WriteString("   - Respect regional Traditional Chinese artist/song conventions when targetLang is zh-tw vs zh-hk (e.g. Taylor Swift -> zh: 泰勒·斯威夫特, zh-tw: 泰勒絲; Adele -> zh: 阿黛尔, zh-tw: 愛黛兒; 周杰伦 -> zh-tw/zh-hk: 周杰倫, en: Jay Chou, ja: ジェイ・チョウ, ko: 주걸륜).\n")
-	b.WriteString("   - If an artist/song in target_lang is canonically referred to by its original name (e.g. YOASOBI, RADWIMPS, Aimer, or an English song title officially kept as-is), return \"\" (empty string) for that item.\n")
-	b.WriteString("3. Second priority — phonetic transliteration ONLY when no recognized translation exists:\n")
-	b.WriteString("   - Only when an item is in a foreign script not readable directly in target_lang AND has no established translation, transliterate it phonetically into target_lang's writing system (Katakana for ja, Hangul for ko, Latin romanization for en, standard phonetic Hanzi for zh/zh-tw/zh-hk — do NOT translate proper names word-for-word semantically).\n")
+	b.WriteString("1. Proper nouns & established names FIRST — NEVER invent arbitrary names for artists, works, or proper nouns:\n")
+	b.WriteString("   - Real or fictional places, games, anime/films, famous people, books, and song titles MUST use their publicly recognized official names in target_lang (e.g. 《原神》 -> \"Genshin Impact\", 《崩坏3》 -> \"Honkai Impact 3rd\", Taylor Swift -> zh: 泰勒·斯威夫特, zh-tw: 泰勒絲; Adele -> zh: 阿黛尔, zh-tw: 愛黛兒; 周杰伦 -> zh-tw/zh-hk: 周杰倫, en: Jay Chou, ja: ジェイ・チョウ, ko: 주걸륜).\n")
+	b.WriteString("   - For song title & artist names, consult input \"aliases\" / \"artist_hints\" and canonical discography titles; if canonically kept as-is in target_lang (e.g. YOASOBI, RADWIMPS, Aimer, or an English title kept untranslated), return \"\".\n")
+	b.WriteString("   - ONLY when no recognized official translation exists: for artists, transliterate phonetically into target_lang's script rather than literally translating personal names; for descriptive subtitles/words without official names, translate accurately and idiomatically into target_lang.\n")
+	b.WriteString("2. Parenthetical descriptions inside \"title\" & subtitle \"aliases\":\n")
+	b.WriteString("   - If \"title\" itself includes a parenthetical description or edition tag (e.g. \"让风告诉你 (游戏《原神》2021拜年纪同人曲)\", \"Title (游戏《…》主题曲)\", \"Title (Movie OST)\"), translate BOTH the song title (when appropriate/recognized) AND the descriptive text inside parentheses accurately and concisely into target_lang following the proper-noun rules above.\n")
+	b.WriteString("   - Input \"aliases\" may hold descriptive subtitles or alternate names (e.g. \"游戏《原神》2021拜年纪同人曲\", \"香港回归25周年主题曲\"). Translate each item in \"aliases\" into natural, concise target_lang using official game/work/event names; return \"\" for any alias element already written naturally in target_lang or identical to your translated \"title\".\n")
+	b.WriteString("3. Script accuracy:\n")
 	b.WriteString("   - For CJK -> zh-tw/zh-hk or Traditional -> zh, perform accurate regional orthography conversion if characters differ (e.g. 周杰伦 -> 周杰倫), returning \"\" if already identical in target_lang.\n")
 	b.WriteString("4. Output constraints:\n")
 	b.WriteString("   - Never return an identical copy of the input string; return \"\" instead.\n")
-	b.WriteString("   - Keep parenthetical subtitle/feat info concise or omit redundant decorations.\n")
-	b.WriteString("   - Output \"artists\" array with EXACTLY the same length and order as input \"artists\".\n")
-	b.WriteString("   - Output strictly one valid JSON object: {\"title\":\"<string>\",\"artists\":[\"<string>\",...]}. No markdown fences.\n")
+	b.WriteString("   - Output \"aliases\" and \"artists\" arrays with EXACTLY the same lengths and orders as input \"aliases\" and \"artists\".\n")
+	b.WriteString("   - Output strictly one valid JSON object: {\"title\":\"<string>\",\"aliases\":[\"<string>\",...],\"artists\":[\"<string>\",...]}. No markdown fences.\n")
 	return b.String()
 }
 
@@ -403,23 +423,34 @@ func buildSongTranslationUserPrompt(input *songTranslationInput) string {
 	return string(raw)
 }
 
-func parseSongTranslationResponse(raw, origTitle string, origArtists []string, targetLang string) (string, []string, error) {
+func parseSongTranslationResponse(raw, origTitle string, origAliases, origArtists []string, targetLang string) (string, []string, []string, error) {
 	obj, err := extractJSONObject(raw)
 	if err != nil {
-		return "", nil, err
+		return "", nil, nil, err
 	}
 	var parsed songTranslationModelResp
 	if err := json.Unmarshal([]byte(obj), &parsed); err != nil {
-		return "", nil, err
+		return "", nil, nil, err
 	}
-	title := sanitizeSongMetaItem(origTitle, parsed.Title, targetLang, 120)
+	title := sanitizeSongMetaItem(origTitle, parsed.Title, targetLang, 160)
+	normTitle := normalizeLyricMatch(title)
+	aliases := make([]string, len(origAliases))
+	for i, origAlias := range origAliases {
+		if i < len(parsed.Aliases) {
+			clean := sanitizeSongMetaItem(origAlias, parsed.Aliases[i], targetLang, 160)
+			if normTitle != "" && normalizeLyricMatch(clean) == normTitle {
+				clean = ""
+			}
+			aliases[i] = clean
+		}
+	}
 	artists := make([]string, len(origArtists))
 	for i, origArtist := range origArtists {
 		if i < len(parsed.Artists) {
 			artists[i] = sanitizeSongMetaItem(origArtist, parsed.Artists[i], targetLang, 80)
 		}
 	}
-	return title, artists, nil
+	return title, aliases, artists, nil
 }
 
 func sanitizeSongMetaItem(orig, translated, targetLang string, maxRunes int) string {
@@ -477,7 +508,7 @@ func isValidSongMetaScript(orig, tr, targetLang string) bool {
 	}
 }
 
-func parseSongTranslatedArtists(raw string, count int) []string {
+func parseSongTranslatedList(raw string, count int) []string {
 	var parsed []string
 	if strings.TrimSpace(raw) != "" {
 		_ = json.Unmarshal([]byte(raw), &parsed)
@@ -487,4 +518,8 @@ func parseSongTranslatedArtists(raw string, count int) []string {
 		out[i] = parsed[i]
 	}
 	return out
+}
+
+func parseSongTranslatedArtists(raw string, count int) []string {
+	return parseSongTranslatedList(raw, count)
 }

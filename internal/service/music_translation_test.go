@@ -779,3 +779,75 @@ func TestClassicalChineseAndHintCreditLines(t *testing.T) {
 		t.Fatalf("hint translation should keep colon attribution intact: %+v", ready.Lines)
 	}
 }
+
+func TestConlangRefBorrowingWithOffsetAndPromptRules(t *testing.T) {
+	// 含偶发单字母词的拉丁字母造语（如 LaVI-Bavellabion）不得误判为 en
+	conlangLines := []string{
+		"LaVI-Bavellabion",
+		"A kalima sora no mi",
+		"Feli vanna doris",
+	}
+	if got := detectLyricTextLang(conlangLines, ""); got != "other" {
+		t.Fatalf("conlang lines = %q, want other", got)
+	}
+	if songAlreadyInTargetLang(conlangLines, "en") {
+		t.Fatal("conlang lines should not skip en translation")
+	}
+
+	// 验证 system prompt 包含造语参考、疑难文化注释、跨句串句、特有名词规范及情感保留指令，且不再禁用括号注释
+	sys := buildLyricTranslationSystemPrompt("en", true)
+	for _, want := range []string{"LaVI-Bavellabion", "kawaii (cute)", "Genshin Impact", "春风吹不倒", "parenthetical"} {
+		if !strings.Contains(sys, want) {
+			t.Fatalf("system prompt missing %q", want)
+		}
+	}
+	if strings.Contains(sys, "Do not add parenthetical notes") {
+		t.Fatal("system prompt should allow concise parenthetical notes for difficult cultural terms")
+	}
+
+	// 验证 TTML 造语歌词与 NCM 偏移 3 秒时仍能按原文归一化匹配借到中文参考译文，并在 en 下完成翻译
+	track := dto.MusicTrackDto{ID: 503, Name: "LaVI-Bavellabion", Artists: []string{"Fictional"}}
+	setupMusicTranslationEnv(t, []dto.MusicTrackDto{track})
+	stubLyricSources(t, map[string]lyricSourceResult{
+		"ttml": {
+			data: &dto.MusicTTMLDto{
+				Source: musicTTMLSourceAMLL,
+				TTML:   `<tt xmlns="http://www.w3.org/ns/ttml"><body><div><p begin="00:05.000" end="00:08.000">LaVI-Bavellabion</p><p begin="00:11.000" end="00:14.000">Kala miya doris</p></div></body></tt>`,
+			},
+			outcome: lyricOutcomeHit,
+		},
+		"ncm": {
+			data: &dto.MusicLyricDto{
+				Lrc:    lyricPart("[00:02.00]LaVI-Bavellabion\n[00:08.00]Kala miya doris\n"),
+				Tlyric: lyricPart("[00:02.00]圣光启迪万物\n[00:08.00]静候晨曦破晓\n"),
+			},
+			outcome: lyricOutcomeHit,
+		},
+	})
+
+	var gotUser atomic.Value
+	calls, wait := stubLyricTranslationService(t, func(_, user string) (string, error) {
+		gotUser.Store(user)
+		return `{"lines":[{"i":1,"t":"Sacred light awakens all things"},{"i":2,"t":"Awaiting the break of dawn"}]}`, nil
+	})
+
+	s := NewMusicService()
+	ctx := context.Background()
+	res, svcerr := s.GetLyricTranslations(ctx, 503, "ttml-amll", "en")
+	if svcerr != nil || res.Status != "pending" {
+		t.Fatalf("first get = %+v, err=%v", res, svcerr)
+	}
+	wait()
+
+	prompt := gotUser.Load().(string)
+	if !strings.Contains(prompt, `"ref":"圣光启迪万物"`) || !strings.Contains(prompt, `"ref":"静候晨曦破晓"`) {
+		t.Fatalf("offset donor ref should be matched via text fallback: %s", prompt)
+	}
+	ready, svcerr := s.GetLyricTranslations(ctx, 503, "ttml-amll", "en")
+	if svcerr != nil || ready.Status != "ready" || ready.SameLanguage || calls.Load() != 1 {
+		t.Fatalf("ready = %+v, err=%v, calls=%d", ready, svcerr, calls.Load())
+	}
+	if len(ready.Lines) != 2 || ready.Lines[0].Translation != "Sacred light awakens all things" {
+		t.Fatalf("unexpected translated conlang lines: %+v", ready.Lines)
+	}
+}

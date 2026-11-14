@@ -130,18 +130,19 @@ export function requestLyricSingers(
   void loadSingers(id, source, lang, false)
 }
 
-/** 管理员手动重新生成指定词源的演唱者 / 声部标注与当前语言歌手译名 */
+/** 管理员手动重新生成指定词源的演唱者 / 声部标注，或仅刷新当前语言歌手译名 */
 export async function refreshSingers(
   id: number,
   source: string,
   lang: LyricTargetLang | '' = '',
+  translateOnly = false,
 ): Promise<'started' | 'unavailable'> {
   if (!Number.isFinite(id) || id <= 0 || !source || source === 'none')
     return 'unavailable'
   const key = cacheKey(id, source, lang)
   clearRetry(key)
   try {
-    const res = await refreshLyricSingers(id, source as LyricSource, lang || undefined)
+    const res = await refreshLyricSingers(id, source as LyricSource, lang || undefined, translateOnly)
     const generating = res.status === 'pending' || Boolean(res.stale) || Boolean(res.translationPending)
     const prev = cache.get(key)
     setEntry(key, id, source, {

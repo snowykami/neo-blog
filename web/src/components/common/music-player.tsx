@@ -496,7 +496,7 @@ export function MiniPlayer({ onOpenPage }: { onOpenPage?: () => void }) {
   if (!currentTrack)
     return null
 
-  const titleExtra = formatTitleAliases(currentTrack.name, currentTrack.aliases, meta?.title, showTranslation)
+  const titleExtra = formatTitleAliases(currentTrack.name, currentTrack.aliases, meta?.title, showTranslation, meta?.aliases)
   const displayArtists = formatDisplayArtists(currentTrack.artists, meta?.artists, showTranslation)
 
   return (
