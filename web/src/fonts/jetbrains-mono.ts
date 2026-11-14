@@ -1,7 +1,7 @@
 import localFont from 'next/font/local'
 
 // 控制台「系统运行」用的等宽字体：随仓库提供的 Google Fonts 文件（SIL OFL 1.1，许可证见 ./jetbrains-mono/OFL.txt），
-// 每个子集一个可变字体文件，覆盖原来用到的 400–700 四个字重。字体族名、子集划分、预加载与声明顺序同 ./index.ts 的说明
+// 每个子集一个可变字体文件，覆盖原来用到的 400–700 四个字重。字体族名、子集划分、预加载与声明顺序同 ./fonts.css 的说明
 
 export const jetBrainsMonoCyrillicExt = localFont({
   src: './jetbrains-mono/jetbrains-mono-cyrillic-ext.woff2',

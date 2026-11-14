@@ -1,7 +1,7 @@
 /* =========================================================================
  * 正文基础样式（即默认主题「轻雪」）
  * 作用于带 content-body 类名的正文容器：前台文章 / 页面正文与编辑器（.tiptap.ProseMirror）。
- * 正文同时使用 Tailwind typography 的 prose，它位于 @layer utilities；这里的规则不分层，
+ * 正文同时使用 Tailwind typography 的 prose，它位于 @layer components（见 app/styles/prose.css）；这里的规则不分层，
  * 因此不论选择器优先级都能覆盖 prose，主题（data-content-theme）再以更高的优先级覆盖这里。
  * 组件块（前台 [data-component-root]、编辑器 .neo-component-block）内保持组件自身样式
  * ========================================================================= */

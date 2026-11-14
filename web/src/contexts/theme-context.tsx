@@ -24,6 +24,16 @@ export const THEME_PACK_STORAGE_KEY = 'theme-pack'
 
 const DISABLED_VALUE = 'off'
 
+let effectStylesPromise: Promise<unknown> | null = null
+
+/** 仅在启用了带粒子/背景动效的主题时按需加载动效样式表，普通访客首屏零开销 */
+export function ensureThemeEffectStyles() {
+  effectStylesPromise ??= import('@/themes/effect-styles').catch(() => {
+    effectStylesPromise = null
+  })
+  return effectStylesPromise
+}
+
 interface ThemeContextValue {
   /** 当前实际生效的主题：服务端按日期算出，管理员的预览 cookie 在客户端覆盖 */
   theme: ThemeDefinition | null
@@ -84,6 +94,8 @@ export function ThemeProvider({
     // 预览成具体主题时视为「生效」（管理员就是要看效果），预览「从不使用」则不套
     const active = Boolean(resolved.theme) && (resolved.override || !readStoredDisabled())
     setEnabledState(active)
+    if (active && resolved.theme?.effect)
+      void ensureThemeEffectStyles()
     applyThemeToDocument(active ? resolved.theme : null)
     if (!active)
       clearModeOverride()
@@ -97,6 +109,8 @@ export function ThemeProvider({
   const setEnabled = useCallback((next: boolean) => {
     const active = next && Boolean(activeTheme)
     setEnabledState(active)
+    if (active && activeTheme?.effect)
+      void ensureThemeEffectStyles()
     applyThemeToDocument(active ? activeTheme : null)
     writeStoredDisabled(!active)
     // 节日绑定的明暗由 DeviceProvider 落地：关掉主题时清掉手动覆盖、恢复用户自己的设置

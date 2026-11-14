@@ -1,0 +1,40 @@
+/* 富文本正文排版（@tailwindcss/typography）：仅在文章页、独立页面、隐私政策与编辑器按需引入，不打进首页首屏 */
+@layer theme, base, components, utilities;
+@import 'tailwindcss/utilities.css' layer(components) source(none);
+@plugin "@tailwindcss/typography";
+@custom-variant dark (&:is(.dark *));
+@source inline("prose dark:prose-invert");
+
+/* 正文配色接入设计 token：token 本身已随明暗切换，invert 变量写成相同的值（不能互相引用，否则形成循环） */
+.prose {
+  --tw-prose-body: color-mix(in oklab, var(--foreground) 85%, transparent);
+  --tw-prose-headings: color-mix(in oklab, var(--foreground) 90%, transparent);
+  --tw-prose-lead: color-mix(in oklab, var(--foreground) 75%, transparent);
+  --tw-prose-links: var(--primary);
+  --tw-prose-bold: color-mix(in oklab, var(--foreground) 90%, transparent);
+  --tw-prose-counters: var(--primary);
+  --tw-prose-bullets: var(--primary);
+  --tw-prose-hr: color-mix(in oklab, var(--foreground) 10%, transparent);
+  --tw-prose-quotes: color-mix(in oklab, var(--foreground) 75%, transparent);
+  --tw-prose-quote-borders: var(--primary);
+  --tw-prose-captions: color-mix(in oklab, var(--foreground) 50%, transparent);
+  --tw-prose-kbd: color-mix(in oklab, var(--foreground) 90%, transparent);
+  --tw-prose-code: color-mix(in oklab, var(--foreground) 90%, transparent);
+  --tw-prose-th-borders: color-mix(in oklab, var(--foreground) 15%, transparent);
+  --tw-prose-td-borders: color-mix(in oklab, var(--foreground) 10%, transparent);
+  --tw-prose-invert-body: color-mix(in oklab, var(--foreground) 85%, transparent);
+  --tw-prose-invert-headings: color-mix(in oklab, var(--foreground) 90%, transparent);
+  --tw-prose-invert-lead: color-mix(in oklab, var(--foreground) 75%, transparent);
+  --tw-prose-invert-links: var(--primary);
+  --tw-prose-invert-bold: color-mix(in oklab, var(--foreground) 90%, transparent);
+  --tw-prose-invert-counters: var(--primary);
+  --tw-prose-invert-bullets: var(--primary);
+  --tw-prose-invert-hr: color-mix(in oklab, var(--foreground) 10%, transparent);
+  --tw-prose-invert-quotes: color-mix(in oklab, var(--foreground) 75%, transparent);
+  --tw-prose-invert-quote-borders: var(--primary);
+  --tw-prose-invert-captions: color-mix(in oklab, var(--foreground) 50%, transparent);
+  --tw-prose-invert-kbd: color-mix(in oklab, var(--foreground) 90%, transparent);
+  --tw-prose-invert-code: color-mix(in oklab, var(--foreground) 90%, transparent);
+  --tw-prose-invert-th-borders: color-mix(in oklab, var(--foreground) 15%, transparent);
+  --tw-prose-invert-td-borders: color-mix(in oklab, var(--foreground) 10%, transparent);
+}

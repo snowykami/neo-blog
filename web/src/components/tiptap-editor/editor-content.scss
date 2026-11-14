@@ -313,7 +313,7 @@
 }
 
 /* ---------- 可被内容主题覆盖的编辑态默认外观 ----------
- * 放在 neo-editor 层：高于 prose 所在的 @layer utilities（本文件在全局样式之后加载，层声明更靠后），
+ * 放在 neo-editor 层：高于 prose 所在的 @layer components（见 app/styles/prose.css），
  * 但低于不分层的内容主题样式，因此切换主题后编辑区的分割线、表格与前台一致 */
 @layer neo-editor {
   .neo-editor-root .tiptap.ProseMirror {

@@ -18,8 +18,6 @@ import { MusicProvider } from '@/contexts/music-context'
 import { NavProvider } from '@/contexts/nav-context'
 import { SiteInfoProvider } from '@/contexts/site-info-context'
 import { ThemeProvider } from '@/contexts/theme-context'
-// 字体通过 CSS 变量注入，在 globals.css 的 @theme 中组合中文回退字体（font-sans / font-mono）；字体文件随仓库提供，见 src/fonts
-import { inter, sourceCodePro } from '@/fonts'
 import { routing } from '@/i18n/routing'
 import { BUILD_PLACEHOLDER_PARAM } from '@/lib/cache-tags'
 import { themeAttributes, themeCssVars } from '@/themes'
@@ -27,6 +25,7 @@ import { getActiveTheme } from '@/themes/active-theme.server'
 import { themeInitScript } from '@/themes/init-script'
 import { getServerImageOptimizeHosts } from '@/utils/common/image.server'
 import { safeMetadataBase } from '@/utils/common/siteinfo'
+// 字体通过 CSS 变量注入（globals.css 引入 src/fonts/fonts.css），并在 @theme 中组合中文回退字体（font-sans / font-mono）
 import '@/app/globals.css'
 
 // 浏览器地址栏 / 状态栏颜色跟随系统明暗，与顶部导航卡片同色（暗色取默认色相下的 --card 近似值）
@@ -80,7 +79,7 @@ export default async function RootLayout({
     <html
       suppressHydrationWarning
       lang={locale}
-      className={`h-full ${inter.variable} ${sourceCodePro.variable}`}
+      className="h-full"
       // 站点默认配色；访客 / 用户自己选的配色存在 localStorage，由 themeInitScript 在首帧前换上
       data-user-color={siteInfo?.defaultColorScheme || 'blue'}
       // 主题色板以 CSS 自定义属性的形式注入，globals.css 里映射到既有 token

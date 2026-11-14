@@ -8,6 +8,7 @@ import { SiteShell } from '@/components/layout/site-shell'
 import { localeAlternates } from '@/i18n/alternates'
 import { CacheTag, skipBackendAtBuild } from '@/lib/cache-tags'
 import { mainPath } from '@/utils/common/route'
+import '@/app/styles/prose.css'
 
 // 隐私政策（简版）：内容需与后端实际行为保持一致，涉及访客记录（internal/service/visit.go、visit_trust.go）、
 // 错误报告（internal/service/error_report.go、src/lib/telemetry）、Cookie、评论、账号、第三方请求等改动时同步更新文案与 UPDATED_AT
