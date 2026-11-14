@@ -2,6 +2,7 @@
 
 import { SafeImage } from '@/components/common/safe-image'
 import { cn } from '@/lib/utils'
+import { formatMusicCoverUrl } from '@/utils/common/image'
 
 /**
  * 播放器页的动态背景（第一期，见 spec 8.10）：放大并高度模糊的封面 + 压暗遮罩，切歌时淡入新封面。
@@ -23,7 +24,7 @@ export function MusicBackground({ cover, contained = false, imageClassName, morp
         <SafeImage
           // 换封面时重新挂载以触发淡入
           key={cover}
-          src={cover}
+          src={formatMusicCoverUrl(cover, 256)}
           alt=""
           fill
           sizes="256px"

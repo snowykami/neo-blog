@@ -13,6 +13,7 @@ import { useCachedSongMetaTranslation } from '@/contexts/song-meta-translations'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { formatDisplayArtists, formatTitleAliases } from '@/lib/lyrics/song-meta-format'
 import { cn } from '@/lib/utils'
+import { formatMusicCoverUrl } from '@/utils/common/image'
 import { filterPlaylist } from './playlist-filter'
 
 const INITIAL_CHUNK = 50
@@ -47,7 +48,7 @@ export const MusicPlaylistItem = memo(({ track, index, active, playing, onSelect
       >
         <span className={cn('relative shrink-0 overflow-hidden bg-white/10', compact ? 'size-9 rounded-md' : 'size-11 rounded-lg')}>
           {track.albumPic
-            ? <SafeImage src={track.albumPic} alt="" fill sizes={compact ? '36px' : '44px'} className="object-cover" fallback={null} />
+            ? <SafeImage src={formatMusicCoverUrl(track.albumPic, 88)} alt="" fill sizes={compact ? '36px' : '44px'} className="object-cover" fallback={null} />
             : <Music2Icon aria-hidden className="absolute inset-0 m-auto size-5 text-white/50" />}
         </span>
         <span className="grid min-w-0 flex-1">

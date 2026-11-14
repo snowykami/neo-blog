@@ -22,7 +22,7 @@ import { isConsolePath } from '@/i18n/routing'
 import { formatDisplayArtists, formatTitleAliases } from '@/lib/lyrics/song-meta-format'
 import { readPlaylistCache, touchPlaylistCache, writePlaylistCache } from '@/lib/music-playlist-cache'
 import { cn } from '@/lib/utils'
-import { shouldOptimize } from '@/utils/common/image'
+import { formatMusicCoverUrl, shouldOptimize } from '@/utils/common/image'
 import { isConsolePreviewPath } from '@/utils/common/route'
 import { MarqueeText } from './marquee-text'
 import { MusicMiniPlaylist } from './music-mini-playlist'
@@ -515,7 +515,7 @@ export function MiniPlayer({ onOpenPage }: { onOpenPage?: () => void }) {
             style={{ transform: isPlaying ? 'scale(1)' : 'scale(0.92)' }}
           >
             {currentTrack.albumPic
-              ? <SafeImage src={currentTrack.albumPic} alt={currentTrack.album} fill sizes="56px" className="object-cover" />
+              ? <SafeImage src={formatMusicCoverUrl(currentTrack.albumPic, 120)} alt={currentTrack.album} fill sizes="56px" className="object-cover" />
               : <MusicIcon aria-hidden className="absolute inset-0 m-auto size-6 text-white/40" />}
           </span>
           <div className="grid min-w-0 flex-1 content-center gap-1">

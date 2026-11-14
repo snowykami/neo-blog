@@ -29,8 +29,8 @@ export function BlogSidebarAbout() {
   if (!siteInfo)
     return null
   const { owner, aboutBackground } = siteInfo
-  // 优先使用站长头像，其次 Gravatar 邮箱；都没有时显示名称首字
-  const avatarSrc = owner?.avatar || (owner?.gravatarEmail ? getGravatarUrl({ email: owner.gravatarEmail, size: 512 }) : undefined)
+  // 优先使用站长头像，其次 Gravatar 邮箱（侧栏头像显示 80px，取 2x Retina 160px 即可，避免加载 512px 原图）；都没有时显示名称首字
+  const avatarSrc = owner?.avatar || (owner?.gravatarEmail ? getGravatarUrl({ email: owner.gravatarEmail, size: 160 }) : undefined)
   const name = owner?.name || siteInfo.metadata.name
   return (
     <SidebarCard className="p-3">

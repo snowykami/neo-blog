@@ -17,6 +17,7 @@ import { useCachedSongMetaTranslation } from '@/contexts/song-meta-translations'
 import { useRouter } from '@/i18n/navigation'
 import { formatDisplayArtists, formatTitleAliases } from '@/lib/lyrics/song-meta-format'
 import { cn } from '@/lib/utils'
+import { formatMusicCoverUrl } from '@/utils/common/image'
 import { isAdmin } from '@/utils/common/permission'
 import { LyricAnnotationRefresh } from './lyric-annotation-refresh'
 import { LyricOffsetControl } from './lyric-offset-control'
@@ -60,7 +61,7 @@ function TrackHero({ track, playing, onCoverClick, className }: { track: MusicTr
         style={{ transform: playing ? 'scale(1)' : 'scale(0.92)' }}
       >
         {track.albumPic
-          ? <SafeImage src={track.albumPic} alt={track.album} fill priority sizes="(min-width: 1024px) 416px, 72vw" className="object-cover" />
+          ? <SafeImage src={formatMusicCoverUrl(track.albumPic, 400)} alt={track.album} fill priority sizes="(min-width: 1024px) 416px, 72vw" className="object-cover" />
           : <MusicIcon aria-hidden className="absolute inset-0 m-auto size-16 text-white/40" />}
       </button>
       <div className="grid min-w-0 gap-1 text-center lg:text-left">

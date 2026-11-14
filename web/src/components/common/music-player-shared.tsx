@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { SafeImage } from '@/components/common/safe-image'
 import { useMusicPlayback } from '@/contexts/music-context'
 import { cn } from '@/lib/utils'
+import { formatMusicCoverUrl } from '@/utils/common/image'
 
 /**
  * 播放器里与顶栏灵动岛共用的轻量部分（外观常量、旋转封面、悬浮播放器的占用状态）。
@@ -126,7 +127,7 @@ export function AlbumNavIcon() {
 
   return (
     <CrossfadeAlbumImage
-      src={currentTrack.albumPic}
+      src={formatMusicCoverUrl(currentTrack.albumPic, 64)}
       alt=""
       sizes="24px"
       style={{ animationPlayState: isPlaying ? 'running' : 'paused' }}

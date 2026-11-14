@@ -27,3 +27,18 @@ export function shouldOptimize(src: ImageProps['src'] | null | undefined): boole
     return false
   }
 }
+
+/**
+ * 针对第三方音乐封面（如网易云音乐等），利用其官方 CDN 边缘裁剪参数进行尺寸压缩与瘦身；
+ * 避免浏览器直连拉取数兆超大原图，同时不增加自有服务器代理负担。
+ */
+export function formatMusicCoverUrl(url: string | null | undefined, size = 300): string {
+  if (!url)
+    return ''
+  // 网易云音乐 CDN：自动升级为 https，并添加 ?param={size}y{size} 动态尺寸裁剪参数
+  if (url.includes('music.126.net')) {
+    const [base] = url.replace(/^http:/, 'https:').split('?')
+    return `${base}?param=${size}y${size}`
+  }
+  return url
+}
