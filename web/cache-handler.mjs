@@ -254,9 +254,10 @@ function imageOptimizeHostsFingerprint() {
 /** @param {string} key */
 function entryKey(key) {
   const imgFp = imageOptimizeHostsFingerprint()
+  const telOff = (process.env.ENABLE_TELEMETRY ?? process.env.NEXT_PUBLIC_ENABLE_TELEMETRY ?? 'true') === 'false' ? ':nt' : ''
   return imgFp
-    ? `${tagState().prefix}next_cache:${buildId}:${imgFp}:${key}`
-    : `${tagState().prefix}next_cache:${buildId}:${key}`
+    ? `${tagState().prefix}next_cache:${buildId}:${imgFp}${telOff}:${key}`
+    : `${tagState().prefix}next_cache:${buildId}${telOff}:${key}`
 }
 
 /** @param {any} data @param {any} ctx */

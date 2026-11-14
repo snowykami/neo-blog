@@ -1,5 +1,5 @@
 import type { Instrumentation } from 'next'
-import process from 'node:process'
+import nodeProcess from 'node:process'
 import { BACKEND_URL } from '@/api/client'
 import { REQUEST_ID_HEADER, requestIdOf } from '@/lib/backend-proxy'
 import { symbolicateServerFrames } from './symbolicate'
@@ -52,6 +52,9 @@ function header(headers: NodeJS.Dict<string | string[]>, name: string) {
 }
 
 export async function reportServerError(...[error, request, context]: Parameters<Instrumentation.onRequestError>) {
+  // eslint-disable-next-line node/prefer-global/process
+  if ((nodeProcess.env.ENABLE_TELEMETRY ?? nodeProcess.env.NEXT_PUBLIC_ENABLE_TELEMETRY ?? process.env.NEXT_PUBLIC_ENABLE_TELEMETRY ?? 'true') === 'false')
+    return
   const err = error instanceof Error ? error : new Error(String(error))
   const digest = (err as Error & { digest?: string }).digest
   const eventId = crypto.randomUUID().replaceAll('-', '')
@@ -64,8 +67,8 @@ export async function reportServerError(...[error, request, context]: Parameters
     timestamp: Date.now() / 1000,
     platform: 'node',
     level: 'error',
-    release: process.env.NEXT_PUBLIC_APP_VERSION?.trim() || undefined,
-    environment: process.env.NODE_ENV,
+    release: nodeProcess.env.NEXT_PUBLIC_APP_VERSION?.trim() || undefined,
+    environment: nodeProcess.env.NODE_ENV,
     exception: { values: [{ type: err.name, value: err.message, stacktrace: { frames } }] },
     tags: { source: 'server', method: request.method, route_type: context.routeType, request_id: requestId, ...(digest && { digest }) },
     request: { url: request.path, headers: { 'User-Agent': userAgent } },

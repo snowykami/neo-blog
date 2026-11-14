@@ -61,6 +61,7 @@ afterEach(() => {
   state().expiredAt.clear()
   state().redis = null
   delete process.env.IMAGE_OPTIMIZE_HOSTS
+  delete process.env.ENABLE_TELEMETRY
 })
 
 describe('页面缓存处理器：按后端标签版本号失效', () => {

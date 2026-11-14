@@ -4,7 +4,7 @@
  * 在 SDK 启动之前就因页面进程被杀掉而丢失的崩溃，仍由 crash.ts 在下次打开时补报（它的标记在 SDK 启动时写入，与之前一致）。
  *
  * 防退化约束：`./client` 会打包 `@sentry/browser`，本文件及任何首屏入口严禁顶层静态 `import './client'` 或 `@sentry/*`（仅允许 `import type`），
- * 必须保持 `loadTelemetry()` 内的动态 `import('./client')`，且当 `NEXT_PUBLIC_ENABLE_TELEMETRY='false'` 时禁止触发它。
+ * 必须保持 `loadTelemetry()` 内的动态 `import('./client')`，且当 Telemetry 被禁用（`ENABLE_TELEMETRY='false'` 或 `NEXT_PUBLIC_ENABLE_TELEMETRY='false'`）时禁止触发它。
  */
 
 type TelemetryClient = typeof import('./client')
@@ -25,8 +25,13 @@ let client: TelemetryClient | null = null
  * 关闭时调用方必须在注册监听、定时器和 `loadTelemetry()` 之前短路返回，确保浏览器端下载 0 字节 Sentry SDK chunk
  */
 export function isTelemetryEnabled(): boolean {
+  if (typeof document !== 'undefined') {
+    const attr = document.documentElement.getAttribute('data-telemetry')
+    if (attr !== null)
+      return attr !== 'false'
+  }
   // eslint-disable-next-line node/prefer-global/process
-  return (process.env.NEXT_PUBLIC_ENABLE_TELEMETRY ?? 'true') !== 'false'
+  return ((process.env.ENABLE_TELEMETRY ?? process.env.NEXT_PUBLIC_ENABLE_TELEMETRY) ?? 'true') !== 'false'
 }
 
 function onError(event: ErrorEvent) {
@@ -57,7 +62,7 @@ export function loadTelemetry(): Promise<TelemetryClient> {
 
 /**
  * 页面脚本执行前调用（instrumentation-client.ts）：先记下异常，空闲时再加载 SDK。
- * 当 `NEXT_PUBLIC_ENABLE_TELEMETRY='false'` 时必须在此直接短路返回，严禁注册全局监听、定时器或触发 `import('./client')`
+ * 当 Telemetry 被禁用时必须在此直接短路返回，严禁注册全局监听、定时器或触发 `import('./client')`
  */
 export function scheduleTelemetry() {
   if (!isTelemetryEnabled() || typeof window === 'undefined')

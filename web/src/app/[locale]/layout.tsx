@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import nodeProcess from 'node:process'
 import { hasLocale } from 'next-intl'
 import { notFound } from 'next/navigation'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
@@ -74,12 +75,16 @@ export default async function RootLayout({
     notFound()
   const [siteInfo, theme] = await Promise.all([getCachedSiteInfo(), getActiveTheme()])
   const imageOptimizeHosts = getServerImageOptimizeHosts()
+  // 运行时环境变量优先；若未设置则回退到构建时内联的 NEXT_PUBLIC_ENABLE_TELEMETRY，默认开启
+  // eslint-disable-next-line node/prefer-global/process
+  const telemetryEnabled = (nodeProcess.env.ENABLE_TELEMETRY ?? nodeProcess.env.NEXT_PUBLIC_ENABLE_TELEMETRY ?? process.env.NEXT_PUBLIC_ENABLE_TELEMETRY ?? 'true') !== 'false'
   return (
     // 主题脚本会在水合前修改 class / style，需忽略根节点的属性差异
     <html
       suppressHydrationWarning
       lang={locale}
       className="h-full"
+      data-telemetry={telemetryEnabled}
       // 站点默认配色；访客 / 用户自己选的配色存在 localStorage，由 themeInitScript 在首帧前换上
       data-user-color={siteInfo?.defaultColorScheme || 'blue'}
       // 主题色板以 CSS 自定义属性的形式注入，globals.css 里映射到既有 token
