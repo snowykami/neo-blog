@@ -3649,7 +3649,11 @@
     "show_lyric_effects": "歌詞エフェクト",
     "show_lyric_moments": "コメントとナレーション",
     "hdr_highlight": "HDR ハイライト",
-    "hdr_unsupported": "画面が HDR に対応していません"
+    "hdr_unsupported": "画面が HDR に対応していません",
+    "more_options": "その他の設定",
+    "copy_lyrics": "歌詞をコピー",
+    "lyrics_copied": "歌詞をクリップボードにコピーしました",
+    "no_lyrics_to_copy": "コピーできる歌詞がありません"
   },
   "RhythmDebug": {
     "open": "リズムデバッガー",

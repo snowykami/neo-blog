@@ -3649,7 +3649,11 @@
     "show_lyric_effects": "가사 효과",
     "show_lyric_moments": "댓글과 내레이션",
     "hdr_highlight": "HDR 하이라이트",
-    "hdr_unsupported": "화면이 HDR을 지원하지 않습니다"
+    "hdr_unsupported": "화면이 HDR을 지원하지 않습니다",
+    "more_options": "더 보기",
+    "copy_lyrics": "가사 복사",
+    "lyrics_copied": "가사가 클립보드에 복사되었습니다",
+    "no_lyrics_to_copy": "복사할 가사가 없습니다"
   },
   "RhythmDebug": {
     "open": "리듬 디버거",

@@ -3472,7 +3472,11 @@
     "show_lyric_effects": "歌词特效",
     "show_lyric_moments": "评论与旁白",
     "hdr_highlight": "HDR 高光",
-    "hdr_unsupported": "屏幕不支持 HDR"
+    "hdr_unsupported": "屏幕不支持 HDR",
+    "more_options": "更多控制",
+    "copy_lyrics": "复制歌词",
+    "lyrics_copied": "已复制歌词及译文",
+    "no_lyrics_to_copy": "暂无可用歌词"
   },
   "RhythmDebug": {
     "open": "韵律调试",

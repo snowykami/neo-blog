@@ -3649,7 +3649,11 @@
     "show_lyric_effects": "Lyric effects",
     "show_lyric_moments": "Comments & narration",
     "hdr_highlight": "HDR highlights",
-    "hdr_unsupported": "Display does not support HDR"
+    "hdr_unsupported": "Display does not support HDR",
+    "more_options": "More options",
+    "copy_lyrics": "Copy lyrics",
+    "lyrics_copied": "Lyrics copied to clipboard",
+    "no_lyrics_to_copy": "No lyrics available"
   },
   "RhythmDebug": {
     "open": "Rhythm debugger",

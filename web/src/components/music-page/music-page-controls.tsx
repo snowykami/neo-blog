@@ -4,10 +4,32 @@ import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { IconType } from 'react-icons'
 import type { PlayMode } from '@/contexts/music-context'
-import { CaseSensitiveIcon, LanguagesIcon, ListMusicIcon, Loader2Icon, MessageSquareQuoteIcon, PauseIcon, PlayIcon, Repeat1Icon, RepeatIcon, ShuffleIcon, SkipBackIcon, SkipForwardIcon, SparklesIcon, Volume1Icon, Volume2Icon, VolumeXIcon } from 'lucide-react'
+import {
+  CaseSensitiveIcon,
+  CheckIcon,
+  CopyIcon,
+  LanguagesIcon,
+  ListMusicIcon,
+  Loader2Icon,
+  MessageSquareQuoteIcon,
+  MoreHorizontalIcon,
+  PauseIcon,
+  PlayIcon,
+  Repeat1Icon,
+  RepeatIcon,
+  ShuffleIcon,
+  SkipBackIcon,
+  SkipForwardIcon,
+  SparklesIcon,
+  Volume1Icon,
+  Volume2Icon,
+  VolumeXIcon,
+} from 'lucide-react'
+import { AnimatePresence, m } from 'motion/react'
 import { useTranslations } from 'next-intl'
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { TbHdr } from 'react-icons/tb'
+import { toast } from 'sonner'
 import { ProgressControl } from '@/components/common/controlled-progress'
 import {
   getNextPlayMode,
@@ -20,6 +42,7 @@ import {
 } from '@/contexts/music-context'
 import { useSongChorus } from '@/contexts/song-chorus'
 import { useHdrDisplay } from '@/hooks/use-hdr-highlight'
+import { getLyricLineText } from '@/lib/lyrics/line-utils'
 import { cn } from '@/lib/utils'
 import { formatDurationMMSS } from '@/utils/common/datetime'
 
@@ -146,6 +169,205 @@ function VolumeControl({ compact }: { compact: boolean }) {
   )
 }
 
+interface MoreControlsMenuProps {
+  showLyricMoments: boolean
+  setShowLyricMoments: (val: boolean) => void
+  showLyricEffects: boolean
+  setShowLyricEffects: (val: boolean) => void
+  hdr: boolean
+  setHdr: (val: boolean) => void
+  hdrDisplay: boolean
+  currentTrack: ReturnType<typeof useMusicPlayback>['currentTrack']
+  lyricLines: ReturnType<typeof useMusicLyrics>['lyricLines']
+}
+
+/**
+ * 更多控制项：复制歌词、评论与旁白、歌词特效、HDR 高光。
+ * 收拢为三点菜单，点击后以二阶弹簧物理动效（Spring）展开半透明浮层，
+ * 无操作时自动延时平滑收起。
+ */
+function MoreControlsMenu({
+  showLyricMoments,
+  setShowLyricMoments,
+  showLyricEffects,
+  setShowLyricEffects,
+  hdr,
+  setHdr,
+  hdrDisplay,
+  currentTrack,
+  lyricLines,
+}: MoreControlsMenuProps) {
+  const playerT = useTranslations('MusicPlayer')
+  const [open, setOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const scheduleClose = useCallback((delayMs = 4500) => {
+    if (timerRef.current)
+      clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => {
+      setOpen(false)
+    }, delayMs)
+  }, [])
+
+  const cancelClose = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    if (open)
+      scheduleClose(4500)
+    else
+      cancelClose()
+    return () => cancelClose()
+  }, [open, scheduleClose, cancelClose])
+
+  useEffect(() => {
+    if (!open)
+      return
+    const onPointerDownOutside = (e: PointerEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setOpen(false)
+      }
+    }
+    window.addEventListener('pointerdown', onPointerDownOutside)
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDownOutside)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
+
+  const handleCopyLyrics = useCallback(async () => {
+    if (!lyricLines || lyricLines.length === 0) {
+      toast.error(playerT('no_lyrics_to_copy'))
+      return
+    }
+
+    const title = currentTrack?.name ?? ''
+    const artists = currentTrack?.artists
+      ? (Array.isArray(currentTrack.artists) ? currentTrack.artists.join(' / ') : currentTrack.artists)
+      : ''
+    const header = title ? `${title}${artists ? ` - ${artists}` : ''}\n\n` : ''
+
+    const content = lyricLines.map((line) => {
+      const orig = getLyricLineText(line).trim()
+      if (!orig)
+        return ''
+      const parts = [orig]
+      if (line.romanization?.trim())
+        parts.push(line.romanization.trim())
+      if (line.translation?.trim())
+        parts.push(line.translation.trim())
+      return parts.join('\n')
+    }).filter(Boolean).join('\n\n')
+
+    const fullText = (header + content).trim()
+    if (!fullText) {
+      toast.error(playerT('no_lyrics_to_copy'))
+      return
+    }
+
+    try {
+      await navigator.clipboard.writeText(fullText)
+      setCopied(true)
+      toast.success(playerT('lyrics_copied'))
+      setTimeout(setCopied, 2000, false)
+      scheduleClose(1500)
+    }
+    catch {
+      toast.error(playerT('no_lyrics_to_copy'))
+    }
+  }, [currentTrack, lyricLines, playerT, scheduleClose])
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative flex items-center"
+      onMouseEnter={cancelClose}
+      onMouseLeave={() => open && scheduleClose(3000)}
+    >
+      <AnimatePresence>
+        {open && (
+          <m.div
+            initial={{ opacity: 0, scale: 0.82, y: 8, filter: 'blur(6px)' }}
+            animate={{ opacity: 1, scale: 1, y: 0, filter: 'blur(0px)' }}
+            exit={{ opacity: 0, scale: 0.85, y: 6, filter: 'blur(4px)' }}
+            transition={{
+              type: 'spring',
+              stiffness: 420,
+              damping: 26,
+              mass: 0.75,
+            }}
+            className="absolute bottom-full right-0 z-30 mb-2 flex items-center gap-1 rounded-full border border-white/15 bg-neutral-950/85 p-1 shadow-2xl backdrop-blur-xl pointer-coarse:gap-1.5"
+          >
+            {/* 复制整首歌词 + 翻译 + 拼音 */}
+            <IconButton
+              icon={copied ? CheckIcon : CopyIcon}
+              label={copied ? playerT('lyrics_copied') : playerT('copy_lyrics')}
+              active={copied}
+              iconClassName={copied ? 'text-emerald-400' : undefined}
+              onClick={handleCopyLyrics}
+            />
+
+            {/* 评论与旁白 */}
+            <IconButton
+              icon={MessageSquareQuoteIcon}
+              label={playerT('show_lyric_moments')}
+              active={showLyricMoments}
+              onClick={() => {
+                setShowLyricMoments(!showLyricMoments)
+                scheduleClose(2500)
+              }}
+            />
+
+            {/* 歌词特效 */}
+            <IconButton
+              icon={SparklesIcon}
+              label={playerT('show_lyric_effects')}
+              active={showLyricEffects}
+              onClick={() => {
+                setShowLyricEffects(!showLyricEffects)
+                scheduleClose(2500)
+              }}
+            />
+
+            {/* HDR 高光 */}
+            <IconButton
+              icon={TbHdr}
+              label={hdrDisplay ? playerT('hdr_highlight') : playerT('hdr_unsupported')}
+              active={hdrDisplay && hdr}
+              disabled={!hdrDisplay}
+              onClick={() => {
+                setHdr(!hdr)
+                scheduleClose(2500)
+              }}
+            />
+          </m.div>
+        )}
+      </AnimatePresence>
+
+      <IconButton
+        icon={MoreHorizontalIcon}
+        label={playerT('more_options')}
+        active={open}
+        className={cn(open && 'bg-white/15 text-white')}
+        iconClassName={cn('transition-transform duration-200', open && 'rotate-90')}
+        onClick={() => setOpen(prev => !prev)}
+      />
+    </div>
+  )
+}
+
 /**
  * 播放器页控制栏：进度、上一首 / 播放 / 下一首、播放模式、音量、翻译与音译开关、歌单。
  * compact 为悬浮播放器使用的紧凑模式：布局相同，按钮更小、间距更紧
@@ -159,8 +381,8 @@ export function MusicPageControls({ onOpenPlaylist, playlistSlot, compact = fals
 }) {
   const t = useTranslations('MusicPage')
   const playerT = useTranslations('MusicPlayer')
-  const { isPlaying, pendingStep, playMode } = useMusicPlayback()
-  const { canToggleTranslation, lyricTranslationsGenerating, canToggleRomaji, lyricPronunciationsGenerating } = useMusicLyrics()
+  const { isPlaying, pendingStep, playMode, currentTrack } = useMusicPlayback()
+  const { canToggleTranslation, lyricTranslationsGenerating, canToggleRomaji, lyricPronunciationsGenerating, lyricLines } = useMusicLyrics()
   const {
     showTranslation,
     showRomaji,
@@ -201,7 +423,7 @@ export function MusicPageControls({ onOpenPlaylist, playlistSlot, compact = fals
       </div>
       <div className="flex items-center justify-between gap-2">
         <VolumeControl compact={compact} />
-        {/* 次要按钮：触屏上间距加大（按钮也加大，见 MUSIC_ICON_BUTTON_CLASSNAME） */}
+        {/* 次要按钮：保留高频的翻译与读音，其余收纳为二阶弹簧三点菜单 */}
         <div className="flex items-center gap-1 pointer-coarse:gap-1.5">
           <IconButton
             icon={LanguagesIcon}
@@ -219,25 +441,16 @@ export function MusicPageControls({ onOpenPlaylist, playlistSlot, compact = fals
             busy={lyricPronunciationsGenerating}
             onClick={() => setShowRomaji(!showRomaji)}
           />
-          <IconButton
-            icon={MessageSquareQuoteIcon}
-            label={playerT('show_lyric_moments')}
-            active={showLyricMoments}
-            onClick={() => setShowLyricMoments(!showLyricMoments)}
-          />
-          <IconButton
-            icon={SparklesIcon}
-            label={playerT('show_lyric_effects')}
-            active={showLyricEffects}
-            onClick={() => setShowLyricEffects(!showLyricEffects)}
-          />
-          {/* HDR 高光：屏幕不支持 HDR 时置灰 */}
-          <IconButton
-            icon={TbHdr}
-            label={hdrDisplay ? playerT('hdr_highlight') : playerT('hdr_unsupported')}
-            active={hdrDisplay && hdr}
-            disabled={!hdrDisplay}
-            onClick={() => setHdr(!hdr)}
+          <MoreControlsMenu
+            showLyricMoments={showLyricMoments}
+            setShowLyricMoments={setShowLyricMoments}
+            showLyricEffects={showLyricEffects}
+            setShowLyricEffects={setShowLyricEffects}
+            hdr={hdr}
+            setHdr={setHdr}
+            hdrDisplay={hdrDisplay}
+            currentTrack={currentTrack}
+            lyricLines={lyricLines}
           />
         </div>
       </div>
