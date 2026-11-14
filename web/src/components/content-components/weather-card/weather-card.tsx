@@ -2,7 +2,6 @@
 
 import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
-import type { WeatherCardProps } from './schema'
 import type { Weather, WeatherCondition } from '@/models/weather'
 import {
   CloudDrizzleIcon,
@@ -31,6 +30,20 @@ import { cn } from '@/lib/utils'
 import { toServiceLanguage } from '@/locales/registry'
 import { useCachedRequest } from '../use-cached-request'
 import { useComponentHeight } from '../use-component-height'
+
+export type WeatherMode = 'snapshot' | 'live'
+
+export interface WeatherCardProps {
+  mode: WeatherMode
+  city: string
+  condition: WeatherCondition
+  temperature: number
+  humidity: number
+  wind: number
+  recordedAt: string
+  latitude: number
+  longitude: number
+}
 
 // 各天气状况的图标与渐变背景：两端颜色都足够深，保证 90% 不透明度的白字对比度 ≥ 4.5:1（WCAG AA），
 // 同时避免暗色模式下出现大块高亮的色块
@@ -383,12 +396,33 @@ function LiveWeatherCard({ city, latitude, longitude }: WeatherCardProps) {
 }
 
 /** 天气卡：快照模式展示正文中保存的天气，不请求接口；实时模式展示指定城市（或访客所在地）的当前天气 */
-export default function WeatherCard(props: WeatherCardProps) {
+export default function WeatherCard(raw: WeatherCardProps) {
+  const props: WeatherCardProps = {
+    mode: raw.mode ?? 'snapshot',
+    city: (raw.city ?? '').trim(),
+    condition: raw.condition ?? 'clear',
+    temperature: raw.temperature ?? 20,
+    humidity: raw.humidity ?? 50,
+    wind: raw.wind ?? 2,
+    recordedAt: (raw.recordedAt ?? '').trim(),
+    latitude: raw.latitude ?? 0,
+    longitude: raw.longitude ?? 0,
+  }
+  if (props.mode !== 'snapshot' && props.mode !== 'live')
+    throw new Error(`Invalid weatherCard mode: ${String(props.mode)}`)
+  if (!CONDITION_STYLES[props.condition])
+    throw new Error(`Invalid weatherCard condition: ${String(props.condition)}`)
+  if (props.mode === 'live') {
+    if (props.latitude === 0 && props.longitude === 0 && props.city !== '')
+      throw new Error('Live weatherCard with city requires coordinates')
+    return <LiveWeatherCard {...props} />
+  }
+  return <SnapshotWeatherCard {...props} />
+}
+
+function SnapshotWeatherCard(props: WeatherCardProps) {
   const t = useTranslations('ContentComponents.weatherCard')
   const format = useFormatter()
-  if (props.mode === 'live')
-    return <LiveWeatherCard {...props} />
-
   const recordedAt = parseLocalDateTime(props.recordedAt)
   return (
     <WeatherCardBody

@@ -1,7 +1,10 @@
 /**
- * 错误报告的按需加载（Sentry SDK 约 90 KB，不放进首屏）：页面脚本执行前只装两个轻量的全局监听，记下这期间的未捕获异常与路由跳转；
+ * 错误报告的按需加载（Sentry SDK 约 90 KB raw / 31 KB gzip，不放进首屏）：页面脚本执行前只装两个轻量的全局监听，记下这期间的未捕获异常与路由跳转；
  * 浏览器空闲时（或错误边界需要上报时）再加载 client.ts、初始化 SDK，并补报记下的异常与面包屑。
- * 在 SDK 启动之前就因页面进程被杀掉而丢失的崩溃，仍由 crash.ts 在下次打开时补报（它的标记在 SDK 启动时写入，与之前一致）
+ * 在 SDK 启动之前就因页面进程被杀掉而丢失的崩溃，仍由 crash.ts 在下次打开时补报（它的标记在 SDK 启动时写入，与之前一致）。
+ *
+ * 防退化约束：`./client` 会打包 `@sentry/browser`，本文件及任何首屏入口严禁顶层静态 `import './client'` 或 `@sentry/*`（仅允许 `import type`），
+ * 必须保持 `loadTelemetry()` 内的动态 `import('./client')`，且当 `NEXT_PUBLIC_ENABLE_TELEMETRY='false'` 时禁止触发它。
  */
 
 type TelemetryClient = typeof import('./client')
@@ -16,6 +19,15 @@ const earlyErrors: unknown[] = []
 const earlyNavigations: [url: string, navigationType: string][] = []
 let loading: Promise<TelemetryClient> | null = null
 let client: TelemetryClient | null = null
+
+/**
+ * 是否启用前端错误监控：默认开启（'true'），设为 'false' 时彻底禁用。
+ * 关闭时调用方必须在注册监听、定时器和 `loadTelemetry()` 之前短路返回，确保浏览器端下载 0 字节 Sentry SDK chunk
+ */
+export function isTelemetryEnabled(): boolean {
+  // eslint-disable-next-line node/prefer-global/process
+  return (process.env.NEXT_PUBLIC_ENABLE_TELEMETRY ?? 'true') !== 'false'
+}
 
 function onError(event: ErrorEvent) {
   if (earlyErrors.length < MAX_EARLY_ERRORS)
@@ -43,9 +55,12 @@ export function loadTelemetry(): Promise<TelemetryClient> {
   return loading
 }
 
-/** 页面脚本执行前调用（instrumentation-client.ts）：先记下异常，空闲时再加载 SDK */
+/**
+ * 页面脚本执行前调用（instrumentation-client.ts）：先记下异常，空闲时再加载 SDK。
+ * 当 `NEXT_PUBLIC_ENABLE_TELEMETRY='false'` 时必须在此直接短路返回，严禁注册全局监听、定时器或触发 `import('./client')`
+ */
 export function scheduleTelemetry() {
-  if (typeof window === 'undefined')
+  if (!isTelemetryEnabled() || typeof window === 'undefined')
     return
   window.addEventListener('error', onError)
   window.addEventListener('unhandledrejection', onRejection)
@@ -62,6 +77,8 @@ export function scheduleTelemetry() {
 
 /** 路由跳转记为面包屑；SDK 还没加载时先记下 */
 export function recordNavigationLazy(url: string, navigationType: string) {
+  if (!isTelemetryEnabled())
+    return
   if (client) {
     client.recordNavigation(url, navigationType)
     return

@@ -1,6 +1,5 @@
 'use client'
 
-import type { PostRefProps } from './schema'
 import { FileTextIcon, LinkIcon } from 'lucide-react'
 import { useFormatter, useTranslations } from 'next-intl'
 import { UserAvatar } from '@/components/common/avatar'
@@ -13,6 +12,11 @@ import { stripInlineMarkdown } from '@/utils/common/inline-markdown'
 import { getPostUrl } from '@/utils/common/route'
 import { usePostCard } from './use-post-cards'
 
+export interface PostRefProps {
+  postId: number
+  showCover: boolean
+}
+
 const CARD_CLASS = 'flex h-full gap-4 overflow-hidden rounded-xl border bg-card p-4 transition-colors'
 
 /**
@@ -20,7 +24,13 @@ const CARD_CLASS = 'flex h-full gap-4 overflow-hidden rounded-xl border bg-card 
  * 标题、摘要与封面按文章 id 实时读取（同一页面的卡片合并成一次请求），
  * 被引用文章改为私密、删除或不存在时显示「内容不可访问」；窄卡片收起封面与阅读数
  */
-export default function PostRefCard({ postId, showCover }: PostRefProps) {
+export default function PostRefCard({ postId = 0, showCover = true }: PostRefProps) {
+  if (!Number.isInteger(postId) || postId <= 0)
+    throw new Error('Invalid postRef postId')
+  return <PostRefCardBody postId={postId} showCover={showCover} />
+}
+
+function PostRefCardBody({ postId, showCover }: PostRefProps) {
   const t = useTranslations('ContentComponents.postRef')
   const commonT = useTranslations()
   const format = useFormatter()

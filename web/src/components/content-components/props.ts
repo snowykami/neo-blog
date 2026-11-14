@@ -1,29 +1,14 @@
+/**
+ * 【仅限后台编辑器 / 服务端校验写路径使用】props 默认值提取与 zod 严格校验。
+ * 注意：本模块引入 `./registry`（进而静态打包全部组件定义与 zod，约 144 KiB raw / 42 KiB gzip），
+ * 前台访客端严禁静态或动态导入本模块；前台读取与解析 `data-props` 请使用无 zod 依赖的 `./runtime`。
+ */
 import type { z } from 'zod'
 import type { AnyContentComponentDef } from './types'
 import { getContentComponent } from './registry'
+import { parsePropsAttr, serializePropsAttr } from './runtime'
 
-/** 读取 data-props：非法 JSON 时返回 null */
-export function parsePropsAttr(raw: string | null | undefined): unknown {
-  if (!raw)
-    return null
-  try {
-    return JSON.parse(raw)
-  }
-  catch {
-    return null
-  }
-}
-
-/**
- * 序列化为 data-props：转义 < > &，避免属性值中出现 `-->`、`</style>` 等片段
- * 被净化器（DOMPurify 的 SAFE_FOR_XML）整条移除，JSON.parse 可直接还原
- */
-export function serializePropsAttr(props: unknown): string {
-  return JSON.stringify(props ?? {})
-    .replace(/</g, '\\u003c')
-    .replace(/>/g, '\\u003e')
-    .replace(/&/g, '\\u0026')
-}
+export { parsePropsAttr, serializePropsAttr }
 
 /**
  * 插入组件时的初始 props（schema 中的默认值）：逐个字段取默认值，

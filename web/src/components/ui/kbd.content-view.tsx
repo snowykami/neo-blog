@@ -1,11 +1,15 @@
 'use client'
 
-import type { ShortcutContentProps } from './kbd.content'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
-import { splitKeys } from './kbd.content'
+import { splitKeys } from './kbd-keys'
+
+export interface ShortcutContentProps {
+  keys: string
+  description: string
+}
 
 /** 快捷键说明：按键组合 + 说明文字 */
-export default function ShortcutContent({ keys, description }: ShortcutContentProps) {
+export default function ShortcutContent({ keys = '', description = '' }: ShortcutContentProps) {
   return (
     <div className="flex flex-wrap items-center gap-3 text-sm">
       <KbdGroup>

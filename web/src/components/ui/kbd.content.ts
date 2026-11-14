@@ -2,6 +2,9 @@ import { KeyboardIcon } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { z } from 'zod'
 import { defineContentComponent } from '@/components/content-components/define'
+import { splitKeys } from './kbd-keys'
+
+export { splitKeys }
 
 export const shortcutContentSchema = z.object({
   // 按键以 + 分隔，例如 Ctrl+Shift+P
@@ -10,10 +13,6 @@ export const shortcutContentSchema = z.object({
 })
 
 export type ShortcutContentProps = z.output<typeof shortcutContentSchema>
-
-export function splitKeys(keys: string): string[] {
-  return keys.split('+').map(key => key.trim()).filter(Boolean)
-}
 
 export default defineContentComponent({
   name: 'shortcut',

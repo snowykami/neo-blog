@@ -1,12 +1,15 @@
 /**
- * 生成文章组件注册表：扫描 src/components 下所有 *.content.ts / *.content.tsx（组件定义，默认导出），
- * 写入 src/components/content-components/registry.generated.ts，组件库按文件所在目录展示
+ * 生成文章组件注册表（写路径与读路径两份产物，不可混用）：
+ * 1. registry.generated.ts（写路径 / 后台编辑器专用）：扫描 src/components 下所有 *.content.ts / *.content.tsx，
+ *    静态导入全部组件定义（含 zod schema、表单推导、降级生成），严禁被前台访客组件引入；
+ * 2. runtime-registry.generated.ts（读路径 / 前台访客专用）：从 *.content.ts(x) 中静态提取 name、version、heights
+ *    以及 `component: dynamic(() => import('...'))` 指向的纯展示视图路径，让前台按需直连纯视图，彻底跳过 *.content.ts 与 zod（省约 144 KiB raw / 42 KiB gzip）。
  *
  * 用法：node scripts/gen-content-components.mjs [--check]
- * --check：只检查生成结果是否最新，不一致时退出码为 1（测试与 CI 使用）
+ * --check：同时检查两份生成物是否最新，不一致时退出码为 1（测试与 CI 使用）
  */
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join, relative, sep } from 'node:path'
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { dirname, join, relative, resolve, sep } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
@@ -43,20 +46,54 @@ function identifier(path) {
     .join('')
 }
 
-/** 从定义文件里读组件名：defineContentComponent({ name: 'card', … }) */
-function componentName(file) {
-  const match = readFileSync(file, 'utf8').match(/\bname:\s*'([^']+)'/)
-  if (!match)
-    throw new Error(`${relative(root, file)} 里找不到 name: '…'，无法生成运行时注册表`)
-  return match[1]
+/**
+ * 从定义文件里读取前台运行时渲染所需的元信息（name、version、heights、纯展示视图路径）：
+ * 只用正则抽取字面量而不引入文件模块，避免把 zod / schema 带入运行时注册表（load() 必须直指纯视图模块）
+ */
+function runtimeEntry(file) {
+  const source = readFileSync(file, 'utf8')
+  const rel = relative(root, file)
+  const nameMatch = source.match(/\bname:\s*'([^']+)'/)
+  if (!nameMatch)
+    throw new Error(`${rel} 里找不到 name: '…'，无法生成运行时注册表`)
+
+  const versionMatch = source.match(/\bversion:\s*(\d+)/)
+  if (!versionMatch)
+    throw new Error(`${rel} 里找不到 version: <number>，无法生成运行时注册表`)
+
+  const compMatch = source.match(/\bcomponent:\s*dynamic\(\(\)\s*=>\s*import\('([^']+)'\)\)/)
+  if (!compMatch)
+    throw new Error(`${rel} 里找不到 component: dynamic(() => import('…'))，无法生成运行时注册表`)
+
+  const viewSpec = compMatch[1]
+  const resolvedBase = viewSpec.startsWith('@/')
+    ? join(root, 'src', viewSpec.slice(2))
+    : resolve(dirname(file), viewSpec)
+  const viewFile = ['', '.tsx', '.ts', '/index.tsx', '/index.ts']
+    .map(suffix => resolvedBase + suffix)
+    .find(candidate => existsSync(candidate) && statSync(candidate).isFile())
+  if (!viewFile)
+    throw new Error(`${rel} 指向的视图模块不存在：${viewSpec}`)
+
+  const relFromComponents = relative(componentsDir, viewFile).split(sep).join('/')
+  if (relFromComponents.startsWith('..'))
+    throw new Error(`${rel} 的视图模块必须在 src/components 下：${relFromComponents}`)
+  const viewImportPath = `@/components/${relFromComponents.replace(/\/index\.tsx?$/, '').replace(/\.tsx?$/, '')}`
+
+  const heightsMatch = source.match(/\bheights:\s*(\[[^\]]+\])/)
+  const heights = heightsMatch ? heightsMatch[1].replace(/\s+/g, ' ').trim() : null
+
+  return {
+    name: nameMatch[1],
+    version: Number.parseInt(versionMatch[1], 10),
+    heights,
+    viewImportPath,
+  }
 }
 
 export function generateRuntime() {
   const entries = walk(componentsDir)
-    .map((file) => {
-      const importPath = `@/components/${relative(componentsDir, file).split(sep).join('/').replace(/\.tsx?$/, '')}`
-      return { name: componentName(file), importPath }
-    })
+    .map(runtimeEntry)
     .sort((a, b) => (a.name < b.name ? -1 : 1))
 
   const duplicated = entries.filter((entry, index) => index > 0 && entries[index - 1].name === entry.name)
@@ -65,11 +102,19 @@ export function generateRuntime() {
 
   return [
     '// 此文件由 scripts/gen-content-components.mjs 生成，请勿手动修改',
-    '// 组件名 → 按需加载定义模块（只取 component 字段渲染，schema 与 zod 留在后台/编辑器侧）',
-    'import type { AnyContentComponentDef } from \'./types\'',
+    '// 前台读路径专用：组件名 → 按需加载纯展示视图（直接指向视图模块，彻底跳过 *.content.ts 与 zod）',
+    '// 若需完整 schema / 默认值 / 编辑器配置（写路径），请仅在后台代码中使用 registry.ts',
+    'import type { RuntimeContentComponentSpec } from \'./runtime\'',
     '',
-    'export const CONTENT_COMPONENT_LOADERS: Record<string, () => Promise<{ default: AnyContentComponentDef }>> = {',
-    ...entries.map(entry => `  ${/^[A-Z_$][\w$]*$/i.test(entry.name) ? entry.name : `'${entry.name}'`}: () => import('${entry.importPath}'),`),
+    'export const CONTENT_COMPONENT_LOADERS: Record<string, RuntimeContentComponentSpec> = {',
+    ...entries.map((entry) => {
+      const key = /^[A-Z_$][\w$]*$/i.test(entry.name) ? entry.name : `'${entry.name}'`
+      const parts = [`version: ${entry.version}`]
+      if (entry.heights)
+        parts.push(`heights: ${entry.heights}`)
+      parts.push(`load: () => import('${entry.viewImportPath}')`)
+      return `  ${key}: { ${parts.join(', ')} },`
+    }),
     '}',
     '',
   ].join('\n')

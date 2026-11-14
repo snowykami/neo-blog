@@ -1,17 +1,21 @@
 import type { Schema } from '@tiptap/pm/model'
 import type { FieldDescriptor } from './schema-fields'
 import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { DOMSerializer, DOMParser as PMDOMParser } from '@tiptap/pm/model'
 import { getSchema } from '@tiptap/react'
+import ts from 'typescript'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { createContentExtensions } from '@/lib/tiptap-extensions'
 import { getLocaleMessages, LOCALES } from '@/locales'
 import { sanitizeContentHtml } from '@/utils/server/sanitize-html'
 import { generate, generateRuntime, outputFile, runtimeOutputFile } from '../../../scripts/gen-content-components.mjs'
+import { createGraph, moduleClosure, relativePath, SRC_ROOT } from '../../../scripts/i18n-graph.mjs'
 import { COMPONENT_HEIGHTS, componentHeightRem } from './layout'
 import { buildLibraryTree, filterLibraryTree, flattenLibraryTree } from './library-tree'
 import { getDefaultProps, parsePropsAttr, resolveComponent, resolveComponentElement, serializePropsAttr } from './props'
 import { CONTENT_COMPONENTS, getContentComponent } from './registry'
+import { getRuntimeContentComponent, resolveRuntimeComponentElement } from './runtime'
 import { CONTENT_COMPONENT_LOADERS } from './runtime-registry.generated'
 import { describeFields } from './schema-fields'
 
@@ -266,9 +270,68 @@ describe('运行时注册表', () => {
     expect(readFileSync(runtimeOutputFile, 'utf8')).toBe(generateRuntime())
   })
 
-  it('每个组件都能在运行时按名字加载（访客侧渲染组件卡片依赖它）', () => {
+  it('每个组件都能在运行时按名字加载，且版本与高度元信息一致', () => {
     for (const def of CONTENT_COMPONENTS) {
-      expect(typeof CONTENT_COMPONENT_LOADERS[def.name], `${def.name} 没有按需加载入口`).toBe('function')
+      const spec = CONTENT_COMPONENT_LOADERS[def.name]
+      expect(spec, `${def.name} 缺少运行时条目`).toBeDefined()
+      expect(spec.version).toBe(def.version)
+      expect(spec.heights).toEqual(def.heights)
+      expect(typeof spec.load, `${def.name} 没有按需加载入口`).toBe('function')
+      expect(getRuntimeContentComponent(def.name, def.version)).not.toBeNull()
+      expect(getRuntimeContentComponent(def.name, def.version + 1)).toBeNull()
     }
+    expect(getRuntimeContentComponent('__non_existent__')).toBeNull()
+  })
+
+  it('resolveRuntimeComponentElement 解析合法占位并在版本过高或坏 JSON 时拒绝', () => {
+    const validEl = firstComponent(componentHtml('callout', { type: 'tip', content: 'hello' }))
+    expect(resolveRuntimeComponentElement(validEl)).toMatchObject({
+      ok: true,
+      entry: { name: 'callout', version: 1 },
+      props: { type: 'tip', content: 'hello' },
+    })
+
+    const badJsonEl = firstComponent('<div data-component="callout" data-props="{bad" data-version="1"></div>')
+    expect(resolveRuntimeComponentElement(badJsonEl)).toEqual({ ok: false, reason: 'invalid' })
+
+    const futureVersionEl = firstComponent('<div data-component="callout" data-props="{}" data-version="99"></div>')
+    expect(resolveRuntimeComponentElement(futureVersionEl)).toEqual({ ok: false, reason: 'unknown' })
+  })
+
+  it('访客侧渲染与侧边栏模块闭包彻底脱离 zod 与 *.content / schema', () => {
+    const graph = createGraph()
+    const entries = [
+      join(SRC_ROOT, 'components/blog-sidebar/index.tsx'),
+      join(SRC_ROOT, 'components/blog-sidebar/blog-sidebar-card.tsx'),
+      join(SRC_ROOT, 'components/content-components/component-islands.tsx'),
+      join(SRC_ROOT, 'components/content-components/runtime.ts'),
+      join(SRC_ROOT, 'components/content-components/runtime-registry.generated.ts'),
+    ]
+    const closure = moduleClosure(entries, graph)
+    const forbiddenFiles: string[] = []
+    const zodImports: string[] = []
+
+    for (const file of closure) {
+      const rel = relativePath(file)
+      if (/\.content\.tsx?$|\/schema\.ts$|registry\.generated\.ts$/.test(rel) && !rel.endsWith('runtime-registry.generated.ts'))
+        forbiddenFiles.push(rel)
+
+      const sf = graph.parsed(file)
+      const checkSpecifier = (spec: string) => {
+        if (spec === 'zod' || spec.startsWith('zod/'))
+          zodImports.push(`${rel} -> ${spec}`)
+      }
+      const visit = (node: ts.Node) => {
+        if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier))
+          checkSpecifier(node.moduleSpecifier.text)
+        else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword && node.arguments[0] && ts.isStringLiteral(node.arguments[0]))
+          checkSpecifier(node.arguments[0].text)
+        ts.forEachChild(node, visit)
+      }
+      visit(sf)
+    }
+
+    expect(forbiddenFiles).toEqual([])
+    expect(zodImports).toEqual([])
   })
 })

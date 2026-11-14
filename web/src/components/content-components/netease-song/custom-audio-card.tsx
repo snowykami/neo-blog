@@ -1,6 +1,5 @@
 'use client'
 
-import type { NeteaseSongProps } from './schema'
 import type { LyricLine } from '@/lib/lyrics/types'
 import { useTranslations } from 'next-intl'
 import { useEffect, useMemo, useRef } from 'react'
@@ -12,6 +11,19 @@ import { useCardAudio } from '../use-card-audio'
 import { useComponentHeight } from '../use-component-height'
 import { isTallMusicCard, MusicCardLyricHint, MusicCardView } from './music-card-view'
 import { MusicPlayButton } from './music-controls'
+
+export type MusicCardMode = 'netease' | 'custom'
+
+export interface NeteaseSongProps {
+  mode: MusicCardMode
+  id: number
+  title: string
+  artist: string
+  album: string
+  cover: string
+  src: string
+  lyric: string
+}
 
 /**
  * 自定义音频：使用卡片自己的 audio 播放，与全站播放器互斥；

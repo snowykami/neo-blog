@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Link } from '@/i18n/navigation'
 import copyToClipboard from '@/lib/clipboard'
-import { loadTelemetry } from '@/lib/telemetry/loader'
+import { isTelemetryEnabled, loadTelemetry } from '@/lib/telemetry/loader'
 import { isChunkLoadError, isNewVersionDeployed, reloadForChunkError } from '@/utils/client/chunk-error'
 
 // 复制后按钮显示「已复制」的时长
@@ -85,6 +85,9 @@ export function ErrorBoundaryPage({
     let cancelled = false
     void isNewVersionDeployed().then((deployed) => {
       if (cancelled || (deployed && reloadForChunkError()))
+        return
+      // 禁用错误监控时必须在 loadTelemetry() 前短路，避免触发动态导入下载 Sentry SDK chunk
+      if (!isTelemetryEnabled())
         return
       // 错误报告的 SDK 按需加载（见 lib/telemetry/loader.ts），加载失败时只是没有报告编号
       return loadTelemetry().then((telemetry) => {

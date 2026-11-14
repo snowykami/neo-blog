@@ -1,9 +1,8 @@
 'use client'
 
 import type { ComponentType } from 'react'
-import type { ContentComponentViewProps } from './content-component-view'
+import type { ContentViewProps } from './content-component-view'
 import type { ComponentHeight } from './layout'
-import type { AnyContentComponentDef } from './types'
 import { Suspense, useEffect, useLayoutEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { getVisibleElementById } from '@/utils/client/dom'
@@ -13,10 +12,10 @@ interface Island {
   id: number
   root: HTMLElement
   fallback: HTMLElement
-  def: AnyContentComponentDef
+  component: ComponentType<any>
   props: Record<string, unknown>
   height: ComponentHeight | null
-  View: ComponentType<ContentComponentViewProps>
+  View: ComponentType<ContentViewProps>
 }
 
 let nextIslandId = 0
@@ -33,9 +32,11 @@ function HideOnCommit({ el }: { el: HTMLElement }) {
 const mounted = new WeakSet<Element>()
 
 /**
- * 组件岛：扫描正文中的 [data-component] 占位，按注册表懒加载组件并通过 portal 挂载
- * - 正文不含 [data-component] 时直接返回，不下载组件注册表与 zod 校验器
- * - 未知组件、版本过高或 props 校验失败时保留降级内容
+ * 组件岛：扫描正文中的 [data-component] 占位，按运行时注册表懒加载纯展示组件并通过 portal 挂载（0 Zod）
+ * - 正文不含 [data-component] 时直接返回，0 字节额外下载（连 runtime 与 ContentView 都不加载）
+ * - 正文含 [data-component] 时也只动态加载轻量的 `./runtime` + `ContentView` 与命中的纯展示视图组件，
+ *   严禁改回加载 `./props` 或 `./registry`（否则文章页会重新打包整套 zod 与全部 17 个组件 schema，约 144 KiB raw）
+ * - 未知组件、版本过高或坏 JSON 直接保留降级内容；字段内容异常由视图抛错触发 ComponentErrorBoundary 恢复降级显示
  * - 降级内容移入单独的容器，组件代码加载完、组件挂上后才隐藏；组件渲染出错时恢复显示
  */
 export function ComponentIslands({ containerId }: { containerId: string }) {
@@ -53,17 +54,17 @@ export function ComponentIslands({ containerId }: { containerId: string }) {
 
     let cancelled = false
     void Promise.all([
-      import('./props'),
+      import('./runtime'),
       import('./layout'),
       import('./content-component-view'),
-    ]).then(([{ resolveComponentElement }, { parseComponentHeight }, { ContentComponentView }]) => {
+    ]).then(([{ resolveRuntimeComponentElement }, { parseComponentHeight }, { ContentView }]) => {
       if (cancelled)
         return
       const found: Island[] = []
       for (const el of placeholders) {
         if (mounted.has(el) || !el.isConnected)
           continue
-        const resolved = resolveComponentElement(el)
+        const resolved = resolveRuntimeComponentElement(el)
         if (!resolved.ok)
           continue
         mounted.add(el)
@@ -74,15 +75,15 @@ export function ComponentIslands({ containerId }: { containerId: string }) {
         root.setAttribute(COMPONENT_ROOT_ATTR, '')
         el.append(fallback, root)
         // 只采用组件支持的高度档位，其余按自动高度渲染
-        const height = parseComponentHeight(el.getAttribute('data-height'), resolved.def.heights ?? [])
+        const height = parseComponentHeight(el.getAttribute('data-height'), resolved.entry.heights ?? [])
         found.push({
           id: nextIslandId++,
           root,
           fallback,
-          def: resolved.def,
+          component: resolved.entry.component,
           props: resolved.props,
           height,
-          View: ContentComponentView,
+          View: ContentView,
         })
       }
       if (found.length)
@@ -94,15 +95,15 @@ export function ComponentIslands({ containerId }: { containerId: string }) {
     }
   }, [containerId])
 
-  // 组件本体是 next/dynamic 按需加载的（默认不带 Suspense 边界）：这里不接住的话，加载中的挂起会穿过 portal 冒泡到路由的
+  // 组件本体是 React.lazy 按需加载的（默认不带 Suspense 边界）：这里不接住的话，加载中的挂起会穿过 portal 冒泡到路由的
   // loading 边界，整篇正文被隐藏（display:none）、换回 loading 骨架，等组件代码下载完才恢复（首屏水合后、客户端跳转后都会这样）。
   // 每个组件岛自己一个边界，加载期间保留降级内容。HideOnCommit 放在组件前面：渲染出错时 onError（错误边界的 componentDidCatch）
   // 在它之后执行，恢复显示降级内容
-  return islands.map(({ id, root, fallback, def, props, height, View }) => createPortal(
+  return islands.map(({ id, root, fallback, component, props, height, View }) => createPortal(
     <Suspense fallback={null}>
       <HideOnCommit el={fallback} />
       <View
-        def={def}
+        component={component}
         props={props}
         height={height}
         onError={() => {

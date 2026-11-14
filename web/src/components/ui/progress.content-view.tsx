@@ -1,10 +1,18 @@
 'use client'
 
-import type { ProgressContentProps } from './progress.content'
 import { Progress } from '@/components/ui/progress'
 
+export interface ProgressItemProps {
+  label: string
+  value: number
+}
+
+export interface ProgressContentProps {
+  items: ProgressItemProps[]
+}
+
 /** 进度条列表：名称 + 百分比 */
-export default function ProgressContent({ items }: ProgressContentProps) {
+export default function ProgressContent({ items = [] }: ProgressContentProps) {
   return (
     <div className="grid gap-3">
       {items.map((item, index) => (

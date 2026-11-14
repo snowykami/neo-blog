@@ -1,6 +1,6 @@
 'use client'
 
-import type { NeteaseSongProps } from './schema'
+import type { NeteaseSongProps } from './custom-audio-card'
 import { useTranslations } from 'next-intl'
 import dynamic from 'next/dynamic'
 import { getMusicSong } from '@/api/music'
@@ -10,15 +10,37 @@ import { useCachedSongMetaTranslation } from '@/contexts/song-meta-translations'
 import { LYRIC_PLACEHOLDERS } from '@/lib/lyrics/line-utils'
 import { formatDisplayArtists, formatInlineSongTitle } from '@/lib/lyrics/song-meta-format'
 import { songToTrack } from '@/models/music'
+import { isSafeHref } from '../safe-url'
 import { useCachedRequest } from '../use-cached-request'
 import { useComponentHeight } from '../use-component-height'
 import { CustomAudioCard } from './custom-audio-card'
 import { isTallMusicCard, MusicCardLyricHint, MusicCardView } from './music-card-view'
 import { MusicPlayButton, NeteaseOpenButton } from './music-controls'
 
+export type { NeteaseSongProps } from './custom-audio-card'
+
 /** 音乐卡片：网易云歌曲或自定义音频 */
-export default function MusicCard(props: NeteaseSongProps) {
-  return props.mode === 'custom' ? <CustomAudioCard {...props} /> : <NeteaseSongCard id={props.id} />
+export default function MusicCard(raw: NeteaseSongProps) {
+  const mode = raw.mode ?? 'netease'
+  const id = raw.id ?? 0
+  const title = (raw.title ?? '').trim()
+  const artist = (raw.artist ?? '').trim()
+  const album = (raw.album ?? '').trim()
+  const cover = (raw.cover ?? '').trim()
+  const src = (raw.src ?? '').trim()
+  const lyric = raw.lyric ?? ''
+
+  if (mode === 'custom') {
+    if (!title || !src || !isSafeHref(src, true) || (cover !== '' && !isSafeHref(cover, true)))
+      throw new Error('Invalid custom audio card props')
+    return <CustomAudioCard mode={mode} id={id} title={title} artist={artist} album={album} cover={cover} src={src} lyric={lyric} />
+  }
+  if (mode === 'netease') {
+    if (typeof id !== 'number' || !Number.isInteger(id) || id <= 0)
+      throw new Error('Invalid netease song id')
+    return <NeteaseSongCard id={id} />
+  }
+  throw new Error(`Invalid music card mode: ${String(mode)}`)
 }
 
 /**

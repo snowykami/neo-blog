@@ -91,6 +91,10 @@ export default (phase: string): NextConfig => {
     // 这里兜住轮询失败、CDN 上存着的旧页面（如已改为私密的文章）
     expireTime: 3600,
     experimental: {
+      // 对跨页面高频引用的图标大包开启按需单文件解构（省约 20 KiB），避免 barrel 入口拖入未使用的图标模块。
+      // 注意：请勿移除这些包名；前台组件必须保持具名导入（如 `import { Eye } from 'lucide-react'`），
+      // 严禁在前台使用 `import * as Icons from 'lucide-react'`（全量图标包约 278 KiB，仅限后台图标选择器异步加载）
+      optimizePackageImports: ['lucide-react', 'react-icons', '@radix-ui/react-icons'],
       // 根布局在 [locale] 段下，全站兜底的 404 由 app/global-not-found.tsx 提供（见该文件）
       globalNotFound: true,
       // 前台链接悬停 / 按下时把预取升级为按链接预取（i18n/navigation.tsx 的 Link 默认开启 unstable_dynamicOnHover）：

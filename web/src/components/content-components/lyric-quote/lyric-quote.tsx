@@ -1,7 +1,6 @@
 'use client'
 
 import type { CardAudioStatus } from '../use-card-audio'
-import type { LyricQuoteProps } from './schema'
 import type { LyricLine } from '@/lib/lyrics/types'
 import { QuoteIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
@@ -14,9 +13,28 @@ import { getWordProgress } from '@/lib/lyrics/timeline'
 import { cn } from '@/lib/utils'
 import { songToTrack } from '@/models/music'
 import { MusicPlayButton, NeteaseOpenButton } from '../netease-song/music-controls'
+import { isSafeHref } from '../safe-url'
 import { useCachedRequest } from '../use-cached-request'
 import { useCardAudio } from '../use-card-audio'
 import { buildQuoteLyrics, getSnippetEndMs, resolveQuoteLines } from './quote-lines'
+
+export type LyricQuoteSource = 'netease' | 'custom'
+
+export interface LyricQuoteProps {
+  source: LyricQuoteSource
+  id: number
+  title: string
+  artist: string
+  src: string
+  lyric: string
+  showTranslation: boolean
+  translation: string
+  showRomaji: boolean
+  romaji: string
+  start: number
+  end: number
+  text: string
+}
 
 /** 把首尾空白替换为不换行空格：逐字歌词每个字渲染为 inline-block，普通空格会被折叠 */
 function preserveEdgeSpaces(text: string) {
@@ -252,8 +270,35 @@ function LyricQuoteView({ lines, wordTimed, showTranslation, showRomaji, fallbac
 }
 
 /** 歌词摘录：把一句（或一段）歌词引用到文章中，点击播放从该句开始播放，到摘录结尾自动暂停 */
-export default function LyricQuote(props: LyricQuoteProps) {
-  return props.source === 'custom' ? <CustomLyricQuote {...props} /> : <NeteaseLyricQuote {...props} />
+export default function LyricQuote(raw: LyricQuoteProps) {
+  const props: LyricQuoteProps = {
+    source: raw.source ?? 'netease',
+    id: raw.id ?? 0,
+    title: (raw.title ?? '').trim(),
+    artist: (raw.artist ?? '').trim(),
+    src: (raw.src ?? '').trim(),
+    lyric: raw.lyric ?? '',
+    showTranslation: raw.showTranslation ?? false,
+    translation: raw.translation ?? '',
+    showRomaji: raw.showRomaji ?? false,
+    romaji: raw.romaji ?? '',
+    start: raw.start ?? 0,
+    end: raw.end ?? 0,
+    text: (raw.text ?? '').trim(),
+  }
+  if (props.end > 0 && props.end < props.start)
+    throw new Error('Invalid lyricQuote time range')
+  if (props.source === 'custom') {
+    if (!props.title || !props.src || !isSafeHref(props.src, true))
+      throw new Error('Invalid custom lyricQuote props')
+    return <CustomLyricQuote {...props} />
+  }
+  if (props.source === 'netease') {
+    if (typeof props.id !== 'number' || !Number.isInteger(props.id) || props.id <= 0)
+      throw new Error('Invalid netease lyricQuote id')
+    return <NeteaseLyricQuote {...props} />
+  }
+  throw new Error(`Invalid lyricQuote source: ${String(props.source)}`)
 }
 
 function NeteaseLyricQuote({ id, lyric: authorLyric, translation, romaji, showTranslation, showRomaji, start, end, text, title, artist }: LyricQuoteProps) {

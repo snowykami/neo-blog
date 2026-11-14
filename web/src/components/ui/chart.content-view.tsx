@@ -1,12 +1,23 @@
 'use client'
 
-import type { ChartContentProps } from './chart.content'
 import type { ChartConfig } from '@/components/ui/chart'
 import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 
+export interface ChartDataPoint {
+  label: string
+  value: number
+}
+
+export interface ChartContentProps {
+  title: string
+  type: 'bar' | 'line'
+  unit: string
+  data: ChartDataPoint[]
+}
+
 /** 简单图表：柱状图 / 折线图，单个数据系列 */
-export default function ChartContent({ title, type, unit, data }: ChartContentProps) {
+export default function ChartContent({ title = '', type = 'bar', unit = '', data = [] }: ChartContentProps) {
   const config: ChartConfig = { value: { label: unit || title || 'value', color: 'var(--primary)' } }
   const axes = (
     <>

@@ -1,10 +1,18 @@
 'use client'
 
-import type { TextTabsContentProps } from './tabs.content'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
+export interface TextTabItemProps {
+  label: string
+  content: string
+}
+
+export interface TextTabsContentProps {
+  tabs: TextTabItemProps[]
+}
+
 /** 文本标签页：多段内容切换展示 */
-export default function TextTabsContent({ tabs }: TextTabsContentProps) {
+export default function TextTabsContent({ tabs = [] }: TextTabsContentProps) {
   return (
     <Tabs defaultValue="0" className="gap-3">
       <TabsList className="max-w-full justify-start overflow-x-auto">

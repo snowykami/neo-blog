@@ -1,8 +1,7 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import type { ComponentType, ReactNode } from 'react'
 import type { ComponentHeight } from './layout'
-import type { AnyContentComponentDef } from './types'
 import { Component } from 'react'
 import { cn } from '@/lib/utils'
 import { COMPONENT_BLOCK_CLASS } from './constants'
@@ -34,8 +33,8 @@ class ComponentErrorBoundary extends Component<BoundaryProps, { failed: boolean 
   }
 }
 
-export interface ContentComponentViewProps {
-  def: AnyContentComponentDef
+export interface ContentViewProps {
+  component: ComponentType<any>
   props: Record<string, unknown>
   // 渲染出错时的回调（前台用于恢复降级内容）与替代内容
   onError?: () => void
@@ -45,13 +44,13 @@ export interface ContentComponentViewProps {
   className?: string
 }
 
-export interface ContentViewProps extends Omit<ContentComponentViewProps, 'def'> {
-  component: ContentComponentViewProps['def']['component']
+export interface ContentComponentViewProps extends Omit<ContentViewProps, 'component'> {
+  def: { component: ComponentType<any> }
 }
 
 /**
  * 只按「组件本体 + props」渲染：编辑器预览、前台组件岛、侧边栏组件卡片共用。
- * 侧边栏卡片不持有定义对象（那里带着 schema 与 zod），所以这里不要求传 def。
+ * 不持有定义对象（那里带着 schema 与 zod），确保访客端完全脱离 zod 依赖。
  */
 export function ContentView({ component: Comp, props, onError, errorFallback = null, height = null, className }: ContentViewProps) {
   return (
@@ -69,7 +68,7 @@ export function ContentView({ component: Comp, props, onError, errorFallback = n
   )
 }
 
-/** 渲染注册表中的组件：编辑器预览与前台组件岛共用 */
+/** 渲染注册表中的组件：编辑器预览共用 */
 export function ContentComponentView({ def, ...rest }: ContentComponentViewProps) {
   return <ContentView component={def.component} {...rest} />
 }

@@ -1,5 +1,6 @@
 'use client'
-import type { AnyContentComponentDef } from '@/components/content-components/types'
+import type { ComponentType } from 'react'
+import type { ContentViewProps } from '@/components/content-components/content-component-view'
 import type { Label } from '@/models/label'
 import type { Post } from '@/models/post'
 import { ChevronDownIcon, ChevronUpIcon, Eye } from 'lucide-react'
@@ -10,8 +11,6 @@ import { listPosts } from '@/api/post'
 import { ImageAvatar } from '@/components/common/avatar'
 import { LinkPreviewScopeProvider } from '@/components/common/link-preview-context'
 import { SafeImage } from '@/components/common/safe-image'
-import { ContentView } from '@/components/content-components/content-component-view'
-import { CONTENT_COMPONENT_LOADERS } from '@/components/content-components/runtime-registry.generated'
 import { Button } from '@/components/ui/button'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { LikeIcon } from '@/contexts/theme-context'
@@ -264,32 +263,45 @@ export function SidebarIframeCard({ title, url, height }: { title: string, url: 
 
 // 文章组件块作为侧边栏卡片：有标题时放在标准卡片内，否则直接展示组件（如天气卡、仓库卡）
 export function SidebarComponentCard({ title, name, props, version }: { title: string, name: string, props: Record<string, unknown>, version?: number }) {
-  // 组件定义（连带 schema 与 zod）按需加载：侧边栏里没配组件卡片时，这段代码不会进首屏包
-  const [def, setDef] = useState<AnyContentComponentDef | null>(null)
+  // 防退化约束（两层隔离）：
+  // 1. 为什么在 useEffect 中动态 import() 而不是文件顶层静态导入：侧边栏几乎出现在所有前台页面，
+  //    动态导入保证未配置组件卡片的站点连 runtime-registry 映射表都不会进首屏包；
+  // 2. 为什么只引入 runtime + ContentView（严禁引入 props.ts / registry.ts）：保持与 sidebar-cards.ts 一致的
+  //    前台 0 Zod 边界，避免把 zod 与全部组件 schema（约 144 KiB raw）拉进访客首屏
+  const [resolved, setResolved] = useState<{
+    component: ComponentType<any>
+    View: ComponentType<ContentViewProps>
+  } | null>(null)
   useEffect(() => {
-    const load = CONTENT_COMPONENT_LOADERS[name]
-    if (!load)
-      return
     let cancelled = false
-    load()
-      .then((module) => {
-        if (!cancelled)
-          setDef(module.default)
+    setResolved(null)
+    void Promise.all([
+      import('@/components/content-components/runtime'),
+      import('@/components/content-components/content-component-view'),
+    ])
+      .then(([{ getRuntimeContentComponent }, { ContentView }]) => {
+        if (cancelled)
+          return
+        const entry = getRuntimeContentComponent(name, version)
+        if (!entry)
+          return
+        setResolved({ component: entry.component, View: ContentView })
       })
       .catch(() => {})
     return () => {
       cancelled = true
     }
-  }, [name])
+  }, [name, version])
   // 组件被删除或版本过高时不渲染（保存配置时已校验过，这里只是兜底）
-  if (!def || (version != null && version > def.version))
+  if (!resolved)
     return null
+  const { component, View } = resolved
   const view = (
     <LinkPreviewScopeProvider targetType="sidebar">
-      <ContentView component={def.component} props={props} className="my-0" />
+      <View component={component} props={props} className="my-0" />
     </LinkPreviewScopeProvider>
   )
-  // 组件本体由 next/dynamic 按需加载、不带 Suspense 边界：在这里接住挂起（整张卡片等组件代码到了再出现），
+  // 组件本体通过 React.lazy 按需加载、不带 Suspense 边界：在这里接住挂起（整张卡片等组件代码到了再出现），
   // 免得冒泡到路由的 loading 边界把整页换回骨架
   return <Suspense fallback={null}>{title ? <SidebarCard title={title}>{view}</SidebarCard> : view}</Suspense>
 }

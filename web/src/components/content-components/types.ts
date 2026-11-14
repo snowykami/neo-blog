@@ -38,7 +38,12 @@ export interface ContentComponentDef<S extends z.ZodObject = z.ZodObject> {
   version: number
   // props 结构，所有字段都应带默认值，以便插入时生成初始 props
   schema: S
-  // 懒加载的渲染组件（next/dynamic），编辑器预览与前台渲染共用
+  // 懒加载的渲染组件（编辑器预览与前台渲染共用）：
+  // 1. 必须保持 `dynamic(() => import('...'))` 写法，供 scripts/gen-content-components.mjs 正则提取纯视图路径；
+  // 2. 目标视图模块（*.content-view.tsx 或子目录视图组件）必须保持 0 Zod，严禁导入（哪怕是 `import type`）
+  //    `zod`、`*.content.ts` 或 `./schema`——因为 i18n-graph.mjs 的 AST 扫描不区分类型导入与值导入，
+  //    一旦引入类型也会把 schema 链拉进前台模块图并触发单测门禁失败；
+  // 3. 视图组件需对可选 props 提供默认值，缺失必填项或非法 URL（用 safe-url.ts）直接抛错交由 ComponentErrorBoundary 回退降级 HTML
   component: ComponentType<NoInfer<z.output<S>>>
   icon: LucideIcon
   // 斜杠命令的检索词（中文 / 拼音 / 英文）

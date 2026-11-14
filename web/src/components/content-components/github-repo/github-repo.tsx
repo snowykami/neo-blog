@@ -1,6 +1,5 @@
 'use client'
 
-import type { GithubRepoProps } from './schema'
 import { GitForkIcon, ScaleIcon, StarIcon } from 'lucide-react'
 import { useFormatter, useTranslations } from 'next-intl'
 import { FaGithub } from 'react-icons/fa6'
@@ -9,14 +8,25 @@ import { SafeImage } from '@/components/common/safe-image'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
+import { isSafeGithubRepo } from '../safe-url'
 import { useCachedRequest } from '../use-cached-request'
 import { useComponentHeight } from '../use-component-height'
+
+export interface GithubRepoProps {
+  repo: string
+}
 
 /**
  * GitHub 仓库卡：头像、仓库名、简介、语言、Star / Fork 数与许可证，整卡链接到仓库
  * 高度 2 单位（112px）时只保留仓库名与统计；4 单位时简介最多四行、统计固定在底部；窄卡片收起许可证
  */
-export default function GithubRepoCard({ repo }: GithubRepoProps) {
+export default function GithubRepoCard({ repo = '' }: GithubRepoProps) {
+  if (!isSafeGithubRepo(repo))
+    throw new Error('Invalid github repo')
+  return <GithubRepoCardBody repo={repo.trim()} />
+}
+
+function GithubRepoCardBody({ repo }: GithubRepoProps) {
   const t = useTranslations('ContentComponents.githubRepo')
   const format = useFormatter()
   const [owner, name] = repo.split('/')
