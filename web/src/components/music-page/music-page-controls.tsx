@@ -25,7 +25,7 @@ import {
   Volume2Icon,
   VolumeXIcon,
 } from 'lucide-react'
-import { AnimatePresence, m } from 'motion/react'
+import { AnimatePresence, LazyMotion, m } from 'motion/react'
 import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { TbHdr } from 'react-icons/tb'
@@ -43,6 +43,7 @@ import {
 import { useSongChorus } from '@/contexts/song-chorus'
 import { useHdrDisplay } from '@/hooks/use-hdr-highlight'
 import { getLyricLineText } from '@/lib/lyrics/line-utils'
+import { getMotionFeatures } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import { formatDurationMMSS } from '@/utils/common/datetime'
 
@@ -186,7 +187,7 @@ interface MoreControlsMenuProps {
  * 收拢为三点菜单，点击后以二阶弹簧物理动效（Spring）展开半透明浮层，
  * 无操作时自动延时平滑收起。
  */
-function MoreControlsMenu({
+export function MoreControlsMenu({
   showLyricMoments,
   setShowLyricMoments,
   showLyricEffects,
@@ -290,81 +291,89 @@ function MoreControlsMenu({
   }, [currentTrack, lyricLines, playerT, scheduleClose])
 
   return (
-    <div
-      ref={containerRef}
-      className="relative flex items-center"
-      onMouseEnter={cancelClose}
-      onMouseLeave={() => open && scheduleClose(3000)}
-    >
-      <AnimatePresence>
-        {open && (
-          <m.div
-            initial={{ opacity: 0, scale: 0.82, y: 8, filter: 'blur(6px)' }}
-            animate={{ opacity: 1, scale: 1, y: 0, filter: 'blur(0px)' }}
-            exit={{ opacity: 0, scale: 0.85, y: 6, filter: 'blur(4px)' }}
-            transition={{
-              type: 'spring',
-              stiffness: 420,
-              damping: 26,
-              mass: 0.75,
-            }}
-            className="absolute bottom-full right-0 z-30 mb-2 flex items-center gap-1 rounded-full border border-white/15 bg-neutral-950/85 p-1 shadow-2xl backdrop-blur-xl pointer-coarse:gap-1.5"
-          >
-            {/* 复制整首歌词 + 翻译 + 拼音 */}
-            <IconButton
-              icon={copied ? CheckIcon : CopyIcon}
-              label={copied ? playerT('lyrics_copied') : playerT('copy_lyrics')}
-              active={copied}
-              iconClassName={copied ? 'text-emerald-400' : undefined}
-              onClick={handleCopyLyrics}
-            />
-
-            {/* 评论与旁白 */}
-            <IconButton
-              icon={MessageSquareQuoteIcon}
-              label={playerT('show_lyric_moments')}
-              active={showLyricMoments}
-              onClick={() => {
-                setShowLyricMoments(!showLyricMoments)
-                scheduleClose(2500)
+    // 控制栏在播放器页和悬浮球里处于顶栏 <LazyMotion> 外部，需要自备特征包驱动 <m.div>
+    <LazyMotion features={getMotionFeatures()} strict>
+      <div
+        ref={containerRef}
+        className="relative flex items-center"
+        onMouseEnter={cancelClose}
+        onMouseLeave={() => open && scheduleClose(3000)}
+      >
+        <AnimatePresence>
+          {open && (
+            <m.div
+              role="group"
+              aria-label={playerT('more_options')}
+              initial={{ opacity: 0, scale: 0.82, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.85, y: 6 }}
+              transition={{
+                type: 'spring',
+                stiffness: 420,
+                damping: 26,
+                mass: 0.75,
               }}
-            />
+              className="absolute right-0 bottom-full z-30 mb-2 flex origin-bottom-right items-center gap-1 rounded-full border border-white/15 bg-neutral-950/85 p-1 shadow-2xl backdrop-blur-xl pointer-coarse:gap-1.5"
+            >
+              {/* 复制整首歌词 + 翻译 + 拼音 */}
+              <IconButton
+                icon={copied ? CheckIcon : CopyIcon}
+                label={copied ? playerT('lyrics_copied') : playerT('copy_lyrics')}
+                active={copied}
+                iconClassName={copied ? 'text-emerald-400' : undefined}
+                onClick={handleCopyLyrics}
+              />
 
-            {/* 歌词特效 */}
-            <IconButton
-              icon={SparklesIcon}
-              label={playerT('show_lyric_effects')}
-              active={showLyricEffects}
-              onClick={() => {
-                setShowLyricEffects(!showLyricEffects)
-                scheduleClose(2500)
-              }}
-            />
+              {/* 评论与旁白 */}
+              <IconButton
+                icon={MessageSquareQuoteIcon}
+                label={playerT('show_lyric_moments')}
+                active={showLyricMoments}
+                onClick={() => {
+                  setShowLyricMoments(!showLyricMoments)
+                  scheduleClose(2500)
+                }}
+              />
 
-            {/* HDR 高光 */}
-            <IconButton
-              icon={TbHdr}
-              label={hdrDisplay ? playerT('hdr_highlight') : playerT('hdr_unsupported')}
-              active={hdrDisplay && hdr}
-              disabled={!hdrDisplay}
-              onClick={() => {
-                setHdr(!hdr)
-                scheduleClose(2500)
-              }}
-            />
-          </m.div>
-        )}
-      </AnimatePresence>
+              {/* 歌词特效 */}
+              <IconButton
+                icon={SparklesIcon}
+                label={playerT('show_lyric_effects')}
+                active={showLyricEffects}
+                onClick={() => {
+                  setShowLyricEffects(!showLyricEffects)
+                  scheduleClose(2500)
+                }}
+              />
 
-      <IconButton
-        icon={MoreHorizontalIcon}
-        label={playerT('more_options')}
-        active={open}
-        className={cn(open && 'bg-white/15 text-white')}
-        iconClassName={cn('transition-transform duration-200', open && 'rotate-90')}
-        onClick={() => setOpen(prev => !prev)}
-      />
-    </div>
+              {/* HDR 高光 */}
+              <IconButton
+                icon={TbHdr}
+                label={hdrDisplay ? playerT('hdr_highlight') : playerT('hdr_unsupported')}
+                active={hdrDisplay && hdr}
+                disabled={!hdrDisplay}
+                onClick={() => {
+                  setHdr(!hdr)
+                  scheduleClose(2500)
+                }}
+              />
+            </m.div>
+          )}
+        </AnimatePresence>
+
+        <button
+          type="button"
+          aria-label={playerT('more_options')}
+          title={playerT('more_options')}
+          aria-haspopup="true"
+          aria-expanded={open}
+          onClick={() => setOpen(prev => !prev)}
+          className={cn(MUSIC_ICON_BUTTON_CLASSNAME, open && 'bg-white/15 text-white')}
+        >
+          <MoreHorizontalIcon aria-hidden className={cn('size-5 transition-transform duration-200', open && 'rotate-90')} />
+        </button>
+      </div>
+    </LazyMotion>
   )
 }
 
