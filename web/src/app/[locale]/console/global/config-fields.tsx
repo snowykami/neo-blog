@@ -287,6 +287,8 @@ function SwitchField({ item, label, description }: FieldProps) {
   )
 }
 
+const EMPTY_SELECT_VALUE = '__empty__'
+
 function SelectField({ item, label, description }: FieldProps) {
   const tr = useConfigT()
   const { control } = useFormContext<ConfigValues>()
@@ -294,19 +296,26 @@ function SelectField({ item, label, description }: FieldProps) {
     <FormField
       control={control}
       name={item.key}
-      render={({ field }) => (
-        <FormItem className={itemClass(item)}>
-          <FieldLabel label={label} description={description} />
-          <Select value={field.value as string} onValueChange={field.onChange}>
-            <FormControl>
-              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-            </FormControl>
-            <SelectContent>
-              {item.options?.map(option => <SelectItem key={option.value} value={option.value}>{tr(option.label) ?? option.value}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </FormItem>
-      )}
+      render={({ field }) => {
+        const raw = typeof field.value === 'string' ? field.value : ''
+        const selectValue = raw === '' ? EMPTY_SELECT_VALUE : raw
+        return (
+          <FormItem className={itemClass(item)}>
+            <FieldLabel label={label} description={description} />
+            <Select value={selectValue} onValueChange={next => field.onChange(next === EMPTY_SELECT_VALUE ? '' : next)}>
+              <FormControl>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                {item.options?.map((option) => {
+                  const optionValue = option.value === '' ? EMPTY_SELECT_VALUE : option.value
+                  return <SelectItem key={optionValue} value={optionValue}>{tr(option.label) ?? option.value}</SelectItem>
+                })}
+              </SelectContent>
+            </Select>
+          </FormItem>
+        )
+      }}
     />
   )
 }

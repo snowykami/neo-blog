@@ -263,11 +263,16 @@ func chatCompletionRawWithImages(ctx context.Context, cfg tools.AIConfig, system
 
 // chatCompletionStream 流式调用模型并记录全站预算与用量
 func chatCompletionStream(ctx context.Context, cfg tools.AIConfig, system, user string, onChunk func(content, reasoning string) error) error {
+	return chatCompletionStreamWithReasoning(ctx, cfg, system, user, "", onChunk)
+}
+
+// chatCompletionStreamWithReasoning 同 chatCompletionStream，可指定思考强度
+func chatCompletionStreamWithReasoning(ctx context.Context, cfg tools.AIConfig, system, user, effort string, onChunk func(content, reasoning string) error) error {
 	finish, err := beginLLMCall(ctx, cfg.Model)
 	if err != nil {
 		return err
 	}
-	usage, err := llmclient.ChatCompletionStreamCall(ctx, cfg, system, user, onChunk)
+	usage, err := llmclient.ChatCompletionStreamCallWithEffort(ctx, cfg, system, user, effort, onChunk)
 	finish(usage, err)
 	return err
 }

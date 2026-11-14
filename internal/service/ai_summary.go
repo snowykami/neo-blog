@@ -560,7 +560,7 @@ func isMostlyLatin(text string) bool {
 
 // aiSummaryCompletion 摘要调用模型（温度 0.3），用户消息可附带正文图片
 func aiSummaryCompletion(ctx context.Context, cfg tools.AIConfig, system, user string, images []VisionImage) (string, error) {
-	data, err := chatCompletionRawWithImages(ctx, cfg, system, user, images, 0.3, "")
+	data, err := chatCompletionRawWithImages(ctx, cfg, system, user, images, 0.3, tools.GetAISummaryThinking())
 	if err != nil {
 		return "", err
 	}

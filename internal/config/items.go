@@ -39,6 +39,15 @@ var tabs = []Tab{
 // 站点内置的配色方案，对应前端 app/styles 下的主题文件
 var colorSchemes = []string{"blue", "green", "orange", "red", "pink", "rose", "violet", "yellow"}
 
+// 各 AI 任务可选的思考强度；空值表示继承模型默认行为
+var aiThinkingModes = []Option{
+	{Value: "", Label: "ai_thinking_mode_default"},
+	{Value: "none", Label: "ai_thinking_mode_none"},
+	{Value: "low", Label: "ai_thinking_mode_low"},
+	{Value: "medium", Label: "ai_thinking_mode_medium"},
+	{Value: "high", Label: "ai_thinking_mode_high"},
+}
+
 // 站点信息相关的默认值是开源项目的中性占位（站名、站长、图标、封面、页脚等），新站点在后台填写自己的信息；
 // 已保存过站点信息的站点不受默认值变化影响（升级前的默认值由迁移 2026111150 补进已保存的站点信息）
 var sections = []*Section{
@@ -208,6 +217,15 @@ var sections = []*Section{
 		{Key: "ai_monthly_token_budget", Type: TypeInt, Label: "ai_monthly_token_budget", Description: "ai_monthly_token_budget_desc", Min: num(0), Max: num(1e12), Default: 0},
 		{Key: "ai_writing_style", Type: TypeText, Label: "ai_writing_style", Description: "ai_writing_style_desc", PlaceholderKey: "ai_writing_style_placeholder", Rows: 6, Wide: true, Default: ""},
 		{Key: "lyric_annotation_ttl_days", Type: TypeInt, Label: "lyric_annotation_ttl_days", Description: "lyric_annotation_ttl_days_desc", Min: num(1), Max: num(365), Default: 7},
+	}},
+	// AI 思考强度：按任务独立控制 reasoning_effort / DeepSeek thinking；不支持的模型会自动降级重试
+	{Tab: "ai", Key: "ai_thinking", Title: "section_ai_thinking", Description: "section_ai_thinking_desc", Items: []*Item{
+		{Key: "ai_thinking_lyric_translation", Type: TypeEnum, Label: "ai_thinking_lyric_translation", Description: "ai_thinking_lyric_translation_desc", Options: aiThinkingModes, Default: ""},
+		{Key: "ai_thinking_lyric_annotation", Type: TypeEnum, Label: "ai_thinking_lyric_annotation", Description: "ai_thinking_lyric_annotation_desc", Options: aiThinkingModes, Default: "none"},
+		{Key: "ai_thinking_lyric_pronunciation", Type: TypeEnum, Label: "ai_thinking_lyric_pronunciation", Description: "ai_thinking_lyric_pronunciation_desc", Options: aiThinkingModes, Default: "none"},
+		{Key: "ai_thinking_writing", Type: TypeEnum, Label: "ai_thinking_writing", Description: "ai_thinking_writing_desc", Options: aiThinkingModes, Default: ""},
+		{Key: "ai_thinking_comment_translate", Type: TypeEnum, Label: "ai_thinking_comment_translate", Description: "ai_thinking_comment_translate_desc", Options: aiThinkingModes, Default: "low"},
+		{Key: "ai_thinking_summary", Type: TypeEnum, Label: "ai_thinking_summary", Description: "ai_thinking_summary_desc", Options: aiThinkingModes, Default: "none"},
 	}},
 	// AI 用户：由 Agent 驱动、与普通用户同权限的账号；模型使用上面的 AI 配置
 	{Tab: "ai", Key: "ai_agents", Title: "section_ai_agents", Description: "section_ai_agents_desc", Items: []*Item{

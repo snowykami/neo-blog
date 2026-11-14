@@ -206,7 +206,7 @@ func (s *AIWriteService) callComplete(ctx context.Context, cfg tools.AIConfig, s
 	if completeFn == nil {
 		completeFn = chatCompletionWithReasoning
 	}
-	raw, err := completeFn(withLLMPurpose(callCtx, constant.LLMPurposeWriting, userID), cfg, systemPrompt, userPrompt, temperature, "low")
+	raw, err := completeFn(withLLMPurpose(callCtx, constant.LLMPurposeWriting, userID), cfg, systemPrompt, userPrompt, temperature, tools.GetAIWritingThinking())
 	if err != nil {
 		var svcerr *errs.ServiceError
 		if errors.As(err, &svcerr) {
@@ -353,7 +353,7 @@ func sanitizeLabelSlug(rawSlug, fallbackName string) string {
 
 func normalizeSuggestedTaxonomy(raw string, categories []model.Category, labels []model.Label) (*dto.AITaxonomyResp, *errs.ServiceError) {
 	var parsed struct {
-		CategoryID *uint `json:"category_id"`
+		CategoryID *uint  `json:"category_id"`
 		LabelIDs   []uint `json:"label_ids"`
 		NewLabels  []struct {
 			Name string `json:"name"`

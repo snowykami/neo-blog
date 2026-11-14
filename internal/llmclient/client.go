@@ -278,7 +278,29 @@ func PostChatCompletionsVision(ctx context.Context, cfg tools.AIConfig, payload 
 	return resp, err
 }
 
-// ChatCompletionRawCall 发送非流式请求并返回响应字节；不支持 reasoning_effort 时自动回退重试一次，拒收图片时自动退回纯文本重试一次
+// applyThinkingEffort 根据接口协议与思考强度注入请求参数，并按 (endpoint, model, effort) 记录 400 不支持状态。
+func applyThinkingEffort(payload map[string]any, cfg tools.AIConfig, effort string) (cacheKey string, strip func()) {
+	effort = strings.TrimSpace(strings.ToLower(effort))
+	if effort == "" {
+		return "", nil
+	}
+	cacheKey = modelEndpointKey(cfg.BaseURL, cfg.Model) + "\x00" + effort
+	if _, unsupported := reasoningEffortUnsupported.Load(cacheKey); unsupported {
+		return "", nil
+	}
+	if strings.Contains(strings.ToLower(cfg.BaseURL), "deepseek.com") {
+		if effort == "none" {
+			payload["thinking"] = map[string]any{"type": "disabled"}
+		} else {
+			payload["thinking"] = map[string]any{"type": "enabled"}
+		}
+		return cacheKey, func() { delete(payload, "thinking") }
+	}
+	payload["reasoning_effort"] = effort
+	return cacheKey, func() { delete(payload, "reasoning_effort") }
+}
+
+// ChatCompletionRawCall 发送非流式请求并返回响应字节；不支持思考参数时自动回退重试一次，拒收图片时自动退回纯文本重试一次
 func ChatCompletionRawCall(ctx context.Context, cfg tools.AIConfig, system, user string, images []VisionImage, temperature float64, effort string) ([]byte, error) {
 	payload := map[string]any{
 		"model":       cfg.Model,
@@ -286,16 +308,13 @@ func ChatCompletionRawCall(ctx context.Context, cfg tools.AIConfig, system, user
 		"temperature": temperature,
 		"stream":      false,
 	}
-	key := modelEndpointKey(cfg.BaseURL, cfg.Model)
-	if _, unsupported := reasoningEffortUnsupported.Load(key); effort != "" && !unsupported {
-		payload["reasoning_effort"] = effort
-	}
+	thinkingKey, stripThinking := applyThinkingEffort(payload, cfg, effort)
 	resp, err := PostChatCompletionsVision(ctx, cfg, payload)
 	var statusErr *StatusError
-	if _, sent := payload["reasoning_effort"]; sent && errors.As(err, &statusErr) && statusErr.Code == http.StatusBadRequest {
-		logrus.Warnf("chat completion rejected reasoning_effort, retrying without it: %v", err)
-		reasoningEffortUnsupported.Store(key, true)
-		delete(payload, "reasoning_effort")
+	if stripThinking != nil && errors.As(err, &statusErr) && statusErr.Code == http.StatusBadRequest {
+		logrus.Warnf("chat completion rejected thinking/reasoning_effort (%s), retrying without it: %v", effort, err)
+		reasoningEffortUnsupported.Store(thinkingKey, true)
+		stripThinking()
 		resp, err = PostChatCompletionsVision(ctx, cfg, payload)
 	}
 	if err != nil {
@@ -325,6 +344,11 @@ func ParseChatCompletion(data []byte) (string, error) {
 
 // ChatCompletionStreamCall 以 stream: true 调用 OpenAI 兼容接口（含 stream_options 400 自动降级与非流式 JSON 兼容）
 func ChatCompletionStreamCall(ctx context.Context, cfg tools.AIConfig, system, user string, onChunk func(content, reasoning string) error) (Usage, error) {
+	return ChatCompletionStreamCallWithEffort(ctx, cfg, system, user, "", onChunk)
+}
+
+// ChatCompletionStreamCallWithEffort 同 ChatCompletionStreamCall，可指定思考强度并在 400 时按参数分别自动降级重试
+func ChatCompletionStreamCallWithEffort(ctx context.Context, cfg tools.AIConfig, system, user, effort string, onChunk func(content, reasoning string) error) (Usage, error) {
 	payload := map[string]any{
 		"model":    cfg.Model,
 		"messages": ChatMessages(system, user),
@@ -334,8 +358,23 @@ func ChatCompletionStreamCall(ctx context.Context, cfg tools.AIConfig, system, u
 	if _, unsupported := streamUsageUnsupported.Load(key); !unsupported {
 		payload["stream_options"] = map[string]any{"include_usage": true}
 	}
+	thinkingKey, stripThinking := applyThinkingEffort(payload, cfg, effort)
 	resp, err := PostChatCompletions(ctx, cfg, payload)
 	var statusErr *StatusError
+	if _, sent := payload["stream_options"]; sent && errors.As(err, &statusErr) && statusErr.Code == http.StatusBadRequest &&
+		(stripThinking == nil || strings.Contains(strings.ToLower(statusErr.Message), "stream_options")) {
+		logrus.Warnf("chat completion stream rejected stream_options, retrying without it: %v", err)
+		streamUsageUnsupported.Store(key, true)
+		delete(payload, "stream_options")
+		resp, err = PostChatCompletions(ctx, cfg, payload)
+	}
+	if stripThinking != nil && errors.As(err, &statusErr) && statusErr.Code == http.StatusBadRequest {
+		logrus.Warnf("chat completion stream rejected thinking/reasoning_effort (%s), retrying without it: %v", effort, err)
+		reasoningEffortUnsupported.Store(thinkingKey, true)
+		stripThinking()
+		stripThinking = nil
+		resp, err = PostChatCompletions(ctx, cfg, payload)
+	}
 	if _, sent := payload["stream_options"]; sent && errors.As(err, &statusErr) && statusErr.Code == http.StatusBadRequest {
 		logrus.Warnf("chat completion stream rejected stream_options, retrying without it: %v", err)
 		streamUsageUnsupported.Store(key, true)

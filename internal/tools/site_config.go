@@ -94,6 +94,26 @@ func GetAIMonthlyTokenBudget() int64 { return int64(config.Int("ai_monthly_token
 // GetLyricAnnotationTTLDays 歌词特效（歌词标注）的有效期天数，过期后在后台重新生成
 func GetLyricAnnotationTTLDays() int { return config.Int("lyric_annotation_ttl_days") }
 
+// GetAILyricTranslationThinking 歌词翻译 Stage 2 的思考强度（"" / "none" / "low" / "medium" / "high"）
+func GetAILyricTranslationThinking() string { return config.String("ai_thinking_lyric_translation") }
+
+// GetAILyricAnnotationThinking 歌词视觉与动效标注的思考强度
+func GetAILyricAnnotationThinking() string { return config.String("ai_thinking_lyric_annotation") }
+
+// GetAILyricPronunciationThinking 歌词注音的思考强度
+func GetAILyricPronunciationThinking() string {
+	return config.String("ai_thinking_lyric_pronunciation")
+}
+
+// GetAIWritingThinking 编辑器 AI 写作助手的思考强度
+func GetAIWritingThinking() string { return config.String("ai_thinking_writing") }
+
+// GetAICommentTranslateThinking 评论即时翻译的思考强度
+func GetAICommentTranslateThinking() string { return config.String("ai_thinking_comment_translate") }
+
+// GetAISummaryThinking 文章 AI 摘要生成的思考强度
+func GetAISummaryThinking() string { return config.String("ai_thinking_summary") }
+
 // NCMConfig 网易云音乐 API（NeteaseCloudMusicApi Enhanced）配置（仅后端使用，Cookie 不对外公开）
 type NCMConfig struct {
 	BaseURL    string

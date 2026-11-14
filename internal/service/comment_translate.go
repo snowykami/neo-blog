@@ -234,9 +234,9 @@ func commentTranslateRateKey(ctx context.Context, remoteAddr string) string {
 	return "comment_translate:ip:" + remoteAddr
 }
 
-// commentTranslateCompletion 翻译任务简单，调低思考强度以加快响应
+// commentTranslateCompletion 按后台配置的思考强度调用模型完成评论翻译
 func commentTranslateCompletion(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error) {
-	return chatCompletionWithReasoning(ctx, cfg, system, user, commentTranslateTemperature, "low")
+	return chatCompletionWithReasoning(ctx, cfg, system, user, commentTranslateTemperature, tools.GetAICommentTranslateThinking())
 }
 
 // parseCommentTranslation 解析模型输出的 JSON：源语言与目标语言相同时译文为空，否则译文不能为空

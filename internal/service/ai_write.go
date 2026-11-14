@@ -77,9 +77,11 @@ type aiWriteRun struct {
 }
 
 var aiWriteService = &AIWriteService{
-	running:     make(map[uint]*aiWriteRun),
-	limiter:     llmclient.DefaultLimiter,
-	stream:      chatCompletionStream,
+	running: make(map[uint]*aiWriteRun),
+	limiter: llmclient.DefaultLimiter,
+	stream: func(ctx context.Context, cfg tools.AIConfig, system, user string, onChunk func(content, reasoning string) error) error {
+		return chatCompletionStreamWithReasoning(ctx, cfg, system, user, tools.GetAIWritingThinking(), onChunk)
+	},
 	complete:    chatCompletionWithReasoning,
 	concurrency: tools.GetAISummaryConcurrency,
 	heartbeat:   aiWriteHeartbeat,

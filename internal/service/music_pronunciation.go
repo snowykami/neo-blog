@@ -46,7 +46,6 @@ const (
 	lyricPronunciationJobTTL          = 5 * time.Minute
 	lyricPronunciationRetryAfter      = 5 * time.Minute
 	lyricPronunciationTemperature     = 0.15
-	lyricPronunciationReasoning       = "none"
 	lyricPronunciationWriteLockTTL    = 20 * time.Second
 )
 
@@ -70,7 +69,7 @@ var lyricPronunciations = &lyricPronunciationService{
 	name:    "lyric_pronunciation",
 	limiter: llmclient.DefaultLimiter,
 	complete: func(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error) {
-		return chatCompletionWithReasoning(ctx, cfg, system, user, lyricPronunciationTemperature, lyricPronunciationReasoning)
+		return chatCompletionWithReasoning(ctx, cfg, system, user, lyricPronunciationTemperature, tools.GetAILyricPronunciationThinking())
 	},
 	concurrency: tools.GetAISummaryConcurrency,
 }
