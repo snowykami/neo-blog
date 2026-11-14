@@ -57,25 +57,62 @@ for (const file of files.filter(f => f.endsWith('.map') && existsSync(f)))
 writeFileSync(join(outputDir, 'index.json'), JSON.stringify(index))
 console.log(`collect-sourcemaps: moved ${Object.keys(index).length} source maps to .next/sourcemaps`)
 
-// 为 standalone 生产入口注入运行时 COMPRESS / NEXT_COMPRESS 环境变量支持（默认延续构建配置，设置 false / 0 时在运行时关闭）
+const STANDALONE_CONFIG_ANCHOR = 'process.env.__NEXT_PRIVATE_STANDALONE_CONFIG = JSON.stringify(nextConfig)'
+
+const RUNTIME_COMPRESS_PATCH = `// 运行时支持通过 COMPRESS / NEXT_COMPRESS 环境变量动态开关压缩
+const compressEnv = process.env.COMPRESS ?? process.env.NEXT_COMPRESS
+if (compressEnv !== undefined) {
+  nextConfig.compress = compressEnv === 'true' || compressEnv === '1' || compressEnv === 'on'
+}`
+
+const RUNTIME_IMAGE_HOSTS_PATCH = `// 运行时支持通过 IMAGE_OPTIMIZE_HOSTS 动态覆盖 Next 图片优化远程白名单
+const imageHostsEnv = process.env.IMAGE_OPTIMIZE_HOSTS ?? process.env.NEXT_PUBLIC_IMAGE_OPTIMIZE_HOSTS
+if (imageHostsEnv !== undefined) {
+  const hosts = []
+  for (const part of imageHostsEnv.split(',')) {
+    const trimmed = part.trim().toLowerCase()
+    if (!trimmed) continue
+    let host = ''
+    if (trimmed.includes('://')) {
+      try { host = new URL(trimmed).hostname.toLowerCase() } catch { continue }
+    } else {
+      host = trimmed.replace(/^\\/+|\\/+$/g, '').split('/')[0] ?? ''
+    }
+    if (host && !/\\s/.test(host) && !hosts.includes(host))
+      hosts.push(host)
+  }
+  const remotePatterns = hosts.map(hostname => ({ protocol: 'https', hostname, port: '', pathname: '/**' }))
+  if (typeof nextConfig.assetPrefix === 'string' && nextConfig.assetPrefix.startsWith('http')) {
+    try {
+      const assetUrl = new URL(nextConfig.assetPrefix)
+      const proto = assetUrl.protocol.replace(/:$/, '')
+      if (!remotePatterns.some(p => p.hostname === assetUrl.hostname && p.protocol === proto && (p.port ?? '') === assetUrl.port))
+        remotePatterns.push({ hostname: assetUrl.hostname, protocol: proto, port: assetUrl.port })
+    } catch {}
+  }
+  nextConfig.images = { ...nextConfig.images, remotePatterns }
+}`
+
+// 为 standalone 生产入口注入运行时 COMPRESS 与 IMAGE_OPTIMIZE_HOSTS 环境变量支持
 const serverJsCandidates = [
   join(root, '.next/standalone/server.js'),
   join(root, '.next/standalone/web/server.js'),
 ]
 for (const serverJsPath of serverJsCandidates) {
-  if (existsSync(serverJsPath)) {
-    let content = readFileSync(serverJsPath, 'utf8')
-    const target = 'process.env.__NEXT_PRIVATE_STANDALONE_CONFIG = JSON.stringify(nextConfig)'
-    const patch = `// 运行时支持通过 COMPRESS / NEXT_COMPRESS 环境变量动态开关压缩
-const compressEnv = process.env.COMPRESS ?? process.env.NEXT_COMPRESS
-if (compressEnv !== undefined) {
-  nextConfig.compress = compressEnv === 'true' || compressEnv === '1' || compressEnv === 'on'
-}
-process.env.__NEXT_PRIVATE_STANDALONE_CONFIG = JSON.stringify(nextConfig)`
-    if (content.includes(target) && !content.includes('compressEnv')) {
-      content = content.replace(target, patch)
-      writeFileSync(serverJsPath, content)
-      console.log(`collect-sourcemaps: enabled runtime COMPRESS env in ${relative(root, serverJsPath)}`)
-    }
+  if (!existsSync(serverJsPath))
+    continue
+  let content = readFileSync(serverJsPath, 'utf8')
+  if (content.includes('imageHostsEnv'))
+    continue
+  if (!content.includes(STANDALONE_CONFIG_ANCHOR)) {
+    console.error(`collect-sourcemaps: expected standalone config anchor in ${relative(root, serverJsPath)}`)
+    process.exit(1)
   }
+  const blocks = []
+  if (!content.includes('compressEnv'))
+    blocks.push(RUNTIME_COMPRESS_PATCH)
+  blocks.push(RUNTIME_IMAGE_HOSTS_PATCH, STANDALONE_CONFIG_ANCHOR)
+  content = content.replace(STANDALONE_CONFIG_ANCHOR, blocks.join('\n'))
+  writeFileSync(serverJsPath, content)
+  console.log(`collect-sourcemaps: enabled runtime env overrides in ${relative(root, serverJsPath)}`)
 }

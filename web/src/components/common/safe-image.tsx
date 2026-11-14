@@ -5,6 +5,7 @@ import { ImageOffIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import Image from 'next/image'
 import { useState } from 'react'
+import { useImageOptimizeHosts } from '@/contexts/image-optimize-context'
 import { cn } from '@/lib/utils'
 import { shouldOptimize } from '@/utils/common/image'
 
@@ -55,13 +56,15 @@ function srcKey(src: SafeImageProps['src']) {
  * 带兜底的图片：原图 → 备用图 → 占位块，每一级只尝试一次；src 变化后重新从原图开始
  */
 export function SafeImage({ src, fallbackSrc, fallback, alt = '', onError, ...props }: SafeImageProps) {
+  const optimizeHosts = useImageOptimizeHosts()
   // 去掉空值与重复地址，避免同一个失效地址被重复尝试
   const candidates = [src, fallbackSrc].filter((item, index, list): item is ImageProps['src'] =>
     !!item && list.findIndex(other => srcKey(other) === srcKey(item)) === index)
   const key = srcKey(src)
-  // 记录失败次数时一并记录对应的原图，原图变化时自动重置
-  const [failure, setFailure] = useState({ key, count: 0 })
+  // 记录失败次数与是否已降级直连原图，原图变化时自动重置
+  const [failure, setFailure] = useState({ key, count: 0, directFallback: false })
   const failedCount = failure.key === key ? failure.count : 0
+  const directFallback = failure.key === key ? failure.directFallback : false
   const current = candidates[failedCount]
 
   if (!current) {
@@ -80,18 +83,26 @@ export function SafeImage({ src, fallbackSrc, fallback, alt = '', onError, ...pr
     )
   }
 
+  const canOptimize = !props.unoptimized && shouldOptimize(current, optimizeHosts)
+  const canFallbackDirect = canOptimize && !directFallback && typeof current === 'string' && current.startsWith('https://')
+
   return (
     <Image
-      key={srcKey(current)}
+      key={directFallback ? `${srcKey(current)}#direct` : srcKey(current)}
       src={current}
       alt={alt}
       onError={(event) => {
-        setFailure({ key, count: failedCount + 1 })
+        // 远程白名单图经 /_next/image 失败时（如上游返回非 image/* MIME），先静默降级为浏览器直连原图重试一次
+        if (canFallbackDirect) {
+          setFailure({ key, count: failedCount, directFallback: true })
+          return
+        }
+        setFailure({ key, count: failedCount + 1, directFallback: false })
         onError?.(event)
       }}
       {...props}
-      // 站外图片不经服务端代理，交给浏览器直接加载
-      unoptimized={props.unoptimized || !shouldOptimize(current)}
+      // 站外非白名单图片或降级重试时不经服务端代理，交给浏览器直接加载
+      unoptimized={!canOptimize || directFallback}
     />
   )
 }

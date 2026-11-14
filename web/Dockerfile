@@ -38,7 +38,7 @@ COPY . .
 # 构建版本（CI 传入 commit），写入前端代码，供已打开的页面检测新版本；未传入时不启用更新提醒
 ARG APP_VERSION=""
 ENV NEXT_PUBLIC_APP_VERSION=${APP_VERSION}
-# 走 Next 图片优化的本站图床 / 对象存储域名，逗号分隔；未传入时只优化站内相对路径，其余外链由浏览器直连
+# 走 Next 图片优化的本站图床 / 对象存储域名，逗号分隔（构建期默认值）；生产运行容器可直接通过运行时环境变量 IMAGE_OPTIMIZE_HOSTS 动态配置或覆盖，无需重新构建镜像
 ARG IMAGE_OPTIMIZE_HOSTS=""
 ENV NEXT_PUBLIC_IMAGE_OPTIMIZE_HOSTS=${IMAGE_OPTIMIZE_HOSTS}
 # 前端静态资源 CDN 前缀（如 https://cdn.example.com 或 https://cdn.example.com/neo-blog）；未传入时保持同源加载

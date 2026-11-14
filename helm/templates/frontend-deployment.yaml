@@ -56,6 +56,10 @@ spec:
               value: "http://{{(include "neo-blog.fullname" .)}}-backend:{{ .Values.service.port }}"
             - name: PORT
               value: "{{ .Values.service.port }}"
+            {{- if .Values.frontend.imageOptimizeHosts }}
+            - name: IMAGE_OPTIMIZE_HOSTS
+              value: {{ .Values.frontend.imageOptimizeHosts | quote }}
+            {{- end }}
             # Downward API：后台「系统运行」在实例信息里显示 Pod、命名空间与节点，只用于展示
             - name: POD_NAME
               valueFrom:

@@ -28,6 +28,8 @@ image:
 # 是否启用前端
 frontend:
   enabled: true
+  # 走 Next 图片优化的本站图床 / 对象存储域名（逗号分隔，运行时注入前端容器），留空时沿用镜像构建期配置
+  imageOptimizeHosts: ""
 
 backend:
   # 是否暴露后端

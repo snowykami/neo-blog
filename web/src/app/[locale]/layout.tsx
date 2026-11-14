@@ -13,6 +13,7 @@ import { EntranceOnce } from '@/components/layout/entrance-once'
 import { Toaster } from '@/components/ui/sonner'
 import { AuthProvider } from '@/contexts/auth-context'
 import { DeviceProvider } from '@/contexts/device-context'
+import { ImageOptimizeProvider } from '@/contexts/image-optimize-context'
 import { MusicProvider } from '@/contexts/music-context'
 import { NavProvider } from '@/contexts/nav-context'
 import { SiteInfoProvider } from '@/contexts/site-info-context'
@@ -24,6 +25,7 @@ import { BUILD_PLACEHOLDER_PARAM } from '@/lib/cache-tags'
 import { themeAttributes, themeCssVars } from '@/themes'
 import { getActiveTheme } from '@/themes/active-theme.server'
 import { themeInitScript } from '@/themes/init-script'
+import { getServerImageOptimizeHosts } from '@/utils/common/image.server'
 import { safeMetadataBase } from '@/utils/common/siteinfo'
 import '@/app/globals.css'
 
@@ -72,6 +74,7 @@ export default async function RootLayout({
   if (!hasLocale(routing.locales, locale))
     notFound()
   const [siteInfo, theme] = await Promise.all([getCachedSiteInfo(), getActiveTheme()])
+  const imageOptimizeHosts = getServerImageOptimizeHosts()
   return (
     // 主题脚本会在水合前修改 class / style，需忽略根节点的属性差异
     <html
@@ -93,33 +96,35 @@ export default async function RootLayout({
         {/* 首屏播完完整入场动画后，客户端跳转改播轻快版（见该组件） */}
         <EntranceOnce />
         <NuqsAdapter>
-          <DeviceProvider>
-            {/* Toaster 读取 DeviceProvider 中的主题，需放在其内部 */}
-            <Toaster richColors position="top-center" offset={80} />
-            {/* 只下发根布局这一层用到的文案，其余由各路由段的作用域补齐（见 scripts/i18n-scopes.mjs） */}
-            <I18nScope scope="root" locale={locale}>
-              <AppUpdateChecker />
-              {/* ThemeProvider 要按登录用户的角色决定是否应用管理员的主题预览，所以放在 AuthProvider 里面 */}
-              <AuthProvider>
-                <ThemeProvider theme={theme}>
-                  {/* 快捷登录弹窗里的注册表单要用到站点信息（验证码冷却），所以站点信息在弹窗外层 */}
-                  <SiteInfoProvider initialData={siteInfo}>
-                    {/* 登录后把账号里的界面语言、配色同步到本浏览器（要用站点信息里的可选配色，所以放在这里） */}
-                    <UserPreferenceSync />
-                    <LoginDialogProvider>
-                      <MusicProvider>
-                        <NavProvider>
-                          {children}
-                          {/* 悬浮按钮放在页面内容之后：Tab 顺序先到「跳到正文」与页面本身，最后才是播放器 / 回到顶部 */}
-                          <FloatingWidgets />
-                        </NavProvider>
-                      </MusicProvider>
-                    </LoginDialogProvider>
-                  </SiteInfoProvider>
-                </ThemeProvider>
-              </AuthProvider>
-            </I18nScope>
-          </DeviceProvider>
+          <ImageOptimizeProvider hosts={imageOptimizeHosts}>
+            <DeviceProvider>
+              {/* Toaster 读取 DeviceProvider 中的主题，需放在其内部 */}
+              <Toaster richColors position="top-center" offset={80} />
+              {/* 只下发根布局这一层用到的文案，其余由各路由段的作用域补齐（见 scripts/i18n-scopes.mjs） */}
+              <I18nScope scope="root" locale={locale}>
+                <AppUpdateChecker />
+                {/* ThemeProvider 要按登录用户的角色决定是否应用管理员的主题预览，所以放在 AuthProvider 里面 */}
+                <AuthProvider>
+                  <ThemeProvider theme={theme}>
+                    {/* 快捷登录弹窗里的注册表单要用到站点信息（验证码冷却），所以站点信息在弹窗外层 */}
+                    <SiteInfoProvider initialData={siteInfo}>
+                      {/* 登录后把账号里的界面语言、配色同步到本浏览器（要用站点信息里的可选配色，所以放在这里） */}
+                      <UserPreferenceSync />
+                      <LoginDialogProvider>
+                        <MusicProvider>
+                          <NavProvider>
+                            {children}
+                            {/* 悬浮按钮放在页面内容之后：Tab 顺序先到「跳到正文」与页面本身，最后才是播放器 / 回到顶部 */}
+                            <FloatingWidgets />
+                          </NavProvider>
+                        </MusicProvider>
+                      </LoginDialogProvider>
+                    </SiteInfoProvider>
+                  </ThemeProvider>
+                </AuthProvider>
+              </I18nScope>
+            </DeviceProvider>
+          </ImageOptimizeProvider>
         </NuqsAdapter>
       </body>
     </html>

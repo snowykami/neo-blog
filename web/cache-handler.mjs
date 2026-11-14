@@ -17,9 +17,11 @@
  * 依赖 Next 内部的 FileSystemCache（next/dist/server/lib/incremental-cache/file-system-cache.js），升级 Next 时要复查。
  */
 import { Buffer } from 'node:buffer'
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
+import process from 'node:process'
 import { promisify } from 'node:util'
 import { gunzip as gunzipCb, gzip as gzipCb } from 'node:zlib'
 import {
@@ -211,9 +213,50 @@ function reviver(_key, value) {
   return value
 }
 
+/** @type {string | undefined} */
+let cachedImageHostsRaw
+let cachedImageHostsFingerprint = ''
+
+/** 当前运行时图片优化域名白名单短指纹（变更时隔离 Redis 页面缓存键，避免读取修改白名单前的整页缓存） */
+function imageOptimizeHostsFingerprint() {
+  const raw = process.env.IMAGE_OPTIMIZE_HOSTS ?? process.env.NEXT_PUBLIC_IMAGE_OPTIMIZE_HOSTS ?? ''
+  if (raw === cachedImageHostsRaw)
+    return cachedImageHostsFingerprint
+  cachedImageHostsRaw = raw
+  /** @type {Set<string>} */
+  const hosts = new Set()
+  for (const part of raw.split(',')) {
+    const trimmed = part.trim().toLowerCase()
+    if (!trimmed)
+      continue
+    let host = ''
+    if (trimmed.includes('://')) {
+      try {
+        host = new URL(trimmed).hostname.toLowerCase()
+      }
+      catch {
+        continue
+      }
+    }
+    else {
+      host = trimmed.replace(/^\/+|\/+$/g, '').split('/')[0] ?? ''
+    }
+    if (host && !/\s/.test(host))
+      hosts.add(host)
+  }
+  const sorted = [...hosts].sort()
+  cachedImageHostsFingerprint = sorted.length > 0
+    ? createHash('sha256').update(sorted.join(',')).digest('hex').slice(0, 8)
+    : ''
+  return cachedImageHostsFingerprint
+}
+
 /** @param {string} key */
 function entryKey(key) {
-  return `${tagState().prefix}next_cache:${buildId}:${key}`
+  const imgFp = imageOptimizeHostsFingerprint()
+  return imgFp
+    ? `${tagState().prefix}next_cache:${buildId}:${imgFp}:${key}`
+    : `${tagState().prefix}next_cache:${buildId}:${key}`
 }
 
 /** @param {any} data @param {any} ctx */

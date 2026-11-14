@@ -15,6 +15,7 @@ import { readMusicShareParamsFromLocation } from '@/components/music-page/music-
 import { MusicStageEffects } from '@/components/music-page/music-stage-effects'
 import { useSongAccent } from '@/components/music-page/use-cover-accent'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { useImageOptimizeHosts } from '@/contexts/image-optimize-context'
 import { useCurrentLyric, useMusicActions, useMusicClockStore, useMusicPlayback, useMusicPreferences } from '@/contexts/music-context'
 import { useCachedSongMetaTranslation } from '@/contexts/song-meta-translations'
 import { Link, usePathname } from '@/i18n/navigation'
@@ -49,15 +50,16 @@ function normalizeThemeColor(r: number, g: number, b: number) {
   return `${normalizeChannel(r)} ${normalizeChannel(g)} ${normalizeChannel(b)}`
 }
 
-function getThemeSampleImageSrc(src: string) {
+function getThemeSampleImageSrc(src: string, optimizeHosts: readonly string[]) {
   const formatted = formatMusicCoverUrl(src, 48)
   if (formatted !== src)
     return formatted
   // 仅站内 / 白名单图片经优化器取小图；站外图片直连（依赖对方 CORS，失败时回退默认色）
-  return shouldOptimize(src) ? `/_next/image?url=${encodeURIComponent(src)}&w=64&q=75` : src
+  return shouldOptimize(src, optimizeHosts) ? `/_next/image?url=${encodeURIComponent(src)}&w=64&q=75` : src
 }
 
 function useAlbumThemeColor(src?: string) {
+  const optimizeHosts = useImageOptimizeHosts()
   const [themeColor, setThemeColor] = useState(DEFAULT_MUSIC_THEME_RGB)
 
   useEffect(() => {
@@ -124,12 +126,12 @@ function useAlbumThemeColor(src?: string) {
       if (!cancelled)
         setThemeColor(DEFAULT_MUSIC_THEME_RGB)
     }
-    image.src = getThemeSampleImageSrc(src)
+    image.src = getThemeSampleImageSrc(src, optimizeHosts)
 
     return () => {
       cancelled = true
     }
-  }, [src])
+  }, [src, optimizeHosts])
 
   return themeColor
 }

@@ -1,6 +1,7 @@
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
+import { ImageOptimizeProvider } from '@/contexts/image-optimize-context'
 import { ImageAvatar } from './image-avatar'
 
 describe('image-avatar 服务端直出 <img>', () => {
@@ -65,5 +66,37 @@ describe('image-avatar 服务端直出 <img>', () => {
     )
     expect(nullHtml).not.toContain('<img')
     expect(nullHtml).toContain('data-slot="avatar-fallback"')
+  })
+
+  it('经 ImageOptimizeProvider 下发运行时白名单时，SSR 为白名单远程头像生成 /_next/image 优化链接', () => {
+    const optimizedHtml = renderToStaticMarkup(
+      React.createElement(ImageOptimizeProvider, {
+        hosts: ['sfkm-blog.r2.liteyuki.org'],
+        children: React.createElement(ImageAvatar, {
+          src: 'https://sfkm-blog.r2.liteyuki.org/snowykami-blog/avatar.png',
+          alt: 'Owner',
+          fallback: 'O',
+          sizes: '80px',
+          eager: true,
+        }),
+      }),
+    )
+    expect(optimizedHtml).toContain('<img')
+    expect(optimizedHtml).toContain('srcSet="/_next/image?url=https%3A%2F%2Fsfkm-blog.r2.liteyuki.org%2Fsnowykami-blog%2Favatar.png')
+
+    const unoptimizedHtml = renderToStaticMarkup(
+      React.createElement(ImageOptimizeProvider, {
+        hosts: [],
+        children: React.createElement(ImageAvatar, {
+          src: 'https://sfkm-blog.r2.liteyuki.org/snowykami-blog/avatar.png',
+          alt: 'Owner',
+          fallback: 'O',
+          sizes: '80px',
+          eager: true,
+        }),
+      }),
+    )
+    expect(unoptimizedHtml).toContain('src="https://sfkm-blog.r2.liteyuki.org/snowykami-blog/avatar.png"')
+    expect(unoptimizedHtml).not.toContain('/_next/image')
   })
 })

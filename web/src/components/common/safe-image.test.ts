@@ -1,0 +1,86 @@
+import { NextIntlClientProvider } from 'next-intl'
+import React, { act } from 'react'
+import { createRoot } from 'react-dom/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ImageOptimizeProvider } from '@/contexts/image-optimize-context'
+import { SafeImage } from './safe-image'
+
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+
+describe('safe-image 远程优化降级兜底', () => {
+  let host: HTMLDivElement
+  let root: ReturnType<typeof createRoot>
+
+  beforeEach(() => {
+    host = document.createElement('div')
+    host.style.position = 'relative'
+    host.style.width = '320px'
+    host.style.height = '180px'
+    document.body.appendChild(host)
+    root = createRoot(host)
+  })
+
+  afterEach(() => {
+    act(() => {
+      root.unmount()
+    })
+    host.remove()
+    document.body.innerHTML = ''
+  })
+
+  it('白名单远程图片首次经 /_next/image 失败时先静默降级为直连原图，再次失败才切换 fallbackSrc 并触发外部 onError', async () => {
+    const onError = vi.fn()
+    await act(async () => {
+      root.render(
+        React.createElement(NextIntlClientProvider, {
+          locale: 'zh',
+          messages: { Common: { image_load_failed: '加载失败' } },
+          children: React.createElement(ImageOptimizeProvider, {
+            hosts: ['sfkm-blog.r2.liteyuki.org'],
+            children: React.createElement(SafeImage, {
+              src: 'https://sfkm-blog.r2.liteyuki.org/snowykami-blog/a.png',
+              fallbackSrc: '/fallback.png',
+              alt: '封面',
+              fill: true,
+              sizes: '320px',
+              onError,
+            }),
+          }),
+        }),
+      )
+    })
+
+    const firstImg = host.querySelector('img')
+    expect(firstImg).toBeTruthy()
+    expect(firstImg?.getAttribute('src')).toContain('/_next/image?url=https%3A%2F%2Fsfkm-blog.r2.liteyuki.org%2Fsnowykami-blog%2Fa.png')
+
+    // 第一次加载失败（如上游返回 application/octet-stream）：先降级直连原图，且不向外部透传 onError
+    await act(async () => {
+      firstImg?.dispatchEvent(new Event('error'))
+    })
+
+    expect(onError).not.toHaveBeenCalled()
+    const directImg = host.querySelector('img')
+    expect(directImg).toBeTruthy()
+    expect(directImg?.getAttribute('src')).toBe('https://sfkm-blog.r2.liteyuki.org/snowykami-blog/a.png')
+    expect(directImg?.getAttribute('srcset')).toBeNull()
+
+    // 第二次（直连也失败）：触发外部 onError，并切换到 fallbackSrc（站内路径，继续走 /_next/image）
+    await act(async () => {
+      directImg?.dispatchEvent(new Event('error'))
+    })
+
+    expect(onError).toHaveBeenCalledTimes(1)
+    const fallbackImg = host.querySelector('img')
+    expect(fallbackImg).toBeTruthy()
+    expect(fallbackImg?.getAttribute('src')).toContain('/_next/image?url=%2Ffallback.png')
+
+    // 若连 fallbackSrc 也失败：渲染占位块
+    await act(async () => {
+      fallbackImg?.dispatchEvent(new Event('error'))
+    })
+    expect(onError).toHaveBeenCalledTimes(2)
+    expect(host.querySelector('img')).toBeNull()
+    expect(host.querySelector('[role="img"]')).toBeTruthy()
+  })
+})

@@ -1,5 +1,6 @@
 // @vitest-environment node
 import type { Buffer } from 'node:buffer'
+import process from 'node:process'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 
 // 构建期模式：不轮询后端、不连 Redis，用 Next 自带的内存缓存（不写磁盘），版本号由测试直接设置
@@ -59,6 +60,7 @@ afterEach(() => {
   state().pending.clear()
   state().expiredAt.clear()
   state().redis = null
+  delete process.env.IMAGE_OPTIMIZE_HOSTS
 })
 
 describe('页面缓存处理器：按后端标签版本号失效', () => {
@@ -193,5 +195,40 @@ describe('\'use cache\' 处理器（进程内模式）：按后端标签版本�
     state().versions = { posts: 'v2' }
     expect(await h.get('/redis-page', { kind: 'APP_PAGE' })).toBeNull()
     expect(await useCache.get('k-redis-post', [])).toBeUndefined()
+  })
+
+  it('redis 模式下变更运行时 IMAGE_OPTIMIZE_HOSTS 自动隔离页面缓存键', async () => {
+    const store = new Map<string, Buffer>()
+    state().redis = {
+      getBuffer: async (k: string) => store.get(k) ?? null,
+      set: async (k: string, v: Buffer) => {
+        store.set(k, v)
+        return 'OK'
+      },
+      del: async (k: string) => {
+        store.delete(k)
+        return 1
+      },
+    }
+    state().versions = { posts: 'v1' }
+    const h = handler()
+
+    delete process.env.IMAGE_OPTIMIZE_HOSTS
+    await h.set('/img-page', pageValue(200, 'posts'), { cacheControl: { revalidate: 30 } })
+    expect(await h.get('/img-page', { kind: 'APP_PAGE' })).not.toBeNull()
+
+    process.env.IMAGE_OPTIMIZE_HOSTS = 'sfkm-blog.r2.liteyuki.org'
+    // 新白名单对应不同的缓存键，不命中未开启优化前缓存的页面
+    expect(await h.get('/img-page', { kind: 'APP_PAGE' })).toBeNull()
+    await h.set('/img-page', pageValue(200, 'posts'), { cacheControl: { revalidate: 30 } })
+    expect(await h.get('/img-page', { kind: 'APP_PAGE' })).not.toBeNull()
+
+    // 换用等价顺序与格式的不同写法应命中同一指纹
+    process.env.IMAGE_OPTIMIZE_HOSTS = 'https://sfkm-blog.r2.liteyuki.org/, extra.example.com'
+    expect(await h.get('/img-page', { kind: 'APP_PAGE' })).toBeNull()
+    await h.set('/img-page', pageValue(200, 'posts'), { cacheControl: { revalidate: 30 } })
+
+    process.env.IMAGE_OPTIMIZE_HOSTS = 'extra.example.com, sfkm-blog.r2.liteyuki.org'
+    expect(await h.get('/img-page', { kind: 'APP_PAGE' })).not.toBeNull()
   })
 })
