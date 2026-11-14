@@ -175,11 +175,23 @@ interface MoreControlsMenuProps {
   setShowLyricMoments: (val: boolean) => void
   showLyricEffects: boolean
   setShowLyricEffects: (val: boolean) => void
+  showRomaji: boolean
+  showTranslation: boolean
   hdr: boolean
   setHdr: (val: boolean) => void
   hdrDisplay: boolean
   currentTrack: ReturnType<typeof useMusicPlayback>['currentTrack']
-  lyricLines: ReturnType<typeof useMusicLyrics>['lyricLines']
+  lyrics: ReturnType<typeof useMusicLyrics>['lyrics']
+}
+
+function formatBackgroundLyricText(text: string): string {
+  if (
+    (text.startsWith('(') && text.endsWith(')'))
+    || (text.startsWith('（') && text.endsWith('）'))
+  ) {
+    return text
+  }
+  return `(${text})`
 }
 
 /**
@@ -192,11 +204,13 @@ export function MoreControlsMenu({
   setShowLyricMoments,
   showLyricEffects,
   setShowLyricEffects,
+  showRomaji,
+  showTranslation,
   hdr,
   setHdr,
   hdrDisplay,
   currentTrack,
-  lyricLines,
+  lyrics,
 }: MoreControlsMenuProps) {
   const playerT = useTranslations('MusicPlayer')
   const [open, setOpen] = useState(false)
@@ -249,7 +263,8 @@ export function MoreControlsMenu({
   }, [open])
 
   const handleCopyLyrics = useCallback(async () => {
-    if (!lyricLines || lyricLines.length === 0) {
+    const lines = lyrics?.lines
+    if (!lines || lines.length === 0) {
       toast.error(playerT('no_lyrics_to_copy'))
       return
     }
@@ -260,17 +275,25 @@ export function MoreControlsMenu({
       : ''
     const header = title ? `${title}${artists ? ` - ${artists}` : ''}\n\n` : ''
 
-    const content = lyricLines.map((line) => {
-      const orig = getLyricLineText(line).trim()
-      if (!orig)
-        return ''
+    const groups = lines.map((line) => {
+      const rawOrig = getLyricLineText(line).trim()
+      if (!rawOrig)
+        return null
+      const orig = line.isBackground ? formatBackgroundLyricText(rawOrig) : rawOrig
       const parts = [orig]
-      if (line.romanization?.trim())
+      if (showRomaji && line.romanization?.trim())
         parts.push(line.romanization.trim())
-      if (line.translation?.trim())
+      if (showTranslation && line.translation?.trim())
         parts.push(line.translation.trim())
-      return parts.join('\n')
-    }).filter(Boolean).join('\n\n')
+      return parts
+    }).filter((parts): parts is string[] => parts !== null)
+
+    const hasExtra = groups.some(parts => parts.length > 1)
+    const content = groups.map(parts => parts.join('\n')).join(hasExtra ? '\n\n' : '\n')
+    if (!content) {
+      toast.error(playerT('no_lyrics_to_copy'))
+      return
+    }
 
     const fullText = (header + content).trim()
     if (!fullText) {
@@ -288,7 +311,7 @@ export function MoreControlsMenu({
     catch {
       toast.error(playerT('no_lyrics_to_copy'))
     }
-  }, [currentTrack, lyricLines, playerT, scheduleClose])
+  }, [currentTrack, lyrics, playerT, scheduleClose, showRomaji, showTranslation])
 
   return (
     // 控制栏在播放器页和悬浮球里处于顶栏 <LazyMotion> 外部，需要自备特征包驱动 <m.div>
@@ -315,7 +338,7 @@ export function MoreControlsMenu({
               }}
               className="absolute right-0 bottom-full z-30 mb-2 flex origin-bottom-right items-center gap-1 rounded-full border border-white/15 bg-neutral-950/85 p-1 shadow-2xl backdrop-blur-xl pointer-coarse:gap-1.5"
             >
-              {/* 复制整首歌词 + 翻译 + 拼音 */}
+              {/* 复制整首歌词（含背景和声，按读音/翻译开关动态排版） */}
               <IconButton
                 icon={copied ? CheckIcon : CopyIcon}
                 label={copied ? playerT('lyrics_copied') : playerT('copy_lyrics')}
@@ -391,7 +414,7 @@ export function MusicPageControls({ onOpenPlaylist, playlistSlot, compact = fals
   const t = useTranslations('MusicPage')
   const playerT = useTranslations('MusicPlayer')
   const { isPlaying, pendingStep, playMode, currentTrack } = useMusicPlayback()
-  const { canToggleTranslation, lyricTranslationsGenerating, canToggleRomaji, lyricPronunciationsGenerating, lyricLines } = useMusicLyrics()
+  const { canToggleTranslation, lyricTranslationsGenerating, canToggleRomaji, lyricPronunciationsGenerating, lyrics } = useMusicLyrics()
   const {
     showTranslation,
     showRomaji,
@@ -455,11 +478,13 @@ export function MusicPageControls({ onOpenPlaylist, playlistSlot, compact = fals
             setShowLyricMoments={setShowLyricMoments}
             showLyricEffects={showLyricEffects}
             setShowLyricEffects={setShowLyricEffects}
+            showRomaji={showRomaji}
+            showTranslation={showTranslation}
             hdr={hdr}
             setHdr={setHdr}
             hdrDisplay={hdrDisplay}
             currentTrack={currentTrack}
-            lyricLines={lyricLines}
+            lyrics={lyrics}
           />
         </div>
       </div>
