@@ -138,6 +138,8 @@ func ListPagesByIDsForList(ids []uint, noContent bool) ([]model.Page, error) {
 	q := GetDB().Model(&model.Page{}).Preload("User").Where("is_private = ? AND id IN ?", false, ids)
 	if noContent {
 		q = q.Omit("content", "draft_content")
+	} else {
+		q = q.Omit("draft_content")
 	}
 	var pages []model.Page
 	err := q.Find(&pages).Error

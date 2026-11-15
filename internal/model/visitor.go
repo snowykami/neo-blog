@@ -21,14 +21,14 @@ type Visitor struct {
 	Browser      string `gorm:"type:varchar(32)"`
 	DeviceType   string `gorm:"type:varchar(16)"`
 	VisitCount   int64
-	CreatedAt    time.Time // 首次访问
+	CreatedAt    time.Time `gorm:"index"` // 首次访问
 	LastSeenAt   time.Time `gorm:"index"`
 }
 
 // VisitLog 访问记录：一次访问一条，保存当次的设备与位置快照
 // 点赞、评论等站内互动也记在这里（Action 区分），与访问共用一条时间线
 type VisitLog struct {
-	ID        uint     `gorm:"primaryKey"`
+	ID        uint     `gorm:"primaryKey;index:idx_visit_logs_created_id,priority:2"`
 	VisitorID *uint    `gorm:"index"` // 开启“请勿追踪”时为空；互动记录不关联访客
 	Visitor   *Visitor `gorm:"constraint:OnDelete:SET NULL"`
 	UserID    *uint    `gorm:"index"` // 访问者；互动记录中为执行互动的用户
@@ -54,8 +54,8 @@ type VisitLog struct {
 	UserAgent    string    `gorm:"type:text"`
 	OS           string    `gorm:"type:varchar(32)"`
 	Browser      string    `gorm:"type:varchar(32)"`
-	DeviceType   string    `gorm:"type:varchar(16)"`
-	CreatedAt    time.Time `gorm:"index"`
+	DeviceType   string    `gorm:"type:varchar(16);index"`
+	CreatedAt    time.Time `gorm:"index;index:idx_visit_logs_created_id,priority:1"`
 
 	// IP 归属地补充信息
 	IPCountry   string `gorm:"type:varchar(8)"`  // 国家代码，港澳台单独区分

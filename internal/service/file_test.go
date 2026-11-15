@@ -3,13 +3,19 @@ package service
 import (
 	"context"
 	"net/http"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
+	"github.com/snowykami/neo-blog/internal/storage"
+	"github.com/snowykami/neo-blog/internal/storage/local"
 	"github.com/snowykami/neo-blog/pkg/constant"
+	"github.com/snowykami/neo-blog/pkg/storageprovider"
+	"github.com/snowykami/neo-blog/pkg/utils"
 )
 
 // setupFileTest 创建普通用户、编辑者、管理员，并各自上传若干文件记录
@@ -116,5 +122,81 @@ func TestListFilesFilters(t *testing.T) {
 		if _, _, svcerr := NewFileService().ListFiles(admin, req); svcerr == nil || svcerr.Code != http.StatusBadRequest {
 			t.Fatalf("invalid req %+v should be bad request, got %v", req, svcerr)
 		}
+	}
+}
+
+func TestBatchDeleteFiles(t *testing.T) {
+	user, editor, admin := setupFileTest(t)
+	dir := t.TempDir()
+	row := model.StorageProviderModelAndDto{
+		Name:                  "local",
+		Type:                  "local",
+		IsDefault:             true,
+		StorageProviderConfig: model.StorageProviderConfig{BaseDir: dir},
+	}
+	if svcerr := repo.File.CreateStorageProvider(&row); svcerr != nil {
+		t.Fatal(svcerr)
+	}
+	lp, err := local.NewLocalStorageProvider(row)
+	if err != nil {
+		t.Fatal(err)
+	}
+	storage.ReplaceStorageProviders(map[uint]storageprovider.StorageProvider{
+		row.ID: lp,
+	})
+
+	fileSvc := NewFileService()
+	shared1, svcerr := fileSvc.SaveFile(editor, &SaveFileInput{
+		Name: "s1.txt", ProviderID: row.ID, Size: 6, MimeType: "text/plain", Src: strings.NewReader("shared"),
+	})
+	if svcerr != nil {
+		t.Fatal(svcerr)
+	}
+	shared2, svcerr := fileSvc.SaveFile(admin, &SaveFileInput{
+		Name: "s2.txt", ProviderID: row.ID, Size: 6, MimeType: "text/plain", Src: strings.NewReader("shared"),
+	})
+	if svcerr != nil {
+		t.Fatal(svcerr)
+	}
+	uniq, svcerr := fileSvc.SaveFile(editor, &SaveFileInput{
+		Name: "u.txt", ProviderID: row.ID, Size: 6, MimeType: "text/plain", Src: strings.NewReader("unique"),
+	})
+	if svcerr != nil {
+		t.Fatal(svcerr)
+	}
+
+	// 普通用户尝试混删他人文件：整批拒绝，不删任何记录
+	if svcerr := fileSvc.BatchDeleteFiles(user, []uint{uniq.ID}); svcerr == nil || svcerr.Code != http.StatusForbidden {
+		t.Fatalf("expected forbidden for non-owner, got %v", svcerr)
+	}
+	if _, err := repo.File.GetByID(uniq.ID); err != nil {
+		t.Fatalf("uniq should still exist after rejected batch delete: %v", err)
+	}
+
+	// 删除 shared1 + uniq + 不存在 ID：shared 仍有 shared2 引用故保留物理对象，uniq 无引用应删除物理对象
+	if svcerr := fileSvc.BatchDeleteFiles(editor, []uint{shared1.ID, uniq.ID, 999999, uniq.ID}); svcerr != nil {
+		t.Fatalf("editor batch delete: %v", svcerr)
+	}
+	if _, err := repo.File.GetByID(shared1.ID); err == nil {
+		t.Fatalf("shared1 should be deleted")
+	}
+	if _, err := repo.File.GetByID(uniq.ID); err == nil {
+		t.Fatalf("uniq should be deleted")
+	}
+	sharedDisk := filepath.Join(dir, filepath.Join(utils.FilePath(shared1.Hash)))
+	uniqDisk := filepath.Join(dir, filepath.Join(utils.FilePath(uniq.Hash)))
+	if _, err := os.Stat(sharedDisk); err != nil {
+		t.Fatalf("shared blob should remain while shared2 exists: %v", err)
+	}
+	if _, err := os.Stat(uniqDisk); !os.IsNotExist(err) {
+		t.Fatalf("unique blob should be deleted from disk, stat err=%v", err)
+	}
+
+	// 再由管理员删掉最后一个引用 shared2：物理对象也应清理
+	if svcerr := fileSvc.BatchDeleteFiles(admin, []uint{shared2.ID}); svcerr != nil {
+		t.Fatalf("admin batch delete shared2: %v", svcerr)
+	}
+	if _, err := os.Stat(sharedDisk); !os.IsNotExist(err) {
+		t.Fatalf("shared blob should be deleted after last ref removed, stat err=%v", err)
 	}
 }

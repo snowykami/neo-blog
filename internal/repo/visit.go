@@ -232,6 +232,22 @@ func (v *visitRepo) CountVisitStatsContext(ctx context.Context, since time.Time,
 		Scan(&stats.TodaySources).Error; err != nil {
 		return nil, err
 	}
+	// 访问日志里出现过的所有国家/地区筛选候选（全量访问记录，按字母序升序）
+	stats.Countries = []string{}
+	countriesQ := dbSession.Model(&model.VisitLog{}).
+		Where("visit_logs.action = ? AND visit_logs.inferred_country <> ''", constant.VisitActionVisit)
+	if !includeAI {
+		countriesQ = excludeAIUsers(countriesQ, "visit_logs.user_id")
+	}
+	if err := countriesQ.
+		Distinct().
+		Order("inferred_country ASC").
+		Pluck("inferred_country", &stats.Countries).Error; err != nil {
+		return nil, err
+	}
+	if stats.Countries == nil {
+		stats.Countries = []string{}
+	}
 	return stats, nil
 }
 
@@ -398,23 +414,29 @@ func (v *visitRepo) StreamVisitEventsContext(ctx context.Context, name string, s
 	return rows.Err()
 }
 
-// CountVisitorsFirstSeenSince 访客中首次访问在指定时间之后的人数
-func (v *visitRepo) CountVisitorsFirstSeenSince(ids []uint, since time.Time) (int64, error) {
-	return v.CountVisitorsFirstSeenSinceContext(context.Background(), ids, since)
+// CountVisitorsFirstSeenSince 区间内产生有效访问的访客中，首次访问也在指定时间之后的人数
+func (v *visitRepo) CountVisitorsFirstSeenSince(since time.Time, includeAI bool) (int64, error) {
+	return v.CountVisitorsFirstSeenSinceContext(context.Background(), since, includeAI)
 }
 
-// CountVisitorsFirstSeenSinceContext 带上下文与慢查询超时保护的新访客统计
-func (v *visitRepo) CountVisitorsFirstSeenSinceContext(ctx context.Context, ids []uint, since time.Time) (int64, error) {
+// CountVisitorsFirstSeenSinceContext 带上下文与慢查询超时保护的新访客统计（单条 SQL 子查询，避免大切片分批 IN）
+func (v *visitRepo) CountVisitorsFirstSeenSinceContext(ctx context.Context, since time.Time, includeAI bool) (int64, error) {
 	dbSession, cancel := WithTimeout(ctx, DefaultHeavyQueryTimeout)
 	defer cancel()
+	visitSub := dbSession.Model(&model.VisitLog{}).
+		Select("1").
+		Where("visit_logs.visitor_id = visitors.id").
+		Where("visit_logs.action = ? AND visit_logs.created_at >= ? AND visit_logs.path <> ?", constant.VisitActionVisit, since, "/random").
+		Where("(visit_logs.trust IS NULL OR visit_logs.trust <> ?)", constant.VisitTrustBot)
+	if !includeAI {
+		visitSub = excludeAIUsers(visitSub, "visit_logs.user_id")
+	}
 	var total int64
-	for start := 0; start < len(ids); start += 500 {
-		var n int64
-		end := min(start+500, len(ids))
-		if err := dbSession.Model(&model.Visitor{}).Where("id IN ? AND created_at >= ?", ids[start:end], since).Count(&n).Error; err != nil {
-			return 0, err
-		}
-		total += n
+	if err := dbSession.Model(&model.Visitor{}).
+		Where("visitors.created_at >= ?", since).
+		Where("EXISTS (?)", visitSub).
+		Count(&total).Error; err != nil {
+		return 0, err
 	}
 	return total, nil
 }

@@ -8,18 +8,18 @@ import (
 
 // ErrorIssue 错误问题：指纹相同的错误事件聚合为一条（浏览器、Next.js 服务端与 Go 后端共用），见 service.ErrorReportService
 type ErrorIssue struct {
-	ID          uint   `gorm:"primaryKey"`
+	ID          uint   `gorm:"primaryKey;index:idx_error_issues_status_last_seen,priority:3"`
 	Fingerprint string `gorm:"type:varchar(64);uniqueIndex;not null"`
 	Source      string `gorm:"type:varchar(16);index"` // 见 constant.ErrorSource*
 	Kind        string `gorm:"type:varchar(16);index"` // 见 constant.ErrorKind*
 	Level       string `gorm:"type:varchar(16)"`       // fatal / error / warning / info
 	Title       string `gorm:"type:varchar(512)"`
 	Culprit     string `gorm:"type:varchar(512)"` // 出错位置：最内层的站内源码位置，或请求的方法与路径
-	Status      string `gorm:"type:varchar(16);default:unresolved;index"`
+	Status      string `gorm:"type:varchar(16);default:unresolved;index;index:idx_error_issues_status_last_seen,priority:1"`
 	Count       int64  // 出现次数（含未保存完整事件的）
 	LastRelease string `gorm:"type:varchar(64)"`
 	FirstSeenAt time.Time
-	LastSeenAt  time.Time `gorm:"index"`
+	LastSeenAt  time.Time `gorm:"index;index:idx_error_issues_status_last_seen,priority:2"`
 	ResolvedAt  *time.Time
 }
 

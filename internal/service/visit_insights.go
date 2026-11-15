@@ -88,12 +88,19 @@ func (a *contentInsightAgg) observe(l *model.VisitLog) {
 }
 
 // fillContentInsights 访客统计中的内容部分：新老访客、阅读参与度、文章表现、站内路径、外链与下载（均不含疑似自动化）
-func fillContentInsights(ctx context.Context, result *dto.VisitInsightsDto, agg *contentInsightAgg, visitorIDs []uint, since time.Time, includeAI bool) error {
-	newVisitors, err := repo.Visit.CountVisitorsFirstSeenSinceContext(ctx, visitorIDs, since)
-	if err != nil {
-		return err
+func fillContentInsights(ctx context.Context, result *dto.VisitInsightsDto, agg *contentInsightAgg, since time.Time, includeAI bool) error {
+	var newVisitors int64
+	if result.UV > 0 {
+		var err error
+		newVisitors, err = repo.Visit.CountVisitorsFirstSeenSinceContext(ctx, since, includeAI)
+		if err != nil {
+			return err
+		}
+		if newVisitors > result.UV {
+			newVisitors = result.UV
+		}
 	}
-	result.NewVisitors, result.ReturningVisitors = newVisitors, int64(len(visitorIDs))-newVisitors
+	result.NewVisitors, result.ReturningVisitors = newVisitors, result.UV-newVisitors
 	result.Engagement.Completed = agg.completed
 
 	posts := agg.posts

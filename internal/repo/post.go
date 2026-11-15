@@ -222,23 +222,55 @@ func (p *postRepo) GetRandomPublicPost() (*model.Post, error) {
 	return &post, nil
 }
 
-func (p *postRepo) GetPostBySlugOrID(slugOrId string) (*model.Post, error) {
-	var post model.Post
+// parsePositiveNumericID 仅当 s 完全由 ASCII 数字组成且能解析为正整数 ID 时返回 true，
+// 避免全数字访问先按 slug 查询一次再按 ID 重查
+func parsePositiveNumericID(s string) (uint, bool) {
+	if s == "" {
+		return 0, false
+	}
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return 0, false
+		}
+	}
+	id, err := strconv.ParseUint(s, 10, strconv.IntSize)
+	if err != nil || id == 0 {
+		return 0, false
+	}
+	return uint(id), true
+}
 
-	// 先按 slug 查找（优先）
-	if err := GetDB().Where("slug = ?", slugOrId).Preload(clause.Associations).First(&post).Error; err != nil {
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, err
+func (p *postRepo) GetPostBySlugOrID(slugOrId string) (*model.Post, error) {
+	return p.getPostBySlugOrID(slugOrId, false)
+}
+
+// GetPublicPostBySlugOrID 前台读取文章，不加载 draft_content 以减少大字段 I/O
+func (p *postRepo) GetPublicPostBySlugOrID(slugOrId string) (*model.Post, error) {
+	return p.getPostBySlugOrID(slugOrId, true)
+}
+
+func (p *postRepo) getPostBySlugOrID(slugOrId string, omitDraft bool) (*model.Post, error) {
+	var post model.Post
+	query := func() *gorm.DB {
+		q := GetDB().Preload(clause.Associations)
+		if omitDraft {
+			q = q.Omit("draft_content")
 		}
-		// slug 未命中，尝试当作 id
-		id, perr := strconv.ParseUint(slugOrId, 10, 64)
-		if perr != nil {
-			// 既不是存在的 slug，也不是合法 id
-			return nil, err
+		return q
+	}
+
+	var err error
+	if id, ok := parsePositiveNumericID(slugOrId); ok {
+		// 纯数字优先按主键查询，未命中再回退到数字 slug
+		err = query().First(&post, id).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			err = query().Where("slug = ?", slugOrId).First(&post).Error
 		}
-		if err := GetDB().Preload(clause.Associations).First(&post, uint(id)).Error; err != nil {
-			return nil, err
-		}
+	} else {
+		err = query().Where("slug = ?", slugOrId).First(&post).Error
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	// 如果有 labels，按全局 post 数量排序
@@ -544,4 +576,43 @@ func (p *postRepo) SetPostPin(id uint, pinnedAt, pinnedUntil *time.Time) error {
 	defer InvalidatePostCache()
 	return GetDB().Model(&model.Post{}).Where("id = ?", id).
 		UpdateColumns(map[string]any{"pinned_at": pinnedAt, "pinned_until": pinnedUntil}).Error
+}
+
+// GetPostViewCounts 批量读取多篇文章当前落库的阅读量基线
+func (p *postRepo) GetPostViewCounts(ids []uint) (map[uint]uint64, error) {
+	out := make(map[uint]uint64, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	clean := make([]uint, 0, len(ids))
+	seen := make(map[uint]struct{}, len(ids))
+	for _, id := range ids {
+		if id == 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		clean = append(clean, id)
+	}
+	if len(clean) == 0 {
+		return out, nil
+	}
+	type row struct {
+		ID        uint
+		ViewCount uint64
+	}
+	const batchSize = 500
+	for start := 0; start < len(clean); start += batchSize {
+		chunk := clean[start:min(start+batchSize, len(clean))]
+		var rows []row
+		if err := GetDB().Model(&model.Post{}).Select("id, view_count").Where("id IN ?", chunk).Scan(&rows).Error; err != nil {
+			return nil, err
+		}
+		for _, r := range rows {
+			out[r.ID] = r.ViewCount
+		}
+	}
+	return out, nil
 }

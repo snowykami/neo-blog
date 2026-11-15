@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"net/http"
+	"slices"
 	"testing"
 
 	"github.com/snowykami/neo-blog/internal/ctxutils"
@@ -261,7 +262,31 @@ func TestVisitIncludeAIFilter(t *testing.T) {
 		t.Fatalf("filtered stats: err=%v %+v", svcerr, filteredStats)
 	}
 	filteredInsights, svcerr := svc.GetInsights(admin, &dto.VisitInsightsReq{Days: 7, IncludeAI: &excludeAI})
-	if svcerr != nil || filteredInsights.PV != 2 || filteredInsights.UV != 2 || len(filteredInsights.Posts) != 1 || filteredInsights.Posts[0].Views != 2 || filteredInsights.Posts[0].Likes != 1 || filteredInsights.Posts[0].Comments != 0 {
+	if svcerr != nil || filteredInsights.PV != 2 || filteredInsights.UV != 2 || filteredInsights.NewVisitors != 2 || filteredInsights.ReturningVisitors != 0 || len(filteredInsights.Posts) != 1 || filteredInsights.Posts[0].Views != 2 || filteredInsights.Posts[0].Likes != 1 || filteredInsights.Posts[0].Comments != 0 {
 		t.Fatalf("filtered insights: err=%v %+v", svcerr, filteredInsights)
+	}
+
+	// 验证 VisitStats.Countries 去重、升序且遵循 IncludeAI 过滤
+	if err := repo.GetDB().Model(&model.VisitLog{}).Where("path = ?", "/p/human").Update("inferred_country", "US").Error; err != nil {
+		t.Fatalf("set human country: %v", err)
+	}
+	if err := repo.GetDB().Model(&model.VisitLog{}).Where("path = ?", "/p/ai").Update("inferred_country", "JP").Error; err != nil {
+		t.Fatalf("set ai country: %v", err)
+	}
+	// 同国家重复访问不应产生重复项
+	if err := repo.GetDB().Model(&model.VisitLog{}).Where("path = ?", "/p/anon").Update("inferred_country", "US").Error; err != nil {
+		t.Fatalf("set anon country: %v", err)
+	}
+	// 非 visit 动作（点赞）即使有 inferred_country 也不进入候选列表
+	if err := repo.GetDB().Model(&model.VisitLog{}).Where("action = ?", constant.VisitActionLike).Update("inferred_country", "DE").Error; err != nil {
+		t.Fatalf("set like country: %v", err)
+	}
+	statsAll, svcerr := svc.GetStats(admin, nil)
+	if svcerr != nil || !slices.Equal(statsAll.Countries, []string{"JP", "US"}) {
+		t.Fatalf("statsAll.Countries = %v (err=%v), want [JP US]", statsAll.Countries, svcerr)
+	}
+	statsHuman, svcerr := svc.GetStats(admin, &dto.VisitStatsReq{IncludeAI: &excludeAI})
+	if svcerr != nil || !slices.Equal(statsHuman.Countries, []string{"US"}) {
+		t.Fatalf("statsHuman.Countries = %v (err=%v), want [US]", statsHuman.Countries, svcerr)
 	}
 }

@@ -66,9 +66,6 @@ func (c *AdminService) GetDashboard(ctx context.Context, req *dto.DashboardReq) 
 	if result.Summary.PendingComments, err = repo.Dashboard.CountPendingComments(ranges.current.From); err != nil {
 		return nil, failed
 	}
-	if result.Content, err = repo.Dashboard.CountContent(); err != nil {
-		return nil, failed
-	}
 	if result.Sources, err = repo.Dashboard.CountVisitSources(ranges.current, dashboardSourceLimit); err != nil {
 		return nil, failed
 	}
@@ -92,52 +89,61 @@ func (c *AdminService) GetDashboard(ctx context.Context, req *dto.DashboardReq) 
 
 func (c *AdminService) fillDashboardTotals(result *dto.DashboardDto) error {
 	db := repo.GetDB()
-	if err := db.Model(&model.Post{}).Count(&result.TotalPosts).Error; err != nil {
+	postTotals, err := repo.Dashboard.CountPostSummaryAndContent()
+	if err != nil {
 		return err
 	}
+	result.TotalPosts = postTotals.TotalPosts
+	result.TotalViews = postTotals.TotalViews
+	result.Content = postTotals.Content
 	if err := db.Model(&model.User{}).Count(&result.TotalUsers).Error; err != nil {
 		return err
 	}
 	if err := db.Model(&model.Comment{}).Count(&result.TotalComments).Error; err != nil {
 		return err
 	}
-	if err := db.Model(&model.File{}).Count(&result.TotalFiles).Error; err != nil {
-		return err
-	}
-	return db.Model(&model.Post{}).Select("COALESCE(SUM(view_count), 0)").Scan(&result.TotalViews).Error
+	return db.Model(&model.File{}).Count(&result.TotalFiles).Error
 }
 
-// fillDashboardTrend 每项指标一条查询：前 len(days) 个结果为逐日数据，最后两个为本期与上期合计
-// UV 的本期合计按整个区间去重，不等于逐日 UV 之和
+// fillDashboardTrend 单遍扫描各表汇总趋势：visit_logs 单遍同算 PV+UV，其余表各扫描一次 created_at
 func fillDashboardTrend(result *dto.DashboardDto, r dashboardRanges) error {
-	all := append(append([]repo.TimeRange{}, r.days...), r.current, r.previous)
 	n := len(r.days)
-	metrics := []struct {
-		count  func([]repo.TimeRange) ([]int64, error)
-		target *dto.DashboardMetric
-		point  func(p *dto.DashboardTrendPoint) *int64
-	}{
-		{repo.Dashboard.CountPV, &result.Summary.PV, func(p *dto.DashboardTrendPoint) *int64 { return &p.PV }},
-		{repo.Dashboard.CountUV, &result.Summary.UV, func(p *dto.DashboardTrendPoint) *int64 { return &p.UV }},
-		{repo.Dashboard.CountComments, &result.Summary.Comments, func(p *dto.DashboardTrendPoint) *int64 { return &p.Comments }},
-		{repo.Dashboard.CountLikes, &result.Summary.Likes, func(p *dto.DashboardTrendPoint) *int64 { return &p.Likes }},
-		{repo.Dashboard.CountUsers, &result.Summary.NewUsers, nil},
-	}
 	result.Trend = make([]dto.DashboardTrendPoint, n)
 	for i, day := range r.days {
 		result.Trend[i].Date = day.From.Format(time.DateOnly)
 	}
+
+	visitTrend, err := repo.Dashboard.CountVisitTrend(r.days, r.current, r.previous)
+	if err != nil {
+		return err
+	}
+	result.Summary.PV = dto.DashboardMetric{Current: visitTrend.PV.Current, Previous: visitTrend.PV.Previous}
+	result.Summary.UV = dto.DashboardMetric{Current: visitTrend.UV.Current, Previous: visitTrend.UV.Previous}
+	for i := 0; i < n; i++ {
+		result.Trend[i].PV = visitTrend.PV.Days[i]
+		result.Trend[i].UV = visitTrend.UV.Days[i]
+	}
+
+	metrics := []struct {
+		count  func([]repo.TimeRange, repo.TimeRange, repo.TimeRange) (repo.TrendCounts, error)
+		target *dto.DashboardMetric
+		point  func(p *dto.DashboardTrendPoint) *int64
+	}{
+		{repo.Dashboard.CountCommentsTrend, &result.Summary.Comments, func(p *dto.DashboardTrendPoint) *int64 { return &p.Comments }},
+		{repo.Dashboard.CountLikesTrend, &result.Summary.Likes, func(p *dto.DashboardTrendPoint) *int64 { return &p.Likes }},
+		{repo.Dashboard.CountUsersTrend, &result.Summary.NewUsers, nil},
+	}
 	for _, m := range metrics {
-		counts, err := m.count(all)
+		counts, err := m.count(r.days, r.current, r.previous)
 		if err != nil {
 			return err
 		}
 		if m.point != nil {
 			for i := 0; i < n; i++ {
-				*m.point(&result.Trend[i]) = counts[i]
+				*m.point(&result.Trend[i]) = counts.Days[i]
 			}
 		}
-		*m.target = dto.DashboardMetric{Current: counts[n], Previous: counts[n+1]}
+		*m.target = dto.DashboardMetric{Current: counts.Current, Previous: counts.Previous}
 	}
 	return nil
 }

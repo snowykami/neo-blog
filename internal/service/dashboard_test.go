@@ -145,4 +145,13 @@ func TestGetDashboard(t *testing.T) {
 	if pending != 1 {
 		t.Fatalf("pending comments in list: %d", pending)
 	}
+
+	// 8. 30 天趋势：第 -8 天的访问纳入本期（PV=5, UV=2），共 30 个桶
+	res30, svcerr := svc.GetDashboard(admin, &dto.DashboardReq{Days: 30})
+	if svcerr != nil || res30.Days != 30 || len(res30.Trend) != 30 {
+		t.Fatalf("dashboard 30d: days=%d len=%d err=%v", res30.Days, len(res30.Trend), svcerr)
+	}
+	if res30.Summary.PV != (dto.DashboardMetric{Current: 5, Previous: 0}) || res30.Summary.UV != (dto.DashboardMetric{Current: 2, Previous: 0}) {
+		t.Fatalf("dashboard 30d pv/uv: %+v %+v", res30.Summary.PV, res30.Summary.UV)
+	}
 }

@@ -74,11 +74,57 @@ func (f *FileRepo) DeleteByID(id uint) error {
 	return nil
 }
 
+// DeleteByIDs 批量删除文件记录并同步失效元数据缓存
+func (f *FileRepo) DeleteByIDs(ids []uint) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	const batchSize = 500
+	for start := 0; start < len(ids); start += batchSize {
+		chunk := ids[start:min(start+batchSize, len(ids))]
+		if err := GetDB().Where("id IN ?", chunk).Delete(&model.File{}).Error; err != nil {
+			return err
+		}
+		for _, id := range chunk {
+			fileMetaCache.Remove(id)
+		}
+	}
+	return nil
+}
+
 // CountFilesByHash 统计引用同一存储对象的文件记录数
 func (f *FileRepo) CountFilesByHash(hash string, providerID uint) (int64, error) {
 	var count int64
 	err := GetDB().Model(&model.File{}).Where("hash = ? AND provider_id = ?", hash, providerID).Count(&count).Error
 	return count, err
+}
+
+// CountFilesByHashes 批量统计指定存储中一组哈希各自仍存在的引用数
+func (f *FileRepo) CountFilesByHashes(providerID uint, hashes []string) (map[string]int64, error) {
+	result := make(map[string]int64, len(hashes))
+	if len(hashes) == 0 {
+		return result, nil
+	}
+	type row struct {
+		Hash  string
+		Count int64
+	}
+	const batchSize = 500
+	for start := 0; start < len(hashes); start += batchSize {
+		chunk := hashes[start:min(start+batchSize, len(hashes))]
+		var rows []row
+		if err := GetDB().Model(&model.File{}).
+			Select("hash, COUNT(*) AS count").
+			Where("provider_id = ? AND hash IN ?", providerID, chunk).
+			Group("hash").
+			Scan(&rows).Error; err != nil {
+			return nil, err
+		}
+		for _, r := range rows {
+			result[r.Hash] = r.Count
+		}
+	}
+	return result, nil
 }
 
 // ListFiles 列出文件；userID 为 0 时不限上传者，fileType 为空时不按类型筛选
@@ -198,8 +244,16 @@ func (f *FileRepo) ListByIDs(ids []uint) ([]model.File, error) {
 	if len(ids) == 0 {
 		return files, nil
 	}
-	err := GetDB().Where("id IN ?", ids).Find(&files).Error
-	return files, err
+	const batchSize = 500
+	for start := 0; start < len(ids); start += batchSize {
+		chunk := ids[start:min(start+batchSize, len(ids))]
+		var part []model.File
+		if err := GetDB().Where("id IN ?", chunk).Find(&part).Error; err != nil {
+			return nil, err
+		}
+		files = append(files, part...)
+	}
+	return files, nil
 }
 
 // FirstIDsByHash 存储中同一对象（哈希）对应的最小文件 ID，用于把直链还原为稳定链接

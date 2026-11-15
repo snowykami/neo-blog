@@ -273,13 +273,20 @@ func resetVisitAttribution(visitorID uint) {
 }
 
 const (
-	viewFlushInterval   = 5 * time.Second
-	postViewDeltaPrefix = "post:view_delta:"
-	postViewDeltaTTL    = 24 * time.Hour
+	viewFlushInterval     = 5 * time.Second
+	postViewDeltaPrefix   = "post:view_delta:"
+	postViewDeltaTTL      = 24 * time.Hour
+	postViewFlushedPrefix = "post:view_flushed:"
+	postViewFlushedTTL    = repo.PostGuestCacheTTL + time.Minute
+	postViewFlushLockKey  = "post:view_flush_lock"
 )
 
 func postViewDeltaKey(postID uint) string {
 	return postViewDeltaPrefix + strconv.FormatUint(uint64(postID), 10)
+}
+
+func postViewFlushedKey(postID uint) string {
+	return postViewFlushedPrefix + strconv.FormatUint(uint64(postID), 10)
 }
 
 // StartViewCountFlusher 启动文章阅读量增量定期落库协程；收到退出信号时执行最后一次刷库
@@ -305,7 +312,7 @@ func FlushPendingViews() {
 }
 
 // FlushPostViewCounts 从共享状态中原子取出各篇文章尚未落库的阅读量增量，批量写回数据库。
-// 多副本下通过共享状态的原子 Take 领取各自的增量（互不重算、不漏记）；写库失败时通过 IncrBy 回滚增量等待下次重试。
+// 多副本下通过分布式互斥锁串行化“写库后刷新基线快照”，避免慢实例的旧基线覆盖新基线；写库失败时通过 IncrBy 回滚增量等待下次重试。
 func FlushPostViewCounts() {
 	rawMap, err := sharedstate.Current().GetByPrefix(postViewDeltaPrefix)
 	if err != nil || len(rawMap) == 0 {
@@ -314,6 +321,19 @@ func FlushPostViewCounts() {
 		}
 		return
 	}
+
+	unlock, lockErr := sharedstate.Lock(context.Background(), postViewFlushLockKey, 10*time.Second)
+	if lockErr == nil {
+		defer unlock()
+		rawMap, err = sharedstate.Current().GetByPrefix(postViewDeltaPrefix)
+		if err != nil || len(rawMap) == 0 {
+			if err != nil {
+				logrus.Warnf("scan pending view deltas failed: %v", err)
+			}
+			return
+		}
+	}
+
 	deltas := make(map[uint]uint64, len(rawMap))
 	for key := range rawMap {
 		idStr := strings.TrimPrefix(key, postViewDeltaPrefix)
@@ -344,8 +364,25 @@ func FlushPostViewCounts() {
 		}
 		return
 	}
-	// 增量已写入数据库，清理前台文章内存/二级缓存快照（不触发前端 ISR 标签重绘），保证后续读取基线单调递增
-	repo.PostGuestCache.Clear()
+
+	// 将落库后的最新 view_count 写入短期单调基线快照，保留前台详情/列表/上下篇内存缓存命中率
+	flushedIDs := make([]uint, 0, len(deltas))
+	for id := range deltas {
+		flushedIDs = append(flushedIDs, id)
+	}
+	viewCounts, err := repo.Post.GetPostViewCounts(flushedIDs)
+	if err != nil {
+		logrus.Warnf("load flushed post view counts failed, clearing guest cache: %v", err)
+		repo.PostGuestCache.Clear()
+		return
+	}
+	for id, vc := range viewCounts {
+		if setErr := sharedstate.Current().Set(postViewFlushedKey(id), strconv.FormatUint(vc, 10), postViewFlushedTTL); setErr != nil {
+			logrus.Warnf("save flushed view baseline of post %d failed, clearing guest cache: %v", id, setErr)
+			repo.PostGuestCache.Clear()
+			return
+		}
+	}
 }
 
 // PendingPostViewDelta 读取单篇文章尚未刷入数据库的阅读量增量
@@ -399,12 +436,91 @@ func PendingPostViewDeltas(postIDs []uint) map[uint]uint64 {
 	return out
 }
 
-// DeletePendingPostViewDelta 文章被删除时顺带清理共享状态中的待刷增量
+// PostViewOverlays 一次批量读取多篇文章的已刷库基线快照与待刷增量
+func PostViewOverlays(postIDs []uint) (flushed map[uint]uint64, deltas map[uint]uint64) {
+	if len(postIDs) == 0 {
+		return nil, nil
+	}
+	keys := make([]string, 0, len(postIDs)*2)
+	seen := make(map[uint]struct{}, len(postIDs))
+	flushedIDByKey := make(map[string]uint, len(postIDs))
+	deltaIDByKey := make(map[string]uint, len(postIDs))
+	for _, id := range postIDs {
+		if id == 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		fk := postViewFlushedKey(id)
+		dk := postViewDeltaKey(id)
+		flushedIDByKey[fk] = id
+		deltaIDByKey[dk] = id
+		keys = append(keys, fk, dk)
+	}
+	if len(keys) == 0 {
+		return nil, nil
+	}
+	rawMap, err := sharedstate.Current().GetMany(keys...)
+	if err != nil || len(rawMap) == 0 {
+		return nil, nil
+	}
+	for k, raw := range rawMap {
+		if id, ok := flushedIDByKey[k]; ok {
+			n, parseErr := strconv.ParseUint(raw, 10, 64)
+			if parseErr == nil && n > 0 {
+				if flushed == nil {
+					flushed = make(map[uint]uint64, len(seen))
+				}
+				flushed[id] = n
+			}
+			continue
+		}
+		if id, ok := deltaIDByKey[k]; ok {
+			n, parseErr := strconv.ParseInt(raw, 10, 64)
+			if parseErr == nil && n > 0 {
+				if deltas == nil {
+					deltas = make(map[uint]uint64, len(seen))
+				}
+				deltas[id] = uint64(n)
+			}
+		}
+	}
+	return flushed, deltas
+}
+
+// LivePostViewCount 计算单篇文章的实时阅读量：max(baseline, flushed) + delta
+func LivePostViewCount(postID uint, baseline uint64) uint64 {
+	if postID == 0 {
+		return baseline
+	}
+	fk := postViewFlushedKey(postID)
+	dk := postViewDeltaKey(postID)
+	rawMap, err := sharedstate.Current().GetMany(fk, dk)
+	if err != nil || len(rawMap) == 0 {
+		return baseline
+	}
+	live := baseline
+	if raw, ok := rawMap[fk]; ok {
+		if n, parseErr := strconv.ParseUint(raw, 10, 64); parseErr == nil && n > live {
+			live = n
+		}
+	}
+	if raw, ok := rawMap[dk]; ok {
+		if n, parseErr := strconv.ParseInt(raw, 10, 64); parseErr == nil && n > 0 {
+			live += uint64(n)
+		}
+	}
+	return live
+}
+
+// DeletePendingPostViewDelta 文章被删除时顺带清理共享状态中的待刷增量与已刷基线快照
 func DeletePendingPostViewDelta(postID uint) {
 	if postID == 0 {
 		return
 	}
-	_ = sharedstate.Current().Delete(postViewDeltaKey(postID))
+	_ = sharedstate.Current().Delete(postViewDeltaKey(postID), postViewFlushedKey(postID))
 }
 
 // countPostView 记录了一次新的文章访问（已去重、排除爬虫、疑似自动化与管理员）后在共享状态中原子累加增量；
@@ -832,11 +948,7 @@ func (s *VisitService) GetInsights(ctx context.Context, req *dto.VisitInsightsRe
 	for i, label := range labels {
 		result.Trend[i] = dto.VisitTrendPoint{Label: label, Counts: trend[label]}
 	}
-	visitorIDs := make([]uint, 0, len(visitors))
-	for id := range visitors {
-		visitorIDs = append(visitorIDs, id)
-	}
-	if err := fillContentInsights(ctx, result, agg, visitorIDs, since, includeAI); err != nil {
+	if err := fillContentInsights(ctx, result, agg, since, includeAI); err != nil {
 		return nil, errs.NewInternalServer("failed_to_get_target")
 	}
 	if err := fillVitalInsights(ctx, result, since, includeAI); err != nil {

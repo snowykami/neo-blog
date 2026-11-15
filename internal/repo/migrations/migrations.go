@@ -29,5 +29,6 @@ func List() []*gormigrate.Migration {
 		relativeFileLinks(),
 		postLabelsIndex(),
 		p1SchemaAndIndexes(),
+		consoleQueryIndexes(),
 	}
 }

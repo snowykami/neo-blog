@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strconv"
 
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
@@ -82,18 +81,35 @@ func (p *pageRepo) GetPageByID(id uint) (*model.Page, error) {
 }
 
 func (p *pageRepo) GetPageBySlugOrID(slugOrID string) (*model.Page, error) {
+	return p.getPageBySlugOrID(slugOrID, false)
+}
+
+// GetPublicPageBySlugOrID 前台读取页面，不加载 draft_content 以减少大字段 I/O
+func (p *pageRepo) GetPublicPageBySlugOrID(slugOrID string) (*model.Page, error) {
+	return p.getPageBySlugOrID(slugOrID, true)
+}
+
+func (p *pageRepo) getPageBySlugOrID(slugOrID string, omitDraft bool) (*model.Page, error) {
 	var page model.Page
-	if err := GetDB().Where("slug = ?", slugOrID).Preload(clause.Associations).First(&page).Error; err != nil {
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, err
+	query := func() *gorm.DB {
+		q := GetDB().Preload(clause.Associations)
+		if omitDraft {
+			q = q.Omit("draft_content")
 		}
-		id, perr := strconv.ParseUint(slugOrID, 10, 64)
-		if perr != nil {
-			return nil, err
+		return q
+	}
+
+	var err error
+	if id, ok := parsePositiveNumericID(slugOrID); ok {
+		err = query().First(&page, id).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			err = query().Where("slug = ?", slugOrID).First(&page).Error
 		}
-		if err := GetDB().Preload(clause.Associations).First(&page, uint(id)).Error; err != nil {
-			return nil, err
-		}
+	} else {
+		err = query().Where("slug = ?", slugOrID).First(&page).Error
+	}
+	if err != nil {
+		return nil, err
 	}
 	return &page, nil
 }
@@ -178,6 +194,8 @@ func (p *pageRepo) ListPagesContext(ctx context.Context, includePrivate bool, re
 	}
 	if req.NoContent {
 		q = q.Omit("content", "draft_content")
+	} else {
+		q = q.Omit("draft_content")
 	}
 
 	req.OrderBy = AllowedOrderBy(req.OrderBy, constant.OrderByEnumPage, constant.OrderByCreatedAt)

@@ -374,8 +374,9 @@ func createQueryIndexesWithDB(tx *gorm.DB) error {
 		// 点赞：按用户主页查询喜欢列表与按时间窗口统计
 		"CREATE INDEX IF NOT EXISTS idx_likes_user_created ON likes (user_id, created_at)",
 		"CREATE INDEX IF NOT EXISTS idx_likes_created ON likes (created_at)",
-		// 文件按哈希查找与引用计数
+		// 文件按哈希查找、引用计数与后台筛选排序
 		"CREATE INDEX IF NOT EXISTS idx_files_hash ON files (hash, provider_id)",
+		"CREATE INDEX IF NOT EXISTS idx_files_created ON files (created_at)",
 		// 按用户吊销、查询会话
 		"CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id)",
 		// 访问去重、按行为时间窗口与按访客查询

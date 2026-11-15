@@ -134,7 +134,7 @@ func (p *PageService) GetPageSlugOrID(ctx context.Context, slugOrID string) (*dt
 		return nil, errs.NewBadRequest("missing_request_parameters")
 	}
 	return pageCached("detail:"+slugOrID, func() (*dto.PageDto, *errs.ServiceError) {
-		page, err := repo.Page.GetPageBySlugOrID(slugOrID)
+		page, err := repo.Page.GetPublicPageBySlugOrID(slugOrID)
 		if err != nil || page.IsPrivate {
 			return nil, errs.NewNotFound("target_not_found").WithResource("page")
 		}
@@ -418,9 +418,13 @@ func (p *PageService) listPages(ctx context.Context, req *dto.ListPageReq, inclu
 	if err != nil {
 		return nil, total, errs.Internal("failed_to_get_target", err).WithResource("page")
 	}
+	contentLength := 200
+	if req.NoContent {
+		contentLength = 0
+	}
 	pageDtos := make([]*dto.PageDto, 0, len(pages))
 	for _, page := range pages {
-		dtoPage := page.ToDtoWithShortContent(200)
+		dtoPage := page.ToDtoWithShortContent(contentLength)
 		if includePrivate {
 			dtoPage.HasDraft = page.HasDraft
 		}

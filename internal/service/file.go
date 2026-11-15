@@ -1,6 +1,7 @@
 package service
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"io"
@@ -175,32 +176,122 @@ func (f *FileService) DeleteFile(ctx context.Context, fileID uint) *errs.Service
 
 // BatchDeleteFiles 批量校验权限并删除文件记录及无引用物理存储对象
 func (f *FileService) BatchDeleteFiles(ctx context.Context, ids []uint) *errs.ServiceError {
+	uniqueIDs := make([]uint, 0, len(ids))
+	seenID := make(map[uint]struct{}, len(ids))
 	for _, id := range ids {
-		fileModel, err := repo.File.GetByID(id)
-		if err != nil {
-			logrus.Error("获取文件信息失败，跳过: ", err)
+		if id == 0 {
 			continue
 		}
-		if !(ctxutils.IsOwnerOfTarget(ctx, fileModel.UserID) || ctxutils.IsAdmin(ctx)) {
+		if _, exists := seenID[id]; exists {
+			continue
+		}
+		seenID[id] = struct{}{}
+		uniqueIDs = append(uniqueIDs, id)
+	}
+	if len(uniqueIDs) == 0 {
+		return nil
+	}
+
+	files, err := repo.File.ListByIDs(uniqueIDs)
+	if err != nil {
+		return errs.Internal("failed_to_get_target", err).WithResource("file")
+	}
+	if len(files) == 0 {
+		return nil
+	}
+
+	providers := make(map[uint]storageprovider.StorageProvider)
+	type blobKey struct {
+		providerID uint
+		hash       string
+	}
+	blobSeen := make(map[blobKey]struct{})
+	blobs := make([]blobKey, 0, len(files))
+
+	// 先一次性校验整批文件权限与存储提供者，避免删到一半报错
+	for i := range files {
+		if !(ctxutils.IsOwnerOfTarget(ctx, files[i].UserID) || ctxutils.IsAdmin(ctx)) {
 			return errs.NewForbidden("permission_denied")
 		}
+		pid := files[i].ProviderID
+		if _, ok := providers[pid]; !ok {
+			provider, exists := storage.GetStorageProvider(pid)
+			if !exists {
+				return errs.NewBadRequest("storage_provider_not_found")
+			}
+			providers[pid] = provider
+		}
+		if files[i].Hash != "" {
+			k := blobKey{providerID: pid, hash: files[i].Hash}
+			if _, ok := blobSeen[k]; !ok {
+				blobSeen[k] = struct{}{}
+				blobs = append(blobs, k)
+			}
+		}
 	}
-	for _, id := range ids {
-		fileModel, err := repo.File.GetByID(id)
-		if err != nil {
-			logrus.Error("获取文件信息失败: ", err)
+
+	// 按固定顺序加对象锁，防止并发 BatchDeleteFiles 互锁以及与 SaveFile 秒传复用竞争
+	slices.SortFunc(blobs, func(a, b blobKey) int {
+		if c := cmp.Compare(a.providerID, b.providerID); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.hash, b.hash)
+	})
+	lockedBlobs := make(map[blobKey]struct{}, len(blobs))
+	for _, k := range blobs {
+		unlock, lockErr := LockFileBlob(ctx, k.providerID, k.hash)
+		if lockErr != nil {
+			logrus.Error("获取文件对象锁失败，跳过: ", lockErr)
 			continue
 		}
-		provider, ok := storage.GetStorageProvider(fileModel.ProviderID)
-		if !ok {
-			return errs.NewBadRequest("storage_provider_not_found")
+		defer unlock()
+		lockedBlobs[k] = struct{}{}
+	}
+
+	deleteIDs := make([]uint, 0, len(files))
+	hashesByProvider := make(map[uint][]string)
+	providerHashSeen := make(map[blobKey]struct{})
+	for i := range files {
+		if files[i].Hash != "" {
+			k := blobKey{providerID: files[i].ProviderID, hash: files[i].Hash}
+			if _, ok := lockedBlobs[k]; !ok {
+				continue
+			}
+			if _, seen := providerHashSeen[k]; !seen {
+				providerHashSeen[k] = struct{}{}
+				hashesByProvider[files[i].ProviderID] = append(hashesByProvider[files[i].ProviderID], files[i].Hash)
+			}
 		}
-		if err := f.deleteFileRecordAndBlob(ctx, provider, &fileModel); err != nil {
-			logrus.Error("删除文件失败: ", err)
-			continue
-		}
+		deleteIDs = append(deleteIDs, files[i].ID)
+	}
+	if len(deleteIDs) == 0 {
+		return nil
+	}
+
+	if err := repo.File.DeleteByIDs(deleteIDs); err != nil {
+		logrus.Error("批量删除文件记录失败: ", err)
+		return errs.Internal("failed_to_delete_target", err).WithResource("file")
+	}
+	for _, id := range deleteIDs {
 		cache.EvictFile(id)
 		logrus.Debugf("文件已从缓存中删除, fileId: %d", id)
+	}
+
+	for pid, hashes := range hashesByProvider {
+		remaining, countErr := repo.File.CountFilesByHashes(pid, hashes)
+		if countErr != nil {
+			logrus.Error("统计剩余文件引用失败: ", countErr)
+			continue
+		}
+		provider := providers[pid]
+		for _, hash := range hashes {
+			if remaining[hash] > 0 {
+				continue
+			}
+			if delErr := provider.Delete(ctx, filepath.Join(utils.FilePath(hash))); delErr != nil {
+				logrus.Error("删除物理存储对象失败: ", delErr)
+			}
+		}
 	}
 	return nil
 }

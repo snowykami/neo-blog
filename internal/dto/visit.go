@@ -300,6 +300,8 @@ type VisitStatsDto struct {
 	TotalVisitors   int64 `json:"total_visitors"`
 	// 今日访问来源排行（不含站内跳转）
 	TodaySources []VisitSourceCount `json:"today_sources"`
+	// 已出现的推断国家/地区代码列表（按字母序排列，供访问日志筛选下拉）
+	Countries []string `json:"countries"`
 }
 
 type VisitSourceCount struct {

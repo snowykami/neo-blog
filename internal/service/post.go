@@ -156,17 +156,18 @@ func (p *PostService) DeletePost(ctx context.Context, postId uint) *errs.Service
 	return nil
 }
 
-// withPendingPostView 叠加尚未落库的阅读量增量；返回浅拷贝以避免并发修改缓存/singleflight 共享对象
+// withPendingPostView 叠加已刷库基线快照与待刷增量（max(baseline, flushed) + delta）；
+// 返回浅拷贝以避免并发修改缓存/singleflight 共享对象
 func withPendingPostView(d *dto.PostDto) *dto.PostDto {
 	if d == nil {
 		return nil
 	}
-	delta := PendingPostViewDelta(d.ID)
-	if delta == 0 {
+	live := LivePostViewCount(d.ID, d.ViewCount)
+	if live == d.ViewCount {
 		return d
 	}
 	cp := *d
-	cp.ViewCount += delta
+	cp.ViewCount = live
 	return &cp
 }
 
@@ -180,22 +181,28 @@ func withPendingPostViews(items []*dto.PostDto) []*dto.PostDto {
 			ids = append(ids, item.ID)
 		}
 	}
-	deltas := PendingPostViewDeltas(ids)
-	if len(deltas) == 0 {
+	flushed, deltas := PostViewOverlays(ids)
+	if len(flushed) == 0 && len(deltas) == 0 {
 		return items
 	}
-	out := make([]*dto.PostDto, len(items))
+	var out []*dto.PostDto
 	for i, item := range items {
 		if item == nil {
 			continue
 		}
-		if delta := deltas[item.ID]; delta > 0 {
-			cp := *item
-			cp.ViewCount += delta
-			out[i] = &cp
-		} else {
-			out[i] = item
+		live := max(item.ViewCount, flushed[item.ID]) + deltas[item.ID]
+		if live == item.ViewCount {
+			continue
 		}
+		if out == nil {
+			out = slices.Clone(items)
+		}
+		cp := *item
+		cp.ViewCount = live
+		out[i] = &cp
+	}
+	if out == nil {
+		return items
 	}
 	return out
 }
@@ -208,13 +215,24 @@ func withPendingPostCardViews(cards []dto.PostCardDto) []dto.PostCardDto {
 	for i := range cards {
 		ids = append(ids, cards[i].ID)
 	}
-	deltas := PendingPostViewDeltas(ids)
-	if len(deltas) == 0 {
+	flushed, deltas := PostViewOverlays(ids)
+	if len(flushed) == 0 && len(deltas) == 0 {
 		return cards
 	}
-	out := slices.Clone(cards)
-	for i := range out {
-		out[i].ViewCount += deltas[out[i].ID]
+	var out []dto.PostCardDto
+	for i := range cards {
+		id := cards[i].ID
+		live := max(cards[i].ViewCount, flushed[id]) + deltas[id]
+		if live == cards[i].ViewCount {
+			continue
+		}
+		if out == nil {
+			out = slices.Clone(cards)
+		}
+		out[i].ViewCount = live
+	}
+	if out == nil {
+		return cards
 	}
 	return out
 }
@@ -237,7 +255,7 @@ func (p *PostService) GetPostSlugOrId(ctx context.Context, slugOrId string) (*dt
 
 // getPublicPost 不看当前用户是谁：is_liked 恒为 false，登录用户的点赞状态由浏览器另取（GET /like/status）
 func (p *PostService) getPublicPost(slugOrId string) (*dto.PostDto, *errs.ServiceError) {
-	post, err := repo.Post.GetPostBySlugOrID(slugOrId)
+	post, err := repo.Post.GetPublicPostBySlugOrID(slugOrId)
 	if err != nil || !post.IsPublic() {
 		return nil, errs.NewNotFound("target_not_found").WithResource("post")
 	}
@@ -261,7 +279,7 @@ func (p *PostService) GetRandomPost(ctx context.Context) (*dto.PostDto, *errs.Se
 	postDto.DraftContent = nil
 	postDto.DraftVersion = 0
 	postDto.HasDraft = false
-	postDto.ViewCount += PendingPostViewDelta(postDto.ID)
+	postDto.ViewCount = LivePostViewCount(postDto.ID, postDto.ViewCount)
 	return postDto, nil
 }
 
@@ -278,7 +296,7 @@ func (p *PostService) GetPublicPostStats(id uint) (*dto.PostStatsDto, *errs.Serv
 		}
 		return nil, errs.Internal("failed_to_get_target", err).WithResource("post")
 	}
-	stats.ViewCount += PendingPostViewDelta(id)
+	stats.ViewCount = LivePostViewCount(id, stats.ViewCount)
 	return stats, nil
 }
 
@@ -323,7 +341,7 @@ func (p *PostService) GetPostForEdit(ctx context.Context, slugOrId string) (*dto
 	if postDto.DraftContent == nil {
 		postDto.DraftContent = &postDto.Content
 	}
-	postDto.ViewCount += PendingPostViewDelta(postDto.ID)
+	postDto.ViewCount = LivePostViewCount(postDto.ID, postDto.ViewCount)
 	return postDto, nil
 }
 

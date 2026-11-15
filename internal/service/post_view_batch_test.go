@@ -11,6 +11,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
+	"github.com/snowykami/neo-blog/pkg/cache"
 	"github.com/snowykami/neo-blog/pkg/constant"
 )
 
@@ -43,6 +44,15 @@ func TestPostViewBatchOverlayAndConcurrentFlush(t *testing.T) {
 	}
 	if _, svcerr := postSvc.ListPostCards(anon, []uint{postID}); svcerr != nil {
 		t.Fatalf("warm cards: %v", svcerr)
+	}
+	if _, svcerr := postSvc.GetPostNeighbors(postID); svcerr != nil {
+		t.Fatalf("warm neighbors: %v", svcerr)
+	}
+	if _, ok := cache.GetJSON[*dto.PostDto](repo.PostGuestCache, "detail:"+slugStr); !ok {
+		t.Fatalf("expected detail:%s cached before flush", slugStr)
+	}
+	if _, ok := cache.GetJSON[*dto.PostNeighborsResp](repo.PostGuestCache, "neighbors:"+slugStr); !ok {
+		t.Fatalf("expected neighbors:%s cached before flush", slugStr)
 	}
 
 	// 并发上报 6 个不同独立访客访问（不同 IP 与路径去重键：使用不同访客各自首次访问同一路径）
@@ -120,9 +130,33 @@ func TestPostViewBatchOverlayAndConcurrentFlush(t *testing.T) {
 	if pending := PendingPostViewDelta(postID); pending != 0 {
 		t.Fatalf("pending delta after flush = %d, want 0", pending)
 	}
-	// 刷库后再次读取详情，单调保持 visitors，不会回退或翻倍
+	// 刷库后不应清空 PostGuestCache，详情与上下篇等与阅读量无关的缓存条目保持温热
+	if _, ok := cache.GetJSON[*dto.PostDto](repo.PostGuestCache, "detail:"+slugStr); !ok {
+		t.Fatalf("expected detail:%s to stay warm across FlushPostViewCounts", slugStr)
+	}
+	if _, ok := cache.GetJSON[*dto.PostNeighborsResp](repo.PostGuestCache, "neighbors:"+slugStr); !ok {
+		t.Fatalf("expected neighbors:%s to stay warm across FlushPostViewCounts", slugStr)
+	}
+	// 刷库后再次读取详情（仍命中缓存内旧快照 baseline=0，依赖 post:view_flushed 基线保持 visitors）
 	if d, svcerr := postSvc.GetPostSlugOrId(anon, slugStr); svcerr != nil || d.ViewCount != visitors {
 		t.Fatalf("detail view_count after flush = %+v (err=%v), want %d", d, svcerr, visitors)
+	}
+	// 缓存仍未失效时继续新增访问，应与已刷基线叠加得到 visitors+1
+	if _, svcerr := visitSvc.Report(anon, &dto.ReportVisitReq{
+		Path:       fmt.Sprintf("/posts/%d", postID),
+		TargetType: constant.TargetTypePost,
+		TargetID:   postID,
+	}, "", VisitClient{IP: "198.51.100.200", UserAgent: testChromeUA}); svcerr != nil {
+		t.Fatalf("post-flush report: %v", svcerr)
+	}
+	if d, svcerr := postSvc.GetPostSlugOrId(anon, slugStr); svcerr != nil || d.ViewCount != visitors+1 {
+		t.Fatalf("detail view_count after flush + extra report = %+v (err=%v), want %d", d, svcerr, visitors+1)
+	}
+	if listItems, _, svcerr := postSvc.ListPosts(anon, listReq); svcerr != nil || len(listItems) == 0 || listItems[0].ViewCount != visitors+1 {
+		t.Fatalf("list view_count after flush + extra report = %+v (err=%v), want %d", listItems, svcerr, visitors+1)
+	}
+	if cards, svcerr := postSvc.ListPostCards(anon, []uint{postID}); svcerr != nil || len(cards) != 1 || cards[0].ViewCount != visitors+1 {
+		t.Fatalf("cards view_count after flush + extra report = %+v (err=%v), want %d", cards, svcerr, visitors+1)
 	}
 }
 
@@ -186,5 +220,90 @@ func TestPostViewFlushRollbackOnDBFailure(t *testing.T) {
 	}
 	if got := reloadPost(t, postID).ViewCount; got != 2 {
 		t.Fatalf("flusher stop drain db view_count = %d, want 2", got)
+	}
+}
+
+func TestPublicSlugOrIDLookupAndOmitDraftAndNoContent(t *testing.T) {
+	author, _, _, basePost, _ := setupEditTest(t)
+	authorID := basePost.UserID
+	postDraft := "secret-post-draft"
+	slugNum := "999999"
+	post := &model.Post{
+		UserID:   authorID,
+		HasDraft: true,
+		PostBase: model.PostBase{
+			Title:        "numeric slug post",
+			Slug:         &slugNum,
+			Content:      "public-post-body",
+			DraftContent: &postDraft,
+			IsPrivate:    false,
+			IsDraft:      false,
+		},
+	}
+	if err := repo.Post.CreatePost(post); err != nil {
+		t.Fatalf("create post: %v", err)
+	}
+
+	// 数字优先按 ID 命中；不存在对应主键时回退按纯数字 slug 查询；前台读取不带 draft_content
+	byID, err := repo.Post.GetPublicPostBySlugOrID(strconv.FormatUint(uint64(post.ID), 10))
+	if err != nil {
+		t.Fatalf("GetPublicPostBySlugOrID by id: %v", err)
+	}
+	if byID.ID != post.ID || byID.DraftContent != nil {
+		t.Fatalf("unexpected public post by id: id=%d draft=%v", byID.ID, byID.DraftContent)
+	}
+	byNumericSlug, err := repo.Post.GetPublicPostBySlugOrID(slugNum)
+	if err != nil {
+		t.Fatalf("GetPublicPostBySlugOrID by numeric slug: %v", err)
+	}
+	if byNumericSlug.ID != post.ID || byNumericSlug.DraftContent != nil {
+		t.Fatalf("unexpected public post by numeric slug: id=%d draft=%v", byNumericSlug.ID, byNumericSlug.DraftContent)
+	}
+	// 编辑接口仍能拿到 draft_content
+	editDto, svcerr := NewPostService().GetPostForEdit(author, slugNum)
+	if svcerr != nil || editDto.DraftContent == nil || *editDto.DraftContent != postDraft {
+		t.Fatalf("GetPostForEdit draft = %+v (err=%v), want %q", editDto, svcerr, postDraft)
+	}
+
+	// 页面同样支持 digits-first + 数字 slug 回退 + 前台省略 draft_content + no_content=true 省略正文
+	pageDraft := "secret-page-draft"
+	pageSlug := "888888"
+	pg := &model.Page{
+		UserID:   authorID,
+		HasDraft: true,
+		PageBase: model.PageBase{
+			Title:        "numeric slug page",
+			Slug:         pageSlug,
+			Content:      "public-page-body",
+			DraftContent: &pageDraft,
+			ShowInNav:    true,
+			IsPrivate:    false,
+		},
+	}
+	if err := repo.Page.CreatePage(pg); err != nil {
+		t.Fatalf("create page: %v", err)
+	}
+	pubPage, err := repo.Page.GetPublicPageBySlugOrID(pageSlug)
+	if err != nil || pubPage.ID != pg.ID || pubPage.DraftContent != nil {
+		t.Fatalf("GetPublicPageBySlugOrID = %+v, err=%v", pubPage, err)
+	}
+	editPage, err := repo.Page.GetPageBySlugOrID(strconv.FormatUint(uint64(pg.ID), 10))
+	if err != nil || editPage.DraftContent == nil || *editPage.DraftContent != pageDraft {
+		t.Fatalf("GetPageBySlugOrID = %+v, err=%v", editPage, err)
+	}
+
+	pageSvc := NewPageService()
+	pages, total, svcerr := pageSvc.ListPages(context.Background(), &dto.ListPageReq{
+		OnlyNav:          true,
+		NoContent:        true,
+		PaginationParams: dto.PaginationParams{Page: 1, Size: 10},
+	})
+	if svcerr != nil || total == 0 || len(pages) == 0 {
+		t.Fatalf("ListPages NoContent = %v total=%d err=%v", pages, total, svcerr)
+	}
+	for _, item := range pages {
+		if item.ID == pg.ID && (item.Content != "" || item.DraftContent != nil) {
+			t.Fatalf("expected no_content page to omit content and draft_content, got content=%q draft=%v", item.Content, item.DraftContent)
+		}
 	}
 }

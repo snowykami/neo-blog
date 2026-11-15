@@ -6,13 +6,13 @@ import (
 
 type File struct {
 	gorm.Model
-	Hash       string `gorm:"not null"`           // 文件哈希值 File hash
-	UserID     uint   `gorm:"not null"`           // 上传者ID Uploader ID
-	ProviderID uint   `gorm:"not null;default:1"` // 存储提供商ID Storage provider ID,默认是第一个
+	Hash       string `gorm:"not null"`                 // 文件哈希值 File hash
+	UserID     uint   `gorm:"not null;index"`           // 上传者ID Uploader ID
+	ProviderID uint   `gorm:"not null;default:1;index"` // 存储提供商ID Storage provider ID,默认是第一个
 	Group      string // 分组名称
 	Name       string // 文件名，为空显示未hash
-	Size       int64  // 文件大小 File size
-	MimeType   string // 文件 MIME 类型 File MIME type
+	Size       int64  `gorm:"index"` // 文件大小 File size
+	MimeType   string `gorm:"index"` // 文件 MIME 类型 File MIME type
 }
 
 func (f *File) ToDto() map[string]any {

@@ -88,6 +88,25 @@ func TestMigrateFreshDatabase(t *testing.T) {
 		if !db.Migrator().HasIndex(&model.VisitLog{}, "idx_visit_logs_heat") {
 			t.Error("missing index idx_visit_logs_heat")
 		}
+		for _, idx := range []struct {
+			table string
+			name  string
+		}{
+			{"files", "idx_files_user_id"},
+			{"files", "idx_files_provider_id"},
+			{"files", "idx_files_mime_type"},
+			{"files", "idx_files_created"},
+			{"files", "idx_files_size"},
+			{"visitors", "idx_visitors_created_at"},
+			{"visit_logs", "idx_visit_logs_created_id"},
+			{"visit_logs", "idx_visit_logs_device_type"},
+			{"visit_logs", "idx_visit_logs_inferred_country"},
+			{"error_issues", "idx_error_issues_status_last_seen"},
+		} {
+			if !db.Migrator().HasIndex(idx.table, idx.name) {
+				t.Errorf("missing fresh index %s on %s", idx.name, idx.table)
+			}
+		}
 
 		// 再次启动不重复执行
 		if err := migrate(); err != nil {
@@ -857,6 +876,48 @@ func TestMigrateP1SchemaAndIndexes(t *testing.T) {
 		} {
 			if !db.Migrator().HasIndex(idx.table, idx.name) {
 				t.Errorf("missing index %s on %s", idx.name, idx.table)
+			}
+		}
+	})
+}
+
+// 后台控制台高频查询索引升级：在已有旧库（尚无新索引且尚未记录 2026111601 迁移）上执行迁移后应补齐全部索引
+func TestMigrateConsoleQueryIndexes(t *testing.T) {
+	forEachDialect(t, func(t *testing.T) {
+		seedLegacyDatabase(t)
+		if err := db.AutoMigrate(&model.Page{}, &model.UserOpenID{}, &model.AgentRun{}, &model.File{}, &model.Visitor{}, &model.VisitLog{}, &model.ErrorIssue{}); err != nil {
+			t.Fatalf("prepare tables: %v", err)
+		}
+		targets := []struct {
+			table string
+			name  string
+		}{
+			{"files", "idx_files_user_id"},
+			{"files", "idx_files_provider_id"},
+			{"files", "idx_files_mime_type"},
+			{"files", "idx_files_created"},
+			{"files", "idx_files_size"},
+			{"visitors", "idx_visitors_created_at"},
+			{"visit_logs", "idx_visit_logs_created_id"},
+			{"visit_logs", "idx_visit_logs_device_type"},
+			{"visit_logs", "idx_visit_logs_inferred_country"},
+			{"error_issues", "idx_error_issues_status_last_seen"},
+		}
+		// 模拟从旧版本升级前：删除这些索引（并额外保证 idx_files_created 不存在）
+		_ = db.Exec("DROP INDEX IF EXISTS idx_files_created").Error
+		for _, item := range targets {
+			if db.Migrator().HasIndex(item.table, item.name) {
+				if err := db.Migrator().DropIndex(item.table, item.name); err != nil {
+					t.Fatalf("drop index %s.%s: %v", item.table, item.name, err)
+				}
+			}
+		}
+		if err := migrate(); err != nil {
+			t.Fatalf("migrate: %v", err)
+		}
+		for _, item := range targets {
+			if !db.Migrator().HasIndex(item.table, item.name) {
+				t.Errorf("missing index %s on %s after migration", item.name, item.table)
 			}
 		}
 	})

@@ -379,10 +379,14 @@ func searchPublicPagesMeili(ctx context.Context, req *dto.ListPageReq) ([]*dto.P
 		byID[pages[i].ID] = &pages[i]
 	}
 
+	contentLength := 200
+	if req.NoContent {
+		contentLength = 0
+	}
 	dtos := make([]*dto.PageDto, 0, len(ids))
 	for _, id := range ids {
 		if pg, exists := byID[id]; exists {
-			dtos = append(dtos, pg.ToDtoWithShortContent(200))
+			dtos = append(dtos, pg.ToDtoWithShortContent(contentLength))
 		}
 	}
 	return dtos, res.Total(), true
