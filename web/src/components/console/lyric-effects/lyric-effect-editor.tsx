@@ -110,19 +110,28 @@ export function LyricEffectEditor() {
     }
   })
 
-  // 生成进行中、但不是本页发起的重新生成（打开时已在生成，或保存时才发现）：定时确认是否结束。
+  // 生成进行中、但不是本页发起的重新生成（打开时已在生成，或保存时才发现）：定时确认是否结束；标签页隐藏时暂停。
   // 结束后没有未保存的修改时载入新结果；有修改时只解除禁用、保留修改（再保存会以手动编辑为准）
   const waitingGeneration = !!data?.generating && !regenerating
   React.useEffect(() => {
     if (!waitingGeneration)
       return
     let stopped = false
-    const timer = window.setInterval(async () => {
+    let timer: number | undefined
+    const stop = () => {
+      if (timer !== undefined) {
+        window.clearInterval(timer)
+        timer = undefined
+      }
+    }
+    const poll = async () => {
+      if (typeof document !== 'undefined' && document.hidden)
+        return
       const editor = await fetchLyricAnnotationEditor(songId).catch(() => undefined)
       if (stopped || !editor || editor.generating)
         return
       stopped = true
-      window.clearInterval(timer)
+      stop()
       if (dirtyRef.current) {
         setData(prev => prev && { ...prev, generating: false })
         toast.info(t('generation_finished_unsaved'))
@@ -131,10 +140,27 @@ export function LyricEffectEditor() {
       apply(editor)
       reloadAnnotations(songId)
       toast.info(t('generation_finished'))
-    }, POLL_MS)
+    }
+    const start = () => {
+      if (!stopped && timer === undefined)
+        timer = window.setInterval(() => void poll(), POLL_MS)
+    }
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        stop()
+      }
+      else {
+        void poll()
+        start()
+      }
+    }
+    if (!document.hidden)
+      start()
+    document.addEventListener('visibilitychange', onVisibilityChange)
     return () => {
       stopped = true
-      window.clearInterval(timer)
+      stop()
+      document.removeEventListener('visibilitychange', onVisibilityChange)
     }
   }, [apply, songId, t, waitingGeneration])
 
@@ -146,6 +172,10 @@ export function LyricEffectEditor() {
       toast.success(t('regenerate_started'))
       for (let polls = 0; polls < MAX_POLLS; polls++) {
         await new Promise(resolve => setTimeout(resolve, POLL_MS))
+        if (typeof document !== 'undefined' && document.hidden) {
+          polls--
+          continue
+        }
         const editor = await fetchLyricAnnotationEditor(songId)
         if (!editor.generating) {
           apply(editor)

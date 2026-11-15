@@ -230,6 +230,7 @@ export interface VisitStats {
   todayUserVisits: number
   totalVisitors: number
   todaySources: VisitSourceCount[] // 今日来源排行（不含站内跳转）
+  countries?: string[] // 近 30 天出现过的推断国家，用于筛选下拉
 }
 
 export interface VisitSourceCount {

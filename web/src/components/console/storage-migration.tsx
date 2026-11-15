@@ -47,8 +47,33 @@ export function useStorageMigration(onFinished?: () => void) {
   useEffect(() => {
     if (!running)
       return
-    const timer = setInterval(() => void refresh(), POLL_INTERVAL)
-    return () => clearInterval(timer)
+    let timer: ReturnType<typeof setInterval> | undefined
+    const start = () => {
+      if (timer === undefined)
+        timer = setInterval(() => void refresh(), POLL_INTERVAL)
+    }
+    const stop = () => {
+      if (timer !== undefined) {
+        clearInterval(timer)
+        timer = undefined
+      }
+    }
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        stop()
+      }
+      else {
+        void refresh()
+        start()
+      }
+    }
+    if (!document.hidden)
+      start()
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      stop()
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
   }, [running, refresh])
 
   const onFinishedRef = useRef(onFinished)

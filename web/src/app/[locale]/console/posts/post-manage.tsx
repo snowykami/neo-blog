@@ -10,7 +10,7 @@ import {
   parseAsStringEnum,
   useQueryState,
 } from 'nuqs'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { listPinnedPostsAdmin, listPostsAdmin } from '@/api/admin'
 import { batchDeletePosts, batchUpdatePostVisibility, deletePost, listMyPosts, updatePost } from '@/api/post'
@@ -19,7 +19,6 @@ import { HoverPopover } from '@/components/common/hover-popover'
 import { OrderSelector } from '@/components/common/orderby-selector'
 import { PageSizeSelector } from '@/components/common/page-size-selector'
 import { PaginationController } from '@/components/common/pagination'
-import { Popconfirm } from '@/components/common/popconfirm'
 import { SafeImage } from '@/components/common/safe-image'
 import { CreateOrUpdatePostMetaDialogWithoutButton } from '@/components/console/common/post-meta-dialog-form'
 import { Badge } from '@/components/ui/badge'
@@ -41,7 +40,6 @@ import { useAuth } from '@/contexts/auth-context'
 import { useDevice } from '@/contexts/device-context'
 import { useConsoleQuery } from '@/hooks/use-console-query'
 import { useDebouncedState } from '@/hooks/use-debounce'
-import { useIsMobile } from '@/hooks/use-mobile'
 import { useToPost } from '@/hooks/use-route'
 import { useCommonT, useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { Link } from '@/i18n/navigation'
@@ -57,353 +55,36 @@ const PAGE_SIZE = 15
 const MOBILE_PAGE_SIZE = 10
 const EMPTY_POSTS: Post[] = []
 
-export function PostManage() {
-  const t = useTranslations('Console.post_edit')
-  const commonT = useCommonT()
-  const operationT = useOperationT()
-  const errorMessageT = useErrorMessageT()
-  const metricsT = useTranslations('Metrics')
-  const { isMobile } = useDevice()
-  const { user } = useAuth()
-  // 管理员可管理所有文章，编辑者只能管理自己的文章
-  const isAdminUser = !!user && isAdmin({ user })
-  const [orderBy, setOrderBy] = useQueryState(
-    'order_by',
-    parseAsStringEnum<OrderBy>(Object.values(OrderBy))
-      .withDefault(OrderBy.CreatedAt)
-      .withOptions({ history: 'replace', clearOnDefault: true }),
-  )
-  const [desc, setDesc] = useQueryState(
-    'desc',
-    parseAsBoolean.withDefault(true).withOptions({ history: 'replace', clearOnDefault: true }),
-  )
-  const [page, setPage] = useQueryState(
-    'page',
-    parseAsInteger.withDefault(1).withOptions({ history: 'replace', clearOnDefault: true }),
-  )
-  const [size, setSize] = useQueryState(
-    'size',
-    parseAsInteger
-      .withDefault(isMobile ? MOBILE_PAGE_SIZE : PAGE_SIZE)
-      .withOptions({ history: 'replace', clearOnDefault: true }),
-  )
-  // 搜索词用本地状态管理，不通过 URL
-  const [queryInput, setQueryInput, debouncedQueryInput] = useDebouncedState(
-    '',
-    200,
-  )
-  const [onlyMine, setOnlyMine] = useQueryState(
-    'only_mine',
-    parseAsBoolean.withDefault(false).withOptions({ history: 'replace', clearOnDefault: true }),
-  )
-  // 只看首页上的置顶文章（管理员），不分页
-  const [onlyPinned, setOnlyPinned] = useQueryState(
-    'only_pinned',
-    parseAsBoolean.withDefault(false).withOptions({ history: 'replace', clearOnDefault: true }),
-  )
-  const [createPostDialogOpen, setCreatePostDialogOpen] = useState(false)
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set())
-  const [batchUpdating, setBatchUpdating] = useState(false)
-
-  // 列表取数：等到 user 就绪后再发起请求，避免鉴权尚未恢复时把空结果写进缓存
-  const listPosts = useConsoleQuery(
-    user ? ['admin/posts', isAdminUser, page, size, orderBy, desc, debouncedQueryInput, onlyMine, onlyPinned] : null,
-    async () => {
-      if (isAdminUser && onlyPinned) {
-        const res = await listPinnedPostsAdmin()
-        return { posts: res.data.posts, total: res.data.posts.length }
-      }
-      const params = { page, size, orderBy, desc, query: debouncedQueryInput }
-      const res = isAdminUser
-        ? await listPostsAdmin({ ...params, userId: onlyMine ? user!.id : 0 })
-        : await listMyPosts(params)
-      return { posts: res.data.posts, total: res.data.total }
-    },
-    { onError: error => toast.error(`${operationT('fetch_failed')}: ${errorMessageT(error)}`) },
-  )
-  const posts = listPosts.data?.posts ?? EMPTY_POSTS
-  const total = listPosts.data?.total ?? 0
-  const loading = (!user && !listPosts.data) || (listPosts.loading && !listPosts.data)
-  const { refresh: refreshPosts, setData: setPostList } = listPosts
-
-  const activeSelectedIds = useMemo(
-    () => posts.filter(p => selectedIds.has(p.id)).map(p => p.id),
-    [posts, selectedIds],
-  )
-  const allSelected = posts.length > 0 && activeSelectedIds.length === posts.length
-  const partiallySelected = activeSelectedIds.length > 0 && !allSelected
-
-  const toggleSelectAll = useCallback((checked: boolean) => {
-    setSelectedIds(checked ? new Set(posts.map(p => p.id)) : new Set())
-  }, [posts])
-
-  const toggleSelectOne = useCallback((id: number, checked: boolean) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      if (checked)
-        next.add(id)
-      else
-        next.delete(id)
-      return next
-    })
-  }, [])
-
-  const handleBatchVisibility = async (isPrivate: boolean) => {
-    if (activeSelectedIds.length === 0 || batchUpdating)
-      return
-    setBatchUpdating(true)
-    try {
-      await batchUpdatePostVisibility({ ids: activeSelectedIds, isPrivate })
-      toast.success(operationT('update_success'))
-      setSelectedIds(new Set())
-      await refreshPosts()
-    }
-    catch (error) {
-      toast.error(`${operationT('update_failed')}: ${errorMessageT(error)}`)
-    }
-    finally {
-      setBatchUpdating(false)
-    }
-  }
-
-  const handleBatchDelete = async () => {
-    if (activeSelectedIds.length === 0)
-      return
-    await batchDeletePosts({ ids: activeSelectedIds })
-    toast.success(operationT('delete_success'))
-    const deletingAllOnPage = activeSelectedIds.length >= posts.length
-    setSelectedIds(new Set())
-    if (deletingAllOnPage && page > 1)
-      await setPage(page - 1)
-    else
-      await refreshPosts()
-  }
-
-  // 防抖后的搜索词真正变化时才重置分页，避免挂载时把 URL 中的页码重置为 1
-  const prevQueryRef = useRef(debouncedQueryInput)
-  useEffect(() => {
-    if (prevQueryRef.current === debouncedQueryInput)
-      return
-    prevQueryRef.current = debouncedQueryInput
-    setPage(1)
-  }, [debouncedQueryInput, setPage])
-
-  const onPostCreate = useCallback(() => {
-    // 创建新文章后重新拉取列表，新文章需要后端分配的 ID 与排序位置
-    void refreshPosts()
-  }, [refreshPosts])
-
-  const onPostUpdate = useCallback(
-    ({ post }: { post: Partial<Post> & Pick<Post, 'id'> }) => {
-      setPostList(prev => prev && { ...prev, posts: prev.posts.map(p => (p.id === post.id ? { ...p, ...post } : p)) })
-    },
-    [setPostList],
-  )
-
-  const onPostDelete = useCallback(
-    ({ postId }: { postId: number }) => {
-      setPostList(prev => prev && { posts: prev.posts.filter(p => p.id !== postId), total: Math.max(0, prev.total - 1) })
-    },
-    [setPostList],
-  )
-
-  const onOrderChange = useCallback(
-    ({ orderBy, desc }: { orderBy: OrderBy, desc: boolean }) => {
-      setOrderBy(orderBy)
-      setDesc(desc)
-      setPage(1)
-    },
-    [setOrderBy, setDesc, setPage],
-  )
-
-  const onPageChange = useCallback(
-    (p: number) => {
-      setPage(p)
-    },
-    [setPage],
-  )
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-x-3 gap-y-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <Input
-            type="search"
-            placeholder={commonT('search')}
-            value={queryInput}
-            onChange={e => setQueryInput(e.target.value)}
-          />
-          {isAdminUser && (
-            <div className="flex items-center gap-2 shrink-0">
-              <Switch
-                id="post-manage-only-mine"
-                checked={onlyMine}
-                onCheckedChange={(checked) => {
-                  setOnlyMine(checked)
-                  setPage(1)
-                }}
-              />
-              <Label htmlFor="post-manage-only-mine">{t('only_mine')}</Label>
-            </div>
-          )}
-          {isAdminUser && (
-            <div className="flex items-center gap-2 shrink-0">
-              <Switch
-                id="post-manage-only-pinned"
-                checked={onlyPinned}
-                onCheckedChange={(checked) => {
-                  setOnlyPinned(checked)
-                  setPage(1)
-                }}
-              />
-              <Label htmlFor="post-manage-only-pinned">{t('only_pinned', { max: PINNED_POSTS_LIMIT })}</Label>
-            </div>
-          )}
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <OrderSelector
-              value={{ orderBy, desc }}
-              onOrderChange={onOrderChange}
-              orderBys={[
-                OrderBy.CreatedAt,
-                OrderBy.UpdatedAt,
-                OrderBy.Heat,
-                OrderBy.CommentCount,
-                OrderBy.LikeCount,
-                OrderBy.ViewCount,
-              ]}
-            />
-            {isAdminUser && <PostAISummaryBatchButton onQueued={() => void refreshPosts()} />}
-            <Button size="sm" onClick={() => setCreatePostDialogOpen(true)}>
-              {t('create_post')}
-            </Button>
-            <CreateOrUpdatePostMetaDialogWithoutButton
-              open={createPostDialogOpen}
-              onOpenChange={setCreatePostDialogOpen}
-              post={null}
-              onPostChange={onPostCreate}
-            />
-          </div>
-        </div>
-      </div>
-      {posts.length > 0 && (
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2 text-sm">
-          <label className="flex cursor-pointer items-center gap-2 select-none">
-            <Checkbox
-              checked={allSelected ? true : partiallySelected ? 'indeterminate' : false}
-              onCheckedChange={checked => toggleSelectAll(checked === true)}
-              aria-label={t('select_all')}
-            />
-            <span className="text-muted-foreground">
-              {activeSelectedIds.length > 0
-                ? t('selected_count', { count: activeSelectedIds.length })
-                : t('select_all')}
-            </span>
-          </label>
-          {activeSelectedIds.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2">
-              <Button size="sm" variant="outline" disabled={batchUpdating} onClick={() => void handleBatchVisibility(false)}>
-                {operationT('set_public')}
-              </Button>
-              <Button size="sm" variant="outline" disabled={batchUpdating} onClick={() => void handleBatchVisibility(true)}>
-                {operationT('set_private')}
-              </Button>
-              <ConfirmDialog
-                title={operationT('confirm_delete')}
-                description={t('batch_delete_description', { count: activeSelectedIds.length })}
-                confirmLabel={operationT('delete')}
-                errorText={operationT('delete_failed')}
-                confirmVariant="destructive"
-                onConfirm={handleBatchDelete}
-              >
-                <Button size="sm" variant="destructive" disabled={batchUpdating}>
-                  {operationT('delete')}
-                </Button>
-              </ConfirmDialog>
-              <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
-                {operationT('cancel')}
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-      <Separator className="flex-1" />
-      {loading && (
-        <div className="py-10 text-center text-sm text-muted-foreground">{t('loading')}</div>
-      )}
-      {!loading && listPosts.data && posts.length === 0 && (
-        <Empty className="py-10">
-          <EmptyDescription>{t(debouncedQueryInput ? 'empty_search' : 'empty')}</EmptyDescription>
-        </Empty>
-      )}
-      {posts.map(post => (
-        <div key={post.id}>
-          <PostItem
-            post={post}
-            selected={selectedIds.has(post.id)}
-            onSelectChange={checked => toggleSelectOne(post.id, checked)}
-            showAuthor={isAdminUser}
-            canConfigureAI={isAdminUser}
-            canPin={isAdminUser}
-            onPostUpdate={onPostUpdate}
-            onPostDelete={onPostDelete}
-          />
-          <Separator className="flex-1" />
-        </div>
-      ))}
-      {/* 只看置顶时最多 3 篇，不分页 */}
-      <div className="flex justify-center items-center py-4" hidden={isAdminUser && onlyPinned}>
-        {total > 0 && (
-          <PaginationController
-            page={page}
-            onPageChange={onPageChange}
-            total={total}
-            pageSize={size}
-          />
-        )}
-        <PageSizeSelector
-          size={size}
-          onSizeChange={(s) => {
-            setSize(s)
-            setPage(1)
-          }}
-        />
-        {' '}
-        {metricsT('per_page')}
-      </div>
-    </div>
-  )
-}
-
-function PostItem({
+const PostItem = memo(({
   post,
   selected,
-  onSelectChange,
+  isMobile,
+  onToggleSelect,
   showAuthor,
   canConfigureAI,
   canPin,
   onPostUpdate,
-  onPostDelete,
+  onRequestEditMeta,
+  onRequestDelete,
 }: {
   post: Post
   selected: boolean
-  onSelectChange: (checked: boolean) => void
+  isMobile: boolean
+  onToggleSelect: (id: number, checked: boolean) => void
   showAuthor: boolean
   canConfigureAI: boolean // 只有管理员可以在全局配置中配置 AI
   canPin: boolean // 只有管理员可以置顶到首页
   onPostUpdate: ({ post }: { post: Partial<Post> & Pick<Post, 'id'> }) => void
-  onPostDelete: ({ postId }: { postId: number }) => void
-}) {
+  onRequestEditMeta: (post: Post) => void
+  onRequestDelete: (post: Post) => void
+}) => {
   const commonT = useTranslations('Common')
-  const isMobile = useIsMobile()
   const labelCount = isMobile ? 1 : 3
   const postT = useTranslations('Console.post_edit')
   const editorT = useTranslations('Console.editor')
   const stateT = useTranslations('State')
   const operationT = useOperationT()
   const clickToPost = useToPost()
-  const [metaDialogOpen, setMetaDialogOpen] = useState(false)
   const aiSummary = useAISummary({ post, onPostUpdate, canConfigure: canConfigureAI })
   const pinUntilText = usePinUntilText()
   const previewOnly = Boolean(post.isPrivate || post.isDraft)
@@ -412,7 +93,7 @@ function PostItem({
       <div className="flex w-full items-center gap-3 py-3">
         <Checkbox
           checked={selected}
-          onCheckedChange={checked => onSelectChange(checked === true)}
+          onCheckedChange={checked => onToggleSelect(post.id, checked === true)}
           aria-label={post.title}
         />
         {/* left：占满剩余宽度且可收缩，长描述不会把右侧操作挤出 */}
@@ -547,18 +228,373 @@ function PostItem({
             post={post}
             canPin={canPin}
             onPostUpdate={onPostUpdate}
-            onPostDelete={onPostDelete}
-            setMetaDialogOpen={setMetaDialogOpen}
+            onRequestEditMeta={onRequestEditMeta}
+            onRequestDelete={onRequestDelete}
             aiSummaryRunning={aiSummary.running}
             onTriggerAISummary={aiSummary.trigger}
           />
-          <CreateOrUpdatePostMetaDialogWithoutButton
-            post={post}
-            onPostChange={onPostUpdate}
-            open={metaDialogOpen}
-            onOpenChange={setMetaDialogOpen}
-          />
         </div>
+      </div>
+    </div>
+  )
+})
+
+export function PostManage() {
+  const t = useTranslations('Console.post_edit')
+  const commonT = useCommonT()
+  const operationT = useOperationT()
+  const errorMessageT = useErrorMessageT()
+  const metricsT = useTranslations('Metrics')
+  const { isMobile } = useDevice()
+  const { user } = useAuth()
+  // 管理员可管理所有文章，编辑者只能管理自己的文章
+  const isAdminUser = !!user && isAdmin({ user })
+  const [orderBy, setOrderBy] = useQueryState(
+    'order_by',
+    parseAsStringEnum<OrderBy>(Object.values(OrderBy))
+      .withDefault(OrderBy.CreatedAt)
+      .withOptions({ history: 'replace', clearOnDefault: true }),
+  )
+  const [desc, setDesc] = useQueryState(
+    'desc',
+    parseAsBoolean.withDefault(true).withOptions({ history: 'replace', clearOnDefault: true }),
+  )
+  const [page, setPage] = useQueryState(
+    'page',
+    parseAsInteger.withDefault(1).withOptions({ history: 'replace', clearOnDefault: true }),
+  )
+  const [size, setSize] = useQueryState(
+    'size',
+    parseAsInteger
+      .withDefault(isMobile ? MOBILE_PAGE_SIZE : PAGE_SIZE)
+      .withOptions({ history: 'replace', clearOnDefault: true }),
+  )
+  // 搜索词用本地状态管理，不通过 URL
+  const [queryInput, setQueryInput, debouncedQueryInput] = useDebouncedState(
+    '',
+    200,
+  )
+  const [onlyMine, setOnlyMine] = useQueryState(
+    'only_mine',
+    parseAsBoolean.withDefault(false).withOptions({ history: 'replace', clearOnDefault: true }),
+  )
+  // 只看首页上的置顶文章（管理员），不分页
+  const [onlyPinned, setOnlyPinned] = useQueryState(
+    'only_pinned',
+    parseAsBoolean.withDefault(false).withOptions({ history: 'replace', clearOnDefault: true }),
+  )
+  const [metaDialogOpen, setMetaDialogOpen] = useState(false)
+  const [editingPost, setEditingPost] = useState<Post | null>(null)
+  const [deletingPost, setDeletingPost] = useState<Post | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set())
+  const [batchUpdating, setBatchUpdating] = useState(false)
+
+  // 列表取数：等到 user 就绪后再发起请求，避免鉴权尚未恢复时把空结果写进缓存
+  const listPosts = useConsoleQuery(
+    user ? ['admin/posts', isAdminUser, page, size, orderBy, desc, debouncedQueryInput, onlyMine, onlyPinned] : null,
+    async () => {
+      if (isAdminUser && onlyPinned) {
+        const res = await listPinnedPostsAdmin()
+        return { posts: res.data.posts, total: res.data.posts.length }
+      }
+      const params = { page, size, orderBy, desc, query: debouncedQueryInput }
+      const res = isAdminUser
+        ? await listPostsAdmin({ ...params, userId: onlyMine ? user!.id : 0 })
+        : await listMyPosts(params)
+      return { posts: res.data.posts, total: res.data.total }
+    },
+    { onError: error => toast.error(`${operationT('fetch_failed')}: ${errorMessageT(error)}`) },
+  )
+  const posts = listPosts.data?.posts ?? EMPTY_POSTS
+  const total = listPosts.data?.total ?? 0
+  const loading = (!user && !listPosts.data) || (listPosts.loading && !listPosts.data)
+  const { refresh: refreshPosts, setData: setPostList } = listPosts
+
+  const activeSelectedIds = useMemo(
+    () => posts.filter(p => selectedIds.has(p.id)).map(p => p.id),
+    [posts, selectedIds],
+  )
+  const allSelected = posts.length > 0 && activeSelectedIds.length === posts.length
+  const partiallySelected = activeSelectedIds.length > 0 && !allSelected
+
+  const toggleSelectAll = useCallback((checked: boolean) => {
+    setSelectedIds(checked ? new Set(posts.map(p => p.id)) : new Set())
+  }, [posts])
+
+  const toggleSelectOne = useCallback((id: number, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (checked)
+        next.add(id)
+      else
+        next.delete(id)
+      return next
+    })
+  }, [])
+
+  const handleBatchVisibility = async (isPrivate: boolean) => {
+    if (activeSelectedIds.length === 0 || batchUpdating)
+      return
+    setBatchUpdating(true)
+    try {
+      await batchUpdatePostVisibility({ ids: activeSelectedIds, isPrivate })
+      toast.success(operationT('update_success'))
+      setSelectedIds(new Set())
+      await refreshPosts()
+    }
+    catch (error) {
+      toast.error(`${operationT('update_failed')}: ${errorMessageT(error)}`)
+    }
+    finally {
+      setBatchUpdating(false)
+    }
+  }
+
+  const handleBatchDelete = async () => {
+    if (activeSelectedIds.length === 0)
+      return
+    await batchDeletePosts({ ids: activeSelectedIds })
+    toast.success(operationT('delete_success'))
+    const deletingAllOnPage = activeSelectedIds.length >= posts.length
+    setSelectedIds(new Set())
+    if (deletingAllOnPage && page > 1)
+      await setPage(page - 1)
+    else
+      await refreshPosts()
+  }
+
+  // 防抖后的搜索词真正变化时才重置分页，避免挂载时把 URL 中的页码重置为 1
+  const prevQueryRef = useRef(debouncedQueryInput)
+  useEffect(() => {
+    if (prevQueryRef.current === debouncedQueryInput)
+      return
+    prevQueryRef.current = debouncedQueryInput
+    setPage(1)
+  }, [debouncedQueryInput, setPage])
+
+  const onPostCreate = useCallback(() => {
+    // 创建新文章后重新拉取列表，新文章需要后端分配的 ID 与排序位置
+    void refreshPosts()
+  }, [refreshPosts])
+
+  const onPostUpdate = useCallback(
+    ({ post }: { post: Partial<Post> & Pick<Post, 'id'> }) => {
+      setPostList(prev => prev && { ...prev, posts: prev.posts.map(p => (p.id === post.id ? { ...p, ...post } : p)) })
+    },
+    [setPostList],
+  )
+
+  const onPostDelete = useCallback(
+    ({ postId }: { postId: number }) => {
+      setPostList(prev => prev && { posts: prev.posts.filter(p => p.id !== postId), total: Math.max(0, prev.total - 1) })
+    },
+    [setPostList],
+  )
+
+  const openCreatePostDialog = useCallback(() => {
+    setEditingPost(null)
+    setMetaDialogOpen(true)
+  }, [])
+
+  const openEditPostDialog = useCallback((post: Post) => {
+    setEditingPost(post)
+    setMetaDialogOpen(true)
+  }, [])
+
+  const onMetaDialogChange = useCallback(
+    ({ post }: { post: Partial<Post> & Pick<Post, 'id'> }) => {
+      if (editingPost)
+        onPostUpdate({ post })
+      else
+        onPostCreate()
+    },
+    [editingPost, onPostUpdate, onPostCreate],
+  )
+
+  const handleDeleteOne = useCallback(async () => {
+    if (!deletingPost)
+      return
+    await deletePost({ id: deletingPost.id })
+    toast.success(operationT('delete_success'))
+    onPostDelete({ postId: deletingPost.id })
+  }, [deletingPost, operationT, onPostDelete])
+
+  const onOrderChange = useCallback(
+    ({ orderBy, desc }: { orderBy: OrderBy, desc: boolean }) => {
+      setOrderBy(orderBy)
+      setDesc(desc)
+      setPage(1)
+    },
+    [setOrderBy, setDesc, setPage],
+  )
+
+  const onPageChange = useCallback(
+    (p: number) => {
+      setPage(p)
+    },
+    [setPage],
+  )
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-x-3 gap-y-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <Input
+            type="search"
+            placeholder={commonT('search')}
+            value={queryInput}
+            onChange={e => setQueryInput(e.target.value)}
+          />
+          {isAdminUser && (
+            <div className="flex items-center gap-2 shrink-0">
+              <Switch
+                id="post-manage-only-mine"
+                checked={onlyMine}
+                onCheckedChange={(checked) => {
+                  setOnlyMine(checked)
+                  setPage(1)
+                }}
+              />
+              <Label htmlFor="post-manage-only-mine">{t('only_mine')}</Label>
+            </div>
+          )}
+          {isAdminUser && (
+            <div className="flex items-center gap-2 shrink-0">
+              <Switch
+                id="post-manage-only-pinned"
+                checked={onlyPinned}
+                onCheckedChange={(checked) => {
+                  setOnlyPinned(checked)
+                  setPage(1)
+                }}
+              />
+              <Label htmlFor="post-manage-only-pinned">{t('only_pinned', { max: PINNED_POSTS_LIMIT })}</Label>
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <OrderSelector
+              value={{ orderBy, desc }}
+              onOrderChange={onOrderChange}
+              orderBys={[
+                OrderBy.CreatedAt,
+                OrderBy.UpdatedAt,
+                OrderBy.Heat,
+                OrderBy.CommentCount,
+                OrderBy.LikeCount,
+                OrderBy.ViewCount,
+              ]}
+            />
+            {isAdminUser && <PostAISummaryBatchButton onQueued={() => void refreshPosts()} />}
+            <Button size="sm" onClick={openCreatePostDialog}>
+              {t('create_post')}
+            </Button>
+          </div>
+        </div>
+      </div>
+      <CreateOrUpdatePostMetaDialogWithoutButton
+        open={metaDialogOpen}
+        onOpenChange={setMetaDialogOpen}
+        post={editingPost}
+        onPostChange={onMetaDialogChange}
+      />
+      <ConfirmDialog
+        open={!!deletingPost}
+        onOpenChange={open => !open && setDeletingPost(null)}
+        title={deletingPost?.title ? operationT('delete_confirm_title', { name: deletingPost.title }) : operationT('confirm_delete')}
+        description={operationT('delete_description')}
+        confirmLabel={operationT('delete')}
+        errorText={operationT('delete_failed')}
+        confirmVariant="destructive"
+        onConfirm={handleDeleteOne}
+      />
+      {posts.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+          <label className="flex cursor-pointer items-center gap-2 select-none">
+            <Checkbox
+              checked={allSelected ? true : partiallySelected ? 'indeterminate' : false}
+              onCheckedChange={checked => toggleSelectAll(checked === true)}
+              aria-label={t('select_all')}
+            />
+            <span className="text-muted-foreground">
+              {activeSelectedIds.length > 0
+                ? t('selected_count', { count: activeSelectedIds.length })
+                : t('select_all')}
+            </span>
+          </label>
+          {activeSelectedIds.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="outline" disabled={batchUpdating} onClick={() => void handleBatchVisibility(false)}>
+                {operationT('set_public')}
+              </Button>
+              <Button size="sm" variant="outline" disabled={batchUpdating} onClick={() => void handleBatchVisibility(true)}>
+                {operationT('set_private')}
+              </Button>
+              <ConfirmDialog
+                title={operationT('confirm_delete')}
+                description={t('batch_delete_description', { count: activeSelectedIds.length })}
+                confirmLabel={operationT('delete')}
+                errorText={operationT('delete_failed')}
+                confirmVariant="destructive"
+                onConfirm={handleBatchDelete}
+              >
+                <Button size="sm" variant="destructive" disabled={batchUpdating}>
+                  {operationT('delete')}
+                </Button>
+              </ConfirmDialog>
+              <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
+                {operationT('cancel')}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+      <Separator className="flex-1" />
+      {loading && (
+        <div className="py-10 text-center text-sm text-muted-foreground">{t('loading')}</div>
+      )}
+      {!loading && listPosts.data && posts.length === 0 && (
+        <Empty className="py-10">
+          <EmptyDescription>{t(debouncedQueryInput ? 'empty_search' : 'empty')}</EmptyDescription>
+        </Empty>
+      )}
+      {posts.map(post => (
+        <div key={post.id}>
+          <PostItem
+            post={post}
+            selected={selectedIds.has(post.id)}
+            isMobile={isMobile}
+            onToggleSelect={toggleSelectOne}
+            showAuthor={isAdminUser}
+            canConfigureAI={isAdminUser}
+            canPin={isAdminUser}
+            onPostUpdate={onPostUpdate}
+            onRequestEditMeta={openEditPostDialog}
+            onRequestDelete={setDeletingPost}
+          />
+          <Separator className="flex-1" />
+        </div>
+      ))}
+      {/* 只看置顶时最多 3 篇，不分页 */}
+      <div className="flex justify-center items-center py-4" hidden={isAdminUser && onlyPinned}>
+        {total > 0 && (
+          <PaginationController
+            page={page}
+            onPageChange={onPageChange}
+            total={total}
+            pageSize={size}
+          />
+        )}
+        <PageSizeSelector
+          size={size}
+          onSizeChange={(s) => {
+            setSize(s)
+            setPage(1)
+          }}
+        />
+        {' '}
+        {metricsT('per_page')}
       </div>
     </div>
   )
@@ -568,16 +604,16 @@ function PostDropdownMenu({
   post,
   canPin,
   onPostUpdate,
-  onPostDelete,
-  setMetaDialogOpen,
+  onRequestEditMeta,
+  onRequestDelete,
   aiSummaryRunning,
   onTriggerAISummary,
 }: {
   post: Post
   canPin: boolean
   onPostUpdate: ({ post }: { post: Partial<Post> & Pick<Post, 'id'> }) => void
-  onPostDelete: ({ postId }: { postId: number }) => void
-  setMetaDialogOpen: (open: boolean) => void
+  onRequestEditMeta: (post: Post) => void
+  onRequestDelete: (post: Post) => void
   aiSummaryRunning: boolean
   onTriggerAISummary: () => void
 }) {
@@ -586,7 +622,6 @@ function PostDropdownMenu({
   const clickToPost = useToPost()
   const aiSummaryLabel = useAISummaryMenuLabel(post)
   const postT = useTranslations('Console.post_edit')
-  const [confirmOpen, setConfirmOpen] = useState(false)
   const togglePin = usePostPinAction(post, state => onPostUpdate({ post: { id: post.id, ...state } }))
   const handleTogglePrivate = () => {
     // 只提交需要修改的字段：列表里的正文是截断后的摘要，整篇提交会覆盖原文
@@ -602,39 +637,14 @@ function PostDropdownMenu({
       })
   }
 
-  // 失败时抛出，由 Popconfirm 统一提示并保持打开
-  const handleDelete = async () => {
-    await deletePost({ id: post.id })
-    toast.success(operationT('delete_success'))
-    onPostDelete({ postId: post.id })
-  }
-
   return (
     <DropdownMenu>
-      {/* 菜单项关闭菜单后，删除确认气泡以菜单按钮为锚点就地弹出 */}
-      <Popconfirm
-        anchorOnly
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        title={post.title ? operationT('delete_confirm_title', { name: post.title }) : operationT('confirm_delete')}
-        description={operationT('delete_description')}
-        confirmText={operationT('delete')}
-        errorText={operationT('delete_failed')}
-        destructive
-        onConfirm={handleDelete}
-      >
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon-sm" aria-label={operationT('more')} title={operationT('more')}>
-            <Ellipsis className="size-4" />
-          </Button>
-        </DropdownMenuTrigger>
-      </Popconfirm>
-      <DropdownMenuContent
-        className="min-w-36"
-        align="end"
-        // 打开删除确认时不把焦点还给菜单按钮，焦点交给气泡
-        onCloseAutoFocus={e => confirmOpen && e.preventDefault()}
-      >
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon-sm" aria-label={operationT('more')} title={operationT('more')}>
+          <Ellipsis className="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="min-w-36" align="end">
         <DropdownMenuGroup>
           {/* 用链接而不是 router.push：菜单打开时（链接挂载）就完整预取编辑器的页面与 JS，点「编辑」时不用再等 */}
           <DropdownMenuItem asChild className="cursor-pointer">
@@ -642,7 +652,7 @@ function PostDropdownMenu({
               {operationT('edit')}
             </Link>
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setMetaDialogOpen(true)} className="cursor-pointer">
+          <DropdownMenuItem onClick={() => onRequestEditMeta(post)} className="cursor-pointer">
             {operationT('setting')}
           </DropdownMenuItem>
           {/* 私密文章或未首次发布草稿只在后台可见：「查看」打开后台预览 */}
@@ -665,7 +675,7 @@ function PostDropdownMenu({
             </DropdownMenuItem>
           )}
           <DropdownMenuItem
-            onSelect={() => setConfirmOpen(true)}
+            onSelect={() => onRequestDelete(post)}
             className="text-destructive hover:bg-destructive/10 focus:bg-destructive/10 cursor-pointer"
           >
             {operationT('delete')}

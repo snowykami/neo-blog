@@ -5,13 +5,13 @@ import type { BaseResponseError } from '@/models/resp'
 import { CodeXmlIcon, Ellipsis, Eye, LinkIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { parseAsBoolean, parseAsInteger, useQueryState } from 'nuqs'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { listPagesAdmin } from '@/api/admin'
 import { deletePage, listMyPages, updatePage } from '@/api/page'
+import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { PageSizeSelector } from '@/components/common/page-size-selector'
 import { PaginationController } from '@/components/common/pagination'
-import { Popconfirm } from '@/components/common/popconfirm'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -51,138 +51,19 @@ function isPreview(page: PageModel) {
 // 列表为空时的固定引用：onPageChange 的 useCallback 依赖 pages
 const EMPTY_PAGES: PageModel[] = []
 
-export function PageManage() {
-  const { user } = useAuth()
-  // 管理员可管理所有人的页面（与文章管理一致，可切换「只看我的」），编辑者只能管理自己的页面
-  const isAdminUser = !!user && isAdmin({ user })
-  const t = useTranslations('Console.pages')
-  const errorMessageT = useErrorMessageT()
-  const operationT = useOperationT()
-  const [page, setPage] = useQueryState(
-    'page',
-    parseAsInteger.withDefault(1).withOptions({ history: 'replace', clearOnDefault: true }),
-  )
-  const [size, setSize] = useQueryState(
-    'size',
-    parseAsInteger.withDefault(PAGE_SIZE).withOptions({ history: 'replace', clearOnDefault: true }),
-  )
-  const [queryInput, setQueryInput, debouncedQueryInput] = useDebouncedState('', 200)
-  const [createDialogOpen, setCreateDialogOpen] = useState(false)
-  const [onlyMine, setOnlyMine] = useQueryState(
-    'only_mine',
-    parseAsBoolean.withDefault(false).withOptions({ history: 'replace', clearOnDefault: true }),
-  )
-
-  // 回到这个页面时先显示上次的结果，同时重新请求（见 hooks/use-console-query.ts）；写操作后缓存会被清空
-  const pagesQuery = useConsoleQuery(
-    user ? ['page/list', isAdminUser, page, size, debouncedQueryInput, onlyMine] : null,
-    () => {
-      const params = { page, size, query: debouncedQueryInput, noContent: true, orderBy: OrderBy.CreatedAt, desc: true }
-      return (isAdminUser ? listPagesAdmin({ ...params, userId: onlyMine ? user!.id : 0 }) : listMyPages(params))
-        .then(res => ({ pages: res.data.pages, total: res.data.total }))
-    },
-    { onError: error => toast.error(`${operationT('fetch_failed')}: ${errorMessageT(error)}`) },
-  )
-  const pages = pagesQuery.data?.pages ?? EMPTY_PAGES
-  const total = pagesQuery.data?.total ?? 0
-  const { refresh: loadPages, setData: setPageList } = pagesQuery
-
-  // 搜索词变化时回到第一页
-  const prevQueryRef = useRef(debouncedQueryInput)
-  useEffect(() => {
-    if (prevQueryRef.current === debouncedQueryInput)
-      return
-    prevQueryRef.current = debouncedQueryInput
-    void setPage(1)
-  }, [debouncedQueryInput, setPage])
-
-  // 已有页面就地更新；新建页面需要后端的排序与分页结果，重新拉取列表
-  const onPageChange = useCallback(({ page }: { page: Partial<PageModel> & Pick<PageModel, 'id'> }) => {
-    if (!pages.some(item => item.id === page.id)) {
-      loadPages()
-      return
-    }
-    setPageList(prev => prev && { ...prev, pages: prev.pages.map(item => (item.id === page.id ? { ...item, ...page } : item)) })
-  }, [pages, loadPages, setPageList])
-
-  const onPageDelete = useCallback(({ pageId }: { pageId: number }) => {
-    setPageList(prev => prev && { pages: prev.pages.filter(item => item.id !== pageId), total: Math.max(0, prev.total - 1) })
-  }, [setPageList])
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-4 gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <Input
-            type="search"
-            placeholder={t('search_pages')}
-            value={queryInput}
-            onChange={event => setQueryInput(event.target.value)}
-            className="max-w-sm"
-          />
-          {isAdminUser && (
-            <div className="flex items-center gap-2 shrink-0">
-              <Switch
-                id="page-manage-only-mine"
-                checked={onlyMine}
-                onCheckedChange={(checked) => {
-                  setOnlyMine(checked)
-                  setPage(1)
-                }}
-              />
-              <Label htmlFor="page-manage-only-mine">{t('only_mine')}</Label>
-            </div>
-          )}
-        </div>
-        <Button size="sm" onClick={() => setCreateDialogOpen(true)}>{t('create_page')}</Button>
-        <PageMetaDialog
-          open={createDialogOpen}
-          onOpenChange={setCreateDialogOpen}
-          page={null}
-          onPageChange={onPageChange}
-        />
-      </div>
-      <Separator />
-      {/* 加载完成后列表为空：区分「没有页面」与「没有匹配搜索的页面」 */}
-      {pagesQuery.data && pages.length === 0 && (
-        <Empty className="py-10">
-          <EmptyDescription>{t(debouncedQueryInput ? 'empty_search' : 'empty')}</EmptyDescription>
-        </Empty>
-      )}
-      {pages.map(pageItem => (
-        <div key={pageItem.id}>
-          <PageItem page={pageItem} showAuthor={isAdminUser} onPageChange={onPageChange} onPageDelete={onPageDelete} />
-          <Separator />
-        </div>
-      ))}
-      <div className="flex justify-center items-center py-4">
-        {total > 0 && (
-          <PaginationController page={page} onPageChange={setPage} total={total} pageSize={size} />
-        )}
-        <PageSizeSelector
-          size={size}
-          onSizeChange={(nextSize) => {
-            setSize(nextSize)
-            setPage(1)
-          }}
-        />
-      </div>
-    </div>
-  )
-}
-
-function PageItem({
+const PageItem = memo(({
   onPageChange,
-  onPageDelete,
+  onRequestEditMeta,
+  onRequestDelete,
   page,
   showAuthor,
 }: {
   onPageChange: ({ page }: { page: Partial<PageModel> & Pick<PageModel, 'id'> }) => void
-  onPageDelete: ({ pageId }: { pageId: number }) => void
+  onRequestEditMeta: (page: PageModel) => void
+  onRequestDelete: (page: PageModel) => void
   page: PageModel
   showAuthor: boolean // 管理员看所有人的页面时显示作者
-}) {
-  const [metaDialogOpen, setMetaDialogOpen] = useState(false)
+}) => {
   const t = useTranslations('Console.pages')
   const editorT = useTranslations('Console.editor')
   const stateT = useTranslations('State')
@@ -242,12 +123,169 @@ function PageItem({
             <Eye className="size-4" />
           </a>
         </Button>
-        <PageDropdownMenu page={page} onPageChange={onPageChange} onPageDelete={onPageDelete} setMetaDialogOpen={setMetaDialogOpen} />
-        <PageMetaDialog
-          open={metaDialogOpen}
-          onOpenChange={setMetaDialogOpen}
+        <PageDropdownMenu
           page={page}
           onPageChange={onPageChange}
+          onRequestEditMeta={onRequestEditMeta}
+          onRequestDelete={onRequestDelete}
+        />
+      </div>
+    </div>
+  )
+})
+
+export function PageManage() {
+  const { user } = useAuth()
+  // 管理员可管理所有人的页面（与文章管理一致，可切换「只看我的」），编辑者只能管理自己的页面
+  const isAdminUser = !!user && isAdmin({ user })
+  const t = useTranslations('Console.pages')
+  const errorMessageT = useErrorMessageT()
+  const operationT = useOperationT()
+  const [page, setPage] = useQueryState(
+    'page',
+    parseAsInteger.withDefault(1).withOptions({ history: 'replace', clearOnDefault: true }),
+  )
+  const [size, setSize] = useQueryState(
+    'size',
+    parseAsInteger.withDefault(PAGE_SIZE).withOptions({ history: 'replace', clearOnDefault: true }),
+  )
+  const [queryInput, setQueryInput, debouncedQueryInput] = useDebouncedState('', 200)
+  const [metaDialogOpen, setMetaDialogOpen] = useState(false)
+  const [editingPage, setEditingPage] = useState<PageModel | null>(null)
+  const [deletingPage, setDeletingPage] = useState<PageModel | null>(null)
+  const [onlyMine, setOnlyMine] = useQueryState(
+    'only_mine',
+    parseAsBoolean.withDefault(false).withOptions({ history: 'replace', clearOnDefault: true }),
+  )
+
+  // 回到这个页面时先显示上次的结果，同时重新请求（见 hooks/use-console-query.ts）；写操作后缓存会被清空
+  const pagesQuery = useConsoleQuery(
+    user ? ['page/list', isAdminUser, page, size, debouncedQueryInput, onlyMine] : null,
+    () => {
+      const params = { page, size, query: debouncedQueryInput, noContent: true, orderBy: OrderBy.CreatedAt, desc: true }
+      return (isAdminUser ? listPagesAdmin({ ...params, userId: onlyMine ? user!.id : 0 }) : listMyPages(params))
+        .then(res => ({ pages: res.data.pages, total: res.data.total }))
+    },
+    { onError: error => toast.error(`${operationT('fetch_failed')}: ${errorMessageT(error)}`) },
+  )
+  const pages = pagesQuery.data?.pages ?? EMPTY_PAGES
+  const total = pagesQuery.data?.total ?? 0
+  const { refresh: loadPages, setData: setPageList } = pagesQuery
+
+  // 搜索词变化时回到第一页
+  const prevQueryRef = useRef(debouncedQueryInput)
+  useEffect(() => {
+    if (prevQueryRef.current === debouncedQueryInput)
+      return
+    prevQueryRef.current = debouncedQueryInput
+    void setPage(1)
+  }, [debouncedQueryInput, setPage])
+
+  // 已有页面就地更新；新建页面需要后端的排序与分页结果，重新拉取列表
+  const pagesRef = useRef(pages)
+  pagesRef.current = pages
+  const onPageChange = useCallback(({ page }: { page: Partial<PageModel> & Pick<PageModel, 'id'> }) => {
+    if (!pagesRef.current.some(item => item.id === page.id)) {
+      loadPages()
+      return
+    }
+    setPageList(prev => prev && { ...prev, pages: prev.pages.map(item => (item.id === page.id ? { ...item, ...page } : item)) })
+  }, [loadPages, setPageList])
+
+  const onPageDelete = useCallback(({ pageId }: { pageId: number }) => {
+    setPageList(prev => prev && { pages: prev.pages.filter(item => item.id !== pageId), total: Math.max(0, prev.total - 1) })
+  }, [setPageList])
+
+  const openCreateDialog = useCallback(() => {
+    setEditingPage(null)
+    setMetaDialogOpen(true)
+  }, [])
+
+  const openEditDialog = useCallback((target: PageModel) => {
+    setEditingPage(target)
+    setMetaDialogOpen(true)
+  }, [])
+
+  const handleDeleteOne = useCallback(async () => {
+    if (!deletingPage)
+      return
+    await deletePage({ id: deletingPage.id })
+    toast.success(operationT('delete_success'))
+    onPageDelete({ pageId: deletingPage.id })
+  }, [deletingPage, operationT, onPageDelete])
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4 gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Input
+            type="search"
+            placeholder={t('search_pages')}
+            value={queryInput}
+            onChange={event => setQueryInput(event.target.value)}
+            className="max-w-sm"
+          />
+          {isAdminUser && (
+            <div className="flex items-center gap-2 shrink-0">
+              <Switch
+                id="page-manage-only-mine"
+                checked={onlyMine}
+                onCheckedChange={(checked) => {
+                  setOnlyMine(checked)
+                  setPage(1)
+                }}
+              />
+              <Label htmlFor="page-manage-only-mine">{t('only_mine')}</Label>
+            </div>
+          )}
+        </div>
+        <Button size="sm" onClick={openCreateDialog}>{t('create_page')}</Button>
+      </div>
+      <PageMetaDialog
+        open={metaDialogOpen}
+        onOpenChange={setMetaDialogOpen}
+        page={editingPage}
+        onPageChange={onPageChange}
+      />
+      <ConfirmDialog
+        open={!!deletingPage}
+        onOpenChange={open => !open && setDeletingPage(null)}
+        title={deletingPage?.title ? operationT('delete_confirm_title', { name: deletingPage.title }) : operationT('confirm_delete')}
+        description={operationT('delete_description')}
+        confirmLabel={operationT('delete')}
+        errorText={operationT('delete_failed')}
+        confirmVariant="destructive"
+        onConfirm={handleDeleteOne}
+      />
+      <Separator />
+      {/* 加载完成后列表为空：区分「没有页面」与「没有匹配搜索的页面」 */}
+      {pagesQuery.data && pages.length === 0 && (
+        <Empty className="py-10">
+          <EmptyDescription>{t(debouncedQueryInput ? 'empty_search' : 'empty')}</EmptyDescription>
+        </Empty>
+      )}
+      {pages.map(pageItem => (
+        <div key={pageItem.id}>
+          <PageItem
+            page={pageItem}
+            showAuthor={isAdminUser}
+            onPageChange={onPageChange}
+            onRequestEditMeta={openEditDialog}
+            onRequestDelete={setDeletingPage}
+          />
+          <Separator />
+        </div>
+      ))}
+      <div className="flex justify-center items-center py-4">
+        {total > 0 && (
+          <PaginationController page={page} onPageChange={setPage} total={total} pageSize={size} />
+        )}
+        <PageSizeSelector
+          size={size}
+          onSizeChange={(nextSize) => {
+            setSize(nextSize)
+            setPage(1)
+          }}
         />
       </div>
     </div>
@@ -256,18 +294,17 @@ function PageItem({
 
 function PageDropdownMenu({
   onPageChange,
-  onPageDelete,
+  onRequestEditMeta,
+  onRequestDelete,
   page,
-  setMetaDialogOpen,
 }: {
   onPageChange: ({ page }: { page: Partial<PageModel> & Pick<PageModel, 'id'> }) => void
-  onPageDelete: ({ pageId }: { pageId: number }) => void
+  onRequestEditMeta: (page: PageModel) => void
+  onRequestDelete: (page: PageModel) => void
   page: PageModel
-  setMetaDialogOpen: (open: boolean) => void
 }) {
   const operationT = useOperationT()
   const errorMessageT = useErrorMessageT()
-  const [confirmOpen, setConfirmOpen] = useState(false)
 
   const togglePrivate = () => {
     updatePage({ page: { id: page.id, isPrivate: !page.isPrivate } })
@@ -278,49 +315,24 @@ function PageDropdownMenu({
       .catch((error: BaseResponseError) => toast.error(`${operationT('update_failed')}: ${errorMessageT(error)}`))
   }
 
-  // 失败时抛出，由 Popconfirm 统一提示并保持打开
-  const handleDelete = async () => {
-    await deletePage({ id: page.id })
-    toast.success(operationT('delete_success'))
-    onPageDelete({ pageId: page.id })
-  }
-
   return (
     <DropdownMenu>
-      {/* 菜单项关闭菜单后，删除确认气泡以菜单按钮为锚点就地弹出 */}
-      <Popconfirm
-        anchorOnly
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        title={page.title ? operationT('delete_confirm_title', { name: page.title }) : operationT('confirm_delete')}
-        description={operationT('delete_description')}
-        confirmText={operationT('delete')}
-        errorText={operationT('delete_failed')}
-        destructive
-        onConfirm={handleDelete}
-      >
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon-sm" aria-label={operationT('more')} title={operationT('more')}>
-            <Ellipsis className="size-4" />
-          </Button>
-        </DropdownMenuTrigger>
-      </Popconfirm>
-      <DropdownMenuContent
-        className="min-w-36"
-        align="end"
-        // 打开删除确认时不把焦点还给菜单按钮，焦点交给气泡
-        onCloseAutoFocus={e => confirmOpen && e.preventDefault()}
-      >
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon-sm" aria-label={operationT('more')} title={operationT('more')}>
+          <Ellipsis className="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="min-w-36" align="end">
         {/* 链接页面没有正文，编辑即打开设置 */}
         {page.kind === 'link'
-          ? <DropdownMenuItem onClick={() => setMetaDialogOpen(true)}>{operationT('edit')}</DropdownMenuItem>
+          ? <DropdownMenuItem onClick={() => onRequestEditMeta(page)}>{operationT('edit')}</DropdownMenuItem>
           // 客户端跳转（不整页刷新）；菜单打开时（链接挂载）就完整预取编辑器的页面与 JS
           : <DropdownMenuItem asChild><Link href={getPageEditUrl(page)} prefetch>{operationT('edit')}</Link></DropdownMenuItem>}
-        <DropdownMenuItem onClick={() => setMetaDialogOpen(true)}>{operationT('setting')}</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onRequestEditMeta(page)}>{operationT('setting')}</DropdownMenuItem>
         <DropdownMenuItem asChild><a href={getPageOpenUrl(page)} target="_blank" rel="noreferrer">{operationT(isPreview(page) ? 'preview' : 'view')}</a></DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={togglePrivate}>{operationT(page.isPrivate ? 'set_public' : 'set_private')}</DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => setConfirmOpen(true)} className="text-destructive">
+        <DropdownMenuItem onSelect={() => onRequestDelete(page)} className="text-destructive">
           {operationT('delete')}
         </DropdownMenuItem>
       </DropdownMenuContent>

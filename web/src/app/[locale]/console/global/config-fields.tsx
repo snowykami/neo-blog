@@ -593,7 +593,8 @@ function ColorSchemesField(props: FieldProps) {
 function ColorSchemeSelect({ item, label, description }: FieldProps) {
   const schemeName = useColorSchemeName()
   const { control } = useFormContext<ConfigValues>()
-  const enabled = (useWatch<ConfigValues>({ name: 'color_schemes' }) as string[] | undefined) ?? []
+  const [rawEnabled] = useWatch<ConfigValues, ['color_schemes']>({ control, name: ['color_schemes'] })
+  const enabled = (rawEnabled as string[] | undefined) ?? []
   const all = item.options?.map(option => option.value) ?? []
   return (
     <FormField

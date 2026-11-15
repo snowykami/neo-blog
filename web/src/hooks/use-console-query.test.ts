@@ -98,6 +98,44 @@ describe('后台取数缓存', () => {
     second.unmount()
   })
 
+  it.each([
+    '/post/p/1/ai-write',
+    '/page/p/2/ai-titles',
+    '/post/p/3/ai-taxonomy',
+    '/admin/config/email/test',
+    '/admin/config/search/test',
+    '/music/ncm/playlists',
+  ])('无状态 AI 辅助与连通性探测请求 %s 不清空缓存', async (url) => {
+    const first = await mount(['list', url], async () => 'kept')
+    await vi.waitFor(() => expect(first.seen.at(-1)).toBe('kept'))
+    first.unmount()
+
+    axiosClient.defaults.adapter = async config => ({ data: {}, status: 200, statusText: 'OK', headers: {}, config })
+    await axiosClient.post(url, {})
+
+    const second = await mount(['list', url], () => new Promise<string>(() => {}))
+    expect(second.seen[0]).toBe('kept')
+    second.unmount()
+  })
+
+  it.each([
+    '/admin/notifications/test',
+    '/admin/ai-agents/1/dry-run',
+    '/admin/ai-agents/import',
+    '/admin/ai-agent-groups/generate',
+  ])('可能写库的 POST 请求 %s 仍会清空缓存', async (url) => {
+    const first = await mount(['list', url], async () => 'stale')
+    await vi.waitFor(() => expect(first.seen.at(-1)).toBe('stale'))
+    first.unmount()
+
+    axiosClient.defaults.adapter = async config => ({ data: {}, status: 200, statusText: 'OK', headers: {}, config })
+    await axiosClient.post(url, {})
+
+    const second = await mount(['list', url], () => new Promise<string>(() => {}))
+    expect(second.seen[0]).toBeUndefined()
+    second.unmount()
+  })
+
   it('不同用户之间不共用缓存', async () => {
     const first = await mount(['list', 4], async () => 'user-1')
     await vi.waitFor(() => expect(first.seen.at(-1)).toBe('user-1'))

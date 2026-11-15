@@ -40,8 +40,13 @@ export function clearConsoleQueryCache() {
 }
 
 const READ_METHODS = new Set(['get', 'head', 'options'])
-// 不改动内容的非 GET 请求：打开编辑器时占用编辑会话（POST .../edit-session），只是「谁在编辑」，列表不显示，不清缓存
-const NON_CONTENT_WRITES = [/\/edit-session$/]
+// 不改动列表/资源内容的非 GET 请求：编辑会话锁、无状态 AI 写作建议、探测性测试与歌单读取等，不清后台列表缓存
+const NON_CONTENT_WRITES = [
+  /\/edit-session$/,
+  /^(?:\/api\/v1)?\/(post|page)\/p\/[^/]+\/(ai-write|ai-titles|ai-taxonomy)$/,
+  /^(?:\/api\/v1)?\/admin\/config\/(email|search)\/test$/,
+  /^(?:\/api\/v1)?\/music\/ncm\/playlists$/,
+]
 let interceptorInstalled = false
 
 interface RequestLike { method?: string, url?: string }

@@ -5,8 +5,8 @@ import type { ConfigItem, ConfigSchema } from '@/models/config'
 import type { SiteInfo } from '@/utils/common/siteinfo'
 import { useTranslations } from 'next-intl'
 import { parseAsString, useQueryState } from 'nuqs'
-import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { FormProvider, useForm, useWatch } from 'react-hook-form'
+import { createContext, memo, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FormProvider, useForm, useFormContext, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 import { getConfigSchema, saveConfig } from '@/api/admin'
 import { getSiteInfo } from '@/api/misc'
@@ -45,6 +45,13 @@ function toFormValues(schema: ConfigSchema, siteInfo: SiteInfo): ConfigValues {
   return values
 }
 
+// 按 showWhen 决定是否显示（如歌单来源为网易云时才显示网易云配置）；无条件显示项不订阅表单变化
+const VisibleField = memo(({ item }: { item: ConfigItem }) => {
+  if (!item.showWhen)
+    return <ConfigField item={item} />
+  return <ConditionalVisibleField item={item} showWhen={item.showWhen} />
+})
+
 /**
  * 全局配置表单：结构由后端配置注册表下发（分组、类型、文案的 i18n 键、取值范围、环境变量），按类型生成输入组件。
  * 只提交修改过的项；环境变量设置的项只读显示
@@ -60,6 +67,33 @@ export function SettingsForm({ advanced }: { advanced: React.ReactNode }) {
   const form = useForm<ConfigValues>()
   // 当前 Tab 写入地址参数，便于直接打开某个分组
   const [tab, setTab] = useQueryState('tab', parseAsString.withDefault('site').withOptions({ history: 'replace', clearOnDefault: true }))
+  // 只挂载访问过的设置 Tab：首屏免去挂载未访问分组与网易云等懒触发字段，已访问过的保留挂载以维持跨 Tab 校验规则与未保存输入
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set(tab && tab !== 'advanced' ? [tab] : []))
+
+  useEffect(() => {
+    if (!tab || tab === 'advanced')
+      return
+    setVisitedTabs((prev) => {
+      if (prev.has(tab))
+        return prev
+      const next = new Set(prev)
+      next.add(tab)
+      return next
+    })
+  }, [tab])
+
+  const selectTab = useCallback((next: string) => {
+    if (next !== 'advanced') {
+      setVisitedTabs((prev) => {
+        if (prev.has(next))
+          return prev
+        const updated = new Set(prev)
+        updated.add(next)
+        return updated
+      })
+    }
+    void setTab(next)
+  }, [setTab])
 
   // 只在加载表单时读取站点信息（用于补全侧边栏默认卡片），保存后刷新站点信息不触发重新加载
   const siteInfoRef = useRef(siteInfo)
@@ -108,7 +142,7 @@ export function SettingsForm({ advanced }: { advanced: React.ReactNode }) {
   const onInvalid = (errors: Record<string, unknown>) => {
     const target = tabOf(Object.keys(errors)[0] ?? '')
     if (target)
-      void setTab(target)
+      selectTab(target)
   }
 
   if (!schema)
@@ -119,7 +153,7 @@ export function SettingsForm({ advanced }: { advanced: React.ReactNode }) {
   return (
     <FormProvider {...form}>
       <StandaloneKeysContext value={standaloneKeys}>
-        <Tabs value={tab} onValueChange={value => void setTab(value)} className="gap-4">
+        <Tabs value={tab} onValueChange={selectTab} className="gap-4">
           {/* 窄屏时横向滚动 */}
           <TabsList variant="underline" className="w-full justify-start">
             {tabs.map(({ key, title }) => (
@@ -132,18 +166,21 @@ export function SettingsForm({ advanced }: { advanced: React.ReactNode }) {
             ))}
           </TabsList>
           {/* 关闭浏览器原生校验：type=url 会拒绝站内相对链接、小数 step 会拦截已有取值，导致点击保存无反应；输入类型仍保留以适配移动端键盘 */}
-          {/* 设置类 Tab 始终挂载、只做隐藏，共用一个表单与保存栏，切换 Tab 不会丢失未保存的修改；高级键值编辑在表单之外 */}
+          {/* 已访问过的设置类 Tab 保持挂载、只做隐藏，共用一个表单与保存栏；未访问的 Tab 延后挂载 */}
           <form noValidate className={cn('grid gap-4', tab === 'advanced' && 'hidden')} onSubmit={form.handleSubmit(onSubmit, onInvalid)}>
-            {schema.tabs.map(({ key }) => (
-              <TabsContent key={key} value={key} forceMount className="grid gap-4 data-[state=inactive]:hidden">
-                {schema.sections.filter(section => section.tab === key).map(section => (
-                  <Section key={section.key} title={tr(section.title) ?? section.key} description={tr(section.description)}>
-                    <SectionWidget name={section.widget} items={section.items} />
-                    {section.items.map(item => <VisibleField key={item.key} item={item} />)}
-                  </Section>
-                ))}
-              </TabsContent>
-            ))}
+            {schema.tabs.map(({ key }) => {
+              const mounted = key === tab || visitedTabs.has(key)
+              return (
+                <TabsContent key={key} value={key} forceMount={mounted || undefined} className="grid gap-4 data-[state=inactive]:hidden">
+                  {mounted && schema.sections.filter(section => section.tab === key).map(section => (
+                    <Section key={section.key} title={tr(section.title) ?? section.key} description={tr(section.description)}>
+                      <SectionWidget name={section.widget} items={section.items} />
+                      {section.items.map(item => <VisibleField key={item.key} item={item} />)}
+                    </Section>
+                  ))}
+                </TabsContent>
+              )
+            })}
             {/* 保存栏：滚动时固定在底部 */}
             <div className="sticky bottom-0 z-10 flex items-center justify-end gap-3 border-t bg-background/90 py-3 backdrop-blur">
               {form.formState.isDirty && <span className="text-sm text-muted-foreground">{t('unsaved_changes')}</span>}
@@ -162,10 +199,16 @@ export function SettingsForm({ advanced }: { advanced: React.ReactNode }) {
   )
 }
 
-// 按 showWhen 决定是否显示（如歌单来源为网易云时才显示网易云配置）
-function VisibleField({ item }: { item: ConfigItem }) {
-  const watched = useWatch<ConfigValues>({ name: item.showWhen?.key ?? item.key })
-  if (item.showWhen && !item.showWhen.values.includes(String(watched)))
+function ConditionalVisibleField({
+  item,
+  showWhen,
+}: {
+  item: ConfigItem
+  showWhen: NonNullable<ConfigItem['showWhen']>
+}) {
+  const { control } = useFormContext<ConfigValues>()
+  const [watched] = useWatch<ConfigValues, [string]>({ control, name: [showWhen.key] })
+  if (!showWhen.values.includes(String(watched)))
     return null
   return <ConfigField item={item} />
 }

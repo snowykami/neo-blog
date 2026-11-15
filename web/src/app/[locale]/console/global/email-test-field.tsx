@@ -23,14 +23,18 @@ export function EmailTestField() {
   const t = useTranslations('Console.global')
   const errorMessageT = useErrorMessageT()
   const { user } = useAuth()
-  const { getValues } = useFormContext<ConfigValues>()
+  const { control, getValues } = useFormContext<ConfigValues>()
   const [to, setTo] = useState('')
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState<{ ok: boolean, text: string } | null>(null)
 
   // 监听而不是直接读：改了服务器地址后按钮的可用状态要跟着变
-  const host = String(useWatch<ConfigValues>({ name: 'email_host' }) ?? '').trim()
-  const fromAddress = String(useWatch<ConfigValues>({ name: 'email_address' }) ?? '')
+  const [rawHost, rawFromAddress] = useWatch<ConfigValues, ['email_host', 'email_address']>({
+    control,
+    name: ['email_host', 'email_address'],
+  })
+  const host = String(rawHost ?? '').trim()
+  const fromAddress = String(rawFromAddress ?? '')
 
   const send = async () => {
     setSending(true)

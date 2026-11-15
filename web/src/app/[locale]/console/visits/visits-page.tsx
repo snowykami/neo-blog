@@ -6,7 +6,7 @@ import { ChevronRightIcon, ClockIcon, LanguagesIcon, ListFilterIcon, MapPinIcon,
 import { useFormatter, useTranslations } from 'next-intl'
 import { parseAsInteger, parseAsStringEnum, useQueryState } from 'nuqs'
 import { useState } from 'react'
-import { getVisitInsightsAdmin, getVisitorAdmin, getVisitStatsAdmin, listVisitsAdmin } from '@/api/admin'
+import { getVisitorAdmin, getVisitStatsAdmin, listVisitsAdmin } from '@/api/admin'
 import { UserAvatar } from '@/components/common/avatar'
 import { PageSizeSelector } from '@/components/common/page-size-selector'
 import { PaginationController } from '@/components/common/pagination'
@@ -59,9 +59,8 @@ export default function VisitsPage() {
   // 回到这个页面时先显示上次的结果，同时重新请求（见 hooks/use-console-query.ts）；请求失败时同改前显示为空
   const statsQuery = useConsoleQuery(['admin/visits/stats', includeAi], () => getVisitStatsAdmin(includeAi).then(res => res.data))
   const stats = statsQuery.error ? null : (statsQuery.data ?? null)
-  // 推断地区筛选项：近 30 天出现过的国家（与访客统计页的 30 天数据共用缓存）
-  const insightsQuery = useConsoleQuery(['admin/visits/insights', 30, includeAi], () => getVisitInsightsAdmin(30, includeAi).then(res => res.data))
-  const countries = insightsQuery.error ? EMPTY_COUNTRIES : (insightsQuery.data?.inferredCountries.map(item => item.name) ?? EMPTY_COUNTRIES)
+  // 推断地区筛选项直接随 stats 返回，避免页面额外拉取重型的 30 天 insights 全量统计
+  const countries = stats?.countries ?? EMPTY_COUNTRIES
   const visitsQuery = useConsoleQuery(
     ['admin/visits', page, size, kind, action, visitorId, source, sourceHost, trust, country, device, includeAi],
     () => listVisitsAdmin({ page, size, kind, action: action === 'all' ? undefined : action, visitorId: visitorId ?? undefined, source: source ?? undefined, sourceHost: sourceHost ?? undefined, trust: trust ?? undefined, country: country ?? undefined, device: device ?? undefined, includeAi })

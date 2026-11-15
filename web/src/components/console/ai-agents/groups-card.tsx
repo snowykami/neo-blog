@@ -57,8 +57,33 @@ export function AIAgentGroupsPanel({ refreshKey, onViewMembers, onChanged }: {
   useEffect(() => {
     if (!hasGenerating)
       return
-    const timer = window.setInterval(fetchGroups, POLL_INTERVAL)
-    return () => window.clearInterval(timer)
+    let timer: number | undefined
+    const start = () => {
+      if (timer === undefined)
+        timer = window.setInterval(fetchGroups, POLL_INTERVAL)
+    }
+    const stop = () => {
+      if (timer !== undefined) {
+        window.clearInterval(timer)
+        timer = undefined
+      }
+    }
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        stop()
+      }
+      else {
+        void fetchGroups()
+        start()
+      }
+    }
+    if (!document.hidden)
+      start()
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      stop()
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
   }, [fetchGroups, hasGenerating])
 
   const setStatus = async (group: AIAgentGroup, status: 'active' | 'paused') => {

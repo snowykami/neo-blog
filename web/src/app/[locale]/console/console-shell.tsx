@@ -1,4 +1,5 @@
 'use client'
+import type { ServerAuthSeed } from '@/api/user.server'
 import { useTranslations } from 'next-intl'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Forbidden from '@/components/common/forbidden'
@@ -13,13 +14,27 @@ import {
   SidebarInset,
   SidebarProvider,
 } from '@/components/ui/sidebar'
-import { useAuth } from '@/contexts/auth-context'
+import { AuthSeedProvider, useAuth } from '@/contexts/auth-context'
 import { usePublicContentRefresh } from '@/hooks/use-public-content-refresh'
 import { useToLogin } from '@/hooks/use-route'
 import { usePathname, useRouter } from '@/i18n/navigation'
 import { consolePath, isConsolePreviewPath } from '@/utils/common/route'
 
 export function ConsoleShell({
+  children,
+  initialAuth,
+}: Readonly<{
+  children: React.ReactNode
+  initialAuth?: ServerAuthSeed
+}>) {
+  return (
+    <AuthSeedProvider seed={initialAuth}>
+      <ConsoleShellInner>{children}</ConsoleShellInner>
+    </AuthSeedProvider>
+  )
+}
+
+function ConsoleShellInner({
   children,
 }: Readonly<{
   children: React.ReactNode

@@ -82,23 +82,49 @@ export function LyricEffectManage() {
     return () => window.clearTimeout(timer)
   }, [keyword, query, setPage, setQuery])
 
-  // 批量重新生成进行中：定时查询进度，结束时刷新列表中的标注状态
+  // 批量重新生成进行中：定时查询进度，结束时刷新列表中的标注状态；标签页隐藏时暂停
   const batchRunning = batch?.state === 'running'
   useEffect(() => {
     if (!batchRunning)
       return
     let stopped = false
-    const timer = window.setInterval(async () => {
+    let timer: number | undefined
+    const poll = async () => {
+      if (typeof document !== 'undefined' && document.hidden)
+        return
       const next = await getLyricAnnotationBatch().catch(() => undefined)
       if (stopped || next === undefined)
         return
       setBatch(next)
       if (next?.state !== 'running')
         void reloadList()
-    }, BATCH_POLL_MS)
+    }
+    const start = () => {
+      if (timer === undefined)
+        timer = window.setInterval(() => void poll(), BATCH_POLL_MS)
+    }
+    const stop = () => {
+      if (timer !== undefined) {
+        window.clearInterval(timer)
+        timer = undefined
+      }
+    }
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        stop()
+      }
+      else {
+        void poll()
+        start()
+      }
+    }
+    if (!document.hidden)
+      start()
+    document.addEventListener('visibilitychange', onVisibilityChange)
     return () => {
       stopped = true
-      window.clearInterval(timer)
+      stop()
+      document.removeEventListener('visibilitychange', onVisibilityChange)
     }
   }, [batchRunning, reloadList])
 

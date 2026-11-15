@@ -3,7 +3,7 @@ import type { StorageProviderConfig } from '@/models/file'
 import { Check, ChevronsUpDown } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useEffect, useState } from 'react'
-import { FormProvider, useForm } from 'react-hook-form'
+import { FormProvider, useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 import { createStorageProvider, updateStorageProvider } from '@/api/file'
 import { Button } from '@/components/ui/button'
@@ -18,44 +18,102 @@ import { cn } from '@/lib/utils'
 import { StorageType } from '@/models/types'
 import { providerFormMap } from './storage-forms'
 
-export function CreateOrUpdateStorageDialog({ initStorageProvider, onCreate }: { initStorageProvider?: StorageProviderConfig, onCreate: () => void }) {
+const DEFAULT_STORAGE_PROVIDER: StorageProviderConfig = {
+  id: 0,
+  name: '',
+  type: StorageType.Local,
+  isDefault: false,
+  baseDir: '',
+  s3Region: '',
+  s3Bucket: '',
+  s3Prefix: '',
+  s3AccessKeyId: '',
+  s3SecretAccessKey: '',
+  s3Endpoint: '',
+  s3PathStyle: false,
+  s3BaseUrl: '',
+  webdavEndpoint: '',
+  webdavUsername: '',
+  webdavPassword: '',
+}
+
+function toStorageFormValues(provider?: StorageProviderConfig): StorageProviderConfig {
+  if (!provider)
+    return DEFAULT_STORAGE_PROVIDER
+  return {
+    ...provider,
+    s3SecretAccessKey: '',
+    webdavPassword: '',
+  }
+}
+
+export function CreateOrUpdateStorageDialog({
+  initStorageProvider,
+  onCreate,
+  open: openProp,
+  onOpenChange,
+}: {
+  initStorageProvider?: StorageProviderConfig
+  onCreate: () => void
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+}) {
+  const t = useTranslations('Console.storages')
+  const operationT = useOperationT()
+  const [innerOpen, setInnerOpen] = useState(false)
+  const controlled = openProp !== undefined
+  const open = openProp ?? innerOpen
+  const setOpen = (next: boolean) => {
+    if (!controlled)
+      setInnerOpen(next)
+    onOpenChange?.(next)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      {!controlled && (
+        <DialogTrigger asChild>
+          <Button size="sm" variant={initStorageProvider ? 'outline' : 'default'}>{operationT(initStorageProvider ? 'edit' : 'create')}</Button>
+        </DialogTrigger>
+      )}
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{t('create_storage')}</DialogTitle>
+        </DialogHeader>
+        {open && (
+          <StorageDialogBody
+            initStorageProvider={initStorageProvider}
+            onClose={() => setOpen(false)}
+            onCreate={onCreate}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function StorageDialogBody({
+  initStorageProvider,
+  onClose,
+  onCreate,
+}: {
+  initStorageProvider?: StorageProviderConfig
+  onClose: () => void
+  onCreate: () => void
+}) {
   const t = useTranslations('Console.storages')
   const errorMessageT = useErrorMessageT()
   const operationT = useOperationT()
-  const [open, setOpen] = useState(false)
   const form = useForm<StorageProviderConfig>({
-    defaultValues: initStorageProvider || {
-      id: 0,
-      name: '',
-      type: StorageType.Local,
-      isDefault: false,
-      baseDir: '',
-      s3Region: '',
-      s3Bucket: '',
-      s3Prefix: '',
-      s3AccessKeyId: '',
-      s3SecretAccessKey: '',
-      s3Endpoint: '',
-      s3PathStyle: false,
-      s3BaseUrl: '',
-      webdavEndpoint: '',
-      webdavUsername: '',
-      webdavPassword: '',
-    },
+    defaultValues: toStorageFormValues(initStorageProvider),
     mode: 'onChange',
   })
-  const { watch, handleSubmit, formState, control } = form
-  const selectedType = watch('type')
+  const { handleSubmit, formState, control } = form
+  const selectedType = useWatch({ control, name: 'type' })
 
   useEffect(() => {
-    if (open && initStorageProvider) {
-      form.reset({
-        ...initStorageProvider,
-        s3SecretAccessKey: '',
-        webdavPassword: '',
-      })
-    }
-  }, [open, initStorageProvider, form])
+    form.reset(toStorageFormValues(initStorageProvider))
+  }, [initStorageProvider, form])
 
   const onSubmit: SubmitHandler<StorageProviderConfig> = async (data: StorageProviderConfig) => {
     if (initStorageProvider) {
@@ -64,7 +122,7 @@ export function CreateOrUpdateStorageDialog({ initStorageProvider, onCreate }: {
         toast.success(operationT('update_success'))
         // 以新值作为表单基准，再次打开时显示最新配置
         form.reset(data)
-        setOpen(false)
+        onClose()
         onCreate()
       }
       catch (err) {
@@ -76,8 +134,8 @@ export function CreateOrUpdateStorageDialog({ initStorageProvider, onCreate }: {
       try {
         await createStorageProvider({ provider: data })
         toast.success(operationT('create_success'))
-        form.reset()
-        setOpen(false)
+        form.reset(DEFAULT_STORAGE_PROVIDER)
+        onClose()
         onCreate()
       }
       catch (err) {
@@ -88,85 +146,75 @@ export function CreateOrUpdateStorageDialog({ initStorageProvider, onCreate }: {
   }
 
   const handleCancel = () => {
-    form.reset()
-    setOpen(false)
+    form.reset(toStorageFormValues(initStorageProvider))
+    onClose()
   }
 
   const StorageForm = selectedType ? providerFormMap[selectedType as StorageType] : null
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant={initStorageProvider ? 'outline' : 'default'}>{operationT(initStorageProvider ? 'edit' : 'create')}</Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{t('create_storage')}</DialogTitle>
-        </DialogHeader>
-        <FormProvider {...form}>
-          <form className="grid gap-4" onSubmit={handleSubmit(onSubmit)}>
-            <StorageTypeSelector value={selectedType as StorageType} onChange={v => form.setValue('type', v)} />
-            <FormField
-              control={control}
-              name="isDefault"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('is_default')}</FormLabel>
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value as boolean}
-                      onCheckedChange={checked => field.onChange(checked)}
-                      onBlur={field.onBlur}
-                      name={field.name}
-                      ref={field.ref}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('name')}</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={control}
-              name="baseDir"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('base_dir')}</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            {StorageForm && <StorageForm />}
-            <DialogFooter>
-              <div className="flex gap-3">
-                <Button onClick={handleCancel} variant="outline" type="button">
-                  {operationT('cancel')}
-                </Button>
-                {/* 只通过表单 submit 触发一次提交，成功后再关闭对话框 */}
-                <Button disabled={!formState.isValid || formState.isSubmitting} type="submit">
-                  {operationT('submit')}
-                </Button>
-              </div>
-            </DialogFooter>
-          </form>
-        </FormProvider>
-      </DialogContent>
-    </Dialog>
+    <FormProvider {...form}>
+      <form className="grid gap-4" onSubmit={handleSubmit(onSubmit)}>
+        <StorageTypeSelector value={selectedType as StorageType} onChange={v => form.setValue('type', v)} />
+        <FormField
+          control={control}
+          name="isDefault"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t('is_default')}</FormLabel>
+              <FormControl>
+                <Checkbox
+                  checked={field.value as boolean}
+                  onCheckedChange={checked => field.onChange(checked)}
+                  onBlur={field.onBlur}
+                  name={field.name}
+                  ref={field.ref}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={control}
+          name="name"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t('name')}</FormLabel>
+              <FormControl>
+                <Input {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={control}
+          name="baseDir"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t('base_dir')}</FormLabel>
+              <FormControl>
+                <Input {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        {StorageForm && <StorageForm />}
+        <DialogFooter>
+          <div className="flex gap-3">
+            <Button onClick={handleCancel} variant="outline" type="button">
+              {operationT('cancel')}
+            </Button>
+            {/* 只通过表单 submit 触发一次提交，成功后再关闭对话框 */}
+            <Button disabled={!formState.isValid || formState.isSubmitting} type="submit">
+              {operationT('submit')}
+            </Button>
+          </div>
+        </DialogFooter>
+      </form>
+    </FormProvider>
   )
 }
 

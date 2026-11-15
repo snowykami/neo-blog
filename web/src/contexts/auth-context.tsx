@@ -1,8 +1,9 @@
 'use client'
 
+import type { ServerAuthSeed } from '@/api/user.server'
 import type { User } from '@/models/user'
 import { isAxiosError } from 'axios'
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { getLoginUser, userLogout } from '@/api/user'
 import { useCommonT } from '@/hooks/use-translations'
@@ -19,6 +20,7 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
+const AuthAdoptSeedContext = createContext<((seed: ServerAuthSeed) => void) | null>(null)
 
 // 只有后端明确表示未登录时才记为访客；网络错误、5xx 不改变记录，下次照常探测
 function isUnauthorized(error: unknown): boolean {
@@ -32,6 +34,7 @@ function isUnauthorized(error: unknown): boolean {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUserState] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const seedAdoptedRef = useRef(false)
   const commonT = useCommonT()
 
   const setUser = useCallback((next: User | null) => {
@@ -39,8 +42,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     rememberLoginState(Boolean(next))
   }, [])
 
+  const adoptServerSeed = useCallback((seed: ServerAuthSeed) => {
+    if (!seed.resolved)
+      return
+    seedAdoptedRef.current = true
+    setUserState(seed.user)
+    setLoading(false)
+    rememberLoginState(Boolean(seed.user))
+  }, [])
+
   // 挂载时确定一次登录状态；之后客户端登录 / 注册由页面调用 setUser 写入，登出时置空，均无需再请求
   useEffect(() => {
+    if (seedAdoptedRef.current)
+      return
     if (!needsLoginUserFetch()) {
       setLoading(false)
       return
@@ -117,7 +131,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
   }, [commonT, setUser])
   const value = useMemo(() => ({ user, loading, setUser, refresh, logout }), [user, loading, setUser, refresh, logout])
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return (
+    <AuthAdoptSeedContext.Provider value={adoptServerSeed}>
+      <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+    </AuthAdoptSeedContext.Provider>
+  )
+}
+
+/**
+ * 为已按请求渲染的子树（如后台 ConsoleLayout）注入服务端预先解析好的登录态，
+ * 并同步回根 AuthProvider，避免水合阶段再发一次 /user/me
+ */
+export function AuthSeedProvider({
+  seed,
+  children,
+}: {
+  seed?: ServerAuthSeed
+  children: React.ReactNode
+}) {
+  const parent = useContext(AuthContext)
+  const adoptServerSeed = useContext(AuthAdoptSeedContext)
+
+  useEffect(() => {
+    if (seed?.resolved && adoptServerSeed)
+      adoptServerSeed(seed)
+  }, [seed, adoptServerSeed])
+
+  const seededValue = useMemo<AuthContextValue | undefined>(() => {
+    if (!parent)
+      return undefined
+    if (seed?.resolved && parent.loading)
+      return { ...parent, user: seed.user, loading: false }
+    return parent
+  }, [parent, seed])
+
+  if (!seededValue)
+    return children
+
+  return <AuthContext.Provider value={seededValue}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {

@@ -49,7 +49,16 @@ export function useAISummary({ post, onPostUpdate, canConfigure }: { post: Post,
     let cancelled = false
     let timer: ReturnType<typeof setTimeout> | undefined
     let errors = 0
+    const clearTimer = () => {
+      if (timer !== undefined) {
+        clearTimeout(timer)
+        timer = undefined
+      }
+    }
     const poll = async () => {
+      clearTimer()
+      if (typeof document !== 'undefined' && document.hidden)
+        return
       try {
         const res = await getAISummaryStatus(postId)
         if (cancelled)
@@ -60,7 +69,8 @@ export function useAISummary({ post, onPostUpdate, canConfigure }: { post: Post,
           // 同步排队 → 生成中的变化，徽章随之更新
           if (statusRef.current !== status.status)
             onPostUpdate({ post: { id: postId, aiSummaryStatus: status.status } })
-          timer = setTimeout(poll, POLL_INTERVAL)
+          if (!(typeof document !== 'undefined' && document.hidden))
+            timer = setTimeout(poll, POLL_INTERVAL)
           return
         }
         if (status.status === 'succeeded') {
@@ -92,17 +102,27 @@ export function useAISummary({ post, onPostUpdate, canConfigure }: { post: Post,
           return
         errors++
         if (errors < MAX_POLL_ERRORS) {
-          timer = setTimeout(poll, POLL_INTERVAL)
+          if (!(typeof document !== 'undefined' && document.hidden))
+            timer = setTimeout(poll, POLL_INTERVAL)
           return
         }
         onPostUpdate({ post: { id: postId, aiSummaryStatus: undefined } })
         toast.error(`${tRef.current('status_failed')}: ${errorMessageTRef.current(error)}`)
       }
     }
-    timer = setTimeout(poll, POLL_INTERVAL)
+    const onVisibilityChange = () => {
+      if (document.hidden)
+        clearTimer()
+      else
+        void poll()
+    }
+    if (!document.hidden)
+      timer = setTimeout(poll, POLL_INTERVAL)
+    document.addEventListener('visibilitychange', onVisibilityChange)
     return () => {
       cancelled = true
-      clearTimeout(timer)
+      clearTimer()
+      document.removeEventListener('visibilitychange', onVisibilityChange)
     }
   }, [running, postId, onPostUpdate])
 

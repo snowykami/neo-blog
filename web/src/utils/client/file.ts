@@ -115,9 +115,23 @@ const EXT_CATEGORY: Record<string, keyof typeof mimeTypeIcons> = {
   m4v: 'video',
 }
 
+function normalizeMime(mimeType: string): string {
+  return mimeType.split(';')[0]?.trim().toLowerCase() ?? ''
+}
+
+// 从文件名或带签名/锚点的 URL（如 S3 预签名地址）提取小写扩展名
+function extractExtension(nameOrUrl: string): string | undefined {
+  const withoutQueryHash = nameOrUrl.split(/[?#]/, 1)[0] ?? ''
+  const basename = withoutQueryHash.split('/').pop() ?? ''
+  const dotIndex = basename.lastIndexOf('.')
+  if (dotIndex <= 0 || dotIndex === basename.length - 1)
+    return undefined
+  return basename.slice(dotIndex + 1).toLowerCase()
+}
+
 /** 按常见 MIME 类型推导扩展名（替代整包 mime-db，避免客户端打包 180 KB 映射表） */
 export function extensionFromMime(mimeType: string): string | null {
-  const clean = mimeType.split(';')[0]?.trim().toLowerCase() ?? ''
+  const clean = normalizeMime(mimeType)
   if (!clean)
     return null
   if (MIME_TO_EXT[clean])
@@ -128,27 +142,27 @@ export function extensionFromMime(mimeType: string): string | null {
 
 /** 按文件 MIME 或扩展名判断图标大类 */
 export function mimeCategoryFromFile(file: { name: string, type: string }): keyof typeof mimeTypeIcons {
-  const prefix = file.type.split('/')[0]?.toLowerCase()
+  const prefix = normalizeMime(file.type).split('/')[0]
   if (prefix === 'image' || prefix === 'audio' || prefix === 'video')
     return prefix
-  const ext = file.name.includes('.') ? file.name.split('.').pop()?.toLowerCase() : undefined
+  const ext = extractExtension(file.name)
   return (ext && EXT_CATEGORY[ext]) || 'file'
 }
 
 export function getFileIcon({ file, showImage = true }: { file: FileModel, showImage?: boolean }) {
-  if (mimeTypes.image.includes(file.mimeType)) {
-    if (showImage) {
+  const cleanMime = normalizeMime(file.mimeType)
+  const ext = extractExtension(file.name)
+  const category = mimeCategoryFromFile({ name: file.name, type: cleanMime })
+  if (category === 'image') {
+    // FileMimeIcon 会把字符串交给 SafeImage 且 /api/v1/file/f/:id 不带扩展名，SVG 若走 /_next/image 会因未开启 dangerouslyAllowSVG 失败
+    const isSvg = cleanMime === 'image/svg+xml' || (!cleanMime.startsWith('image/') && ext === 'svg')
+    if (showImage && !isSvg)
       return getFileUri(file.id)
-    }
-    else {
-      return mimeTypeIcons.image
-    }
+    return mimeTypeIcons.image
   }
-  if (mimeTypes.audio.includes(file.mimeType)) {
+  if (category === 'audio')
     return mimeTypeIcons.audio
-  }
-  if (mimeTypes.video.includes(file.mimeType)) {
+  if (category === 'video')
     return mimeTypeIcons.video
-  }
   return mimeTypeIcons.file
 }

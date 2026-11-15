@@ -70,14 +70,23 @@ export function DryRunCard({ agentId }: { agentId: number }) {
     return (res.data.posts ?? []).map(item => ({ value: item.id, label: item.title, description: `#${item.id}` }))
   }, [])
 
-  // 轮询运行状态直到结束；卸载或停止时清理计时器
+  // 轮询运行状态直到结束；标签页隐藏时暂停，切回前台时立即补拉一次
   const runId = run?.id
   useEffect(() => {
     if (!polling || !runId)
       return
     let cancelled = false
     let timer = 0
+    const clearTimer = () => {
+      if (timer) {
+        window.clearTimeout(timer)
+        timer = 0
+      }
+    }
     const tick = async () => {
+      clearTimer()
+      if (typeof document !== 'undefined' && document.hidden)
+        return
       try {
         const res = await getAgentRun(runId)
         if (cancelled)
@@ -92,13 +101,22 @@ export function DryRunCard({ agentId }: { agentId: number }) {
       catch {
         // 单次请求失败时继续轮询，由用户决定是否停止
       }
-      if (!cancelled)
+      if (!cancelled && !(typeof document !== 'undefined' && document.hidden))
         timer = window.setTimeout(tick, POLL_INTERVAL)
     }
-    timer = window.setTimeout(tick, POLL_INTERVAL)
+    const onVisibilityChange = () => {
+      if (document.hidden)
+        clearTimer()
+      else
+        void tick()
+    }
+    if (!document.hidden)
+      timer = window.setTimeout(tick, POLL_INTERVAL)
+    document.addEventListener('visibilitychange', onVisibilityChange)
     return () => {
       cancelled = true
-      window.clearTimeout(timer)
+      clearTimer()
+      document.removeEventListener('visibilitychange', onVisibilityChange)
     }
   }, [polling, runId])
 

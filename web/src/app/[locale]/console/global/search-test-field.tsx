@@ -26,7 +26,7 @@ function isEnvBoolTrue(val?: string) {
 export function SearchTestField({ items = [] }: { items?: ConfigItem[] }) {
   const t = useTranslations('Console.global')
   const errorMessageT = useErrorMessageT()
-  const { getValues, formState: { dirtyFields } } = useFormContext<ConfigValues>()
+  const { control, getValues, formState: { dirtyFields } } = useFormContext<ConfigValues>()
   const [testing, setTesting] = useState(false)
   const [reindexing, setReindexing] = useState(false)
   const [result, setResult] = useState<{ ok: boolean, text: string } | null>(null)
@@ -38,8 +38,12 @@ export function SearchTestField({ items = [] }: { items?: ConfigItem[] }) {
   const envKeySet = Boolean(envKeyItem?.envSet || envKeyItem?.envValue)
   const envPrefix = byKey.get('meilisearch_index_prefix')?.envValue
 
-  const watchedUrl = String(useWatch<ConfigValues>({ name: 'meilisearch_url' }) ?? '').trim()
-  const watchedEnable = Boolean(useWatch<ConfigValues>({ name: 'meilisearch_enable' }))
+  const [rawUrl, rawEnable] = useWatch<ConfigValues, ['meilisearch_url', 'meilisearch_enable']>({
+    control,
+    name: ['meilisearch_url', 'meilisearch_enable'],
+  })
+  const watchedUrl = String(rawUrl ?? '').trim()
+  const watchedEnable = Boolean(rawEnable)
 
   const effectiveUrl = envUrl ? envUrl.trim() : watchedUrl
   const effectiveEnabled = envEnable ? isEnvBoolTrue(envEnable) : watchedEnable

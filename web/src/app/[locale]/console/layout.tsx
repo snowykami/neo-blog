@@ -1,4 +1,5 @@
 import { connection } from 'next/server'
+import { getConsoleAuthSeedServer } from '@/api/user.server'
 import { I18nScope } from '@/components/i18n-scope'
 import { ConsoleShell } from './console-shell'
 
@@ -14,9 +15,10 @@ export default async function ConsoleLayout({
   children: React.ReactNode
 }>) {
   await connection()
+  const authSeed = await getConsoleAuthSeedServer()
   return (
     <I18nScope scope="console">
-      <ConsoleShell>{children}</ConsoleShell>
+      <ConsoleShell initialAuth={authSeed}>{children}</ConsoleShell>
     </I18nScope>
   )
 }

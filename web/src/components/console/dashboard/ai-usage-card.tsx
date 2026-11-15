@@ -4,13 +4,12 @@ import type { ChartConfig } from '@/components/ui/chart'
 import type { AIUsageStats } from '@/models/ai-usage'
 import { RefreshCw } from 'lucide-react'
 import { useFormatter, useTranslations } from 'next-intl'
+import dynamic from 'next/dynamic'
 import { useCallback, useEffect, useState } from 'react'
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 import { getAIUsage } from '@/api/admin'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -26,10 +25,10 @@ type View = (typeof VIEWS)[number]
 
 const CHART_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)']
 
-// 后端返回服务器时区的自然日，按本地零点解析，避免被当成 UTC
-function parseDay(date: string) {
-  return new Date(`${date}T00:00:00`)
-}
+const AIUsageChart = dynamic(
+  () => import('./ai-usage-chart').then(m => m.AIUsageChart),
+  { ssr: false, loading: () => <Skeleton className="h-64 w-full" /> },
+)
 
 function isKnownPurpose(purpose: string): purpose is (typeof AI_USAGE_PURPOSES)[number] {
   return (AI_USAGE_PURPOSES as readonly string[]).includes(purpose)
@@ -69,10 +68,6 @@ export function AIUsageCard() {
     date,
     ...Object.fromEntries(series.map(s => [s.purpose, view === 'tokens' ? s.tokens[i] : s.calls[i]])),
   }))
-  const tickFormatter = (value: string) => format.dateTime(parseDay(value), { month: 'numeric', day: 'numeric' })
-  const labelFormatter = (value: unknown) => typeof value === 'string'
-    ? format.dateTime(parseDay(value), { month: 'short', day: 'numeric', weekday: 'short' })
-    : ''
 
   const budgetRatio = stats && stats.budget > 0 ? Math.min(100, (stats.monthTokens / stats.budget) * 100) : null
   const agentRatio = stats && stats.agentBudget > 0 ? Math.min(100, (stats.agentMonthTokens / stats.agentBudget) * 100) : null
@@ -169,18 +164,7 @@ export function AIUsageCard() {
                   </div>
                   {series.length === 0
                     ? <p className="text-sm text-muted-foreground">{t('trend_empty')}</p>
-                    : (
-                        <ChartContainer config={config} className="aspect-auto h-64 w-full">
-                          <BarChart data={data} margin={{ left: 0, right: 8, top: 8 }}>
-                            <CartesianGrid vertical={false} />
-                            <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} minTickGap={24} tickFormatter={tickFormatter} />
-                            <YAxis tickLine={false} axisLine={false} width={40} allowDecimals={false} tickFormatter={(value: number) => compact(value)} />
-                            <ChartTooltip cursor={{ fill: 'var(--muted)', opacity: 0.6 }} content={<ChartTooltipContent labelFormatter={labelFormatter} />} />
-                            {series.map(s => <Bar key={s.purpose} dataKey={s.purpose} stackId="usage" fill={`var(--color-${s.purpose})`} maxBarSize={24} />)}
-                            <ChartLegend content={<ChartLegendContent />} />
-                          </BarChart>
-                        </ChartContainer>
-                      )}
+                    : <AIUsageChart config={config} data={data} series={series} />}
                 </div>
               </>
             )}

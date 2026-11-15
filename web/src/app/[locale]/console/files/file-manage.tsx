@@ -9,7 +9,7 @@ import {
   parseAsStringEnum,
   useQueryState,
 } from 'nuqs'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { batchDeleteFiles, deleteFile, listFiles } from '@/api/file'
 import { ArrangementSelector } from '@/components/common/arrangement-selector'
@@ -19,7 +19,6 @@ import { FileUploadDialogWithButton } from '@/components/common/file-uploader'
 import { OrderSelector } from '@/components/common/orderby-selector'
 import { PageSizeSelector } from '@/components/common/page-size-selector'
 import { PaginationController } from '@/components/common/pagination'
-import { Popconfirm } from '@/components/common/popconfirm'
 import { StorageMigrationDialog } from '@/components/console/storage-migration'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -56,6 +55,142 @@ const MOBILE_PAGE_SIZE = 10
 // 列表为空时的固定引用：全选的 useCallback 依赖 files，避免每次渲染都换新数组
 const EMPTY_FILES: FileModel[] = []
 
+const FileItem = memo(({
+  file,
+  layout,
+  onRequestDelete,
+  selected,
+  onToggleSelect,
+}: {
+  file: FileModel
+  layout: ArrangementMode
+  onRequestDelete: (file: FileModel) => void
+  selected: boolean
+  onToggleSelect: (fileId: number, selected: boolean) => void
+}) => {
+  const commonT = useTranslations('Common')
+  const format = useFormatter()
+  const operationT = useOperationT()
+  if (layout === ArrangementMode.Grid) {
+    return (
+      <div className="group">
+        {/* 点击卡片任意位置切换选中（参照 file-selector），勾选框与右上角操作各自阻止冒泡 */}
+        <div
+          onClick={() => onToggleSelect(file.id, !selected)}
+          className={cn(
+            'flex flex-col items-center px-2 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer select-none',
+            selected && 'border-primary bg-accent/50',
+          )}
+        >
+          {/* 顶部操作行：选择框 + 链接按钮 与 更多 按钮 在同一行 */}
+          <div className="flex items-center justify-between w-full mb-0">
+            <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+              <Checkbox checked={selected} onCheckedChange={checked => onToggleSelect(file.id, checked === true)} aria-label={`${operationT('select')} ${file.name}`} />
+            </div>
+            {/* 菜单与删除确认通过 Portal 渲染，React 事件仍沿组件树冒泡，在这里一并拦下 */}
+            <div className="flex items-center" onClick={e => e.stopPropagation()}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => window.open(`${getFileUri(file.id)}/${file.name}`, '_blank')}
+                aria-label={operationT('open')}
+                title={operationT('open')}
+              >
+                <LinkIcon className="w-3 h-3" />
+              </Button>
+              <FileDropdownMenu file={file} onRequestDelete={onRequestDelete} />
+            </div>
+          </div>
+
+          {/* 文件预览/图标 */}
+          <div>
+            <FileMimeIcon file={file} showImage className="w-20 h-20 rounded object-cover mb-2" />
+          </div>
+
+          {/* 文件信息 */}
+          <div className="text-center w-full">
+            <div
+              className="text-sm font-medium mb-1 w-full overflow-hidden whitespace-nowrap truncate"
+              title={file.name}
+            >
+              {file.name}
+            </div>
+            <div className="flex flex-wrap justify-center items-center gap-2">
+              <span className="text-xs text-muted-foreground">
+                {commonT('id')}
+                :
+                {file.id}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {formatDataSize({ size: file.size })}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // List 布局
+  return (
+    <div>
+      <div className="flex w-full items-center gap-3 py-2">
+        {/* left */}
+        <div className="flex items-center gap-3 w-0 flex-1 min-w-0">
+          <div className="flex-shrink-0">
+            <Checkbox checked={selected} onCheckedChange={checked => onToggleSelect(file.id, checked === true)} aria-label={`${operationT('select')} ${file.name}`} />
+          </div>
+          <FileMimeIcon file={file} showImage size={40} className="w-10 h-10 rounded object-cover" />
+          <div className="w-0 flex-1 min-w-0">
+            <div
+              className="text-sm font-medium overflow-hidden whitespace-nowrap truncate"
+              title={file.name}
+            >
+              {file.name}
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-3">
+              <span className="text-xs text-muted-foreground">
+                {commonT('id')}
+                :
+                {file.id}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {commonT('size')}
+                :
+                {formatDataSize({ size: file.size })}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {commonT('mime_type')}
+                :
+                {file.mimeType}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {commonT('created_at')}
+                :
+                {format.dateTime(new Date(file.createdAt), { dateStyle: 'medium', timeStyle: 'short' })}
+              </span>
+            </div>
+          </div>
+        </div>
+        {/* right */}
+        <div className="flex items-center ml-auto">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => window.open(`${getFileUri(file.id)}/${file.name}`, '_blank')}
+            aria-label={operationT('open')}
+            title={operationT('open')}
+          >
+            <LinkIcon className="size-4" />
+          </Button>
+          <FileDropdownMenu file={file} onRequestDelete={onRequestDelete} />
+        </div>
+      </div>
+    </div>
+  )
+})
+
 export function FileManage() {
   const t = useTranslations('Console.files')
   const commonT = useCommonT()
@@ -73,6 +208,7 @@ export function FileManage() {
   )
   const scope = isAdminUser && !onlyMine ? 'all' : 'mine'
   const [migrateOpen, setMigrateOpen] = useState(false)
+  const [deletingFile, setDeletingFile] = useState<FileModel | null>(null)
   const [arrangement, setArrangement] = useQueryState(
     'arrangement',
     parseAsStringEnum<ArrangementMode>(Object.values(ArrangementMode))
@@ -157,23 +293,27 @@ export function FileManage() {
     [setPage],
   )
 
-  const onFileIdSelect = useCallback(
-    (fileId: number) => {
-      return (selected: boolean) => {
-        setSelectedFileIds((prev) => {
-          const newSet = new Set(prev)
-          if (selected) {
-            newSet.add(fileId)
-          }
-          else {
-            newSet.delete(fileId)
-          }
-          return newSet
-        })
-      }
+  const onToggleFileSelect = useCallback(
+    (fileId: number, selected: boolean) => {
+      setSelectedFileIds((prev) => {
+        const newSet = new Set(prev)
+        if (selected)
+          newSet.add(fileId)
+        else
+          newSet.delete(fileId)
+        return newSet
+      })
     },
-    [setSelectedFileIds],
+    [],
   )
+
+  const handleDeleteOne = useCallback(async () => {
+    if (!deletingFile)
+      return
+    await deleteFile({ id: deletingFile.id })
+    toast.success(operationT('delete_success'))
+    onFileDelete({ fileId: deletingFile.id })
+  }, [deletingFile, operationT, onFileDelete])
 
   const onAllFileSelect = useCallback(
     (selected: boolean) => {
@@ -292,6 +432,16 @@ export function FileManage() {
           }}
         />
       )}
+      <ConfirmDialog
+        open={!!deletingFile}
+        onOpenChange={open => !open && setDeletingFile(null)}
+        title={deletingFile ? operationT('delete_confirm_title', { name: deletingFile.name }) : operationT('confirm_delete')}
+        description={t('delete_file_description')}
+        confirmLabel={operationT('delete')}
+        errorText={operationT('delete_failed')}
+        confirmVariant="destructive"
+        onConfirm={handleDeleteOne}
+      />
       <Separator className="flex-1" />
       {showEmpty && (
         <Empty className="my-4 border">
@@ -310,9 +460,9 @@ export function FileManage() {
             <FileItem
               file={file}
               layout={ArrangementMode.List}
-              onFileDelete={onFileDelete}
+              onRequestDelete={setDeletingFile}
               selected={selectedFileIds.has(file.id)}
-              onSelect={onFileIdSelect(file.id)}
+              onToggleSelect={onToggleFileSelect}
             />
             <Separator className="flex-1" />
           </div>
@@ -325,9 +475,9 @@ export function FileManage() {
               key={file.id}
               file={file}
               layout={ArrangementMode.Grid}
-              onFileDelete={onFileDelete}
+              onRequestDelete={setDeletingFile}
               selected={selectedFileIds.has(file.id)}
-              onSelect={onFileIdSelect(file.id)}
+              onToggleSelect={onToggleFileSelect}
             />
           ))}
         </div>
@@ -356,161 +506,16 @@ export function FileManage() {
   )
 }
 
-function FileItem({
-  file,
-  layout,
-  onFileDelete,
-  selected,
-  onSelect,
-}: {
-  file: FileModel
-  layout: ArrangementMode
-  onFileDelete: ({ fileId }: { fileId: number }) => void
-  selected: boolean
-  onSelect: (selected: boolean) => void
-}) {
-  const commonT = useTranslations('Common')
-  const format = useFormatter()
-  const operationT = useOperationT()
-  if (layout === ArrangementMode.Grid) {
-    return (
-      <div className="group">
-        {/* 点击卡片任意位置切换选中（参照 file-selector），勾选框与右上角操作各自阻止冒泡 */}
-        <div
-          onClick={() => onSelect(!selected)}
-          className={cn(
-            'flex flex-col items-center px-2 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer select-none',
-            selected && 'border-primary bg-accent/50',
-          )}
-        >
-          {/* 顶部操作行：选择框 + 链接按钮 与 更多 按钮 在同一行 */}
-          <div className="flex items-center justify-between w-full mb-0">
-            <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-              <Checkbox checked={selected} onCheckedChange={onSelect} aria-label={`${operationT('select')} ${file.name}`} />
-            </div>
-            {/* 菜单与删除确认通过 Portal 渲染，React 事件仍沿组件树冒泡，在这里一并拦下 */}
-            <div className="flex items-center" onClick={e => e.stopPropagation()}>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0"
-                onClick={() => window.open(`${getFileUri(file.id)}/${file.name}`, '_blank')}
-                aria-label={operationT('open')}
-                title={operationT('open')}
-              >
-                <LinkIcon className="w-3 h-3" />
-              </Button>
-              <FileDropdownMenu file={file} onFileDelete={onFileDelete} />
-            </div>
-          </div>
-
-          {/* 文件预览/图标 */}
-          <div>
-            <FileMimeIcon file={file} showImage className="w-20 h-20 rounded object-cover mb-2" />
-          </div>
-
-          {/* 文件信息 */}
-          <div className="text-center w-full">
-            <div
-              className="text-sm font-medium mb-1 w-full overflow-hidden whitespace-nowrap truncate"
-              title={file.name}
-            >
-              {file.name}
-            </div>
-            <div className="flex flex-wrap justify-center items-center gap-2">
-              <span className="text-xs text-muted-foreground">
-                {commonT('id')}
-                :
-                {file.id}
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {formatDataSize({ size: file.size })}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // List 布局
-  return (
-    <div>
-      <div className="flex w-full items-center gap-3 py-2">
-        {/* left */}
-        <div className="flex items-center gap-3 w-0 flex-1 min-w-0">
-          <div className="flex-shrink-0">
-            <Checkbox checked={selected} onCheckedChange={onSelect} aria-label={`${operationT('select')} ${file.name}`} />
-          </div>
-          <FileMimeIcon file={file} showImage size={40} className="w-10 h-10 rounded object-cover" />
-          <div className="w-0 flex-1 min-w-0">
-            <div
-              className="text-sm font-medium overflow-hidden whitespace-nowrap truncate"
-              title={file.name}
-            >
-              {file.name}
-            </div>
-            <div className="mt-1 flex flex-wrap items-center gap-3">
-              <span className="text-xs text-muted-foreground">
-                {commonT('id')}
-                :
-                {file.id}
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {commonT('size')}
-                :
-                {formatDataSize({ size: file.size })}
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {commonT('mime_type')}
-                :
-                {file.mimeType}
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {commonT('created_at')}
-                :
-                {format.dateTime(new Date(file.createdAt), { dateStyle: 'medium', timeStyle: 'short' })}
-              </span>
-            </div>
-          </div>
-        </div>
-        {/* right */}
-        <div className="flex items-center ml-auto">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => window.open(`${getFileUri(file.id)}/${file.name}`, '_blank')}
-            aria-label={operationT('open')}
-            title={operationT('open')}
-          >
-            <LinkIcon className="size-4" />
-          </Button>
-          <FileDropdownMenu file={file} onFileDelete={onFileDelete} />
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function FileDropdownMenu({
   file,
-  onFileDelete,
+  onRequestDelete,
 }: {
   file: FileModel
-  onFileDelete: ({ fileId }: { fileId: number }) => void
+  onRequestDelete: (file: FileModel) => void
 }) {
-  const t = useTranslations('Console.files')
   const operationT = useOperationT()
   const [open, setOpen] = useState(false)
-  const [confirmOpen, setConfirmOpen] = useState(false)
   const { siteInfo } = useSiteInfo()
-
-  // 失败时抛出，由 Popconfirm 统一提示并保持打开
-  const handleDelete = async () => {
-    await deleteFile({ id: file.id })
-    toast.success(operationT('delete_success'))
-    onFileDelete({ fileId: file.id })
-  }
 
   const handleCopyLink = () => {
     copyToClipboard(
@@ -527,30 +532,12 @@ function FileDropdownMenu({
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
-      {/* 菜单项关闭菜单后，删除确认气泡以菜单按钮为锚点就地弹出 */}
-      <Popconfirm
-        anchorOnly
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        title={operationT('delete_confirm_title', { name: file.name })}
-        description={t('delete_file_description')}
-        confirmText={operationT('delete')}
-        errorText={operationT('delete_failed')}
-        destructive
-        onConfirm={handleDelete}
-      >
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon-sm" aria-label={operationT('more')} title={operationT('more')}>
-            <Ellipsis className="size-4" />
-          </Button>
-        </DropdownMenuTrigger>
-      </Popconfirm>
-      <DropdownMenuContent
-        className="min-w-36"
-        align="end"
-        // 打开删除确认时不把焦点还给菜单按钮，焦点交给气泡
-        onCloseAutoFocus={e => confirmOpen && e.preventDefault()}
-      >
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon-sm" aria-label={operationT('more')} title={operationT('more')}>
+          <Ellipsis className="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="min-w-36" align="end">
         <DropdownMenuGroup>
           <DropdownMenuItem onClick={handleCopyLink} className="cursor-pointer">
             {operationT('copy_link')}
@@ -559,7 +546,7 @@ function FileDropdownMenu({
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuItem
-            onSelect={() => setConfirmOpen(true)}
+            onSelect={() => onRequestDelete(file)}
             className="text-destructive hover:bg-destructive/10 focus:bg-destructive/10 cursor-pointer"
           >
             {operationT('delete')}
