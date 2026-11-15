@@ -18,8 +18,9 @@ import { isConsolePreviewPath } from '@/utils/common/route'
 import { ALBUM_ROTATE_CLASSNAME, ALBUM_TRANSITION_DURATION_MS, CrossfadeAlbumImage, MINI_PLAYER_POPOVER_CLASSNAME, MINI_PLAYER_POPOVER_STYLE } from './music-player-shared'
 import { useFloatingBall } from './use-floating-ball'
 
-// 弹层内的迷你播放器（歌词、舞台特效、歌单、控制栏）单独拆包，点击展开悬浮球时再按需加载
+// 弹层内的迷你播放器（歌词、舞台特效、歌单、控制栏）单独拆包，点击展开悬浮球或悬停预热时按需加载
 const MiniPlayer = dynamic(() => import('./mini-player').then(m => m.MiniPlayer), { ssr: false })
+const preloadMiniPlayer = () => void import('./mini-player')
 
 const DEFAULT_MUSIC_THEME_RGB = '59 130 246'
 
@@ -267,7 +268,7 @@ export function MusicPlayer() {
   // 后台的播放器入口在顶栏右侧（见 components/console/console-music-button.tsx）。文章 / 页面预览用的是前台外壳（有灵动岛），照常显示
   const inConsole = isConsolePath(pathname) && !isConsolePreviewPath(pathname)
   const showBall = Boolean(currentTrack) && !onPlayerPage && !inConsole
-  const themeColor = useAlbumThemeColor(currentTrack?.albumPic)
+  const themeColor = useAlbumThemeColor(showBall && isPlaying ? currentTrack?.albumPic : undefined)
   const animatedThemeColor = useAnimatedThemeColor(themeColor)
   // 悬浮球可拖动；开始拖动时收起播放器
   const [open, setOpen] = useState(false)
@@ -408,6 +409,8 @@ export function MusicPlayer() {
         <button
           type="button"
           aria-label={t('floating_player')}
+          onPointerEnter={preloadMiniPlayer}
+          onFocus={preloadMiniPlayer}
           {...ball.handlers}
           style={{
             ...ball.style,

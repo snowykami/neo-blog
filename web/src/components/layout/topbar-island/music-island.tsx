@@ -18,8 +18,9 @@ import { formatDisplayArtists, formatInlineSongTitle } from '@/lib/lyrics/song-m
 import { buildTimeline, getLineTextAt } from '@/lib/lyrics/timeline'
 
 // 胶囊内容（舞台特效、粒子、HDR、节拍模型、歌词引擎）与展开后的播放器都很重，而灵动岛每页都挂着：
-// 静态引用会把它们全部拉进每一页的首屏 JS。所以有曲目（播放器已在空闲时挂上、歌单就绪）后才加载，
-// 加载完之前不出音乐活动。播放器本体也在同一个 chunk 里，这时通常已经下载过，几乎是立即就绪
+// 静态引用会把它们全部拉进每一页的首屏 JS。所以真正开始播放后（本页播放过且有曲目）才加载，
+// 未播放的访客不会额外下载播放器与节拍特效 chunk；刚点播放时岛上先出轻量的歌名提示（见下面的 PEEK_KEY），
+// 足够异步模块在几十毫秒内就绪，展开面板时也能在首帧直接量到真实内容
 const loadCompact = () => import('./music-island-compact')
 const loadPlayer = () => import('@/components/common/mini-player')
 
@@ -72,7 +73,7 @@ export function MusicIsland({ settings }: { settings: IslandSettings }) {
   }, [isPlaying])
   // 刚暂停的一小段时间内仍按播放中显示
   const showPlaying = isPlaying || (hasPlayed && !pauseSettled)
-  const coverAccent = useCoverAccent(currentTrack?.albumPic)
+  const coverAccent = useCoverAccent(isPlaying && settings.musicChorus && !floatingOpen ? currentTrack?.albumPic : undefined)
   const inChorus = useInChorus(isPlaying && settings.musicChorus && !floatingOpen ? currentTrack?.id ?? null : null)
   const glow = useLyricGlow(inChorus, coverAccent)
   const lyricStarted = useLyricStarted(isPlaying)
@@ -80,7 +81,7 @@ export function MusicIsland({ settings }: { settings: IslandSettings }) {
   const { showTranslation } = useMusicPreferences()
   const meta = useCachedSongMetaTranslation(currentTrack?.id ?? null)
   const title = currentTrack ? trackTitle(currentTrack, meta?.title, meta?.artists, showTranslation) : ''
-  const wanted = Boolean(currentTrack) && !onPlayerPage
+  const wanted = Boolean(currentTrack) && (isPlaying || hasPlayed) && !onPlayerPage
   const compactModule = useLazyModule(loadCompact, wanted)
   const playerModule = useLazyModule(loadPlayer, wanted)
 

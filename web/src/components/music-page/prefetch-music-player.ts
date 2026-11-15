@@ -11,5 +11,6 @@ export function prefetchMusicPlayer() {
     return
   warmed = true
   void import('@/components/common/music-player')
+  void import('@/components/common/mini-player')
   void import('@/components/music-page/music-lyric-stage')
 }

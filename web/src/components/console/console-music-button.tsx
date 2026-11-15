@@ -10,6 +10,7 @@ import { useMusicPlayback } from '@/contexts/music-context'
 
 // 播放器本体很重（歌词引擎、特效），点击展开时再按需加载
 const MiniPlayer = dynamic(() => import('@/components/common/mini-player').then(m => m.MiniPlayer), { ssr: false })
+const preloadMiniPlayer = () => void import('@/components/common/mini-player')
 
 /**
  * 后台顶栏的音乐入口：后台不显示悬浮球（见 components/common/music-player.tsx），在顶栏右侧放一个旋转封面按钮，
@@ -24,7 +25,15 @@ export function ConsoleMusicButton() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="size-8" aria-label={t('floating_player')} title={t('floating_player')}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8"
+          aria-label={t('floating_player')}
+          title={t('floating_player')}
+          onPointerEnter={preloadMiniPlayer}
+          onFocus={preloadMiniPlayer}
+        >
           <AlbumNavIcon />
         </Button>
       </PopoverTrigger>
@@ -35,7 +44,7 @@ export function ConsoleMusicButton() {
         className={MINI_PLAYER_POPOVER_CLASSNAME}
         style={MINI_PLAYER_POPOVER_STYLE}
       >
-        <MiniPlayer onOpenPage={() => setOpen(false)} />
+        {open && <MiniPlayer onOpenPage={() => setOpen(false)} />}
       </PopoverContent>
     </Popover>
   )
