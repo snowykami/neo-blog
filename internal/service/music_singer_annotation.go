@@ -36,18 +36,18 @@ import (
 // - 各目标语言下的歌手译名增量缓存在 Translations JSON 中，严格遵循「官方译名优先，无公认译名时才音译」
 
 const (
-	lyricSingerTimeout             = 90 * time.Second
-	lyricSingerJobTTL              = 2 * time.Minute
+	lyricSingerTimeout             = 120 * time.Second
+	lyricSingerJobTTL              = 150 * time.Second
 	lyricSingerRetryAfter          = 5 * time.Minute
 	lyricSingerNameTransTimeout    = 30 * time.Second
 	lyricSingerNameTransJobTTL     = time.Minute
 	lyricSingerNameTransRetryAfter = 5 * time.Minute
-	lyricSingerTemperature         = 0.2
+	lyricSingerTemperature         = 0.1
 	lyricSingerReasoning           = "none"
 	lyricSingerWriteLockTTL        = 20 * time.Second
 )
 
-var lyricSingerDefaultColors = []string{"ocean", "cherry-blossom", "gold", "mint", "lavender", "coral"}
+var lyricSingerDefaultColors = []string{"ocean", "cherry-blossom", "gold", "mint", "lavender", "coral", "starry-blue", "sunset"}
 
 type lyricSingerService struct {
 	name              string
@@ -56,7 +56,10 @@ type lyricSingerService struct {
 	limiter           *llmclient.Limiter
 	complete          func(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error)
 	agentChat         func(ctx context.Context, cfg tools.AIConfig, messages []singerAgentMessage, tools []singerAgentToolDef) (*singerAgentChatResult, error)
+	alignComplete     func(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error)
 	translateComplete func(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error)
+	providers         []VocalEvidenceProvider
+	siblingFetcher    func(ctx context.Context, songID int64, currentSource string) []siblingLyricText
 	searchMoegirl     func(ctx context.Context, query, pageTitle string) (string, string, error)
 	searchWeb         func(ctx context.Context, query string) (string, error)
 	fetchPage         func(ctx context.Context, rawURL string) (string, []string, error)
@@ -67,8 +70,9 @@ type lyricSingerService struct {
 }
 
 var lyricSingers = &lyricSingerService{
-	name:    "lyric_singer_annotation",
-	limiter: &llmclient.Limiter{Name: "ai_lyric_singer"},
+	name:           "lyric_singer_annotation",
+	limiter:        &llmclient.Limiter{Name: "ai_lyric_singer"},
+	siblingFetcher: defaultFetchSiblingLyrics,
 	translateComplete: func(ctx context.Context, cfg tools.AIConfig, system, user string) (string, error) {
 		return chatCompletionWithReasoning(ctx, cfg, system, user, songTranslationTemperature, songTranslationReasoning)
 	},
@@ -119,7 +123,8 @@ type lyricSingerAIResp struct {
 		Align   string   `json:"align"`
 		Members []string `json:"members"`
 	} `json:"singers"`
-	Lines []struct {
+	Mapping []string `json:"mapping"`
+	Lines   []struct {
 		Index int    `json:"i"`
 		Agent string `json:"agent"`
 	} `json:"lines"`
@@ -895,23 +900,75 @@ func (a *lyricSingerService) executeAttribution(lease *sharedstate.Lease, failed
 		ccancel()
 	}
 
-	data, err := a.generateAttribution(cfg, input, comments)
+	data, savedModel, err := a.generateAttribution(cfg, input, comments)
 	if err != nil {
 		logrus.Warnf("lyric singer attribution failed for song %d (%s): %v", input.Track.ID, input.Source, err)
 		jobErr = err
 		return
 	}
-	if dbErr := a.saveData(input, data, cfg.Model); dbErr != nil {
+	if strings.TrimSpace(savedModel) == "" {
+		savedModel = cfg.Model
+	}
+	if dbErr := a.saveData(input, data, savedModel); dbErr != nil {
 		logrus.Errorf("save lyric singer attribution failed for song %d (%s): %v", input.Track.ID, input.Source, dbErr)
 		jobErr = dbErr
 	}
 }
 
-func (a *lyricSingerService) generateAttribution(cfg tools.AIConfig, input *lyricSingerInput, comments []lyricAnnotationComment) (dto.LyricSingerData, error) {
+func (a *lyricSingerService) generateAttribution(cfg tools.AIConfig, input *lyricSingerInput, comments []lyricAnnotationComment) (dto.LyricSingerData, string, error) {
 	ctx, cancel := context.WithTimeout(withLLMPurpose(context.Background(), constant.LLMPurposeLyricAnnotation, 0), lyricSingerTimeout)
 	defer cancel()
 
-	return a.runAttributionAgent(ctx, cfg, input, comments)
+	// 兼容旧单测注入的 agentChat / complete 桩函数
+	if a.agentChat != nil || a.complete != nil {
+		data, err := a.runAttributionAgent(ctx, cfg, input, comments)
+		return data, cfg.Model, err
+	}
+
+	// 第一、二层：若内联多声部标注不足（含缺少 ttm:name 的无名多声部 TTML），均从多源权威搜索器获取并清洗声部参考资料
+	var candidate *VocalEvidenceCandidate
+	hasVerifiedInline := false
+	if input.HasInlineMarkers {
+		rawLines := make([]string, 0, len(input.Tasks))
+		for _, t := range input.Tasks {
+			rawLines = append(rawLines, t.Text)
+		}
+		_, singers, tags := cleanBracketVocalEvidence(strings.Join(rawLines, "\n"))
+		hasVerifiedInline = singers >= vocalCleanMinSingers && tags >= vocalCleanMinTags
+	}
+	if !hasVerifiedInline {
+		candidate = searchAndCleanVocalEvidence(ctx, a, input)
+	}
+
+	// Pre-LLM 零幻觉硬门槛：无已验证内联多声部、无多 RawAgent TTML 声部、且外部未检出可信证据 -> 零 LLM 调用直接落库空结果
+	if candidate == nil && !hasVerifiedInline && !(input.MultiAgentSys && hasMultipleRawAgents(input.Tasks)) {
+		logrus.Infof("lyric singer skipped (zero hallucination gate) for song %d (%s): no authoritative evidence found",
+			input.Track.ID, input.Source)
+		return dto.LyricSingerData{Empty: true}, "pipeline:no_evidence", nil
+	}
+
+	// 获取并发槽位后再发起第三层轻量紧凑对齐
+	if a.limiter != nil {
+		if err := a.limiter.AcquireTier(ctx, a.concurrency, llmclient.TierBackground, nil); err != nil {
+			return dto.LyricSingerData{}, cfg.Model, err
+		}
+		defer a.limiter.Release()
+	}
+
+	return a.runCompactVocalAligner(ctx, cfg, input, candidate, comments)
+}
+
+func hasMultipleRawAgents(tasks []lyricSingerLineTask) bool {
+	seen := make(map[string]bool)
+	for _, t := range tasks {
+		if ag := strings.TrimSpace(t.RawAgent); ag != "" {
+			seen[ag] = true
+			if len(seen) >= 2 {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func buildLyricSingerAttributionUserPrompt(input *lyricSingerInput, comments []lyricAnnotationComment) string {
@@ -993,6 +1050,41 @@ func parseAndSanitizeLyricSingerAIResp(raw string, input *lyricSingerInput) (dto
 	return sanitizeLyricSingerRespStruct(&parsed, input)
 }
 
+func isDirtyCreditOrUnknownSingerName(name string) bool {
+	if reCleanCreditLine.MatchString(name + ":") {
+		return true
+	}
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "未匹配", "unknown", "n/a", "none", "tbd", "uncredited", "暂无", "无", "null":
+		return true
+	default:
+		return false
+	}
+}
+
+func pickUnusedSingerColor(preferred string, usedColors map[string]bool, startIdx int) string {
+	if preferred != "" && !usedColors[preferred] {
+		usedColors[preferred] = true
+		return preferred
+	}
+	for i := 0; i < len(lyricSingerDefaultColors); i++ {
+		c := lyricSingerDefaultColors[(startIdx+i)%len(lyricSingerDefaultColors)]
+		if !usedColors[c] {
+			usedColors[c] = true
+			return c
+		}
+	}
+	for _, p := range lyricAnnotationPalette {
+		if !usedColors[p.Key] {
+			usedColors[p.Key] = true
+			return p.Key
+		}
+	}
+	fallback := lyricSingerDefaultColors[startIdx%len(lyricSingerDefaultColors)]
+	usedColors[fallback] = true
+	return fallback
+}
+
 func sanitizeLyricSingerRespStruct(parsed *lyricSingerAIResp, input *lyricSingerInput) (dto.LyricSingerData, error) {
 	if parsed == nil || parsed.Empty {
 		return dto.LyricSingerData{Empty: true}, nil
@@ -1006,23 +1098,21 @@ func sanitizeLyricSingerRespStruct(parsed *lyricSingerAIResp, input *lyricSinger
 
 	validSingers := make([]dto.LyricSingerItem, 0, len(parsed.Singers))
 	singerSeen := map[string]bool{}
+	usedColors := map[string]bool{}
 	for idx, item := range parsed.Singers {
 		id := strings.TrimSpace(item.ID)
 		if !lyricSingerIDPattern.MatchString(id) || singerSeen[id] {
 			continue
 		}
 		name := sanitizeLyricSingerName(item.Name)
-		if name == "" {
+		if name == "" || isDirtyCreditOrUnknownSingerName(name) {
 			continue
 		}
 		role := strings.ToLower(strings.TrimSpace(item.Role))
 		if role != "group" {
 			role = "person"
 		}
-		color := normalizeLyricColor(strings.TrimSpace(item.Color))
-		if color == "" {
-			color = lyricSingerDefaultColors[idx%len(lyricSingerDefaultColors)]
-		}
+		color := pickUnusedSingerColor(normalizeLyricColor(strings.TrimSpace(item.Color)), usedColors, idx)
 		align := strings.ToLower(strings.TrimSpace(item.Align))
 		if align != "left" && align != "right" && align != "center" {
 			switch {
@@ -1048,6 +1138,33 @@ func sanitizeLyricSingerRespStruct(parsed *lyricSingerAIResp, input *lyricSinger
 		return dto.LyricSingerData{Empty: true}, nil
 	}
 
+	// 左右交错防塌陷：若 >=2 名个人歌手全部被分配在同一侧（如全 left 或全 right），自动交替平衡为 left/right
+	personCount, leftCount, rightCount := 0, 0, 0
+	for _, s := range validSingers {
+		if s.Role == "person" {
+			personCount++
+			switch s.Align {
+			case "left":
+				leftCount++
+			case "right":
+				rightCount++
+			}
+		}
+	}
+	if personCount >= 2 && (leftCount == personCount || rightCount == personCount) {
+		pIdx := 0
+		for i := range validSingers {
+			if validSingers[i].Role == "person" {
+				if pIdx%2 == 1 {
+					validSingers[i].Align = "right"
+				} else {
+					validSingers[i].Align = "left"
+				}
+				pIdx++
+			}
+		}
+	}
+
 	// 清洗组合成员引用，仅保留存在的 ID
 	for i := range validSingers {
 		if len(validSingers[i].Members) == 0 {
@@ -1062,26 +1179,53 @@ func sanitizeLyricSingerRespStruct(parsed *lyricSingerAIResp, input *lyricSinger
 		validSingers[i].Members = cleaned
 	}
 
-	keptLines := make([]dto.LyricSingerLine, 0, len(parsed.Lines))
+	keptLines := make([]dto.LyricSingerLine, 0, len(tasks))
 	lineSeen := map[int]bool{}
 	usedAgents := map[string]bool{}
-	for _, item := range parsed.Lines {
-		if lineSeen[item.Index] {
-			continue
+	if len(parsed.Lines) > 0 {
+		for _, item := range parsed.Lines {
+			if lineSeen[item.Index] {
+				continue
+			}
+			agentID := strings.TrimSpace(item.Agent)
+			task, ok := taskMap[item.Index]
+			if !ok || !singerSeen[agentID] {
+				continue
+			}
+			lineSeen[item.Index] = true
+			usedAgents[agentID] = true
+			keptLines = append(keptLines, dto.LyricSingerLine{
+				Text:       task.Text,
+				Occurrence: task.Occurrence,
+				Bg:         task.Bg,
+				Agent:      agentID,
+			})
 		}
-		agentID := strings.TrimSpace(item.Agent)
-		task, ok := taskMap[item.Index]
-		if !ok || !singerSeen[agentID] {
-			continue
+	} else if len(parsed.Mapping) > 0 {
+		// 紧凑下标映射还原：mapping[pos] 对应目标歌词编号 pos+1
+		for pos, rawAgent := range parsed.Mapping {
+			lineIndex := pos + 1
+			if lineSeen[lineIndex] {
+				continue
+			}
+			agentID := strings.TrimSpace(rawAgent)
+			lower := strings.ToLower(agentID)
+			if agentID == "" || lower == "-" || lower == "null" || lower == "none" {
+				continue
+			}
+			task, ok := taskMap[lineIndex]
+			if !ok || !singerSeen[agentID] {
+				continue
+			}
+			lineSeen[lineIndex] = true
+			usedAgents[agentID] = true
+			keptLines = append(keptLines, dto.LyricSingerLine{
+				Text:       task.Text,
+				Occurrence: task.Occurrence,
+				Bg:         task.Bg,
+				Agent:      agentID,
+			})
 		}
-		lineSeen[item.Index] = true
-		usedAgents[agentID] = true
-		keptLines = append(keptLines, dto.LyricSingerLine{
-			Text:       task.Text,
-			Occurrence: task.Occurrence,
-			Bg:         task.Bg,
-			Agent:      agentID,
-		})
 	}
 	if len(keptLines) == 0 || len(usedAgents) < 2 {
 		return dto.LyricSingerData{Empty: true}, nil

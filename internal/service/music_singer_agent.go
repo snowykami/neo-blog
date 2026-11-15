@@ -786,7 +786,7 @@ func searchBingRSS(ctx context.Context, endpoint, query string) ([]webSearchHit,
 		"count":  {"6"},
 		"format": {"rss"},
 	})
-	res, err := utils.SafeFetch(ctx, u, lyricSingerFetchMaxBytes, "text/xml", "application/xml", "application/rss+xml", "application/atom+xml", "text/plain")
+	res, err := vocalSafeFetch(ctx, u, lyricSingerFetchMaxBytes, "text/xml", "application/xml", "application/rss+xml", "application/atom+xml", "text/plain")
 	if err != nil {
 		return nil, err
 	}
@@ -820,7 +820,7 @@ func searchBingRSS(ctx context.Context, endpoint, query string) ([]webSearchHit,
 
 func searchDuckDuckGoHTML(ctx context.Context, endpoint, query string) ([]webSearchHit, error) {
 	u := appendQuery(endpoint, url.Values{"q": {query}})
-	res, err := utils.SafeFetch(ctx, u, lyricSingerFetchMaxBytes, "text/html", "application/xhtml", "text/plain")
+	res, err := vocalSafeFetch(ctx, u, lyricSingerFetchMaxBytes, "text/html", "application/xhtml", "text/plain")
 	if err != nil {
 		return nil, err
 	}

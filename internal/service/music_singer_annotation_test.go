@@ -35,6 +35,9 @@ func stubLyricSingerService(
 	svc.concurrency = func() int { return 1 }
 	svc.hotComments = func(context.Context, int64) []lyricAnnotationComment { return comments }
 	svc.agentChat = nil
+	svc.alignComplete = nil
+	svc.providers = nil
+	svc.siblingFetcher = nil
 	svc.searchMoegirl = nil
 	svc.searchWeb = nil
 	svc.fetchPage = nil
