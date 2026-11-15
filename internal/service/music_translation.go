@@ -32,7 +32,7 @@ import (
 
 // AI 歌词翻译服务：按「歌曲 id + 歌词来源 + 歌词文本哈希 + 目标语言」生成并缓存逐行歌词翻译。
 // - 语言判定（见 music_translation_lang.go）：检测原词语言与歌词自带翻译语言，若目标语言已有原生翻译或整曲已属目标语言则返回 ready，不消耗模型额度
-// - 参考译文：若当前歌词源自带或同曲其他源带有非目标语言的参考翻译，将原文（及语言）与参考翻译（及语言）一并送给模型辅助理解
+// - 参考译文：跨语言翻译时送入非目标语言参考译文；同语种覆盖默认不带内置参考译文以防锚定，仅由 Stage 1 导演判定为造语/摩斯电码等抽象歌词时才透传参考译文
 // - 非唱词过滤：歌手名提示行、段落标注与署名行不翻译；行首歌手名/声部提示前缀先剥离再译，译文保留对应原行匹配键
 // - 多词源独立缓存：ttml-amll / ttml-custom / ncm-yrc / ncm-lrc / qq-qrc / qq-lrc / kugou-krc / kugou-lrc 各自按其文本与来源单独翻译
 
@@ -787,8 +787,9 @@ func (a *lyricTranslationService) generateStream(
 		}
 	}
 
+	keepTargetRef := blueprint != nil && blueprint.NeedsReferenceTranslation
 	system := buildLyricTranslationSystemPromptWithBlueprint(input.TargetLang, input.ClassicalMode, blueprint)
-	baseUser := buildLyricTranslationUserPrompt(input, input.Tasks)
+	baseUser := buildLyricTranslationUserPromptWithOptions(input, input.Tasks, keepTargetRef)
 	posByIndex := make(map[int]int, len(input.Tasks))
 	for pos, task := range input.Tasks {
 		posByIndex[task.Index] = pos
@@ -838,7 +839,7 @@ func (a *lyricTranslationService) generateStream(
 				rejectedAttempt++
 				return
 			}
-			if normTr := normalizeLyricMatch(cleaned); normTr != "" && normTr == normalizeLyricMatch(task.VocalText) {
+			if normTr := lyricLineMatchKey(cleaned); normTr != "" && normTr == lyricLineMatchKey(task.VocalText) {
 				if !decidedPos[pos] {
 					skippedEmptyPos[pos] = true
 				}
@@ -971,6 +972,9 @@ func buildLyricTranslationSystemPromptWithBlueprint(targetLang string, classical
 		if blueprint.TranslationDirective != "" {
 			b.WriteString("Overall Directive: " + blueprint.TranslationDirective + "\n")
 		}
+		if blueprint.NeedsReferenceTranslation {
+			b.WriteString("Reference Policy: Abstract/constructed/encoded lyrics detected — consult \"ref\" (when provided) as primary semantic ground truth while rendering natural, poetic phrasing in targetLang.\n")
+		}
 		b.WriteString("Identified Cultural Metonyms & Hidden Meanings:\n")
 		b.WriteString(blueprint.formatCulturalNotes() + "\n")
 		b.WriteString("Director's Custom Craft Skills for This Song:\n")
@@ -995,10 +999,10 @@ func buildLyricTranslationSystemPromptWithBlueprint(targetLang string, classical
 	b.WriteString("   - By contrast, when a colon is genuine narrative speech/punctuation inside the sung lyric itself (e.g. \"她问我：你明天还会回来吗\"), keep the clause and punctuation normally.\n")
 	b.WriteString("   - NEVER translate a pure structural section tag (such as \"Verse\", \"Chorus\", \"主歌\", \"副歌\"); return \"\" if a line is purely non-sung structural metadata.\n")
 	b.WriteString("5. Cross-line Clause Linking (串句合译与自然断句): Lyrics often split one connected sentence across adjacent lines (e.g., \"春风吹不倒\" + \"我的杨柳腰\" forms \"春风吹不倒我的杨柳腰\"). Because you see all lines of the entire song together, when consecutive lines (including background vocals and neighboring verses) form one connected clause or modifier phrase, translate the combined thought naturally in targetLang grammar first, then split it cleanly across the exact item indices i at natural phrasing pauses so adjacent lines flow smoothly together. Do NOT cram two lines into one index while leaving the companion line \"\".\n")
-	b.WriteString("6. Reference Translations (\"ref\"), Constructed Languages & Target-Script Integrity:\n")
+	b.WriteString("6. Reference Translations (\"ref\"), Constructed/Encoded Languages & Target-Script Integrity:\n")
 	b.WriteString("   - You may receive both \"orig\" (original lyrics) and \"ref\" (an upstream/sibling reference translation, e.g. Simplified Chinese, English, or multi-language \"[lang] ...\"). Use BOTH together to grasp idioms, wordplay, implied subjects, and emotion accurately.\n")
-	b.WriteString("   - OVERRIDING AN UPSTREAM TARGET-LANGUAGE TRANSLATION: When \"orig\" is written in a foreign language (not targetLang) while \"ref\" is ALREADY in targetLang (for example, overriding a mediocre built-in platform translation with a higher-quality AI translation), use \"ref\" only as an auxiliary semantic reference and produce a fresh, faithful, literary targetLang translation of \"orig\" guided by the Director's Blueprint. NEVER output \"\" merely because \"ref\" is already in targetLang (return \"\" ONLY when \"orig\" itself is already sung in targetLang), and NEVER blindly copy mechanical/literal errors from \"ref\".\n")
-	b.WriteString("   - CONSTRUCTED / FICTIONAL / OBSCURE LANGUAGES: When \"orig\" appears to be a self-invented/constructed language (e.g., *LaVI-Bavellabion* or fantasy lyrics) or an unfamiliar non-standard language AND a meaningful \"ref\" is provided, you MUST use \"ref\" and surrounding song lines as the primary semantic basis and translate it naturally into targetLang. NEVER mistake constructed-language lines with \"ref\" for empty non-lexical scat! If \"ref\" is already in targetLang borrowed from a sibling source, refine it smoothly for this line split instead of returning \"\"; if \"ref\" is in another language, translate it rather than copying \"ref\" verbatim.\n")
+	b.WriteString("   - OVERRIDING AN UPSTREAM TARGET-LANGUAGE TRANSLATION: When \"orig\" is written in a foreign/abstract language while \"ref\" is ALREADY in targetLang (for example, overriding a platform translation or decoding constructed/cipher lyrics with an official targetLang guide), use \"ref\" as auxiliary semantic ground truth rather than copying literal flaws verbatim. NEVER output \"\" merely because \"ref\" is already in targetLang (return \"\" ONLY when \"orig\" itself is already sung in targetLang).\n")
+	b.WriteString("   - CONSTRUCTED / ENCODED / ABSTRACT LYRICS (Conlangs, Morse Code, Ciphers): When \"orig\" is a constructed/invented language (e.g., *LaVI-Bavellabion*, Hymmnos), Morse code (e.g. \"... --- ...\"), cipher, or obscure non-standard sequence AND a meaningful \"ref\" is provided, you MUST decode/translate it into natural, poetic targetLang text using \"ref\" and surrounding context as the primary semantic basis. NEVER echo raw dots/dashes/ciphers back verbatim and NEVER mistake these lines for empty scat!\n")
 	if targetLang == "ja" || targetLang == "ko" || targetLang == "en" {
 		b.WriteString(fmt.Sprintf("   - CRITICAL TARGET-LANGUAGE RULE: When target_lang is %s (%s), NEVER copy or echo Chinese sentences from \"ref\" or Chinese \"orig\" into your output! You MUST translate Chinese/foreign lines naturally into %s using authentic target-language script and grammar", targetLang, targetDesc, targetDesc))
 		if targetLang == "ja" {
@@ -1037,7 +1041,64 @@ func buildLyricTranslationSystemPromptWithBlueprint(targetLang string, classical
 	return b.String()
 }
 
+// filterTargetLangReference 按 Stage 1 的 NeedsReferenceTranslation 决定送往 Stage 2 的参考译文：
+// 常规歌词生成同语种译文时剥离同语种 ref（若为双参考 "zh+en" 则仅保留非目标语种），防止被内置生硬译文锚定；
+// 仅当 Stage 1 判定存在造语/摩斯电码/密文等抽象歌词时才保留同语种参考译文。
+func filterTargetLangReference(refLang, targetLang string, tasks []lyricTranslationLineTask, keepTargetRef bool) (string, []string) {
+	refs := make([]string, len(tasks))
+	for i, task := range tasks {
+		refs[i] = task.RefText
+	}
+	if keepTargetRef || refLang == "" || targetLang == "" {
+		return refLang, refs
+	}
+	if refLang == targetLang {
+		return "", make([]string, len(tasks))
+	}
+	if !strings.Contains(refLang, "+") {
+		return refLang, refs
+	}
+	parts := strings.SplitN(refLang, "+", 2)
+	lang1, lang2 := parts[0], parts[1]
+	if lang1 != targetLang && lang2 != targetLang {
+		return refLang, refs
+	}
+	otherLang := lang1
+	if lang1 == targetLang {
+		otherLang = lang2
+	}
+	if otherLang == "" {
+		return "", make([]string, len(tasks))
+	}
+	prefix := "[" + otherLang + "] "
+	filtered := make([]string, len(tasks))
+	hasAny := false
+	for i, ref := range refs {
+		if ref == "" {
+			continue
+		}
+		for _, seg := range strings.Split(ref, " | ") {
+			seg = strings.TrimSpace(seg)
+			if strings.HasPrefix(seg, prefix) {
+				if val := strings.TrimSpace(strings.TrimPrefix(seg, prefix)); val != "" {
+					filtered[i] = val
+					hasAny = true
+				}
+				break
+			}
+		}
+	}
+	if !hasAny {
+		return "", make([]string, len(tasks))
+	}
+	return otherLang, filtered
+}
+
 func buildLyricTranslationUserPrompt(input *lyricTranslationInput, tasks []lyricTranslationLineTask) string {
+	return buildLyricTranslationUserPromptWithOptions(input, tasks, false)
+}
+
+func buildLyricTranslationUserPromptWithOptions(input *lyricTranslationInput, tasks []lyricTranslationLineTask, keepTargetRef bool) string {
 	type promptItem struct {
 		I    int    `json:"i"`
 		Orig string `json:"orig"`
@@ -1045,6 +1106,8 @@ func buildLyricTranslationUserPrompt(input *lyricTranslationInput, tasks []lyric
 		Bg   bool   `json:"bg,omitempty"`
 		Hint bool   `json:"hint,omitempty"`
 	}
+
+	effectiveRefLang, effectiveRefs := filterTargetLangReference(input.RefLang, input.TargetLang, tasks, keepTargetRef)
 
 	payload := struct {
 		TargetLang    string       `json:"target_lang"`
@@ -1063,16 +1126,16 @@ func buildLyricTranslationUserPrompt(input *lyricTranslationInput, tasks []lyric
 		Album:         input.Track.Album,
 		Aliases:       input.Track.Aliases,
 		OrigLang:      input.OrigLang,
-		RefLang:       input.RefLang,
+		RefLang:       effectiveRefLang,
 		ClassicalMode: input.ClassicalMode,
 	}
 
 	payload.Items = make([]promptItem, 0, len(tasks))
-	for _, item := range tasks {
+	for i, item := range tasks {
 		payload.Items = append(payload.Items, promptItem{
 			I:    item.Index,
 			Orig: item.VocalText,
-			Ref:  item.RefText,
+			Ref:  effectiveRefs[i],
 			Bg:   item.Bg,
 			Hint: item.Hint,
 		})
@@ -1155,7 +1218,7 @@ func (s *MusicService) buildTranslationInputFromExtracted(
 	vocalTexts := make([]string, 0, len(extracted))
 
 	for i, line := range extracted {
-		key := occKey{bg: line.Bg, norm: normalizeLyricMatch(line.Text)}
+		key := occKey{bg: line.Bg, norm: lyricLineMatchKey(line.Text)}
 		occ := occCounts[key]
 		occCounts[key] = occ + 1
 
@@ -1433,10 +1496,10 @@ func resolveTranslationReferences(extracted []lyricTranslationExtracted, targetL
 func resolveTranslationReferencesWithOptions(extracted []lyricTranslationExtracted, targetLang string, allowTargetAsRef bool) (nativeTarget bool, refLang string, refTexts []string) {
 	buckets := map[string][]string{}
 	for _, line := range extracted {
-		origNorm := normalizeLyricMatch(line.Text)
+		origNorm := lyricLineMatchKey(line.Text)
 		for tag, text := range line.BuiltInByLang {
 			tr := collapseLyricSpace(text)
-			if tr == "" || tr == "//" || normalizeLyricMatch(tr) == origNorm {
+			if tr == "" || tr == "//" || lyricLineMatchKey(tr) == origNorm {
 				continue
 			}
 			buckets[tag] = append(buckets[tag], tr)
@@ -1520,7 +1583,7 @@ func resolveTranslationReferencesWithOptions(extracted []lyricTranslationExtract
 
 	cleanBuiltIn := func(line lyricTranslationExtracted, tag string) string {
 		tr := collapseLyricSpace(line.BuiltInByLang[tag])
-		if tr == "" || tr == "//" || normalizeLyricMatch(tr) == normalizeLyricMatch(line.Text) {
+		if tr == "" || tr == "//" || lyricLineMatchKey(tr) == lyricLineMatchKey(line.Text) {
 			return ""
 		}
 		return tr
@@ -1576,7 +1639,7 @@ func fillMissingRefByOrigText(extracted []lyricTranslationExtracted, aligned []s
 	donorOcc := make(map[string]int, len(donorOrigTexts))
 
 	for i, orig := range donorOrigTexts {
-		norm := normalizeLyricMatch(orig)
+		norm := lyricLineMatchKey(orig)
 		if len([]rune(norm)) < 2 {
 			continue
 		}
@@ -1603,7 +1666,7 @@ func fillMissingRefByOrigText(extracted []lyricTranslationExtracted, aligned []s
 
 	targetOcc := make(map[string]int, len(extracted))
 	for i, line := range extracted {
-		norm := normalizeLyricMatch(line.Text)
+		norm := lyricLineMatchKey(line.Text)
 		if len([]rune(norm)) < 2 {
 			continue
 		}

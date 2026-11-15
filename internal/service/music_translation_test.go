@@ -1141,15 +1141,25 @@ func TestRefreshNativeTargetCreatesAIOverride(t *testing.T) {
 	})
 
 	orig := lyricTranslations
+	origDir := lyricDirectors
 	origRetry := lyricTranslationRetryDelay
 	lyricTranslationRetryDelay = 0
 	doneCh := make(chan struct{}, 2)
 	var calls atomic.Int32
 	var capturedUserPrompt string
 
+	dirSvc := &lyricDirectorService{
+		name:        "test_dir_override_" + t.Name(),
+		limiter:     &llmclient.Limiter{},
+		concurrency: func() int { return 1 },
+		complete: func(_ context.Context, _ tools.AIConfig, _, _ string) (string, error) {
+			return `{"genre":"jpop","mood":"urgent bittersweet","needs_reference_translation":false,"translation_directive":"Translate briskly from Japanese","visual_theme":"crimson night"}`, nil
+		},
+	}
 	svc := &lyricTranslationService{
 		name:        "test_tr_override_" + t.Name(),
 		limiter:     &llmclient.Limiter{},
+		director:    dirSvc,
 		concurrency: func() int { return 1 },
 		stream: func(_ context.Context, _ tools.AIConfig, _, user string, onChunk func(content string) error) error {
 			calls.Add(1)
@@ -1158,8 +1168,10 @@ func TestRefreshNativeTargetCreatesAIOverride(t *testing.T) {
 		},
 		done: func() { doneCh <- struct{}{} },
 	}
+	lyricDirectors = dirSvc
 	lyricTranslations = svc
 	t.Cleanup(func() {
+		lyricDirectors = origDir
 		lyricTranslations = orig
 		lyricTranslationRetryDelay = origRetry
 	})
@@ -1182,15 +1194,15 @@ func TestRefreshNativeTargetCreatesAIOverride(t *testing.T) {
 		t.Fatalf("expected 0 LLM calls and only done event before override, got calls=%d events=%v", calls.Load(), initialEvents)
 	}
 
-	// 2. 管理员调用 RefreshLyricTranslations 强制生成 AI 中文覆盖译文，且参考译文中携带原平台译文
+	// 2. 管理员调用 RefreshLyricTranslations 强制生成 AI 中文覆盖译文；普通外语歌由 Stage 1 判定无需参考，不得把内置中文 ref 喂给 Stage 2
 	refreshResp, svcerr := musicSvc.RefreshLyricTranslations(context.Background(), 506, "ncm-lrc", "zh")
 	if svcerr != nil || refreshResp.Status != "pending" {
 		t.Fatalf("expected pending refresh start, got %+v err=%v", refreshResp, svcerr)
 	}
 	<-doneCh
 
-	if calls.Load() != 1 || !strings.Contains(capturedUserPrompt, "如同沉没般渐渐融化") {
-		t.Fatalf("expected 1 LLM call with native ref in prompt, calls=%d", calls.Load())
+	if calls.Load() != 1 || strings.Contains(capturedUserPrompt, "如同沉没般渐渐融化") || strings.Contains(capturedUserPrompt, `"ref_lang"`) {
+		t.Fatalf("expected 1 LLM call without same-lang native ref for normal lyrics, calls=%d prompt=%s", calls.Load(), capturedUserPrompt)
 	}
 
 	// 3. 覆盖生成后，GetLyricTranslations 与 StreamLyricTranslations 均优先返回 AI 覆盖译文（native=false）

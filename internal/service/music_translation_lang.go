@@ -262,7 +262,44 @@ func detectLatinLang(words []string) string {
 	return "other"
 }
 
+// isMorseLikeLine 判断歌词行是否由摩斯电码符号组成（至少包含 1 个点、1 个划且总信号符 >= 3），
+// 避免纯省略号 "..." 或分隔线 "---"、"//" 被误放行。
+func isMorseLikeLine(text string) bool {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return false
+	}
+	dotCount := 0
+	dashCount := 0
+	for _, r := range trimmed {
+		switch {
+		case r == '.' || r == '·' || r == '•' || r == '・':
+			dotCount++
+		case r == '-' || r == '–' || r == '—' || r == '−' || r == '_':
+			dashCount++
+		case r == '/' || r == '|' || unicode.IsSpace(r):
+		default:
+			return false
+		}
+	}
+	return dotCount >= 1 && dashCount >= 1 && dotCount+dashCount >= 3
+}
+
+// lyricLineMatchKey 生成歌词行去重与回填匹配键：普通歌词去标点符号，摩斯电码保留折叠空白后的原信号。
+func lyricLineMatchKey(text string) string {
+	if norm := normalizeLyricMatch(text); norm != "" {
+		return norm
+	}
+	if isMorseLikeLine(text) {
+		return collapseLyricSpace(text)
+	}
+	return ""
+}
+
 func isShortInterjectionLatin(text string) bool {
+	if isMorseLikeLine(text) {
+		return false
+	}
 	stats, words := countLyricScripts([]string{text})
 	if stats.han+stats.kana+stats.hang+stats.other > 0 {
 		return false
@@ -326,6 +363,11 @@ func songAlreadyInTargetLang(vocalLines []string, targetLang string) bool {
 		if trimmed == "" || isShortInterjectionLatin(trimmed) {
 			continue
 		}
+		if isMorseLikeLine(trimmed) {
+			hasOtherScript = true
+			substantive = append(substantive, trimmed)
+			continue
+		}
 		stats, _ := countLyricScripts([]string{trimmed})
 		if stats.han+stats.kana+stats.hang+stats.latin+stats.other == 0 {
 			continue
@@ -380,8 +422,8 @@ func songAlreadyInTargetLang(vocalLines []string, targetLang string) bool {
 // isNonLyricCueLine 判断是否为方括号段落标记、纯伴奏/器乐提示或纯演职员署名行（不依赖硬编码词表）
 func isNonLyricCueLine(text string) bool {
 	trimmed := strings.TrimSpace(text)
-	norm := normalizeLyricMatch(trimmed)
-	if norm == "" || lyricInstrumentalRe.MatchString(trimmed) || isLyricCreditText(trimmed) {
+	key := lyricLineMatchKey(trimmed)
+	if key == "" || lyricInstrumentalRe.MatchString(trimmed) || isLyricCreditText(trimmed) {
 		return true
 	}
 	return lyricSectionTagRe.MatchString(trimmed)
@@ -601,8 +643,8 @@ func songHasClassicalChinese(lines []string) bool {
 // 署名/演职员提示行（如 "词作者：XXX"）保留并标为 isHint；行内可能出现的歌手前缀整行送交 AI 结合语境决定是否剥离
 func classifyLyricTranslationLine(text string) (vocalText string, skip bool, isHint bool) {
 	trimmed := strings.TrimSpace(text)
-	norm := normalizeLyricMatch(trimmed)
-	if norm == "" || lyricInstrumentalRe.MatchString(trimmed) {
+	key := lyricLineMatchKey(trimmed)
+	if key == "" || lyricInstrumentalRe.MatchString(trimmed) {
 		return "", true, false
 	}
 	if isLyricCreditText(trimmed) {

@@ -362,7 +362,35 @@ export function detectLyricTextLang(texts: string[], explicitTag?: string | null
   return null
 }
 
+function isMorseLikeLine(text: string): boolean {
+  const trimmed = text.trim()
+  if (!trimmed)
+    return false
+  let dotCount = 0
+  let dashCount = 0
+  for (const ch of trimmed) {
+    if (ch === '.' || ch === '·' || ch === '•' || ch === '・') {
+      dotCount++
+      continue
+    }
+    if (ch === '-' || ch === '–' || ch === '—' || ch === '−' || ch === '_') {
+      dashCount++
+      continue
+    }
+    if (ch === '/' || ch === '|' || /\s/.test(ch))
+      continue
+    return false
+  }
+  return dotCount >= 1 && dashCount >= 1 && dotCount + dashCount >= 3
+}
+
+function lyricLineMatchKey(text: string): string {
+  return normalizeForMatch(text) || (isMorseLikeLine(text) ? text.trim().replace(/\s+/g, ' ') : '')
+}
+
 function isShortInterjectionLatin(text: string): boolean {
+  if (isMorseLikeLine(text))
+    return false
   const stats = countScripts([text])
   if (stats.han + stats.kana + stats.hang + stats.other > 0)
     return false
@@ -414,8 +442,8 @@ function cutLeadingColon(text: string, maxRunes: number): { prefix: string, rest
 
 export function isNonLyricCueText(text: string): boolean {
   const trimmed = text.trim()
-  const norm = normalizeForMatch(trimmed)
-  if (!norm || INSTRUMENTAL_RE.test(trimmed) || isCreditText(trimmed))
+  const key = lyricLineMatchKey(trimmed)
+  if (!key || INSTRUMENTAL_RE.test(trimmed) || isCreditText(trimmed))
     return true
   return SECTION_TAG_RE.test(trimmed)
 }
@@ -752,6 +780,11 @@ export function songAlreadyInTargetLang(vocalLines: string[], targetLang: LyricT
     }
     if (!trimmed || isShortInterjectionLatin(trimmed))
       continue
+    if (isMorseLikeLine(trimmed)) {
+      hasOtherScript = true
+      substantive.push(trimmed)
+      continue
+    }
     const stats = countScripts([trimmed])
     if (stats.han + stats.kana + stats.hang + stats.latin + stats.other === 0)
       continue
@@ -795,7 +828,7 @@ function meaningfulTranslationSamples(lyrics: ResolvedLyrics, pick: (line: Resol
     if (!tr || tr === '//')
       continue
     const orig = getLyricLineText(line)
-    if (normalizeForMatch(tr) === normalizeForMatch(orig))
+    if (lyricLineMatchKey(tr) === lyricLineMatchKey(orig))
       continue
     samples.push(tr)
   }
@@ -952,12 +985,12 @@ function resolveSingleSlotTranslations(
   for (const item of ai.lines) {
     if (!item.translation)
       continue
-    lookup.set(`${Boolean(item.bg)}:${item.occurrence}:${normalizeForMatch(item.text)}`, item.translation)
+    lookup.set(`${Boolean(item.bg)}:${item.occurrence}:${lyricLineMatchKey(item.text)}`, item.translation)
   }
   const occCounts = new Map<string, number>()
   return lyrics.lines.map((line) => {
     const bg = Boolean(line.isBackground)
-    const norm = normalizeForMatch(getLyricLineText(line))
+    const norm = lyricLineMatchKey(getLyricLineText(line))
     const countKey = `${bg}:${norm}`
     const occ = occCounts.get(countKey) ?? 0
     occCounts.set(countKey, occ + 1)

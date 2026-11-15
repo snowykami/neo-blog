@@ -431,4 +431,58 @@ describe('歌词语言检测与多语种翻译匹配', () => {
       ['Until the dawn sky blushes', '原生中文2'],
     ])
   })
+
+  it('摩斯电码等抽象符号行可触发 AI 覆盖且按原信号区分匹配不碰撞，普通省略号与分隔线保持跳过', () => {
+    expect(songAlreadyInTargetLang(['...', '---', '//'], 'zh')).toBe(true)
+    expect(songAlreadyInTargetLang(['... --- ...', '.- / -...'], 'zh')).toBe(false)
+
+    const morseLyrics: ResolvedLyrics = {
+      source: 'ncm-lrc',
+      wordTimed: false,
+      instrumental: false,
+      lines: [
+        { words: [{ text: '... --- ...', start: 1000, end: 3000 }], start: 1000, end: 3000, translation: '求救信号', isDuet: false, isBackground: false },
+        { words: [{ text: '.- / -...', start: 4000, end: 6000 }], start: 4000, end: 6000, translation: '暗码启程', isDuet: false, isBackground: false },
+        { words: [{ text: '...', start: 7000, end: 8000 }], start: 7000, end: 8000, isDuet: false, isBackground: false },
+      ],
+    }
+    expect(canAdminAiTranslateLyrics(morseLyrics, 'zh')).toBe(true)
+
+    const dividerOnlyLyrics: ResolvedLyrics = {
+      source: 'ncm-lrc',
+      wordTimed: false,
+      instrumental: false,
+      lines: [
+        { words: [{ text: '...', start: 1000, end: 2000 }], start: 1000, end: 2000, isDuet: false, isBackground: false },
+        { words: [{ text: '---', start: 3000, end: 4000 }], start: 3000, end: 4000, isDuet: false, isBackground: false },
+      ],
+    }
+    expect(canAdminAiTranslateLyrics(dividerOnlyLyrics, 'zh')).toBe(false)
+
+    const aiMorse = {
+      source: 'ncm-lrc',
+      targetLang: 'zh',
+      native: false,
+      lines: [
+        { text: '... --- ...', occurrence: 0, translation: '发往星海的求救电波' },
+        { text: '.- / -...', occurrence: 0, translation: '破译暗码启程远航' },
+      ],
+    }
+    const merged = applyLanguageTranslations(morseLyrics, 'zh', aiMorse)
+    expect(merged.lines.map(l => l.translation)).toEqual([
+      '发往星海的求救电波',
+      '破译暗码启程远航',
+      undefined,
+    ])
+
+    const compared = applyDualLanguageTranslations(
+      morseLyrics,
+      { lang: 'zh', preferNative: false, ai: aiMorse },
+      { lang: 'zh', preferNative: true, ai: null },
+    )
+    expect(compared.lines.slice(0, 2).map(l => [l.translation, l.secondaryTranslation])).toEqual([
+      ['发往星海的求救电波', '求救信号'],
+      ['破译暗码启程远航', '暗码启程'],
+    ])
+  })
 })

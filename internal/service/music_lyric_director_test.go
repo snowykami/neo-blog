@@ -503,3 +503,175 @@ func TestDynamicThinkingConfigPropagation(t *testing.T) {
 		}
 	}
 }
+
+func TestDirectorNeedsReferenceTranslationForAbstractAndMorseLyrics(t *testing.T) {
+	if !strings.Contains(lyricDirectorSystemPrompt, `"needs_reference_translation"`) ||
+		!strings.Contains(lyricDirectorSystemPrompt, "Morse code") ||
+		!strings.Contains(lyricDirectorSystemPrompt, "LaVI-Bavellabion") {
+		t.Fatalf("Stage 1 prompt missing needs_reference_translation guidance:\n%s", lyricDirectorSystemPrompt)
+	}
+
+	// 验证纯省略号 "..." 与分隔线 "---" 仍会被跳过，而真摩斯电码保留且生成唯一键
+	for _, noise := range []string{"...", "---", "//"} {
+		if isMorseLikeLine(noise) {
+			t.Fatalf("noise %q should not be treated as Morse code", noise)
+		}
+		if _, skip, _ := classifyLyricTranslationLine(noise); !skip {
+			t.Fatalf("noise %q should be skipped by classifyLyricTranslationLine", noise)
+		}
+	}
+	for _, morse := range []string{"... --- ...", ".- / -..."} {
+		if !isMorseLikeLine(morse) {
+			t.Fatalf("morse %q should be detected as Morse code", morse)
+		}
+		if vocal, skip, _ := classifyLyricTranslationLine(morse); skip || vocal != morse {
+			t.Fatalf("morse %q classify = (%q, %v), want keep", morse, vocal, skip)
+		}
+		if songAlreadyInTargetLang([]string{morse}, "zh") {
+			t.Fatalf("morse song %q must not be short-circuited as same language", morse)
+		}
+	}
+
+	// 验证 filterTargetLangReference 在双语组合 "zh+en" 下只剥离目标语言、保留外语参考
+	dualTasks := []lyricTranslationLineTask{
+		{Index: 1, OrigText: "君の名前を呼んでいる", VocalText: "君の名前を呼んでいる", RefText: "[zh] 呼唤你的名字 | [en] Calling your name"},
+	}
+	effLang, effRefs := filterTargetLangReference("zh+en", "zh", dualTasks, false)
+	if effLang != "en" || len(effRefs) != 1 || effRefs[0] != "Calling your name" {
+		t.Fatalf("filterTargetLangReference(zh+en -> zh, keep=false) = (%q, %v)", effLang, effRefs)
+	}
+	effLangKeep, effRefsKeep := filterTargetLangReference("zh+en", "zh", dualTasks, true)
+	if effLangKeep != "zh+en" || effRefsKeep[0] != dualTasks[0].RefText {
+		t.Fatalf("filterTargetLangReference(zh+en -> zh, keep=true) = (%q, %v)", effLangKeep, effRefsKeep)
+	}
+
+	// 场景 1：常规日语歌已有内置中文，管理员强制重译 AI 中文（zh）时不携带内置中文 ref，而翻英文（en）时保留中文 ref
+	normalTrack := dto.MusicTrackDto{ID: 604, Name: "Normal Song", Artists: []string{"Artist"}}
+	// 场景 2：摩斯电码 + 架空造语歌已有内置中文，Stage 1 判定 needs_reference_translation=true，重译 zh 时必须保留 ref
+	abstractTrack := dto.MusicTrackDto{ID: 605, Name: "Cipher Signal", Artists: []string{"Conlang"}}
+	setupMusicTranslationEnv(t, []dto.MusicTrackDto{normalTrack, abstractTrack})
+
+	stubLyricSources(t, map[string]lyricSourceResult{
+		"ncm": {
+			data: &dto.MusicLyricDto{
+				Lrc:    lyricPart("[00:01.00]... --- ...\n[00:05.00].- / -...\n[00:09.00]LaVI-Bavellabion\n"),
+				Tlyric: lyricPart("[00:01.00]紧急求救信号\n[00:05.00]暗码启程\n[00:09.00]圣光启迪万物\n"),
+			},
+			outcome: lyricOutcomeHit,
+		},
+	})
+
+	var mu sync.Mutex
+	var capturedStage1Users []string
+	var capturedStage2Systems []string
+	var capturedStage2Users []string
+
+	_, _, wait := stubLyricDirectorAndTranslation(
+		t,
+		func(_, user string) (string, error) {
+			mu.Lock()
+			capturedStage1Users = append(capturedStage1Users, user)
+			mu.Unlock()
+			if strings.Contains(user, "... --- ...") || strings.Contains(user, "LaVI-Bavellabion") {
+				return `{
+  "genre": "experimental_conlang_morse",
+  "mood": "cryptic solemn urgent",
+  "needs_reference_translation": true,
+  "cultural_notes": [{"term": "... --- ...", "metonymy_meaning": "SOS distress signal"}],
+  "custom_style_skills": ["Decode Morse/conlang lines naturally using the guide"],
+  "translation_directive": "Consult reference meaning and render poetic Chinese",
+  "visual_theme": "static radio waves over starfield"
+}`, nil
+			}
+			return `{
+  "genre": "jpop_ballad",
+  "mood": "gentle nostalgic",
+  "needs_reference_translation": false,
+  "cultural_notes": [],
+  "custom_style_skills": ["Translate cleanly from original phrasing"],
+  "translation_directive": "Keep delicate lyrical flow",
+  "visual_theme": "soft twilight mist"
+}`, nil
+		},
+		func(system, user string) (string, error) {
+			mu.Lock()
+			capturedStage2Systems = append(capturedStage2Systems, system)
+			capturedStage2Users = append(capturedStage2Users, user)
+			mu.Unlock()
+			if strings.Contains(user, `"title":"Cipher Signal"`) {
+				return `{"lines":[{"i":1,"t":"发往星海的求救电波"},{"i":2,"t":"破译暗码启程远航"},{"i":3,"t":"圣光拂晓唤醒万灵"}]}`, nil
+			}
+			if strings.Contains(user, `"target_lang":"en `) {
+				return `{"lines":[{"i":1,"t":"Calling your name tonight"},{"i":2,"t":"Till dawn paints the sky"}]}`, nil
+			}
+			return `{"lines":[{"i":1,"t":"今夜呼唤你的名字"},{"i":2,"t":"直到晨曦染红天际"}]}`, nil
+		},
+	)
+
+	s := NewMusicService()
+	ctx := context.Background()
+
+	// 先跑摩斯电码+造语抽象歌词的 zh AI 生成：Stage 1 与 Stage 2 必须完整收到摩斯电码行与内置中文参考
+	abstractRefresh, svcerr := s.RefreshLyricTranslations(ctx, 605, "ncm-lrc", "zh")
+	if svcerr != nil || abstractRefresh.Status != lyricTranslationStatusPending {
+		t.Fatalf("abstract RefreshLyricTranslations = %+v, err=%v", abstractRefresh, svcerr)
+	}
+	wait()
+
+	abstractReady, svcerr := s.GetLyricTranslations(ctx, 605, "ncm-lrc", "zh")
+	if svcerr != nil || abstractReady.Status != lyricTranslationStatusReady || len(abstractReady.Lines) != 3 {
+		t.Fatalf("abstract ready = %+v, err=%v", abstractReady, svcerr)
+	}
+	if abstractReady.Lines[0].Text != "... --- ..." || abstractReady.Lines[0].Translation != "发往星海的求救电波" ||
+		abstractReady.Lines[1].Text != ".- / -..." || abstractReady.Lines[1].Translation != "破译暗码启程远航" {
+		t.Fatalf("unexpected morse line translations: %+v", abstractReady.Lines)
+	}
+
+	// 再切换数据源为常规日语歌，验证 zh 覆盖不带内置中文 ref，而 en 保留中文 ref
+	stubLyricSources(t, map[string]lyricSourceResult{
+		"ncm": {
+			data: &dto.MusicLyricDto{
+				Lrc:    lyricPart("[00:01.00]君の名前を呼んでいる\n[00:05.00]夜明けの空が染まるまで\n"),
+				Tlyric: lyricPart("[00:01.00]原版呼唤你的名字\n[00:05.00]原版直到天色染红\n"),
+			},
+			outcome: lyricOutcomeHit,
+		},
+	})
+	normalZhRefresh, svcerr := s.RefreshLyricTranslations(ctx, 604, "ncm-lrc", "zh")
+	if svcerr != nil || normalZhRefresh.Status != lyricTranslationStatusPending {
+		t.Fatalf("normal zh refresh = %+v, err=%v", normalZhRefresh, svcerr)
+	}
+	wait()
+
+	normalEn, svcerr := s.GetLyricTranslations(ctx, 604, "ncm-lrc", "en")
+	if svcerr != nil || normalEn.Status != lyricTranslationStatusPending {
+		t.Fatalf("normal en = %+v, err=%v", normalEn, svcerr)
+	}
+	wait()
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(capturedStage1Users) != 2 || !strings.Contains(capturedStage1Users[0], "... --- ...") {
+		t.Fatalf("expected 2 Stage 1 calls (cross-lang reused cache) with Morse line in first, got %v", capturedStage1Users)
+	}
+	if len(capturedStage2Users) != 3 {
+		t.Fatalf("expected 3 Stage 2 prompts, got %d", len(capturedStage2Users))
+	}
+	// [0]: abstract zh -> 含 ref_lang:zh、紧急求救信号 与 Reference Policy
+	if !strings.Contains(capturedStage2Users[0], `"ref_lang":"zh"`) ||
+		!strings.Contains(capturedStage2Users[0], `"ref":"紧急求救信号"`) ||
+		!strings.Contains(capturedStage2Systems[0], "Reference Policy:") {
+		t.Fatalf("abstract zh prompt should retain ref & policy:\nsys=%s\nuser=%s", capturedStage2Systems[0], capturedStage2Users[0])
+	}
+	// [1]: normal zh -> 不含 ref_lang 与内置中文 ref
+	if strings.Contains(capturedStage2Users[1], "原版呼唤你的名字") ||
+		strings.Contains(capturedStage2Users[1], `"ref_lang"`) ||
+		strings.Contains(capturedStage2Systems[1], "Reference Policy:") {
+		t.Fatalf("normal zh override must strip same-language ref:\nsys=%s\nuser=%s", capturedStage2Systems[1], capturedStage2Users[1])
+	}
+	// [2]: normal en -> 跨语种翻译仍保留中文 ref 供模型参考
+	if !strings.Contains(capturedStage2Users[2], `"ref_lang":"zh"`) ||
+		!strings.Contains(capturedStage2Users[2], `"ref":"原版呼唤你的名字"`) {
+		t.Fatalf("normal cross-language en translation should keep zh ref: %s", capturedStage2Users[2])
+	}
+}

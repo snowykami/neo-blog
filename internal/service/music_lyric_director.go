@@ -48,11 +48,12 @@ var (
 )
 
 const lyricDirectorSystemPrompt = `You are a master music director and literary lyric analyst.
-Analyze the song's genre, emotional vibe, narrative perspective, and hidden cultural idioms/metonyms/slang across the full lyrics.
+Analyze the song's genre, emotional vibe, narrative perspective, hidden cultural idioms/metonyms/slang, and whether the original lyrics require a reference translation to decode opaque content across the full lyrics.
 Output strictly a single valid JSON object matching the following schema:
 {
   "genre": "A specific, accurate genre tag. You are NOT restricted to standard categories—freely synthesize compound or niche genres as appropriate (e.g., 'classical_poetry', 'anime_denpa', 'cyberpunk_synthwave', 'traditional_opera_fusion', 'lofi_chill_rnb', 'emo_rap', 'gothic_rock', 'kpop_dance')",
   "mood": "dominant emotion in 2-3 expressive adjectives (e.g., bittersweet nostalgia, manic euphoria, desolate solitude)",
+  "needs_reference_translation": false,
   "cultural_notes": [
     {
       "term": "original term / phrase in lyrics",
@@ -65,7 +66,10 @@ Output strictly a single valid JSON object matching the following schema:
   ],
   "translation_directive": "concise overall directive on rhythm, tone, lyrical voice, and rhyme preference",
   "visual_theme": "suggested visual color palette and dynamic particle effects (e.g., neon violet raindrops on wet asphalt, floating amber lotus petals)"
-}`
+}
+Rules for "needs_reference_translation":
+- Default to false for all normal natural-language lyrics (Japanese, English, Korean, Classical/Modern Chinese, French, German, Russian, multilingual lyrics, idioms, allusions, or slang) where a translator can directly understand and translate the original text independently without anchoring on a built-in translation.
+- Set true ONLY when the lyrics contain opaque, abstract, or encoded content whose semantic meaning cannot be reliably deciphered from the raw surface text alone without consulting an official/upstream reference translation — such as constructed/fictional/invented languages (conlangs like LaVI-Bavellabion, Hymmnos, Chaos language, lore-specific Kajiurago), Morse code (... --- ..., .- / -...), binary/hex/numeric ciphers, or cryptic symbol lyrics.`
 
 type lyricCulturalNote struct {
 	Term            string `json:"term"`
@@ -73,12 +77,13 @@ type lyricCulturalNote struct {
 }
 
 type lyricDirectorAnalysis struct {
-	Genre                string              `json:"genre"`
-	Mood                 string              `json:"mood"`
-	CulturalNotes        []lyricCulturalNote `json:"cultural_notes,omitempty"`
-	CustomStyleSkills    []string            `json:"custom_style_skills,omitempty"`
-	TranslationDirective string              `json:"translation_directive"`
-	VisualTheme          string              `json:"visual_theme"`
+	Genre                     string              `json:"genre"`
+	Mood                      string              `json:"mood"`
+	NeedsReferenceTranslation bool                `json:"needs_reference_translation,omitempty"`
+	CulturalNotes             []lyricCulturalNote `json:"cultural_notes,omitempty"`
+	CustomStyleSkills         []string            `json:"custom_style_skills,omitempty"`
+	TranslationDirective      string              `json:"translation_directive"`
+	VisualTheme               string              `json:"visual_theme"`
 }
 
 func (d *lyricDirectorAnalysis) isEmpty() bool {
