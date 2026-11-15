@@ -1,9 +1,11 @@
 import type { LyricTargetLang } from './lyric-language'
+import type { PronunciationLangBucket } from './target-lang'
 import type { LyricLang, LyricLine, LyricRomanWord, LyricWord, ResolvedLyrics } from './types'
 import { getLyricLineText } from './line-utils'
 import { classifyVocalLine, detectLyricTextLang, normalizeLyricLangTag } from './lyric-language'
 import { alignRomanization, romanWordsFromSpans } from './romanization'
 import { normalizeForMatch } from './strip-credits'
+import { toPronunciationBucket } from './target-lang'
 
 export interface SiteLyricPronunciationLine {
   text: string
@@ -256,14 +258,53 @@ function isSubstantivePronounceableLine(vocalText: string): boolean {
   return words.some(w => !SHORT_FILLER_LATIN_WORDS.has(w))
 }
 
+export interface CanAiPronounceOptions {
+  includeSameLang?: boolean
+  isLangEnabled?: (lineLang: LyricLang) => boolean
+}
+
+/** 识别整首歌曲所属的读音偏好分桶（zh / zh-hk / en / ja / ko / other） */
+export function detectSongPronunciationBucket(
+  lyrics: ResolvedLyrics,
+  aiPronunciation?: SiteLyricPronunciations | null,
+  artists: string[] = [],
+): PronunciationLangBucket | null {
+  if (lyrics.source === 'none' || lyrics.instrumental || lyrics.lines.length === 0)
+    return null
+
+  const classified = lyrics.lines
+    .map(line => classifyVocalLine(getLyricLineText(line), artists))
+    .filter((text): text is string => Boolean(text && hasPronounceableChar(text)))
+  const vocalTexts = classified.length > 0
+    ? classified
+    : lyrics.lines.map(line => getLyricLineText(line).trim()).filter(Boolean)
+  if (vocalTexts.length === 0)
+    return null
+
+  const aiMatchesSource = aiPronunciation != null && (!aiPronunciation.source || aiPronunciation.source === lyrics.source)
+  if (aiMatchesSource && aiPronunciation.lang === 'zh-hk')
+    return 'zh-hk'
+
+  const detected = detectLyricTextLang(vocalTexts)
+  const refined = refineDetectedHanSongLang(detected, vocalTexts)
+  const nativeJyutpingCount = lyrics.lines.reduce((count, line) => (
+    count + (line.romanization && JYUTPING_RE.test(line.romanization.toLowerCase()) ? 1 : 0)
+  ), 0)
+  if (nativeJyutpingCount >= 2 && (refined === 'zh' || refined === 'zh-tw' || refined === 'zh-hk' || (!refined && HAN_TEST_RE.test(vocalTexts.join('')))))
+    return 'zh-hk'
+
+  return toPronunciationBucket(refined ?? (aiMatchesSource ? aiPronunciation.lang : null))
+}
+
 /**
  * 判断当前词源是否需要向后端请求 AI 歌词读音：
- * 只要存在缺失原生读音、具有实质唱词、且不会在当前界面语言下被同语言自动隐藏的行即返回 true
+ * 只要存在缺失原生读音、具有实质唱词、且在当前策略或偏好下允许生成的行即返回 true
  */
 export function canAiPronounceLyrics(
   lyrics: ResolvedLyrics,
   targetLang: LyricTargetLang,
   artists: string[] = [],
+  options?: CanAiPronounceOptions,
 ): boolean {
   if (lyrics.source === 'none' || lyrics.instrumental || lyrics.lines.length === 0)
     return false
@@ -277,6 +318,10 @@ export function canAiPronounceLyrics(
   if (vocalEntries.length === 0)
     return false
 
+  if (options?.includeSameLang) {
+    return vocalEntries.some(({ line, text }) => !line.romanization?.trim() && isSubstantivePronounceableLine(text))
+  }
+
   const vocalTexts = vocalEntries.map(v => v.text)
   const detectedSong = detectLyricTextLang(vocalTexts)
   const songLang: LyricLang = refineDetectedHanSongLang(detectedSong, vocalTexts) ?? 'other'
@@ -287,13 +332,15 @@ export function canAiPronounceLyrics(
     if (!isSubstantivePronounceableLine(text))
       return false
     const lineLang = detectLinePronunciationLang(text, undefined, songLang)
+    if (options?.isLangEnabled)
+      return options.isLangEnabled(lineLang)
     return !shouldHideSameLangPronunciation(lineLang, targetLang)
   })
 }
 
 /**
- * 将 AI 生成/同曲补全的读音合并到无原生读音的歌词行中，并按界面语言应用同语言读音自动隐藏规则：
- * - 原生已有 romanization 的行保留原生内容与逐字切分，仅在命中同语言隐藏规则时清除
+ * 将 AI 生成/同曲补全的读音合并到无原生读音的歌词行中，并按界面语言与细粒度偏好过滤显示：
+ * - 原生已有 romanization 的行保留原生内容与逐字切分，仅在当前行语种被关闭/同语言隐藏时清除
  * - 无原生 romanization 的行从 aiPronunciation 中按 `(bg, occurrence, normalizeForMatch(text))` 匹配填充，
  *   并在逐字词源上按 tokens / span 规则构建 romanizationWords
  */
@@ -301,9 +348,14 @@ export function applyPronunciationsAndFilter(
   lyrics: ResolvedLyrics,
   targetLang: LyricTargetLang,
   aiPronunciation: SiteLyricPronunciations | null,
+  isLangEnabled?: (lineLang: LyricLang) => boolean,
 ): ResolvedLyrics {
   if (lyrics.source === 'none' || lyrics.lines.length === 0)
     return lyrics
+
+  const shouldHide = (lineLang: LyricLang) => (
+    isLangEnabled ? !isLangEnabled(lineLang) : shouldHideSameLangPronunciation(lineLang, targetLang)
+  )
 
   const aiMatchesSource = aiPronunciation != null && (!aiPronunciation.source || aiPronunciation.source === lyrics.source)
   const aiLookup = new Map<string, SiteLyricPronunciationLine>()
@@ -337,7 +389,7 @@ export function applyPronunciationsAndFilter(
 
     if (nativeRoman) {
       const lineLang = detectLinePronunciationLang(text, nativeRoman, aiItem?.lang ?? songLang)
-      if (shouldHideSameLangPronunciation(lineLang, targetLang)) {
+      if (shouldHide(lineLang)) {
         changed = true
         return { ...line, romanization: undefined, romanizationWords: undefined }
       }
@@ -349,7 +401,7 @@ export function applyPronunciationsAndFilter(
       return line
 
     const lineLang = detectLinePronunciationLang(text, aiRoman, aiItem?.lang ?? songLang)
-    if (shouldHideSameLangPronunciation(lineLang, targetLang))
+    if (shouldHide(lineLang))
       return line
 
     const nextRomanWords = lyrics.wordTimed && line.words.length > 0

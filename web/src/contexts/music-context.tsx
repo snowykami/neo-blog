@@ -3,10 +3,10 @@ import type { MusicLyricsState } from './music-lyrics-engine-state'
 import type { MusicLyricTranslationLangStatus } from '@/api/music'
 import type { LyricTranslationSelection } from '@/lib/lyrics/lyric-language'
 import type { LyricCandidate, LyricSourceKind } from '@/lib/lyrics/resolve'
-import type { LyricTargetLang } from '@/lib/lyrics/target-lang'
+import type { LyricTargetLang, PronunciationLangBucket, TranslationSongBucket } from '@/lib/lyrics/target-lang'
 import type { LyricLine, ResolvedLyrics } from '@/lib/lyrics/types'
 import type { MusicTrack } from '@/models/music'
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
 import React, {
   createContext,
   useCallback,
@@ -25,7 +25,14 @@ import {
   getVocalLyricLines,
   LYRIC_PLACEHOLDERS,
 } from '@/lib/lyrics/line-utils'
-import { normalizeLyricLangTag, SUPPORTED_LYRIC_TARGET_LANGS } from '@/lib/lyrics/target-lang'
+import {
+  normalizeLyricLangTag,
+  resolveBucketSelections,
+  resolvePronunciationEnabled,
+  resolveTranslationEnabled,
+  SUPPORTED_LYRIC_TARGET_LANGS,
+  toLyricTargetLang,
+} from '@/lib/lyrics/target-lang'
 import { registerTelemetryContext } from '@/lib/telemetry/context'
 import { formatMusicCoverUrl } from '@/utils/common/image'
 import { EMPTY_MUSIC_LYRICS_STATE } from './music-lyrics-engine-state'
@@ -219,6 +226,9 @@ const STORAGE_KEY_SHOW_TRANSLATION = 'music-show-translation'
 const STORAGE_KEY_TRANSLATION_SELECTIONS = 'music-translation-selections'
 const STORAGE_KEY_TRANSLATION_LANG = 'music-translation-lang'
 const STORAGE_KEY_TRANSLATION_PREFER_NATIVE = 'music-translation-prefer-native'
+const STORAGE_KEY_PRONUNCIATION_PREFS = 'music-pronunciation-prefs'
+const STORAGE_KEY_TRANSLATION_PREFS = 'music-translation-prefs'
+const STORAGE_KEY_TRANSLATION_SELECTIONS_BY_BUCKET = 'music-translation-selections-by-bucket'
 
 function normalizeStoredSelections(raw: unknown): LyricTranslationSelection[] {
   if (!Array.isArray(raw))
@@ -240,6 +250,29 @@ function normalizeStoredSelections(raw: unknown): LyricTranslationSelection[] {
     result.push({ lang: normalizedLang as LyricTargetLang, preferNative })
     if (result.length >= 2)
       break
+  }
+  return result
+}
+
+function normalizeStoredBooleanMap(raw: unknown): Record<string, boolean> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return {}
+  const result: Record<string, boolean> = {}
+  for (const [key, value] of Object.entries(raw)) {
+    if (typeof value === 'boolean')
+      result[key] = value
+  }
+  return result
+}
+
+function normalizeStoredSelectionsMap(raw: unknown): Record<string, LyricTranslationSelection[]> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return {}
+  const result: Record<string, LyricTranslationSelection[]> = {}
+  for (const [key, value] of Object.entries(raw)) {
+    if (!Array.isArray(value))
+      continue
+    result[key] = normalizeStoredSelections(value)
   }
   return result
 }
@@ -496,13 +529,16 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [duration, setDuration] = useState<number | null>(null)
   const [volume, setVolumeState] = useState(1)
   const [isMuted, setIsMuted] = useState(false)
-  // 翻译与音译默认都打开；读者切换后的选择保存在本地，以读者的选择为准
-  const [showTranslation, setShowTranslationState] = useState(true)
-  const [translationSelections, setTranslationSelectionsState] = useState<LyricTranslationSelection[]>([])
-  const translationLang = translationSelections[0]?.lang ?? null
-  const preferNativeTranslation = Boolean(translationSelections[0]?.preferNative)
+  // 跨语种兜底与细粒度本地存储偏好：同语种读音/翻译默认关闭、允许手动打开，按「界面目标语言 × 歌曲语种分桶」记忆
+  const locale = useLocale()
+  const targetLang = useMemo(() => toLyricTargetLang(locale), [locale])
+  const [defaultShowTranslation, setDefaultShowTranslation] = useState(true)
+  const [defaultTranslationSelections, setDefaultTranslationSelections] = useState<LyricTranslationSelection[]>([])
+  const [translationPrefs, setTranslationPrefs] = useState<Record<string, boolean>>({})
+  const [translationSelectionsByBucket, setTranslationSelectionsByBucket] = useState<Record<string, LyricTranslationSelection[]>>({})
   const [translationRequested, setTranslationRequested] = useState(false)
-  const [showRomaji, setShowRomajiState] = useState(true)
+  const [defaultShowRomaji, setDefaultShowRomaji] = useState(true)
+  const [pronunciationPrefs, setPronunciationPrefs] = useState<Record<string, boolean>>({})
   const [romajiRequested, setRomajiRequested] = useState(false)
   const [showLyricEffects, setShowLyricEffectsState] = useState(true)
   // 热评与旁白默认显示，读者关掉后记在本地
@@ -584,7 +620,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (storedSelectionsRaw != null) {
         const parsedSelections = normalizeStoredSelections(JSON.parse(storedSelectionsRaw))
         if (parsedSelections.length > 0)
-          setTranslationSelectionsState(parsedSelections)
+          setDefaultTranslationSelections(parsedSelections)
       }
       else {
         const storedTranslationLangRaw = localStorage.getItem(STORAGE_KEY_TRANSLATION_LANG)
@@ -593,7 +629,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           const normalizedLang = typeof parsedLang === 'string' ? normalizeLyricLangTag(parsedLang) : null
           if (normalizedLang && SUPPORTED_LYRIC_TARGET_LANGS.includes(normalizedLang as LyricTargetLang)) {
             const storedPreferNative = readStoredBoolean(STORAGE_KEY_TRANSLATION_PREFER_NATIVE)
-            setTranslationSelectionsState([
+            setDefaultTranslationSelections([
               { lang: normalizedLang as LyricTargetLang, preferNative: storedPreferNative === true },
             ])
           }
@@ -604,20 +640,32 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const storedRomaji = readStoredBoolean(STORAGE_KEY_SHOW_ROMAJI)
       if (storedTranslation != null || storedRomaji != null) {
         if (storedTranslation != null)
-          setShowTranslationState(storedTranslation)
+          setDefaultShowTranslation(storedTranslation)
         if (storedRomaji != null)
-          setShowRomajiState(storedRomaji)
+          setDefaultShowRomaji(storedRomaji)
       }
       else {
         // 迁移旧版的三选一歌词模式
         const legacyMode = localStorage.getItem(LEGACY_STORAGE_KEY_LYRIC_MODE)
         if (legacyMode != null) {
           const mode = JSON.parse(legacyMode)
-          setShowTranslationState(mode === 'translation')
-          setShowRomajiState(mode === 'romaji')
+          setDefaultShowTranslation(mode === 'translation')
+          setDefaultShowRomaji(mode === 'romaji')
           localStorage.removeItem(LEGACY_STORAGE_KEY_LYRIC_MODE)
         }
       }
+
+      const storedPronunciationPrefsRaw = localStorage.getItem(STORAGE_KEY_PRONUNCIATION_PREFS)
+      if (storedPronunciationPrefsRaw != null)
+        setPronunciationPrefs(normalizeStoredBooleanMap(JSON.parse(storedPronunciationPrefsRaw)))
+
+      const storedTranslationPrefsRaw = localStorage.getItem(STORAGE_KEY_TRANSLATION_PREFS)
+      if (storedTranslationPrefsRaw != null)
+        setTranslationPrefs(normalizeStoredBooleanMap(JSON.parse(storedTranslationPrefsRaw)))
+
+      const storedSelectionsByBucketRaw = localStorage.getItem(STORAGE_KEY_TRANSLATION_SELECTIONS_BY_BUCKET)
+      if (storedSelectionsByBucketRaw != null)
+        setTranslationSelectionsByBucket(normalizeStoredSelectionsMap(JSON.parse(storedSelectionsByBucketRaw)))
     }
     catch (error) {
       console.error('Failed to restore music preferences:', error)
@@ -1064,6 +1112,44 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const lyricsPending = lyricsState.pending
   const lyricStatus = lyricsState.status
 
+  const sameTrackState = lyricsState.trackId === currentTrackId
+  const activePronunciationBucket: PronunciationLangBucket | null = sameTrackState ? lyricsState.pronunciationBucket : null
+  const activeTranslationBucket: TranslationSongBucket | null = sameTrackState ? lyricsState.translationBucket : null
+  const targetLangRef = useRef(targetLang)
+  const pronunciationBucketRef = useRef(activePronunciationBucket)
+  const translationBucketRef = useRef(activeTranslationBucket)
+  useEffect(() => {
+    targetLangRef.current = targetLang
+    pronunciationBucketRef.current = activePronunciationBucket
+    translationBucketRef.current = activeTranslationBucket
+  }, [activePronunciationBucket, activeTranslationBucket, targetLang])
+
+  const showRomaji = useMemo(
+    () => resolvePronunciationEnabled(pronunciationPrefs, targetLang, activePronunciationBucket, defaultShowRomaji),
+    [activePronunciationBucket, defaultShowRomaji, pronunciationPrefs, targetLang],
+  )
+  const showTranslation = useMemo(
+    () => resolveTranslationEnabled(
+      translationPrefs,
+      translationSelectionsByBucket,
+      targetLang,
+      activeTranslationBucket,
+      defaultShowTranslation,
+    ),
+    [activeTranslationBucket, defaultShowTranslation, targetLang, translationPrefs, translationSelectionsByBucket],
+  )
+  const translationSelections = useMemo(
+    () => resolveBucketSelections(
+      translationSelectionsByBucket,
+      targetLang,
+      activeTranslationBucket,
+      defaultTranslationSelections,
+    ),
+    [activeTranslationBucket, defaultTranslationSelections, targetLang, translationSelectionsByBucket],
+  )
+  const translationLang = translationSelections[0]?.lang ?? null
+  const preferNativeTranslation = Boolean(translationSelections[0]?.preferNative)
+
   // 当前歌词主唱行（标准 LyricLine[]）：订阅播放时钟，只在换行时更新外部 store
   const lyricLines = useMemo(() => getVocalLyricLines(lyrics.lines), [lyrics.lines])
   useEffect(() => {
@@ -1244,17 +1330,39 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [])
 
   const setShowTranslation = useCallback((show: boolean) => {
-    setShowTranslationState(show)
     if (show)
       setTranslationRequested(true)
+    const bucket = translationBucketRef.current
+    const lang = targetLangRef.current
+    if (bucket != null) {
+      const key = `${lang}:${bucket}`
+      setTranslationPrefs((prev) => {
+        const next = { ...prev, [key]: show }
+        writeStored(STORAGE_KEY_TRANSLATION_PREFS, next)
+        return next
+      })
+      return
+    }
+    setDefaultShowTranslation(show)
     writeStored(STORAGE_KEY_SHOW_TRANSLATION, show)
   }, [])
 
   const setTranslationSelections = useCallback((selections: LyricTranslationSelection[]) => {
     const next = normalizeStoredSelections(selections)
-    setTranslationSelectionsState(next)
     if (next.length > 0)
       setTranslationRequested(true)
+    const bucket = translationBucketRef.current
+    const lang = targetLangRef.current
+    if (bucket != null) {
+      const key = `${lang}:${bucket}`
+      setTranslationSelectionsByBucket((prev) => {
+        const updated = { ...prev, [key]: next }
+        writeStored(STORAGE_KEY_TRANSLATION_SELECTIONS_BY_BUCKET, updated)
+        return updated
+      })
+      return
+    }
+    setDefaultTranslationSelections(next)
     try {
       if (next.length === 0) {
         localStorage.removeItem(STORAGE_KEY_TRANSLATION_SELECTIONS)
@@ -1297,9 +1405,20 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [])
 
   const setShowRomaji = useCallback((show: boolean) => {
-    setShowRomajiState(show)
     if (show)
       setRomajiRequested(true)
+    const bucket = pronunciationBucketRef.current
+    const lang = targetLangRef.current
+    if (bucket != null) {
+      const key = `${lang}:${bucket}`
+      setPronunciationPrefs((prev) => {
+        const next = { ...prev, [key]: show }
+        writeStored(STORAGE_KEY_PRONUNCIATION_PREFS, next)
+        return next
+      })
+      return
+    }
+    setDefaultShowRomaji(show)
     writeStored(STORAGE_KEY_SHOW_ROMAJI, show)
   }, [])
 
@@ -1401,7 +1520,8 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const hasTranslationLyric = useMemo(() => lyrics.lines.some(line => Boolean(line.translation || line.secondaryTranslation)), [lyrics])
   const canToggleTranslation = hasTranslationLyric || lyricCanAiTranslate || availableTranslationLangs.some(item => item.hasAi || item.hasNative || item.generating)
   const hasRomajiLyric = useMemo(() => lyrics.lines.some(line => line.romanization), [lyrics])
-  const canToggleRomaji = hasRomajiLyric || lyricCanAiPronounce
+  const hasRomajiCandidate = sameTrackState && lyricsState.hasRomajiCandidate
+  const canToggleRomaji = hasRomajiLyric || hasRomajiCandidate || lyricCanAiPronounce
 
   const actionsValue = useMemo<MusicActionsValue>(() => ({
     getAudio,
@@ -1600,8 +1720,14 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                       translationLang={translationLang}
                       preferNativeTranslation={preferNativeTranslation}
                       translationSelections={translationSelections}
+                      translationPrefs={translationPrefs}
+                      defaultShowTranslation={defaultShowTranslation}
+                      translationSelectionsByBucket={translationSelectionsByBucket}
+                      defaultTranslationSelections={defaultTranslationSelections}
                       translationRequested={translationRequested}
                       showRomaji={showRomaji}
+                      pronunciationPrefs={pronunciationPrefs}
+                      defaultShowRomaji={defaultShowRomaji}
                       romajiRequested={romajiRequested}
                       onChange={setLyricsState}
                     />

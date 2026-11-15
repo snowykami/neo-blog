@@ -1,11 +1,11 @@
-import type { LyricTargetLang } from './target-lang'
+import type { LyricTargetLang, TranslationSongBucket } from './target-lang'
 import type { LyricLang, ResolvedLyrics } from './types'
 import { getLyricLineText } from './line-utils'
 import { isCreditText, normalizeForMatch } from './strip-credits'
-import { normalizeLyricLangTag, toLyricTargetLang } from './target-lang'
+import { normalizeLyricLangTag, toLyricTargetLang, toPronunciationBucket } from './target-lang'
 
 export { normalizeLyricLangTag, toLyricTargetLang }
-export type { LyricTargetLang }
+export type { LyricTargetLang, TranslationSongBucket }
 
 export interface LyricTranslationEntry {
   text: string
@@ -889,6 +889,36 @@ function hasTranslatableVocalLines(lyrics: ResolvedLyrics, targetLang: LyricTarg
   if (vocalLines.length === 0)
     return false
   return !songAlreadyInTargetLang(vocalLines, targetLang)
+}
+
+const CANTONESE_MARKER_RE = /[嘅咗喺冇係唔啲嚟咁乜咩仲畀揾搵睇佢哋]/
+
+/** 识别歌曲在当前界面目标语言下的翻译偏好分桶（same / zh-classical / mixed / zh / zh-hk / en / ja / ko / other） */
+export function detectSongTranslationBucket(
+  lyrics: ResolvedLyrics,
+  targetLang: LyricTargetLang,
+  artists: string[] = [],
+): TranslationSongBucket | null {
+  if (lyrics.source === 'none' || lyrics.instrumental || lyrics.lines.length === 0)
+    return null
+  const vocalLines = lyrics.lines
+    .map(line => classifyVocalLine(getLyricLineText(line), artists))
+    .filter((line): line is string => line != null)
+  if (vocalLines.length === 0)
+    return null
+  if (songAlreadyInTargetLang(vocalLines, targetLang))
+    return 'same'
+  if (songHasClassicalChinese(vocalLines))
+    return 'zh-classical'
+  const detected = detectLyricTextLang(vocalLines)
+  const refined = (detected === 'zh' || detected === 'zh-tw') && vocalLines.some(line => CANTONESE_MARKER_RE.test(line))
+    ? 'zh-hk'
+    : detected
+  const bucket = toPronunciationBucket(refined)
+  const targetBucket = toPronunciationBucket(targetLang)
+  if (bucket === targetBucket)
+    return 'mixed'
+  return bucket
 }
 
 /** 判断这首歌在当前目标语言下是否可以启用 AI 歌词翻译（缺失目标语言原生译文且非纯目标语言歌曲） */

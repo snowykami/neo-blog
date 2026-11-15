@@ -6,8 +6,9 @@ import type { MusicLyricTranslationLangStatus } from '@/api/music'
 import type { LyricTranslationSelection } from '@/lib/lyrics/lyric-language'
 import type { LyricTrackInfo } from '@/lib/lyrics/strip-credits'
 import type { LyricTargetLang } from '@/lib/lyrics/target-lang'
+import type { LyricLang } from '@/lib/lyrics/types'
 import { useLocale } from 'next-intl'
-import { useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { applyLyricSingers, canResolveLyricSingers } from '@/lib/lyrics/apply-singers'
 import { applyEmphasis } from '@/lib/lyrics/emphasis'
@@ -15,11 +16,23 @@ import {
   applyDualLanguageTranslations,
   canAdminAiTranslateLyrics,
   canAiTranslateLyrics,
+  detectSongTranslationBucket,
   hasNativeTargetTranslation,
   toLyricTargetLang,
 } from '@/lib/lyrics/lyric-language'
-import { applyPronunciationsAndFilter, canAiPronounceLyrics } from '@/lib/lyrics/lyric-pronunciation'
-import { SUPPORTED_LYRIC_TARGET_LANGS } from '@/lib/lyrics/target-lang'
+import {
+  applyPronunciationsAndFilter,
+  canAiPronounceLyrics,
+  detectSongPronunciationBucket,
+  shouldHideSameLangPronunciation,
+} from '@/lib/lyrics/lyric-pronunciation'
+import {
+  resolveBucketSelections,
+  resolvePronunciationEnabled,
+  resolveTranslationEnabled,
+  SUPPORTED_LYRIC_TARGET_LANGS,
+  toPronunciationBucket,
+} from '@/lib/lyrics/target-lang'
 import { requestLyricAnnotations, useLyricAnnotations, useLyricAnnotationsGenerating } from './lyric-annotations'
 import { requestLyricPronunciations, useLyricPronunciations, useLyricPronunciationsGenerating } from './lyric-pronunciations'
 import { requestLyricSingers, useLyricSingers } from './lyric-singers'
@@ -51,8 +64,14 @@ export function MusicLyricsEngine({
   translationLang,
   preferNativeTranslation = false,
   translationSelections,
+  translationPrefs,
+  defaultShowTranslation,
+  translationSelectionsByBucket,
+  defaultTranslationSelections,
   showRomaji,
   romajiRequested,
+  pronunciationPrefs,
+  defaultShowRomaji,
   onChange,
 }: {
   trackId: number | null
@@ -65,8 +84,14 @@ export function MusicLyricsEngine({
   translationLang: LyricTargetLang | null
   preferNativeTranslation?: boolean
   translationSelections?: LyricTranslationSelection[]
+  translationPrefs?: Record<string, boolean>
+  defaultShowTranslation?: boolean
+  translationSelectionsByBucket?: Record<string, LyricTranslationSelection[]>
+  defaultTranslationSelections?: LyricTranslationSelection[]
   showRomaji: boolean
   romajiRequested: boolean
+  pronunciationPrefs?: Record<string, boolean>
+  defaultShowRomaji?: boolean
   onChange: (state: MusicLyricsState) => void
 }) {
   // 与文章内的单曲卡、歌词摘录共用同一份来源与选择结果（见 contexts/song-lyrics.ts）
@@ -101,11 +126,61 @@ export function MusicLyricsEngine({
     return () => clearTimeout(timer)
   }, [lyricSource, sourceTransitioning, validTrackId])
 
+  // 能力检测放开同语种（同语言策略仅作默认关闭，允许读者手动打开拼音/音标）
+  const canAiPronounce = Boolean(siteInfo.musicAiEnabled)
+    && validTrackId != null
+    && lyricSource != null
+    && canAiPronounceLyrics(rawLyrics, targetLang, track?.artists, { includeSameLang: true })
+  const rawPronunciations = useLyricPronunciations(canAiPronounce ? validTrackId : null, lyricSource)
+  const storedPronunciations = rawPronunciations && (!rawPronunciations.source || rawPronunciations.source === lyricSource)
+    ? rawPronunciations
+    : null
+  const pronunciationsGenerating = useLyricPronunciationsGenerating(canAiPronounce ? validTrackId : null, lyricSource)
+
+  const pronunciationBucket = useMemo(
+    () => detectSongPronunciationBucket(rawLyrics, storedPronunciations, track?.artists),
+    [rawLyrics, storedPronunciations, track?.artists],
+  )
+  const translationBucket = useMemo(
+    () => detectSongTranslationBucket(rawLyrics, targetLang, track?.artists),
+    [rawLyrics, targetLang, track?.artists],
+  )
+
+  const effectiveShowRomaji = useMemo(() => (
+    pronunciationPrefs
+      ? resolvePronunciationEnabled(pronunciationPrefs, targetLang, pronunciationBucket, defaultShowRomaji ?? showRomaji)
+      : showRomaji
+  ), [defaultShowRomaji, pronunciationBucket, pronunciationPrefs, showRomaji, targetLang])
+
+  const effectiveShowTranslation = useMemo(() => (
+    translationPrefs
+      ? resolveTranslationEnabled(
+          translationPrefs,
+          translationSelectionsByBucket ?? {},
+          targetLang,
+          translationBucket,
+          defaultShowTranslation ?? showTranslation,
+        )
+      : showTranslation
+  ), [defaultShowTranslation, showTranslation, targetLang, translationBucket, translationPrefs, translationSelectionsByBucket])
+
+  const resolvedBucketSelections = useMemo<LyricTranslationSelection[] | undefined>(() => {
+    if (translationSelectionsByBucket) {
+      return resolveBucketSelections(
+        translationSelectionsByBucket,
+        targetLang,
+        translationBucket,
+        defaultTranslationSelections ?? [],
+      )
+    }
+    return translationSelections
+  }, [defaultTranslationSelections, targetLang, translationBucket, translationSelections, translationSelectionsByBucket])
+
   const rawSelections = useMemo<LyricTranslationSelection[]>(() => {
-    if (translationSelections !== undefined)
-      return translationSelections.slice(0, 2)
+    if (resolvedBucketSelections !== undefined)
+      return resolvedBucketSelections.slice(0, 2)
     return translationLang ? [{ lang: translationLang, preferNative: preferNativeTranslation }] : []
-  }, [preferNativeTranslation, translationLang, translationSelections])
+  }, [preferNativeTranslation, resolvedBucketSelections, translationLang])
 
   const rawLangCapabilities = useLyricTranslationLanguages(validTrackId, lyricSource)
   const rawSlot0Lang = rawSelections[0]?.lang ?? targetLang
@@ -159,10 +234,28 @@ export function MusicLyricsEngine({
       if (!hasDualForLang)
         resolved.splice(1)
     }
-    if (resolved.length === 0)
+    if (resolved.length === 0) {
+      // 同语言歌曲若用户打开了译文且当前无本语种译文，智能回退到首个可用的外语译文
+      if (translationBucket === 'same') {
+        const targetEntry = availableTranslationLangs.find(candidate => candidate.lang === targetLang)
+        const targetUnavailable = !targetEntry
+          || (targetEntry.sameLanguage && !targetEntry.hasAi && !targetEntry.hasNative && !targetEntry.generating)
+        if (targetUnavailable) {
+          const firstAvailable = availableTranslationLangs.find(
+            candidate => candidate.lang !== targetLang && (candidate.hasAi || candidate.hasNative || candidate.generating),
+          )
+          if (firstAvailable) {
+            return [{
+              lang: firstAvailable.lang as LyricTargetLang,
+              preferNative: !firstAvailable.hasAi && !firstAvailable.generating && firstAvailable.hasNative,
+            }]
+          }
+        }
+      }
       return [{ lang: targetLang, preferNative: false }]
+    }
     return resolved
-  }, [availableTranslationLangs, rawLyrics, rawSelections, targetLang])
+  }, [availableTranslationLangs, rawLyrics, rawSelections, targetLang, translationBucket])
 
   const primarySlot = effectiveSelections[0]
   const secondarySlot = effectiveSelections[1] ?? null
@@ -200,7 +293,7 @@ export function MusicLyricsEngine({
     if (!slot || !slotCanAi || slot.preferNative)
       return false
     const hasExistingOrGenerating = Boolean(entry?.hasAi || entry?.generating)
-    return showTranslation && (hasExistingOrGenerating || isPlaying || translationRequested)
+    return effectiveShowTranslation && (hasExistingOrGenerating || isPlaying || translationRequested)
   }
 
   const wantsPrimaryTranslations = checkWantsSlotTranslation(primarySlot, primaryEntry, primaryCanAi)
@@ -234,7 +327,7 @@ export function MusicLyricsEngine({
   const hasExistingOrGeneratingPrimaryAi = Boolean(primaryEntry?.hasAi || primaryEntry?.generating)
   const wantsMetaTranslation = Boolean(siteInfo.musicAiEnabled)
     && validTrackId != null
-    && showTranslation
+    && effectiveShowTranslation
     && (effectiveTranslationLang === targetLang || hasExistingOrGeneratingPrimaryAi)
     && (hasExistingOrGeneratingPrimaryAi || isPlaying || translationRequested)
   useEffect(() => {
@@ -243,7 +336,7 @@ export function MusicLyricsEngine({
   }, [effectiveTranslationLang, validTrackId, wantsMetaTranslation])
 
   // 独立演唱者 / 多声部归属（有非器乐歌词行即请求后端查证，与翻译等任务进度完全隔离）
-  const singerLang = showTranslation ? effectiveTranslationLang : ''
+  const singerLang = effectiveShowTranslation ? effectiveTranslationLang : ''
   const canResolveSingers = useMemo(() => canResolveLyricSingers(rawLyrics), [rawLyrics])
   const wantsSingers = Boolean(siteInfo.musicAiEnabled)
     && isPlaying
@@ -265,12 +358,15 @@ export function MusicLyricsEngine({
   const rawSingers = useLyricSingers(canResolveSingers ? validTrackId : null, lyricSource, singerLang)
   const storedSingers = rawSingers && (!rawSingers.source || rawSingers.source === lyricSource) ? rawSingers : null
 
-  // AI 歌词读音（按语种与当前界面语言自动显隐 / 缺口补全）
-  const canAiPronounce = Boolean(siteInfo.musicAiEnabled)
-    && validTrackId != null
-    && lyricSource != null
-    && canAiPronounceLyrics(rawLyrics, targetLang, track?.artists)
-  const wantsPronunciations = showRomaji && canAiPronounce && (isPlaying || romajiRequested)
+  const isLineLangEnabled = useCallback((lineLang: LyricLang) => (
+    pronunciationPrefs
+      ? resolvePronunciationEnabled(pronunciationPrefs, targetLang, toPronunciationBucket(lineLang), defaultShowRomaji ?? showRomaji)
+      : (showRomaji && !shouldHideSameLangPronunciation(lineLang, targetLang))
+  ), [defaultShowRomaji, pronunciationPrefs, showRomaji, targetLang])
+
+  const canAiPronounceEnabled = canAiPronounce
+    && canAiPronounceLyrics(rawLyrics, targetLang, track?.artists, { isLangEnabled: isLineLangEnabled })
+  const wantsPronunciations = effectiveShowRomaji && canAiPronounceEnabled && (isPlaying || romajiRequested)
   useEffect(() => {
     if (!wantsPronunciations || validTrackId == null || lyricSource == null)
       return
@@ -283,11 +379,6 @@ export function MusicLyricsEngine({
     }, 650)
     return () => clearTimeout(timer)
   }, [lyricSource, sourceTransitioning, validTrackId, wantsPronunciations])
-  const rawPronunciations = useLyricPronunciations(canAiPronounce ? validTrackId : null, lyricSource)
-  const storedPronunciations = rawPronunciations && (!rawPronunciations.source || rawPronunciations.source === lyricSource)
-    ? rawPronunciations
-    : null
-  const pronunciationsGenerating = useLyricPronunciationsGenerating(canAiPronounce ? validTrackId : null, lyricSource)
 
   const rawPrimaryTranslations = useLyricTranslations(
     primaryCanAi && !primarySlot.preferNative ? validTrackId : null,
@@ -344,9 +435,13 @@ export function MusicLyricsEngine({
   const aiTranslated = isAiTranslationActive(primarySlot, storedPrimaryTranslations)
     || isAiTranslationActive(secondarySlot, storedSecondaryTranslations)
   const pronouncedLyrics = useMemo(
-    () => applyPronunciationsAndFilter(translatedLyrics, targetLang, storedPronunciations),
-    [storedPronunciations, targetLang, translatedLyrics],
+    () => applyPronunciationsAndFilter(translatedLyrics, targetLang, storedPronunciations, isLineLangEnabled),
+    [isLineLangEnabled, storedPronunciations, targetLang, translatedLyrics],
   )
+  const hasRomajiCandidate = useMemo(() => (
+    rawLyrics.lines.some(line => Boolean(line.romanization?.trim()))
+    || Boolean(storedPronunciations?.lines.some(line => Boolean(line.pronunciation?.trim())))
+  ), [rawLyrics.lines, storedPronunciations])
   const aiRomanized = Boolean(
     storedPronunciations
     && !storedPronunciations.completeUpstream
@@ -369,8 +464,8 @@ export function MusicLyricsEngine({
   const annotations = storedAnnotations?.source === rawLyrics.source ? storedAnnotations : null
   const emphasizedLyrics = useMemo(() => applyEmphasis(pronouncedLyrics, annotations), [annotations, pronouncedLyrics])
   const singerLyrics = useMemo(
-    () => applyLyricSingers(emphasizedLyrics, storedSingers, showTranslation),
-    [emphasizedLyrics, showTranslation, storedSingers],
+    () => applyLyricSingers(emphasizedLyrics, storedSingers, effectiveShowTranslation),
+    [effectiveShowTranslation, emphasizedLyrics, storedSingers],
   )
   const lyrics = useMemo(
     () => (showLyricMoments && !singerLyrics.outro && hotComment
@@ -382,6 +477,7 @@ export function MusicLyricsEngine({
   const annotated = showLyricEffects && rawLyrics.wordTimed && ((annotations?.lines.length ?? 0) > 0 || (annotations?.singers?.length ?? 0) > 0)
 
   const state = useMemo<MusicLyricsState>(() => ({
+    trackId: validTrackId,
     lyrics,
     candidates,
     kind,
@@ -399,7 +495,32 @@ export function MusicLyricsEngine({
     aiRomanized,
     pronunciationsGenerating,
     canAiPronounce,
-  }), [aiRomanized, aiTranslated, annotated, annotationsGenerating, availableTranslationLangs, canAiPronounce, canAiTranslate, candidates, effectiveTranslationLang, isSiteVersion, kind, lyrics, pending, pronunciationsGenerating, siteKind, status, translationsGenerating])
+    hasRomajiCandidate,
+    pronunciationBucket,
+    translationBucket,
+  }), [
+    aiRomanized,
+    aiTranslated,
+    annotated,
+    annotationsGenerating,
+    availableTranslationLangs,
+    canAiPronounce,
+    canAiTranslate,
+    candidates,
+    effectiveTranslationLang,
+    hasRomajiCandidate,
+    isSiteVersion,
+    kind,
+    lyrics,
+    pending,
+    pronunciationBucket,
+    pronunciationsGenerating,
+    siteKind,
+    status,
+    translationBucket,
+    translationsGenerating,
+    validTrackId,
+  ])
 
   useEffect(() => {
     onChange(state)

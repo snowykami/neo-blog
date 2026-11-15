@@ -5,11 +5,13 @@ import {
   applyPronunciationsAndFilter,
   buildRomanWordsFromAiTokens,
   canAiPronounceLyrics,
+  detectSongPronunciationBucket,
   extractPronounceableWordIndices,
   shouldHideSameLangPronunciation,
 } from './lyric-pronunciation'
 import { parseTtml } from './parse-ttml'
 import { formatDisplayArtists, formatInlineSongTitle, formatTitleAliases } from './song-meta-format'
+import { resolvePronunciationEnabled, toPronunciationBucket } from './target-lang'
 
 describe('aI 歌词读音对齐与同语言显隐', () => {
   it('可发音词元索引提取与逐字 1-to-1 / span 回退对齐', () => {
@@ -311,5 +313,104 @@ describe('独立演唱者声部与曲名歌手译名格式化', () => {
       lines: soloPlainLyrics.lines,
     }
     expect(canResolveLyricSingers(noneLyrics)).toBe(false)
+  })
+
+  it('同语种读音仅默认关闭（允许手动开启），按界面语言与曲目读音分桶细粒度读取，并继承无显式归属的背景和声声部', () => {
+    const mandarinLyrics: ResolvedLyrics = {
+      source: 'ncm-lrc',
+      wordTimed: false,
+      instrumental: false,
+      lines: [
+        { words: [{ text: '今天天气真好', start: 1000, end: 3000 }], start: 1000, end: 3000, isDuet: false, isBackground: false },
+      ],
+    }
+    const englishLyrics: ResolvedLyrics = {
+      source: 'ncm-lrc',
+      wordTimed: false,
+      instrumental: false,
+      lines: [
+        { words: [{ text: 'Underneath the stars tonight', start: 1000, end: 3000 }], start: 1000, end: 3000, isDuet: false, isBackground: false },
+      ],
+    }
+    const japaneseLyrics: ResolvedLyrics = {
+      source: 'ncm-lrc',
+      wordTimed: false,
+      instrumental: false,
+      lines: [
+        { words: [{ text: '夜に駆ける', start: 1000, end: 3000 }], start: 1000, end: 3000, isDuet: false, isBackground: false },
+      ],
+    }
+    const cantoneseJyutpingLyrics: ResolvedLyrics = {
+      source: 'qq-qrc',
+      wordTimed: true,
+      instrumental: false,
+      lines: [
+        { words: [{ text: '徐徐回望', start: 1000, end: 2000 }], start: 1000, end: 2000, isDuet: false, isBackground: false, romanization: 'ceoi4 ceoi4 wui4 mong6' },
+        { words: [{ text: '曾属于彼此的晚上', start: 2000, end: 4000 }], start: 2000, end: 4000, isDuet: false, isBackground: false, romanization: 'cang4 suk6 jyu1 bei2 ci2 dik1 maan5 soeng6' },
+      ],
+    }
+
+    // 台湾国语注音与大陆普通话拼音统一归入普通话桶 zh，避免识别前后跳桶
+    expect(detectSongPronunciationBucket(mandarinLyrics, {
+      status: 'ready',
+      source: 'ncm-lrc',
+      lang: 'zh-tw',
+      lines: [{ text: '今天天气真好', occurrence: 0, bg: false, lang: 'zh-tw', pronunciation: 'ㄐㄧㄣ ㄊㄧㄢ ㄊㄧㄢ ㄑㄧˋ ㄓㄣ ㄏㄠˇ' }],
+    })).toBe('zh')
+    expect(detectSongPronunciationBucket(englishLyrics)).toBe('en')
+    expect(detectSongPronunciationBucket(japaneseLyrics)).toBe('ja')
+    expect(detectSongPronunciationBucket(cantoneseJyutpingLyrics)).toBe('zh-hk')
+    expect(toPronunciationBucket('zh-tw')).toBe('zh')
+
+    // 默认关闭同语言读音（即使全局 fallbackShowRomaji=true），跨语种保持兜底值，显式偏好优先
+    expect(resolvePronunciationEnabled({}, 'zh', 'zh', true)).toBe(false)
+    expect(resolvePronunciationEnabled({}, 'zh-tw', 'zh', true)).toBe(false)
+    expect(resolvePronunciationEnabled({}, 'zh-hk', 'zh-hk', true)).toBe(false)
+    expect(resolvePronunciationEnabled({}, 'en', 'en', true)).toBe(false)
+    expect(resolvePronunciationEnabled({}, 'zh', 'ja', true)).toBe(true)
+    expect(resolvePronunciationEnabled({}, 'zh', 'zh-hk', true)).toBe(true)
+    expect(resolvePronunciationEnabled({ 'zh:zh': true }, 'zh', 'zh', true)).toBe(true)
+    expect(resolvePronunciationEnabled({ 'en:en': true, 'en:zh': false }, 'en', 'en', true)).toBe(true)
+    expect(resolvePronunciationEnabled({ 'en:en': true, 'en:zh': false }, 'en', 'zh', true)).toBe(false)
+
+    // includeSameLang=true 时中文/英文歌依然允许点击读音开关与触发 AI 生成
+    expect(canAiPronounceLyrics(mandarinLyrics, 'zh', [], { includeSameLang: true })).toBe(true)
+    expect(canAiPronounceLyrics(englishLyrics, 'en', [], { includeSameLang: true })).toBe(true)
+
+    // 传入细粒度 isLangEnabled 后：开启同语种可保留中文拼音与英文音标，关掉同语种则仍过滤
+    const mandarinAi = {
+      status: 'ready' as const,
+      source: 'ncm-lrc',
+      lang: 'zh',
+      lines: [{ text: '今天天气真好', occurrence: 0, bg: false, lang: 'zh', pronunciation: 'jīn tiān tiān qì zhēn hǎo' }],
+    }
+    expect(applyPronunciationsAndFilter(mandarinLyrics, 'zh', mandarinAi, () => true).lines[0].romanization).toBe('jīn tiān tiān qì zhēn hǎo')
+    expect(applyPronunciationsAndFilter(mandarinLyrics, 'zh', mandarinAi, () => false).lines[0].romanization).toBeUndefined()
+
+    const englishAi = {
+      status: 'ready' as const,
+      source: 'ncm-lrc',
+      lang: 'en',
+      lines: [{ text: 'Underneath the stars tonight', occurrence: 0, bg: false, lang: 'en', pronunciation: 'ˌʌndərˈniːθ ðə stɑːrz təˈnaɪt' }],
+    }
+    expect(applyPronunciationsAndFilter(englishLyrics, 'en', englishAi, () => true).lines[0].romanization).toBe('ˌʌndərˈniːθ ðə stɑːrz təˈnaɪt')
+
+    // AI singers 合并时，未显式标明 agent 的背景行继承所属主唱行的 agent 与对齐
+    const baseWithUnassignedBg: ResolvedLyrics = {
+      source: 'ncm-lrc',
+      wordTimed: false,
+      instrumental: false,
+      lines: [
+        { words: [{ text: '主歌在右', start: 1000, end: 3000 }], start: 1000, end: 3000, isDuet: false, isBackground: false },
+        { words: [{ text: '(未标和声)', start: 2000, end: 3000 }], start: 2000, end: 3000, isDuet: false, isBackground: true, backgroundPosition: 'below' },
+      ],
+    }
+    const inheritedBg = applyLyricSingers(baseWithUnassignedBg, {
+      status: 'ready',
+      source: 'ncm-lrc',
+      singers: [{ id: 'v2', name: '女声', role: 'person', align: 'right' }],
+      lines: [{ text: '主歌在右', occurrence: 0, bg: false, agent: 'v2' }],
+    })
+    expect(inheritedBg.lines[1]).toMatchObject({ agent: 'v2', align: 'right', isDuet: true })
   })
 })

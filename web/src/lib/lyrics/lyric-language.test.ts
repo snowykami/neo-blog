@@ -7,6 +7,7 @@ import {
   canAiTranslateLyrics,
   classifyVocalLine,
   detectLyricTextLang,
+  detectSongTranslationBucket,
   hasNativeTargetTranslation,
   normalizeLyricLangTag,
   songAlreadyInTargetLang,
@@ -14,6 +15,7 @@ import {
   toLyricTargetLang,
 } from './lyric-language'
 import { parseTtml } from './parse-ttml'
+import { resolveBucketSelections, resolveTranslationEnabled } from './target-lang'
 
 describe('歌词语言检测与多语种翻译匹配', () => {
   it('语言标签与简繁识别', () => {
@@ -484,5 +486,59 @@ describe('歌词语言检测与多语种翻译匹配', () => {
       ['发往星海的求救电波', '求救信号'],
       ['破译暗码启程远航', '暗码启程'],
     ])
+  })
+
+  it('细粒度翻译分桶识别与同语种默认关闭隔离偏好', () => {
+    const mandarinLyrics: ResolvedLyrics = {
+      source: 'ncm-lrc',
+      wordTimed: false,
+      instrumental: false,
+      lines: [
+        { words: [{ text: '今晚月色真好', start: 1000, end: 3000 }], start: 1000, end: 3000, isDuet: false, isBackground: false },
+      ],
+    }
+    const classicalLyrics: ResolvedLyrics = {
+      source: 'ncm-lrc',
+      wordTimed: false,
+      instrumental: false,
+      lines: [
+        { words: [{ text: '恰似故人踏月归来', start: 1000, end: 3000 }], start: 1000, end: 3000, isDuet: false, isBackground: false },
+      ],
+    }
+    const mixedZhEnLyrics: ResolvedLyrics = {
+      source: 'ncm-lrc',
+      wordTimed: false,
+      instrumental: false,
+      lines: [
+        { words: [{ text: '今晚风很大', start: 1000, end: 3000 }], start: 1000, end: 3000, isDuet: false, isBackground: false },
+        { words: [{ text: '我想牵着你的手', start: 3000, end: 5000 }], start: 3000, end: 5000, isDuet: false, isBackground: false },
+        { words: [{ text: 'Because I miss you so much', start: 5000, end: 7000 }], start: 5000, end: 7000, isDuet: false, isBackground: false },
+      ],
+    }
+    const japaneseLyrics: ResolvedLyrics = {
+      source: 'ncm-lrc',
+      wordTimed: false,
+      instrumental: false,
+      lines: [
+        { words: [{ text: '君の名前を呼んでいる', start: 1000, end: 3000 }], start: 1000, end: 3000, isDuet: false, isBackground: false },
+      ],
+    }
+
+    expect(detectSongTranslationBucket(mandarinLyrics, 'zh')).toBe('same')
+    expect(detectSongTranslationBucket(mandarinLyrics, 'en')).toBe('zh')
+    expect(detectSongTranslationBucket(classicalLyrics, 'zh')).toBe('zh-classical')
+    expect(detectSongTranslationBucket(mixedZhEnLyrics, 'zh')).toBe('mixed')
+    expect(detectSongTranslationBucket(japaneseLyrics, 'zh')).toBe('ja')
+
+    // 同语言歌曲默认关闭翻译，且跨语种语言覆盖不污染同语言桶
+    expect(resolveTranslationEnabled({}, {}, 'zh', 'same', true)).toBe(false)
+    expect(resolveTranslationEnabled({}, {}, 'zh', 'ja', true)).toBe(true)
+    expect(resolveBucketSelections({}, 'zh', 'same', [{ lang: 'en' }])).toEqual([])
+    expect(resolveBucketSelections({ 'zh:same': [{ lang: 'en', preferNative: true }] }, 'zh', 'same', [])).toEqual([
+      { lang: 'en', preferNative: true },
+    ])
+    // 同语言桶显式选中过语言时默认显示翻译；手动关闭则遵守关闭偏好
+    expect(resolveTranslationEnabled({}, { 'zh:same': [{ lang: 'en' }] }, 'zh', 'same', true)).toBe(true)
+    expect(resolveTranslationEnabled({ 'zh:same': false }, { 'zh:same': [{ lang: 'en' }] }, 'zh', 'same', true)).toBe(false)
   })
 })
