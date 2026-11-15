@@ -8,7 +8,7 @@ import type { MusicSearchSong, MusicSong, MusicTrack, NCMPlaylists } from '@/mod
 import type { BaseResponse } from '@/models/resp'
 import { isAxiosError } from 'axios'
 import { snakeToCamelObj } from 'field-conv'
-import { clearClientSongLyricsCache } from '@/contexts/song-lyrics'
+import { notifyClientSongLyricsCacheClear } from '@/lib/music/lyrics-cache-bust'
 import axiosClient from './client'
 
 export interface MusicLyrics {
@@ -690,7 +690,7 @@ export async function listNCMPlaylists(params: { apiBaseUrl: string, cookie: str
 // 清空服务端 TTML 缓存（含 72 小时未命中负缓存）与当前标签页内存歌词缓存（仅管理员）
 export async function clearMusicTTMLCache(): Promise<void> {
   await axiosClient.post('/music/lyric/ttml-cache/clear')
-  clearClientSongLyricsCache()
+  notifyClientSongLyricsCacheClear()
 }
 
 export interface MusicSongTranslationMeta {

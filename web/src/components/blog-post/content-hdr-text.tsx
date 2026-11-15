@@ -30,7 +30,7 @@ function iconMaskUrl(icon: HTMLElement): string | null {
  * 复用播放器的 HDR 高光开关，且只在暗色模式下生效（亮色背景本身就接近 SDR 白，再亮只会刺眼）
  * HDR 文字中的行内图标改用遮罩（iconMaskUrl），和文字一起发光
  */
-export function ContentHdrText({ containerId }: { containerId: string }) {
+export function ContentHdrText({ containerId, observe = false }: { containerId: string, observe?: boolean }) {
   const enabled = useHdrEnabled()
 
   useEffect(() => {
@@ -79,15 +79,22 @@ export function ContentHdrText({ containerId }: { containerId: string }) {
     }
 
     apply()
-    // 切换明暗主题（html 的 class）与正文后续注入的内容；只观察子节点与 html 的 class，改样式不会触发自身
+    // 未启用 HDR 或静态正文内没有 HDR 标记时，无需挂载任何观察器
+    if (!enabled || (!observe && !container.querySelector(HDR_SELECTOR))) {
+      return () => {
+        clear(targets())
+      }
+    }
+    // 切换明暗主题（html 的 class）；仅在动态内容容器中继续监听正文子节点变更
     const observer = new MutationObserver(apply)
     observer.observe(root, { attributes: true, attributeFilter: ['class'] })
-    observer.observe(container, { childList: true, subtree: true })
+    if (observe)
+      observer.observe(container, { childList: true, subtree: true })
     return () => {
       observer.disconnect()
       clear(targets())
     }
-  }, [containerId, enabled])
+  }, [containerId, enabled, observe])
 
   return null
 }

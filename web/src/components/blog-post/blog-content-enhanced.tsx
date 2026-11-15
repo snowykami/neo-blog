@@ -33,7 +33,7 @@ declare global {
   }
 }
 
-export default function HtmlEnhancer({ containerId }: { containerId: string }) {
+export default function HtmlEnhancer({ containerId, observe = false }: { containerId: string, observe?: boolean }) {
   const t = useTranslations('CodeBlock')
 
   useEffect(() => {
@@ -169,39 +169,42 @@ export default function HtmlEnhancer({ containerId }: { containerId: string }) {
         wrapCodeBlock(p as HTMLElement)
     })
 
-    // observe only for newly added <pre> elements inside container
-    const observer = new MutationObserver((mutations) => {
-      for (const m of mutations) {
-        if (m.type !== 'childList')
-          continue
-        m.addedNodes.forEach((node) => {
-          if (!(node instanceof HTMLElement))
-            return
-          if (node.tagName.toLowerCase() === 'pre') {
-            if (node.querySelector('code'))
-              wrapCodeBlock(node as HTMLElement)
-          }
-          else {
-            // maybe a fragment; look for pre inside
-            node.querySelectorAll?.('pre').forEach((p) => {
-              if (p.querySelector('code'))
-                wrapCodeBlock(p as HTMLElement)
-            })
-          }
-        })
-      }
-    })
+    // 仅在动态内容容器中监听后续注入的 <pre> 元素，静态 SSR 页面不再常驻整树 MutationObserver
+    let observer: MutationObserver | null = null
+    if (observe) {
+      observer = new MutationObserver((mutations) => {
+        for (const m of mutations) {
+          if (m.type !== 'childList')
+            continue
+          m.addedNodes.forEach((node) => {
+            if (!(node instanceof HTMLElement))
+              return
+            if (node.tagName.toLowerCase() === 'pre') {
+              if (node.querySelector('code'))
+                wrapCodeBlock(node as HTMLElement)
+            }
+            else {
+              // maybe a fragment; look for pre inside
+              node.querySelectorAll?.('pre').forEach((p) => {
+                if (p.querySelector('code'))
+                  wrapCodeBlock(p as HTMLElement)
+              })
+            }
+          })
+        }
+      })
 
-    observer.observe(container, { childList: true, subtree: true })
+      observer.observe(container, { childList: true, subtree: true })
+    }
 
     return () => {
       disposed = true
-      observer.disconnect()
+      observer?.disconnect()
       timers.forEach(timer => window.clearTimeout(timer))
       timers.clear()
       cleanups.forEach(fn => fn())
     }
-  }, [containerId, t])
+  }, [containerId, observe, t])
 
   return null
 }

@@ -12,6 +12,7 @@ import { parseNcmLyrics, parseQqLyrics } from '@/lib/lyrics/parse-platform'
 import { parseTtml } from '@/lib/lyrics/parse-ttml'
 import { resolveLyrics } from '@/lib/lyrics/resolve'
 import { withRomanizationWords } from '@/lib/lyrics/romanization'
+import { registerClientSongLyricsCacheClearer } from '@/lib/music/lyrics-cache-bust'
 import { useLyricOffsets, useLyricSitePin } from './lyric-settings'
 
 /**
@@ -231,22 +232,33 @@ export function setSongLyricVersion(id: number, version: MusicLyricVersion) {
   settle(getEntry(id), 'decided', version.kind ? version : null)
 }
 
-/** 管理员清空后端 TTML 缓存后，同步清理本标签页已缓存的 TTML 记录，以便切歌或回到播放器时重新拉取 */
-export function clearClientSongLyricsCache() {
-  for (const [, entry] of entries) {
-    if (entry.streaming)
-      continue
-    const nextSources = { ...entry.sources }
-    delete nextSources.ttml
-    delete nextSources.decided
-    if (nextSources.cache)
-      nextSources.cache = { ...nextSources.cache, ttml: undefined, kind: undefined }
-    entry.sources = nextSources
-    entry.started.delete('ttml')
-    entry.failed.delete('ttml')
-    entry.listeners.forEach(listener => listener())
-  }
+function clearEntryTtmlCache(entry: Entry) {
+  if (entry.streaming)
+    return
+  const nextSources = { ...entry.sources }
+  delete nextSources.ttml
+  delete nextSources.decided
+  if (nextSources.cache)
+    nextSources.cache = { ...nextSources.cache, ttml: undefined, kind: undefined }
+  entry.sources = nextSources
+  entry.started.delete('ttml')
+  entry.failed.delete('ttml')
+  entry.listeners.forEach(listener => listener())
 }
+
+/** 管理员清空后端 TTML 缓存后，同步清理本标签页已缓存的 TTML 记录，以便切歌或回到播放器时重新拉取 */
+export function clearClientSongLyricsCache(songId?: number) {
+  if (songId != null) {
+    const entry = entries.get(songId)
+    if (entry)
+      clearEntryTtmlCache(entry)
+    return
+  }
+  for (const [, entry] of entries)
+    clearEntryTtmlCache(entry)
+}
+
+registerClientSongLyricsCacheClearer(clearClientSongLyricsCache)
 
 const EMPTY_SOURCES: SongLyricSources = {}
 

@@ -19,14 +19,19 @@ const COPY_CLASS = 'px-2 py-1 rounded-md text-xs text-white/70 hover:text-white 
 const PRE_CLASSES = ['overflow-x-auto', 'bg-transparent', 'px-4', 'py-3', 'm-0', 'text-[0.875rem]', 'leading-6', 'text-gray-100', 'font-mono']
 const CODE_CLASSES = ['!p-0', '!bg-transparent']
 const NO_HIGHLIGHT = new Set(['no-highlight', 'nohighlight', 'plaintext', 'text', 'txt', 'plain'])
+// 未标明语言的大代码块跑 highlightAuto 需要遍历所有语言规则（O(N × 语言数)），超过阈值跳过自动探测
+const MAX_HIGHLIGHT_AUTO_CHARS = 8_000
 
 function highlight(text: string, lang: string): string | null {
   const key = lang.toLowerCase()
   if (NO_HIGHLIGHT.has(key))
     return null
   try {
-    if (!key)
+    if (!key) {
+      if (text.length > MAX_HIGHLIGHT_AUTO_CHARS)
+        return null
       return hljs.highlightAuto(text).value
+    }
     // 没注册的语言不着色（与浏览器端 highlightElement 遇到未知语言时一致）
     return hljs.getLanguage(key) ? hljs.highlight(text, { language: key, ignoreIllegals: true }).value : null
   }

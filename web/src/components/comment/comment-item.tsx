@@ -3,7 +3,7 @@ import type { Comment, CommentTranslation } from '@/models/comment'
 import type { User, UserBrief } from '@/models/user'
 import { ChevronDown, Ellipsis, Languages, Loader2, Lock, MessageCircleHeartIcon, Reply } from 'lucide-react'
 import { useLocale, useTranslations } from 'next-intl'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { createComment, deleteComment, getComment, listCommentThread, translateComment, updateComment } from '@/api/comment'
 import { toggleLike } from '@/api/like'
@@ -40,7 +40,7 @@ const THREAD_PAGE = 5
  * 主评论：主评论本身与它下面的整个回复线程。回复不论多少层都平铺在主评论下一层，
  * 用小头像与连线表达层级；回复的是另一条回复时才显示 @某人
  */
-export function CommentItem({
+function CommentItemImpl({
   comment,
   ownerId,
   sectionUsers,
@@ -287,6 +287,8 @@ export function CommentItem({
     </div>
   )
 }
+
+export const CommentItem = memo(CommentItemImpl)
 
 /**
  * 单条评论：头像、名字与时间地点、内容、操作（回复、点赞、更多）；编辑时在下方打开编辑框

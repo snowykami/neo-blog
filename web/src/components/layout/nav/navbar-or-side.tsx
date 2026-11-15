@@ -77,15 +77,21 @@ const staticMenuItems: NavMenuItem[] = [
   },
 ]
 
+const NAV_PAGES_REFETCH_INTERVAL_MS = 60_000
+
 // 导航中展示的自定义页面（只取公开且勾选了「导航展示」的页面，按导航排序升序）：布局在服务端预取并随顶栏渲染（见 api/nav-pages.server.ts）；
-// 没有预取到时挂载后获取。标签页重新可见时再取一次，在其他标签页（如后台）修改了页面设置后切回来即可看到
+// 没有预取到时挂载后获取。标签页重新可见时再取一次（节流避免频繁切换重复请求），在其他标签页（如后台）修改了页面设置后切回来即可看到
 function useNavPages() {
   const initialPages = useInitialNavPages()
   const [pages, setPages] = useState<PageModel[]>(initialPages ?? [])
   const hasInitial = initialPages !== undefined
+  const lastFetchedAtRef = useRef(0)
   useEffect(() => {
     let cancelled = false
+    if (hasInitial && lastFetchedAtRef.current === 0)
+      lastFetchedAtRef.current = Date.now()
     const load = () => {
+      lastFetchedAtRef.current = Date.now()
       listPages(NAV_PAGES_QUERY)
         .then((res) => {
           if (!cancelled)
@@ -94,7 +100,7 @@ function useNavPages() {
         .catch(() => { })
     }
     const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible')
+      if (document.visibilityState === 'visible' && Date.now() - lastFetchedAtRef.current >= NAV_PAGES_REFETCH_INTERVAL_MS)
         load()
     }
     if (!hasInitial)

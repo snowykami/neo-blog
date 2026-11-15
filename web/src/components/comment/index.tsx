@@ -5,7 +5,7 @@ import type { Comment } from '@/models/comment'
 import type { UserBrief } from '@/models/user'
 import { Loader2, MessageCircleHeartIcon } from 'lucide-react'
 import { useLocale, useTranslations } from 'next-intl'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { createComment, deleteComment, getComment, listComments } from '@/api/comment'
 import { notifySuccess } from '@/components/layout/topbar-island/island-feedback'
@@ -176,21 +176,24 @@ export function CommentSection({
     }
   }
 
-  const onCountChange = (delta: number) => {
+  const onCountChange = useCallback((delta: number) => {
     setTotalCommentCount(c => Math.max(0, c + delta))
-  }
+  }, [])
+
+  const commentsRef = useRef(comments)
+  commentsRef.current = comments
 
   // 失败时抛出，由删除确认气泡统一提示并保持打开；主评论下的回复会一并删除
-  const onCommentDelete = async ({ commentId }: { commentId: number }) => {
+  const onCommentDelete = useCallback(async ({ commentId }: { commentId: number }) => {
     await deleteComment({ id: commentId })
     toast.success(t('delete_success'))
-    const removed = comments.find(comment => comment.id === commentId)
+    const removed = commentsRef.current.find(comment => comment.id === commentId)
     if (pinnedRootRef.current?.id === commentId)
       pinnedRootRef.current = null
     setComments(prevComments => prevComments.filter(comment => comment.id !== commentId))
     onCountChange(-1 - (removed?.threadCount ?? 0))
     localDeletedRef.current += 1
-  }
+  }, [onCountChange, t])
 
   // 读取 ?comment= 深链：先查这条评论在哪个线程，再把线程根补进列表（它可能还没被翻到）。
   // 参数读到后立即从地址里去掉，定位只做一次：之后加载更多、展开别的线程、收起目标线程都不会被拉回
