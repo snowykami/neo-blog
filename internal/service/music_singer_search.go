@@ -47,8 +47,15 @@ func vocalSafeFetch(ctx context.Context, rawURL string, maxBytes int64, allowedT
 	if err != nil {
 		return nil, err
 	}
-	// 保持 neo-blog-agent UA，萌娘百科等站对桌面浏览器 UA 触发 WAF 403
-	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; neo-blog-agent/1.0)")
+	host := strings.ToLower(u.Hostname())
+	if usesDesktopBrowserUA(host) {
+		// 搜索引擎与 Genius 会拦截自定义 bot UA 返回 429/403，对其使用标准桌面浏览器 UA
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+		req.Header.Set("Accept-Language", "ja,en-US;q=0.9,zh-CN;q=0.8")
+	} else {
+		// 萌娘百科与常规站点保持 neo-blog-agent UA，避免桌面浏览器 UA 触发 WAF 403
+		req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; neo-blog-agent/1.0)")
+	}
 	resp, err := vocalSearchHTTPClient.Do(req)
 	if err != nil {
 		if errors.Is(err, utils.ErrBlockedAddress) {
@@ -97,10 +104,27 @@ const (
 	VocalEvidenceFormatHTML        VocalEvidenceFormat = "html"
 )
 
+func isSearchEngineFetchHost(host string) bool {
+	return host == "search.brave.com" ||
+		strings.HasSuffix(host, ".brave.com") ||
+		host == "yahoo.co.jp" ||
+		strings.HasSuffix(host, ".yahoo.co.jp") ||
+		host == "bing.com" ||
+		strings.HasSuffix(host, ".bing.com") ||
+		host == "duckduckgo.com" ||
+		strings.HasSuffix(host, ".duckduckgo.com")
+}
+
+func usesDesktopBrowserUA(host string) bool {
+	return isSearchEngineFetchHost(host) ||
+		host == "genius.com" ||
+		strings.HasSuffix(host, ".genius.com")
+}
+
 const (
-	vocalSearchTotalTimeout     = 25 * time.Second
-	vocalSearchPerSiteTimeout   = 6 * time.Second
-	vocalSearchPerParseTimeout  = 8 * time.Second
+	vocalSearchTotalTimeout     = 22 * time.Second
+	vocalSearchPerSiteTimeout   = 8 * time.Second
+	vocalSearchPerParseTimeout  = 10 * time.Second
 	vocalSearchMinOverlapLines  = 1
 	vocalWebSearchMinOverlapLen = 4
 )
@@ -313,6 +337,8 @@ func (a *lyricSingerService) buildDefaultProviders() []VocalEvidenceProvider {
 	return []VocalEvidenceProvider{
 		&siblingLyricVocalProvider{svc: a},
 		&mediaWikiClusterProvider{sites: defaultMediaWikiSites},
+		&geniusVocalProvider{svc: a},
+		&partBlogClusterProvider{svc: a, sites: defaultPartBlogSites},
 		&moegirlVocalProvider{svc: a},
 		&webSearchVocalProvider{svc: a},
 	}
@@ -455,9 +481,6 @@ func searchAndCleanVocalEvidence(ctx context.Context, svc *lyricSingerService, i
 		return nil
 	}
 
-	searchCtx, cancel := context.WithTimeout(ctx, vocalSearchTotalTimeout)
-	defer cancel()
-
 	type activeProvider struct {
 		p        VocalEvidenceProvider
 		priority int
@@ -484,6 +507,10 @@ func searchAndCleanVocalEvidence(ctx context.Context, svc *lyricSingerService, i
 		if len(providers) == 0 {
 			return nil
 		}
+		// 每一层使用独立的子超时，防止 tier1（垂直 Wiki 并发）耗尽配额后饿死 tier2（全网搜索兜底）
+		tierCtx, cancel := context.WithTimeout(ctx, vocalSearchTotalTimeout)
+		defer cancel()
+
 		var (
 			mu   sync.Mutex
 			wg   sync.WaitGroup
@@ -494,7 +521,7 @@ func searchAndCleanVocalEvidence(ctx context.Context, svc *lyricSingerService, i
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				items, err := ap.p.Search(searchCtx, q)
+				items, err := ap.p.Search(tierCtx, q)
 				if err != nil {
 					logrus.Debugf("vocal provider %s error for %q: %v", ap.p.ID(), q.CleanTitle, err)
 					return
@@ -537,6 +564,8 @@ func searchAndCleanVocalEvidence(ctx context.Context, svc *lyricSingerService, i
 	})
 
 	best := candidates[0]
+	logrus.Infof("vocal search selected song %d (%s): provider=%s url=%s singers=%d tags=%d overlap=%d",
+		input.Track.ID, input.Source, best.ProviderID, best.URL, best.DetectedSingers, best.DetectedTags, best.OverlapScore)
 	return &best
 }
 
@@ -572,25 +601,35 @@ func (p *mediaWikiClusterProvider) Match(q *VocalSearchQuery) int {
 	if q == nil || q.CleanTitle == "" {
 		return -1
 	}
-	// 无明确企划路由且标题/艺人/歌词均不含中日文时，跳过 ACG 专有 Wiki 轮询
-	if !p.hasPriorityRoute(q) && !q.HasCJK && !q.HasCJKContext {
-		return -1
-	}
 	if q.PrefersVirtualSinger || p.hasPriorityRoute(q) {
 		return 95
 	}
-	return 80
+	if q.HasCJK || q.HasCJKContext {
+		return 80
+	}
+	// 无明确企划路由的纯英文/多艺人曲目，尝试基于艺人/专辑推导出垂直 Fandom Wiki（如 ladygaga / thegreatestshowman）
+	if len(deriveDynamicFandomSites(q, p.sites)) > 0 {
+		return 84
+	}
+	return -1
 }
 
 func (p *mediaWikiClusterProvider) orderedSites(q *VocalSearchQuery) ([]mediaWikiSite, bool) {
 	meta := strings.Join(q.Artists, " ") + " " + q.RawTitle + " " + strings.Join(q.Aliases, " ") + " " + q.Album
+	hasSEKAIHuman := !q.PrefersVirtualSinger && reVocalSEKAIHuman.MatchString(meta)
 	var routed, others []mediaWikiSite
 	for _, site := range p.sites {
+		// 当曲目明确含 SEKAI 人类组合/角色时，不拉取 vocaloidlyrics 虚拟歌手版本以免抢占并取消 PJSK 人类分色
+		if hasSEKAIHuman && site.ID == "vocaloidlyrics" {
+			continue
+		}
 		matched := site.RouteRe != nil && site.RouteRe.MatchString(meta)
 		if matched {
 			// 纯虚拟歌手版本将 vocaloidlyrics 放在第一位，projectsekai/sekaipedia 紧随其后
 			if q.PrefersVirtualSinger && site.ID == "vocaloidlyrics" {
 				site.Priority += 10
+			} else if hasSEKAIHuman && (site.ID == "projectsekai" || site.ID == "sekaipedia") {
+				site.Priority += 5
 			}
 			routed = append(routed, site)
 		} else {
@@ -613,7 +652,97 @@ func (p *mediaWikiClusterProvider) orderedSites(q *VocalSearchQuery) ([]mediaWik
 		sort.SliceStable(routed, func(i, j int) bool { return routed[i].Priority > routed[j].Priority })
 		return routed, true
 	}
+	if !q.HasCJK && !q.HasCJKContext {
+		dynamicSites := deriveDynamicFandomSites(q, p.sites)
+		if len(dynamicSites) > 0 {
+			return dynamicSites, true
+		}
+		return nil, false
+	}
 	return others, false
+}
+
+var reVocalFandomSuffixStrip = regexp.MustCompile(`(?i)\s*(?:\([^)]*(?:soundtrack|ost|deluxe|edition|version|remaster|single|ep)[^)]*\)|-\s*(?:single|ep|original[^-]+))$`)
+
+func sanitizeFandomSlug(raw string) string {
+	trimmed := strings.TrimSpace(reVocalFandomSuffixStrip.ReplaceAllString(strings.TrimSpace(raw), ""))
+	trimmed = strings.TrimPrefix(strings.TrimPrefix(trimmed, "The "), "the ")
+	var b strings.Builder
+	for _, r := range strings.ToLower(trimmed) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		}
+	}
+	slug := b.String()
+	if len(slug) < 3 || len(slug) > 28 {
+		return ""
+	}
+	return slug
+}
+
+func deriveDynamicFandomSites(q *VocalSearchQuery, existing []mediaWikiSite) []mediaWikiSite {
+	if q == nil || q.HasCJK || !q.HasMultiArtistHint {
+		return nil
+	}
+	knownAPI := make(map[string]bool, len(existing))
+	for _, s := range existing {
+		knownAPI[strings.ToLower(s.APIBase)] = true
+	}
+
+	seenSlug := map[string]bool{}
+	var out []mediaWikiSite
+	addCandidate := func(label string) {
+		trimmed := strings.TrimSpace(reVocalFandomSuffixStrip.ReplaceAllString(strings.TrimSpace(label), ""))
+		if trimmed == "" {
+			return
+		}
+		var rawSlugs []string
+		// 专辑名如 "The Greatest Showman" 在 Fandom 多用完整前缀 `thegreatestshowman`
+		var fullB strings.Builder
+		for _, r := range strings.ToLower(trimmed) {
+			if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+				fullB.WriteRune(r)
+			}
+		}
+		if s := fullB.String(); len(s) >= 3 && len(s) <= 28 {
+			rawSlugs = append(rawSlugs, s)
+		}
+		if s := sanitizeFandomSlug(trimmed); s != "" && s != fullB.String() {
+			rawSlugs = append(rawSlugs, s)
+		}
+		for _, slug := range rawSlugs {
+			if seenSlug[slug] {
+				continue
+			}
+			apiBase := fmt.Sprintf("https://%s.fandom.com/api.php", slug)
+			if knownAPI[strings.ToLower(apiBase)] {
+				continue
+			}
+			seenSlug[slug] = true
+			out = append(out, mediaWikiSite{
+				ID:       "fandom-" + slug,
+				Name:     trimmed + " Fandom Wiki",
+				APIBase:  apiBase,
+				PageBase: fmt.Sprintf("https://%s.fandom.com/wiki/", slug),
+				Priority: 84,
+			})
+			if len(out) >= 4 {
+				return
+			}
+		}
+	}
+
+	// 优先探测前 2 位主艺人与专辑（常见欧美合唱曲在主演/专辑 Fandom 中带有 [Verse 1: Singer]）
+	for i := 0; i < len(q.Artists) && i < 2; i++ {
+		addCandidate(q.Artists[i])
+	}
+	if strings.TrimSpace(q.Album) != "" {
+		addCandidate(q.Album)
+	}
+	if len(out) > 4 {
+		return out[:4]
+	}
+	return out
 }
 
 func (p *mediaWikiClusterProvider) Search(ctx context.Context, q *VocalSearchQuery) ([]VocalEvidenceCandidate, error) {
@@ -658,7 +787,8 @@ func (p *mediaWikiClusterProvider) Search(ctx context.Context, q *VocalSearchQue
 			mu.Lock()
 			results = append(results, *cand)
 			// 垂直路由命中的 Wiki 验证通过后立即取消其余低优兜底站点请求
-			if hasRouted && cand.Priority >= 88 {
+			// 日/中文语境歌曲仅当候选已包含日/中文原词且命中行数足够时才提前取消，避免纯罗马音页过早截断日文来源
+			if hasRouted && cand.Priority >= 88 && (!q.HasCJKContext || (reVocalCJK.MatchString(cand.CleanContent) && cand.OverlapScore >= 3)) {
 				cancel()
 			}
 			mu.Unlock()
@@ -681,109 +811,147 @@ func searchSingleMediaWikiSite(ctx context.Context, site mediaWikiSite, q *Vocal
 			continue
 		}
 		hits := fetchMediaWikiSearchHits(ctx, site.APIBase, variant)
-		if len(hits) == 0 {
+		if cand := evaluateMediaWikiHits(ctx, site, q, hits, variant, false); cand != nil {
+			return cand
+		}
+	}
+
+	// 当英文/罗马音标题 MediaWiki（如 PJSK / Sekaipedia）直接搜片假名/汉字标题未命中时，
+	// 用前段 CJK 歌词行做一次检索兜底（后续仍由 cleanAndVerifyCandidate 执行严格歌词重叠校验）
+	if site.RouteRe != nil && len(q.LyricsLines) >= 3 {
+		for _, line := range q.LyricsLines {
+			clean := strings.TrimSpace(line)
+			runeLen := len([]rune(clean))
+			if runeLen < 6 || runeLen > 28 || !reVocalCJK.MatchString(clean) || reCleanCreditLine.MatchString(clean) {
+				continue
+			}
+			hits := fetchMediaWikiSearchHits(ctx, site.APIBase, clean)
+			if cand := evaluateMediaWikiHits(ctx, site, q, hits, q.CleanTitle, true); cand != nil {
+				return cand
+			}
+			break
+		}
+	}
+	return nil
+}
+
+func evaluateMediaWikiHits(
+	ctx context.Context,
+	site mediaWikiSite,
+	q *VocalSearchQuery,
+	hits []mwSearchHit,
+	variant string,
+	viaLyricFallback bool,
+) *VocalEvidenceCandidate {
+	if len(hits) == 0 {
+		return nil
+	}
+
+	// 若曲名自身不含 '/'，剔除明显属于图库/专辑/碟片目录/分类的子页面
+	var filtered []mwSearchHit
+	allowSlash := strings.Contains(q.CleanTitle, "/")
+	for _, h := range hits {
+		low := strings.ToLower(h.Title)
+		if strings.HasPrefix(low, "category:") || strings.HasPrefix(low, "template:") || strings.HasPrefix(low, "file:") {
 			continue
 		}
-
-		// 若曲名自身不含 '/'，剔除明显属于图库/专辑/碟片目录/分类的子页面
-		var filtered []mwSearchHit
-		allowSlash := strings.Contains(q.CleanTitle, "/")
-		for _, h := range hits {
-			low := strings.ToLower(h.Title)
-			if strings.HasPrefix(low, "category:") || strings.HasPrefix(low, "template:") || strings.HasPrefix(low, "file:") {
-				continue
-			}
-			if !allowSlash && (strings.Contains(low, "/gallery") || strings.Contains(low, "/discography") || strings.Contains(low, "/audio")) {
-				continue
-			}
-			if !strings.Contains(strings.ToLower(q.CleanTitle), "discography") && strings.Contains(low, "discography") {
-				continue
-			}
-			filtered = append(filtered, h)
-		}
-		if len(filtered) == 0 {
+		if !allowSlash && (strings.Contains(low, "/gallery") || strings.Contains(low, "/discography") || strings.Contains(low, "/audio")) {
 			continue
 		}
+		if !strings.Contains(strings.ToLower(q.CleanTitle), "discography") && strings.Contains(low, "discography") {
+			continue
+		}
+		filtered = append(filtered, h)
+	}
+	if len(filtered) == 0 {
+		return nil
+	}
 
+	normVariant := normalizeSearchTitle(variant)
+	if !viaLyricFallback {
 		sort.SliceStable(filtered, func(i, j int) bool {
 			return rankMediaWikiHit(filtered[i].Title, variant, q.NormTitle) < rankMediaWikiHit(filtered[j].Title, variant, q.NormTitle)
 		})
+	}
 
-		queryTokens := extractLatinSearchTokens(variant)
-		normVariant := normalizeSearchTitle(variant)
+	queryTokens := extractLatinSearchTokens(variant)
+	checked := 0
+	for _, h := range filtered {
+		if checked >= 2 {
+			break
+		}
+		title := strings.TrimSpace(h.Title)
+		baseNormTitle := normalizeSearchTitle(reVocalSongParen.ReplaceAllString(title, ""))
+		snippetLower := strings.ToLower(utils.HTMLExcerpt(h.Snippet, 240))
 
-		checked := 0
-		for _, h := range filtered {
-			if checked >= 2 {
-				break
-			}
-			title := strings.TrimSpace(h.Title)
-			baseNormTitle := normalizeSearchTitle(reVocalSongParen.ReplaceAllString(title, ""))
-			snippetLower := strings.ToLower(utils.HTMLExcerpt(h.Snippet, 240))
-
-			// CJK 曲名（如「群青讃歌」「ステラ」）在英文 Wiki 多以罗马音命名，严禁用英文 token 预过滤 title；
-			// 非 CJK 曲名做严格 token 与长度比例核验，避免如「Crazy ∞ nighT」误匹配「CRAZY」
-			if !reVocalCJK.MatchString(variant) {
-				if len(queryTokens) > 0 {
-					hasToken := false
-					for _, tok := range queryTokens {
-						if strings.Contains(baseNormTitle, tok) || strings.Contains(snippetLower, tok) {
-							hasToken = true
-							break
-						}
-					}
-					if !hasToken && !eitherContains(baseNormTitle, normVariant) {
-						continue
+		// CJK 曲名（如「群青讃歌」「ステラ」）在英文 Wiki 多以罗马音命名，严禁用英文 token 预过滤 title；
+		// 非 CJK 曲名做严格 token 与长度比例核验，避免如「Crazy ∞ nighT」误匹配「CRAZY」
+		if !viaLyricFallback && !reVocalCJK.MatchString(variant) {
+			if len(queryTokens) > 0 {
+				hasToken := false
+				for _, tok := range queryTokens {
+					if strings.Contains(baseNormTitle, tok) || strings.Contains(snippetLower, tok) {
+						hasToken = true
+						break
 					}
 				}
-				baseLen := len([]rune(baseNormTitle))
-				queryLen := len([]rune(normVariant))
-				if queryLen > 0 && baseLen*100 < queryLen*75 && !strings.Contains(baseNormTitle, normVariant) {
+				if !hasToken && !eitherContains(baseNormTitle, normVariant) {
 					continue
 				}
 			}
-
-			checked++
-			resolvedTitle, wikitext := fetchMediaWikiParseWikitext(ctx, site.APIBase, title)
-			if strings.TrimSpace(wikitext) == "" {
+			baseLen := len([]rune(baseNormTitle))
+			queryLen := len([]rune(normVariant))
+			if queryLen > 0 && baseLen*100 < queryLen*75 && !strings.Contains(baseNormTitle, normVariant) {
 				continue
 			}
-			if resolvedTitle != "" {
-				title = resolvedTitle
-				baseNormTitle = normalizeSearchTitle(reVocalSongParen.ReplaceAllString(title, ""))
-			}
+		}
 
-			// 严格曲名校验：标题归一化互含 OR 正文精确出现标准曲名（支持全/半角标点归一与重定向后标题）
-			foldedWiki := vocalTitlePunctReplacer.Replace(wikitext)
-			titleMatch := eitherContains(baseNormTitle, q.NormTitle) || eitherContains(baseNormTitle, normVariant)
-			if !reVocalCJK.MatchString(variant) && len([]rune(baseNormTitle)) < len([]rune(normVariant))*75/100 {
-				titleMatch = false
-			}
-			contentMatch := false
-			for _, tv := range q.TitleVariants {
-				if len([]rune(tv)) >= 2 && strings.Contains(foldedWiki, vocalTitlePunctReplacer.Replace(tv)) {
-					contentMatch = true
-					break
-				}
-			}
-			if !titleMatch && !contentMatch {
-				continue
-			}
+		checked++
+		resolvedTitle, wikitext := fetchMediaWikiParseWikitext(ctx, site.APIBase, title)
+		if strings.TrimSpace(wikitext) == "" {
+			continue
+		}
+		if resolvedTitle != "" {
+			title = resolvedTitle
+			baseNormTitle = normalizeSearchTitle(reVocalSongParen.ReplaceAllString(title, ""))
+		}
 
-			if !reVocalWikiPartIndicator.MatchString(wikitext) && !reVocalWikiLyricsIndicator.MatchString(wikitext) {
-				continue
+		// 严格曲名校验：标题归一化互含 OR 正文精确出现标准曲名（支持去模板噪声与全/半角标点归一）
+		foldedWiki := vocalTitlePunctReplacer.Replace(wikitext)
+		strippedWikiNorm := normalizeSearchTitle(stripWikiInlineNoise(wikitext))
+		titleMatch := eitherContains(baseNormTitle, q.NormTitle) || eitherContains(baseNormTitle, normVariant)
+		if !viaLyricFallback && !reVocalCJK.MatchString(variant) && len([]rune(baseNormTitle)) < len([]rune(normVariant))*75/100 {
+			titleMatch = false
+		}
+		contentMatch := false
+		for _, tv := range q.TitleVariants {
+			normTV := normalizeSearchTitle(tv)
+			if len([]rune(tv)) >= 2 && (strings.Contains(foldedWiki, vocalTitlePunctReplacer.Replace(tv)) ||
+				(normTV != "" && strings.Contains(strippedWikiNorm, normTV))) {
+				contentMatch = true
+				break
 			}
+		}
+		// 对已通过垂直企划路由且包含明确声部标记的 CJK 曲目（如 PJSK 英文/罗马音条目页），
+		// 放行进入 cleanAndVerifyCandidate 由严格歌词文本重叠校验最终把关
+		routedCJKPartMatch := site.RouteRe != nil && (q.HasCJK || reVocalCJK.MatchString(variant)) && reVocalWikiPartIndicator.MatchString(wikitext)
+		if !titleMatch && !contentMatch && !routedCJKPartMatch {
+			continue
+		}
 
-			pageSlug := url.PathEscape(strings.ReplaceAll(title, " ", "_"))
-			return &VocalEvidenceCandidate{
-				ProviderID: "mediawiki:" + site.ID,
-				SourceName: site.Name,
-				Title:      title,
-				URL:        strings.TrimRight(site.PageBase, "/") + "/" + pageSlug,
-				Format:     VocalEvidenceFormatWikitext,
-				RawContent: wikitext,
-				Priority:   site.Priority,
-			}
+		if !reVocalWikiPartIndicator.MatchString(wikitext) && !reVocalWikiLyricsIndicator.MatchString(wikitext) {
+			continue
+		}
+
+		pageSlug := url.PathEscape(strings.ReplaceAll(title, " ", "_"))
+		return &VocalEvidenceCandidate{
+			ProviderID: "mediawiki:" + site.ID,
+			SourceName: site.Name,
+			Title:      title,
+			URL:        strings.TrimRight(site.PageBase, "/") + "/" + pageSlug,
+			Format:     VocalEvidenceFormatWikitext,
+			RawContent: wikitext,
+			Priority:   site.Priority,
 		}
 	}
 	return nil
@@ -887,11 +1055,111 @@ type moegirlVocalProvider struct {
 
 func (p *moegirlVocalProvider) ID() string { return "moegirl" }
 
+func normalizeMoegirlTitleCompare(s string) string {
+	s = strings.TrimSpace(s)
+	for {
+		idx := strings.LastIndexAny(s, "(（")
+		if idx <= 0 {
+			break
+		}
+		trimmed := strings.TrimSpace(s[:idx])
+		if trimmed == "" {
+			break
+		}
+		s = trimmed
+	}
+	var b strings.Builder
+	for _, r := range strings.ToLower(s) {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+func moegirlHasCJKOrKana(s string) bool {
+	for _, r := range s {
+		if unicode.Is(unicode.Han, r) || unicode.Is(unicode.Hiragana, r) || unicode.Is(unicode.Katakana, r) {
+			return true
+		}
+	}
+	return false
+}
+
+func moegirlTitleMatchesTarget(pageNorm, targetNorm string) bool {
+	if pageNorm == "" || targetNorm == "" {
+		return false
+	}
+	if pageNorm == targetNorm {
+		return true
+	}
+	if moegirlHasCJKOrKana(pageNorm) && moegirlHasCJKOrKana(targetNorm) {
+		pr := []rune(pageNorm)
+		tr := []rune(targetNorm)
+		maxLen := max(len(pr), len(tr))
+		diff := maxLen - min(len(pr), len(tr))
+		if maxLen >= 2 && diff <= 3 {
+			set := make(map[rune]bool, len(tr))
+			for _, r := range tr {
+				set[r] = true
+			}
+			common := 0
+			for _, r := range pr {
+				if set[r] {
+					common++
+				}
+			}
+			if common >= 2 && common*2 >= maxLen {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func moegirlTitleMatchesQuery(pageTitle, variant string, q *VocalSearchQuery) bool {
+	if strings.TrimSpace(pageTitle) == "" || q == nil {
+		return false
+	}
+	// 构建目标规范化标题列表（去括号、去标点空格；对搜索变体剔除歌手名以防命中组合/作品条目页）
+	var targets []string
+	if norm := normalizeMoegirlTitleCompare(q.CleanTitle); norm != "" {
+		targets = append(targets, norm)
+	}
+	cleanVariant := variant
+	for _, artist := range q.Artists {
+		if a := strings.TrimSpace(artist); a != "" {
+			cleanVariant = strings.ReplaceAll(cleanVariant, a, " ")
+		}
+	}
+	if norm := normalizeMoegirlTitleCompare(cleanVariant); norm != "" {
+		targets = append(targets, norm)
+	}
+	if len(targets) == 0 {
+		return false
+	}
+
+	candidates := []string{normalizeMoegirlTitleCompare(pageTitle)}
+	for _, seg := range strings.Split(pageTitle, "/") {
+		if norm := normalizeMoegirlTitleCompare(seg); norm != "" {
+			candidates = append(candidates, norm)
+		}
+	}
+	for _, pageNorm := range candidates {
+		for _, targetNorm := range targets {
+			if moegirlTitleMatchesTarget(pageNorm, targetNorm) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (p *moegirlVocalProvider) Match(q *VocalSearchQuery) int {
 	if q == nil || q.CleanTitle == "" {
 		return -1
 	}
-	if !q.HasCJK && !q.HasCJKContext && !q.HasMultiArtistHint {
+	if !q.HasCJK && !q.HasCJKContext {
 		return -1
 	}
 	return 85
@@ -956,7 +1224,8 @@ func (p *moegirlVocalProvider) Search(ctx context.Context, q *VocalSearchQuery) 
 				continue
 			}
 			low := strings.ToLower(title)
-			if strings.Contains(low, "列表") || strings.Contains(low, "目录") || strings.Contains(low, "template:") {
+			if strings.Contains(low, "列表") || strings.Contains(low, "目录") || strings.Contains(low, "template:") ||
+				!moegirlTitleMatchesQuery(title, variant, q) {
 				continue
 			}
 			seenPage[title] = true
@@ -1168,15 +1437,22 @@ func (p *webSearchVocalProvider) Search(ctx context.Context, q *VocalSearchQuery
 	}
 
 	var queries []string
-	if q.HasCJKContext {
-		queries = append(queries,
-			fmt.Sprintf("%q パート分け 歌詞", q.CleanTitle),
-			fmt.Sprintf("%q 歌割り 歌詞", q.CleanTitle),
-		)
-		if len(q.Artists) > 0 {
+	switch {
+	case q.HasCJK:
+		// 日文歌割/パート分け博客不支持严格英文引号精准匹配，不加引号显著提升命中率；仅纯中文曲目才追加中文合唱词条检索
+		queries = append(queries, fmt.Sprintf("%s パート分け 歌詞", q.CleanTitle))
+		if len(q.Artists) > 0 && !reVocalKana.MatchString(q.CleanTitle+" "+strings.Join(q.LyricsLines, "\n")) {
 			queries = append(queries, fmt.Sprintf("%q %s 歌词 分唱 合唱", q.CleanTitle, q.Artists[0]))
 		}
-	} else if len(q.Artists) > 0 {
+	case q.HasCJKContext:
+		// 英文标题但处于日/中文语境（如 Virtual to LIVE / Prism Melody / Don't say "lazy"），先搜日文歌割，再辅以 Fandom
+		queries = append(queries, fmt.Sprintf("%s パート分け 歌詞", q.CleanTitle))
+		if len(q.Artists) > 0 {
+			limit := min(2, len(q.Artists))
+			artistJoined := strings.Join(q.Artists[:limit], " ")
+			queries = append(queries, fmt.Sprintf("%q %s fandom", q.CleanTitle, artistJoined))
+		}
+	case len(q.Artists) > 0:
 		limit := min(2, len(q.Artists))
 		artistJoined := strings.Join(q.Artists[:limit], " ")
 		queries = append(queries,
@@ -1248,7 +1524,7 @@ func (p *webSearchVocalProvider) fetchTopHits(ctx context.Context, hits []webSea
 			}
 		}
 
-		rawBody, finalURL, ok := p.fetchCandidatePage(ctx, h.URL)
+		rawBody, finalURL, ok := fetchVocalCandidateHTML(ctx, p.svc, h.URL)
 		if !ok {
 			continue
 		}
@@ -1273,9 +1549,9 @@ func (p *webSearchVocalProvider) fetchTopHits(ctx context.Context, hits []webSea
 	return out
 }
 
-func (p *webSearchVocalProvider) fetchCandidatePage(ctx context.Context, rawURL string) (string, string, bool) {
-	if p.svc != nil && p.svc.fetchPage != nil {
-		out, urls, err := p.svc.fetchPage(ctx, rawURL)
+func fetchVocalCandidateHTML(ctx context.Context, svc *lyricSingerService, rawURL string) (string, string, bool) {
+	if svc != nil && svc.fetchPage != nil {
+		out, urls, err := svc.fetchPage(ctx, rawURL)
 		if err == nil && strings.TrimSpace(out) != "" {
 			final := rawURL
 			if len(urls) > 0 && urls[0] != "" {
@@ -1295,6 +1571,419 @@ func (p *webSearchVocalProvider) fetchCandidatePage(ctx context.Context, rawURL 
 		final = rawURL
 	}
 	return string(res.Body), final, true
+}
+
+// =========================================================================
+// Provider 4: Genius 直连歌词 API 源（欧美合唱/音乐剧声部分段 [Verse: Artist]）
+// =========================================================================
+
+type geniusVocalProvider struct {
+	svc *lyricSingerService
+}
+
+func (p *geniusVocalProvider) ID() string { return "genius" }
+
+func (p *geniusVocalProvider) Match(q *VocalSearchQuery) int {
+	if q == nil || q.CleanTitle == "" || !q.HasMultiArtistHint {
+		return -1
+	}
+	if !q.HasCJK {
+		return 86
+	}
+	return 44
+}
+
+type geniusSongHit struct {
+	URL         string
+	Title       string
+	FullTitle   string
+	ArtistNames string
+}
+
+func (p *geniusVocalProvider) Search(ctx context.Context, q *VocalSearchQuery) ([]VocalEvidenceCandidate, error) {
+	queries := make([]string, 0, 2)
+	if len(q.Artists) > 0 && strings.TrimSpace(q.Artists[0]) != "" {
+		queries = append(queries, q.CleanTitle+" "+strings.TrimSpace(q.Artists[0]))
+	}
+	queries = append(queries, q.CleanTitle)
+
+	seenURL := map[string]bool{}
+	var matched []geniusSongHit
+	for _, query := range queries {
+		hits := fetchGeniusSongHits(ctx, query)
+		if len(hits) == 0 {
+			hits = fetchGeniusMultiHits(ctx, query)
+		}
+		for _, h := range hits {
+			if h.URL == "" || seenURL[h.URL] {
+				continue
+			}
+			if !isAcceptableGeniusHit(h, q) {
+				continue
+			}
+			seenURL[h.URL] = true
+			matched = append(matched, h)
+			if len(matched) >= 2 {
+				break
+			}
+		}
+		if len(matched) > 0 {
+			break
+		}
+	}
+	if len(matched) == 0 {
+		return nil, nil
+	}
+
+	prio := p.Match(q)
+	if prio < 0 {
+		prio = 44
+	}
+	var out []VocalEvidenceCandidate
+	for _, h := range matched {
+		rawHTML, finalURL, ok := fetchVocalCandidateHTML(ctx, p.svc, h.URL)
+		if !ok {
+			continue
+		}
+		cand := VocalEvidenceCandidate{
+			ProviderID: "genius",
+			SourceName: "Genius Lyrics",
+			Title:      h.FullTitle,
+			URL:        finalURL,
+			Format:     VocalEvidenceFormatHTML,
+			RawContent: rawHTML,
+			Priority:   prio,
+		}
+		if cleanAndVerifyCandidate(&cand, q) {
+			out = append(out, cand)
+			break
+		}
+	}
+	return out, nil
+}
+
+func fetchGeniusSongHits(ctx context.Context, query string) []geniusSongHit {
+	reqCtx, cancel := context.WithTimeout(ctx, vocalSearchPerSiteTimeout)
+	defer cancel()
+
+	endpoint := appendQuery("https://genius.com/api/search/song", url.Values{"q": {query}, "per_page": {"15"}})
+	res, err := vocalSafeFetch(reqCtx, endpoint, lyricSingerFetchMaxBytes, "application/json")
+	if err != nil || res == nil || len(res.Body) == 0 {
+		return nil
+	}
+	var parsed struct {
+		Response struct {
+			Sections []struct {
+				Type string `json:"type"`
+				Hits []struct {
+					Type   string `json:"type"`
+					Result struct {
+						URL         string `json:"url"`
+						Title       string `json:"title"`
+						FullTitle   string `json:"full_title"`
+						ArtistNames string `json:"artist_names"`
+					} `json:"result"`
+				} `json:"hits"`
+			} `json:"sections"`
+		} `json:"response"`
+	}
+	if err := json.Unmarshal(res.Body, &parsed); err != nil {
+		return nil
+	}
+	var out []geniusSongHit
+	for _, sec := range parsed.Response.Sections {
+		for _, h := range sec.Hits {
+			if h.Result.URL != "" {
+				out = append(out, geniusSongHit{
+					URL:         h.Result.URL,
+					Title:       h.Result.Title,
+					FullTitle:   h.Result.FullTitle,
+					ArtistNames: h.Result.ArtistNames,
+				})
+			}
+		}
+	}
+	return out
+}
+
+func fetchGeniusMultiHits(ctx context.Context, query string) []geniusSongHit {
+	reqCtx, cancel := context.WithTimeout(ctx, vocalSearchPerSiteTimeout)
+	defer cancel()
+
+	endpoint := appendQuery("https://genius.com/api/search/multi", url.Values{"q": {query}, "per_page": {"5"}})
+	res, err := vocalSafeFetch(reqCtx, endpoint, lyricSingerFetchMaxBytes, "application/json")
+	if err != nil || res == nil || len(res.Body) == 0 {
+		return nil
+	}
+	var parsed struct {
+		Response struct {
+			Sections []struct {
+				Type string `json:"type"`
+				Hits []struct {
+					Type   string `json:"type"`
+					Result struct {
+						URL         string `json:"url"`
+						Title       string `json:"title"`
+						FullTitle   string `json:"full_title"`
+						ArtistNames string `json:"artist_names"`
+					} `json:"result"`
+				} `json:"hits"`
+			} `json:"sections"`
+		} `json:"response"`
+	}
+	if err := json.Unmarshal(res.Body, &parsed); err != nil {
+		return nil
+	}
+	var out []geniusSongHit
+	for _, sec := range parsed.Response.Sections {
+		if sec.Type != "song" && sec.Type != "top_hit" {
+			continue
+		}
+		for _, h := range sec.Hits {
+			if h.Type == "song" && h.Result.URL != "" {
+				out = append(out, geniusSongHit{
+					URL:         h.Result.URL,
+					Title:       h.Result.Title,
+					FullTitle:   h.Result.FullTitle,
+					ArtistNames: h.Result.ArtistNames,
+				})
+			}
+		}
+	}
+	return out
+}
+
+func isAcceptableGeniusHit(h geniusSongHit, q *VocalSearchQuery) bool {
+	if q == nil || h.URL == "" {
+		return false
+	}
+	lowURL := strings.ToLower(h.URL)
+	lowArtist := strings.ToLower(strings.TrimSpace(h.ArtistNames))
+	if strings.HasPrefix(lowArtist, "genius ") || strings.Contains(lowURL, "/genius-") {
+		return false
+	}
+	for _, bad := range []string{"traduccion", "traducao", "traduzione", "ubersetzung", "traduction", "romanized", "romanised", "translation", "instrumental"} {
+		if strings.Contains(lowURL, bad) {
+			return false
+		}
+	}
+
+	hitNorm := normalizeSearchTitle(reVocalSongParen.ReplaceAllString(h.Title, ""))
+	if !eitherContains(hitNorm, q.NormTitle) {
+		return false
+	}
+	if !q.HasCJK {
+		if len([]rune(hitNorm))*100 < len([]rune(q.NormTitle))*75 {
+			return false
+		}
+	}
+
+	if len(q.Artists) > 0 {
+		hay := strings.ToLower(h.ArtistNames + " " + h.FullTitle)
+		artistMatched := false
+		for _, art := range q.Artists {
+			trimmed := strings.TrimSpace(art)
+			if trimmed == "" {
+				continue
+			}
+			if strings.Contains(hay, strings.ToLower(trimmed)) {
+				artistMatched = true
+				break
+			}
+			for _, tok := range extractLatinSearchTokens(trimmed) {
+				if len(tok) >= 3 && strings.Contains(hay, tok) {
+					artistMatched = true
+					break
+				}
+			}
+			if artistMatched {
+				break
+			}
+		}
+		if !artistMatched {
+			return false
+		}
+	}
+	return true
+}
+
+// =========================================================================
+// Provider 5: 日语歌割专门博客集群 (Hatena パート分け博客，按艺人/作品路由直搜)
+// =========================================================================
+
+type partBlogSite struct {
+	ID        string
+	Name      string
+	SearchURL string
+	RouteRe   *regexp.Regexp
+	Priority  int
+}
+
+var defaultPartBlogSites = []partBlogSite{
+	{
+		ID:        "kogane-music",
+		Name:      "黄金音楽（パート分けブログ）",
+		SearchURL: "https://kogane-music.hatenablog.com/search",
+		RouteRe:   regexp.MustCompile(`(?i)ウマ娘|うまぴょい|Umamusume|和氣あず未|高野麻里佳|Machico|上田瞳|大西沙織|大橋彩香|木村千咲|前田佳織里|石見舞菜香|トウカイテイオー|スペシャルウィーク|サイレンススズカ`),
+		Priority:  85,
+	},
+}
+
+type partBlogClusterProvider struct {
+	svc   *lyricSingerService
+	sites []partBlogSite
+}
+
+func (p *partBlogClusterProvider) ID() string { return "part_blog_cluster" }
+
+func (p *partBlogClusterProvider) matchedSites(q *VocalSearchQuery) []partBlogSite {
+	if q == nil || q.CleanTitle == "" || !q.HasMultiArtistHint {
+		return nil
+	}
+	meta := q.RawTitle + " " + q.CleanTitle + " " + strings.Join(q.Artists, " ") + " " + strings.Join(q.Aliases, " ") + " " + q.Album
+	var out []partBlogSite
+	for _, s := range p.sites {
+		if s.RouteRe != nil && s.RouteRe.MatchString(meta) {
+			out = append(out, s)
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Priority > out[j].Priority })
+	return out
+}
+
+func (p *partBlogClusterProvider) Match(q *VocalSearchQuery) int {
+	sites := p.matchedSites(q)
+	if len(sites) == 0 {
+		return -1
+	}
+	return sites[0].Priority
+}
+
+type partBlogEntry struct {
+	Title string
+	URL   string
+	Score int
+}
+
+func (p *partBlogClusterProvider) Search(ctx context.Context, q *VocalSearchQuery) ([]VocalEvidenceCandidate, error) {
+	sites := p.matchedSites(q)
+	if len(sites) == 0 {
+		return nil, nil
+	}
+
+	metaLower := strings.ToLower(q.RawTitle + " " + strings.Join(q.Artists, " ") + " " + q.Album)
+	var out []VocalEvidenceCandidate
+	for _, site := range sites {
+		var entries []partBlogEntry
+		for _, searchQuery := range []string{q.CleanTitle + " 歌詞", q.CleanTitle} {
+			reqCtx, cancel := context.WithTimeout(ctx, vocalSearchPerSiteTimeout)
+			endpoint := appendQuery(site.SearchURL, url.Values{"q": {searchQuery}})
+			res, err := vocalSafeFetch(reqCtx, endpoint, lyricSingerFetchMaxBytes, "text/html", "application/xhtml")
+			cancel()
+			if err != nil || res == nil || len(res.Body) == 0 {
+				continue
+			}
+			entries = parseHatenaSearchEntries(string(res.Body), q, metaLower)
+			if len(entries) > 0 {
+				break
+			}
+		}
+		if len(entries) == 0 {
+			continue
+		}
+		limit := min(2, len(entries))
+		for i := 0; i < limit; i++ {
+			rawHTML, finalURL, ok := fetchVocalCandidateHTML(ctx, p.svc, entries[i].URL)
+			if !ok {
+				continue
+			}
+			cand := VocalEvidenceCandidate{
+				ProviderID: "part_blog:" + site.ID,
+				SourceName: site.Name,
+				Title:      entries[i].Title,
+				URL:        finalURL,
+				Format:     VocalEvidenceFormatHTML,
+				RawContent: rawHTML,
+				Priority:   site.Priority,
+			}
+			if cleanAndVerifyCandidate(&cand, q) {
+				out = append(out, cand)
+				return out, nil
+			}
+		}
+	}
+	return out, nil
+}
+
+func parseHatenaSearchEntries(rawHTML string, q *VocalSearchQuery, metaLower string) []partBlogEntry {
+	doc, err := nethtml.Parse(strings.NewReader(rawHTML))
+	if err != nil {
+		return nil
+	}
+	var entries []partBlogEntry
+	seen := map[string]bool{}
+	var walk func(*nethtml.Node)
+	walk = func(n *nethtml.Node) {
+		if len(entries) >= 25 || n == nil {
+			return
+		}
+		if n.Type == nethtml.ElementNode && strings.EqualFold(n.Data, "a") && hasHTMLClass(n, "entry-title-link") {
+			href := strings.TrimSpace(attrValue(n, "href"))
+			title := clipRunes(extractVisibleNodeText(n), 140)
+			if href != "" && title != "" && !seen[href] {
+				seen[href] = true
+				if score, ok := scorePartBlogEntry(title, href, q, metaLower); ok {
+					entries = append(entries, partBlogEntry{Title: title, URL: href, Score: score})
+				}
+			}
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(doc)
+	sort.SliceStable(entries, func(i, j int) bool { return entries[i].Score > entries[j].Score })
+	return entries
+}
+
+func scorePartBlogEntry(title, href string, q *VocalSearchQuery, metaLower string) (int, bool) {
+	if !strings.Contains(title, "パート分け") && !strings.Contains(title, "歌割り") && !strings.Contains(title, "合唱") {
+		return 0, false
+	}
+	for _, reject := range []string{"ランキング", "一覧", "まとめ", "予想"} {
+		if strings.Contains(title, reject) {
+			return 0, false
+		}
+	}
+	lowTitle := strings.ToLower(title)
+	if q.HasCJK && strings.Contains(lowTitle, "english ver") {
+		return 0, false
+	}
+	if strings.Contains(title, "デレステ") && !strings.Contains(metaLower, "デレステ") {
+		return 0, false
+	}
+	normEntry := normalizeSearchTitle(title)
+	if q.NormTitle == "" || !eitherContains(normEntry, q.NormTitle) {
+		return 0, false
+	}
+
+	score := 10
+	if strings.Contains(title, "パート分け") {
+		score += 8
+	}
+	if len(q.Artists) >= 8 {
+		if strings.Contains(title, "25人") || strings.Contains(title, "全員") {
+			score += 12
+		}
+	}
+	// 无额外副标的版本优先（如 `umapyoi-densetsu` 优先于 `umapyoi-densetsu-...`）
+	if !strings.Contains(title, "（") || len(q.Artists) >= 8 {
+		score += 3
+	}
+	if strings.Contains(strings.ToLower(href), strings.ToLower(strings.ReplaceAll(q.NormTitle, " ", "-"))) {
+		score += 2
+	}
+	return score, true
 }
 
 func extractWikiAPIBaseAndTitle(rawURL string) (apiBase, pageTitle string, ok bool) {
@@ -1324,11 +2013,60 @@ func extractWikiAPIBaseAndTitle(rawURL string) (apiBase, pageTitle string, ok bo
 	return u.Scheme + "://" + u.Host + "/api.php", strings.ReplaceAll(decoded, "_", " "), true
 }
 
+const vocalWebSearchMaxHitsPerQuery = 16
+
+type searchEngineThrottle struct {
+	mu            sync.Mutex
+	minInterval   time.Duration
+	cooldownDur   time.Duration
+	lastAt        time.Time
+	cooldownUntil time.Time
+}
+
+func (t *searchEngineThrottle) acquire(ctx context.Context) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	now := time.Now()
+	if now.Before(t.cooldownUntil) {
+		return fmt.Errorf("search engine cooling down after rate limit")
+	}
+	if wait := t.minInterval - time.Since(t.lastAt); wait > 0 {
+		timer := time.NewTimer(wait)
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		}
+	}
+	t.lastAt = time.Now()
+	return nil
+}
+
+func (t *searchEngineThrottle) markRateLimited() {
+	t.mu.Lock()
+	t.cooldownUntil = time.Now().Add(t.cooldownDur)
+	t.mu.Unlock()
+}
+
+var (
+	braveSearchThrottle = &searchEngineThrottle{minInterval: 1500 * time.Millisecond, cooldownDur: 60 * time.Second}
+	yahooSearchThrottle = &searchEngineThrottle{minInterval: 2500 * time.Millisecond, cooldownDur: 60 * time.Second}
+)
+
 func searchPublicWebHits(ctx context.Context, query string) []webSearchHit {
-	reqCtx, cancel := context.WithTimeout(ctx, vocalSearchPerSiteTimeout)
+	reqCtx, cancel := context.WithTimeout(ctx, 12*time.Second)
 	defer cancel()
 
 	var hits []webSearchHit
+	if res, err := searchBraveHTML(reqCtx, "https://search.brave.com/search", query); err == nil && len(res) > 0 {
+		hits = append(hits, res...)
+	}
+	if len(hits) >= 2 {
+		return hits
+	}
+
 	if res, err := searchYahooJapanHTML(reqCtx, "https://search.yahoo.co.jp/search", query); err == nil && len(res) > 0 {
 		hits = append(hits, res...)
 	}
@@ -1352,29 +2090,50 @@ func searchPublicWebHits(ctx context.Context, query string) []webSearchHit {
 	return hits
 }
 
+func searchBraveHTML(ctx context.Context, endpoint, query string) ([]webSearchHit, error) {
+	return searchHTMLWithThrottle(ctx, braveSearchThrottle, appendQuery(endpoint, url.Values{"q": {query}}), extractBraveExternalURL)
+}
+
 func searchYahooJapanHTML(ctx context.Context, endpoint, query string) ([]webSearchHit, error) {
-	u := appendQuery(endpoint, url.Values{"p": {query}})
-	res, err := vocalSafeFetch(ctx, u, lyricSingerFetchMaxBytes, "text/html", "application/xhtml", "text/plain")
+	return searchHTMLWithThrottle(ctx, yahooSearchThrottle, appendQuery(endpoint, url.Values{"p": {query}}), extractYahooExternalURL)
+}
+
+func searchHTMLWithThrottle(
+	ctx context.Context,
+	throttle *searchEngineThrottle,
+	searchURL string,
+	extractFn func(string) (string, bool),
+) ([]webSearchHit, error) {
+	if err := throttle.acquire(ctx); err != nil {
+		return nil, err
+	}
+	res, err := vocalSafeFetch(ctx, searchURL, lyricSingerFetchMaxBytes, "text/html", "application/xhtml", "text/plain")
 	if err != nil {
+		if strings.Contains(err.Error(), "status 429") {
+			throttle.markRateLimited()
+		}
 		return nil, err
 	}
 	doc, err := nethtml.Parse(strings.NewReader(string(res.Body)))
 	if err != nil {
 		return nil, err
 	}
+	return parseSearchHTMLAnchors(doc, vocalWebSearchMaxHitsPerQuery, extractFn), nil
+}
 
+func parseSearchHTMLAnchors(doc *nethtml.Node, maxHits int, extractFn func(string) (string, bool)) []webSearchHit {
 	var hits []webSearchHit
 	seen := make(map[string]bool)
 	var walk func(*nethtml.Node)
 	walk = func(n *nethtml.Node) {
-		if len(hits) >= 8 {
+		if len(hits) >= maxHits {
 			return
 		}
 		if n.Type == nethtml.ElementNode && n.Data == "a" {
 			if rawHref := strings.TrimSpace(attrValue(n, "href")); rawHref != "" {
-				if targetURL, ok := extractYahooExternalURL(rawHref); ok {
+				if targetURL, ok := extractFn(rawHref); ok {
 					norm := normalizeEvidenceURL(targetURL)
-					title := clipRunes(nodeText(n), 120)
+					title := clipRunes(extractVisibleNodeText(n), 120)
 					if norm != "" && !seen[norm] && len([]rune(title)) >= 3 {
 						seen[norm] = true
 						snippet := ""
@@ -1383,7 +2142,7 @@ func searchYahooJapanHTML(ctx context.Context, endpoint, query string) ([]webSea
 							snippetNode = snippetNode.Parent
 						}
 						if snippetNode != nil {
-							snippet = clipRunes(nodeText(snippetNode), 200)
+							snippet = clipRunes(extractVisibleNodeText(snippetNode), 200)
 						}
 						hits = append(hits, webSearchHit{
 							Title:   title,
@@ -1399,32 +2158,76 @@ func searchYahooJapanHTML(ctx context.Context, endpoint, query string) ([]webSea
 		}
 	}
 	walk(doc)
-	return hits, nil
+	return hits
+}
+
+func extractVisibleNodeText(n *nethtml.Node) string {
+	if n == nil {
+		return ""
+	}
+	var b strings.Builder
+	var walk func(*nethtml.Node)
+	walk = func(cur *nethtml.Node) {
+		if cur == nil {
+			return
+		}
+		if cur.Type == nethtml.ElementNode {
+			switch strings.ToLower(cur.Data) {
+			case "script", "style", "noscript", "svg":
+				return
+			}
+		}
+		if cur.Type == nethtml.TextNode {
+			b.WriteString(cur.Data)
+			return
+		}
+		for c := cur.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(n)
+	return collapseLyricSpace(b.String())
+}
+
+func extractBraveExternalURL(rawHref string) (string, bool) {
+	return filterSearchExternalURL(rawHref)
 }
 
 func extractYahooExternalURL(rawHref string) (string, bool) {
-	low := strings.ToLower(strings.TrimSpace(rawHref))
-	if !(strings.HasPrefix(low, "http://") || strings.HasPrefix(low, "https://")) {
-		return "", false
-	}
-	u, err := url.Parse(rawHref)
-	if err != nil || u.Hostname() == "" {
-		return "", false
-	}
-	// 解包 Yahoo 跳转链接（如 rdsig.yahoo.co.jp/.../RU=https%3A.../RK=...）
-	if strings.Contains(strings.ToLower(u.Hostname()), "yahoo.co.jp") {
-		if _, after, hasRU := strings.Cut(rawHref, "/RU="); hasRU {
+	trimmed := strings.TrimSpace(rawHref)
+	if u, err := url.Parse(trimmed); err == nil && strings.Contains(strings.ToLower(u.Hostname()), "yahoo.co.jp") {
+		// 解包 Yahoo 跳转链接（如 rdsig.yahoo.co.jp/.../RU=https%3A.../RK=...）
+		if _, after, hasRU := strings.Cut(trimmed, "/RU="); hasRU {
 			enc, _, _ := strings.Cut(after, "/RK=")
-			if dec, err := url.QueryUnescape(enc); err == nil {
-				if du, err := url.Parse(dec); err == nil && du.Hostname() != "" {
-					rawHref = dec
-					u = du
-				}
+			if dec, decErr := url.QueryUnescape(enc); decErr == nil {
+				trimmed = dec
 			}
 		}
 	}
+	return filterSearchExternalURL(trimmed)
+}
+
+func filterSearchExternalURL(rawHref string) (string, bool) {
+	trimmed := strings.TrimSpace(rawHref)
+	low := strings.ToLower(trimmed)
+	if !(strings.HasPrefix(low, "http://") || strings.HasPrefix(low, "https://")) {
+		return "", false
+	}
+	u, err := url.Parse(trimmed)
+	if err != nil || u.Hostname() == "" {
+		return "", false
+	}
+	// 过滤站内二级锚点 sitelink（如 #Composition），防止重复占用候选槽位
+	if u.Fragment != "" {
+		return "", false
+	}
 	host := strings.ToLower(u.Hostname())
-	for _, excluded := range []string{"yahoo.co.jp", "yahoo.com", "yimg.jp", "lycorp.co.jp", "yahoo-net.jp", "line.me", "google.com", "bing.com"} {
+	for _, excluded := range []string{
+		"brave.com", "yahoo.co.jp", "yahoo.com", "yimg.jp", "lycorp.co.jp", "lycbiz.com", "yahoo-net.jp", "stanby.com",
+		"line.me", "google.com", "bing.com",
+		"youtube.com", "youtu.be", "nicovideo.jp", "spotify.com", "music.apple.com",
+		"tiktok.com", "x.com", "twitter.com", "instagram.com", "facebook.com",
+	} {
 		if host == excluded || strings.HasSuffix(host, "."+excluded) {
 			return "", false
 		}
@@ -1432,7 +2235,7 @@ func extractYahooExternalURL(rawHref string) (string, bool) {
 	if u.Path == "" || u.Path == "/" {
 		return "", false
 	}
-	return rawHref, true
+	return trimmed, true
 }
 
 func scoreWebSearchHitURL(rawURL, metaText string, q *VocalSearchQuery) int {
@@ -1441,17 +2244,27 @@ func scoreWebSearchHitURL(rawURL, metaText string, q *VocalSearchQuery) int {
 		return -1
 	}
 	host := strings.ToLower(u.Hostname())
-	// 过滤视频站、流媒体页、辞典百科与纯社交问答站点
+	// 过滤视频站、流媒体页、Cloudflare 拦截站点、求职广告与纯辞典社交页
 	for _, blocked := range []string{
 		"youtube.com", "youtu.be", "bilibili.com", "nicovideo.jp", "spotify.com",
 		"music.163.com", "y.qq.com", "music.apple.com", "tiktok.com",
 		"facebook.com", "x.com", "twitter.com", "instagram.com", "reddit.com",
 		"wikipedia.org", "baike.baidu.com", "dictionary.cambridge.org", "merriam-webster.com",
 		"iciba.com", "zhihu.com", "csdn.net",
+		"genius.com", "stanby.com", "lycbiz.com", "joysound.com", "piascore.com",
 	} {
 		if host == blocked || strings.HasSuffix(host, "."+blocked) {
 			return -1
 		}
+	}
+	if (host == "utaten.com" || strings.HasSuffix(host, ".utaten.com")) &&
+		(strings.HasPrefix(u.Path, "/search") || strings.HasPrefix(u.Path, "/user/")) {
+		return -1
+	}
+	// 过滤纯演唱会打 Call 应援教学帖（仅当既不含 パート分け 也不含 歌割り 时剔除）
+	if (strings.Contains(metaText, "コール練習") || strings.Contains(metaText, "コール表")) &&
+		!strings.Contains(metaText, "パート分け") && !strings.Contains(metaText, "歌割り") {
+		return -1
 	}
 
 	score := 0
@@ -1469,7 +2282,6 @@ func scoreWebSearchHitURL(rawURL, metaText string, q *VocalSearchQuery) int {
 		{"seesaawiki.jp", 15},
 		{"wikiwiki.jp", 15},
 		{"ameblo.jp", 15},
-		{"genius.com", 15},
 		{"fc2.com", 12},
 		{"livedoor.jp", 12},
 		{"note.com", 12},

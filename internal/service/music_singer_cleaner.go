@@ -4,6 +4,7 @@ import (
 	"html"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -334,19 +335,31 @@ var vocalCharacterMap = map[string]string{
 	"桐間紗路":           "桐间纱路",
 
 	// 合唱 / 全员通用标记
-	"all":         "合唱",
-	"all members": "合唱",
-	"everyone":    "合唱",
-	"shared":      "合唱",
-	"group":       "合唱",
-	"chorus":      "合唱",
-	"together":    "合唱",
-	"full":        "合唱",
-	"合":           "合唱",
-	"合唱":          "合唱",
-	"全员":          "合唱",
-	"全員":          "合唱",
-	"齐唱":          "合唱",
+	"all":                    "合唱",
+	"all members":            "合唱",
+	"everyone":               "合唱",
+	"shared":                 "合唱",
+	"group":                  "合唱",
+	"chorus":                 "合唱",
+	"together":               "合唱",
+	"full":                   "合唱",
+	"合":                      "合唱",
+	"合唱":                     "合唱",
+	"全员":                     "合唱",
+	"全員":                     "合唱",
+	"齐唱":                     "合唱",
+	"mmj":                    "MORE MORE JUMP!",
+	"more more jump":         "MORE MORE JUMP!",
+	"more more jump!":        "MORE MORE JUMP!",
+	"ln":                     "Leo/need",
+	"leo/need":               "Leo/need",
+	"vbs":                    "Vivid BAD SQUAD",
+	"vivid bad squad":        "Vivid BAD SQUAD",
+	"wxs":                    "ワンダーランズ×ショウタイム",
+	"wonderlands x showtime": "ワンダーランズ×ショウタイム",
+	"25ji":                   "25時、ナイトコードで。",
+	"n25":                    "25時、ナイトコードで。",
+	"niigo":                  "25時、ナイトコードで。",
 }
 
 // nonRoleKeywords MediaWiki 模板名/结构标签/制作人员字段等黑名单（小写比较）
@@ -383,6 +396,12 @@ var nonRoleKeywords = map[string]bool{
 	"black": true, "white": true, "transparent": true, "inherit": true, "auto": true,
 	"red": true, "blue": true, "green": true, "yellow": true, "grey": true, "gray": true,
 	"scroll box": true, "scrollbox": true, "collapse": true, "collapsed": true, "hidden": true, "quote": true, "cquote": true,
+	"copylyrics kan": true, "copylyrics rom": true, "copylyrics eng": true, "lyrics head": true, "lyricshead": true,
+	"开启注音": true, "关闭注音": true, "显示视频": true, "宽屏模式": true,
+	"歌曲名称": true, "收录专辑": true, "原名": true, "发行": true, "发行地区": true, "曲绘": true, "动画": true,
+	"查": true, "论": true, "编辑本条目": true, "查看这个模板": true, "你知道的太多了": true,
+	"1人": true, "2人": true, "3人": true,
+	"clap": true, "call": true, "コール": true, "合いの手": true, "歓声": true, "fufu": true, "fuwa": true,
 }
 
 var (
@@ -393,21 +412,22 @@ var (
 	reCleanWikiRef           = regexp.MustCompile(`(?is)<ref[^>]*>.*?</ref>|<ref[^/>]*/>`)
 	reCleanWikiLink          = regexp.MustCompile(`\[\[(?:[^|\]]*\|)?([^\]]+)\]\]`)
 	reCleanExtLink           = regexp.MustCompile(`\[https?://[^\s\]]+(?:\s+([^\]]+))?\]`)
-	reCleanPJSKUnitSuffix    = regexp.MustCompile(`(?i)[\s_\-]*(?:ln|mmj|vbs|wxs|ws|25ji|n25|niigo|25|vs|v2|sekai|unit|alt)$`)
+	reCleanPJSKUnitSuffix    = regexp.MustCompile(`(?i)[\s_\-]+(?:ln|mmj|vbs|wxs|ws|25ji|n25|niigo|25|vs|v2|sekai|unit|alt)$`)
 	reCleanCreditLine        = regexp.MustCompile(`(?im)^[\s\x{3000}]*(?:作[词詞]|作曲|[编編]曲|製作人|制作人|混音|演唱|歌|lyrics|composer|composed|arranged|arranger|music|vocal|vocals|tuning|illust|movie|mv|pv)[\s\x{3000}]*[:：]`)
 	reCleanBracketSection    = regexp.MustCompile(`(?i)^(?:intro|verse|pre-?chorus|post-?chorus|chorus|bridge|outro|hook|refrain|interlude|instrumental|break|solo|coda|ad-?lib|main|主歌|副歌|前奏|间奏|尾奏|桥段|过渡)\s*(?:\d+|[ivx]+|[a-d])?\s*[:：\-–—]\s*(.+)$`)
 	reCleanBracketOnlySec    = regexp.MustCompile(`(?i)^(?:intro|verse|pre-?chorus|post-?chorus|chorus|bridge|outro|hook|refrain|interlude|instrumental|break|solo|coda|ad-?lib|spoken|guitar\s+solo|piano\s+solo|主歌|副歌|前奏|间奏|尾奏|桥段|过渡|间奏曲)(?:\s*(?:\d+|[ivx]+|[a-d]))?$`)
 	reCleanMultiSep          = regexp.MustCompile(`\s*(?:&|＆|/|,|、|\+|×|\band\b)\s*`)
-	reCleanColorStyle        = regexp.MustCompile(`(?i)(?:^|[;"'\s])(?:color|background-color)\s*:\s*(#[0-9a-f]{3,8}|[a-z]+)`)
+	reCleanRepeatMult        = regexp.MustCompile(`(?i)[×x]\s*\d+\b`)
+	reCleanColorStyle        = regexp.MustCompile(`(?i)(?:^|[;"'\s])(?:color|background-color)\s*:\s*(#[0-9a-f]{3,8}|[a-z]{3,20})(?:\s*[;"']|\s*$)`)
 	reCleanFontColor         = regexp.MustCompile(`(?is)<font[^>]*color=["']?(#[0-9a-f]{3,8}|[a-z]+)["']?[^>]*>(.*?)</font>`)
 	reCleanHexOnly           = regexp.MustCompile(`^#[0-9a-fA-F]{3,8}$`)
 	reCleanSpaceCollapse     = regexp.MustCompile(`[ \t\x{3000}]{2,}`)
 	reCleanNewlineCollapse   = regexp.MustCompile(`\n{3,}`)
 	reCleanLineTimestamp     = regexp.MustCompile(`\[\d{1,2}:\d{2}(?:[.:]\d{1,3})?\]`)
 	reCleanMetaTag           = regexp.MustCompile(`(?i)^\[(ti|ar|al|by|offset|re|ve|length|id|hash|sign|total|ly|au|trans):.*\]$`)
-	reCleanHeaderBracketLine = regexp.MustCompile(`^[\s\x{3000}]*(?:【([^】]{1,50})】|\[([^\]]{1,50})\])[\s\x{3000}]*(.*)$`)
+	reCleanHeaderBracketLine = regexp.MustCompile(`^[\s\x{3000}]*(?:【([^】]{1,80})】|\[([^\]]{1,80})\])[\s\x{3000}]*(.*)$`)
 	reCleanHeaderColonLine   = regexp.MustCompile(`^\s*([\p{L}\p{N}・·._\-\s&＆/、+×]{1,36}?)\s*[:：]\s*(.+)$`)
-	reCleanNormalizedBlock   = regexp.MustCompile(`^\[([^\[\]\n]{1,60})\]:$`)
+	reCleanNormalizedBlock   = regexp.MustCompile(`^\[([^\[\]\n]{1,90})\]:$`)
 )
 
 // cleanAndVerifyCandidate 按候选来源格式清洗原始文本，执行零幻觉硬门槛（>=2角色、>=2次切分、>=40字符、同语种歌词重叠校验），并回填元数据
@@ -588,7 +608,8 @@ func cleanMediaWikiVocalEvidence(rawWikitext string, q *VocalSearchQuery) string
 }
 
 // cleanMoegirlHTMLVocalEvidence 解析萌娘百科条目 HTML（.Lyrics-line / .Lyrics-original / span[title] + 颜色图例）
-func cleanMoegirlHTMLVocalEvidence(rawHTML string, _ *VocalSearchQuery) string {
+// 当页面包含多个演唱版本/表格（例如原唱双人版与真人/多人翻唱版并存）时，按容器分块并择优选出最匹配的一份，严禁拼接多个版本。
+func cleanMoegirlHTMLVocalEvidence(rawHTML string, q *VocalSearchQuery) string {
 	doc, err := nethtml.Parse(strings.NewReader(rawHTML))
 	if err != nil {
 		return ""
@@ -602,31 +623,29 @@ func cleanMoegirlHTMLVocalEvidence(rawHTML string, _ *VocalSearchQuery) string {
 	// 提取页面中的颜色图例（例如 演唱分色表格 / <span style="color:#HEX">角色名</span>）
 	legendColors := extractHTMLColorLegend(root)
 
-	// 路径一：现代萌百 {{LyricsKai}} 渲染结构（.Lyrics-line -> .Lyrics-original）
+	// 路径一：现代萌百 {{LyricsKai}} 渲染结构（.Lyrics-line -> .Lyrics-original），按独立容器分块避免多版本拼接
 	var originals []*nethtml.Node
 	collectNodesByClass(root, "Lyrics-original", &originals)
 
-	var out strings.Builder
-	lastRole := ""
-	appendSegment := func(role, lyricText string) {
+	appendSegment := func(out *strings.Builder, lastRole *string, role, lyricText string) {
 		lyricText = cleanLyricSegmentText(lyricText)
 		if lyricText == "" {
 			return
 		}
 		if role == "" {
-			role = lastRole
+			role = *lastRole
 		}
 		if role == "" {
 			return
 		}
-		if role != lastRole {
+		if role != *lastRole {
 			if out.Len() > 0 {
 				out.WriteString("\n\n")
 			}
 			out.WriteString("[")
 			out.WriteString(role)
 			out.WriteString("]:\n")
-			lastRole = role
+			*lastRole = role
 		} else if out.Len() > 0 && !strings.HasSuffix(out.String(), "\n") {
 			out.WriteByte(' ')
 		}
@@ -634,55 +653,120 @@ func cleanMoegirlHTMLVocalEvidence(rawHTML string, _ *VocalSearchQuery) string {
 	}
 
 	if len(originals) > 0 {
-		for _, lineNode := range originals {
-			segs := extractMoegirlOriginalLineSegments(lineNode, legendColors)
-			wroteLine := false
-			for _, seg := range segs {
-				txt := cleanLyricSegmentText(seg.text)
-				if txt == "" || reCleanCreditLine.MatchString(txt) {
-					continue
-				}
-				if seg.role != "" {
-					if seg.role != lastRole {
-						if out.Len() > 0 {
-							out.WriteString("\n\n")
-						}
-						out.WriteString("[")
-						out.WriteString(seg.role)
-						out.WriteString("]:\n")
-						lastRole = seg.role
-					} else if wroteLine {
-						out.WriteByte(' ')
-					} else if out.Len() > 0 {
-						out.WriteByte('\n')
-					}
-					out.WriteString(txt)
-					wroteLine = true
-				} else if lastRole != "" {
-					if wroteLine {
-						out.WriteByte(' ')
-					} else if out.Len() > 0 {
-						out.WriteByte('\n')
-					}
-					out.WriteString(txt)
-					wroteLine = true
+		type moegirlGroup struct {
+			container *nethtml.Node
+			nodes     []*nethtml.Node
+		}
+		findLyricsContainer := func(n *nethtml.Node) *nethtml.Node {
+			for p := n.Parent; p != nil && p != root; p = p.Parent {
+				if hasHTMLClass(p, "Lyrics") || hasHTMLClass(p, "tabs-content") ||
+					(p.Type == nethtml.ElementNode && strings.EqualFold(p.Data, "table")) {
+					return p
 				}
 			}
+			return root
 		}
-		if cleaned := mergeConsecutiveVocalBlocks(out.String()); countDistinctSingersInNormalized(cleaned) >= vocalCleanMinSingers {
-			return cleaned
+
+		var groups []*moegirlGroup
+		groupByNode := make(map[*nethtml.Node]*moegirlGroup)
+		for _, lineNode := range originals {
+			c := findLyricsContainer(lineNode)
+			grp := groupByNode[c]
+			if grp == nil {
+				grp = &moegirlGroup{container: c}
+				groupByNode[c] = grp
+				groups = append(groups, grp)
+			}
+			grp.nodes = append(grp.nodes, lineNode)
 		}
+
+		var validContainers []string
+		for _, grp := range groups {
+			containerLegend := make(map[string]string, len(legendColors))
+			for k, v := range legendColors {
+				containerLegend[k] = v
+			}
+			legendScope := grp.container
+			if grp.container != root && hasHTMLClass(grp.container, "Lyrics") && grp.container.Parent != nil && grp.container.Parent != root {
+				if hasHTMLClass(grp.container.Parent, "tabs-content") || strings.EqualFold(grp.container.Parent.Data, "table") {
+					legendScope = grp.container.Parent
+				}
+			}
+			if legendScope != root {
+				for k, v := range extractHTMLColorLegend(legendScope) {
+					containerLegend[k] = v
+				}
+			}
+
+			var out strings.Builder
+			lastRole := ""
+			for _, lineNode := range grp.nodes {
+				segs := extractMoegirlOriginalLineSegments(lineNode, containerLegend)
+				wroteLine := false
+				for _, seg := range segs {
+					txt := cleanLyricSegmentText(seg.text)
+					if txt == "" || reCleanCreditLine.MatchString(txt) {
+						continue
+					}
+					if seg.role != "" {
+						if seg.role != lastRole {
+							if out.Len() > 0 {
+								out.WriteString("\n\n")
+							}
+							out.WriteString("[")
+							out.WriteString(seg.role)
+							out.WriteString("]:\n")
+							lastRole = seg.role
+						} else if wroteLine {
+							out.WriteByte(' ')
+						} else if out.Len() > 0 {
+							out.WriteByte('\n')
+						}
+						out.WriteString(txt)
+						wroteLine = true
+					} else if lastRole != "" {
+						if wroteLine {
+							out.WriteByte(' ')
+						} else if out.Len() > 0 {
+							out.WriteByte('\n')
+						}
+						out.WriteString(txt)
+						wroteLine = true
+					}
+				}
+			}
+			if cleaned := mergeConsecutiveVocalBlocks(out.String()); countDistinctSingersInNormalized(cleaned) >= vocalCleanMinSingers {
+				validContainers = append(validContainers, cleaned)
+			}
+		}
+
+		if len(validContainers) == 0 {
+			// 页面已存在现代萌百 .Lyrics-original 主容器却无有效多声部分色时，严禁回退扫描页脚导航或信息栏产生假阳性
+			return ""
+		}
+		if len(validContainers) == 1 || q == nil {
+			return validContainers[0]
+		}
+		bestCleaned := validContainers[0]
+		bestScore := scoreMoegirlVocalContainer(bestCleaned, q)
+		for _, cand := range validContainers[1:] {
+			if sc := scoreMoegirlVocalContainer(cand, q); sc > bestScore {
+				bestScore = sc
+				bestCleaned = cand
+			}
+		}
+		return bestCleaned
 	}
 
 	// 路径二：老式萌百歌词（<div class="poem"> 或 <p> 内的 <span style="color:#HEX"> / 【角色】）
-	out.Reset()
-	lastRole = ""
+	var out strings.Builder
+	lastRole := ""
 	var poemBlocks []*nethtml.Node
 	collectMoegirlPoemOrColorBlocks(root, &poemBlocks)
 	for _, blk := range poemBlocks {
 		lines := extractHTMLColorOrBracketLines(blk, legendColors)
 		for _, item := range lines {
-			appendSegment(item.role, item.text)
+			appendSegment(&out, &lastRole, item.role, item.text)
 			if item.text != "" && !strings.HasSuffix(out.String(), "\n") {
 				out.WriteByte('\n')
 			}
@@ -700,7 +784,7 @@ func cleanMoegirlHTMLVocalEvidence(rawHTML string, _ *VocalSearchQuery) string {
 	return ""
 }
 
-// cleanHTMLVocalEvidence 清洗 Atwiki / Ameba / 普通歌词博客 HTML
+// cleanHTMLVocalEvidence 清洗 Atwiki / Ameba / Genius / Hatena 歌词博客 HTML
 func cleanHTMLVocalEvidence(rawHTML string, _ *VocalSearchQuery) string {
 	doc, err := nethtml.Parse(strings.NewReader(rawHTML))
 	if err != nil {
@@ -708,9 +792,20 @@ func cleanHTMLVocalEvidence(rawHTML string, _ *VocalSearchQuery) string {
 		return cleaned
 	}
 
-	legendColors := extractHTMLColorLegend(doc)
+	roots := collectVocalHTMLScopeRoots(doc)
+	legendColors := make(map[string]string)
+	for _, root := range roots {
+		for k, v := range extractHTMLColorLegend(root) {
+			if _, exists := legendColors[k]; !exists {
+				legendColors[k] = v
+			}
+		}
+	}
 	if len(legendColors) >= vocalCleanMinSingers {
-		lines := extractHTMLColorOrBracketLines(doc, legendColors)
+		var lines []roleTextSegment
+		for _, root := range roots {
+			lines = append(lines, extractHTMLColorOrBracketLines(root, legendColors)...)
+		}
 		var out strings.Builder
 		lastRole := ""
 		for _, item := range lines {
@@ -743,9 +838,49 @@ func cleanHTMLVocalEvidence(rawHTML string, _ *VocalSearchQuery) string {
 		}
 	}
 
-	plainText := extractPlainTextLinesFromHTML(doc)
-	cleaned, _, _ := cleanBracketVocalEvidence(plainText)
+	var plainBuf strings.Builder
+	for _, root := range roots {
+		if part := extractPlainTextLinesFromHTML(root); strings.TrimSpace(part) != "" {
+			if plainBuf.Len() > 0 {
+				plainBuf.WriteByte('\n')
+			}
+			plainBuf.WriteString(part)
+		}
+	}
+	cleaned, _, _ := cleanBracketVocalEvidence(plainBuf.String())
 	return cleaned
+}
+
+// collectVocalHTMLScopeRoots 优先定位 Genius data-lyrics-container 或博客 .entry-content 主体，屏蔽侧边栏与贡献者 UI 噪音
+func collectVocalHTMLScopeRoots(doc *nethtml.Node) []*nethtml.Node {
+	var geniusContainers, entryContents []*nethtml.Node
+	var walk func(*nethtml.Node)
+	walk = func(n *nethtml.Node) {
+		if n == nil || shouldSkipHTMLNode(n) {
+			return
+		}
+		if n.Type == nethtml.ElementNode {
+			if strings.EqualFold(getHTMLAttr(n, "data-lyrics-container"), "true") {
+				geniusContainers = append(geniusContainers, n)
+				return
+			}
+			if hasHTMLClass(n, "entry-content") {
+				entryContents = append(entryContents, n)
+				return
+			}
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(doc)
+	if len(geniusContainers) > 0 {
+		return geniusContainers
+	}
+	if len(entryContents) > 0 {
+		return entryContents
+	}
+	return []*nethtml.Node{doc}
 }
 
 // normalizeVocalRoleName 规范化角色/歌手名：剥离 PJSK 分团后缀，拆分多人分隔符，查标准映射表并合并去重
@@ -758,6 +893,10 @@ func normalizeVocalRoleName(raw string) string {
 	}
 	// 丢弃形如 `<span ...>` 或 URL/模板语法残留
 	if strings.ContainsAny(raw, "{}<>=") || strings.Contains(strings.ToLower(raw), "http") {
+		return ""
+	}
+	// 丢弃打 Call 重复次数标记（如 clap×2 / ハイ×4），防止 × 被误拆成多人合唱分隔符
+	if reCleanRepeatMult.MatchString(raw) {
 		return ""
 	}
 
@@ -872,6 +1011,12 @@ func parseBracketRoleToken(inner string) (role string, sectionOnly bool) {
 	if trimmed == "" {
 		return "", false
 	}
+	lowerTrimmed := strings.ToLower(trimmed)
+	if (strings.Contains(trimmed, "「") && strings.Contains(trimmed, "」")) ||
+		strings.HasSuffix(trimmed, "歌詞") || strings.HasSuffix(trimmed, "歌词") ||
+		strings.HasSuffix(lowerTrimmed, "lyrics") || strings.HasSuffix(lowerTrimmed, "songtext") {
+		return "", true
+	}
 	if reCleanBracketOnlySec.MatchString(trimmed) {
 		return "", true
 	}
@@ -926,14 +1071,25 @@ func extractWikiColorLegend(text string) map[string]string {
 
 func addLegendEntry(legend map[string]string, rawColor, rawRole string) {
 	colorKey := canonicalColorKey(rawColor)
-	if colorKey == "" || colorKey == "#000000" || colorKey == "black" || colorKey == "#ffffff" || colorKey == "white" {
+	switch colorKey {
+	case "", "#000000", "black", "#ffffff", "white",
+		"var", "rgb", "rgba", "hsl", "hsla",
+		"inherit", "initial", "unset", "transparent", "currentcolor", "none", "auto":
 		return
 	}
-	// 图例单元格里的角色名通常是短标签；过滤整句歌词
-	if len([]rune(rawRole)) > 35 || strings.ContainsAny(rawRole, "。！？♪") {
+	// 图例单元格里的角色名通常是短标签；过滤整句歌词、括号片段、逐字彩虹假名与句子标点
+	trimmedRole := strings.TrimSpace(rawRole)
+	if trimmedRole == "" || strings.ContainsAny(trimmedRole, "\n[]【】。！？!?♪～~") {
 		return
 	}
-	role := normalizeVocalRoleName(rawRole)
+	if runes := []rune(trimmedRole); len(runes) == 1 && runes[0] >= 0x3040 && runes[0] <= 0x309F {
+		return
+	}
+	runeCount := len([]rune(trimmedRole))
+	if runeCount > 35 || (!reCleanMultiSep.MatchString(trimmedRole) && runeCount > 22) {
+		return
+	}
+	role := normalizeVocalRoleName(trimmedRole)
 	if role == "" {
 		return
 	}
@@ -1239,7 +1395,8 @@ func unwrapWikiLyricsWrapperTemplates(text string, q *VocalSearchQuery) string {
 				}
 				lowerHead := strings.ToLower(strings.TrimSpace(head))
 				if lowerHead == "lyrics" || lowerHead == "lyricstab" || lowerHead == "lyrics table" || lowerHead == "tab" ||
-					lowerHead == "scroll box" || lowerHead == "scrollbox" || lowerHead == "collapse" || lowerHead == "collapsed" || lowerHead == "quote" {
+					lowerHead == "scroll box" || lowerHead == "scrollbox" || lowerHead == "collapse" || lowerHead == "collapsed" || lowerHead == "quote" ||
+					strings.HasPrefix(lowerHead, "copylyrics") {
 					if extracted := pickBestNamedLyricParam(rawTpl, q); extracted != "" {
 						b.WriteString(unwrapWikiLyricsWrapperTemplates(extracted, q))
 						i = end
@@ -1260,7 +1417,8 @@ func pickBestNamedLyricParam(tplBody string, _ *VocalSearchQuery) string {
 		return ""
 	}
 	lowerHead := strings.ToLower(strings.TrimSpace(params[0]))
-	isContainerTpl := lowerHead == "scroll box" || lowerHead == "scrollbox" || lowerHead == "collapse" || lowerHead == "collapsed" || lowerHead == "quote" || lowerHead == "cquote"
+	isContainerTpl := lowerHead == "scroll box" || lowerHead == "scrollbox" || lowerHead == "collapse" || lowerHead == "collapsed" || lowerHead == "quote" || lowerHead == "cquote" ||
+		strings.HasPrefix(lowerHead, "copylyrics")
 	var japanese, romaji, other string
 	for _, p := range params[1:] {
 		k, v, ok := strings.Cut(p, "=")
@@ -1474,8 +1632,8 @@ func parseMediaWikiRoleMarkup(wikitext string, legendColors map[string]string, _
 	text = regexp.MustCompile(`(?i)<br\s*/?>`).ReplaceAllString(text, "\n")
 	text = strings.ReplaceAll(text, "{{!}}", "|")
 
-	// 解包无闭合尾花括号的常见壳子如 {{CopyLyrics| 并内联剥离 {{ruby|...|...}} 避免行内注音拆行
-	text = regexp.MustCompile(`(?i)\{\{CopyLyrics\|`).ReplaceAllString(text, "")
+	// 仅剥离真正未闭合的 {{CopyLyrics...| 壳子前缀，闭合完整的交由外层容器解包以避免残留孤立 }}
+	text = stripUnclosedCopyLyricsPrefixes(text)
 	text = stripMediaWikiRubyTemplates(text)
 
 	type roleLine struct {
@@ -1770,11 +1928,13 @@ func handleMediaWikiTemplate(
 
 	// 8) 非角色系统模板但可能内含歌词文本：忽略结构控制，解包/放行文本参数（仅在白名单内）
 	if lowerHead == "small" || lowerHead == "big" || lowerHead == "center" || lowerHead == "b" || lowerHead == "i" ||
-		lowerHead == "scroll box" || lowerHead == "scrollbox" || lowerHead == "collapse" || lowerHead == "collapsed" || lowerHead == "quote" || lowerHead == "cquote" {
+		lowerHead == "scroll box" || lowerHead == "scrollbox" || lowerHead == "collapse" || lowerHead == "collapsed" || lowerHead == "quote" || lowerHead == "cquote" ||
+		strings.HasPrefix(lowerHead, "copylyrics") {
 		if len(params) >= 2 {
 			(*flushPlain)()
 			body := params[1]
-			if lowerHead == "scroll box" || lowerHead == "scrollbox" || lowerHead == "collapse" || lowerHead == "collapsed" || lowerHead == "quote" || lowerHead == "cquote" {
+			if lowerHead == "scroll box" || lowerHead == "scrollbox" || lowerHead == "collapse" || lowerHead == "collapsed" || lowerHead == "quote" || lowerHead == "cquote" ||
+				strings.HasPrefix(lowerHead, "copylyrics") {
 				if extracted := pickBestNamedLyricParam(tplBody, nil); extracted != "" {
 					body = extracted
 				}
@@ -2071,9 +2231,25 @@ func shouldSkipHTMLNode(n *nethtml.Node) bool {
 	case "script", "style", "rt", "rp", "noscript", "nav", "header", "footer", "aside":
 		return true
 	}
-	for _, cls := range []string{"Lyrics-translated", "template-ruby-hidden", "navbox", "infobox", "toc", "mw-editsection", "reference", "noprint"} {
-		if hasHTMLClass(n, cls) {
+	for _, attr := range n.Attr {
+		key := strings.ToLower(attr.Key)
+		val := strings.ToLower(attr.Val)
+		if key == "data-exclude-from-selection" && val == "true" {
 			return true
+		}
+		if key == "role" && val == "navigation" {
+			return true
+		}
+		if key == "class" {
+			for _, cls := range strings.Fields(val) {
+				if cls == "lyrics-translated" || cls == "template-ruby-hidden" || cls == "toc" ||
+					cls == "mw-editsection" || cls == "reference" || cls == "noprint" ||
+					strings.Contains(cls, "navbox") || strings.Contains(cls, "infobox") ||
+					strings.Contains(cls, "photrans-button") || strings.Contains(cls, "bilibili-") ||
+					strings.Contains(cls, "mw-collapsible-toggle") {
+					return true
+				}
+			}
 		}
 	}
 	return false
@@ -2100,8 +2276,12 @@ func extractHTMLColorLegend(root *nethtml.Node) map[string]string {
 			return
 		}
 		if n.Type == nethtml.ElementNode {
-			// 在正文非 Lyrics-original 区域搜集短色块说明（例如 <span style="color:#33CCBB">初音未来</span>）
-			if !hasHTMLClass(n, "Lyrics-line") && !hasHTMLClass(n, "Lyrics-original") {
+			// 严禁穿透现代萌百歌词容器子树（如 .Lyrics-original 内彩虹逐字/中文翻唱着色），直接 return 阻断子树递归
+			if hasHTMLClass(n, "Lyrics") || hasHTMLClass(n, "Lyrics-line") || hasHTMLClass(n, "Lyrics-original") || hasHTMLClass(n, "Lyrics-translated") {
+				return
+			}
+			// 在正文非歌词容器区域搜集短色块说明；跳过含 <br> 的多行分块（如 Utaten <font>[スペ]<br/>歌词</font>）与括号内打 Call 词
+			if !hasHTMLDescendantTag(n, "br") && !isWrappedInParenSiblings(n) {
 				colorKey := ""
 				if m := reCleanColorStyle.FindStringSubmatch(getHTMLAttr(n, "style")); len(m) == 2 {
 					colorKey = canonicalColorKey(m[1])
@@ -2120,6 +2300,58 @@ func extractHTMLColorLegend(root *nethtml.Node) map[string]string {
 	}
 	walk(root)
 	return legend
+}
+
+func hasHTMLDescendantTag(root *nethtml.Node, tag string) bool {
+	if root == nil {
+		return false
+	}
+	var walk func(*nethtml.Node) bool
+	walk = func(cur *nethtml.Node) bool {
+		for c := cur.FirstChild; c != nil; c = c.NextSibling {
+			if c.Type == nethtml.ElementNode && strings.EqualFold(c.Data, tag) {
+				return true
+			}
+			if walk(c) {
+				return true
+			}
+		}
+		return false
+	}
+	return walk(root)
+}
+
+func isWrappedInParenSiblings(n *nethtml.Node) bool {
+	if n == nil {
+		return false
+	}
+	var prevTxt, nextTxt string
+	for p := n.PrevSibling; p != nil; p = p.PrevSibling {
+		if p.Type == nethtml.TextNode {
+			if t := strings.TrimRightFunc(p.Data, unicode.IsSpace); t != "" {
+				prevTxt = t
+				break
+			}
+			continue
+		}
+		break
+	}
+	for nx := n.NextSibling; nx != nil; nx = nx.NextSibling {
+		if nx.Type == nethtml.TextNode {
+			if t := strings.TrimLeftFunc(nx.Data, unicode.IsSpace); t != "" {
+				nextTxt = t
+				break
+			}
+			continue
+		}
+		break
+	}
+	if prevTxt == "" || nextTxt == "" {
+		return false
+	}
+	hasOpen := strings.HasSuffix(prevTxt, "(") || strings.HasSuffix(prevTxt, "（")
+	hasClose := strings.HasPrefix(nextTxt, ")") || strings.HasPrefix(nextTxt, "）")
+	return hasOpen && hasClose
 }
 
 func collectDirectOrShortText(n *nethtml.Node) string {
@@ -2488,16 +2720,121 @@ func computeVocalLyricOverlap(cleanLyricLines []string, q *VocalSearchQuery) int
 	return matched
 }
 
+var (
+	reUnclosedCopyLyricsPrefix = regexp.MustCompile(`(?i)\{\{CopyLyrics[^|{}\n]*\|`)
+	reVocalKana                = regexp.MustCompile(`[\p{Hiragana}\p{Katakana}]`)
+	reMoegirlTitlePersonCount  = regexp.MustCompile(`(\d+)\s*人`)
+)
+
+func scoreMoegirlVocalContainer(cleaned string, q *VocalSearchQuery) int {
+	singers, _, lyricLines := inspectNormalizedVocalBlocks(cleaned)
+	score := computeVocalLyricOverlap(lyricLines, q) * 5
+	if len(q.LyricsLines) > 0 {
+		diff := len(lyricLines) - len(q.LyricsLines)
+		if diff < 0 {
+			diff = -diff
+		}
+		score -= diff * 2
+	}
+
+	hasPJSKHuman := containsPJSKHumanCharacter(cleaned)
+	metaText := strings.Join(q.Artists, " ") + " " + q.RawTitle + " " + strings.Join(q.Aliases, " ") + " " + q.Album
+	metaHasSEKAI := reVocalSEKAIHuman.MatchString(metaText)
+	if q.PrefersVirtualSinger {
+		if !hasPJSKHuman {
+			score += 80
+		} else {
+			score -= 80
+		}
+	} else if hasPJSKHuman {
+		score += 80
+	} else if metaHasSEKAI {
+		score -= 80
+	}
+
+	// 统计容器内的独立演唱角色名并与艺人列表 / 曲名版本标注（如 [5人Ver.]）对比
+	distinctRoles := make(map[string]bool)
+	for _, raw := range strings.Split(cleaned, "\n") {
+		m := reCleanNormalizedBlock.FindStringSubmatch(strings.TrimSpace(raw))
+		if len(m) != 2 {
+			continue
+		}
+		for _, part := range reCleanMultiSep.Split(strings.TrimSpace(m[1]), -1) {
+			part = strings.TrimSpace(part)
+			if part != "" {
+				distinctRoles[part] = true
+			}
+		}
+	}
+	metaLower := strings.ToLower(vocalTitlePunctReplacer.Replace(strings.Join(q.Artists, " ") + " " + q.RawTitle))
+	for role := range distinctRoles {
+		roleLower := strings.ToLower(vocalTitlePunctReplacer.Replace(role))
+		if len([]rune(roleLower)) >= 2 && strings.Contains(metaLower, roleLower) {
+			score += 35
+		}
+	}
+	if m := reMoegirlTitlePersonCount.FindStringSubmatch(q.RawTitle); len(m) == 2 {
+		if targetCnt, err := strconv.Atoi(m[1]); err == nil && targetCnt >= 2 {
+			if singers == targetCnt {
+				score += 50
+			} else {
+				score -= 30
+			}
+		}
+	} else if strings.Contains(q.RawTitle, "五人") && singers == 5 {
+		score += 50
+	}
+	return score
+}
+
+func stripUnclosedCopyLyricsPrefixes(text string) string {
+	pos := 0
+	for pos < len(text) {
+		loc := reUnclosedCopyLyricsPrefix.FindStringIndex(text[pos:])
+		if loc == nil {
+			break
+		}
+		absStart := pos + loc[0]
+		absEnd := pos + loc[1]
+		if findBalancedTemplateEnd(text, absStart) >= 0 {
+			pos = absEnd
+			continue
+		}
+		text = text[:absStart] + text[absEnd:]
+		pos = absStart
+	}
+	return text
+}
+
+func calcKanaLineRatio(lines []string) float64 {
+	if len(lines) == 0 {
+		return 0
+	}
+	matched := 0
+	for _, line := range lines {
+		if reVocalKana.MatchString(line) {
+			matched++
+		}
+	}
+	return float64(matched) / float64(len(lines))
+}
+
 func verifyVocalLyricOverlap(cleanLyricLines []string, overlapScore, priority int, q *VocalSearchQuery) bool {
 	if q == nil || len(q.LyricsLines) == 0 {
 		return true
 	}
+	trackKanaRatio := calcKanaLineRatio(q.LyricsLines)
+	cleanKanaRatio := calcKanaLineRatio(cleanLyricLines)
+	trackCJKRatio := calcCJKLineRatio(q.LyricsLines)
+	cleanCJKRatio := calcCJKLineRatio(cleanLyricLines)
+	// 原词包含较高比例日文假名却命中纯中文翻唱/填词页（如 Moegirl VirtuaReal 中文版），拒绝以免强行错位；
+	// 必须同时检查 cleanCJKRatio >= 0.20，避免误杀只有罗马音（无假名也无汉字）的权威英文 Wiki 标签页
+	if trackKanaRatio >= 0.25 && cleanCJKRatio >= 0.20 && cleanKanaRatio < 0.05 {
+		return false
+	}
 	if overlapScore >= vocalSearchMinOverlapLines {
 		return true
 	}
-
-	trackCJKRatio := calcCJKLineRatio(q.LyricsLines)
-	cleanCJKRatio := calcCJKLineRatio(cleanLyricLines)
 
 	// 双方均主要为同语系脚本（同为日/中文，或同为拉丁英文）时却一行都不重合 -> 必然命中同名异曲（如 Crazy ∞ nighT 误命中 CRAZY）
 	if (trackCJKRatio >= 0.25 && cleanCJKRatio >= 0.25) || (trackCJKRatio < 0.10 && cleanCJKRatio < 0.10) {

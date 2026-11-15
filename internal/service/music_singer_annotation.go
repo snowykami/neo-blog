@@ -1230,8 +1230,53 @@ func sanitizeLyricSingerRespStruct(parsed *lyricSingerAIResp, input *lyricSinger
 	if len(keptLines) == 0 || len(usedAgents) < 2 {
 		return dto.LyricSingerData{Empty: true}, nil
 	}
+	// 仅保留实际出场或被出场组合引用的歌手，并在裁剪后复核剩余个人歌手的左右交替分布
+	referencedIDs := make(map[string]bool, len(validSingers))
+	for _, s := range validSingers {
+		if !usedAgents[s.ID] {
+			continue
+		}
+		referencedIDs[s.ID] = true
+		for _, m := range s.Members {
+			referencedIDs[m] = true
+		}
+	}
+	keptSingers := validSingers[:0]
+	for _, s := range validSingers {
+		if referencedIDs[s.ID] {
+			keptSingers = append(keptSingers, s)
+		}
+	}
+	if len(keptSingers) < 2 {
+		return dto.LyricSingerData{Empty: true}, nil
+	}
+	remPersonCount, remLeftCount, remRightCount := 0, 0, 0
+	for _, s := range keptSingers {
+		if s.Role == "person" {
+			remPersonCount++
+			switch s.Align {
+			case "left":
+				remLeftCount++
+			case "right":
+				remRightCount++
+			}
+		}
+	}
+	if remPersonCount >= 2 && (remLeftCount == remPersonCount || remRightCount == remPersonCount) {
+		pIdx := 0
+		for i := range keptSingers {
+			if keptSingers[i].Role == "person" {
+				if pIdx%2 == 1 {
+					keptSingers[i].Align = "right"
+				} else {
+					keptSingers[i].Align = "left"
+				}
+				pIdx++
+			}
+		}
+	}
 	return dto.LyricSingerData{
-		Singers: validSingers,
+		Singers: keptSingers,
 		Lines:   keptLines,
 	}, nil
 }

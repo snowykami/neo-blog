@@ -82,6 +82,10 @@ func (a *lyricSingerService) runCompactVocalAligner(
 		return dto.LyricSingerData{}, cfg.Model, err
 	}
 	if data.Empty {
+		if candidate != nil {
+			logrus.Infof("vocal aligner returned empty for song %d (%s) despite candidate %s (%s)",
+				input.Track.ID, input.Source, candidate.SourceName, candidate.URL)
+		}
 		return data, cfg.Model, nil
 	}
 
@@ -128,11 +132,8 @@ func decodeCompactVocalAlignerJSON(raw string) (*lyricSingerAIResp, error) {
 }
 
 func buildCompactVocalAlignerSystemPrompt() string {
-	colorKeys := make([]string, 0, 12)
-	for i, item := range lyricAnnotationPalette {
-		if i >= 16 {
-			break
-		}
+	colorKeys := make([]string, 0, len(lyricAnnotationPalette))
+	for _, item := range lyricAnnotationPalette {
 		colorKeys = append(colorKeys, fmt.Sprintf("%s(%s)", item.Key, item.Hint))
 	}
 
@@ -140,14 +141,16 @@ func buildCompactVocalAlignerSystemPrompt() string {
 你的唯一任务是：根据已经核实并清洗好的【参考声部段落】或【原歌词内联声部标注】，将【目标原歌词】从第 1 行到第 N 行逐行映射给正确的演唱者 ID。
 
 核心原则与硬性约束：
-1. 【严格零幻觉】：禁止无中生有猜测歌手！如果参考声部资料存在明显错位无法对齐，或原歌词实为独唱且仅存在制作人员信息（作词/作曲/编曲/制作人等），必须直接返回 {"empty": true}。
+1. 【严格零幻觉】：禁止无中生有猜测歌手！仅当参考资料与目标歌词**完全属于两首不同歌曲**，或参考资料实质只有单一独唱者与制作人员表时，返回 {"empty": true}。
 2. 【严禁片段化切分】：同一角色连续演唱的段落，mapping 中相邻行必须连续保持同一 ID；严禁没有参考证据支持就逐句轮流拆分歌手。
-3. 【跨语言/跨版本对齐】：如果参考资料是罗马音/中文标注而目标歌词是日文原词（或顺序略有前缀/间奏差异），请根据段落停顿、行数节奏与发音顺序准确对齐到每一行。
-4. 【角色规范】：
+3. 【跨语言/跨版本/部分覆盖对齐】：如果参考资料使用罗马音歌词或对应 TV/Game-size 短版、4人/5人等略微不同的编排版本，请按日语假名/罗马音读音、旋律乐句与副歌结构对照完成所有匹配行的归属映射；若参考仅覆盖部分副歌而重复乐段唱词结构一致，只允许沿用资料中已证实出现的演唱者格局，切勿无故因版本长度或语言载体不同而退回 {"empty": true}。
+4. 【角色与组合/团体名规范（极重要）】：
    - 每位独立演唱者赋予短 ID（v1, v2, ...），role 设为 "person"。
-   - 若存在全员合唱/齐唱/重唱段落（如 合唱 / All / 全员），额外定义组合 ID（如 g1），role 设为 "group"，align 必须为 "center"，并在 members 中列出包含的个人 ID。
-   - 歌手名保持干净简洁，不带方括号与企划缩写后缀；若歌手互为搭档/对唱角色，"person" 歌手的 align 应合理在 "left" 和 "right" 间交替分配以形成左右对话排版。
-   - color 必须为每位歌手选择互不重复的颜色 key，可选主题色：%s。
+   - **团体/企划/社团名对应个人成员**：当 艺人元数据 仅填写了组合、乐队、社团或虚拟主播箱名（例如 hololive IDOL PROJECT、にじさんじ / NIJISANJI、放課後ティータイム、MORE MORE JUMP!、Vivid BAD SQUAD、Aqours、μ's、チマメ隊、スタァライト九九組），而【已核验外部权威声部资料】列出了具体成员个人名（不论日文、中文或英文/罗马音，如 Hoshimachi Suisei / 星街すいせい、Tsukino Mito / 月ノ美兎、Yui / Mio / Ritsu / Mugi / Azusa），这些成员正是该组合的真实演唱者，必须如实完成对齐并保留清晰规范的角色/成员名，**严禁**仅因“资料里的个人名与元数据里的组合名文本不同”就误判不匹配或返回 {"empty": true}！
+   - 若参考资料使用 ACG 角色名/爱称/缩写（如 スペ -> スペシャルウィーク、テイオー -> トウカイテイオー、スズカ -> サイレンススズカ），而曲目元信息为对应声优（CV）姓名，或参考资料使用音乐剧/影视剧中角色名（如 Phillip Carlyle / Anne Wheeler 对应 Zac Efron / Zendaya），请准确对应完成对齐，同样切勿因角色名与演员/CV 文字不同而拒绝输出。
+   - 若存在全员合唱/齐唱/重唱段落（如 合唱 / All / 全员 / 全員 / 组合名），额外定义组合 ID（如 g1），role 设为 "group"，align 必须为 "center"，并在 members 中列出包含的个人 ID。
+   - 歌手名保持干净简洁，不带方括号与企划缩写后缀；若存在多位 "person" 歌手，"person" 歌手的 align 应合理在 "left" 和 "right" 间交替分配以形成左右对话排版。
+   - color 必须尽量为每位歌手选择互不重复的颜色 key，可选主题色：%s。
 5. 【紧凑输出 Schema】：为节省输出时间并杜绝篡改原文，**不要复述原歌词文字**，严格只输出单个合法 JSON 对象：
    - 若不构成可信多声部对齐：{"empty": true}
    - 若对齐成功：
@@ -189,7 +192,17 @@ func buildCompactVocalAlignerUserPrompt(
 		fmt.Fprintf(&b, "已知制作人员/元信息（勿将其识别为歌手）：%s\n", strings.Join(input.Credits, " | "))
 	}
 
-	if len(input.Agents) > 0 {
+	namedPersonCount := 0
+	for _, ag := range input.Agents {
+		name := strings.TrimSpace(ag.Name)
+		if ag.Role == "person" && name != "" && !strings.EqualFold(name, strings.TrimSpace(ag.ID)) {
+			namedPersonCount++
+		}
+	}
+	// 当已有外部权威声部资料、且 TTML 自身缺少 >= 2 位具名个人角色时，不向模型注入匿名的 agent=v1/v2 标签以免与外部多角色拆分冲突
+	showTTMLAgents := len(input.Agents) > 0 && (candidate == nil || namedPersonCount >= 2)
+
+	if showTTMLAgents {
 		b.WriteString("\n【TTML 声明声部清单】\n")
 		for _, ag := range input.Agents {
 			fmt.Fprintf(&b, "- id=%s name=%s role=%s pos=%s members=%s\n",
@@ -202,7 +215,7 @@ func buildCompactVocalAlignerUserPrompt(
 		if candidate.URL != "" {
 			fmt.Fprintf(&b, "URL: %s\n", candidate.URL)
 		}
-		b.WriteString(clipRunes(candidate.CleanContent, 6500))
+		b.WriteString(clipRunes(candidate.CleanContent, 10000))
 		b.WriteByte('\n')
 	}
 
@@ -227,7 +240,7 @@ func buildCompactVocalAlignerUserPrompt(
 	fmt.Fprintf(&b, "\n【目标原歌词（共 %d 行，请输出长度恰好为 %d 的 mapping 数组）】\n", len(input.Tasks), len(input.Tasks))
 	for _, task := range input.Tasks {
 		var tags []string
-		if task.RawAgent != "" {
+		if showTTMLAgents && task.RawAgent != "" {
 			tags = append(tags, "agent="+task.RawAgent)
 		}
 		if task.Bg {
@@ -260,12 +273,16 @@ func singerJSONCompletion(ctx context.Context, cfg tools.AIConfig, system, user 
 		useEffort = ""
 	}
 
+	useMaxTokens := true
 	sendOnce := func(withJSON bool, eff string) ([]byte, error) {
 		payload := map[string]any{
 			"model":       cfg.Model,
 			"messages":    llmclient.ChatMessages(system, user),
 			"temperature": temperature,
 			"stream":      false,
+		}
+		if useMaxTokens {
+			payload["max_tokens"] = 8192
 		}
 		if withJSON {
 			payload["response_format"] = map[string]string{"type": "json_object"}
@@ -319,6 +336,10 @@ func singerJSONCompletion(ctx context.Context, cfg tools.AIConfig, system, user 
 				}
 				data, callErr = sendOnce(false, "")
 			}
+		}
+		if errors.As(callErr, &statusErr) && statusErr.Code == http.StatusBadRequest && useMaxTokens {
+			useMaxTokens = false
+			data, callErr = sendOnce(useJSONMode, useEffort)
 		}
 	}
 

@@ -448,6 +448,163 @@ I'm off the deep end, watch as I dive in
 			}
 		}
 	})
+
+	t.Run("PJSK CopyLyrics Kan wrapper + Mmj unit token", func(t *testing.T) {
+		wikitext := `== Lyrics ==
+{{CopyLyrics Kan|
+{{Lyrics head}}
+{{Lyric|Minori|だからもっと 近づきたいから}}
+{{Lyric|Haruka|届けたい 君のもとへ}}
+{{Lyric|Mmj, Miku|MORE! MORE! JUMP!}}
+}}`
+		cleaned := cleanMediaWikiVocalEvidence(wikitext, &VocalSearchQuery{HasCJKContext: true})
+		for _, want := range []string{
+			"[花里实乃里]:\nだからもっと 近づきたいから",
+			"[桐谷遥]:\n届けたい 君のもとへ",
+			"[MORE MORE JUMP! & 初音未来]:\nMORE! MORE! JUMP!",
+		} {
+			if !strings.Contains(cleaned, want) {
+				t.Fatalf("missing %q in CopyLyrics Kan cleaned output:\n%s", want, cleaned)
+			}
+		}
+		if strings.Contains(cleaned, "CopyLyrics") || strings.Contains(cleaned, "}}") {
+			t.Fatalf("unexpected template wrapper leaked in CopyLyrics Kan output:\n%s", cleaned)
+		}
+	})
+
+	t.Run("Moegirl CSS var immunity + Lyrics-original non-fallback", func(t *testing.T) {
+		moegirlHTML := `<html><body>
+			<div class="mw-parser-output">
+				<a style="color:var(--theme-link-color,#0645ad)">关闭注音</a>
+				<div class="Lyrics-original">
+					<p>君の声だけが響いてる</p>
+					<p>夜空を越えて</p>
+				</div>
+				<div class="navbox">
+					<span style="color:#ff5500">角色A</span>
+					<span style="color:#00aaff">角色B</span>
+				</div>
+				<p><span style="color:#ff5500">页脚歌手1</span>：<span style="color:#00aaff">页脚歌手2</span></p>
+				<p><span style="color:#ff5500">无关脚注</span></p>
+				<p><span style="color:#00aaff">其他链接</span></p>
+			</div>
+		</body></html>`
+		cleaned := cleanMoegirlHTMLVocalEvidence(moegirlHTML, &VocalSearchQuery{HasCJKContext: true})
+		if cleaned != "" {
+			t.Fatalf("expected empty output for mono-color .Lyrics-original with var()/navbox noise, got:\n%s", cleaned)
+		}
+	})
+
+	t.Run("Moegirl title verification & Japanese kana guard", func(t *testing.T) {
+		shallowQuery := &VocalSearchQuery{CleanTitle: "Shallow", Artists: []string{"Lady Gaga", "Bradley Cooper"}}
+		if moegirlTitleMatchesQuery("Shall We Dance?", "Shallow", shallowQuery) {
+			t.Fatalf("expected Shall We Dance? to be rejected for Shallow")
+		}
+		vtlQuery := &VocalSearchQuery{CleanTitle: "Virtual to LIVE", HasCJKContext: true}
+		if !moegirlTitleMatchesQuery("Virtual_to_LIVE", "Virtual to LIVE", vtlQuery) {
+			t.Fatalf("expected Virtual_to_LIVE to match Virtual to LIVE")
+		}
+		gunjouQuery := &VocalSearchQuery{CleanTitle: "群青讃歌", HasCJKContext: true}
+		if !moegirlTitleMatchesQuery("群青赞歌", "群青讃歌", gunjouQuery) {
+			t.Fatalf("expected simplified Chinese title 群青赞歌 to match 群青讃歌")
+		}
+
+		jpTrackQuery := &VocalSearchQuery{
+			CleanTitle: "Virtual to LIVE",
+			LyricsLines: []string{
+				"ねぇ どんな未来が見えるかな",
+				"きみと踏み出すステップ",
+				"響き合うメロディ",
+				"Virtual to LIVE!",
+			},
+		}
+		cnCoverLines := []string{"穿过屏幕的星光", "与你相连的梦想", "Virtual to LIVE", "永远闪耀"}
+		if verifyVocalLyricOverlap(cnCoverLines, 2, 85, jpTrackQuery) {
+			t.Fatalf("expected pure Chinese cover lines to fail kana ratio guard against Japanese track")
+		}
+	})
+
+	t.Run("HTML color legend excludes Lyrics-original rainbow, br font blocks, and call parens", func(t *testing.T) {
+		// 1) 现代萌百 .Lyrics-original 内无 title 的逐字彩虹着色不应污染颜色图例
+		rainbowHTML := `<html><body><div class="mw-parser-output">
+			<div class="Lyrics-line">
+				<div class="Lyrics-original">
+					<span style="color:#4EBD9B">む</span><span style="color:#E8739A">が</span><span style="color:#38bdf8">え</span>
+				</div>
+			</div>
+			<div class="Lyrics-line">
+				<div class="Lyrics-original"><span style="color:#4EBD9B">目を開けば</span></div>
+			</div>
+		</div></body></html>`
+		if got := cleanMoegirlHTMLVocalEvidence(rainbowHTML, &VocalSearchQuery{HasCJKContext: true}); got != "" {
+			t.Fatalf("expected rainbow Lyrics-original without title to yield empty, got:\n%s", got)
+		}
+
+		// 2) Utaten 风格 <font color="#HEX">[角色]<br />歌词</font>(はいっ) 不应污染颜色图例，应平稳走括号提取
+		utatenStyleHTML := `<html><body><div>
+			<font color="#ff69b4">[スペ]<br />おひさまぱっぱか快晴レース</font>(はいっ)<br />
+			<font color="#38bdf8">[テイオー]<br />第一第二第三しーごー</font>
+		</div></body></html>`
+		cleanedUtaten := cleanHTMLVocalEvidence(utatenStyleHTML, &VocalSearchQuery{HasCJKContext: true})
+		for _, want := range []string{"[スペ]:\nおひさまぱっぱか快晴レース(はいっ)", "[テイオー]:\n第一第二第三しーごー"} {
+			if !strings.Contains(cleanedUtaten, want) {
+				t.Fatalf("expected %q from bracket fallback on br-containing <font>, got:\n%s", want, cleanedUtaten)
+			}
+		}
+
+		// 3) 应援打 Call 博客括号提示 `（<span style="color:#0000ff">clap×2</span>）` 不应成为歌手图例
+		callBlogHTML := `<html><body><article>
+			<p>同じ未来を見ていたい（<span style="color:#0000ff">clap×2</span>）</p>
+			<p>あの夢手にしたい（<span style="color:#ff0000">Fu！</span>）</p>
+			<p>走れ GO</p>
+		</article></body></html>`
+		if got := cleanHTMLVocalEvidence(callBlogHTML, &VocalSearchQuery{HasCJKContext: true}); got != "" {
+			t.Fatalf("expected call/cheering parens not to fabricate singers, got:\n%s", got)
+		}
+	})
+}
+
+func TestBraveAndYahooExternalURLFilter(t *testing.T) {
+	if got, ok := extractBraveExternalURL("https://thegreatestshowman.fandom.com/wiki/Rewrite_the_Stars"); !ok || got != "https://thegreatestshowman.fandom.com/wiki/Rewrite_the_Stars" {
+		t.Fatalf("expected greatestshowman fandom URL kept, got %q ok=%v", got, ok)
+	}
+	if _, ok := extractBraveExternalURL("https://en.wikipedia.org/wiki/Rewrite_the_Stars#Composition"); ok {
+		t.Fatalf("expected fragment sitelink #Composition filtered out")
+	}
+	if _, ok := extractBraveExternalURL("https://search.brave.com/search?q=test"); ok {
+		t.Fatalf("expected internal brave.com URL filtered out")
+	}
+	if _, ok := extractBraveExternalURL("https://www.youtube.com/watch?v=12345"); ok {
+		t.Fatalf("expected youtube.com filtered out")
+	}
+
+	yahooWrapped := "https://rdsig.yahoo.co.jp/RV=2/RE=1700000000/RH=aHR0cHM6Ly9zZWFyY2gueWFob28uY28uanA-/RB=/RU=https%3A%2F%2Fkogane-music.hatenablog.com%2Fentry%2Fumapyoi-densetsu/RK=2/RS=abc"
+	if got, ok := extractYahooExternalURL(yahooWrapped); !ok || got != "https://kogane-music.hatenablog.com/entry/umapyoi-densetsu" {
+		t.Fatalf("expected unpacked yahoo URL, got %q ok=%v", got, ok)
+	}
+
+	q := &VocalSearchQuery{
+		CleanTitle: "うまぴょい伝説",
+		NormTitle:  normalizeSearchTitle("うまぴょい伝説"),
+		Artists:    []string{"ウマ娘"},
+	}
+	hatenaScore := scoreWebSearchHitURL("https://kogane-music.hatenablog.com/entry/umapyoi-densetsu", "うまぴょい伝説 パート分け 歌詞", q)
+	utatenScore := scoreWebSearchHitURL("https://utaten.com/specialArticle/index/6404", "うまぴょい伝説 パート分け 歌詞", q)
+	if hatenaScore <= utatenScore {
+		t.Fatalf("expected hatenablog (%d) to outrank utaten (%d)", hatenaScore, utatenScore)
+	}
+	if s := scoreWebSearchHitURL("https://genius.com/Lady-gaga-shallow-lyrics", "Shallow Lyrics", q); s != -1 {
+		t.Fatalf("expected blocked genius.com to score -1, got %d", s)
+	}
+	if s := scoreWebSearchHitURL("https://jp.stanby.com/jobs/123", "Stanby", q); s != -1 {
+		t.Fatalf("expected blocked stanby.com to score -1, got %d", s)
+	}
+	if s := scoreWebSearchHitURL("https://utaten.com/search?title=test", "UtaTen Search", q); s != -1 {
+		t.Fatalf("expected utaten /search to score -1, got %d", s)
+	}
+	if s := scoreWebSearchHitURL("https://ameblo.jp/zakki440/entry-12887039362.html", "コール練習と雑記ブログ440 コール表", q); s != -1 {
+		t.Fatalf("expected call/cheering tutorial post without part-division keywords to score -1, got %d", s)
+	}
 }
 
 func TestLyricSingerPipelineZeroHallucinationPreLLMGate(t *testing.T) {
@@ -709,9 +866,13 @@ func TestLyricSingerUnnamedTTMLTriggersExternalSearch(t *testing.T) {
 	lyricSingers.providers = []VocalEvidenceProvider{custom}
 
 	var sawExternalEvidence atomic.Bool
+	var sawUnnamedTTMLAgent atomic.Bool
 	lyricSingers.alignComplete = func(_ context.Context, _ tools.AIConfig, _, user string) (string, error) {
 		if strings.Contains(user, "[花里实乃里]:") && strings.Contains(user, "[桐谷遥]:") {
 			sawExternalEvidence.Store(true)
+		}
+		if strings.Contains(user, "agent=v1") || strings.Contains(user, "【TTML 声明声部清单】") {
+			sawUnnamedTTMLAgent.Store(true)
 		}
 		return `{
 			"empty": false,
@@ -738,6 +899,9 @@ func TestLyricSingerUnnamedTTMLTriggersExternalSearch(t *testing.T) {
 	if !sawExternalEvidence.Load() {
 		t.Fatalf("expected cleaned external evidence injected into aligner prompt for unnamed TTML")
 	}
+	if sawUnnamedTTMLAgent.Load() {
+		t.Fatalf("expected unnamed TTML agents to be omitted from aligner prompt when external evidence is present")
+	}
 
 	ready, svcerr := svc.GetLyricSingers(context.Background(), 304, "ttml-amll", "")
 	if svcerr != nil || ready.Status != lyricTranslationStatusReady || len(ready.Singers) != 2 || len(ready.Lines) != 5 {
@@ -745,6 +909,118 @@ func TestLyricSingerUnnamedTTMLTriggersExternalSearch(t *testing.T) {
 	}
 	if ready.Singers[0].Name != "花里实乃里" || ready.Singers[1].Name != "桐谷遥" {
 		t.Fatalf("expected real character names resolved from external evidence, got %+v", ready.Singers)
+	}
+}
+
+func TestVocalCleanerGeniusAndHatenaAndTitleBracket(t *testing.T) {
+	geniusHTML := `<html><body>
+		<nav>Noise Navigation</nav>
+		<div data-lyrics-container="true">
+			<div data-exclude-from-selection="true">156 Contributors Rewrite The Stars Lyrics Read More</div>
+			[hololive IDOL PROJECT「Prism Melody」歌詞]<br/>
+			[Verse 1: Phillip Carlyle]<br/>
+			<a href="/anno">You know I want you</a><br/>
+			It's not a secret I try to hide<br/>
+			[Verse 2: Anne Wheeler]<br/>
+			You know you want me<br/>
+		</div>
+		<div data-lyrics-container="true">
+			[Chorus: Phillip Carlyle &amp; Anne Wheeler]<br/>
+			What if we rewrite the stars
+		</div>
+	</body></html>`
+
+	cleanedGenius := cleanHTMLVocalEvidence(geniusHTML, nil)
+	for _, banned := range []string{"156 Contributors", "Noise Navigation", "Prism Melody"} {
+		if strings.Contains(cleanedGenius, banned) {
+			t.Fatalf("expected %q stripped from Genius cleaned output, got:\n%s", banned, cleanedGenius)
+		}
+	}
+	for _, want := range []string{"[Phillip Carlyle]:", "[Anne Wheeler]:", "[Phillip Carlyle & Anne Wheeler]:", "What if we rewrite the stars"} {
+		if !strings.Contains(cleanedGenius, want) {
+			t.Fatalf("expected %q in Genius cleaned output, got:\n%s", want, cleanedGenius)
+		}
+	}
+
+	hatenaHTML := `<html><body>
+		<aside>人気ランキング [1位]</aside>
+		<div class="entry-content">
+			<p>[スペ]　おひさまぱっぱか　快晴レース<br />[テイオー]　第一第二第三しーごー<br />[全員]　うまだっち</p>
+		</div>
+	</body></html>`
+
+	cleanedHatena := cleanHTMLVocalEvidence(hatenaHTML, nil)
+	if strings.Contains(cleanedHatena, "人気ランキング") {
+		t.Fatalf("expected sidebar noise stripped from Hatena entry-content, got:\n%s", cleanedHatena)
+	}
+	for _, want := range []string{"[スペ]:", "[テイオー]:", "[合唱]:", "第一第二第三しーごー"} {
+		if !strings.Contains(cleanedHatena, want) {
+			t.Fatalf("expected %q in Hatena cleaned output, got:\n%s", want, cleanedHatena)
+		}
+	}
+
+	if role, secOnly := parseBracketRoleToken("hololive IDOL PROJECT「Prism Melody」歌詞"); !secOnly || role != "" {
+		t.Fatalf("expected title lyric header treated as sectionOnly=true, got role=%q secOnly=%v", role, secOnly)
+	}
+}
+
+func TestCleanMoegirlMultiTableSelectsBestVersion(t *testing.T) {
+	htmlDoc := `<div class="mw-parser-output">
+		<div class="Lyrics">
+			<div class="Lyrics-line"><div class="Lyrics-original"><span title="无关翻唱A">第一句测试歌词足够长超过阈值</span></div></div>
+			<div class="Lyrics-line"><div class="Lyrics-original"><span title="无关翻唱B">第二句测试歌词继续延伸凑足长度</span></div></div>
+			<div class="Lyrics-line"><div class="Lyrics-original"><span title="无关翻唱A">第三句翻唱版本完全不同的末尾内容</span></div></div>
+		</div>
+		<div class="Lyrics">
+			<div class="Lyrics-line"><div class="Lyrics-original"><span title="洛天依">上古之初 混沌未开 阴阳分两仪</span></div></div>
+			<div class="Lyrics-line"><div class="Lyrics-original"><span title="乐正绫">九九八十一难 世事本无常</span></div></div>
+			<div class="Lyrics-line"><div class="Lyrics-original"><span title="洛天依">西行路上 历经沧桑 初心终不改</span></div></div>
+		</div>
+	</div>`
+
+	q := &VocalSearchQuery{
+		RawTitle:    "九九八十一",
+		CleanTitle:  "九九八十一",
+		Artists:     []string{"洛天依", "乐正绫"},
+		LyricsLines: []string{"上古之初 混沌未开 阴阳分两仪", "九九八十一难 世事本无常", "西行路上 历经沧桑 初心终不改"},
+	}
+
+	cleaned := cleanMoegirlHTMLVocalEvidence(htmlDoc, q)
+	if strings.Contains(cleaned, "无关翻唱A") || strings.Contains(cleaned, "无关翻唱B") {
+		t.Fatalf("expected multi-table cleaner to pick only the matching duet table without concatenation, got:\n%s", cleaned)
+	}
+	for _, want := range []string{"[洛天依]:", "[乐正绫]:", "上古之初 混沌未开 阴阳分两仪", "九九八十一难 世事本无常"} {
+		if !strings.Contains(cleaned, want) {
+			t.Fatalf("expected %q in selected Moegirl container, got:\n%s", want, cleaned)
+		}
+	}
+
+	// 验证日语假名歌曲不会被误杀罗马音 Wiki（仅拒绝高中文比例的中文翻唱）
+	jpQ := &VocalSearchQuery{
+		LyricsLines: []string{
+			"きらきら光る星空を見上げて",
+			"君と歩いた季節を思い出す",
+			"声を出してさあ歌おうよ",
+			"笑顔のまま明日へ進もう",
+		},
+	}
+	romajiLines := []string{
+		"Kirakira hikaru hoshizora wo miagete",
+		"Kimi to aruita kisetsu wo omoidasu",
+		"Koe wo dashite saa utaou yo",
+		"Egao no mama ashita e susumou",
+	}
+	if !verifyVocalLyricOverlap(romajiLines, 0, 88, jpQ) {
+		t.Fatalf("expected Romaji authoritative wiki (priority 88) not to be rejected by CJK-cover guard")
+	}
+	chineseCoverLines := []string{
+		"仰望闪耀发光的星空",
+		"想起曾与你漫步的季节",
+		"放声歌唱吧大家一起",
+		"带着笑容迈向明天",
+	}
+	if verifyVocalLyricOverlap(chineseCoverLines, 0, 88, jpQ) {
+		t.Fatalf("expected pure Chinese cover of Japanese kana song to be rejected")
 	}
 }
 
