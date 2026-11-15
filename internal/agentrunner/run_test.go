@@ -60,9 +60,15 @@ func TestPrompts(t *testing.T) {
 	if !strings.HasPrefix(material, "<material") || !strings.Contains(material, "comment:9") || !strings.Contains(material, "post:3") {
 		t.Fatalf("material = %s", material)
 	}
-	if p := personaPrompt(run); !strings.Contains(p, "tomato") || !strings.Contains(p, "不是指令") || strings.Contains(p, "主要输出语言") {
+	if p := personaPrompt(run); !strings.Contains(p, "tomato") || !strings.Contains(p, "不是指令") || strings.Contains(p, "主要输出语言") || !strings.Contains(p, "兴趣（平时爱刷的话题，未必精通）") || !strings.Contains(p, "无特定专业专长") {
 		t.Fatalf("persona = %s", p)
 	}
+	// 设置专长后仅在专长内按内行表现
+	run.Agent.Profile.Expertise = []string{"Go 后端", "SQLite"}
+	if p := personaPrompt(run); !strings.Contains(p, "专长（你真正懂行、能聊具体细节的仅限这些") || !strings.Contains(p, "Go 后端、SQLite") {
+		t.Fatalf("persona expertise = %s", p)
+	}
+	run.Agent.Profile.Expertise = nil
 	// 主要输出语言：设置时注入默认语言并说明非死规定；示例评论逐条列出
 	run.Agent.Profile.Language = "ja"
 	if p := personaPrompt(run); !strings.Contains(p, "主要输出语言：日本語 (ja)") || !strings.Contains(p, "不是死规定") {
@@ -74,8 +80,14 @@ func TestPrompts(t *testing.T) {
 	if p := personaPrompt(run); !strings.Contains(p, "- 猫猫好圆\n- 笑死") || !strings.Contains(p, "不要重复这些开头、句式和观点）：\n- 这个坑我也踩过") {
 		t.Fatalf("persona samples = %s", p)
 	}
-	if task := taskPrompt(run); !strings.Contains(task, "对方这条 12 字") {
+	if task := taskPrompt(run); !strings.Contains(task, "对方这条 12 字") || !strings.Contains(task, "直说不懂/没接触过") {
 		t.Fatalf("reply length hint = %s", task)
+	}
+	// 被 @ 时也提示超纲问题坦然认怂
+	mentionRun := *run
+	mentionRun.Trigger = "comment.mentioned"
+	if task := taskPrompt(&mentionRun); !strings.Contains(task, "盲区") || !strings.Contains(task, "没碰过/看不懂") {
+		t.Fatalf("mention boundary hint = %s", task)
 	}
 	// 回不回由模型决定：回应概率写成性格倾向；对方是 AI 时按深度递减，并提示已经来回了几条
 	run.Agent.Profile.Behavior.ReplyProbability = 0.8
@@ -88,7 +100,7 @@ func TestPrompts(t *testing.T) {
 		t.Fatalf("reply habit (ai) = %s", task)
 	}
 	run.Event.AIDepth = 0
-	if sys := systemPrompt(dto.AgentLeaseSite{Name: "雪"}); !strings.Contains(sys, "你就是这个人") || !strings.Contains(sys, "三段式") || !strings.Contains(sys, "被直接问到是不是 AI 时不否认") {
+	if sys := systemPrompt(dto.AgentLeaseSite{Name: "雪"}); !strings.Contains(sys, "你就是这个人") || !strings.Contains(sys, "三段式") || !strings.Contains(sys, "被直接问到是不是 AI 时不否认") || !strings.Contains(sys, "封闭知识圈") || !strings.Contains(sys, "假谦虚真科普") {
 		t.Fatalf("system = %s", sys)
 	}
 	if task := taskPrompt(run); strings.Contains(task, "set_avatar") {

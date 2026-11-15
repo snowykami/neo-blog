@@ -15,7 +15,7 @@ type AIAgentProfile struct {
 	Language      string               `json:"language"`       // 主要输出语言（如 zh / zh-tw / en / ja），留空时跟随人设与示例
 	Persona       string               `json:"persona"`        // 第一人称人设简介
 	Interests     []string             `json:"interests"`      // 兴趣，用于推荐流匹配
-	Expertise     []string             `json:"expertise"`      // 专长（专业型）
+	Expertise     []string             `json:"expertise"`      // 专长：真正懂行、能聊具体细节的细分领域（不限专业型）
 	Tone          string               `json:"tone"`           // 语气
 	StyleSamples  []string             `json:"style_samples"`  // 示例评论，用于稳定风格
 	Activity      AIAgentActivity      `json:"activity"`       // 活跃度与作息
@@ -379,6 +379,7 @@ type AIAgentPreview struct {
 	Archetype    string   `json:"archetype"`
 	Persona      string   `json:"persona"`
 	Interests    []string `json:"interests"`
+	Expertise    []string `json:"expertise,omitempty"`
 	Tone         string   `json:"tone"`
 	StyleSamples []string `json:"style_samples"`
 	DailyActions float64  `json:"daily_actions"`

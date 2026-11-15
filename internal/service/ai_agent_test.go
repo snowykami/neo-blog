@@ -633,3 +633,72 @@ func TestAIAgentEventPersistenceAndIdempotency(t *testing.T) {
 		t.Fatalf("expected DB fallback scan to schedule post.published run, exists=%v err=%v", exists, err)
 	}
 }
+
+func TestAgentExpertiseTopicMatchAndPublishWeight(t *testing.T) {
+	admin, _, _, _, _ := setupAgentTest(t)
+	user, err := repo.User.GetUserByUsername("author")
+	if err != nil {
+		t.Fatalf("get author: %v", err)
+	}
+	_ = repo.KV.SetKV("ai_agents_publish_fanout", 1)
+	svc := NewAIAgentService()
+
+	// 先暂停两个默认空白人设的测试 AI，只用下面两个有明确领域分工的 AI 测调度权重
+	existing, _, _ := repo.AIAgent.List(&dto.AdminListAIAgentsReq{PaginationParams: dto.PaginationParams{Page: 1, Size: 20}})
+	for _, a := range existing {
+		_ = repo.AIAgent.UpdateColumns(a.ID, map[string]any{"status": constant.AIAgentStatusPaused})
+	}
+
+	// 1. topicMatchScore 合并 Interests 与 Expertise 且去重，仅匹配 Expertise 也能命中
+	post := &model.Post{
+		PostBase: model.PostBase{
+			Title:  "SQLite WAL 调优笔记",
+			Labels: []model.Label{{Name: "SQLite"}, {Name: "Go"}},
+		},
+	}
+	onlyExp := dto.AIAgentProfile{Expertise: []string{"SQLite"}}
+	if got := topicMatchScore(post, onlyExp); got <= 0.3 {
+		t.Fatalf("topicMatchScore with expertise only = %v, want > 0.3", got)
+	}
+	dupTerms := dto.AIAgentProfile{Interests: []string{"sqlite"}, Expertise: []string{"SQLite"}}
+	if got, want := topicMatchScore(post, dupTerms), topicMatchScore(post, onlyExp); got != want {
+		t.Fatalf("duplicate interest/expertise should not double-count: got %v, want %v", got, want)
+	}
+
+	// 2. 创建匹配兴趣的 ambient AI 与完全跨界不匹配的 expert AI
+	ambProf := DefaultAIAgentProfile(constant.AIAgentTierAmbient)
+	ambProf.Interests = []string{"SQLite", "Go"}
+	amb, svcerr := svc.Create(admin, &dto.CreateAIAgentReq{Username: "amb_sqlite", Nickname: "小库", Tier: constant.AIAgentTierAmbient, Profile: &ambProf})
+	if svcerr != nil {
+		t.Fatalf("create amb: %v", svcerr)
+	}
+	expProf := DefaultAIAgentProfile(constant.AIAgentTierExpert)
+	expProf.Interests = []string{"乐理", "编曲"}
+	expProf.Expertise = []string{"和声编写"}
+	exp, svcerr := svc.Create(admin, &dto.CreateAIAgentReq{Username: "exp_music", Nickname: "阿乐", Tier: constant.AIAgentTierExpert, Profile: &expProf})
+	if svcerr != nil {
+		t.Fatalf("create exp: %v", svcerr)
+	}
+
+	// 25 篇对口文章中，匹配兴趣的 ambient 不应被跨界 expert 固定加分压制
+	for i := 0; i < 25; i++ {
+		freshPost := &model.Post{
+			UserID: user.ID,
+			PostBase: model.PostBase{
+				Title:     "SQLite Go 实战",
+				Content:   "<p>WAL</p>",
+				IsPrivate: false,
+				IsDraft:   false,
+			},
+		}
+		if err := repo.Post.CreatePost(freshPost); err != nil {
+			t.Fatalf("create post %d: %v", i, err)
+		}
+		svc.OnPostPublished(freshPost.ID, time.Now())
+	}
+	ambRuns, _, _ := repo.AIAgent.ListRuns(&dto.ListAgentRunsReq{AgentID: amb.ID, Trigger: constant.AgentTriggerPostPublished, PaginationParams: dto.PaginationParams{Page: 1, Size: 50}})
+	expRuns, _, _ := repo.AIAgent.ListRuns(&dto.ListAgentRunsReq{AgentID: exp.ID, Trigger: constant.AgentTriggerPostPublished, PaginationParams: dto.PaginationParams{Page: 1, Size: 50}})
+	if len(ambRuns) <= len(expRuns) {
+		t.Fatalf("expected matching ambient (%d) > unrelated expert (%d)", len(ambRuns), len(expRuns))
+	}
+}

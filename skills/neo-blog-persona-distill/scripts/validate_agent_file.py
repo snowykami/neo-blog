@@ -76,10 +76,18 @@ AI_TONE_TELLS = [
     ("元叙述", r"(看|读)完(这篇|文章|你的|了这篇)|作为一(个|名)|我注意到|(?i:\b(?:after\s+reading\s+this\s+(?:post|article)|as\s+an?\s+(?:ai|assistant|language\s+model))\b)"),
     ("客套收尾", r"希望[^，。！？\n]{0,20}(帮助|有用|继续)|期待(更多|后续|下一篇|你的)|加油[！!～~]*$|(?i:\b(?:hope\s+this\s+helps|looking\s+forward\s+to\s+more|keep\s+up\s+the\s+great\s+work)\b)"),
     ("先肯定再转折", r"^[^，。！？\n]{0,16}(挺|很|真|确实|非常)(对|好|有道理|实用|到位|中肯|准确)[的啊呀]?[，,](不过|但是?|只是)"),
+    ("假装不懂的客套", r"虽然(我)?(对这块|这个领域|这方面)?(完全|不太|不是很|一点也)?(看)?不(太)?(懂|了解|熟悉|明白)[^。！？\n]{0,20}(但|不过)(还是|依然|也)?(觉得|感觉|看得出|能感受到|挺|很|好)|(?i:\bi\s+(?:don['’]?t|do\s+not)\s+(?:really\s+)?(?:know|understand)\s+much\s+about\b[^.!?\n]{0,40}\bbut\s+(?:this|it)\s+(?:is|looks|seems)\b)"),
     ("破折号", r"——|(?:^|\s)—(?:\s|$)"),
     ("列点或标题", r"(?m)^[ \t]*(?:[-*•]|\d+[.、)）]|#{1,6})[ \t]+"),
     ("Markdown", r"\*\*.+?\*\*|`[^`]*`"),
 ]
+# 过于宽泛的专长大词：写进 expertise 会让 AI 在大范围领域表现得像全能百科
+BROAD_EXPERTISE_TERMS = {
+    "计算机", "电脑", "编程", "写代码", "开发", "软件", "科技", "技术", "科学", "互联网", "数码",
+    "人工智能", "全栈", "艺术", "音乐", "设计", "游戏", "文学", "历史", "金融", "医学",
+    "computer science", "computers", "programming", "coding", "software", "technology", "tech",
+    "science", "ai", "full-stack", "fullstack", "art", "music", "design", "gaming", "history", "finance",
+}
 # persona / tone 里的句式套路：模型会照着写成固定的三段式
 STRUCTURE_TELL = r"先(肯定|夸|认可|赞同|表扬|共情)[^。；\n]{0,12}(再|然后|后)|(最后|结尾)再?(总结|升华|给出?(建议|总结))|总结(一下|收尾)|三段式|(?i:\b(?:start\s+by\s+praising|end\s+with\s+a\s+summary)\b)"
 SAMPLE_SHORT = 30  # 中日韩大多数示例应在这个字数以内
@@ -349,6 +357,14 @@ def check_profile(r, path, profile):
     if not isinstance(samples, list) or len(samples) < 3:
         r.warn(f"{path}.style_samples", "示例评论少于 3 条，风格不容易稳定（建议 5～10 条）")
     check_speaking_style(r, path, profile)
+    expertise = profile.get("expertise")
+    if isinstance(expertise, list):
+        exp_items = [x.strip() for x in expertise if isinstance(x, str) and x.strip()]
+        if len(exp_items) > 8:
+            r.warn(f"{path}.expertise", f"专长写了 {len(exp_items)} 项，偏多会削弱认知边界、显得像全能百科；建议只保留 1～5 个真正懂行的细分方向")
+        for i, item in enumerate(exp_items):
+            if item.lower() in BROAD_EXPERTISE_TERMS:
+                r.warn(f"{path}.expertise[{i}]", f"「{item}」太宽泛，容易让 AI 表现得像全能百科；建议拆成具体细分方向（如「Go 后端」「PostgreSQL」「水彩插画」）")
     if not profile.get("interests"):
         r.warn(f"{path}.interests", "没有兴趣词，推荐文章时无法按兴趣匹配")
 

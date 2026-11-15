@@ -39,11 +39,12 @@ var activeHourPresets = []string{"7-9,12-13,21-24", "9-12,14-18", "12-14,20-24",
 const personaSystemPrompt = `你在为一个博客社区生成虚拟社区成员（AI 用户）的人设。这些成员会在博客上浏览文章、点赞和留言。
 请严格按要求输出 JSON 数组（不要输出其他内容），数组中每一项对应一个请求的槽位，顺序一致，并按请求中的 language 语言撰写：
 [{"nickname": "像真实网友的昵称，不要带 AI 字样，不要重复（中文 2~12 字，外文简洁自然，≤20 字符）",
-  "persona": "第一人称，身份、爱好、上网习惯、说话方式（中文 60~150 字，英文约 40~100 词）；用 language 指定的语言写，若设定还会其他语言（如英语）也可自然写明；不要冒充具体的真实人物，不要声称医生律师等需要资质的职业；禁止文艺鸡汤与对称模板句（如“白天写代码晚上看星星”“热爱生活与分享”“永远保持好奇心”），用具体日常状态代替空泛标签",
-  "interests": ["3~6 个兴趣，尽量从 interest_pool 中选，也可以补充相近的（保留便于与文章匹配的话题词）"],
+  "persona": "第一人称，身份、爱好、上网习惯、说话方式与认知边界（中文 80~180 字，英文约 50~120 词）；用 language 指定的语言写，若设定还会其他语言（如英语）也可自然写明；必须写出偏科感与明确盲区（擅长哪一两件小事、哪些只是外行看热闹、对什么邻近或跨界领域一窍不通，以及刷到看不懂的文章时大多划走或只看配图、被问到盲区直说不懂）；不要冒充具体的真实人物，不要声称医生律师等需要资质的职业；禁止文艺鸡汤与对称模板句（如“白天写代码晚上看星星”“热爱生活与分享”“永远保持好奇心”），用具体日常状态代替空泛标签",
+  "interests": ["3~6 个平时爱刷、爱点进去看的话题（可比专长宽，代表看客兴趣），尽量从 interest_pool 中选，也可以补充相近的"],
+  "expertise": ["0~3 个真正懂行、动过手的具体小方向（普通潜水/看客型可为空数组；切忌写“计算机”“编程”“科技”“艺术”“音乐”这类包罗万象的大词）"],
   "tone": "≤20 字（或简短一两句）的语气描述，用 language 指定的语言写",
-  "style_samples": ["2~3 条这个人可能发的短评论，用 language 指定的语言写，每条 ≤40 字（英文约 ≤25 词）；必须像真实评论区随手敲的口语短句，少用工整排比和句末句号，不带感谢分享/写得真好/Great post/Thanks for sharing 等客套开场白"]}]
-要求：同一批人之间的昵称、语气、兴趣组合要明显不同；避开黑名单话题。`
+  "style_samples": ["2~3 条这个人可能发的短评论，用 language 指定的语言写，每条 ≤40 字（英文约 ≤25 词）；必须像真实评论区随手敲的口语短句，少用工整排比和句末句号，不带感谢分享/写得真好/虽然看不懂但觉得很厉害/Great post/Thanks for sharing 等客套开场白"]}]
+要求：同一批人之间的昵称、语气、兴趣与盲区组合要明显不同；不要把每个人都写成什么都懂的全能高手；避开黑名单话题。`
 
 type personaSlot struct {
 	Archetype   string `json:"archetype"`
@@ -87,6 +88,7 @@ func generatePersonas(ctx context.Context, slots []personaSlot, tpl dto.AIAgentG
 		it.Persona = clipRunes(it.Persona, 400)
 		it.Tone = clipRunes(it.Tone, 40)
 		it.Interests = cleanList(it.Interests, 8, 20)
+		it.Expertise = cleanList(it.Expertise, 4, 20)
 		it.StyleSamples = cleanList(it.StyleSamples, 3, 60)
 		it.Archetype = slots[i].Archetype
 		if it.Nickname == "" || it.Persona == "" {
@@ -181,6 +183,7 @@ func profileFromPersona(p dto.AIAgentPreview, arch dto.AIAgentArchetype, tpl dto
 	profile.Language = utils.Ternary(tpl.Language != "", tpl.Language, "zh")
 	profile.Persona = p.Persona
 	profile.Interests = p.Interests
+	profile.Expertise = p.Expertise
 	profile.Tone = p.Tone
 	profile.StyleSamples = p.StyleSamples
 	if len(tpl.BlockedTopics) > 0 {

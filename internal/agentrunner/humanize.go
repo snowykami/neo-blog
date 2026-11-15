@@ -46,6 +46,7 @@ var aiToneTells = []toneTell{
 	{"公文腔（进行测试、进行优化）", regexp.MustCompile(`进行(全面|系统|深入|详细)?(的)?(测试|优化|调整|分析|评估|梳理|改造|处理)`)},
 	{"借权威（专家认为、研究表明）", regexp.MustCompile(`(专家|学者|研究人员|业界)(认为|指出|表示|发现)|研究表明|数据显示[^，。！？\n]{0,8}(证明|充分)`)},
 	{"免责式收尾（仅供参考、资料有限）", regexp.MustCompile(`仅(供|作)参考|仅供参考|资料(有限|不全)|以上(内容)?仅(供|作)参考`)},
+	{"假装不懂的客套（虽然不懂但觉得厉害）", regexp.MustCompile(`虽然(我)?(对这块|这个领域|这方面)?(完全|不太|不是很|一点也)?(看)?不(太)?(懂|了解|熟悉|明白)[^。！？\n]{0,20}(但|不过)(还是|依然|也)?(觉得|感觉|看得出|能感受到|挺|很|好)|(?i)\bi\s+(?:don['’]?t|do\s+not)\s+(?:really\s+)?(?:know|understand)\s+much\s+about\b[^.!?\n]{0,40}\bbut\s+(?:this|it)\s+(?:is|looks|seems)\b`)},
 }
 
 func isEastAsianRune(r rune) bool {
@@ -181,7 +182,7 @@ func humanizeActions(actions []dto.AgentActionDto, samples []string, tier string
 // 否则正则会把作者真实的夸奖与判断一起删掉
 func rewritePrompt(issues []string) string {
 	return "下面这些评论 AI 味太重，读者一眼就能看出不是真人写的：\n" + strings.Join(issues, "\n") +
-		"\n按你的设定重写这些评论：只说一个点，更短、更随意，去掉客套、总结和固定句式；觉得没什么可说，也可以把它从 actions 里删掉。" +
+		"\n按你的设定重写这些评论：只说一个点，更短、更随意，去掉客套、总结和固定句式；若本来就是看不懂的陌生领域、没什么具体可说的，不必硬凑夸奖，直接把它从 actions 里删掉（只点赞或留空）更像真人。" +
 		"命中只是线索：原文本来就这么说、或者这句读着自然时不要改，也不要为了去掉痕迹删掉真实的信息和判断。" +
 		"其他动作保持不变，仍然只输出任务说明里的那个 JSON 对象。"
 }

@@ -282,6 +282,7 @@ export interface AIAgentPreview {
   archetype: string
   persona: string
   interests: string[] | null
+  expertise?: string[] | null
   tone: string
   styleSamples: string[] | null
   dailyActions: number

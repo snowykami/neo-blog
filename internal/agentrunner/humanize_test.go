@@ -61,6 +61,9 @@ func TestToneIssues(t *testing.T) {
 		"仅供参考，具体以官方为准",
 		"Great post! Thanks for sharing.",
 		"It's worth noting that WAL mode needs checkpoints.",
+		"It looks like I don't really know much about kernel tuning, but this seems super clean",
+		"虽然我对这个领域不太懂，但还是觉得写得很棒",
+		"虽然看不太明白，不过感觉好厉害",
 		"とても参考になりました！",
 	}
 	for _, c := range aiLike {
@@ -75,6 +78,7 @@ func TestToneIssues(t *testing.T) {
 		"第三步那里我这边要先改权限才行，不知道是不是版本问题",
 		"确实，不过我更喜欢 Go 的写法",
 		"至少知道怎么讲得好听一点了",
+		"前端这块我真两眼一抹黑，平时调个边距都要试半天",
 		"这个标志着我该换个写法了",
 		"我需要先进行一次备份才敢动",
 		"专家说的那个版本我也踩过坑",
@@ -110,7 +114,7 @@ func TestHumanizeActions(t *testing.T) {
 	if len(issues) != 1 || !strings.Contains(issues[0], "post:2") || !strings.Contains(issues[0], "客套话") {
 		t.Fatalf("issues = %v", issues)
 	}
-	if prompt := rewritePrompt(issues); !strings.Contains(prompt, "AI 味太重") || !strings.Contains(prompt, "post:2") {
+	if prompt := rewritePrompt(issues); !strings.Contains(prompt, "AI 味太重") || !strings.Contains(prompt, "post:2") || !strings.Contains(prompt, "看不懂的陌生领域") {
 		t.Fatalf("rewrite prompt = %s", prompt)
 	}
 }

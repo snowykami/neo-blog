@@ -5,7 +5,8 @@
 - 只采集公开内容和用户提供的材料。不登录他人账号，不使用用户没有明确提供的 Cookie，不绕过登录墙、付费墙、验证码、反爬与 robots 限制；请求放慢，每个站点不要短时间内大量抓取。
 - 被拦截时只试一次，然后请用户截图、复制或用平台自带的导出功能，不要换着法子硬抓。
 - 每条素材记录：来源（URL 或文件名）、时间、作者是否为 TA 本人、类型（长文 / 短评 / 聊天 / 代码评论）。
-- 区分原创和转发、引用：只有 TA 自己写的字才能用于分析说话方式；转发和收藏可以用于分析兴趣。
+- 区分原创和转发、引用：只有 TA 自己写的字才能用于分析说话方式；转发、Star 和收藏只代表「好奇/想看」（优先入 `interests`），**不能**直接当成真正精通的 `expertise`。
+- 专门留意盲区证据：聊天、评论或动态里主动提到「这个我不懂」「没碰过」「超出知识范围」「只会一点皮毛」的原话单独摘出，用来核实知识边界和邻近盲区。
 - 时间戳单独收集到 `corpus/timestamps.txt`，每行一个 ISO 8601 时间（尽量带时区偏移，如 `2025-03-02T23:41:00+08:00`）。
 
 ## GitHub
@@ -16,8 +17,8 @@
 | --- | --- |
 | 基本资料与跨平台线索 | `gh api users/<u>`：`bio`、`blog`、`location`、`company`、`twitter_username` |
 | 自我介绍 | `gh api repos/<u>/<u>/readme -H "Accept: application/vnd.github.raw"`（个人主页 README，可能不存在） |
-| 技术栈与兴趣 | `gh api "users/<u>/repos?per_page=100&sort=pushed"`：语言、topics、描述、是否 fork |
-| 兴趣 | `gh api "users/<u>/starred?per_page=100"`：收藏的项目反映关注点 |
+| 技术栈与真实专长 | `gh api "users/<u>/repos?per_page=100&sort=pushed"`：语言、topics、描述、是否 fork（只有本人深度维护的非 fork 仓库才支持写进 `expertise`） |
+| 兴趣（看客好奇） | `gh api "users/<u>/starred?per_page=100"`：收藏的项目只反映关注与好奇点，计入 `interests` 而不计入 `expertise` |
 | 说话方式与作息 | `gh api "users/<u>/events/public?per_page=100"`：最近 90 天的 issue 评论、PR 评审、提交信息，带时间 |
 | 更多发言 | `gh api "search/issues?q=commenter:<u>&sort=updated&per_page=50"`，再读具体 issue 下 TA 的评论 |
 

@@ -394,7 +394,16 @@ function GenerateFormBody({ onCancel, onGenerated }: { onCancel: () => void, onG
                             <TableCell className="max-w-72 whitespace-normal" title={(item.styleSamples ?? []).join('\n')}>{item.persona}</TableCell>
                             <TableCell className="whitespace-normal">
                               <div className="flex flex-wrap gap-1">
-                                {(item.interests ?? []).map(interest => <Badge key={interest} variant="secondary">{interest}</Badge>)}
+                                {(item.expertise ?? []).map(exp => (
+                                  <Badge key={`exp-${exp}`} variant="default" title={t('profile.expertise')}>
+                                    {exp}
+                                  </Badge>
+                                ))}
+                                {(item.interests ?? []).map(interest => (
+                                  <Badge key={`int-${interest}`} variant="secondary">
+                                    {interest}
+                                  </Badge>
+                                ))}
                               </div>
                             </TableCell>
                             <TableCell className="max-w-48 whitespace-normal">{item.tone}</TableCell>

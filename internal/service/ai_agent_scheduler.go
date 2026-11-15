@@ -91,7 +91,7 @@ func wakeRatePerMinute(profile dto.AIAgentProfile, now time.Time) float64 {
 	return rate
 }
 
-// interestScore 文章与兴趣的匹配程度（标签、分类、标题包含兴趣词）
+// interestScore 文章与指定词表的匹配程度（标签、分类、标题包含词表项）
 func interestScore(p *model.Post, interests []string) float64 {
 	if len(interests) == 0 {
 		return 0.3
@@ -117,6 +117,32 @@ func interestScore(p *model.Post, interests []string) float64 {
 		}
 	}
 	return math.Min(score, 3) / 3
+}
+
+// mergeTopicTerms 合并专长与兴趣词表并按小写去重，避免同一词汇重复计分
+func mergeTopicTerms(expertise, interests []string) []string {
+	merged := make([]string, 0, len(expertise)+len(interests))
+	seen := make(map[string]bool, len(expertise)+len(interests))
+	for _, list := range [][]string{expertise, interests} {
+		for _, item := range list {
+			k := strings.ToLower(strings.TrimSpace(item))
+			if k == "" || seen[k] {
+				continue
+			}
+			seen[k] = true
+			merged = append(merged, item)
+		}
+	}
+	return merged
+}
+
+// topicMatchScore 文章与 AI 用户的「专长 + 兴趣」综合匹配度；两者都未配置时沿用默认分 0.3
+func topicMatchScore(p *model.Post, profile dto.AIAgentProfile) float64 {
+	merged := mergeTopicTerms(profile.Expertise, profile.Interests)
+	if len(merged) == 0 {
+		return 0.3
+	}
+	return interestScore(p, merged)
 }
 
 // weightedPick 按权重不放回抽取 n 个
@@ -174,7 +200,7 @@ func buildFeed(c feedCandidates, profile dto.AIAgentProfile, selfUserID uint) []
 			pool = append(pool, p)
 		}
 	}
-	picked := weightedPick(pool, func(p model.Post) float64 { return 0.15 + interestScore(&p, profile.Interests) }, feedSize)
+	picked := weightedPick(pool, func(p model.Post) float64 { return 0.15 + topicMatchScore(&p, profile) }, feedSize)
 	ids := make([]uint, 0, len(picked))
 	for _, p := range picked {
 		ids = append(ids, p.ID)
@@ -528,9 +554,23 @@ func (s *AIAgentService) onPostPublished(postID uint, now time.Time) error {
 		if agents[i].UserID == post.UserID || !slices.Contains(profile.Triggers, constant.AgentTriggerPostPublished) {
 			continue
 		}
-		weight := 0.1 + interestScore(post, profile.Interests)
+		match := topicMatchScore(post, profile)
+		weight := 0.1 + match
 		if agents[i].Tier == constant.AIAgentTierExpert {
-			weight += 0.5
+			if len(profile.Expertise) == 0 && len(profile.Interests) == 0 {
+				weight = 0.1 + match + 0.5*match
+			} else {
+				expertTerms := profile.Expertise
+				if len(expertTerms) == 0 {
+					expertTerms = profile.Interests
+				}
+				expertMatch := interestScore(post, expertTerms)
+				if match > 0 || expertMatch > 0 {
+					weight = 0.1 + match + 0.5*max(expertMatch, match*0.5)
+				} else {
+					weight = 0.05
+				}
+			}
 		}
 		pool = append(pool, candidate{&agents[i], profile, weight})
 	}
