@@ -34,7 +34,7 @@ type lyricAnnotationLocale struct {
 	Plan, PlanEnd, Theme, Direction, Font, Imagery, ImageryItem, NoColor string
 	// 本段已标注的行（标题、一行：行号与标注）、副歌起点、副歌、情绪、聚光灯
 	Marks, Mark, ChorusStart, ChorusLine, Mood, Spotlight string
-	// 本次标注范围（放在用户消息最后，作为要做的事）：起止行号、段数、本段换字体的上限
+	// 本次标注范围（放在用户消息最后，作为要做的事）：起止行号、段数
 	Range string
 }
 
@@ -67,7 +67,7 @@ var lyricAnnotationEN = lyricAnnotationLocale{
 	Plan: "\n<plan>\n", PlanEnd: "</plan>\n", Theme: "Theme: ", Direction: "Direction: ", Font: "Song font: ",
 	Imagery: "Imagery:\n", ImageryItem: "- %s: %s, %s\n", NoColor: "no color",
 	Marks: "Marked lines in this chunk:\n", Mark: "line %d: %s\n", ChorusStart: "chorus start", ChorusLine: "chorus", Mood: "mood ", Spotlight: "spotlight",
-	Range: "\nAnnotate lines %d-%d (the song is split into %d chunks annotated in parallel; at most %d font changes in this chunk).\n",
+	Range: "\nAnnotate lines %d-%d (the song is split into %d chunks annotated in parallel; keep the song's unified font and omit phrase font unless a standalone phrase truly requires it).\n",
 }
 
 const lyricAnnotationENHead = `You are a lyric performance director designing visuals for a word-synced lyric player. First understand the song's emotion and story, then convey it with restrained, precise effects: a few well-placed effects move listeners more than many, because each one stands out against calm lines.
@@ -92,21 +92,21 @@ effect, grouped by what the words do:
 - vanish: dissolve crumbles into drifting grains after it is sung, slowly: vanish, leave, farewell, waking from a dream, something denied or given up (no longer, what we promised) | shatter breaks into falling shards the instant it is sung: a sudden break — a heart breaking, a dream or glass shattering, a promise snapped, a crash
 color: use one when the word clearly evokes a color (about 65% or more of readers would picture it); match the image and prefer the plan's main colors, so the palette stays coherent:
 {{colors}}
-font:
+font: pick at most one song-wide font that fits the whole song's voice (or keep default sans); mixing multiple fonts in one song breaks visual unity, so keep the entire song in that single font unless a rare standalone phrase truly needs to step out (e.g. a quoted letter/diary line, a cold electronic/system voice, or a short Latin script title):
 {{fonts}}
 `
 
 const lyricAnnotationENPlan = `
 Task: plan the whole song. Phrases are annotated afterwards, chunk by chunk in parallel, following this plan — so this step outputs only the plan fields below. In order:
 1. theme: one or two sentences — what the song is about, to whom, and how the feeling moves.
-2. direction: the visual tone — 2-4 main colors, main effects, font usage, images suited to particle scenes. Every chunk follows it, which keeps the parallel parts looking like one art-directed show.
+2. direction: the visual tone — 2-4 main colors, main effects, the single song font (or default sans), images suited to particle scenes. Every chunk follows it, which keeps the parallel parts looking like one art-directed show.
 3. chorus: using your knowledge of the song, the 〔repeat〕 marks (a run of several repeated lines is usually a chorus) and the 〔climax〕 marks, set chorus_start on the first line of each chorus and chorus on chorus lines; the same lyrics elsewhere usually form the other choruses, and an instrumental break often comes just before one. A chorus start is an outburst, a good place to start or switch a scene.
 4. imagery: the song's recurring or title images (original words), each with one effect and color (color optional). Every chunk uses them as given, so an image looks the same each time it returns.
 5. Layout:
 - intro: a lead-in shown during the intro, at most 40 Chinese characters, like a late-night radio host's murmur. Hint at the background or mood in your own words; the lyrics themselves are better heard for the first time when they are sung.
 - outro_comment: the number of the comment shown during the outro, the one that best fits the song; omit it if none fits.
 - moments: 4-5, at emotional turns, chorus starts, the most moving line, the climax or ending (i = line index), spread out with several lines between so each one has room. Prefer comment (a comment number, each used once, other than the outro_comment); otherwise text, a narration of at most 40 Chinese characters in your own words, heartfelt and vivid.
-- font: song-wide font, optional (default sans).
+- font: one song-wide font for the whole song, optional (omit for clean default sans when no specialty font fits the whole song; avoid planning multiple fonts).
 - spotlights: indices i of the moments that sum up the song — its title line or deepest confession, sung for at least ~2 seconds (see 〔Ns〕); at most 3 different lines and 6 indices in all. While one is sung it moves alone to the center, enlarged, with a warm light behind it and the other lines dimmed. Only the listed indices are lit: when the line repeats, pick the repeats where it lands hardest (often the final chorus or the last time it is sung), not every one, because a spotlight that comes every chorus stops feeling special. Add a second or third line only when it is just as essential; give [] if no line clearly stands out.
 - accent: the song's theme color as #rrggbb, chosen freely from the song's feeling and imagery (not from the album cover). It tints the lyric glow and the breathing light behind the lyrics on a dark screen, so pick a color that glows well there.
 - singers (only when <lyrics> has 〔vocal: …〕 marks): {"v1":{"name":"","color":"sky"}} for each vocal id — pick distinct colors from the palette above that fit each voice and the song's direction; leave name "" unless the lyric lines themselves explicitly label who sings that part (never guess from <song> Artists alone, which often includes lyricists, composers, or producers).
@@ -137,11 +137,11 @@ Task: annotate phrases line by line for the lines named at the end, following th
 - Pick the words most worth singing out: confessions, shouts, core images, title words, chorus keywords. Leave credit lines, onomatopoeia and interjections plain (unless held).
 - dissolve, shatter, shimmer and heartbeat are highlights: use each only where the meaning fits, at most once per chunk, so they stay special.
 - A line marked spotlight is already enlarged, centered and lit by the player: give it at most 2 simple phrases (color, bold, one swell or glow). Heartbeat, shimmer or stacked glows blur once the line is enlarged.
-- Change fonts for contrast (kai for a memory, mono for electronic sounds); constant switching looks noisy.
+- Keep one unified font across the song (the plan's song font, or default sans): omit phrase "font" in almost all cases, since multiple fonts in one song look cluttered. Set phrase "font" only when a rare standalone phrase must visually step out of the main vocal voice (such as a quoted letter, a robotic/system readout, or a short English script title), and use at most one accent font if needed.
 styles (combinable): bold declaration, strength | italic whisper, memory, quotation | underline vow, promise (forever, surely)
 
 Before output, check: every 〔held〕 line in your range has its shake phrase; every text is a contiguous substring of its line.
-Output: {"lines":[{"i":0,"phrases":[{"text":"original fragment","effect":"swell","color":"gold","font":"kai","styles":["bold"]}]}]}; list only annotated lines in your range.`
+Output: {"lines":[{"i":0,"phrases":[{"text":"original fragment","effect":"swell","color":"gold","styles":["bold"]}]}]}; list only annotated lines in your range.`
 
 // fillLyricAnnotationPrompt 填入色板、粒子场景与字体：每项一行「名称: 适合的意象」
 func fillLyricAnnotationPrompt(prompt string) string {

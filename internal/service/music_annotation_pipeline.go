@@ -357,6 +357,6 @@ func buildLyricAnnotationLinesPrompt(info lyricAnnotationInfo, lines []string, p
 	b.WriteString(text.PlanEnd)
 
 	writeLyricAnnotationLines(&b, info, lines, from-lyricAnnotationChunkContext, to+lyricAnnotationChunkContext)
-	fmt.Fprintf(&b, text.Range, from, to, chunks, max(1, (lyricAnnotationMaxPhraseFonts+chunks-1)/chunks))
+	fmt.Fprintf(&b, text.Range, from, to, chunks)
 	return b.String()
 }

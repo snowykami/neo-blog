@@ -54,8 +54,8 @@ const (
 	lyricAnnotationMaxIntroRunes = 60
 	// 关键节点「时刻」的数量上限
 	lyricAnnotationMaxMoments = 5
-	// 换字体的短语上限：太多会显得杂乱
-	lyricAnnotationMaxPhraseFonts = 10
+	// 换字体的短语上限（且全曲至多允许一种短语级强调字体）：太多或混用多种字体会破坏阅读一致性
+	lyricAnnotationMaxPhraseFonts = 3
 	// 消散、破碎、流光、心跳每种的上限
 	lyricAnnotationMaxSpecialEffect = 3
 	// 聚光灯的上限：不同的句子最多 3 句，选定的出现次数（同一句重复时可以只选其中几次）合计最多 6 处
@@ -942,6 +942,12 @@ func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment,
 	sceneCount := 0
 	// 自定义粒子：先校验，行的 custom:<name> 场景指向被丢弃的粒子时改用它的备用场景
 	sprites, spriteFallbacks := sanitizeLyricSprites(parsed.Sprites)
+	// 先解析全曲统一字体；短语级字体仅允许与全曲字体不同的至多 1 种强调字体，防止多段混用不同字体
+	font := ""
+	if lyricAnnotationFonts[parsed.Font] {
+		font = parsed.Font
+	}
+	accentFont := ""
 	phraseFontCount := 0
 	result := []dto.MusicLyricAnnotationLine{}
 	byText := map[string]int{}
@@ -1003,8 +1009,9 @@ func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment,
 				styles[normalized] = dto.MusicLyricAnnotationPhrase{Effect: effect, Color: color}
 			}
 			annotated := dto.MusicLyricAnnotationPhrase{Text: phraseText, Effect: effect, Color: color}
-			if lyricAnnotationFonts[phrase.Font] && phraseFontCount < lyricAnnotationMaxPhraseFonts {
-				annotated.Font = phrase.Font
+			if pf := phrase.Font; lyricAnnotationFonts[pf] && pf != font && (accentFont == "" || pf == accentFont) && phraseFontCount < lyricAnnotationMaxPhraseFonts {
+				accentFont = pf
+				annotated.Font = pf
 				phraseFontCount++
 			}
 			for _, style := range phrase.Styles {
@@ -1022,10 +1029,6 @@ func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment,
 		if line.Mood != "" || line.Chorus || line.Scene != "" || len(line.Phrases) > 0 {
 			kept = append(kept, line)
 		}
-	}
-	font := ""
-	if lyricAnnotationFonts[parsed.Font] {
-		font = parsed.Font
 	}
 	data := lyricAnnotationData{Font: font, Intro: sanitizeLyricIntro(parsed.Intro), Lines: kept, Sprites: lyricUsedSprites(sprites, kept)}
 	// outro_comment 为热评在提示词中的编号（从 1 开始），超出范围时不展示

@@ -214,6 +214,9 @@ func TestLyricAnnotationPrompt(t *testing.T) {
 	if !strings.Contains(locale.PlanPrompt, "imagery") || !strings.Contains(locale.LinesPrompt, "styles") || !strings.Contains(locale.LinesPrompt, "Held notes first") {
 		t.Fatal("task-specific instructions missing")
 	}
+	if !strings.Contains(locale.PlanPrompt, "pick at most one song-wide font") || !strings.Contains(locale.LinesPrompt, "Keep one unified font across the song") {
+		t.Fatal("unified font instructions missing")
+	}
 	if len(lyricAnnotationScenes) != len(lyricAnnotationSceneList) {
 		t.Fatal("duplicate scene keys")
 	}
@@ -485,5 +488,31 @@ func TestSanitizeLyricAnnotationsSingers(t *testing.T) {
 	parsed := parseLyricAnnotationData(`{"singers":[{"id":"v1","color":"blue"},{"id":"v2","color":"invalid"}],"lines":[]}`)
 	if wantParsed := []dto.MusicLyricAnnotationSinger{{ID: "v1", Color: "ocean"}}; !reflect.DeepEqual(parsed.Singers, wantParsed) {
 		t.Fatalf("parsed legacy singers = %+v", parsed.Singers)
+	}
+}
+
+func TestSanitizeLyricAnnotationsFontUnity(t *testing.T) {
+	lines := []string{"第一句信笺", "第二句低语", "第三句机械", "第四句结尾", "第五句点题"}
+	raw := `{"font":"song","lines":[
+		{"i":0,"phrases":[{"text":"信笺","effect":"glow","font":"song"}]},
+		{"i":1,"phrases":[{"text":"低语","effect":"glow","font":"kai"}]},
+		{"i":2,"phrases":[{"text":"机械","effect":"glow","font":"mono"}]},
+		{"i":3,"phrases":[{"text":"结尾","effect":"glow","font":"kai"}]},
+		{"i":4,"phrases":[{"text":"点题","effect":"glow","font":"kai"}]}
+	]}`
+	got, err := sanitizeLyricAnnotations(lines, nil, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 短语字体与全曲字体 song 相同时省略；只允许第一种不同的强调字体 kai，且总数上限为 3；第二种不同字体 mono 丢弃
+	wantFonts := []string{"", "kai", "", "kai", "kai"}
+	var gotFonts []string
+	for _, line := range got.Lines {
+		for _, phrase := range line.Phrases {
+			gotFonts = append(gotFonts, phrase.Font)
+		}
+	}
+	if !reflect.DeepEqual(gotFonts, wantFonts) {
+		t.Fatalf("fonts = %q, want %q", gotFonts, wantFonts)
 	}
 }
