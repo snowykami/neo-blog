@@ -27,6 +27,9 @@ const (
 	EnvKeyEnableRegister                   = "ENABLE_REGISTER"
 	EnvKeyEnableRegisterFromOidc           = "ENABLE_REGISTER_FROM_OIDC"
 	EnvKeyEnableEmailVerify                = "ENABLE_EMAIL_VERIFY"
+	EnvKeyEnableInteraction                = "ENABLE_INTERACTION" // 环境变量：全站互动（评论与点赞）总开关
+	EnvKeyEnableComment                    = "ENABLE_COMMENT"     // 环境变量：评论功能开关
+	EnvKeyEnableLike                       = "ENABLE_LIKE"        // 环境变量：点赞功能开关
 	EnvKeyLogLevel                         = "LOG_LEVEL"                            // 环境变量：日志级别
 	EnvKeyMode                             = "MODE"                                 // 环境变量：运行模式
 	EnvKeyJwtSecrete                       = "JWT_SECRET"                           // 环境变量：JWT密钥

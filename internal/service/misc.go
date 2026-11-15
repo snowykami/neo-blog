@@ -24,6 +24,7 @@ var sitemapGuestFlight singleflight.Group
 var publicConfigKeys = []string{
 	keySiteInfo, "site_name", "site_description", "site_icon", "base_url",
 	"posts_per_page", "comments_per_page", "max_reply_depth", "enable_register", "enable_register_from_oidc",
+	"enable_interaction", "enable_comment", "enable_like",
 	"comment_max_length", "comment_collapsed_lines",
 	"visit_log_retention_days",    // 隐私政策页展示访问记录保留天数
 	"error_report_retention_days", // 隐私政策页展示错误报告保留天数
@@ -41,6 +42,12 @@ func (s *MiscService) GetSiteInfo() map[string]any {
 	// 设置了环境变量 BASE_URL 时站点地址以它为准
 	if _, fromEnv := config.Lookup("base_url").EnvValue(); fromEnv {
 		info["base_url"] = tools.GetBaseUrl()
+	}
+	// 互动功能开关写入综合总开关与环境变量后的实际生效值
+	info["interaction"] = map[string]any{
+		"enabled": tools.InteractionEnabled(),
+		"comment": tools.CommentEnabled(),
+		"like":    tools.LikeEnabled(),
 	}
 	// 评论的字数上限与折叠行数是后台可调的配置，直接给生效值，前台不必再判断缺省
 	info["comment_max_length"] = tools.GetCommentMaxLength()

@@ -35,6 +35,9 @@ const (
 )
 
 func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateCommentReq) (uint, *errs.ServiceError) {
+	if !tools.CommentEnabled() {
+		return 0, errs.NewForbidden("comment_disabled")
+	}
 	currentUser, ok := ctxutils.GetCurrentUser(ctx)
 	if !ok {
 		return 0, errs.NewUnauthorized("login_required")
@@ -157,6 +160,9 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
 }
 
 func (cs *CommentService) UpdateComment(ctx context.Context, req *dto.UpdateCommentReq) *errs.ServiceError {
+	if !tools.CommentEnabled() {
+		return errs.NewForbidden("comment_disabled")
+	}
 	comment, err := repo.Comment.GetComment(req.ID)
 	if err != nil {
 		return errs.NewNotFound("operation_target_not_found").WithResource("comment")
@@ -239,6 +245,9 @@ func (cs *CommentService) DeleteComment(ctx context.Context, commentID uint) *er
 	if !ok {
 		return errs.NewUnauthorized("login_required")
 	}
+	if !(tools.CommentEnabled() || ctxutils.IsAdmin(ctx)) {
+		return errs.NewForbidden("comment_disabled")
+	}
 	if commentID == 0 {
 		return errs.NewBadRequest("operation_target_not_found").WithResource("comment")
 	}
@@ -273,6 +282,9 @@ func (cs *CommentService) DeleteComment(ctx context.Context, commentID uint) *er
 func (cs *CommentService) BatchDeleteComments(ctx context.Context, ids []uint) (int, *errs.ServiceError) {
 	if _, ok := ctxutils.GetCurrentUser(ctx); !ok {
 		return 0, errs.NewUnauthorized("login_required")
+	}
+	if !(tools.CommentEnabled() || ctxutils.IsAdmin(ctx)) {
+		return 0, errs.NewForbidden("comment_disabled")
 	}
 	unique, svcerr := normalizeBatchIDs(ids)
 	if svcerr != nil {
@@ -311,6 +323,9 @@ func (cs *CommentService) BatchDeleteComments(ctx context.Context, ids []uint) (
 }
 
 func (cs *CommentService) GetComment(ctx context.Context, commentID uint, targetLang ...string) (*dto.CommentDto, *errs.ServiceError) {
+	if !(tools.CommentEnabled() || ctxutils.IsAdmin(ctx)) {
+		return nil, errs.NewForbidden("comment_disabled")
+	}
 	comment, svcerr := cs.loadVisibleComment(ctx, commentID)
 	if svcerr != nil {
 		return nil, svcerr
@@ -355,6 +370,9 @@ func (cs *CommentService) loadVisibleComment(ctx context.Context, commentID uint
 const threadUsersLimit = 3
 
 func (cs *CommentService) GetCommentList(ctx context.Context, req *dto.GetCommentListReq) ([]dto.CommentDto, *errs.ServiceError) {
+	if !tools.CommentEnabled() {
+		return nil, errs.NewForbidden("comment_disabled")
+	}
 	currentUserID := uint(0)
 	if currentUser, ok := ctxutils.GetCurrentUser(ctx); ok {
 		currentUserID = currentUser.ID
@@ -433,6 +451,9 @@ func (cs *CommentService) ListCommentsAdmin(ctx context.Context, pagination *dto
 
 // ListUserComments 用户主页的评论列表：管理员可见全部，本人可见自己的私密评论，其他人只能看到公开目标下的公开评论
 func (cs *CommentService) ListUserComments(ctx context.Context, req *dto.ListUserCommentsReq) ([]dto.UserCommentDto, int64, *errs.ServiceError) {
+	if !(tools.CommentEnabled() || ctxutils.IsAdmin(ctx)) {
+		return nil, 0, errs.NewForbidden("comment_disabled")
+	}
 	currentUserID, _ := ctxutils.GetCurrentUserID(ctx)
 	comments, total, err := repo.Comment.ListCommentsByUser(req.UserID, ctxutils.IsAdmin(ctx), ctxutils.IsOwnerOfTarget(ctx, req.UserID),
 		req.Page, req.Size, req.OrderBy, req.Desc)
@@ -477,15 +498,16 @@ func (cs *CommentService) ListUserComments(ctx context.Context, req *dto.ListUse
 // revealClient 为 true 时无论评论者是否公开都返回设备与归属地，只用于管理员后台
 func (cs *CommentService) toGetCommentDtos(comments []model.Comment, currentUserID uint, revealClient bool, targetLang string) []dto.CommentDto {
 	targetLang = normalizeCommentTargetLang(targetLang)
+	includeLike := tools.LikeEnabled() || revealClient
 	var ids []uint
-	if len(comments) > 0 && (currentUserID != 0 || targetLang != "") {
+	if len(comments) > 0 && ((includeLike && currentUserID != 0) || targetLang != "") {
 		ids = make([]uint, len(comments))
 		for i, comment := range comments {
 			ids[i] = comment.ID
 		}
 	}
 	likedIDs := map[uint]bool{}
-	if currentUserID != 0 && len(ids) > 0 {
+	if includeLike && currentUserID != 0 && len(ids) > 0 {
 		var err error
 		if likedIDs, err = repo.Like.LikedTargetIDs(currentUserID, constant.TargetTypeComment, ids); err != nil {
 			logrus.Errorf("toGetCommentDtos: LikedTargetIDs error: %s", err.Error())
@@ -502,7 +524,10 @@ func (cs *CommentService) toGetCommentDtos(comments []model.Comment, currentUser
 	mentions := commentMentionUsers(comments)
 	commentDtos := make([]dto.CommentDto, 0, len(comments))
 	for i := range comments {
-		commentDto := cs.toGetCommentDto(&comments[i], likedIDs[comments[i].ID], revealClient)
+		commentDto := cs.toGetCommentDto(&comments[i], includeLike && likedIDs[comments[i].ID], revealClient)
+		if !includeLike {
+			commentDto.LikeCount = 0
+		}
 		if tr, ok := translations[comments[i].ID]; ok && tr.ContentMD5 == model.CommentContentMD5(comments[i].Content) {
 			if commentDto.Language == "" && tr.SourceLang != "" {
 				commentDto.Language = tr.SourceLang

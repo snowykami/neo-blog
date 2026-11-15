@@ -848,7 +848,7 @@ func (s *AIAgentService) RevertRun(ctx context.Context, id uint) (*dto.AgentRunD
 			}
 		case "like":
 			undo := !e.Liked
-			if _, svcerr := NewLikeService().ToggleLike(agentCtx, e.TargetID, e.TargetType, &undo); svcerr != nil && svcerr.Code != 404 {
+			if _, svcerr := NewLikeService().toggleLike(agentCtx, e.TargetID, e.TargetType, &undo, true); svcerr != nil && svcerr.Code != 404 {
 				return nil, svcerr
 			}
 		case "profile":

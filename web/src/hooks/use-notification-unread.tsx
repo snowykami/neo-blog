@@ -11,9 +11,11 @@ import { getUnreadNotificationCount, markNotificationRead } from '@/api/notifica
 import { UserAvatar } from '@/components/common/avatar'
 import { formatNotificationAlertText, getNotificationTargetHref } from '@/components/notification/notification-format'
 import { useAuth } from '@/contexts/auth-context'
+import { useOptionalSiteInfo } from '@/contexts/site-info-context'
 import { pushIslandAlert } from '@/contexts/topbar-island'
 import { usePathname, useRouter } from '@/i18n/navigation'
 import { mainPath } from '@/utils/common/route'
+import { isInteractionEnabled } from '@/utils/common/siteinfo'
 import { advanceNotificationMarker, isNewerNotificationMarker, toNotificationMarker } from './notification-unread-marker'
 import {
   decreaseUnreadSnapshot,
@@ -44,6 +46,8 @@ export function useUnreadNotificationSnapshot(): NotificationUnreadCount | null 
  */
 export function useUnreadNotificationCount() {
   const { user } = useAuth()
+  const siteInfo = useOptionalSiteInfo()
+  const interactionEnabled = isInteractionEnabled(siteInfo)
   // 只跟随账号变化：用户对象在改配色、改资料时也会换新，不能因此重连
   const userId = user?.id ?? null
   const t = useTranslations('Notifications')
@@ -113,7 +117,7 @@ export function useUnreadNotificationCount() {
 
   const refresh = useCallback(async () => {
     const forUser = activeUser.current
-    if (forUser === null)
+    if (forUser === null || !interactionEnabled)
       return
     try {
       const res = await getUnreadNotificationCount()
@@ -122,7 +126,7 @@ export function useUnreadNotificationCount() {
     catch {
       // 拉取失败保持上一次的数字，不打断用户
     }
-  }, [apply])
+  }, [apply, interactionEnabled])
 
   useEffect(() => {
     // 换账号（登出、或从 A 直接切到 B）时清空基线与快照：新账号第一次拿到的值只当基线，不会被当成「来了新通知」
@@ -130,7 +134,7 @@ export function useUnreadNotificationCount() {
     latest.current = undefined
     if (getUnreadSnapshot()?.userId !== userId)
       setUnreadSnapshot(null)
-    if (userId === null)
+    if (userId === null || !interactionEnabled)
       return
     void refresh()
     const unregister = registerUnreadRefresher(() => void refresh())
@@ -211,7 +215,7 @@ export function useUnreadNotificationCount() {
       document.removeEventListener('visibilitychange', onVisible)
       source?.close()
     }
-  }, [apply, refresh, userId])
+  }, [apply, interactionEnabled, refresh, userId])
 
-  return { count: userId === null ? 0 : (payload?.total ?? 0), refresh }
+  return { count: userId === null || !interactionEnabled ? 0 : (payload?.total ?? 0), refresh }
 }

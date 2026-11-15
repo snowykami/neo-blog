@@ -208,6 +208,9 @@ func (w *agentWriteContext) checkComment(targetType string, targetID, replyID ui
 
 // AgentCreateComment AI 用户发表评论 / 回复
 func (s *AIAgentService) AgentCreateComment(ctx context.Context, targetType string, targetID, replyID uint, content string) (uint, *errs.ServiceError) {
+	if !tools.CommentEnabled() {
+		return 0, errs.NewForbidden("comment_disabled")
+	}
 	w, svcerr := loadAgentWriteContext(ctx, constant.ScopeCommentsWrite)
 	if svcerr != nil {
 		return 0, svcerr
@@ -272,6 +275,12 @@ func (w *agentWriteContext) createCommentLocked(ctx context.Context, targetType 
 
 // AgentSetLike AI 用户点赞 / 取消点赞（幂等：设为指定状态）
 func (s *AIAgentService) AgentSetLike(ctx context.Context, targetType string, targetID uint, liked bool) (bool, *errs.ServiceError) {
+	if !tools.LikeEnabled() {
+		return false, errs.NewForbidden("like_disabled")
+	}
+	if targetType == constant.TargetTypeComment && !tools.CommentEnabled() {
+		return false, errs.NewForbidden("comment_disabled")
+	}
 	w, svcerr := loadAgentWriteContext(ctx, constant.ScopeLikesWrite)
 	if svcerr != nil {
 		return false, svcerr

@@ -33,6 +33,7 @@ import { PinnedIcon } from '@/contexts/theme-context'
 import { contentWebFonts, resolveContentTheme } from '@/lib/content-theme'
 import { TargetType } from '@/models/types'
 import { calculateReadingTime, countWords } from '@/utils/common/post'
+import { isCommentEnabled, isLikeEnabled } from '@/utils/common/siteinfo'
 import { renderContentHtml } from '@/utils/server/render-content'
 import { getCachedPostNeighbors } from './post-data'
 import '@/app/styles/prose.css'
@@ -53,7 +54,9 @@ async function PostArticle({ post, html, isDraft }: { post: Post, html: string, 
   const t = await getTranslations('Common')
   const content = (isDraft ? post.draftContent : post.content) || ''
   // 文章未选内容主题时跟随站点默认；只加载主题与局部字体实际用到的网页字体
-  const theme = resolveContentTheme(post.contentTheme, (await getCachedSiteInfo()).contentTheme)
+  const siteInfo = await getCachedSiteInfo()
+  const theme = resolveContentTheme(post.contentTheme, siteInfo.contentTheme)
+  const likeEnabled = isLikeEnabled(siteInfo)
   // 交给客户端组件（编辑入口、版权、点赞、分享）的只有这些字段：整篇 post 带着正文原文，传进去会在 RSC 里再发一份正文。
   // 几个组件共用同一个对象，RSC 里只序列化一次
   // 计数是页面缓存里的快照，统计行在浏览器里换成最新值（见 PostLiveStats）
@@ -144,17 +147,21 @@ async function PostArticle({ post, html, isDraft }: { post: Post, html: string, 
       <CopyrightCard post={postInfo} className="mt-8" />
 
       {/* 点赞与分享 - Wrapped in Suspense for better performance；id 供顶栏「读完啦」提示跳转 */}
-      <div id="post-actions" className="mt-8">
-        <Suspense fallback={<LikeButtonSkeleton />}>
-          <BlogLikeButton post={postInfo} />
-        </Suspense>
-        {/* 草稿预览不对外分享 */}
-        {!isDraft && (
-          <div className="mt-6 flex justify-center">
-            <BlogShare post={postInfo} />
-          </div>
-        )}
-      </div>
+      {(likeEnabled || !isDraft) && (
+        <div id="post-actions" className="mt-8">
+          {likeEnabled && (
+            <Suspense fallback={<LikeButtonSkeleton />}>
+              <BlogLikeButton post={postInfo} />
+            </Suspense>
+          )}
+          {/* 草稿预览不对外分享 */}
+          {!isDraft && (
+            <div className={likeEnabled ? 'mt-6 flex justify-center' : 'flex justify-center'}>
+              <BlogShare post={postInfo} />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -175,10 +182,12 @@ export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?
   // 正文为空时显示一句提示（用段落而不是标题，不进目录）；渲染时照常经过净化
   const emptyContent = content ? '' : `<p>${(await getTranslations('Common'))('empty_content')}</p>`
   const copyLabel = (await getTranslations('CodeBlock'))('copy')
-  const [{ html, headings }, neighbors] = await Promise.all([
+  const [{ html, headings }, neighbors, siteInfo] = await Promise.all([
     renderContentHtml(content || emptyContent, { copyLabel }),
     isDraft ? Promise.resolve(null) : getCachedPostNeighbors(post.id),
+    getCachedSiteInfo(),
   ])
+  const commentEnabled = isCommentEnabled(siteInfo)
   return (
     <>
       {/* 顶栏灵动岛的阅读进度与迷你目录 */}
@@ -202,21 +211,23 @@ export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?
         <PostArticle post={post} html={html} isDraft={isDraft} />
         {!isDraft && neighbors && <PostContinuation neighbors={neighbors} />}
         {/* 评论区接近视口时才加载（见 DeferredCommentSection）；id 供顶栏迷你目录「去评论区」跳转 */}
-        <div id="comments" className="scroll-mt-[calc(var(--nav-h)+1rem)] rounded-2xl bg-card px-6 py-6 md:px-9 md:py-8">
-          <DeferredCommentSection
-            targetType={TargetType.Post}
-            ownerId={post.user.id}
-            owner={{
-              id: post.user.id,
-              username: post.user.username,
-              nickname: post.user.nickname,
-              avatarUrl: post.user.avatarUrl,
-              gravatarHash: post.user.gravatarHash,
-            }}
-            targetId={post.id}
-            totalCount={post.commentCount}
-          />
-        </div>
+        {commentEnabled && (
+          <div id="comments" className="scroll-mt-[calc(var(--nav-h)+1rem)] rounded-2xl bg-card px-6 py-6 md:px-9 md:py-8">
+            <DeferredCommentSection
+              targetType={TargetType.Post}
+              ownerId={post.user.id}
+              owner={{
+                id: post.user.id,
+                username: post.user.username,
+                nickname: post.user.nickname,
+                avatarUrl: post.user.avatarUrl,
+                gravatarHash: post.user.gravatarHash,
+              }}
+              targetId={post.id}
+              totalCount={post.commentCount}
+            />
+          </div>
+        )}
       </SiteShell>
     </>
   )

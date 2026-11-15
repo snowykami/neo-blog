@@ -4,6 +4,7 @@ import type { UserAvatarInfo } from '@/models/user'
 import { useEffect, useRef, useState } from 'react'
 import { getLikedUsers } from '@/api/like'
 import { UserAvatar } from '@/components/common/avatar'
+import { useSiteInfo } from '@/contexts/site-info-context'
 import { LikeIcon } from '@/contexts/theme-context'
 import { usePostLike } from '@/hooks/use-post-like'
 import { useOperationT } from '@/hooks/use-translations'
@@ -11,11 +12,14 @@ import { Link } from '@/i18n/navigation'
 import { cn } from '@/lib/utils'
 import { TargetType } from '@/models/types'
 import { getUserUrl } from '@/utils/common/route'
+import { isLikeEnabled } from '@/utils/common/siteinfo'
 import { formatDisplayName } from '@/utils/common/username'
 
 const MAX_LIKED_USERS = 5
 
 export function BlogLikeButton({ post }: { post: Pick<Post, 'id' | 'isLiked' | 'likeCount'> }) {
+  const { siteInfo } = useSiteInfo()
+  const likeEnabled = isLikeEnabled(siteInfo)
   const operationT = useOperationT()
   // 与顶栏灵动岛的「读完啦」提示共用点赞状态（见 hooks/use-post-like.tsx）：在岛上点赞后这里同步变化
   const { liked, count: likeCount, version: likedUsersVersion, toggle } = usePostLike(post)
@@ -25,6 +29,8 @@ export function BlogLikeButton({ post }: { post: Pick<Post, 'id' | 'isLiked' | '
 
   // Lazy load liked users only when in viewport
   useEffect(() => {
+    if (!likeEnabled)
+      return
     const element = likeButtonRef.current
     if (!element)
       return
@@ -41,10 +47,10 @@ export function BlogLikeButton({ post }: { post: Pick<Post, 'id' | 'isLiked' | '
 
     observer.observe(element)
     return () => observer.disconnect()
-  }, [])
+  }, [likeEnabled])
 
   useEffect(() => {
-    if (!shouldFetchLikedUsers)
+    if (!likeEnabled || !shouldFetchLikedUsers)
       return
 
     getLikedUsers({ targetType: TargetType.Post, targetId: post.id, number: MAX_LIKED_USERS })
@@ -54,7 +60,10 @@ export function BlogLikeButton({ post }: { post: Pick<Post, 'id' | 'isLiked' | '
       .catch(() => {
         setLikedUsers([])
       })
-  }, [shouldFetchLikedUsers, likedUsersVersion, post.id])
+  }, [likeEnabled, shouldFetchLikedUsers, likedUsersVersion, post.id])
+
+  if (!likeEnabled)
+    return null
 
   // 未展示头像的点赞人数
   const moreLikedCount = Math.max(0, likeCount - likedUsers.length)

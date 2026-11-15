@@ -7,11 +7,13 @@ import * as PopoverPrimitive from '@radix-ui/react-popover'
 import { ArrowUpIcon, MessageCircleIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useSiteInfo } from '@/contexts/site-info-context'
 import { LikeIcon } from '@/contexts/theme-context'
 import { pushIslandAlert, useIslandActivity } from '@/contexts/topbar-island'
 import { usePostLike } from '@/hooks/use-post-like'
 import { cn } from '@/lib/utils'
 import { getScrollOffset, getVisibleElementById, measureArticleReading } from '@/utils/client/dom'
+import { isCommentEnabled, isLikeEnabled } from '@/utils/common/siteinfo'
 import { IslandText, ProgressRing } from './island-parts'
 
 // 低于播放中的音乐：同时存在时阅读进度缩成旁边的进度环
@@ -70,11 +72,15 @@ function scrollToElement(id: string) {
  */
 export function ReadingIsland({ title, headings, minutes, post }: { title: string, headings: TocHeading[], minutes: number, post: Pick<Post, 'id' | 'isLiked' | 'likeCount'> }) {
   const t = useTranslations('TopbarIsland')
+  const { siteInfo } = useSiteInfo()
+  const likeEnabled = isLikeEnabled(siteInfo)
   const postLike = usePostLike(post)
-  // 读完时按当时的点赞状态决定提示（订阅回调里读最新值）
+  // 读完时按当时的点赞状态与互动开关决定提示（订阅回调里读最新值）
   const postLikeRef = useRef(postLike)
+  const likeEnabledRef = useRef(likeEnabled)
   useEffect(() => {
     postLikeRef.current = postLike
+    likeEnabledRef.current = likeEnabled
   })
   const [store] = useState(createReadingStore)
   const phase = useSyncExternalStore(store.subscribe, () => store.get().phase, () => INITIAL.phase)
@@ -125,6 +131,8 @@ export function ReadingIsland({ title, headings, minutes, post }: { title: strin
     if (finishedRef.current || phase !== 'reading' || progress < FINISH_PROGRESS || scrollable < window.innerHeight * FINISH_MIN_SCROLL_RATIO)
       return
     finishedRef.current = true
+    if (!likeEnabledRef.current)
+      return
     // 消息类提示：带上 onPress，被反馈盖过后必须能回来（resume: restart），否则读者就永远失去这个入口
     // （finishedRef 只触发一次）；停留时间长于默认值，因为它带着交互
     pushIslandAlert(postLikeRef.current.liked
@@ -200,6 +208,8 @@ function RemainingTime({ store, minutes, className }: { store: ReadingStore, min
 function ReadingPanel({ store, headings, minutes }: { store: ReadingStore, headings: TocHeading[], minutes: number }) {
   const t = useTranslations('TopbarIsland')
   const commonT = useTranslations('Common')
+  const { siteInfo } = useSiteInfo()
+  const commentEnabled = isCommentEnabled(siteInfo)
   const percent = usePercent(store)
   const activeIndex = useSyncExternalStore(store.subscribe, () => store.get().activeIndex, () => -1)
   const minLevel = headings.length > 0 ? Math.min(...headings.map(heading => heading.level)) : 1
@@ -246,12 +256,14 @@ function ReadingPanel({ store, headings, minutes }: { store: ReadingStore, headi
             {commonT('back_to_top')}
           </button>
         </PopoverPrimitive.Close>
-        <PopoverPrimitive.Close asChild>
-          <button type="button" className={actionClass} onClick={() => scrollToElement('comments')}>
-            <MessageCircleIcon aria-hidden className="size-4" />
-            {t('reading_to_comments')}
-          </button>
-        </PopoverPrimitive.Close>
+        {commentEnabled && (
+          <PopoverPrimitive.Close asChild>
+            <button type="button" className={actionClass} onClick={() => scrollToElement('comments')}>
+              <MessageCircleIcon aria-hidden className="size-4" />
+              {t('reading_to_comments')}
+            </button>
+          </PopoverPrimitive.Close>
+        )}
       </div>
     </div>
   )

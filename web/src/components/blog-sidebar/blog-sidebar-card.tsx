@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils'
 import { OrderBy } from '@/models/common'
 import { getGravatarUrl } from '@/utils/common/gravatar'
 import { getLabelUrl, getPostUrl } from '@/utils/common/route'
+import { isLikeEnabled } from '@/utils/common/siteinfo'
 import { getFallbackAvatarFromUsername } from '@/utils/common/username'
 import { SidebarCard } from './sidebar-card'
 
@@ -76,6 +77,8 @@ export function BlogSidebarAbout() {
 
 // 热门 / 最新文章卡片：orderType 决定获取顺序与标题
 export function BlogSidebarHotPosts({ posts: initialPosts, orderType = OrderBy.Heat }: { posts?: Post[], orderType?: OrderBy.Heat | OrderBy.CreatedAt }) {
+  const { siteInfo } = useSiteInfo()
+  const likeEnabled = isLikeEnabled(siteInfo)
   const blogHomeT = useTranslations('BlogHome')
   const metricsT = useTranslations('Metrics')
   const [posts, setPosts] = useState<Post[]>(initialPosts ?? [])
@@ -118,11 +121,13 @@ export function BlogSidebarHotPosts({ posts: initialPosts, orderType = OrderBy.H
                     <span className="sr-only">{metricsT('view_count')}</span>
                     {post.viewCount}
                   </span>
-                  <span className="flex items-center gap-1">
-                    <LikeIcon className="size-3" />
-                    <span className="sr-only">{metricsT('like_count')}</span>
-                    {post.likeCount}
-                  </span>
+                  {likeEnabled && (
+                    <span className="flex items-center gap-1">
+                      <LikeIcon className="size-3" />
+                      <span className="sr-only">{metricsT('like_count')}</span>
+                      {post.likeCount}
+                    </span>
+                  )}
                 </div>
               </div>
             </Link>

@@ -98,6 +98,12 @@ var sections = []*Section{
 		{Key: "copyright", Type: TypeString, Label: "copyright", Placeholder: "CC BY-NC-SA 4.0", Default: "", siteInfoPath: path("copyright")},
 		{Key: "copyright_link", Type: TypeURL, Label: "copyright_link", Default: "", siteInfoPath: path("copyright_link")},
 	}},
+	// 互动功能（评论与点赞）：应对特定法规或审核场景可一键关闭全站互动，已有评论与点赞数据完整保留，重新开启即恢复展示
+	{Tab: "content", Key: "interaction", Title: "section_interaction", Description: "section_interaction_desc", Items: []*Item{
+		{Key: "enable_interaction", Type: TypeBool, Label: "enable_interaction", Description: "enable_interaction_desc", Default: true, Env: constant.EnvKeyEnableInteraction, siteInfoPath: path("interaction.enabled")},
+		{Key: "enable_comment", Type: TypeBool, Label: "enable_comment", Description: "enable_comment_desc", Default: true, Env: constant.EnvKeyEnableComment, ShowWhen: when("enable_interaction", "true"), siteInfoPath: path("interaction.comment")},
+		{Key: "enable_like", Type: TypeBool, Label: "enable_like", Description: "enable_like_desc", Default: true, Env: constant.EnvKeyEnableLike, ShowWhen: when("enable_interaction", "true"), siteInfoPath: path("interaction.like")},
+	}},
 	{Tab: "content", Key: "footer", Title: "section_footer", Items: []*Item{
 		{Key: "footer_text", Type: TypeString, Label: "footer_text", Wide: true, Default: "", siteInfoPath: path("footer.text")},
 		{Key: "footer_links", Type: TypeLinkList, Label: "footer_links", Default: []map[string]any{}, siteInfoPath: path("footer.links")},

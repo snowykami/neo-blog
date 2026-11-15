@@ -9,12 +9,14 @@ import { SafeImage } from '@/components/common/safe-image'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useSiteInfo } from '@/contexts/site-info-context'
 import { CommentIcon, LikeIcon, PinnedIcon, ViewIcon } from '@/contexts/theme-context'
 import { Link } from '@/i18n/navigation'
 import { cn } from '@/lib/utils'
 import { splitHighlight } from '@/utils/common/highlight'
 import { stripInlineMarkdown } from '@/utils/common/inline-markdown'
 import { getPostUrl } from '@/utils/common/route'
+import { isCommentEnabled, isLikeEnabled } from '@/utils/common/siteinfo'
 import { htmlToText } from '@/utils/common/string'
 
 /*
@@ -50,6 +52,9 @@ function Highlighted({ text, terms }: { text: string, terms?: string[] }) {
  */
 export function PostListItem({ post, showAuthor = true, pinned = false, highlight, priority = false }: { post: Post, showAuthor?: boolean, pinned?: boolean, highlight?: string[], priority?: boolean }) {
   const t = useTranslations()
+  const { siteInfo } = useSiteInfo()
+  const likeEnabled = isLikeEnabled(siteInfo)
+  const commentEnabled = isCommentEnabled(siteInfo)
   const url = getPostUrl({ post })
   const hasCover = !!post.cover
   // 搜索命中了正文片段时优先展示裁剪片段，否则按作者描述 → 后端纯文本摘要 → 前端兜底提取展示
@@ -96,16 +101,20 @@ export function PostListItem({ post, showAuthor = true, pinned = false, highligh
 
         {/* 列表正文已被接口截断，字数 / 阅读时长只在文章页按完整正文展示 */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground tabular-nums">
-          <span className="flex items-center gap-1" title={t('Metrics.like_count')}>
-            <LikeIcon className="size-3.5" />
-            <span className="sr-only">{t('Metrics.like_count')}</span>
-            {post.likeCount || 0}
-          </span>
-          <span className="flex items-center gap-1" title={t('Metrics.comment_count')}>
-            <CommentIcon className="size-3.5" />
-            <span className="sr-only">{t('Metrics.comment_count')}</span>
-            {post.commentCount || 0}
-          </span>
+          {likeEnabled && (
+            <span className="flex items-center gap-1" title={t('Metrics.like_count')}>
+              <LikeIcon className="size-3.5" />
+              <span className="sr-only">{t('Metrics.like_count')}</span>
+              {post.likeCount || 0}
+            </span>
+          )}
+          {commentEnabled && (
+            <span className="flex items-center gap-1" title={t('Metrics.comment_count')}>
+              <CommentIcon className="size-3.5" />
+              <span className="sr-only">{t('Metrics.comment_count')}</span>
+              {post.commentCount || 0}
+            </span>
+          )}
           <span className="flex items-center gap-1" title={t('Metrics.view_count')}>
             <ViewIcon className="size-3.5" />
             <span className="sr-only">{t('Metrics.view_count')}</span>

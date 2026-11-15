@@ -18,6 +18,7 @@ import { useErrorMessageT } from '@/hooks/use-translations'
 import { toServiceLanguage } from '@/locales/registry'
 import { OrderBy } from '@/models/common'
 import { TargetType } from '@/models/types'
+import { isCommentEnabled, isLikeEnabled } from '@/utils/common/siteinfo'
 import { OrderSelector } from '../common/orderby-selector'
 import { SectionTitle } from '../layout/site-shell'
 import { CommentInput } from './comment-input'
@@ -38,6 +39,8 @@ export function CommentSection({
   owner?: UserBrief
 }) {
   const { siteInfo } = useSiteInfo()
+  const commentEnabled = isCommentEnabled(siteInfo)
+  const likeEnabled = isLikeEnabled(siteInfo)
   const locale = useLocale()
   const targetLang = toServiceLanguage(locale)
   const t = useTranslations('Comment')
@@ -48,13 +51,14 @@ export function CommentSection({
   const [page, setPage] = useState(1) // 当前页码
   const [totalCommentCount, setTotalCommentCount] = useState(totalCount) // 评论总数
   // 文章页按 ISR 缓存，传进来的总数是快照：换成浏览器另取的最新值（与统计行共用一次请求，见 hooks/use-post-stats.ts）
-  const liveCommentCount = usePostStats(targetType === TargetType.Post ? targetId : 0)?.commentCount
+  const liveCommentCount = usePostStats(commentEnabled && targetType === TargetType.Post ? targetId : 0)?.commentCount
   useEffect(() => {
     if (liveCommentCount !== undefined)
       setTotalCommentCount(liveCommentCount)
   }, [liveCommentCount])
   const [needLoadMore, setNeedLoadMore] = useState(false) // 是否需要加载更多，当最后一次获取的评论数小于分页大小时设为false
   const [orderBy, setOrderBy] = useState<OrderBy>(OrderBy.CreatedAt) // 排序字段，默认按创建时间
+  const effectiveOrderBy = !likeEnabled && orderBy === OrderBy.LikeCount ? OrderBy.CreatedAt : orderBy
   const [desc, setDesc] = useState(true) // 是否降序，默认降序
   const [initialLoading, setInitialLoading] = useState(true) // 首屏加载中
   const [loadingMore, setLoadingMore] = useState(false) // 加载更多中
@@ -99,7 +103,9 @@ export function CommentSection({
   // 加载顶层评论。条件（目标、排序、身份、界面语言）变化时从第一页重新加载并显示骨架；
   // 条件没变（Activity 隐藏后重新显示，effect 会重跑）时保留已加载的各页，在后台一次取回同样多的条数替换，页面高度不跳
   useEffect(() => {
-    const key = JSON.stringify([targetType, targetId, pageSize, orderBy, desc, viewerEpoch, targetLang])
+    if (!commentEnabled)
+      return
+    const key = JSON.stringify([targetType, targetId, pageSize, effectiveOrderBy, desc, viewerEpoch, targetLang])
     const seq = ++requestSeqRef.current
     const background = loadedKeyRef.current === key
     const pages = background ? pageRef.current : 1
@@ -115,7 +121,7 @@ export function CommentSection({
       targetType,
       targetId,
       depth: 0,
-      orderBy,
+      orderBy: effectiveOrderBy,
       desc,
       page: 1,
       size: pageSize * pages,
@@ -141,7 +147,7 @@ export function CommentSection({
       if (seq === requestSeqRef.current)
         setInitialLoading(false)
     })
-  }, [targetId, targetType, pageSize, orderBy, desc, t, viewerEpoch, targetLang])
+  }, [commentEnabled, targetId, targetType, pageSize, effectiveOrderBy, desc, t, viewerEpoch, targetLang])
 
   const onCommentSubmitted = async ({
     commentContent,
@@ -198,7 +204,7 @@ export function CommentSection({
   // 读取 ?comment= 深链：先查这条评论在哪个线程，再把线程根补进列表（它可能还没被翻到）。
   // 参数读到后立即从地址里去掉，定位只做一次：之后加载更多、展开别的线程、收起目标线程都不会被拉回
   useEffect(() => {
-    if (typeof window === 'undefined')
+    if (typeof window === 'undefined' || !commentEnabled)
       return
     const targetKey = `${targetType}:${targetId}`
     const fromUrl = takeCommentParam()
@@ -244,10 +250,10 @@ export function CommentSection({
     return () => {
       cancelled = true
     }
-  }, [targetId, targetType, viewerEpoch, targetLang])
+  }, [commentEnabled, targetId, targetType, viewerEpoch, targetLang])
 
   const handleLoadMore = () => {
-    if (loadingMore || initialLoading)
+    if (!commentEnabled || loadingMore || initialLoading)
       return
     const seq = requestSeqRef.current
     const nextPage = page + 1
@@ -258,7 +264,7 @@ export function CommentSection({
       targetType,
       targetId,
       depth: 0,
-      orderBy,
+      orderBy: effectiveOrderBy,
       desc,
       page: refetchAll ? 1 : nextPage,
       size: refetchAll ? pageSize * nextPage : pageSize,
@@ -306,6 +312,9 @@ export function CommentSection({
     return list
   }, [comments, owner])
 
+  if (!commentEnabled)
+    return null
+
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -315,17 +324,23 @@ export function CommentSection({
         </SectionTitle>
         <div className="flex">
           <OrderSelector
-            value={{ orderBy, desc }}
+            value={{ orderBy: effectiveOrderBy, desc }}
             onOrderChange={(o) => {
               setOrderBy(o.orderBy)
               setDesc(o.desc)
             }}
-            orderBys={[
-              OrderBy.CreatedAt,
-              OrderBy.LikeCount,
-              OrderBy.CommentCount,
-              OrderBy.UpdatedAt,
-            ]}
+            orderBys={likeEnabled
+              ? [
+                  OrderBy.CreatedAt,
+                  OrderBy.LikeCount,
+                  OrderBy.CommentCount,
+                  OrderBy.UpdatedAt,
+                ]
+              : [
+                  OrderBy.CreatedAt,
+                  OrderBy.CommentCount,
+                  OrderBy.UpdatedAt,
+                ]}
           />
         </div>
       </div>

@@ -44,6 +44,16 @@ export interface IslandSettings {
   weather: boolean
 }
 
+/**
+ * 全站互动功能（评论与点赞）开关，后台「内容与展示 → 互动功能」配置；
+ * enabled 为总开关，关闭时评论与点赞同时停用
+ */
+export interface InteractionSettings {
+  enabled: boolean
+  comment: boolean
+  like: boolean
+}
+
 export interface SiteInfo {
   colorSchemes: string[]
   defaultColorScheme: string
@@ -92,6 +102,7 @@ export interface SiteInfo {
   enableThirdPartyScript?: boolean // 是否在前台加载全局第三方脚本
   pageBackground?: PageBackground // 前台全站背景（底色 / 背景图 / 模糊 / 节日装饰）
   island?: IslandSettings // 顶栏灵动岛（实验性）的开关
+  interaction?: InteractionSettings // 全站互动功能（评论与点赞）总分开关
 }
 
 // 取不到站点信息时的兜底，也用来补全站点信息里缺少的字段：取值与后端配置注册表（internal/config/items.go）的默认值一致。
@@ -159,6 +170,34 @@ export const fallbackSiteInfo: SiteInfo = {
     greeting: true,
     weather: false,
   },
+  interaction: {
+    enabled: true,
+    comment: true,
+    like: true,
+  },
+}
+
+/**
+ * 评论功能是否实际生效（需同时开启互动总开关与评论开关；缺省字段按开启处理）
+ */
+export function isCommentEnabled(siteInfo?: Partial<SiteInfo> | null): boolean {
+  const interaction = siteInfo?.interaction
+  return (interaction?.enabled ?? true) && (interaction?.comment ?? true)
+}
+
+/**
+ * 点赞功能是否实际生效（需同时开启互动总开关与点赞开关；缺省字段按开启处理）
+ */
+export function isLikeEnabled(siteInfo?: Partial<SiteInfo> | null): boolean {
+  const interaction = siteInfo?.interaction
+  return (interaction?.enabled ?? true) && (interaction?.like ?? true)
+}
+
+/**
+ * 全站是否至少保留了一项互动能力（评论或点赞任一开启）
+ */
+export function isInteractionEnabled(siteInfo?: Partial<SiteInfo> | null): boolean {
+  return isCommentEnabled(siteInfo) || isLikeEnabled(siteInfo)
 }
 
 /**

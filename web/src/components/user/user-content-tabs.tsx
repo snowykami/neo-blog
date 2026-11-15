@@ -6,9 +6,11 @@ import { useTranslations } from 'next-intl'
 import { parseAsInteger, useQueryState } from 'nuqs'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/contexts/auth-context'
+import { useSiteInfo } from '@/contexts/site-info-context'
 import { useHashState } from '@/hooks/use-hash-state'
 import { isAdmin } from '@/utils/common/permission'
 import { USER_TABS } from '@/utils/common/route'
+import { isCommentEnabled, isLikeEnabled } from '@/utils/common/siteinfo'
 import { UserComments } from './user-comments'
 import { UserLikes } from './user-likes'
 import { UserPosts } from './user-posts'
@@ -21,11 +23,13 @@ import { UserPosts } from './user-posts'
 export function UserContentTabs({ userId, showLikes }: { userId: number, showLikes: boolean }) {
   const t = useTranslations('UserPage')
   const { user: currentUser } = useAuth()
-  const canViewLikes = showLikes || (!!currentUser && (currentUser.id === userId || isAdmin({ user: currentUser })))
+  const { siteInfo } = useSiteInfo()
+  const canViewComments = isCommentEnabled(siteInfo)
+  const canViewLikes = isLikeEnabled(siteInfo) && (showLikes || (!!currentUser && (currentUser.id === userId || isAdmin({ user: currentUser }))))
   const [tab, setTab] = useHashState<UserTab>(USER_TABS, 'posts')
   const [, setPage] = useQueryState('page', parseAsInteger.withOptions({ history: 'replace', clearOnDefault: true }))
-  // 无权查看喜欢时（如分享出去的 #likes 链接）回退到文章
-  const activeTab = tab === 'likes' && !canViewLikes ? 'posts' : tab
+  // 无权查看喜欢或评论功能关闭时回退到文章
+  const activeTab = (tab === 'likes' && !canViewLikes) || (tab === 'comments' && !canViewComments) ? 'posts' : tab
 
   return (
     <Tabs
@@ -42,10 +46,12 @@ export function UserContentTabs({ userId, showLikes }: { userId: number, showLik
           <FileTextIcon aria-hidden />
           {t('tab_posts')}
         </TabsTrigger>
-        <TabsTrigger value="comments" className="px-3">
-          <MessageSquareIcon aria-hidden />
-          {t('tab_comments')}
-        </TabsTrigger>
+        {canViewComments && (
+          <TabsTrigger value="comments" className="px-3">
+            <MessageSquareIcon aria-hidden />
+            {t('tab_comments')}
+          </TabsTrigger>
+        )}
         {canViewLikes && (
           <TabsTrigger value="likes" className="px-3">
             <HeartIcon aria-hidden />
@@ -56,9 +62,11 @@ export function UserContentTabs({ userId, showLikes }: { userId: number, showLik
       <TabsContent value="posts">
         <UserPosts userId={userId} />
       </TabsContent>
-      <TabsContent value="comments">
-        <UserComments userId={userId} />
-      </TabsContent>
+      {canViewComments && (
+        <TabsContent value="comments">
+          <UserComments userId={userId} />
+        </TabsContent>
+      )}
       {canViewLikes && (
         <TabsContent value="likes">
           <UserLikes userId={userId} isPublic={showLikes} />

@@ -7,9 +7,11 @@ import { getLikeStatus, toggleLike } from '@/api/like'
 import { useRequireLogin } from '@/components/auth/login-dialog'
 import { notifySuccess } from '@/components/layout/topbar-island/island-feedback'
 import { useAuth } from '@/contexts/auth-context'
+import { useOptionalSiteInfo } from '@/contexts/site-info-context'
 import { LikeIcon } from '@/contexts/theme-context'
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { TargetType } from '@/models/types'
+import { isLikeEnabled } from '@/utils/common/siteinfo'
 
 interface PostLikeState {
   liked: boolean
@@ -77,6 +79,8 @@ export function usePostLike(post: Pick<Post, 'id' | 'isLiked' | 'likeCount'>) {
   const errorMessageT = useErrorMessageT()
   const operationT = useOperationT()
   const requireLogin = useRequireLogin()
+  const siteInfo = useOptionalSiteInfo()
+  const likeEnabled = isLikeEnabled(siteInfo)
   const initial = useMemo<PostLikeState>(() => ({ liked: post.isLiked, count: post.likeCount || 0, pending: false, version: 0 }), [post.isLiked, post.likeCount])
   const state = useSyncExternalStore(subscribe, () => states.get(post.id) ?? initial, () => initial)
   const { user } = useAuth()
@@ -86,6 +90,8 @@ export function usePostLike(post: Pick<Post, 'id' | 'isLiked' | 'likeCount'>) {
   const userId = user?.id ?? null
   useEffect(() => {
     syncPostLikeAccount(userId)
+    if (!likeEnabled)
+      return
     const key = userId !== null ? `${userId}:${post.id}` : ''
     if (userId === null || fetchedStatus.has(key))
       return
@@ -103,11 +109,13 @@ export function usePostLike(post: Pick<Post, 'id' | 'isLiked' | 'likeCount'>) {
       .catch(() => {
         fetchedStatus.delete(key)
       })
-  }, [initial, post.id, userId])
+  }, [initial, likeEnabled, post.id, userId])
 
   // 改成期望的状态：先乐观更新，以服务端结果为准校正，失败时回滚。传入期望状态而不是取反：
   // 快捷登录后页面上的状态可能已过期，避免把已赞的点成取消
   const setLiked = useCallback((liked: boolean) => {
+    if (!likeEnabled)
+      return
     const current = states.get(post.id) ?? initial
     if (current.pending || current.liked === liked)
       return
@@ -134,14 +142,22 @@ export function usePostLike(post: Pick<Post, 'id' | 'isLiked' | 'likeCount'>) {
         if (generation === requestGeneration)
           setState(post.id, { ...current, pending: false })
       })
-  }, [errorMessageT, initial, operationT, post.id])
+  }, [errorMessageT, initial, likeEnabled, operationT, post.id])
 
   return {
-    liked: state.liked,
+    liked: likeEnabled ? state.liked : false,
     count: state.count,
     version: state.version,
     // 未登录时弹出快捷登录，登录后接着执行；登录后读取最新的状态再决定（取反或点赞）
-    toggle: () => requireLogin(() => setLiked(!(states.get(post.id) ?? initial).liked), 'like'),
-    like: () => requireLogin(() => setLiked(true), 'like'),
+    toggle: () => {
+      if (!likeEnabled)
+        return
+      requireLogin(() => setLiked(!(states.get(post.id) ?? initial).liked), 'like')
+    },
+    like: () => {
+      if (!likeEnabled)
+        return
+      requireLogin(() => setLiked(true), 'like')
+    },
   }
 }

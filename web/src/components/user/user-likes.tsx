@@ -12,10 +12,12 @@ import { SectionTitle } from '@/components/layout/site-shell'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useSiteInfo } from '@/contexts/site-info-context'
 import { Link } from '@/i18n/navigation'
 import { TargetType } from '@/models/types'
 import { formatDateTime } from '@/utils/common/datetime'
 import { getPageUrl, getPostUrl, getUserUrl } from '@/utils/common/route'
+import { isCommentEnabled } from '@/utils/common/siteinfo'
 
 const PAGE_SIZE = 10
 const CARD_CLASS = 'overflow-hidden rounded-2xl bg-card'
@@ -31,13 +33,15 @@ function getTargetUrl(like: UserLike) {
 }
 
 function UserLikeItem({ like }: { like: UserLike }) {
+  const { siteInfo } = useSiteInfo()
+  const commentEnabled = isCommentEnabled(siteInfo)
   const t = useTranslations('UserPage')
   const commonT = useTranslations('Common')
   const locale = useLocale()
   const isComment = like.targetType === TargetType.Comment
 
   const authorLink = () => (
-    <Link href={getUserUrl(like.author, isComment ? 'comments' : 'posts')} className="font-medium text-foreground/90 transition-colors hover:text-primary">
+    <Link href={getUserUrl(like.author, isComment && commentEnabled ? 'comments' : 'posts')} className="font-medium text-foreground/90 transition-colors hover:text-primary">
       {like.author.nickname || like.author.username}
     </Link>
   )

@@ -26,6 +26,7 @@ import { formatDateTime } from '@/utils/common/datetime'
 import { formatLocation } from '@/utils/common/location'
 import { isAdmin } from '@/utils/common/permission'
 import { getUserUrl } from '@/utils/common/route'
+import { isLikeEnabled } from '@/utils/common/siteinfo'
 import { CommentAttachments } from './comment-attachments'
 import { CommentInput } from './comment-input'
 import { useCommentLimits } from './comment-limits'
@@ -348,7 +349,7 @@ function CommentBody({
 
   // 未登录时由 requireLogin 弹出快捷登录，登录后接着执行，因此这里不再判断登录状态
   const like = () => {
-    if (liking)
+    if (liking || !isLikeEnabled(siteInfo))
       return
     setLiking(true)
     // 提前转换状态，让用户觉得响应很快
@@ -520,18 +521,20 @@ function CommentBody({
             >
               <Reply aria-hidden className="size-3.5" />
             </button>
-            <button
-              type="button"
-              // 状态由 aria-pressed 表达，名称保持「点赞」不随状态变化
-              title={liked ? operationT('unlike') : operationT('like')}
-              aria-label={operationT('like')}
-              aria-pressed={liked}
-              onClick={handleToggleLike}
-              className={cn('inline-flex h-7 min-w-7 max-sm:h-9 max-sm:min-w-9 items-center gap-1 rounded-md px-2 tabular-nums transition-colors hover:bg-muted hover:text-foreground', liked && 'text-primary hover:text-primary')}
-            >
-              <LikeIcon className={cn('size-3.5', liked && 'fill-current')} />
-              {likeCount > 0 && likeCount}
-            </button>
+            {isLikeEnabled(siteInfo) && (
+              <button
+                type="button"
+                // 状态由 aria-pressed 表达，名称保持「点赞」不随状态变化
+                title={liked ? operationT('unlike') : operationT('like')}
+                aria-label={operationT('like')}
+                aria-pressed={liked}
+                onClick={handleToggleLike}
+                className={cn('inline-flex h-7 min-w-7 max-sm:h-9 max-sm:min-w-9 items-center gap-1 rounded-md px-2 tabular-nums transition-colors hover:bg-muted hover:text-foreground', liked && 'text-primary hover:text-primary')}
+              >
+                <LikeIcon className={cn('size-3.5', liked && 'fill-current')} />
+                {likeCount > 0 && likeCount}
+              </button>
+            )}
             {canTranslate && (
               <button
                 type="button"

@@ -36,6 +36,15 @@ func GetBaseUrl() string {
 func GetAllowRegister() bool         { return config.Bool("enable_register") }
 func GetAllowRegisterFromOidc() bool { return config.Bool("enable_register_from_oidc") }
 
+// InteractionEnabled 是否启用全站互动功能（评论与点赞总开关）
+func InteractionEnabled() bool { return config.Bool("enable_interaction") }
+
+// CommentEnabled 评论功能是否实际生效（需同时开启互动总开关与评论开关）
+func CommentEnabled() bool { return config.Bool("enable_interaction") && config.Bool("enable_comment") }
+
+// LikeEnabled 点赞功能是否实际生效（需同时开启互动总开关与点赞开关）
+func LikeEnabled() bool { return config.Bool("enable_interaction") && config.Bool("enable_like") }
+
 // GetVisitFingerprintAttribution 用户登录后，是否按浏览器指纹与 IP 段把其他访客登录前的匿名访问也补记到该用户
 func GetVisitFingerprintAttribution() bool { return config.Bool("visit_fingerprint_attribution") }
 

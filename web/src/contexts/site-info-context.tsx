@@ -126,4 +126,11 @@ export function useSiteInfo() {
   return ctx
 }
 
+/**
+ * 读取站点配置：允许在未包裹 SiteInfoProvider 的隔离单测环境中使用，缺省返回 fallbackSiteInfo
+ */
+export function useOptionalSiteInfo(): SiteInfo {
+  return useContext(SiteInfoContext)?.siteInfo ?? fallbackSiteInfo
+}
+
 export default SiteInfoContext

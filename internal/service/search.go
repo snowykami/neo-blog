@@ -519,6 +519,9 @@ func (s *SearchService) GlobalSearch(ctx context.Context, req *dto.GlobalSearchR
 	}
 	limit = clampInt(limit, 1, globalSearchMaxLim)
 	groups := parseSearchTypes(req.Types)
+	if !tools.CommentEnabled() {
+		delete(groups, SearchGroupComments)
+	}
 
 	client, cfg, meiliEnabled := activeMeiliClient(searchQueryTimeout)
 	defaultEngine := utils.Ternary(meiliEnabled, "meilisearch", "database")
@@ -603,6 +606,10 @@ func (s *SearchService) globalSearchMeili(
 			AttributesToHighlight: []string{"username", "nickname"},
 			Limit:                 limit,
 		})
+	}
+
+	if len(queries) == 0 {
+		return emptyGlobalSearchResp("meilisearch"), true
 	}
 
 	qCtx, cancel := context.WithTimeout(ctx, searchQueryTimeout)

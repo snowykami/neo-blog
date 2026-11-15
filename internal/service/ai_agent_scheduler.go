@@ -218,7 +218,7 @@ func randomDelay(profile dto.AIAgentProfile) time.Duration {
 }
 
 func schedulerReady(cfg tools.AIAgentConfig) bool {
-	return cfg.Enabled && tools.GetAIConfig().Configured()
+	return cfg.Enabled && tools.GetAIConfig().Configured() && (tools.CommentEnabled() || tools.LikeEnabled())
 }
 
 // Tick 时间引擎：每分钟执行一次
@@ -393,18 +393,27 @@ func enqueueAIAgentEvent(kind string, targetID uint) {
 
 // NotifyPostPublished 文章首次公开时调用（先落共享待办再异步处理，实例滚动重启后可由定时任务接手）
 func NotifyPostPublished(postID uint) {
+	if !(tools.CommentEnabled() || tools.LikeEnabled()) {
+		return
+	}
 	enqueueAIAgentEvent(aiAgentEventKindPost, postID)
 }
 
 // NotifyCommentCreated 有新评论时调用（异步）：被回复的 AI 与评论里被 @ 的 AI 都在这一次处理里安排，
 // 放在同一个 goroutine 里按顺序处理，避免两边各自查到「还没有任务」而把同一条评论排两遍
 func NotifyCommentCreated(commentID uint) {
+	if !tools.CommentEnabled() {
+		return
+	}
 	enqueueAIAgentEvent(aiAgentEventKindCommentCreated, commentID)
 }
 
 // NotifyCommentEdited 评论编辑后调用（异步）：新 @ 的 AI 用户、或评论从私密改为公开后的 @，按「被 @」安排运行。
 // 已为这条评论排过任务的 AI 不再安排（见 OnCommentMentioned 的去重），反复编辑不会多次唤醒同一个 AI
 func NotifyCommentEdited(commentID uint) {
+	if !tools.CommentEnabled() {
+		return
+	}
 	enqueueAIAgentEvent(aiAgentEventKindCommentEdited, commentID)
 }
 
@@ -604,7 +613,7 @@ func (s *AIAgentService) OnCommentCreated(commentID uint, now time.Time) {
 
 func (s *AIAgentService) onCommentCreated(commentID uint, now time.Time) error {
 	cfg := tools.GetAIAgentConfig()
-	if !schedulerReady(cfg) {
+	if !schedulerReady(cfg) || !tools.CommentEnabled() {
 		return nil
 	}
 	comment, err := repo.Comment.GetComment(commentID)
@@ -810,7 +819,7 @@ func (s *AIAgentService) OnCommentMentioned(commentID uint, now time.Time) {
 
 func (s *AIAgentService) onCommentMentioned(commentID uint, now time.Time) error {
 	cfg := tools.GetAIAgentConfig()
-	if !schedulerReady(cfg) {
+	if !schedulerReady(cfg) || !tools.CommentEnabled() {
 		return nil
 	}
 	comment, err := repo.Comment.GetComment(commentID)

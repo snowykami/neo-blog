@@ -94,6 +94,9 @@ func normalizeCommentTargetLang(lang string) string {
 // Translate 把评论翻译成目标语言：已知评论语言与目标语言相同时直接说明无需翻译；已有译文且评论内容的 MD5 一致时直接返回；
 // 内容变化后先删除该评论的全部旧译文（所有语言），再调用模型重新翻译并保存。AI 识别出的源语言同时记为评论语言
 func (s *CommentTranslateService) Translate(ctx context.Context, req *dto.TranslateCommentReq) (*dto.CommentTranslationDto, *errs.ServiceError) {
+	if !tools.CommentEnabled() {
+		return nil, errs.NewForbidden("comment_disabled")
+	}
 	targetLang := normalizeCommentTargetLang(req.TargetLang)
 	if targetLang == "" {
 		return nil, errs.NewBadRequest("invalid_request_parameters")

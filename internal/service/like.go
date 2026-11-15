@@ -9,6 +9,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/repo"
+	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"gorm.io/gorm"
@@ -22,6 +23,18 @@ func NewLikeService() *LikeService {
 
 // ToggleLike 切换点赞状态；desired 不为空时设置为该状态，已是该状态则不做改动
 func (ls *LikeService) ToggleLike(ctx context.Context, targetID uint, targetType string, desired *bool) (bool, *errs.ServiceError) {
+	return ls.toggleLike(ctx, targetID, targetType, desired, false)
+}
+
+func (ls *LikeService) toggleLike(ctx context.Context, targetID uint, targetType string, desired *bool, allowWhenDisabled bool) (bool, *errs.ServiceError) {
+	if !allowWhenDisabled {
+		if !tools.LikeEnabled() {
+			return false, errs.NewForbidden("like_disabled")
+		}
+		if targetType == constant.TargetTypeComment && !tools.CommentEnabled() {
+			return false, errs.NewForbidden("comment_disabled")
+		}
+	}
 	currentUser, ok := ctxutils.GetCurrentUser(ctx)
 	if !ok {
 		return false, errs.NewUnauthorized("login_required")
@@ -48,16 +61,29 @@ func (ls *LikeService) ToggleLike(ctx context.Context, targetID uint, targetType
 			subjectTitle, subjectSlug = brief.Title, derefString(brief.Slug)
 		}
 	case constant.TargetTypeComment:
-		comment, svcerr := NewCommentService().GetComment(ctx, targetID)
-		if svcerr != nil {
-			return false, svcerr
+		if allowWhenDisabled {
+			comment, err := repo.Comment.GetComment(targetID)
+			if err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return false, errs.NewNotFound("operation_target_not_found").WithResource("comment")
+				}
+				return false, errs.Internal("failed_to_get_target", err).WithResource("comment")
+			}
+			ownerID = comment.UserID
+			quotedExcerpt = comment.Content
+			subjectType, subjectID = comment.TargetType, comment.TargetID
+		} else {
+			comment, svcerr := NewCommentService().GetComment(ctx, targetID)
+			if svcerr != nil {
+				return false, svcerr
+			}
+			ownerID = comment.User.ID
+			// 被点赞的评论可能只是正文为空、只带附件的评论
+			quotedExcerpt = comment.Content
+			subjectType, subjectID = comment.TargetType, comment.TargetID
 		}
-		ownerID = comment.User.ID
-		// 被点赞的评论可能只是正文为空、只带附件的评论
-		quotedExcerpt = comment.Content
-		subjectType, subjectID = comment.TargetType, comment.TargetID
-		if briefs, err := repo.Comment.ListTargetBriefs(comment.TargetType, []uint{comment.TargetID}); err == nil {
-			if brief, ok := briefs[comment.TargetID]; ok {
+		if briefs, err := repo.Comment.ListTargetBriefs(subjectType, []uint{subjectID}); err == nil {
+			if brief, ok := briefs[subjectID]; ok {
 				subjectTitle, subjectSlug = brief.Title, derefString(brief.Slug)
 			}
 		}
@@ -137,6 +163,12 @@ func (ls *LikeService) ToggleLike(ctx context.Context, targetID uint, targetType
 
 // IsLiked 当前用户是否点赞了目标；只回答自己的点赞状态，不涉及目标内容
 func (ls *LikeService) IsLiked(ctx context.Context, targetID uint, targetType string) (bool, *errs.ServiceError) {
+	if !tools.LikeEnabled() {
+		return false, errs.NewForbidden("like_disabled")
+	}
+	if targetType == constant.TargetTypeComment && !tools.CommentEnabled() {
+		return false, errs.NewForbidden("comment_disabled")
+	}
 	currentUserID, ok := ctxutils.GetCurrentUserID(ctx)
 	if !ok {
 		return false, errs.NewUnauthorized("login_required")
@@ -154,6 +186,12 @@ func (ls *LikeService) IsLiked(ctx context.Context, targetID uint, targetType st
 // GetLikedUsers 最近点赞的用户（点赞头像墙）：可见性与 ToggleLike 一致，目标不可见（私密文章 / 私密评论 / 不存在）一律 404，
 // 不区分「不存在」与「无权查看」；只返回头像墙需要的最小字段
 func (ls *LikeService) GetLikedUsers(ctx context.Context, targetID uint, targetType string, limit int) ([]dto.UserAvatarDto, *errs.ServiceError) {
+	if !tools.LikeEnabled() {
+		return nil, errs.NewForbidden("like_disabled")
+	}
+	if targetType == constant.TargetTypeComment && !tools.CommentEnabled() {
+		return nil, errs.NewForbidden("comment_disabled")
+	}
 	if svcerr := checkLikeTargetVisible(ctx, targetID, targetType); svcerr != nil {
 		return nil, svcerr
 	}
@@ -194,6 +232,9 @@ func checkLikeTargetVisible(ctx context.Context, targetID uint, targetType strin
 // 用户开启「公开我的喜欢」后，其他人可以看到公开内容上的点赞
 func (ls *LikeService) ListUserLikes(ctx context.Context, req *dto.ListUserLikesReq) ([]dto.UserLikeDto, int64, *errs.ServiceError) {
 	isAdmin, isSelf := ctxutils.IsAdmin(ctx), ctxutils.IsOwnerOfTarget(ctx, req.UserID)
+	if !(tools.LikeEnabled() || isAdmin) {
+		return nil, 0, errs.NewForbidden("like_disabled")
+	}
 	if !(isAdmin || isSelf) {
 		user, err := repo.User.GetUserByID(req.UserID)
 		if err != nil {
@@ -208,6 +249,7 @@ func (ls *LikeService) ListUserLikes(ctx context.Context, req *dto.ListUserLikes
 		return nil, 0, errs.Internal("failed_to_get_target", err).WithResource("like")
 	}
 
+	includeCommentLikes := tools.CommentEnabled() || isAdmin
 	// 按目标类型分组，批量读取文章、评论及评论所在的文章/页面
 	var postIDs, commentIDs []uint
 	for _, like := range likes {
@@ -215,7 +257,9 @@ func (ls *LikeService) ListUserLikes(ctx context.Context, req *dto.ListUserLikes
 		case constant.TargetTypePost:
 			postIDs = append(postIDs, like.TargetID)
 		case constant.TargetTypeComment:
-			commentIDs = append(commentIDs, like.TargetID)
+			if includeCommentLikes {
+				commentIDs = append(commentIDs, like.TargetID)
+			}
 		}
 	}
 	posts, err := repo.Like.ListLikedPosts(postIDs)
@@ -257,6 +301,9 @@ func (ls *LikeService) ListUserLikes(ctx context.Context, req *dto.ListUserLikes
 			item.Author = post.User.ToDto()
 			item.Target = dto.CommentTargetDto{ID: post.ID, Type: constant.TargetTypePost, Title: post.Title, Slug: post.Slug}
 		case constant.TargetTypeComment:
+			if !includeCommentLikes {
+				continue
+			}
 			comment, ok := comments[like.TargetID]
 			if !ok {
 				continue

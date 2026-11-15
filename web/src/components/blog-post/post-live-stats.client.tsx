@@ -1,8 +1,10 @@
 'use client'
 
 import type { Post } from '@/models/post'
+import { useSiteInfo } from '@/contexts/site-info-context'
 import { usePostLike } from '@/hooks/use-post-like'
 import { usePostStats } from '@/hooks/use-post-stats'
+import { isCommentEnabled, isLikeEnabled } from '@/utils/common/siteinfo'
 import { PostStats } from './post-meta'
 
 /**
@@ -20,6 +22,9 @@ export function PostLiveStats({
   minutes: number
   className?: string
 }) {
+  const { siteInfo } = useSiteInfo()
+  const likeEnabled = isLikeEnabled(siteInfo)
+  const commentEnabled = isCommentEnabled(siteInfo)
   const live = usePostStats(post.id)
   const { count: likes } = usePostLike(post)
   return (
@@ -28,8 +33,8 @@ export function PostLiveStats({
       words={words}
       minutes={minutes}
       views={live?.viewCount ?? post.viewCount ?? 0}
-      likes={likes}
-      comments={live?.commentCount ?? post.commentCount ?? 0}
+      likes={likeEnabled ? likes : undefined}
+      comments={commentEnabled ? (live?.commentCount ?? post.commentCount ?? 0) : undefined}
       className={className}
     />
   )

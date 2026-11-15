@@ -8,9 +8,11 @@ import { globalSearch } from '@/api/search'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { CommandDialog, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from '@/components/ui/command'
 import { Spinner } from '@/components/ui/spinner'
+import { useSiteInfo } from '@/contexts/site-info-context'
 import { useRouter } from '@/i18n/navigation'
 import { splitHighlight } from '@/utils/common/highlight'
 import { getPageUrl, getPostUrl, getUserUrl, mainPath, withCommentAnchor } from '@/utils/common/route'
+import { isCommentEnabled } from '@/utils/common/siteinfo'
 
 function HighlightedText({ text, terms }: { text: string, terms?: string[] }) {
   if (!terms?.length)
@@ -39,6 +41,8 @@ function resolveCommentHref(comment: SearchCommentHit): string {
  * 回车默认进入文章搜索结果页 /?query=关键词。由 NavSearch 在第一次打开时按需加载（见 nav-search.tsx）
  */
 export function NavSearchDialog({ open, setOpen, onNavigate }: { open: boolean, setOpen: (open: boolean) => void, onNavigate?: () => void }) {
+  const { siteInfo } = useSiteInfo()
+  const commentEnabled = isCommentEnabled(siteInfo)
   const t = useTranslations('Search')
   const router = useRouter()
   const [query, setQuery] = useState('')
@@ -56,7 +60,12 @@ export function NavSearchDialog({ open, setOpen, onNavigate }: { open: boolean, 
     const controller = new AbortController()
     setLoading(true)
     const timer = window.setTimeout(() => {
-      globalSearch({ q: keyword, limit: 5, signal: controller.signal })
+      globalSearch({
+        q: keyword,
+        limit: 5,
+        types: commentEnabled ? undefined : 'posts,pages,users',
+        signal: controller.signal,
+      })
         .then((res) => {
           if (!controller.signal.aborted) {
             setResult(res.data)
@@ -77,7 +86,7 @@ export function NavSearchDialog({ open, setOpen, onNavigate }: { open: boolean, 
       window.clearTimeout(timer)
       controller.abort()
     }
-  }, [open, keyword])
+  }, [open, keyword, commentEnabled])
 
   const closeAndNavigate = (href: string, external = false) => {
     setOpen(false)
@@ -112,10 +121,10 @@ export function NavSearchDialog({ open, setOpen, onNavigate }: { open: boolean, 
     return (
       result.posts.length > 0
       || result.pages.length > 0
-      || result.comments.length > 0
+      || (commentEnabled && result.comments.length > 0)
       || result.users.length > 0
     )
-  }, [result])
+  }, [commentEnabled, result])
 
   return (
     <>
@@ -211,7 +220,7 @@ export function NavSearchDialog({ open, setOpen, onNavigate }: { open: boolean, 
                 </>
               )}
 
-              {result && result.comments.length > 0 && (
+              {commentEnabled && result && result.comments.length > 0 && (
                 <>
                   <CommandSeparator />
                   <CommandGroup heading={t('group_comments')}>

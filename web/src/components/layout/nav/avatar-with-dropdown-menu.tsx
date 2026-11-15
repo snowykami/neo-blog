@@ -16,17 +16,21 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/contexts/auth-context'
+import { useSiteInfo } from '@/contexts/site-info-context'
 import { useUnreadNotificationCount } from '@/hooks/use-notification-unread'
 import { useOperationT } from '@/hooks/use-translations'
 import { Link } from '@/i18n/navigation'
 import { Role } from '@/models/user'
 import { consolePath, getUserUrl, mainPath } from '@/utils/common/route'
+import { isInteractionEnabled } from '@/utils/common/siteinfo'
 import { formatDisplayName } from '@/utils/common/username'
 
 export function AvatarWithDropdownMenu({ className }: { className?: string }) {
   const operationT = useOperationT()
   const routeT = useTranslations('Route')
   const { user, loading, logout } = useAuth()
+  const { siteInfo } = useSiteInfo()
+  const interactionEnabled = isInteractionEnabled(siteInfo)
   const openAuthDialog = useAuthDialog()
   const { count: unreadCount } = useUnreadNotificationCount()
   const notificationsT = useTranslations('Notifications')
@@ -67,7 +71,7 @@ export function AvatarWithDropdownMenu({ className }: { className?: string }) {
                     <User aria-hidden className="size-5" />
                   )}
             {/* 有未读通知时只在头像右上角点一个小圆点（跟随主题色），不显示数字：提示这里可以点开 */}
-            {user && unreadCount > 0 && (
+            {interactionEnabled && user && unreadCount > 0 && (
               <span
                 aria-hidden
                 className="bg-primary ring-background absolute -top-0.5 -right-0.5 size-2 rounded-full ring-2"
@@ -96,16 +100,20 @@ export function AvatarWithDropdownMenu({ className }: { className?: string }) {
 
         {user && (
           <>
-            <DropdownMenuGroup className="p-0">
-              {/* 通知是登录后最常回访的入口，放在第一项；未读数只用头像上的小点示意，这里不显示数字 */}
-              <DropdownMenuItem asChild>
-                <Link href={mainPath.notifications}>
-                  <Bell />
-                  {notificationsT('title')}
-                </Link>
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
+            {interactionEnabled && (
+              <>
+                <DropdownMenuGroup className="p-0">
+                  {/* 通知是登录后最常回访的入口，放在第一项；未读数只用头像上的小点示意，这里不显示数字 */}
+                  <DropdownMenuItem asChild>
+                    <Link href={mainPath.notifications}>
+                      <Bell />
+                      {notificationsT('title')}
+                    </Link>
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+                <DropdownMenuSeparator />
+              </>
+            )}
             <DropdownMenuGroup className="p-0">
               <DropdownMenuItem asChild>
                 <Link href={getUserUrl(user)}>
