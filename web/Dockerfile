@@ -17,7 +17,7 @@ ARG NPM_REGISTRY=""
 
 # 使用 pnpm-lock.yaml 严格锁定依赖版本
 RUN if [ -n "${NPM_REGISTRY}" ]; then \
-    npm_config_registry="${NPM_REGISTRY%/}" bun add -g pnpm@${PNPM_VERSION}; \
+    BUN_CONFIG_REGISTRY="${NPM_REGISTRY%/}" bun add -g pnpm@${PNPM_VERSION}; \
   else \
     bun add -g pnpm@${PNPM_VERSION}; \
   fi
