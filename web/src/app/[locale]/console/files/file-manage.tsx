@@ -442,7 +442,7 @@ function FileItem({
           <div className="flex-shrink-0">
             <Checkbox checked={selected} onCheckedChange={onSelect} aria-label={`${operationT('select')} ${file.name}`} />
           </div>
-          <FileMimeIcon file={file} showImage className="w-10 h-10 rounded object-cover" />
+          <FileMimeIcon file={file} showImage size={40} className="w-10 h-10 rounded object-cover" />
           <div className="w-0 flex-1 min-w-0">
             <div
               className="text-sm font-medium overflow-hidden whitespace-nowrap truncate"

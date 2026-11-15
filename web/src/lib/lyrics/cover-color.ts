@@ -1,7 +1,8 @@
 /**
  * 封面取色（播放器页）：从专辑封面挑出最有代表性的彩色，提亮后作为歌词辉光与背景呼吸的默认颜色（--lyric-accent），
- * 让没有 AI 标注的歌也有自己的色温。网易云封面 CDN 支持 CORS，并可用 ?param=48y48 取缩略图；读取失败或封面近乎无彩色时为 null
+ * 让没有 AI 标注的歌也有自己的色温。网易云封面 CDN 支持 CORS，并可用 imageView 参数取 48px WebP 缩略图；读取失败或封面近乎无彩色时为 null
  */
+import { formatMusicCoverUrl } from '@/utils/common/image'
 
 const HUE_BINS = 24
 const SAMPLE_SIZE = 24
@@ -92,7 +93,7 @@ export function loadCoverAccent(url: string): Promise<string | null> {
         }
       }
       image.onerror = () => resolve(null)
-      image.src = /music\.126\.net/.test(url) && !url.includes('?') ? `${url}?param=48y48` : url
+      image.src = formatMusicCoverUrl(url, 48)
     })
     cache.set(url, result)
   }

@@ -89,8 +89,8 @@ describe('getServerImageOptimizeHosts', () => {
 
 describe('formatMusicCoverUrl', () => {
   it('对网易云链接自动添加 param 参数并升级 https', () => {
-    expect(formatMusicCoverUrl('http://p1.music.126.net/abc.jpg', 300)).toBe('https://p1.music.126.net/abc.jpg?param=300y300')
-    expect(formatMusicCoverUrl('https://p2.music.126.net/xyz.jpg?param=100y100', 80)).toBe('https://p2.music.126.net/xyz.jpg?param=80y80')
+    expect(formatMusicCoverUrl('http://p1.music.126.net/abc.jpg', 300)).toBe('https://p1.music.126.net/abc.jpg?imageView=1&thumbnail=300y300&type=webp')
+    expect(formatMusicCoverUrl('https://p2.music.126.net/xyz.jpg?param=100y100', 80)).toBe('https://p2.music.126.net/xyz.jpg?imageView=1&thumbnail=80y80&type=webp')
   })
 
   it('非网易云链接保持原样', () => {

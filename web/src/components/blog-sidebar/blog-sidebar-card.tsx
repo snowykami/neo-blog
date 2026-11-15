@@ -38,8 +38,8 @@ export function BlogSidebarAbout() {
         ? (
             <div className="mb-3">
               <div className="relative aspect-[2/1] w-full overflow-hidden rounded-xl bg-muted">
-                {/* 桌面端侧栏在首屏内：设为 eager 在 HTML 阶段尽早开始下载，但不设 fetchPriority="high"，把最高带宽优先级留给首屏第一篇封面 */}
-                <SafeImage src={aboutBackground} alt="" fill sizes="280px" quality={60} loading="eager" className="object-cover" />
+                {/* 桌面端侧栏在首屏内：无首屏封面时常作为 LCP 元素，设为 eager + fetchPriority="high" 尽早开始下载 */}
+                <SafeImage src={aboutBackground} alt="" fill sizes="280px" quality={60} loading="eager" fetchPriority="high" className="object-cover" />
               </div>
               <ImageAvatar
                 src={avatarSrc}

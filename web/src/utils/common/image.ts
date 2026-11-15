@@ -98,10 +98,10 @@ export function shouldOptimize(src: ImageProps['src'] | null | undefined, hosts?
 export function formatMusicCoverUrl(url: string | null | undefined, size = 300): string {
   if (!url)
     return ''
-  // 网易云音乐 CDN：自动升级为 https，并添加 ?param={size}y{size} 动态尺寸裁剪参数
+  // 网易云音乐 CDN：自动升级为 https，并添加 imageView 边缘裁剪 + WebP 转码参数
   if (url.includes('music.126.net')) {
     const [base] = url.replace(/^http:/, 'https:').split('?')
-    return `${base}?param=${size}y${size}`
+    return `${base}?imageView=1&thumbnail=${size}y${size}&type=webp`
   }
   return url
 }
