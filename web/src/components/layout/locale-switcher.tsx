@@ -14,7 +14,7 @@ import { LOCALES } from '@/locales/registry'
 
 /**
  * 页脚的语言切换：跳到当前页面在目标语言下的地址（/p/x → /en/p/x），并记进语言 Cookie，
- * 之后打开不带前缀的地址时 proxy.ts 会跳到这种语言（见 i18n/locale-cookie.ts 的 switchLocale）。
+ * 供后台（/console）选用界面语言及记录本浏览器的手动选择（见 i18n/locale-cookie.ts 的 switchLocale）。
  * 语言名用各语言自己的写法，不需要翻译
  */
 export function LocaleSwitcher({ className }: { className?: string }) {

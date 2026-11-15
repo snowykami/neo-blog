@@ -12,7 +12,7 @@ import { fallbackSiteInfo } from '@/utils/common/siteinfo'
 /**
  * 登录后把账号偏好同步到本浏览器。服务端渲染不再查当前用户，账号偏好只能在浏览器取到用户后补上：
  * - 界面语言：账号语言是新设的（或本浏览器第一次同步）时，写进语言 Cookie 并跳到该语言的地址；
- *   之后在本浏览器用语言切换选的语言优先，不再被账号语言覆盖（proxy.ts 按 Cookie 决定首次访问跳到哪种语言）
+ *   之后在本浏览器用语言切换选的语言优先，不再被账号语言覆盖（语言 Cookie 同时供后台 /console 选择界面语言）
  * - 配色：以账号为准，应用到页面并写回 localStorage，下次打开时首帧就是账号的配色（themeInitScript 读它）
  */
 export function UserPreferenceSync() {

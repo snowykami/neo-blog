@@ -3,17 +3,17 @@ import createMiddleware from 'next-intl/middleware'
 import { NextResponse } from 'next/server'
 import { detectPreferredLocale } from '@/i18n/detect'
 import { LOCALE_COOKIE } from '@/i18n/locale-cookie'
-import { isConsolePath, localizePath, routing, splitLocalePrefix } from '@/i18n/routing'
+import { isConsolePath, routing, splitLocalePrefix } from '@/i18n/routing'
 
 /**
  * 语言路由（Next 16 起 middleware 改名为 proxy）
  *
- * 前台：语言只看地址前缀。未带前缀的地址就是简体中文，对所有人返回同一份内容；
- * 只有「浏览器打开页面」且偏好是别的语言时（语言 Cookie > Accept-Language，见 i18n/detect.ts）才临时跳转到带前缀的地址，
- * 客户端路由的取数、预取不跳，避免浏览中途换语言。跳转响应标记为不缓存，页面本身不读 Cookie、不写 Cookie。
- * 带前缀的地址（/en/p/x）不再按偏好跳转：用户打开的是哪种语言就是哪种。
+ * 前台：语言只看地址前缀。未带前缀的地址就是简体中文，对所有人返回同一份内容（不再按 Cookie 或
+ * Accept-Language 自动 307 跳转），整页文档可正常被外层 CDN 缓存；只有客户端路由的 RSC 请求排除缓存。
+ * 带前缀的地址（/en/p/x）就是对应语言，由 next-intl 改写到内部路径 /en/p/x。
  *
- * 后台（/console）不带语言前缀，界面语言按偏好：这里在内部改写到 /{语言}/console/...，地址栏不变。
+ * 后台（/console）不带语言前缀，界面语言按偏好（语言 Cookie > Accept-Language，见 i18n/detect.ts）：
+ * 这里在内部改写到 /{语言}/console/...，地址栏不变。
  *
  * 其余交给 next-intl：把 /p/x 改写到内部路径 /zh-CN/p/x，/zh-tw/x 改写到 /zh-TW/x，
  * /zh-cn/x 这类多余的默认语言前缀与内部写法（/zh-TW/x）跳转回规范地址。
@@ -25,12 +25,6 @@ function preferredLocale(request: NextRequest) {
     cookie: request.cookies.get(LOCALE_COOKIE)?.value,
     acceptLanguage: request.headers.get('accept-language'),
   })
-}
-
-/** 浏览器打开页面（地址栏、刷新、外链）；客户端路由的 RSC 请求与预取是 empty，不在这里跳转 */
-function isDocumentRequest(request: NextRequest) {
-  const dest = request.headers.get('sec-fetch-dest')
-  return dest === null || dest === 'document'
 }
 
 /**
@@ -45,9 +39,7 @@ function redirectTo(request: NextRequest, pathname: string) {
   const url = request.nextUrl.clone()
   url.pathname = pathname
   const response = NextResponse.redirect(url)
-  // 跳转与否因人而异，不能被共享缓存存下来
   response.headers.set('Cache-Control', 'private, no-store')
-  response.headers.set('Vary', 'Cookie, Accept-Language')
   return response
 }
 
@@ -68,21 +60,9 @@ export function proxy(request: NextRequest) {
     return response
   }
 
-  if (!prefixed.locale && isDocumentRequest(request)) {
-    const locale = preferredLocale(request)
-    if (locale && locale !== routing.defaultLocale)
-      return redirectTo(request, localizePath(pathname, locale))
-    // 不带前缀的页面对偏好别的语言的人会跳转（上面），这份 200 响应其实因人而异：ISR 页面带着 s-maxage，
-    // CDN 若把它存下来，之后偏好别的语言的访客就拿不到跳转了。用 CDN-Cache-Control（RFC 9213，浏览器不认）只让共享缓存不存；
-    // 带前缀的整页文档对所有人一致，照常按 Cache-Control 缓存
-    const response = handleI18nRouting(request)
-    response.headers.set('CDN-Cache-Control', 'no-store')
-    return response
-  }
-
   const response = handleI18nRouting(request)
   if (isRscRequest(request)) {
-    // 客户端路由取数与预取含当前构建的代码块文件名，禁止外层共享缓存跨版本留存；带前缀的整页文档仍照常按 Cache-Control 缓存
+    // 客户端路由取数与预取含当前构建的代码块文件名，禁止外层共享缓存跨版本留存；整页文档照常按 Cache-Control 缓存
     response.headers.set('CDN-Cache-Control', 'no-store')
   }
   return response

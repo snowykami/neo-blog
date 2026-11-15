@@ -2,8 +2,8 @@ import { localizePath, splitLocalePrefix } from './routing'
 
 /**
  * 本浏览器选定的界面语言，记在 Cookie 里。前台页面的语言只看地址（见 i18n/routing.ts），这个 Cookie 只用来：
- * - 打开不带语言前缀的前台地址时，proxy.ts 据此跳到对应语言的地址（首次访问的跳转）
  * - 后台（/console）不带语言前缀，proxy.ts 据此决定后台的界面语言
+ * - 配合账号语言同步（components/common/user-preference-sync.tsx）记录本浏览器已手动选过的语言，避免再次打开页面时被账号语言覆盖
  *
  * 只由浏览器写：语言切换（switchLocale）、个人资料保存语言、登录后同步账号语言（components/common/user-preference-sync.tsx）。
  * 名字沿用 next-intl 的默认 Cookie 名

@@ -9,7 +9,7 @@ import { LOCALES } from '@/locales/registry'
  * - 后台（/console）、接口（/api）、RSS、sitemap、robots 不带语言前缀，见 isLocalizedHref
  *
  * 语言 Cookie（NEXT_LOCALE）只由浏览器写：语言切换、账号语言同步（见 i18n/locale-cookie.ts）。
- * proxy 只读它决定首次访问是否跳转，不写 Cookie，前台响应里不带 Set-Cookie，便于缓存。
+ * proxy.ts 仅在后台（/console）读取它决定界面语言，前台页面不读 Cookie、不按偏好跳转、也不写 Set-Cookie，便于缓存。
  */
 export const ROUTING_DEFAULT_LOCALE = 'zh-CN'
 
@@ -24,7 +24,7 @@ export const routing = defineRouting({
   locales: ROUTING_LOCALES,
   defaultLocale: ROUTING_DEFAULT_LOCALE,
   localePrefix: { mode: 'as-needed', prefixes: LOCALE_PREFIXES },
-  // 语言 Cookie 由浏览器自己写（见上），中间件不写；首次访问的语言跳转在 proxy.ts 里按 Cookie 与 Accept-Language 判断
+  // 语言 Cookie 由浏览器自己写（见上），中间件不写；前台不按浏览器偏好自动跳转，后台按偏好改写见 proxy.ts
   localeCookie: false,
   localeDetection: false,
   // 不在响应头里带 Link：反向代理后面拿到的是内部地址，hreflang 改由页面 <head> 与 sitemap 提供（见 i18n/alternates.ts）
