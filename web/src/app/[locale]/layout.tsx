@@ -26,7 +26,7 @@ import { getActiveTheme } from '@/themes/active-theme.server'
 import { themeInitScript } from '@/themes/init-script'
 import { getServerImageOptimizeHosts } from '@/utils/common/image.server'
 import { safeMetadataBase } from '@/utils/common/siteinfo'
-// 字体通过 CSS 变量注入（globals.css 引入 src/fonts/fonts.css），并在 @theme 中组合中文回退字体（font-sans / font-mono）
+// 代码字体通过 globals.css 引入 src/fonts/fonts.css，无衬线正文字体在 @theme 中使用系统原生西文与中文回退栈
 import '@/app/globals.css'
 
 // 浏览器地址栏 / 状态栏颜色跟随系统明暗，与顶部导航卡片同色（暗色取默认色相下的 --card 近似值）
