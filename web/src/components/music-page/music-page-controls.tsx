@@ -180,6 +180,21 @@ function VolumeControl({ compact }: { compact: boolean }) {
   )
 }
 
+export interface TranslationLanguageMenuProps {
+  compact?: boolean
+  setShowTranslation?: (val: boolean) => void
+  translationLang?: LyricTargetLang | null
+  preferNativeTranslation?: boolean
+  translationSelections?: LyricTranslationSelection[]
+  availableTranslationLangs?: MusicLyricTranslationLangStatus[]
+  setTranslationLang?: (lang: LyricTargetLang | null, preferNative?: boolean) => void
+  setTranslationSelections?: (selections: LyricTranslationSelection[]) => void
+  isAdmin?: boolean
+  musicAiEnabled?: boolean
+  currentTrack: ReturnType<typeof useMusicPlayback>['currentTrack']
+  lyrics: ReturnType<typeof useMusicLyrics>['lyrics']
+}
+
 interface MoreControlsMenuProps {
   showLyricMoments: boolean
   setShowLyricMoments: (val: boolean) => void
@@ -187,16 +202,6 @@ interface MoreControlsMenuProps {
   setShowLyricEffects: (val: boolean) => void
   showRomaji: boolean
   showTranslation: boolean
-  setShowTranslation?: (val: boolean) => void
-  translationLang?: LyricTargetLang | null
-  preferNativeTranslation?: boolean
-  translationSelections?: LyricTranslationSelection[]
-  effectiveTranslationLang?: LyricTargetLang
-  availableTranslationLangs?: MusicLyricTranslationLangStatus[]
-  setTranslationLang?: (lang: LyricTargetLang | null, preferNative?: boolean) => void
-  setTranslationSelections?: (selections: LyricTranslationSelection[]) => void
-  isAdmin?: boolean
-  musicAiEnabled?: boolean
   hdr: boolean
   setHdr: (val: boolean) => void
   hdrDisplay: boolean
@@ -247,17 +252,11 @@ function TranslationSelectionIndicator({ index, total }: { index: number, total:
 }
 
 /**
- * 更多控制项：复制歌词、评论与旁白、歌词特效、HDR 高光。
- * 收拢为三点菜单，点击后以二阶弹簧物理动效（Spring）展开半透明浮层，
- * 无操作时自动延时平滑收起。
+ * 翻译语言选择菜单（置于翻译开关左侧，与站点 UI 语言解耦；
+ * 支持同语种 AI / 内置切换与最多 2 项按勾选顺序对比，管理员额外可触发新语种或 AI 覆盖）。
  */
-export function MoreControlsMenu({
-  showLyricMoments,
-  setShowLyricMoments,
-  showLyricEffects,
-  setShowLyricEffects,
-  showRomaji,
-  showTranslation,
+export function TranslationLanguageMenu({
+  compact = false,
   setShowTranslation,
   translationLang,
   preferNativeTranslation = false,
@@ -267,28 +266,21 @@ export function MoreControlsMenu({
   setTranslationSelections,
   isAdmin,
   musicAiEnabled,
-  hdr,
-  setHdr,
-  hdrDisplay,
   currentTrack,
   lyrics,
-}: MoreControlsMenuProps) {
+}: TranslationLanguageMenuProps) {
   const playerT = useTranslations('MusicPlayer')
   const locale = useLocale()
   const [open, setOpen] = useState(false)
-  const [langMenuOpen, setLangMenuOpen] = useState(false)
   const [triggeringLang, setTriggeringLang] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const isLangMenuVisible = open && langMenuOpen
 
-  const scheduleClose = useCallback((delayMs = 4500) => {
+  const scheduleClose = useCallback((delayMs = 8000) => {
     if (timerRef.current)
       clearTimeout(timerRef.current)
     timerRef.current = setTimeout(() => {
       setOpen(false)
-      setLangMenuOpen(false)
     }, delayMs)
   }, [])
 
@@ -301,26 +293,22 @@ export function MoreControlsMenu({
 
   useEffect(() => {
     if (open)
-      scheduleClose(langMenuOpen ? 10000 : 4500)
+      scheduleClose(8000)
     else
       cancelClose()
     return () => cancelClose()
-  }, [open, langMenuOpen, scheduleClose, cancelClose])
+  }, [open, scheduleClose, cancelClose])
 
   useEffect(() => {
     if (!open)
       return
     const onPointerDownOutside = (e: PointerEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node))
         setOpen(false)
-        setLangMenuOpen(false)
-      }
     }
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape')
         setOpen(false)
-        setLangMenuOpen(false)
-      }
     }
     window.addEventListener('pointerdown', onPointerDownOutside)
     window.addEventListener('keydown', onKeyDown)
@@ -363,8 +351,9 @@ export function MoreControlsMenu({
     setTranslationLang?.(next[0]?.lang ?? null, Boolean(next[0]?.preferNative))
   }, [setTranslationLang, setTranslationSelections])
 
-  const showLangMenuButton = Boolean(setTranslationSelections || setTranslationLang)
+  const canOpenMenu = Boolean(setTranslationSelections || setTranslationLang)
     && (availableItems.length > 0 || (adminActionable && untranslatedAdminItems.length > 0))
+  const isMenuVisible = open && canOpenMenu
 
   const handleToggleOption = useCallback((target: LyricTranslationSelection, hasDualSources: boolean) => {
     const next = toggleLyricTranslationSelection(activeSelections, target, { hasDualSources })
@@ -408,61 +397,6 @@ export function MoreControlsMenu({
     }
   }, [activeSelections, adminActionable, applySelections, currentTrack?.id, locale, lyricSource, playerT, setShowTranslation, triggeringLang])
 
-  const handleCopyLyrics = useCallback(async () => {
-    const lines = lyrics?.lines
-    if (!lines || lines.length === 0) {
-      toast.error(playerT('no_lyrics_to_copy'))
-      return
-    }
-
-    const title = currentTrack?.name ?? ''
-    const artists = currentTrack?.artists
-      ? (Array.isArray(currentTrack.artists) ? currentTrack.artists.join(' / ') : currentTrack.artists)
-      : ''
-    const header = title ? `${title}${artists ? ` - ${artists}` : ''}\n\n` : ''
-
-    const groups = lines.map((line) => {
-      const rawOrig = getLyricLineText(line).trim()
-      if (!rawOrig)
-        return null
-      const orig = line.isBackground ? formatBackgroundLyricText(rawOrig) : rawOrig
-      const parts = [orig]
-      if (showRomaji && line.romanization?.trim())
-        parts.push(line.romanization.trim())
-      if (showTranslation) {
-        if (line.translation?.trim())
-          parts.push(line.translation.trim())
-        if (line.secondaryTranslation?.trim())
-          parts.push(line.secondaryTranslation.trim())
-      }
-      return parts
-    }).filter((parts): parts is string[] => parts !== null)
-
-    const hasExtra = groups.some(parts => parts.length > 1)
-    const content = groups.map(parts => parts.join('\n')).join(hasExtra ? '\n\n' : '\n')
-    if (!content) {
-      toast.error(playerT('no_lyrics_to_copy'))
-      return
-    }
-
-    const fullText = (header + content).trim()
-    if (!fullText) {
-      toast.error(playerT('no_lyrics_to_copy'))
-      return
-    }
-
-    try {
-      await navigator.clipboard.writeText(fullText)
-      setCopied(true)
-      toast.success(playerT('lyrics_copied'))
-      setTimeout(setCopied, 2000, false)
-      scheduleClose(1500)
-    }
-    catch {
-      toast.error(playerT('no_lyrics_to_copy'))
-    }
-  }, [currentTrack, lyrics, playerT, scheduleClose, showRomaji, showTranslation])
-
   return (
     // 控制栏在播放器页和悬浮球里处于顶栏 <LazyMotion> 外部，需要自备特征包驱动 <m.div>
     <LazyMotion features={getMotionFeatures()} strict>
@@ -470,10 +404,10 @@ export function MoreControlsMenu({
         ref={containerRef}
         className="relative flex items-center"
         onMouseEnter={cancelClose}
-        onMouseLeave={() => open && scheduleClose(langMenuOpen ? 6000 : 3000)}
+        onMouseLeave={() => open && scheduleClose(4500)}
       >
         <AnimatePresence>
-          {isLangMenuVisible && (
+          {isMenuVisible && (
             <m.div
               role="menu"
               aria-label={playerT('translation_language')}
@@ -486,7 +420,12 @@ export function MoreControlsMenu({
                 damping: 28,
                 mass: 0.75,
               }}
-              className="absolute right-0 bottom-full z-40 mb-14 w-64 max-w-[calc(100vw-2rem)] origin-bottom-right rounded-2xl border border-white/15 bg-neutral-950/90 p-1.5 text-white shadow-2xl backdrop-blur-2xl"
+              className={cn(
+                'absolute bottom-full z-40 mb-2 max-h-80 w-64 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl border border-white/15 bg-neutral-950/90 p-1.5 text-white shadow-2xl backdrop-blur-2xl',
+                compact
+                  ? '-right-28 origin-bottom-right'
+                  : '-right-28 origin-bottom-right sm:right-auto sm:left-1/2 sm:-translate-x-1/2 sm:origin-bottom',
+              )}
             >
               <div className="px-2.5 py-1 text-[11px] font-medium text-white/50">
                 {playerT('translation_compare_hint')}
@@ -679,6 +618,162 @@ export function MoreControlsMenu({
           )}
         </AnimatePresence>
 
+        <button
+          type="button"
+          aria-label={playerT('translation_language')}
+          title={canOpenMenu ? playerT('translation_language') : playerT('no_extra_lyric')}
+          aria-haspopup="menu"
+          aria-expanded={isMenuVisible}
+          disabled={!canOpenMenu}
+          onClick={() => {
+            const next = !open
+            setOpen(next)
+            if (next && currentTrack?.id && lyricSource)
+              requestLyricTranslationLanguages(currentTrack.id, lyricSource, true)
+          }}
+          className={cn(
+            MUSIC_ICON_BUTTON_CLASSNAME,
+            activeSelections.length > 0 && 'text-white',
+            isMenuVisible && 'bg-white/15 text-white',
+          )}
+        >
+          <GlobeIcon aria-hidden className="size-5" />
+        </button>
+      </div>
+    </LazyMotion>
+  )
+}
+
+/**
+ * 更多控制项：复制歌词、评论与旁白、歌词特效、HDR 高光。
+ * 收拢为三点菜单，点击后以二阶弹簧物理动效（Spring）展开半透明浮层，
+ * 无操作时自动延时平滑收起。
+ */
+export function MoreControlsMenu({
+  showLyricMoments,
+  setShowLyricMoments,
+  showLyricEffects,
+  setShowLyricEffects,
+  showRomaji,
+  showTranslation,
+  hdr,
+  setHdr,
+  hdrDisplay,
+  currentTrack,
+  lyrics,
+}: MoreControlsMenuProps) {
+  const playerT = useTranslations('MusicPlayer')
+  const [open, setOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const scheduleClose = useCallback((delayMs = 4500) => {
+    if (timerRef.current)
+      clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => {
+      setOpen(false)
+    }, delayMs)
+  }, [])
+
+  const cancelClose = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    if (open)
+      scheduleClose(4500)
+    else
+      cancelClose()
+    return () => cancelClose()
+  }, [open, scheduleClose, cancelClose])
+
+  useEffect(() => {
+    if (!open)
+      return
+    const onPointerDownOutside = (e: PointerEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node))
+        setOpen(false)
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape')
+        setOpen(false)
+    }
+    window.addEventListener('pointerdown', onPointerDownOutside)
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDownOutside)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
+
+  const handleCopyLyrics = useCallback(async () => {
+    const lines = lyrics?.lines
+    if (!lines || lines.length === 0) {
+      toast.error(playerT('no_lyrics_to_copy'))
+      return
+    }
+
+    const title = currentTrack?.name ?? ''
+    const artists = currentTrack?.artists
+      ? (Array.isArray(currentTrack.artists) ? currentTrack.artists.join(' / ') : currentTrack.artists)
+      : ''
+    const header = title ? `${title}${artists ? ` - ${artists}` : ''}\n\n` : ''
+
+    const groups = lines.map((line) => {
+      const rawOrig = getLyricLineText(line).trim()
+      if (!rawOrig)
+        return null
+      const orig = line.isBackground ? formatBackgroundLyricText(rawOrig) : rawOrig
+      const parts = [orig]
+      if (showRomaji && line.romanization?.trim())
+        parts.push(line.romanization.trim())
+      if (showTranslation) {
+        if (line.translation?.trim())
+          parts.push(line.translation.trim())
+        if (line.secondaryTranslation?.trim())
+          parts.push(line.secondaryTranslation.trim())
+      }
+      return parts
+    }).filter((parts): parts is string[] => parts !== null)
+
+    const hasExtra = groups.some(parts => parts.length > 1)
+    const content = groups.map(parts => parts.join('\n')).join(hasExtra ? '\n\n' : '\n')
+    if (!content) {
+      toast.error(playerT('no_lyrics_to_copy'))
+      return
+    }
+
+    const fullText = (header + content).trim()
+    if (!fullText) {
+      toast.error(playerT('no_lyrics_to_copy'))
+      return
+    }
+
+    try {
+      await navigator.clipboard.writeText(fullText)
+      setCopied(true)
+      toast.success(playerT('lyrics_copied'))
+      setTimeout(setCopied, 2000, false)
+      scheduleClose(1500)
+    }
+    catch {
+      toast.error(playerT('no_lyrics_to_copy'))
+    }
+  }, [currentTrack, lyrics, playerT, scheduleClose, showRomaji, showTranslation])
+
+  return (
+    // 控制栏在播放器页和悬浮球里处于顶栏 <LazyMotion> 外部，需要自备特征包驱动 <m.div>
+    <LazyMotion features={getMotionFeatures()} strict>
+      <div
+        ref={containerRef}
+        className="relative flex items-center"
+        onMouseEnter={cancelClose}
+        onMouseLeave={() => open && scheduleClose(3000)}
+      >
         <AnimatePresence>
           {open && (
             <m.div
@@ -695,21 +790,6 @@ export function MoreControlsMenu({
               }}
               className="absolute right-0 bottom-full z-30 mb-2 flex origin-bottom-right items-center gap-1 rounded-full border border-white/15 bg-neutral-950/85 p-1 shadow-2xl backdrop-blur-xl pointer-coarse:gap-1.5"
             >
-              {/* 翻译语言二级菜单（与站点 UI 语言解耦；管理员额外可触发新语种或 AI 覆盖） */}
-              {showLangMenuButton && (
-                <IconButton
-                  icon={GlobeIcon}
-                  label={playerT('translation_language')}
-                  active={langMenuOpen || activeSelections.length > 0}
-                  onClick={() => {
-                    const next = !langMenuOpen
-                    setLangMenuOpen(next)
-                    if (next && currentTrack?.id && lyricSource)
-                      requestLyricTranslationLanguages(currentTrack.id, lyricSource, true)
-                  }}
-                />
-              )}
-
               {/* 复制整首歌词（含背景和声，按读音/翻译开关动态排版） */}
               <IconButton
                 icon={copied ? CheckIcon : CopyIcon}
@@ -762,12 +842,7 @@ export function MoreControlsMenu({
           title={playerT('more_options')}
           aria-haspopup="true"
           aria-expanded={open}
-          onClick={() => {
-            const next = !open
-            setOpen(next)
-            if (!next)
-              setLangMenuOpen(false)
-          }}
+          onClick={() => setOpen(prev => !prev)}
           className={cn(MUSIC_ICON_BUTTON_CLASSNAME, open && 'bg-white/15 text-white')}
         >
           <MoreHorizontalIcon aria-hidden className={cn('size-5 transition-transform duration-200', open && 'rotate-90')} />
@@ -797,7 +872,6 @@ export function MusicPageControls({ onOpenPlaylist, playlistSlot, compact = fals
   const {
     canToggleTranslation,
     lyricTranslationsGenerating,
-    effectiveTranslationLang,
     availableTranslationLangs,
     canToggleRomaji,
     lyricPronunciationsGenerating,
@@ -848,8 +922,22 @@ export function MusicPageControls({ onOpenPlaylist, playlistSlot, compact = fals
       </div>
       <div className="flex items-center justify-between gap-2">
         <VolumeControl compact={compact} />
-        {/* 次要按钮：保留高频的翻译与读音，其余收纳为二阶弹簧三点菜单 */}
+        {/* 次要按钮：保留高频的翻译语言、翻译与读音，其余收纳为三点菜单 */}
         <div className="flex items-center gap-1 pointer-coarse:gap-1.5">
+          <TranslationLanguageMenu
+            compact={compact}
+            setShowTranslation={setShowTranslation}
+            translationLang={translationLang}
+            preferNativeTranslation={preferNativeTranslation}
+            translationSelections={translationSelections}
+            availableTranslationLangs={availableTranslationLangs}
+            setTranslationLang={setTranslationLang}
+            setTranslationSelections={setTranslationSelections}
+            isAdmin={admin}
+            musicAiEnabled={Boolean(siteInfo.musicAiEnabled)}
+            currentTrack={currentTrack}
+            lyrics={lyrics}
+          />
           <IconButton
             icon={LanguagesIcon}
             label={lyricTranslationsGenerating ? playerT('translating_lyric') : canToggleTranslation ? playerT('show_translation') : playerT('no_extra_lyric')}
@@ -873,16 +961,6 @@ export function MusicPageControls({ onOpenPlaylist, playlistSlot, compact = fals
             setShowLyricEffects={setShowLyricEffects}
             showRomaji={showRomaji}
             showTranslation={showTranslation}
-            setShowTranslation={setShowTranslation}
-            translationLang={translationLang}
-            preferNativeTranslation={preferNativeTranslation}
-            translationSelections={translationSelections}
-            effectiveTranslationLang={effectiveTranslationLang}
-            availableTranslationLangs={availableTranslationLangs}
-            setTranslationLang={setTranslationLang}
-            setTranslationSelections={setTranslationSelections}
-            isAdmin={admin}
-            musicAiEnabled={Boolean(siteInfo.musicAiEnabled)}
             hdr={hdr}
             setHdr={setHdr}
             hdrDisplay={hdrDisplay}

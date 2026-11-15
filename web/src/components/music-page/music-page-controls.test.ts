@@ -7,7 +7,7 @@ import { flushSync } from 'react-dom'
 import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import zhMessages from '@/locales/zh.json'
-import { MoreControlsMenu } from './music-page-controls'
+import { MoreControlsMenu, TranslationLanguageMenu } from './music-page-controls'
 
 const lyricTranslationActions = vi.hoisted(() => ({
   refreshTranslations: vi.fn(),
@@ -219,6 +219,7 @@ describe('moreControlsMenu 二阶弹簧控制菜单', () => {
       expect(momentsBtn).not.toBeNull()
       expect(effectsBtn).not.toBeNull()
       expect(copyBtn).not.toBeNull()
+      expect(menu!.querySelector('button[aria-label="翻译语言"]')).toBeNull()
 
       momentsBtn!.click()
       effectsBtn!.click()
@@ -345,7 +346,48 @@ describe('moreControlsMenu 二阶弹簧控制菜单', () => {
     ].join('\n'))
   })
 
-  it('翻译语言二级菜单：访客仅见已生成的或原生存在的译文语言，无触发入口', () => {
+  it('翻译语言菜单：非管理员在无可用译文时禁用触发按钮', () => {
+    // @ts-expect-error happy-dom 的 WAAPI cancel() 会抛未捕获异常，测试走 Motion JS 动画驱动
+    delete Element.prototype.animate
+
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    try {
+      flushSync(() => {
+        root.render(
+          React.createElement(NextIntlClientProvider, {
+            locale: 'zh',
+            messages: zhMessages,
+            children: React.createElement(TranslationLanguageMenu, {
+              setShowTranslation: vi.fn(),
+              translationLang: null,
+              availableTranslationLangs: [
+                { lang: 'zh', hasAi: false, hasNative: false, generating: false, sameLanguage: false },
+                { lang: 'en', hasAi: false, hasNative: false, generating: false, sameLanguage: false },
+              ],
+              setTranslationLang: vi.fn(),
+              isAdmin: false,
+              musicAiEnabled: true,
+              currentTrack: sampleTrack,
+              lyrics: makeLyrics([sampleLines[0]]),
+            }),
+          }),
+        )
+      })
+
+      const trigger = container.querySelector('button[aria-label="翻译语言"]') as HTMLButtonElement | null
+      expect(trigger).not.toBeNull()
+      expect(trigger!.disabled).toBe(true)
+      expect(container.querySelector('[role="menu"][aria-label="翻译语言"]')).toBeNull()
+    }
+    finally {
+      flushSync(() => root.unmount())
+      container.remove()
+    }
+  })
+
+  it('翻译语言菜单：访客仅见已生成的或原生存在的译文语言，无触发入口', () => {
     // @ts-expect-error happy-dom 的 WAAPI cancel() 会抛未捕获异常，测试走 Motion JS 动画驱动
     delete Element.prototype.animate
     lyricTranslationActions.refreshTranslations.mockReset()
@@ -387,23 +429,13 @@ describe('moreControlsMenu 二阶弹簧控制菜单', () => {
           React.createElement(NextIntlClientProvider, {
             locale: 'zh',
             messages: zhMessages,
-            children: React.createElement(MoreControlsMenu, {
-              showLyricMoments: false,
-              setShowLyricMoments: vi.fn(),
-              showLyricEffects: true,
-              setShowLyricEffects: vi.fn(),
-              showRomaji: false,
-              showTranslation: true,
+            children: React.createElement(TranslationLanguageMenu, {
               setShowTranslation,
               translationLang: null,
-              effectiveTranslationLang: 'zh',
               availableTranslationLangs: statuses,
               setTranslationLang,
               isAdmin: false,
               musicAiEnabled: true,
-              hdr: false,
-              setHdr: vi.fn(),
-              hdrDisplay: true,
               currentTrack: sampleTrack,
               lyrics: jaLyrics,
             }),
@@ -411,9 +443,6 @@ describe('moreControlsMenu 二阶弹簧控制菜单', () => {
         )
       })
 
-      flushSync(() => {
-        ;(container.querySelector('button[aria-label="更多控制"]') as HTMLButtonElement).click()
-      })
       flushSync(() => {
         ;(container.querySelector('button[aria-label="翻译语言"]') as HTMLButtonElement).click()
       })
@@ -449,7 +478,7 @@ describe('moreControlsMenu 二阶弹簧控制菜单', () => {
     }
   })
 
-  it('翻译语言二级菜单：管理员可见 AI 覆盖、重新生成与未翻译语种，点击触发翻译任务', async () => {
+  it('翻译语言菜单：管理员可见 AI 覆盖、重新生成与未翻译语种，点击触发翻译任务', async () => {
     // @ts-expect-error happy-dom 的 WAAPI cancel() 会抛未捕获异常，测试走 Motion JS 动画驱动
     delete Element.prototype.animate
     lyricTranslationActions.refreshTranslations.mockReset()
@@ -492,23 +521,13 @@ describe('moreControlsMenu 二阶弹簧控制菜单', () => {
           React.createElement(NextIntlClientProvider, {
             locale: 'zh',
             messages: zhMessages,
-            children: React.createElement(MoreControlsMenu, {
-              showLyricMoments: false,
-              setShowLyricMoments: vi.fn(),
-              showLyricEffects: true,
-              setShowLyricEffects: vi.fn(),
-              showRomaji: false,
-              showTranslation: true,
+            children: React.createElement(TranslationLanguageMenu, {
               setShowTranslation,
               translationLang: 'en',
-              effectiveTranslationLang: 'en',
               availableTranslationLangs: statuses,
               setTranslationLang,
               isAdmin: true,
               musicAiEnabled: true,
-              hdr: false,
-              setHdr: vi.fn(),
-              hdrDisplay: true,
               currentTrack: sampleTrack,
               lyrics: jaLyrics,
             }),
@@ -516,9 +535,6 @@ describe('moreControlsMenu 二阶弹簧控制菜单', () => {
         )
       })
 
-      flushSync(() => {
-        ;(container.querySelector('button[aria-label="更多控制"]') as HTMLButtonElement).click()
-      })
       flushSync(() => {
         ;(container.querySelector('button[aria-label="翻译语言"]') as HTMLButtonElement).click()
       })
@@ -560,7 +576,7 @@ describe('moreControlsMenu 二阶弹簧控制菜单', () => {
     }
   })
 
-  it('翻译语言二级菜单：同时存在 AI 译文与内置原译文时展示双选项，支持同时勾选最多两项按序对比与清空重置', () => {
+  it('翻译语言菜单：同时存在 AI 译文与内置原译文时展示双选项，支持同时勾选最多两项按序对比与清空重置', () => {
     // @ts-expect-error happy-dom 的 WAAPI cancel() 会抛未捕获异常，测试走 Motion JS 动画驱动
     delete Element.prototype.animate
     lyricTranslationActions.refreshTranslations.mockReset()
@@ -601,25 +617,15 @@ describe('moreControlsMenu 二阶弹簧控制菜单', () => {
           React.createElement(NextIntlClientProvider, {
             locale: 'zh',
             messages: zhMessages,
-            children: React.createElement(MoreControlsMenu, {
-              showLyricMoments: false,
-              setShowLyricMoments: vi.fn(),
-              showLyricEffects: true,
-              setShowLyricEffects: vi.fn(),
-              showRomaji: false,
-              showTranslation: true,
+            children: React.createElement(TranslationLanguageMenu, {
               setShowTranslation,
               translationLang: selections[0]?.lang ?? null,
               preferNativeTranslation: Boolean(selections[0]?.preferNative),
               translationSelections: selections,
-              effectiveTranslationLang: selections[0]?.lang ?? 'zh',
               availableTranslationLangs: statuses,
               setTranslationSelections,
               isAdmin: false,
               musicAiEnabled: true,
-              hdr: false,
-              setHdr: vi.fn(),
-              hdrDisplay: true,
               currentTrack: sampleTrack,
               lyrics: jaLyrics,
             }),
@@ -631,9 +637,6 @@ describe('moreControlsMenu 二阶弹簧控制菜单', () => {
     try {
       renderWithSelections([{ lang: 'zh', preferNative: false }])
 
-      flushSync(() => {
-        ;(container.querySelector('button[aria-label="更多控制"]') as HTMLButtonElement).click()
-      })
       flushSync(() => {
         ;(container.querySelector('button[aria-label="翻译语言"]') as HTMLButtonElement).click()
       })
