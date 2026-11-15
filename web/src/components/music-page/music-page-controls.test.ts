@@ -439,7 +439,7 @@ describe('moreControlsMenu 二阶弹簧控制菜单', () => {
         enButton!.click()
       })
 
-      expect(setTranslationLang).toHaveBeenCalledWith('en')
+      expect(setTranslationLang).toHaveBeenCalledWith('en', false)
       expect(setShowTranslation).toHaveBeenCalledWith(true)
       expect(lyricTranslationActions.refreshTranslations).not.toHaveBeenCalled()
     }
@@ -540,7 +540,7 @@ describe('moreControlsMenu 二阶弹簧控制菜单', () => {
         overrideBtn!.click()
       })
       await waitForCondition(() => lyricTranslationActions.refreshTranslations.mock.calls.length === 1)
-      expect(setTranslationLang).toHaveBeenCalledWith('zh')
+      expect(setTranslationLang).toHaveBeenCalledWith('zh', false)
       expect(setShowTranslation).toHaveBeenCalledWith(true)
       expect(lyricTranslationActions.refreshTranslations).toHaveBeenCalledWith(sampleTrack.id, 'ttml-amll', 'zh')
 
@@ -551,8 +551,131 @@ describe('moreControlsMenu 二阶弹簧控制菜单', () => {
         koButton!.click()
       })
       await waitForCondition(() => lyricTranslationActions.refreshTranslations.mock.calls.length === 2)
-      expect(setTranslationLang).toHaveBeenCalledWith('ko')
+      expect(setTranslationLang).toHaveBeenCalledWith('ko', false)
       expect(lyricTranslationActions.refreshTranslations).toHaveBeenLastCalledWith(sampleTrack.id, 'ttml-amll', 'ko')
+    }
+    finally {
+      flushSync(() => root.unmount())
+      container.remove()
+    }
+  })
+
+  it('翻译语言二级菜单：同时存在 AI 译文与内置原译文时展示双选项并支持来回切换', () => {
+    // @ts-expect-error happy-dom 的 WAAPI cancel() 会抛未捕获异常，测试走 Motion JS 动画驱动
+    delete Element.prototype.animate
+    lyricTranslationActions.refreshTranslations.mockReset()
+    lyricTranslationActions.requestLyricTranslationLanguages.mockReset()
+
+    const jaLyrics = makeLyrics([
+      {
+        start: 1000,
+        end: 3000,
+        words: [{ text: '君の名前を呼んでいる', start: 1000, end: 3000 }],
+        translation: '原版内置中文1',
+        isDuet: false,
+        isBackground: false,
+      },
+      {
+        start: 3200,
+        end: 5000,
+        words: [{ text: '夜明けの空が染まるまで', start: 3200, end: 5000 }],
+        translation: '原版内置中文2',
+        isDuet: false,
+        isBackground: false,
+      },
+    ])
+    const statuses: MusicLyricTranslationLangStatus[] = [
+      { lang: 'zh', hasAi: true, hasNative: true, generating: false, sameLanguage: false },
+      { lang: 'en', hasAi: false, hasNative: false, generating: false, sameLanguage: false },
+      { lang: 'ja', hasAi: false, hasNative: false, generating: false, sameLanguage: true },
+    ]
+    const setTranslationLang = vi.fn()
+    const setShowTranslation = vi.fn()
+
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    try {
+      flushSync(() => {
+        root.render(
+          React.createElement(NextIntlClientProvider, {
+            locale: 'zh',
+            messages: zhMessages,
+            children: React.createElement(MoreControlsMenu, {
+              showLyricMoments: false,
+              setShowLyricMoments: vi.fn(),
+              showLyricEffects: true,
+              setShowLyricEffects: vi.fn(),
+              showRomaji: false,
+              showTranslation: true,
+              setShowTranslation,
+              translationLang: 'zh',
+              preferNativeTranslation: true,
+              effectiveTranslationLang: 'zh',
+              availableTranslationLangs: statuses,
+              setTranslationLang,
+              isAdmin: false,
+              musicAiEnabled: true,
+              hdr: false,
+              setHdr: vi.fn(),
+              hdrDisplay: true,
+              currentTrack: sampleTrack,
+              lyrics: jaLyrics,
+            }),
+          }),
+        )
+      })
+
+      flushSync(() => {
+        ;(container.querySelector('button[aria-label="更多控制"]') as HTMLButtonElement).click()
+      })
+      flushSync(() => {
+        ;(container.querySelector('button[aria-label="翻译语言"]') as HTMLButtonElement).click()
+      })
+
+      const menu = container.querySelector('[role="menu"][aria-label="翻译语言"]')
+      expect(menu).not.toBeNull()
+      const zhLabel = new Intl.DisplayNames(['zh'], { type: 'language' }).of('zh-Hans') ?? 'zh'
+      const buttons = Array.from(menu!.querySelectorAll('button'))
+      const zhAiBtn = buttons.find(btn => btn.textContent?.includes(zhLabel) && btn.textContent?.includes('AI'))
+      const zhNativeBtn = buttons.find(btn => btn.textContent?.includes(zhLabel) && btn.textContent?.includes('内置'))
+      const followBtn = buttons.find(btn => btn.textContent?.includes('跟随站点语言'))
+
+      expect(zhAiBtn).toBeDefined()
+      expect(zhNativeBtn).toBeDefined()
+      expect(followBtn).toBeDefined()
+      // 不应重复出现「AI 覆盖」按钮（已经有 AI 了，转为可直接切 AI 与内置）
+      expect(menu?.textContent).not.toContain('AI 覆盖')
+
+      flushSync(() => {
+        zhAiBtn!.click()
+      })
+      expect(setTranslationLang).toHaveBeenCalledWith('zh', false)
+      expect(setShowTranslation).toHaveBeenCalledWith(true)
+
+      flushSync(() => {
+        ;(container.querySelector('button[aria-label="翻译语言"]') as HTMLButtonElement).click()
+      })
+      const menuAfter = container.querySelector('[role="menu"][aria-label="翻译语言"]')
+      const nativeBtnAfter = Array.from(menuAfter!.querySelectorAll('button')).find(
+        btn => btn.textContent?.includes(zhLabel) && btn.textContent?.includes('内置'),
+      )
+      flushSync(() => {
+        nativeBtnAfter!.click()
+      })
+      expect(setTranslationLang).toHaveBeenCalledWith('zh', true)
+
+      flushSync(() => {
+        ;(container.querySelector('button[aria-label="翻译语言"]') as HTMLButtonElement).click()
+      })
+      const menuFollow = container.querySelector('[role="menu"][aria-label="翻译语言"]')
+      const followBtnAfter = Array.from(menuFollow!.querySelectorAll('button')).find(btn =>
+        btn.textContent?.includes('跟随站点语言'),
+      )
+      flushSync(() => {
+        followBtnAfter!.click()
+      })
+      expect(setTranslationLang).toHaveBeenLastCalledWith(null, false)
     }
     finally {
       flushSync(() => root.unmount())

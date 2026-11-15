@@ -188,9 +188,10 @@ interface MoreControlsMenuProps {
   showTranslation: boolean
   setShowTranslation?: (val: boolean) => void
   translationLang?: LyricTargetLang | null
+  preferNativeTranslation?: boolean
   effectiveTranslationLang?: LyricTargetLang
   availableTranslationLangs?: MusicLyricTranslationLangStatus[]
-  setTranslationLang?: (lang: LyricTargetLang | null) => void
+  setTranslationLang?: (lang: LyricTargetLang | null, preferNative?: boolean) => void
   isAdmin?: boolean
   musicAiEnabled?: boolean
   hdr: boolean
@@ -240,6 +241,7 @@ export function MoreControlsMenu({
   showTranslation,
   setShowTranslation,
   translationLang,
+  preferNativeTranslation = false,
   availableTranslationLangs,
   setTranslationLang,
   isAdmin,
@@ -333,7 +335,7 @@ export function MoreControlsMenu({
     if (!adminActionable || !currentTrack?.id || !lyricSource || triggeringLang)
       return
     setTriggeringLang(lang)
-    setTranslationLang?.(lang)
+    setTranslationLang?.(lang, false)
     setShowTranslation?.(true)
     try {
       const res = await refreshTranslations(currentTrack.id, lyricSource, lang)
@@ -432,7 +434,7 @@ export function MoreControlsMenu({
               <button
                 type="button"
                 onClick={() => {
-                  setTranslationLang?.(null)
+                  setTranslationLang?.(null, false)
                   setShowTranslation?.(true)
                   setLangMenuOpen(false)
                   scheduleClose(2500)
@@ -449,76 +451,161 @@ export function MoreControlsMenu({
                 <span className="min-w-0 flex-1 truncate">{playerT('translation_lang_follow_site')}</span>
               </button>
 
-              {availableItems.map((item) => {
+              {availableItems.flatMap((item) => {
                 const langCode = item.lang as LyricTargetLang
+                const hasDualSources = (item.hasAi || item.generating) && item.hasNative
+                const canRegenerate = adminActionable && item.hasAi && !item.generating
+
+                if (hasDualSources) {
+                  const isAiSelected = translationLang === langCode && !preferNativeTranslation
+                  const isNativeSelected = translationLang === langCode && Boolean(preferNativeTranslation)
+                  return [
+                    (
+                      <div
+                        key={item.lang}
+                        className="flex items-center gap-1 rounded-xl px-1 py-0.5 transition hover:bg-white/10"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTranslationLang?.(langCode, false)
+                            setShowTranslation?.(true)
+                            setLangMenuOpen(false)
+                            scheduleClose(2500)
+                          }}
+                          className={cn(
+                            'flex min-w-0 flex-1 items-center gap-2 px-1.5 py-1 text-left text-xs',
+                            isAiSelected ? 'font-medium text-white' : 'text-white/85',
+                          )}
+                        >
+                          <CheckIcon
+                            aria-hidden
+                            className={cn('size-3.5 shrink-0', isAiSelected ? 'opacity-100' : 'opacity-0')}
+                          />
+                          <span className="min-w-0 flex-1 truncate">{formatTranslationLangLabel(item.lang, locale)}</span>
+                          {item.generating
+                            ? <Loader2Icon aria-hidden className="size-3 shrink-0 animate-spin text-white/80" />
+                            : (
+                                <span className="shrink-0 rounded bg-white/15 px-1.5 py-0.5 text-[10px] font-medium text-white/90">
+                                  {playerT('translation_badge_ai')}
+                                </span>
+                              )}
+                        </button>
+                        {canRegenerate && (
+                          <button
+                            type="button"
+                            aria-label={playerT('translation_regenerate')}
+                            title={playerT('translation_regenerate')}
+                            disabled={triggeringLang != null}
+                            onClick={() => void handleTriggerTranslation(langCode)}
+                            className="flex size-6 shrink-0 items-center justify-center rounded-md text-white/70 transition hover:bg-white/15 hover:text-white disabled:opacity-50"
+                          >
+                            <RotateCwIcon aria-hidden className="size-3" />
+                          </button>
+                        )}
+                      </div>
+                    ),
+                    (
+                      <div
+                        key={`${item.lang}-native`}
+                        className="flex items-center gap-1 rounded-xl px-1 py-0.5 transition hover:bg-white/10"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTranslationLang?.(langCode, true)
+                            setShowTranslation?.(true)
+                            setLangMenuOpen(false)
+                            scheduleClose(2500)
+                          }}
+                          className={cn(
+                            'flex min-w-0 flex-1 items-center gap-2 px-1.5 py-1 text-left text-xs',
+                            isNativeSelected ? 'font-medium text-white' : 'text-white/85',
+                          )}
+                        >
+                          <CheckIcon
+                            aria-hidden
+                            className={cn('size-3.5 shrink-0', isNativeSelected ? 'opacity-100' : 'opacity-0')}
+                          />
+                          <span className="min-w-0 flex-1 truncate">{formatTranslationLangLabel(item.lang, locale)}</span>
+                          <span className="shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-white/70">
+                            {playerT('translation_badge_native')}
+                          </span>
+                        </button>
+                      </div>
+                    ),
+                  ]
+                }
+
                 const isSelected = translationLang === langCode
                 const canOverride = adminActionable
                   && !item.hasAi
                   && item.hasNative
                   && !item.generating
                   && canAdminAiTranslateLyrics(lyrics, langCode, currentTrack?.artists)
-                const canRegenerate = adminActionable && item.hasAi && !item.generating
-                return (
-                  <div
-                    key={item.lang}
-                    className="flex items-center gap-1 rounded-xl px-1 py-0.5 transition hover:bg-white/10"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTranslationLang?.(langCode)
-                        setShowTranslation?.(true)
-                        setLangMenuOpen(false)
-                        scheduleClose(2500)
-                      }}
-                      className={cn(
-                        'flex min-w-0 flex-1 items-center gap-2 px-1.5 py-1 text-left text-xs',
-                        isSelected ? 'font-medium text-white' : 'text-white/85',
-                      )}
+                return [
+                  (
+                    <div
+                      key={item.lang}
+                      className="flex items-center gap-1 rounded-xl px-1 py-0.5 transition hover:bg-white/10"
                     >
-                      <CheckIcon
-                        aria-hidden
-                        className={cn('size-3.5 shrink-0', isSelected ? 'opacity-100' : 'opacity-0')}
-                      />
-                      <span className="min-w-0 flex-1 truncate">{formatTranslationLangLabel(item.lang, locale)}</span>
-                      {item.generating
-                        ? <Loader2Icon aria-hidden className="size-3 shrink-0 animate-spin text-white/80" />
-                        : item.hasAi
-                          ? (
-                              <span className="shrink-0 rounded bg-white/15 px-1.5 py-0.5 text-[10px] font-medium text-white/90">
-                                {playerT('translation_badge_ai')}
-                              </span>
-                            )
-                          : (
-                              <span className="shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-white/70">
-                                {playerT('translation_badge_native')}
-                              </span>
-                            )}
-                    </button>
-                    {canOverride && (
                       <button
                         type="button"
-                        disabled={triggeringLang != null}
-                        onClick={() => void handleTriggerTranslation(langCode)}
-                        className="shrink-0 rounded-md bg-white/15 px-1.5 py-0.5 text-[10px] font-medium text-white transition hover:bg-white/25 disabled:opacity-50"
+                        onClick={() => {
+                          setTranslationLang?.(langCode, false)
+                          setShowTranslation?.(true)
+                          setLangMenuOpen(false)
+                          scheduleClose(2500)
+                        }}
+                        className={cn(
+                          'flex min-w-0 flex-1 items-center gap-2 px-1.5 py-1 text-left text-xs',
+                          isSelected ? 'font-medium text-white' : 'text-white/85',
+                        )}
                       >
-                        {playerT('translation_ai_override')}
+                        <CheckIcon
+                          aria-hidden
+                          className={cn('size-3.5 shrink-0', isSelected ? 'opacity-100' : 'opacity-0')}
+                        />
+                        <span className="min-w-0 flex-1 truncate">{formatTranslationLangLabel(item.lang, locale)}</span>
+                        {item.generating
+                          ? <Loader2Icon aria-hidden className="size-3 shrink-0 animate-spin text-white/80" />
+                          : item.hasAi
+                            ? (
+                                <span className="shrink-0 rounded bg-white/15 px-1.5 py-0.5 text-[10px] font-medium text-white/90">
+                                  {playerT('translation_badge_ai')}
+                                </span>
+                              )
+                            : (
+                                <span className="shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-white/70">
+                                  {playerT('translation_badge_native')}
+                                </span>
+                              )}
                       </button>
-                    )}
-                    {canRegenerate && (
-                      <button
-                        type="button"
-                        aria-label={playerT('translation_regenerate')}
-                        title={playerT('translation_regenerate')}
-                        disabled={triggeringLang != null}
-                        onClick={() => void handleTriggerTranslation(langCode)}
-                        className="flex size-6 shrink-0 items-center justify-center rounded-md text-white/70 transition hover:bg-white/15 hover:text-white disabled:opacity-50"
-                      >
-                        <RotateCwIcon aria-hidden className="size-3" />
-                      </button>
-                    )}
-                  </div>
-                )
+                      {canOverride && (
+                        <button
+                          type="button"
+                          disabled={triggeringLang != null}
+                          onClick={() => void handleTriggerTranslation(langCode)}
+                          className="shrink-0 rounded-md bg-white/15 px-1.5 py-0.5 text-[10px] font-medium text-white transition hover:bg-white/25 disabled:opacity-50"
+                        >
+                          {playerT('translation_ai_override')}
+                        </button>
+                      )}
+                      {canRegenerate && (
+                        <button
+                          type="button"
+                          aria-label={playerT('translation_regenerate')}
+                          title={playerT('translation_regenerate')}
+                          disabled={triggeringLang != null}
+                          onClick={() => void handleTriggerTranslation(langCode)}
+                          className="flex size-6 shrink-0 items-center justify-center rounded-md text-white/70 transition hover:bg-white/15 hover:text-white disabled:opacity-50"
+                        >
+                          <RotateCwIcon aria-hidden className="size-3" />
+                        </button>
+                      )}
+                    </div>
+                  ),
+                ]
               })}
 
               {adminActionable && untranslatedAdminItems.length > 0 && (
@@ -678,6 +765,7 @@ export function MusicPageControls({ onOpenPlaylist, playlistSlot, compact = fals
   const {
     showTranslation,
     translationLang,
+    preferNativeTranslation,
     showRomaji,
     setShowTranslation,
     setTranslationLang,
@@ -744,6 +832,7 @@ export function MusicPageControls({ onOpenPlaylist, playlistSlot, compact = fals
             showTranslation={showTranslation}
             setShowTranslation={setShowTranslation}
             translationLang={translationLang}
+            preferNativeTranslation={preferNativeTranslation}
             effectiveTranslationLang={effectiveTranslationLang}
             availableTranslationLangs={availableTranslationLangs}
             setTranslationLang={setTranslationLang}

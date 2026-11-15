@@ -60,7 +60,7 @@ export interface MusicActionsValue {
   adjustVolume: (delta: number) => void
   toggleMuted: () => void
   setShowTranslation: (show: boolean) => void
-  setTranslationLang: (lang: LyricTargetLang | null) => void
+  setTranslationLang: (lang: LyricTargetLang | null, preferNative?: boolean) => void
   setShowRomaji: (show: boolean) => void
   setShowLyricEffects: (show: boolean) => void
   setShowLyricMoments: (show: boolean) => void
@@ -91,16 +91,17 @@ export interface MusicVolumeValue {
   toggleMuted: () => void
 }
 
-/** 界面显示偏好开关（翻译、音译、强调特效、热评时刻、HDR 高光、手动覆盖翻译语言） */
+/** 界面显示偏好开关（翻译、音译、强调特效、热评时刻、HDR 高光、手动覆盖翻译语言及原生/AI 译文偏好） */
 export interface MusicPreferencesValue {
   showTranslation: boolean
   translationLang: LyricTargetLang | null
+  preferNativeTranslation: boolean
   showRomaji: boolean
   showLyricEffects: boolean
   showLyricMoments: boolean
   hdr: boolean
   setShowTranslation: (show: boolean) => void
-  setTranslationLang: (lang: LyricTargetLang | null) => void
+  setTranslationLang: (lang: LyricTargetLang | null, preferNative?: boolean) => void
   setShowRomaji: (show: boolean) => void
   setShowLyricEffects: (show: boolean) => void
   setShowLyricMoments: (show: boolean) => void
@@ -212,6 +213,7 @@ export const MAX_MEDIA_SESSION_STORM_SKIPS = 5
 const STORAGE_KEY_PLAY_MODE = 'music-play-mode'
 const STORAGE_KEY_SHOW_TRANSLATION = 'music-show-translation'
 const STORAGE_KEY_TRANSLATION_LANG = 'music-translation-lang'
+const STORAGE_KEY_TRANSLATION_PREFER_NATIVE = 'music-translation-prefer-native'
 const STORAGE_KEY_SHOW_ROMAJI = 'music-show-romaji'
 const STORAGE_KEY_SHOW_LYRIC_EFFECTS = 'music-show-lyric-effects'
 const STORAGE_KEY_SHOW_LYRIC_MOMENTS = 'music-show-lyric-moments'
@@ -468,6 +470,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // 翻译与音译默认都打开；读者切换后的选择保存在本地，以读者的选择为准
   const [showTranslation, setShowTranslationState] = useState(true)
   const [translationLang, setTranslationLangState] = useState<LyricTargetLang | null>(null)
+  const [preferNativeTranslation, setPreferNativeTranslationState] = useState(false)
   const [translationRequested, setTranslationRequested] = useState(false)
   const [showRomaji, setShowRomajiState] = useState(true)
   const [romajiRequested, setRomajiRequested] = useState(false)
@@ -551,8 +554,12 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (storedTranslationLangRaw != null) {
         const parsedLang = JSON.parse(storedTranslationLangRaw)
         const normalizedLang = typeof parsedLang === 'string' ? normalizeLyricLangTag(parsedLang) : null
-        if (normalizedLang && SUPPORTED_LYRIC_TARGET_LANGS.includes(normalizedLang as LyricTargetLang))
+        if (normalizedLang && SUPPORTED_LYRIC_TARGET_LANGS.includes(normalizedLang as LyricTargetLang)) {
           setTranslationLangState(normalizedLang as LyricTargetLang)
+          const storedPreferNative = readStoredBoolean(STORAGE_KEY_TRANSLATION_PREFER_NATIVE)
+          if (storedPreferNative === true)
+            setPreferNativeTranslationState(true)
+        }
       }
 
       const storedTranslation = readStoredBoolean(STORAGE_KEY_SHOW_TRANSLATION)
@@ -1205,8 +1212,10 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     writeStored(STORAGE_KEY_SHOW_TRANSLATION, show)
   }, [])
 
-  const setTranslationLang = useCallback((lang: LyricTargetLang | null) => {
+  const setTranslationLang = useCallback((lang: LyricTargetLang | null, preferNative = false) => {
+    const nextPreferNative = lang != null && Boolean(preferNative)
     setTranslationLangState(lang)
+    setPreferNativeTranslationState(nextPreferNative)
     if (lang != null)
       setTranslationRequested(true)
     try {
@@ -1214,6 +1223,10 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         localStorage.removeItem(STORAGE_KEY_TRANSLATION_LANG)
       else
         localStorage.setItem(STORAGE_KEY_TRANSLATION_LANG, JSON.stringify(lang))
+      if (nextPreferNative)
+        localStorage.setItem(STORAGE_KEY_TRANSLATION_PREFER_NATIVE, JSON.stringify(true))
+      else
+        localStorage.removeItem(STORAGE_KEY_TRANSLATION_PREFER_NATIVE)
     }
     catch { }
   }, [])
@@ -1429,6 +1442,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const preferencesValue = useMemo<MusicPreferencesValue>(() => ({
     showTranslation,
     translationLang,
+    preferNativeTranslation,
     showRomaji,
     showLyricEffects,
     showLyricMoments,
@@ -1442,6 +1456,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }), [
     showTranslation,
     translationLang,
+    preferNativeTranslation,
     showRomaji,
     showLyricEffects,
     showLyricMoments,
@@ -1527,6 +1542,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                       showLyricMoments={showLyricMoments}
                       showTranslation={showTranslation}
                       translationLang={translationLang}
+                      preferNativeTranslation={preferNativeTranslation}
                       translationRequested={translationRequested}
                       showRomaji={showRomaji}
                       romajiRequested={romajiRequested}

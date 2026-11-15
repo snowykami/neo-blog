@@ -276,5 +276,47 @@ describe('歌词语言检测与多语种翻译匹配', () => {
     })
     expect(ttmlOverridden.lines[0].translation).toBe('TTML AI 覆盖1')
     expect(ttmlOverridden.lines[1].translation).toBe('内置TTML2')
+
+    // preferNative 为 true 且当前歌含同语种原生译文时，可无损切换回原生内置译文（LRC 与 TTML 均支持）
+    const lrcAiSet = {
+      source: 'ncm-lrc' as const,
+      targetLang: 'zh' as const,
+      native: false,
+      lines: [
+        { text: '君の名前を呼んでいる', occurrence: 0, translation: 'AI 精译：呼唤着你的名字' },
+        { text: '夜明けの空が染まるまで', occurrence: 0, translation: 'AI 精译：直至破晓染红天际' },
+      ],
+    }
+    const backToLrcNative = applyLanguageTranslations(japaneseWithNativeZh, 'zh', lrcAiSet, true)
+    expect(backToLrcNative.lines[0].translation).toBe('原生中文译文1')
+    expect(backToLrcNative.lines[1].translation).toBe('原生中文译文2')
+
+    const ttmlAiFull = {
+      source: ttml.source,
+      targetLang: 'zh' as const,
+      native: false,
+      lines: [
+        { text: '君の名前', occurrence: 0, translation: 'TTML AI 覆盖1' },
+        { text: '夜明けの空', occurrence: 0, translation: 'TTML AI 覆盖2' },
+      ],
+    }
+    expect(applyLanguageTranslations(ttml, 'zh', ttmlAiFull, false).lines[0].translation).toBe('TTML AI 覆盖1')
+    const backToTtmlNative = applyLanguageTranslations(ttml, 'zh', ttmlAiFull, true)
+    expect(backToTtmlNative.lines[0].translation).toBe('内置TTML1')
+    expect(backToTtmlNative.lines[1].translation).toBe('内置TTML2')
+
+    // 若切到没有原生内置译文的曲目，即使 preferNative 为 true 仍安全回退展示 AI 译文，不留白
+    const noNativeJapanese: ResolvedLyrics = {
+      source: 'ncm-lrc',
+      wordTimed: false,
+      instrumental: false,
+      lines: [
+        { words: [{ text: '君の名前を呼んでいる', start: 1000, end: 3000 }], start: 1000, end: 3000, isDuet: false, isBackground: false },
+        { words: [{ text: '夜明けの空が染まるまで', start: 3000, end: 5000 }], start: 3000, end: 5000, isDuet: false, isBackground: false },
+      ],
+    }
+    const fallbackAi = applyLanguageTranslations(noNativeJapanese, 'zh', lrcAiSet, true)
+    expect(fallbackAi.lines[0].translation).toBe('AI 精译：呼唤着你的名字')
+    expect(fallbackAi.lines[1].translation).toBe('AI 精译：直至破晓染红天际')
   })
 })

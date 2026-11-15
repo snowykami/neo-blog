@@ -870,17 +870,19 @@ export function canAdminAiTranslateLyrics(lyrics: ResolvedLyrics, targetLang: Ly
   return hasTranslatableVocalLines(lyrics, targetLang, artists)
 }
 
-/** 按当前界面目标语言与已就绪的 AI 翻译合成展示用译文；已就绪的非原生 AI 翻译可覆盖内置译文，跨语言内置译文在未就绪时隐藏 */
+/** 按当前目标语言与已就绪的 AI 翻译合成展示用译文；默认优先展示 AI 翻译，preferNative 为 true 且当前歌含同语种原生译文时切回原生译文 */
 export function applyLanguageTranslations(
   lyrics: ResolvedLyrics,
   targetLang: LyricTargetLang,
   ai: LyricTranslationSet | null,
+  preferNative = false,
 ): ResolvedLyrics {
   if (lyrics.source === 'none' || lyrics.lines.length === 0)
     return lyrics
 
   const hasAiOverride = Boolean(
-    ai
+    !(preferNative && hasNativeTargetTranslation(lyrics, targetLang))
+    && ai
     && ai.source === lyrics.source
     && (!ai.targetLang || ai.targetLang === targetLang)
     && !ai.native

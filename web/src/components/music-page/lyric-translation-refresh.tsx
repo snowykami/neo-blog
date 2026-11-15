@@ -18,7 +18,16 @@ import { isAdmin } from '@/utils/common/permission'
 export function LyricTranslationRefresh({ className }: { className?: string }) {
   const { user } = useAuth()
   const { siteInfo } = useSiteInfo()
-  const { currentTrack, lyrics, lyricAiTranslated, lyricTranslationsGenerating, effectiveTranslationLang } = useMusic()
+  const {
+    currentTrack,
+    lyrics,
+    lyricAiTranslated,
+    lyricTranslationsGenerating,
+    effectiveTranslationLang,
+    translationLang,
+    preferNativeTranslation,
+    setTranslationLang,
+  } = useMusic()
   const locale = useLocale()
   const targetLang = effectiveTranslationLang || toLyricTargetLang(locale)
   const t = useTranslations('MusicPage')
@@ -58,10 +67,14 @@ export function LyricTranslationRefresh({ className }: { className?: string }) {
 
       const results = await Promise.allSettled(tasks)
       const anyStarted = results.some(res => res.status === 'fulfilled' && res.value === 'started')
-      if (anyStarted)
+      if (anyStarted) {
+        if (preferNativeTranslation && canTranslateLines && lyricSource)
+          setTranslationLang(translationLang ?? targetLang, false)
         toast.success(t('lyric_translation_refresh_started'))
-      else
+      }
+      else {
         toast.error(t('lyric_translation_refresh_failed'))
+      }
     }
     catch {
       toast.error(t('lyric_translation_refresh_failed'))
