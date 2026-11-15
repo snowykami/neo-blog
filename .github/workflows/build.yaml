@@ -42,6 +42,7 @@ jobs:
             ASSET_PREFIX=${{ vars.ASSET_PREFIX }}
             ${{ vars.BUN_IMAGE && format('BUN_IMAGE={0}', vars.BUN_IMAGE) || '' }}
             ${{ vars.NPM_REGISTRY && format('NPM_REGISTRY={0}', vars.NPM_REGISTRY) || '' }}
+            ${{ vars.ENABLE_SOURCEMAPS && format('ENABLE_SOURCEMAPS={0}', vars.ENABLE_SOURCEMAPS) || '' }}
           # 构建缓存存在 GitHub Actions 缓存里，依赖没变时跳过 pnpm install；前后端用不同 scope，互不覆盖
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend

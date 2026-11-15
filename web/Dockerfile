@@ -41,6 +41,9 @@ ENV NEXT_PUBLIC_IMAGE_OPTIMIZE_HOSTS=${IMAGE_OPTIMIZE_HOSTS}
 # 前端静态资源 CDN 前缀（如 https://cdn.example.com 或 https://cdn.example.com/neo-blog）；未传入时保持同源加载
 ARG ASSET_PREFIX=""
 ENV NEXT_PUBLIC_ASSET_PREFIX=${ASSET_PREFIX}
+# 是否生成浏览器 source map（默认关闭以加快构建，传入 --build-arg ENABLE_SOURCEMAPS=true 开启）
+ARG ENABLE_SOURCEMAPS=false
+ENV ENABLE_SOURCEMAPS=${ENABLE_SOURCEMAPS}
 # 这里用 lint 而不是 lint:fix：格式不合规应当直接失败，避免 CI 静默重排代码导致镜像内容与仓库不一致
 RUN bun --bun run lint && bun run build
 

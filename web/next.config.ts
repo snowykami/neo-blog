@@ -83,8 +83,9 @@ export default (phase: string): NextConfig => {
         'motion/react': `./${framerMotionDir}`,
       },
     },
-    // 生成浏览器代码的 source map，供错误报告还原调用栈；构建后由 scripts/collect-sourcemaps.mjs 移出公开目录，不对外提供
-    productionBrowserSourceMaps: true,
+    // 生成浏览器代码的 source map，供错误报告还原调用栈；默认关闭以加快构建，需要时可传 ENABLE_SOURCEMAPS=true 开启。
+    // 构建后由 scripts/collect-sourcemaps.mjs 移出公开目录，不对外提供
+    productionBrowserSourceMaps: ['true', '1', 'on'].includes((process.env.ENABLE_SOURCEMAPS ?? '').trim().toLowerCase()),
     // 页面缓存（ISR：每个地址生成一次的完整页面，以及各路由的 App Shell）：按后端的缓存标签版本号失效；配置 REDIS_URL 时存进 Redis、
     // 多个副本共用，否则沿用 Next 自带的文件系统缓存（见 cache-handler.mjs）。在 web 目录下构建与启动，路径按当前目录解析
     cacheHandler: isDev ? undefined : path.join(process.cwd(), 'cache-handler.mjs'),
