@@ -11,16 +11,16 @@ import { refreshTranslations } from '@/contexts/lyric-translations'
 import { useMusic } from '@/contexts/music-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { refreshSongMetaTranslations, useSongMetaTranslation, useSongMetaTranslationGenerating } from '@/contexts/song-meta-translations'
-import { canAiTranslateLyrics, toLyricTargetLang } from '@/lib/lyrics/lyric-language'
+import { canAdminAiTranslateLyrics, toLyricTargetLang } from '@/lib/lyrics/lyric-language'
 import { cn } from '@/lib/utils'
 import { isAdmin } from '@/utils/common/permission'
 
 export function LyricTranslationRefresh({ className }: { className?: string }) {
   const { user } = useAuth()
   const { siteInfo } = useSiteInfo()
-  const { currentTrack, lyrics, lyricAiTranslated, lyricTranslationsGenerating } = useMusic()
+  const { currentTrack, lyrics, lyricAiTranslated, lyricTranslationsGenerating, effectiveTranslationLang } = useMusic()
   const locale = useLocale()
-  const targetLang = toLyricTargetLang(locale)
+  const targetLang = effectiveTranslationLang || toLyricTargetLang(locale)
   const t = useTranslations('MusicPage')
   const [refreshing, setRefreshing] = useState(false)
   const trackId = currentTrack?.id ?? null
@@ -33,7 +33,7 @@ export function LyricTranslationRefresh({ className }: { className?: string }) {
     return null
 
   const canTranslateLines = lyricSource != null
-    && (lyricAiTranslated || lyricTranslationsGenerating || canAiTranslateLyrics(lyrics, targetLang, currentTrack.artists))
+    && (lyricAiTranslated || lyricTranslationsGenerating || canAdminAiTranslateLyrics(lyrics, targetLang, currentTrack.artists))
   const canTranslateMeta = Boolean(metaTranslation && !metaTranslation.sameLanguage) || metaGenerating
   const hasSingers = Boolean(lyricSingers && lyricSingers.singers.length > 0 && !metaTranslation?.sameLanguage)
   const singerNamesTranslating = Boolean(hasSingers && lyricSingers?.translationPending)

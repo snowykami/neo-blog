@@ -2,20 +2,24 @@ import type { MusicLyricTranslationStreamEvent } from '@/api/music'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   refreshTranslations,
+  requestLyricTranslationLanguages,
   requestLyricTranslations,
   resetLyricTranslationsStoreForTest,
+  useLyricTranslationLanguages,
   useLyricTranslations,
   useLyricTranslationsGenerating,
 } from './lyric-translations'
 
 const api = vi.hoisted(() => ({
   fetchLyricTranslations: vi.fn(),
+  fetchLyricTranslationLanguages: vi.fn(),
   streamLyricTranslations: vi.fn(),
   refreshLyricTranslations: vi.fn(),
 }))
 
 vi.mock('@/api/music', () => ({
   fetchLyricTranslations: api.fetchLyricTranslations,
+  fetchLyricTranslationLanguages: api.fetchLyricTranslationLanguages,
   streamLyricTranslations: api.streamLyricTranslations,
   refreshLyricTranslations: api.refreshLyricTranslations,
 }))
@@ -35,6 +39,7 @@ describe('歌词翻译外部 Store（冷热分流与流式更新）', () => {
   beforeEach(() => {
     resetLyricTranslationsStoreForTest()
     api.fetchLyricTranslations.mockReset()
+    api.fetchLyricTranslationLanguages.mockReset()
     api.streamLyricTranslations.mockReset()
     api.refreshLyricTranslations.mockReset()
   })
@@ -141,5 +146,71 @@ describe('歌词翻译外部 Store（冷热分流与流式更新）', () => {
 
     expect(useLyricTranslationsGenerating(13, 'ncm-lrc', 'zh')).toBe(false)
     expect(useLyricTranslations(13, 'ncm-lrc', 'zh')?.lines[0]?.translation).toBe('重试成功')
+  })
+
+  it('只读拉取可用翻译语言列表，并在触发刷新时实时同步语言状态', async () => {
+    api.fetchLyricTranslationLanguages
+      .mockResolvedValueOnce({
+        source: 'ttml-amll',
+        languages: [
+          { lang: 'zh', hasAi: false, hasNative: true, generating: false, sameLanguage: false },
+          { lang: 'en', hasAi: false, hasNative: false, generating: false, sameLanguage: false },
+        ],
+      })
+      .mockResolvedValueOnce({
+        source: 'ttml-amll',
+        languages: [
+          { lang: 'zh', hasAi: true, hasNative: true, generating: false, sameLanguage: false },
+          { lang: 'en', hasAi: false, hasNative: false, generating: false, sameLanguage: false },
+        ],
+      })
+
+    requestLyricTranslationLanguages(21, 'ttml-amll')
+    await flushMicrotasks()
+
+    expect(api.fetchLyricTranslationLanguages).toHaveBeenCalledWith(21, 'ttml-amll')
+    expect(useLyricTranslationLanguages(21, 'ttml-amll')?.languages).toEqual([
+      { lang: 'zh', hasAi: false, hasNative: true, generating: false, sameLanguage: false },
+      { lang: 'en', hasAi: false, hasNative: false, generating: false, sameLanguage: false },
+    ])
+
+    let resolveStream!: (ok: boolean) => void
+    api.refreshLyricTranslations.mockResolvedValue({
+      status: 'pending',
+      source: 'ttml-amll',
+      targetLang: 'zh',
+      lines: [],
+    })
+    api.streamLyricTranslations.mockImplementation(
+      (_id: number, _src: string, _lang: string, opts: { onEvent: (ev: MusicLyricTranslationStreamEvent) => void }) =>
+        new Promise<boolean>((resolve) => {
+          resolveStream = (ok) => {
+            if (ok) {
+              opts.onEvent({ event: 'line', line: { text: 'Line 1', occurrence: 0, translation: 'AI 覆盖译文' } })
+              opts.onEvent({ event: 'done', meta: { status: 'ready', source: 'ttml-amll', targetLang: 'zh' } })
+            }
+            resolve(ok)
+          }
+        }),
+    )
+
+    await expect(refreshTranslations(21, 'ttml-amll', 'zh')).resolves.toBe('started')
+    expect(useLyricTranslationLanguages(21, 'ttml-amll')?.languages.find(item => item.lang === 'zh')).toEqual({
+      lang: 'zh',
+      hasAi: false,
+      hasNative: true,
+      generating: true,
+      sameLanguage: false,
+    })
+
+    resolveStream(true)
+    await flushMicrotasks()
+    expect(useLyricTranslationLanguages(21, 'ttml-amll')?.languages.find(item => item.lang === 'zh')).toEqual({
+      lang: 'zh',
+      hasAi: true,
+      hasNative: true,
+      generating: false,
+      sameLanguage: false,
+    })
   })
 })

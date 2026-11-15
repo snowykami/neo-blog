@@ -2,6 +2,7 @@ import type { ResolvedLyrics } from './types'
 import { describe, expect, it } from 'vitest'
 import {
   applyLanguageTranslations,
+  canAdminAiTranslateLyrics,
   canAiTranslateLyrics,
   classifyVocalLine,
   detectLyricTextLang,
@@ -202,5 +203,78 @@ describe('歌词语言检测与多语种翻译匹配', () => {
       })),
     }
     expect(canAiTranslateLyrics(conlangLyrics, 'en')).toBe(true)
+  })
+
+  it('ai 翻译可以覆盖原生内嵌翻译（LRC 与 TTML），且仅管理员能力判定允许触发同源已有内置译文的语种', () => {
+    const japaneseWithNativeZh: ResolvedLyrics = {
+      source: 'ncm-lrc',
+      wordTimed: false,
+      instrumental: false,
+      lines: [
+        {
+          words: [{ text: '君の名前を呼んでいる', start: 1000, end: 3000 }],
+          start: 1000,
+          end: 3000,
+          translation: '原生中文译文1',
+          isDuet: false,
+          isBackground: false,
+        },
+        {
+          words: [{ text: '夜明けの空が染まるまで', start: 3000, end: 5000 }],
+          start: 3000,
+          end: 5000,
+          translation: '原生中文译文2',
+          isDuet: false,
+          isBackground: false,
+        },
+      ],
+    }
+
+    expect(hasNativeTargetTranslation(japaneseWithNativeZh, 'zh')).toBe(true)
+    expect(canAiTranslateLyrics(japaneseWithNativeZh, 'zh')).toBe(false)
+    expect(canAdminAiTranslateLyrics(japaneseWithNativeZh, 'zh')).toBe(true)
+    expect(canAdminAiTranslateLyrics(japaneseWithNativeZh, 'ja')).toBe(false)
+
+    // AI 生成的新中文翻译覆盖原有内置中文翻译
+    const overridden = applyLanguageTranslations(japaneseWithNativeZh, 'zh', {
+      source: 'ncm-lrc',
+      targetLang: 'zh',
+      native: false,
+      lines: [
+        { text: '君の名前を呼んでいる', occurrence: 0, translation: 'AI 精译：呼唤着你的名字' },
+        { text: '夜明けの空が染まるまで', occurrence: 0, translation: 'AI 精译：直至破晓染红天际' },
+      ],
+    })
+    expect(overridden.lines[0].translation).toBe('AI 精译：呼唤着你的名字')
+    expect(overridden.lines[1].translation).toBe('AI 精译：直至破晓染红天际')
+
+    // 若 AI 流式尚未就绪或部分行为空字符串，保留已有原生译文不闪烁清空
+    const partialOverride = applyLanguageTranslations(japaneseWithNativeZh, 'zh', {
+      source: 'ncm-lrc',
+      targetLang: 'zh',
+      native: false,
+      lines: [
+        { text: '君の名前を呼んでいる', occurrence: 0, translation: 'AI 精译：呼唤着你的名字' },
+        { text: '夜明けの空が染まるまで', occurrence: 0, translation: '' },
+      ],
+    })
+    expect(partialOverride.lines[0].translation).toBe('AI 精译：呼唤着你的名字')
+    expect(partialOverride.lines[1].translation).toBe('原生中文译文2')
+
+    // TTML 多语言翻译容器同理可被 AI 覆盖，未到达行回退到同语种原生译文
+    const ttml = parseTtml(`<tt xmlns:itunes="http://music.apple.com/lyric-ttml-internal"><body><div><p begin="00:01.00" end="00:03.00" itunes:key="L1"><span>君の名前</span></p><p begin="00:03.00" end="00:05.00" itunes:key="L2"><span>夜明けの空</span></p></div></body><metadata><iTunesMetadata xmlns="http://music.apple.com/lyric-ttml-internal"><translations><translation xml:lang="zh-CN"><text for="L1">内置TTML1</text><text for="L2">内置TTML2</text></translation></translations></iTunesMetadata></metadata></tt>`, 'ttml-amll')
+    expect(ttml).not.toBeNull()
+    if (!ttml)
+      return
+    const ttmlOverridden = applyLanguageTranslations(ttml, 'zh', {
+      source: ttml.source,
+      targetLang: 'zh',
+      native: false,
+      lines: [
+        { text: '君の名前', occurrence: 0, translation: 'TTML AI 覆盖1' },
+      ],
+    })
+    expect(ttmlOverridden.lines[0].translation).toBe('TTML AI 覆盖1')
+    expect(ttmlOverridden.lines[1].translation).toBe('内置TTML2')
   })
 })

@@ -3,7 +3,9 @@ import { toServiceLanguage } from '@/locales/registry'
 
 export type LyricTargetLang = Exclude<LyricLang, 'other'>
 
-const SUPPORTED_TARGET_LANGS = new Set<LyricTargetLang>(['zh', 'zh-tw', 'zh-hk', 'en', 'ja', 'ko'])
+export const SUPPORTED_LYRIC_TARGET_LANGS: readonly LyricTargetLang[] = ['zh', 'zh-tw', 'zh-hk', 'en', 'ja', 'ko']
+
+const SUPPORTED_TARGET_LANGS = new Set<LyricTargetLang>(SUPPORTED_LYRIC_TARGET_LANGS)
 
 /** 把 TTML xml:lang 等 BCP-47 语言标签归一化为 LyricLang；*-Latn 音译标签视为空 */
 export function normalizeLyricLangTag(raw?: string | null): LyricLang | null {

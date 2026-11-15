@@ -203,6 +203,39 @@ export async function fetchLyricTranslations(
   }
 }
 
+export interface MusicLyricTranslationLangStatus {
+  lang: LyricTargetLang
+  hasAi: boolean
+  hasNative: boolean
+  generating: boolean
+  sameLanguage: boolean
+}
+
+export interface MusicLyricTranslationLanguages {
+  status: 'ready' | 'pending'
+  source?: LyricSource | ''
+  origLang?: string
+  languages: MusicLyricTranslationLangStatus[]
+}
+
+// 查询某首歌当前词源各语言翻译状态（只读，不触发 AI 生成）
+export async function fetchLyricTranslationLanguages(
+  id: number,
+  source?: string,
+): Promise<MusicLyricTranslationLanguages | null> {
+  try {
+    const res = await axiosClient.get<BaseResponse<MusicLyricTranslationLanguages>>(`/music/song/${id}/lyric/translations/available`, {
+      params: source ? { source } : undefined,
+    })
+    return res.data.data
+  }
+  catch (error) {
+    if (isAxiosError(error) && error.response?.status === 404)
+      return null
+    throw error
+  }
+}
+
 // 管理员手动重新生成指定词源与目标语言的 AI 歌词翻译
 export async function refreshLyricTranslations(
   id: number,

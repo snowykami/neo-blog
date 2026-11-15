@@ -329,6 +329,21 @@ func (m *musicType) SongLyricTranslationsStream(ctx context.Context, c *app.Requ
 	}
 }
 
+// SongLyricTranslationLanguages 查询指定歌曲和词源下各支持语言的翻译可用状态（仅读库与运行状态，不触发 AI）
+func (m *musicType) SongLyricTranslationLanguages(ctx context.Context, c *app.RequestContext) {
+	var req dto.MusicLyricTranslationLanguagesReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	result, svcerr := m.service.GetLyricTranslationLanguages(ctx, ctxutils.GetIDParam(c).Int64, req.Source)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, result)
+}
+
 // RefreshLyricTranslations 管理员手动重新生成一首歌指定词源和目标语言的歌词翻译
 func (m *musicType) RefreshLyricTranslations(ctx context.Context, c *app.RequestContext) {
 	var req dto.MusicLyricTranslationRefreshReq

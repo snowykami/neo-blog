@@ -847,11 +847,8 @@ export function hasNativeTargetTranslation(lyrics: ResolvedLyrics, targetLang: L
   return hasKeyedNativeTranslation(lyrics, targetLang) || hasDefaultNativeTranslation(lyrics, targetLang)
 }
 
-/** 判断这首歌在当前目标语言下是否可以启用 AI 歌词翻译（缺失目标语言原生译文且非纯目标语言歌曲） */
-export function canAiTranslateLyrics(lyrics: ResolvedLyrics, targetLang: LyricTargetLang, artists: string[] = []): boolean {
+function hasTranslatableVocalLines(lyrics: ResolvedLyrics, targetLang: LyricTargetLang, artists: string[] = []): boolean {
   if (lyrics.source === 'none' || lyrics.instrumental || lyrics.lines.length === 0)
-    return false
-  if (hasNativeTargetTranslation(lyrics, targetLang))
     return false
   const vocalLines = lyrics.lines
     .map(line => classifyVocalLine(getLyricLineText(line), artists))
@@ -861,7 +858,19 @@ export function canAiTranslateLyrics(lyrics: ResolvedLyrics, targetLang: LyricTa
   return !songAlreadyInTargetLang(vocalLines, targetLang)
 }
 
-/** 按当前界面目标语言与已就绪的 AI 翻译合成展示用译文；跨语言内置译文在对应语言尚未就绪时隐藏 */
+/** 判断这首歌在当前目标语言下是否可以启用 AI 歌词翻译（缺失目标语言原生译文且非纯目标语言歌曲） */
+export function canAiTranslateLyrics(lyrics: ResolvedLyrics, targetLang: LyricTargetLang, artists: string[] = []): boolean {
+  if (hasNativeTargetTranslation(lyrics, targetLang))
+    return false
+  return hasTranslatableVocalLines(lyrics, targetLang, artists)
+}
+
+/** 判断管理员在当前目标语言下是否可以触发 AI 歌词翻译或生成 AI 覆盖译文 */
+export function canAdminAiTranslateLyrics(lyrics: ResolvedLyrics, targetLang: LyricTargetLang, artists: string[] = []): boolean {
+  return hasTranslatableVocalLines(lyrics, targetLang, artists)
+}
+
+/** 按当前界面目标语言与已就绪的 AI 翻译合成展示用译文；已就绪的非原生 AI 翻译可覆盖内置译文，跨语言内置译文在未就绪时隐藏 */
 export function applyLanguageTranslations(
   lyrics: ResolvedLyrics,
   targetLang: LyricTargetLang,
@@ -870,22 +879,17 @@ export function applyLanguageTranslations(
   if (lyrics.source === 'none' || lyrics.lines.length === 0)
     return lyrics
 
-  if (hasKeyedNativeTranslation(lyrics, targetLang)) {
-    return {
-      ...lyrics,
-      lines: lyrics.lines.map((line) => {
-        const next = line.translationsByLang?.[targetLang]
-        return next === line.translation ? line : { ...line, translation: next }
-      }),
-    }
-  }
+  const hasAiOverride = Boolean(
+    ai
+    && ai.source === lyrics.source
+    && (!ai.targetLang || ai.targetLang === targetLang)
+    && !ai.native
+    && ai.lines.some(item => Boolean(item.translation?.trim())),
+  )
 
-  if (hasDefaultNativeTranslation(lyrics, targetLang))
-    return lyrics
-
-  if (ai && ai.source === lyrics.source && ai.targetLang === targetLang) {
-    if (ai.native)
-      return lyrics
+  if (hasAiOverride && ai) {
+    const hasKeyedNative = hasKeyedNativeTranslation(lyrics, targetLang)
+    const hasDefaultNative = !hasKeyedNative && hasDefaultNativeTranslation(lyrics, targetLang)
     const lookup = new Map<string, string>()
     for (const item of ai.lines) {
       if (!item.translation)
@@ -899,11 +903,27 @@ export function applyLanguageTranslations(
       const countKey = `${bg}:${norm}`
       const occ = occCounts.get(countKey) ?? 0
       occCounts.set(countKey, occ + 1)
-      const next = lookup.get(`${bg}:${occ}:${norm}`)
+      const fallbackNative = hasKeyedNative
+        ? line.translationsByLang?.[targetLang]
+        : (hasDefaultNative ? line.translation : undefined)
+      const next = lookup.get(`${bg}:${occ}:${norm}`) ?? fallbackNative
       return next === line.translation ? line : { ...line, translation: next }
     })
     return { ...lyrics, lines: nextLines }
   }
+
+  if (hasKeyedNativeTranslation(lyrics, targetLang)) {
+    return {
+      ...lyrics,
+      lines: lyrics.lines.map((line) => {
+        const next = line.translationsByLang?.[targetLang]
+        return next === line.translation ? line : { ...line, translation: next }
+      }),
+    }
+  }
+
+  if (hasDefaultNativeTranslation(lyrics, targetLang))
+    return lyrics
 
   // 未命中所选语言原生翻译且 AI 翻译尚未就绪时，清除其他语言的内置翻译，避免展示错位语种（如日文界面出现简体中文）
   if (!lyrics.lines.some(line => line.translation !== undefined))

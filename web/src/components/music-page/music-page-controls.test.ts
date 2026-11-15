@@ -1,3 +1,4 @@
+import type { MusicLyricTranslationLangStatus } from '@/api/music'
 import type { LyricLine, ResolvedLyrics } from '@/lib/lyrics/types'
 import type { MusicTrack } from '@/models/music'
 import { NextIntlClientProvider } from 'next-intl'
@@ -7,6 +8,16 @@ import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import zhMessages from '@/locales/zh.json'
 import { MoreControlsMenu } from './music-page-controls'
+
+const lyricTranslationActions = vi.hoisted(() => ({
+  refreshTranslations: vi.fn(),
+  requestLyricTranslationLanguages: vi.fn(),
+}))
+
+vi.mock('@/contexts/lyric-translations', () => ({
+  refreshTranslations: lyricTranslationActions.refreshTranslations,
+  requestLyricTranslationLanguages: lyricTranslationActions.requestLyricTranslationLanguages,
+}))
 
 const sampleTrack: MusicTrack = {
   id: 1,
@@ -332,5 +343,220 @@ describe('moreControlsMenu 二阶弹簧控制菜单', () => {
       '',
       '一曲红绡不知数\nyi qu hong xiao\nCountless bolts of red silk for a song',
     ].join('\n'))
+  })
+
+  it('翻译语言二级菜单：访客仅见已生成的或原生存在的译文语言，无触发入口', () => {
+    // @ts-expect-error happy-dom 的 WAAPI cancel() 会抛未捕获异常，测试走 Motion JS 动画驱动
+    delete Element.prototype.animate
+    lyricTranslationActions.refreshTranslations.mockReset()
+    lyricTranslationActions.requestLyricTranslationLanguages.mockReset()
+
+    const jaLyrics = makeLyrics([
+      {
+        start: 1000,
+        end: 3000,
+        words: [{ text: '君の名前を呼んでいる', start: 1000, end: 3000 }],
+        translation: '呼唤着你的名字',
+        isDuet: false,
+        isBackground: false,
+      },
+      {
+        start: 3200,
+        end: 5000,
+        words: [{ text: '夜明けの空が染まるまで', start: 3200, end: 5000 }],
+        translation: '直至破晓染红天际',
+        isDuet: false,
+        isBackground: false,
+      },
+    ])
+    const statuses: MusicLyricTranslationLangStatus[] = [
+      { lang: 'zh', hasAi: false, hasNative: true, generating: false, sameLanguage: false },
+      { lang: 'en', hasAi: true, hasNative: false, generating: false, sameLanguage: false },
+      { lang: 'ko', hasAi: false, hasNative: false, generating: false, sameLanguage: false },
+      { lang: 'ja', hasAi: false, hasNative: false, generating: false, sameLanguage: true },
+    ]
+    const setTranslationLang = vi.fn()
+    const setShowTranslation = vi.fn()
+
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    try {
+      flushSync(() => {
+        root.render(
+          React.createElement(NextIntlClientProvider, {
+            locale: 'zh',
+            messages: zhMessages,
+            children: React.createElement(MoreControlsMenu, {
+              showLyricMoments: false,
+              setShowLyricMoments: vi.fn(),
+              showLyricEffects: true,
+              setShowLyricEffects: vi.fn(),
+              showRomaji: false,
+              showTranslation: true,
+              setShowTranslation,
+              translationLang: null,
+              effectiveTranslationLang: 'zh',
+              availableTranslationLangs: statuses,
+              setTranslationLang,
+              isAdmin: false,
+              musicAiEnabled: true,
+              hdr: false,
+              setHdr: vi.fn(),
+              hdrDisplay: true,
+              currentTrack: sampleTrack,
+              lyrics: jaLyrics,
+            }),
+          }),
+        )
+      })
+
+      flushSync(() => {
+        ;(container.querySelector('button[aria-label="更多控制"]') as HTMLButtonElement).click()
+      })
+      flushSync(() => {
+        ;(container.querySelector('button[aria-label="翻译语言"]') as HTMLButtonElement).click()
+      })
+
+      expect(lyricTranslationActions.requestLyricTranslationLanguages).toHaveBeenCalledWith(sampleTrack.id, 'ttml-amll', true)
+
+      const menu = container.querySelector('[role="menu"][aria-label="翻译语言"]')
+      expect(menu).not.toBeNull()
+      const menuText = menu?.textContent ?? ''
+      expect(menuText).toContain('跟随站点语言')
+      expect(menuText).toContain('内置')
+      expect(menuText).toContain('AI')
+      expect(menuText).not.toContain('AI 覆盖')
+      expect(menuText).not.toContain('生成新翻译')
+      const koLabel = new Intl.DisplayNames(['zh'], { type: 'language' }).of('ko') ?? 'ko'
+      const enLabel = new Intl.DisplayNames(['zh'], { type: 'language' }).of('en') ?? 'en'
+      expect(menuText).not.toContain(koLabel)
+      expect(menuText).toContain(enLabel)
+
+      const enButton = Array.from(menu!.querySelectorAll('button')).find(btn => btn.textContent?.includes(enLabel))
+      expect(enButton).toBeDefined()
+      flushSync(() => {
+        enButton!.click()
+      })
+
+      expect(setTranslationLang).toHaveBeenCalledWith('en')
+      expect(setShowTranslation).toHaveBeenCalledWith(true)
+      expect(lyricTranslationActions.refreshTranslations).not.toHaveBeenCalled()
+    }
+    finally {
+      flushSync(() => root.unmount())
+      container.remove()
+    }
+  })
+
+  it('翻译语言二级菜单：管理员可见 AI 覆盖、重新生成与未翻译语种，点击触发翻译任务', async () => {
+    // @ts-expect-error happy-dom 的 WAAPI cancel() 会抛未捕获异常，测试走 Motion JS 动画驱动
+    delete Element.prototype.animate
+    lyricTranslationActions.refreshTranslations.mockReset()
+    lyricTranslationActions.refreshTranslations.mockResolvedValue('started')
+    lyricTranslationActions.requestLyricTranslationLanguages.mockReset()
+
+    const jaLyrics = makeLyrics([
+      {
+        start: 1000,
+        end: 3000,
+        words: [{ text: '君の名前を呼んでいる', start: 1000, end: 3000 }],
+        translation: '呼唤着你的名字',
+        isDuet: false,
+        isBackground: false,
+      },
+      {
+        start: 3200,
+        end: 5000,
+        words: [{ text: '夜明けの空が染まるまで', start: 3200, end: 5000 }],
+        translation: '直至破晓染红天际',
+        isDuet: false,
+        isBackground: false,
+      },
+    ])
+    const statuses: MusicLyricTranslationLangStatus[] = [
+      { lang: 'zh', hasAi: false, hasNative: true, generating: false, sameLanguage: false },
+      { lang: 'en', hasAi: true, hasNative: false, generating: false, sameLanguage: false },
+      { lang: 'ko', hasAi: false, hasNative: false, generating: false, sameLanguage: false },
+      { lang: 'ja', hasAi: false, hasNative: false, generating: false, sameLanguage: true },
+    ]
+    const setTranslationLang = vi.fn()
+    const setShowTranslation = vi.fn()
+
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    try {
+      flushSync(() => {
+        root.render(
+          React.createElement(NextIntlClientProvider, {
+            locale: 'zh',
+            messages: zhMessages,
+            children: React.createElement(MoreControlsMenu, {
+              showLyricMoments: false,
+              setShowLyricMoments: vi.fn(),
+              showLyricEffects: true,
+              setShowLyricEffects: vi.fn(),
+              showRomaji: false,
+              showTranslation: true,
+              setShowTranslation,
+              translationLang: 'en',
+              effectiveTranslationLang: 'en',
+              availableTranslationLangs: statuses,
+              setTranslationLang,
+              isAdmin: true,
+              musicAiEnabled: true,
+              hdr: false,
+              setHdr: vi.fn(),
+              hdrDisplay: true,
+              currentTrack: sampleTrack,
+              lyrics: jaLyrics,
+            }),
+          }),
+        )
+      })
+
+      flushSync(() => {
+        ;(container.querySelector('button[aria-label="更多控制"]') as HTMLButtonElement).click()
+      })
+      flushSync(() => {
+        ;(container.querySelector('button[aria-label="翻译语言"]') as HTMLButtonElement).click()
+      })
+
+      const menu = container.querySelector('[role="menu"][aria-label="翻译语言"]')
+      expect(menu).not.toBeNull()
+      const menuText = menu?.textContent ?? ''
+      const koLabel = new Intl.DisplayNames(['zh'], { type: 'language' }).of('ko') ?? 'ko'
+      const jaLabel = new Intl.DisplayNames(['zh'], { type: 'language' }).of('ja') ?? 'ja'
+      expect(menuText).toContain('AI 覆盖')
+      expect(menuText).toContain('生成新翻译')
+      expect(menuText).toContain(koLabel)
+      expect(menuText).not.toContain(jaLabel)
+      expect(menu!.querySelector('button[aria-label="重新生成 AI 翻译"]')).not.toBeNull()
+
+      const overrideBtn = Array.from(menu!.querySelectorAll('button')).find(btn => btn.textContent === 'AI 覆盖')
+      expect(overrideBtn).toBeDefined()
+      flushSync(() => {
+        overrideBtn!.click()
+      })
+      await waitForCondition(() => lyricTranslationActions.refreshTranslations.mock.calls.length === 1)
+      expect(setTranslationLang).toHaveBeenCalledWith('zh')
+      expect(setShowTranslation).toHaveBeenCalledWith(true)
+      expect(lyricTranslationActions.refreshTranslations).toHaveBeenCalledWith(sampleTrack.id, 'ttml-amll', 'zh')
+
+      const koButton = Array.from(menu!.querySelectorAll('button')).find(btn => btn.textContent?.includes(koLabel))
+      expect(koButton).toBeDefined()
+      await waitForCondition(() => !koButton!.disabled)
+      flushSync(() => {
+        koButton!.click()
+      })
+      await waitForCondition(() => lyricTranslationActions.refreshTranslations.mock.calls.length === 2)
+      expect(setTranslationLang).toHaveBeenCalledWith('ko')
+      expect(lyricTranslationActions.refreshTranslations).toHaveBeenLastCalledWith(sampleTrack.id, 'ttml-amll', 'ko')
+    }
+    finally {
+      flushSync(() => root.unmount())
+      container.remove()
+    }
   })
 })

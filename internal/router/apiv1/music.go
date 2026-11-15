@@ -32,6 +32,7 @@ func registerMusicRoutes(group *route.RouterGroup) {
 		musicGroup.GET("/song/:id/lyric/annotations", controller.Music.SongLyricAnnotations)
 		musicGroup.GET("/song/:id/lyric/translations", controller.Music.SongLyricTranslations)
 		musicGroup.GET("/song/:id/lyric/translations/stream", controller.Music.SongLyricTranslationsStream)
+		musicGroup.GET("/song/:id/lyric/translations/available", controller.Music.SongLyricTranslationLanguages)
 		musicGroup.GET("/song/:id/translation-meta", controller.Music.SongTranslationMeta)
 		musicGroup.GET("/song/:id/lyric/singers", controller.Music.SongLyricSingers)
 		musicGroup.GET("/song/:id/lyric/pronunciations", controller.Music.SongLyricPronunciations)

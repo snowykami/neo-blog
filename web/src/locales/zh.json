@@ -3476,7 +3476,16 @@
     "more_options": "更多控制",
     "copy_lyrics": "复制歌词",
     "lyrics_copied": "已复制歌词及译文",
-    "no_lyrics_to_copy": "暂无可用歌词"
+    "no_lyrics_to_copy": "暂无可用歌词",
+    "translation_language": "翻译语言",
+    "translation_lang_follow_site": "跟随站点语言",
+    "translation_badge_ai": "AI",
+    "translation_badge_native": "内置",
+    "translation_ai_override": "AI 覆盖",
+    "translation_regenerate": "重新生成 AI 翻译",
+    "translation_untranslated_group": "生成新翻译",
+    "translation_generate_started": "已开始生成 {lang} AI 翻译",
+    "translation_generate_failed": "触发翻译任务失败"
   },
   "RhythmDebug": {
     "open": "韵律调试",

@@ -1,4 +1,6 @@
+import type { MusicLyricTranslationLangStatus } from '@/api/music'
 import type { LyricCandidate, LyricSourceKind } from '@/lib/lyrics/resolve'
+import type { LyricTargetLang } from '@/lib/lyrics/target-lang'
 import type { ResolvedLyrics } from '@/lib/lyrics/types'
 import { EMPTY_LYRICS } from '@/lib/lyrics/types'
 
@@ -16,6 +18,8 @@ export interface MusicLyricsState {
   aiTranslated: boolean
   translationsGenerating: boolean
   canAiTranslate: boolean
+  effectiveTranslationLang: LyricTargetLang
+  availableTranslationLangs: MusicLyricTranslationLangStatus[]
   aiRomanized: boolean
   pronunciationsGenerating: boolean
   canAiPronounce: boolean
@@ -34,6 +38,8 @@ export const EMPTY_MUSIC_LYRICS_STATE: MusicLyricsState = {
   aiTranslated: false,
   translationsGenerating: false,
   canAiTranslate: false,
+  effectiveTranslationLang: 'en',
+  availableTranslationLangs: [],
   aiRomanized: false,
   pronunciationsGenerating: false,
   canAiPronounce: false,

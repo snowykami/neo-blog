@@ -1123,3 +1123,176 @@ func TestStreamLyricTranslationsErrorCooldownAndLeaseRelease(t *testing.T) {
 		t.Fatalf("expected cooldown 404 after stream failure, got %v", cooldownErr)
 	}
 }
+
+func TestRefreshNativeTargetCreatesAIOverride(t *testing.T) {
+	track := dto.MusicTrackDto{ID: 506, Name: "夜に駆ける", Artists: []string{"YOASOBI"}}
+	setupMusicTranslationEnv(t, []dto.MusicTrackDto{track})
+
+	lrc := "[00:01.00]沈むように溶けてゆくように\n[00:05.00]二人だけの空が広がる夜に\n"
+	tlrc := "[00:01.00]如同沉没般渐渐融化\n[00:05.00]在只有两人的天空延展的夜晚\n"
+	stubLyricSources(t, map[string]lyricSourceResult{
+		"ncm": {
+			data: &dto.MusicLyricDto{
+				Lrc:    lyricPart(lrc),
+				Tlyric: lyricPart(tlrc),
+			},
+			outcome: lyricOutcomeHit,
+		},
+	})
+
+	orig := lyricTranslations
+	origRetry := lyricTranslationRetryDelay
+	lyricTranslationRetryDelay = 0
+	doneCh := make(chan struct{}, 2)
+	var calls atomic.Int32
+	var capturedUserPrompt string
+
+	svc := &lyricTranslationService{
+		name:        "test_tr_override_" + t.Name(),
+		limiter:     &llmclient.Limiter{},
+		concurrency: func() int { return 1 },
+		stream: func(_ context.Context, _ tools.AIConfig, _, user string, onChunk func(content string) error) error {
+			calls.Add(1)
+			capturedUserPrompt = user
+			return onChunk("{\"i\":1,\"t\":\"宛如沉落般悄然消融\"}\n{\"i\":2,\"t\":\"唯独你我二人的夜空悄然铺展\"}\n")
+		},
+		done: func() { doneCh <- struct{}{} },
+	}
+	lyricTranslations = svc
+	t.Cleanup(func() {
+		lyricTranslations = orig
+		lyricTranslationRetryDelay = origRetry
+	})
+
+	musicSvc := NewMusicService()
+
+	// 1. 生成覆盖前，默认请求 GetLyricTranslations 与 StreamLyricTranslations 均直接返回 native=true 且 0 次 LLM 调用
+	initial, svcerr := musicSvc.GetLyricTranslations(context.Background(), 506, "ncm-lrc", "zh")
+	if svcerr != nil || initial.Status != "ready" || !initial.Native || len(initial.Lines) != 0 {
+		t.Fatalf("expected initial native response, got %+v err=%v", initial, svcerr)
+	}
+	var initialEvents []string
+	if svcerr := musicSvc.StreamLyricTranslations(context.Background(), 506, "ncm-lrc", "zh", func() {}, func(ev string, _ any) error {
+		initialEvents = append(initialEvents, ev)
+		return nil
+	}); svcerr != nil {
+		t.Fatalf("initial stream error: %v", svcerr)
+	}
+	if calls.Load() != 0 || !reflect.DeepEqual(initialEvents, []string{"done"}) {
+		t.Fatalf("expected 0 LLM calls and only done event before override, got calls=%d events=%v", calls.Load(), initialEvents)
+	}
+
+	// 2. 管理员调用 RefreshLyricTranslations 强制生成 AI 中文覆盖译文，且参考译文中携带原平台译文
+	refreshResp, svcerr := musicSvc.RefreshLyricTranslations(context.Background(), 506, "ncm-lrc", "zh")
+	if svcerr != nil || refreshResp.Status != "pending" {
+		t.Fatalf("expected pending refresh start, got %+v err=%v", refreshResp, svcerr)
+	}
+	<-doneCh
+
+	if calls.Load() != 1 || !strings.Contains(capturedUserPrompt, "如同沉没般渐渐融化") {
+		t.Fatalf("expected 1 LLM call with native ref in prompt, calls=%d", calls.Load())
+	}
+
+	// 3. 覆盖生成后，GetLyricTranslations 与 StreamLyricTranslations 均优先返回 AI 覆盖译文（native=false）
+	afterGet, svcerr := musicSvc.GetLyricTranslations(context.Background(), 506, "ncm-lrc", "zh")
+	if svcerr != nil || afterGet.Status != "ready" || afterGet.Native || len(afterGet.Lines) != 2 {
+		t.Fatalf("expected ready AI override, got %+v err=%v", afterGet, svcerr)
+	}
+	if afterGet.Lines[0].Translation != "宛如沉落般悄然消融" || afterGet.Lines[1].Translation != "唯独你我二人的夜空悄然铺展" {
+		t.Fatalf("unexpected override lines: %+v", afterGet.Lines)
+	}
+
+	var replayed []dto.MusicLyricTranslationLine
+	var doneNative bool
+	if svcerr := musicSvc.StreamLyricTranslations(context.Background(), 506, "ncm-lrc", "zh", func() {}, func(ev string, data any) error {
+		raw, _ := json.Marshal(data)
+		if ev == "replay" {
+			_ = json.Unmarshal(raw, &replayed)
+		} else if ev == "done" {
+			var meta musicLyricTranslationStreamDone
+			_ = json.Unmarshal(raw, &meta)
+			doneNative = meta.Native
+		}
+		return nil
+	}); svcerr != nil {
+		t.Fatalf("post-override stream error: %v", svcerr)
+	}
+	if doneNative || len(replayed) != 2 || replayed[0].Translation != "宛如沉落般悄然消融" {
+		t.Fatalf("expected stream replay of AI override, doneNative=%v replayed=%+v", doneNative, replayed)
+	}
+}
+
+func TestGetLyricTranslationLanguages(t *testing.T) {
+	track := dto.MusicTrackDto{ID: 507, Name: "アイドル", Artists: []string{"YOASOBI"}}
+	setupMusicTranslationEnv(t, []dto.MusicTrackDto{track})
+
+	lrc := "[00:01.00]無敵の笑顔で荒らすメディア\n[00:05.00]知りたいその秘密ミステリアス\n"
+	tlrc := "[00:01.00]以无敌的笑容席卷媒体\n[00:05.00]好想知道那个秘密真是神秘\n"
+	stubLyricSources(t, map[string]lyricSourceResult{
+		"ncm": {
+			data: &dto.MusicLyricDto{
+				Lrc:    lyricPart(lrc),
+				Tlyric: lyricPart(tlrc),
+			},
+			outcome: lyricOutcomeHit,
+		},
+	})
+
+	orig := lyricTranslations
+	var llmCalls atomic.Int32
+	doneCh := make(chan struct{}, 2)
+	svc := &lyricTranslationService{
+		name:        "test_tr_langs_" + t.Name(),
+		limiter:     &llmclient.Limiter{},
+		concurrency: func() int { return 1 },
+		stream: func(_ context.Context, _ tools.AIConfig, _, _ string, onChunk func(content string) error) error {
+			llmCalls.Add(1)
+			return onChunk("{\"i\":1,\"t\":\"Sweeping the media with an invincible smile\"}\n{\"i\":2,\"t\":\"Longing to know that mysterious secret\"}\n")
+		},
+		done: func() { doneCh <- struct{}{} },
+	}
+	lyricTranslations = svc
+	t.Cleanup(func() { lyricTranslations = orig })
+
+	musicSvc := NewMusicService()
+
+	// 1. 只读查询各语言状态：zh 含自带翻译，ja 为原曲同语种，其余均未翻译且绝不触发 LLM
+	statusResp, svcerr := musicSvc.GetLyricTranslationLanguages(context.Background(), 507, "ncm-lrc")
+	if svcerr != nil || statusResp.Status != "ready" || statusResp.Source != "ncm-lrc" {
+		t.Fatalf("unexpected GetLyricTranslationLanguages result: %+v err=%v", statusResp, svcerr)
+	}
+	if llmCalls.Load() != 0 {
+		t.Fatalf("expected 0 LLM calls on GetLyricTranslationLanguages, got %d", llmCalls.Load())
+	}
+	byLang := make(map[string]dto.MusicLyricTranslationLangStatusDto, len(statusResp.Languages))
+	for _, item := range statusResp.Languages {
+		byLang[item.Lang] = item
+	}
+	if !byLang["zh"].HasNative || byLang["zh"].HasAI || byLang["zh"].SameLanguage {
+		t.Fatalf("unexpected zh status: %+v", byLang["zh"])
+	}
+	if !byLang["ja"].SameLanguage || byLang["ja"].HasAI || byLang["ja"].HasNative {
+		t.Fatalf("unexpected ja status: %+v", byLang["ja"])
+	}
+	if byLang["en"].HasAI || byLang["en"].HasNative || byLang["en"].SameLanguage {
+		t.Fatalf("unexpected en status: %+v", byLang["en"])
+	}
+
+	// 2. 生成 en 的 AI 翻译后，状态表立即体现 en.has_ai=true
+	if _, svcerr := musicSvc.RefreshLyricTranslations(context.Background(), 507, "ncm-lrc", "en"); svcerr != nil {
+		t.Fatalf("refresh en err: %v", svcerr)
+	}
+	<-doneCh
+
+	afterResp, svcerr := musicSvc.GetLyricTranslationLanguages(context.Background(), 507, "ncm-lrc")
+	if svcerr != nil {
+		t.Fatalf("post-refresh status err: %v", svcerr)
+	}
+	byLangAfter := make(map[string]dto.MusicLyricTranslationLangStatusDto, len(afterResp.Languages))
+	for _, item := range afterResp.Languages {
+		byLangAfter[item.Lang] = item
+	}
+	if !byLangAfter["en"].HasAI || byLangAfter["en"].Generating {
+		t.Fatalf("expected en has_ai=true and generating=false, got %+v", byLangAfter["en"])
+	}
+}

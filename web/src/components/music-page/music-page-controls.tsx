@@ -3,11 +3,14 @@
 import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { IconType } from 'react-icons'
+import type { MusicLyricTranslationLangStatus } from '@/api/music'
 import type { PlayMode } from '@/contexts/music-context'
+import type { LyricTargetLang } from '@/lib/lyrics/target-lang'
 import {
   CaseSensitiveIcon,
   CheckIcon,
   CopyIcon,
+  GlobeIcon,
   LanguagesIcon,
   ListMusicIcon,
   Loader2Icon,
@@ -17,6 +20,7 @@ import {
   PlayIcon,
   Repeat1Icon,
   RepeatIcon,
+  RotateCwIcon,
   ShuffleIcon,
   SkipBackIcon,
   SkipForwardIcon,
@@ -26,11 +30,13 @@ import {
   VolumeXIcon,
 } from 'lucide-react'
 import { AnimatePresence, LazyMotion, m } from 'motion/react'
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { TbHdr } from 'react-icons/tb'
 import { toast } from 'sonner'
 import { ProgressControl } from '@/components/common/controlled-progress'
+import { useAuth } from '@/contexts/auth-context'
+import { refreshTranslations, requestLyricTranslationLanguages } from '@/contexts/lyric-translations'
 import {
   getNextPlayMode,
   useMusicActions,
@@ -40,12 +46,15 @@ import {
   useMusicPreferences,
   useMusicVolume,
 } from '@/contexts/music-context'
+import { useSiteInfo } from '@/contexts/site-info-context'
 import { useSongChorus } from '@/contexts/song-chorus'
 import { useHdrDisplay } from '@/hooks/use-hdr-highlight'
 import { getLyricLineText } from '@/lib/lyrics/line-utils'
+import { canAdminAiTranslateLyrics } from '@/lib/lyrics/lyric-language'
 import { getMotionFeatures } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import { formatDurationMMSS } from '@/utils/common/datetime'
+import { isAdmin as checkIsAdmin } from '@/utils/common/permission'
 
 const PLAY_MODE_ICONS: Record<PlayMode, LucideIcon> = {
   'repeat-all': RepeatIcon,
@@ -177,11 +186,34 @@ interface MoreControlsMenuProps {
   setShowLyricEffects: (val: boolean) => void
   showRomaji: boolean
   showTranslation: boolean
+  setShowTranslation?: (val: boolean) => void
+  translationLang?: LyricTargetLang | null
+  effectiveTranslationLang?: LyricTargetLang
+  availableTranslationLangs?: MusicLyricTranslationLangStatus[]
+  setTranslationLang?: (lang: LyricTargetLang | null) => void
+  isAdmin?: boolean
+  musicAiEnabled?: boolean
   hdr: boolean
   setHdr: (val: boolean) => void
   hdrDisplay: boolean
   currentTrack: ReturnType<typeof useMusicPlayback>['currentTrack']
   lyrics: ReturnType<typeof useMusicLyrics>['lyrics']
+}
+
+const TRANSLATION_LANG_INTL_CODES: Record<string, string> = {
+  'zh': 'zh-Hans',
+  'zh-tw': 'zh-Hant',
+  'zh-hk': 'zh-HK',
+}
+
+function formatTranslationLangLabel(lang: string, locale: string): string {
+  try {
+    const code = TRANSLATION_LANG_INTL_CODES[lang] ?? lang
+    return new Intl.DisplayNames([locale], { type: 'language' }).of(code) ?? lang
+  }
+  catch {
+    return lang
+  }
 }
 
 function formatBackgroundLyricText(text: string): string {
@@ -206,6 +238,12 @@ export function MoreControlsMenu({
   setShowLyricEffects,
   showRomaji,
   showTranslation,
+  setShowTranslation,
+  translationLang,
+  availableTranslationLangs,
+  setTranslationLang,
+  isAdmin,
+  musicAiEnabled,
   hdr,
   setHdr,
   hdrDisplay,
@@ -213,16 +251,21 @@ export function MoreControlsMenu({
   lyrics,
 }: MoreControlsMenuProps) {
   const playerT = useTranslations('MusicPlayer')
+  const locale = useLocale()
   const [open, setOpen] = useState(false)
+  const [langMenuOpen, setLangMenuOpen] = useState(false)
+  const [triggeringLang, setTriggeringLang] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isLangMenuVisible = open && langMenuOpen
 
   const scheduleClose = useCallback((delayMs = 4500) => {
     if (timerRef.current)
       clearTimeout(timerRef.current)
     timerRef.current = setTimeout(() => {
       setOpen(false)
+      setLangMenuOpen(false)
     }, delayMs)
   }, [])
 
@@ -235,11 +278,11 @@ export function MoreControlsMenu({
 
   useEffect(() => {
     if (open)
-      scheduleClose(4500)
+      scheduleClose(langMenuOpen ? 10000 : 4500)
     else
       cancelClose()
     return () => cancelClose()
-  }, [open, scheduleClose, cancelClose])
+  }, [open, langMenuOpen, scheduleClose, cancelClose])
 
   useEffect(() => {
     if (!open)
@@ -247,11 +290,13 @@ export function MoreControlsMenu({
     const onPointerDownOutside = (e: PointerEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false)
+        setLangMenuOpen(false)
       }
     }
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setOpen(false)
+        setLangMenuOpen(false)
       }
     }
     window.addEventListener('pointerdown', onPointerDownOutside)
@@ -261,6 +306,52 @@ export function MoreControlsMenu({
       window.removeEventListener('keydown', onKeyDown)
     }
   }, [open])
+
+  const lyricSource = lyrics?.source && lyrics.source !== 'none' ? lyrics.source : null
+  const adminActionable = Boolean(isAdmin && musicAiEnabled && currentTrack?.id && lyricSource)
+  const allStatuses = useMemo(
+    () => availableTranslationLangs ?? [],
+    [availableTranslationLangs],
+  )
+  const availableItems = useMemo(
+    () => allStatuses.filter(item => item.hasAi || item.hasNative || item.generating),
+    [allStatuses],
+  )
+  const untranslatedAdminItems = useMemo(() => {
+    if (!adminActionable)
+      return []
+    return allStatuses.filter(item =>
+      !(item.hasAi || item.hasNative || item.generating)
+      && !item.sameLanguage
+      && canAdminAiTranslateLyrics(lyrics, item.lang as LyricTargetLang, currentTrack?.artists),
+    )
+  }, [adminActionable, allStatuses, currentTrack?.artists, lyrics])
+  const showLangMenuButton = Boolean(setTranslationLang)
+    && (availableItems.length > 0 || (adminActionable && untranslatedAdminItems.length > 0))
+
+  const handleTriggerTranslation = useCallback(async (lang: LyricTargetLang) => {
+    if (!adminActionable || !currentTrack?.id || !lyricSource || triggeringLang)
+      return
+    setTriggeringLang(lang)
+    setTranslationLang?.(lang)
+    setShowTranslation?.(true)
+    try {
+      const res = await refreshTranslations(currentTrack.id, lyricSource, lang)
+      if (res === 'started') {
+        toast.success(playerT('translation_generate_started', { lang: formatTranslationLangLabel(lang, locale) }))
+        requestLyricTranslationLanguages(currentTrack.id, lyricSource, true)
+      }
+      else {
+        toast.error(playerT('translation_generate_failed'))
+      }
+    }
+    catch {
+      toast.error(playerT('translation_generate_failed'))
+    }
+    finally {
+      setTriggeringLang(null)
+    }
+  }, [adminActionable, currentTrack?.id, locale, lyricSource, playerT, setShowTranslation, setTranslationLang, triggeringLang])
 
   const handleCopyLyrics = useCallback(async () => {
     const lines = lyrics?.lines
@@ -320,8 +411,146 @@ export function MoreControlsMenu({
         ref={containerRef}
         className="relative flex items-center"
         onMouseEnter={cancelClose}
-        onMouseLeave={() => open && scheduleClose(3000)}
+        onMouseLeave={() => open && scheduleClose(langMenuOpen ? 6000 : 3000)}
       >
+        <AnimatePresence>
+          {isLangMenuVisible && (
+            <m.div
+              role="menu"
+              aria-label={playerT('translation_language')}
+              initial={{ opacity: 0, scale: 0.9, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 6 }}
+              transition={{
+                type: 'spring',
+                stiffness: 420,
+                damping: 28,
+                mass: 0.75,
+              }}
+              className="absolute right-0 bottom-full z-40 mb-14 w-64 max-w-[calc(100vw-2rem)] origin-bottom-right rounded-2xl border border-white/15 bg-neutral-950/90 p-1.5 text-white shadow-2xl backdrop-blur-2xl"
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setTranslationLang?.(null)
+                  setShowTranslation?.(true)
+                  setLangMenuOpen(false)
+                  scheduleClose(2500)
+                }}
+                className={cn(
+                  'flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-left text-xs transition hover:bg-white/10',
+                  translationLang == null ? 'bg-white/10 font-medium text-white' : 'text-white/80',
+                )}
+              >
+                <CheckIcon
+                  aria-hidden
+                  className={cn('size-3.5 shrink-0', translationLang == null ? 'opacity-100' : 'opacity-0')}
+                />
+                <span className="min-w-0 flex-1 truncate">{playerT('translation_lang_follow_site')}</span>
+              </button>
+
+              {availableItems.map((item) => {
+                const langCode = item.lang as LyricTargetLang
+                const isSelected = translationLang === langCode
+                const canOverride = adminActionable
+                  && !item.hasAi
+                  && item.hasNative
+                  && !item.generating
+                  && canAdminAiTranslateLyrics(lyrics, langCode, currentTrack?.artists)
+                const canRegenerate = adminActionable && item.hasAi && !item.generating
+                return (
+                  <div
+                    key={item.lang}
+                    className="flex items-center gap-1 rounded-xl px-1 py-0.5 transition hover:bg-white/10"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTranslationLang?.(langCode)
+                        setShowTranslation?.(true)
+                        setLangMenuOpen(false)
+                        scheduleClose(2500)
+                      }}
+                      className={cn(
+                        'flex min-w-0 flex-1 items-center gap-2 px-1.5 py-1 text-left text-xs',
+                        isSelected ? 'font-medium text-white' : 'text-white/85',
+                      )}
+                    >
+                      <CheckIcon
+                        aria-hidden
+                        className={cn('size-3.5 shrink-0', isSelected ? 'opacity-100' : 'opacity-0')}
+                      />
+                      <span className="min-w-0 flex-1 truncate">{formatTranslationLangLabel(item.lang, locale)}</span>
+                      {item.generating
+                        ? <Loader2Icon aria-hidden className="size-3 shrink-0 animate-spin text-white/80" />
+                        : item.hasAi
+                          ? (
+                              <span className="shrink-0 rounded bg-white/15 px-1.5 py-0.5 text-[10px] font-medium text-white/90">
+                                {playerT('translation_badge_ai')}
+                              </span>
+                            )
+                          : (
+                              <span className="shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-white/70">
+                                {playerT('translation_badge_native')}
+                              </span>
+                            )}
+                    </button>
+                    {canOverride && (
+                      <button
+                        type="button"
+                        disabled={triggeringLang != null}
+                        onClick={() => void handleTriggerTranslation(langCode)}
+                        className="shrink-0 rounded-md bg-white/15 px-1.5 py-0.5 text-[10px] font-medium text-white transition hover:bg-white/25 disabled:opacity-50"
+                      >
+                        {playerT('translation_ai_override')}
+                      </button>
+                    )}
+                    {canRegenerate && (
+                      <button
+                        type="button"
+                        aria-label={playerT('translation_regenerate')}
+                        title={playerT('translation_regenerate')}
+                        disabled={triggeringLang != null}
+                        onClick={() => void handleTriggerTranslation(langCode)}
+                        className="flex size-6 shrink-0 items-center justify-center rounded-md text-white/70 transition hover:bg-white/15 hover:text-white disabled:opacity-50"
+                      >
+                        <RotateCwIcon aria-hidden className="size-3" />
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+
+              {adminActionable && untranslatedAdminItems.length > 0 && (
+                <>
+                  <div className="my-1 border-t border-white/10" />
+                  <div className="px-2.5 py-1 text-[11px] font-medium text-white/50">
+                    {playerT('translation_untranslated_group')}
+                  </div>
+                  {untranslatedAdminItems.map((item) => {
+                    const langCode = item.lang as LyricTargetLang
+                    return (
+                      <button
+                        key={item.lang}
+                        type="button"
+                        disabled={triggeringLang != null}
+                        onClick={() => void handleTriggerTranslation(langCode)}
+                        className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-left text-xs text-white/75 transition hover:bg-white/10 hover:text-white disabled:opacity-50"
+                      >
+                        <span className="size-3.5 shrink-0" aria-hidden />
+                        <span className="min-w-0 flex-1 truncate">{formatTranslationLangLabel(item.lang, locale)}</span>
+                        {triggeringLang === item.lang
+                          ? <Loader2Icon aria-hidden className="size-3 shrink-0 animate-spin" />
+                          : <SparklesIcon aria-hidden className="size-3 shrink-0 text-white/60" />}
+                      </button>
+                    )
+                  })}
+                </>
+              )}
+            </m.div>
+          )}
+        </AnimatePresence>
+
         <AnimatePresence>
           {open && (
             <m.div
@@ -338,6 +567,21 @@ export function MoreControlsMenu({
               }}
               className="absolute right-0 bottom-full z-30 mb-2 flex origin-bottom-right items-center gap-1 rounded-full border border-white/15 bg-neutral-950/85 p-1 shadow-2xl backdrop-blur-xl pointer-coarse:gap-1.5"
             >
+              {/* 翻译语言二级菜单（与站点 UI 语言解耦；管理员额外可触发新语种或 AI 覆盖） */}
+              {showLangMenuButton && (
+                <IconButton
+                  icon={GlobeIcon}
+                  label={playerT('translation_language')}
+                  active={langMenuOpen || translationLang != null}
+                  onClick={() => {
+                    const next = !langMenuOpen
+                    setLangMenuOpen(next)
+                    if (next && currentTrack?.id && lyricSource)
+                      requestLyricTranslationLanguages(currentTrack.id, lyricSource, true)
+                  }}
+                />
+              )}
+
               {/* 复制整首歌词（含背景和声，按读音/翻译开关动态排版） */}
               <IconButton
                 icon={copied ? CheckIcon : CopyIcon}
@@ -390,7 +634,12 @@ export function MoreControlsMenu({
           title={playerT('more_options')}
           aria-haspopup="true"
           aria-expanded={open}
-          onClick={() => setOpen(prev => !prev)}
+          onClick={() => {
+            const next = !open
+            setOpen(next)
+            if (!next)
+              setLangMenuOpen(false)
+          }}
           className={cn(MUSIC_ICON_BUTTON_CLASSNAME, open && 'bg-white/15 text-white')}
         >
           <MoreHorizontalIcon aria-hidden className={cn('size-5 transition-transform duration-200', open && 'rotate-90')} />
@@ -413,12 +662,25 @@ export function MusicPageControls({ onOpenPlaylist, playlistSlot, compact = fals
 }) {
   const t = useTranslations('MusicPage')
   const playerT = useTranslations('MusicPlayer')
+  const { user } = useAuth()
+  const { siteInfo } = useSiteInfo()
+  const admin = user ? checkIsAdmin({ user }) : false
   const { isPlaying, pendingStep, playMode, currentTrack } = useMusicPlayback()
-  const { canToggleTranslation, lyricTranslationsGenerating, canToggleRomaji, lyricPronunciationsGenerating, lyrics } = useMusicLyrics()
+  const {
+    canToggleTranslation,
+    lyricTranslationsGenerating,
+    effectiveTranslationLang,
+    availableTranslationLangs,
+    canToggleRomaji,
+    lyricPronunciationsGenerating,
+    lyrics,
+  } = useMusicLyrics()
   const {
     showTranslation,
+    translationLang,
     showRomaji,
     setShowTranslation,
+    setTranslationLang,
     setShowRomaji,
     showLyricEffects,
     setShowLyricEffects,
@@ -480,6 +742,13 @@ export function MusicPageControls({ onOpenPlaylist, playlistSlot, compact = fals
             setShowLyricEffects={setShowLyricEffects}
             showRomaji={showRomaji}
             showTranslation={showTranslation}
+            setShowTranslation={setShowTranslation}
+            translationLang={translationLang}
+            effectiveTranslationLang={effectiveTranslationLang}
+            availableTranslationLangs={availableTranslationLangs}
+            setTranslationLang={setTranslationLang}
+            isAdmin={admin}
+            musicAiEnabled={Boolean(siteInfo.musicAiEnabled)}
             hdr={hdr}
             setHdr={setHdr}
             hdrDisplay={hdrDisplay}

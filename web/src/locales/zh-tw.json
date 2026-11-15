@@ -3653,7 +3653,16 @@
     "more_options": "更多控制",
     "copy_lyrics": "複製歌詞",
     "lyrics_copied": "已複製歌詞及譯文",
-    "no_lyrics_to_copy": "暫無可用歌詞"
+    "no_lyrics_to_copy": "暫無可用歌詞",
+    "translation_language": "翻譯語言",
+    "translation_lang_follow_site": "跟隨站點語言",
+    "translation_badge_ai": "AI",
+    "translation_badge_native": "內置",
+    "translation_ai_override": "AI 覆蓋",
+    "translation_regenerate": "重新生成 AI 翻譯",
+    "translation_untranslated_group": "生成新翻譯",
+    "translation_generate_started": "已開始生成 {lang} AI 翻譯",
+    "translation_generate_failed": "觸發翻譯任務失敗"
   },
   "RhythmDebug": {
     "open": "韻律除錯",

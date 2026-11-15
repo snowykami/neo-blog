@@ -1,6 +1,8 @@
 'use client'
 import type { MusicLyricsState } from './music-lyrics-engine-state'
+import type { MusicLyricTranslationLangStatus } from '@/api/music'
 import type { LyricCandidate, LyricSourceKind } from '@/lib/lyrics/resolve'
+import type { LyricTargetLang } from '@/lib/lyrics/target-lang'
 import type { LyricLine, ResolvedLyrics } from '@/lib/lyrics/types'
 import type { MusicTrack } from '@/models/music'
 import { useTranslations } from 'next-intl'
@@ -22,6 +24,7 @@ import {
   getVocalLyricLines,
   LYRIC_PLACEHOLDERS,
 } from '@/lib/lyrics/line-utils'
+import { normalizeLyricLangTag, SUPPORTED_LYRIC_TARGET_LANGS } from '@/lib/lyrics/target-lang'
 import { registerTelemetryContext } from '@/lib/telemetry/context'
 import { formatMusicCoverUrl } from '@/utils/common/image'
 import { EMPTY_MUSIC_LYRICS_STATE } from './music-lyrics-engine-state'
@@ -57,6 +60,7 @@ export interface MusicActionsValue {
   adjustVolume: (delta: number) => void
   toggleMuted: () => void
   setShowTranslation: (show: boolean) => void
+  setTranslationLang: (lang: LyricTargetLang | null) => void
   setShowRomaji: (show: boolean) => void
   setShowLyricEffects: (show: boolean) => void
   setShowLyricMoments: (show: boolean) => void
@@ -87,14 +91,16 @@ export interface MusicVolumeValue {
   toggleMuted: () => void
 }
 
-/** 界面显示偏好开关（翻译、音译、强调特效、热评时刻、HDR 高光） */
+/** 界面显示偏好开关（翻译、音译、强调特效、热评时刻、HDR 高光、手动覆盖翻译语言） */
 export interface MusicPreferencesValue {
   showTranslation: boolean
+  translationLang: LyricTargetLang | null
   showRomaji: boolean
   showLyricEffects: boolean
   showLyricMoments: boolean
   hdr: boolean
   setShowTranslation: (show: boolean) => void
+  setTranslationLang: (lang: LyricTargetLang | null) => void
   setShowRomaji: (show: boolean) => void
   setShowLyricEffects: (show: boolean) => void
   setShowLyricMoments: (show: boolean) => void
@@ -120,6 +126,8 @@ export interface MusicLyricsValue {
   canToggleTranslation: boolean
   lyricAiTranslated: boolean
   lyricTranslationsGenerating: boolean
+  effectiveTranslationLang: LyricTargetLang
+  availableTranslationLangs: MusicLyricTranslationLangStatus[]
   hasRomajiLyric: boolean
   canToggleRomaji: boolean
   lyricAiRomanized: boolean
@@ -203,6 +211,7 @@ export const MAX_MEDIA_SESSION_STORM_SKIPS = 5
 
 const STORAGE_KEY_PLAY_MODE = 'music-play-mode'
 const STORAGE_KEY_SHOW_TRANSLATION = 'music-show-translation'
+const STORAGE_KEY_TRANSLATION_LANG = 'music-translation-lang'
 const STORAGE_KEY_SHOW_ROMAJI = 'music-show-romaji'
 const STORAGE_KEY_SHOW_LYRIC_EFFECTS = 'music-show-lyric-effects'
 const STORAGE_KEY_SHOW_LYRIC_MOMENTS = 'music-show-lyric-moments'
@@ -458,6 +467,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isMuted, setIsMuted] = useState(false)
   // 翻译与音译默认都打开；读者切换后的选择保存在本地，以读者的选择为准
   const [showTranslation, setShowTranslationState] = useState(true)
+  const [translationLang, setTranslationLangState] = useState<LyricTargetLang | null>(null)
   const [translationRequested, setTranslationRequested] = useState(false)
   const [showRomaji, setShowRomajiState] = useState(true)
   const [romajiRequested, setRomajiRequested] = useState(false)
@@ -536,6 +546,14 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const storedHdr = readStoredBoolean(STORAGE_KEY_HDR)
       if (storedHdr != null)
         setHdrState(storedHdr)
+
+      const storedTranslationLangRaw = localStorage.getItem(STORAGE_KEY_TRANSLATION_LANG)
+      if (storedTranslationLangRaw != null) {
+        const parsedLang = JSON.parse(storedTranslationLangRaw)
+        const normalizedLang = typeof parsedLang === 'string' ? normalizeLyricLangTag(parsedLang) : null
+        if (normalizedLang && SUPPORTED_LYRIC_TARGET_LANGS.includes(normalizedLang as LyricTargetLang))
+          setTranslationLangState(normalizedLang as LyricTargetLang)
+      }
 
       const storedTranslation = readStoredBoolean(STORAGE_KEY_SHOW_TRANSLATION)
       const storedRomaji = readStoredBoolean(STORAGE_KEY_SHOW_ROMAJI)
@@ -984,6 +1002,8 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const lyricAiTranslated = lyricsState.aiTranslated
   const lyricTranslationsGenerating = lyricsState.translationsGenerating
   const lyricCanAiTranslate = lyricsState.canAiTranslate
+  const effectiveTranslationLang = lyricsState.effectiveTranslationLang
+  const availableTranslationLangs = lyricsState.availableTranslationLangs
   const lyricAiRomanized = lyricsState.aiRomanized
   const lyricPronunciationsGenerating = lyricsState.pronunciationsGenerating
   const lyricCanAiPronounce = lyricsState.canAiPronounce
@@ -1185,6 +1205,19 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     writeStored(STORAGE_KEY_SHOW_TRANSLATION, show)
   }, [])
 
+  const setTranslationLang = useCallback((lang: LyricTargetLang | null) => {
+    setTranslationLangState(lang)
+    if (lang != null)
+      setTranslationRequested(true)
+    try {
+      if (lang == null)
+        localStorage.removeItem(STORAGE_KEY_TRANSLATION_LANG)
+      else
+        localStorage.setItem(STORAGE_KEY_TRANSLATION_LANG, JSON.stringify(lang))
+    }
+    catch { }
+  }, [])
+
   const setShowLyricEffects = useCallback((show: boolean) => {
     setShowLyricEffectsState(show)
     writeStored(STORAGE_KEY_SHOW_LYRIC_EFFECTS, show)
@@ -1303,7 +1336,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [currentTrack, isPlaying, lyricCursor, lyricLines])
 
   const hasTranslationLyric = useMemo(() => lyrics.lines.some(line => line.translation), [lyrics])
-  const canToggleTranslation = hasTranslationLyric || lyricCanAiTranslate
+  const canToggleTranslation = hasTranslationLyric || lyricCanAiTranslate || availableTranslationLangs.some(item => item.hasAi || item.hasNative || item.generating)
   const hasRomajiLyric = useMemo(() => lyrics.lines.some(line => line.romanization), [lyrics])
   const canToggleRomaji = hasRomajiLyric || lyricCanAiPronounce
 
@@ -1327,6 +1360,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     adjustVolume,
     toggleMuted,
     setShowTranslation,
+    setTranslationLang,
     setShowRomaji,
     setShowLyricEffects,
     setShowLyricMoments,
@@ -1352,6 +1386,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     adjustVolume,
     toggleMuted,
     setShowTranslation,
+    setTranslationLang,
     setShowRomaji,
     setShowLyricEffects,
     setShowLyricMoments,
@@ -1393,22 +1428,26 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const preferencesValue = useMemo<MusicPreferencesValue>(() => ({
     showTranslation,
+    translationLang,
     showRomaji,
     showLyricEffects,
     showLyricMoments,
     hdr,
     setShowTranslation,
+    setTranslationLang,
     setShowRomaji,
     setShowLyricEffects,
     setShowLyricMoments,
     setHdr,
   }), [
     showTranslation,
+    translationLang,
     showRomaji,
     showLyricEffects,
     showLyricMoments,
     hdr,
     setShowTranslation,
+    setTranslationLang,
     setShowRomaji,
     setShowLyricEffects,
     setShowLyricMoments,
@@ -1432,6 +1471,8 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     canToggleTranslation,
     lyricAiTranslated,
     lyricTranslationsGenerating,
+    effectiveTranslationLang,
+    availableTranslationLangs,
     hasRomajiLyric,
     canToggleRomaji,
     lyricAiRomanized,
@@ -1453,6 +1494,8 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     canToggleTranslation,
     lyricAiTranslated,
     lyricTranslationsGenerating,
+    effectiveTranslationLang,
+    availableTranslationLangs,
     hasRomajiLyric,
     canToggleRomaji,
     lyricAiRomanized,
@@ -1483,6 +1526,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                       showLyricEffects={showLyricEffects}
                       showLyricMoments={showLyricMoments}
                       showTranslation={showTranslation}
+                      translationLang={translationLang}
                       translationRequested={translationRequested}
                       showRomaji={showRomaji}
                       romajiRequested={romajiRequested}

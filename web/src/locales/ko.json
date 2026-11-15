@@ -3653,7 +3653,16 @@
     "more_options": "더 보기",
     "copy_lyrics": "가사 복사",
     "lyrics_copied": "가사가 클립보드에 복사되었습니다",
-    "no_lyrics_to_copy": "복사할 가사가 없습니다"
+    "no_lyrics_to_copy": "복사할 가사가 없습니다",
+    "translation_language": "번역 언어",
+    "translation_lang_follow_site": "사이트 언어 따르기",
+    "translation_badge_ai": "AI",
+    "translation_badge_native": "기본",
+    "translation_ai_override": "AI 덮어쓰기",
+    "translation_regenerate": "AI 번역 다시 생성",
+    "translation_untranslated_group": "새 번역 생성",
+    "translation_generate_started": "{lang} AI 번역을 시작했습니다",
+    "translation_generate_failed": "번역 작업을 시작하지 못했습니다"
   },
   "RhythmDebug": {
     "open": "리듬 디버거",

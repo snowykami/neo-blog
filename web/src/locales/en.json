@@ -3653,7 +3653,16 @@
     "more_options": "More options",
     "copy_lyrics": "Copy lyrics",
     "lyrics_copied": "Lyrics copied to clipboard",
-    "no_lyrics_to_copy": "No lyrics available"
+    "no_lyrics_to_copy": "No lyrics available",
+    "translation_language": "Translation language",
+    "translation_lang_follow_site": "Follow site language",
+    "translation_badge_ai": "AI",
+    "translation_badge_native": "Built-in",
+    "translation_ai_override": "AI override",
+    "translation_regenerate": "Regenerate AI translation",
+    "translation_untranslated_group": "Generate translation",
+    "translation_generate_started": "Started generating {lang} translation",
+    "translation_generate_failed": "Failed to start translation task"
   },
   "RhythmDebug": {
     "open": "Rhythm debugger",

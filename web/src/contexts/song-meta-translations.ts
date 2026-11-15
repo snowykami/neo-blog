@@ -167,13 +167,20 @@ export function useSongMetaTranslation(id: number | null, lang: LyricTargetLang)
   )
 }
 
-/** 只读订阅当前界面语言下已缓存的歌曲标题与歌手译名，绝不主动发起请求 */
-export function useCachedSongMetaTranslation(id: number | null): MusicSongTranslationMeta | null {
+/** 只读订阅指定目标语言（优先）或当前界面语言下已缓存的歌曲标题与歌手译名，绝不主动发起请求 */
+export function useCachedSongMetaTranslation(
+  id: number | null,
+  langOverride?: LyricTargetLang,
+): MusicSongTranslationMeta | null {
   const locale = useLocale()
-  const lang = toLyricTargetLang(locale)
+  const localeLang = toLyricTargetLang(locale)
   return useSyncExternalStore(
     subscribe,
-    () => getEntry(id, lang).data,
+    () => {
+      if (langOverride && langOverride !== localeLang)
+        return getEntry(id, langOverride).data ?? getEntry(id, localeLang).data
+      return getEntry(id, localeLang).data
+    },
     () => null,
   )
 }

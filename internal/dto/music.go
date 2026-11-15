@@ -434,6 +434,28 @@ type MusicLyricTranslationsDto struct {
 	Lines        []MusicLyricTranslationLine `json:"lines"`
 }
 
+// MusicLyricTranslationLanguagesReq 查询指定歌曲和词源当前可用的歌词翻译语言状态
+type MusicLyricTranslationLanguagesReq struct {
+	Source string `query:"source"`
+}
+
+// MusicLyricTranslationLangStatusDto 单种目标语言的歌词翻译可用状态
+type MusicLyricTranslationLangStatusDto struct {
+	Lang         string `json:"lang"`
+	HasAI        bool   `json:"has_ai"`
+	HasNative    bool   `json:"has_native"`
+	Generating   bool   `json:"generating"`
+	SameLanguage bool   `json:"same_language"`
+}
+
+// MusicLyricTranslationLanguagesDto 歌曲所有支持目标语言的翻译可用状态列表
+type MusicLyricTranslationLanguagesDto struct {
+	Status    string                               `json:"status"`
+	Source    string                               `json:"source,omitempty"`
+	OrigLang  string                               `json:"orig_lang,omitempty"`
+	Languages []MusicLyricTranslationLangStatusDto `json:"languages"`
+}
+
 // MusicSongTranslationReq 获取一首歌歌名与歌手名的 AI 翻译
 type MusicSongTranslationReq struct {
 	Lang string `query:"lang"`

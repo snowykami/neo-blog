@@ -150,15 +150,6 @@ func (s *MusicService) GetLyricTranslations(ctx context.Context, id int64, sourc
 	if svcerr != nil {
 		return nil, svcerr
 	}
-	if input.NativeTarget {
-		return &dto.MusicLyricTranslationsDto{
-			Status:     lyricTranslationStatusReady,
-			Source:     input.Source,
-			TargetLang: targetLang,
-			Native:     true,
-			Lines:      []dto.MusicLyricTranslationLine{},
-		}, nil
-	}
 	if input.SameLanguage {
 		return &dto.MusicLyricTranslationsDto{
 			Status:       lyricTranslationStatusReady,
@@ -166,6 +157,15 @@ func (s *MusicService) GetLyricTranslations(ctx context.Context, id int64, sourc
 			TargetLang:   targetLang,
 			SameLanguage: true,
 			Lines:        []dto.MusicLyricTranslationLine{},
+		}, nil
+	}
+	if input.NativeTarget && !lyricTranslations.hasOverrideOrRunning(input) {
+		return &dto.MusicLyricTranslationsDto{
+			Status:     lyricTranslationStatusReady,
+			Source:     input.Source,
+			TargetLang: targetLang,
+			Native:     true,
+			Lines:      []dto.MusicLyricTranslationLine{},
 		}, nil
 	}
 	return lyricTranslations.getOrStart(input)
@@ -189,16 +189,6 @@ func (s *MusicService) StreamLyricTranslations(
 	if svcerr != nil {
 		return svcerr
 	}
-	if input.NativeTarget {
-		onReady()
-		_ = send("done", musicLyricTranslationStreamDone{
-			Status:     lyricTranslationStatusReady,
-			Source:     input.Source,
-			TargetLang: targetLang,
-			Native:     true,
-		})
-		return nil
-	}
 	if input.SameLanguage {
 		onReady()
 		_ = send("done", musicLyricTranslationStreamDone{
@@ -209,10 +199,20 @@ func (s *MusicService) StreamLyricTranslations(
 		})
 		return nil
 	}
+	if input.NativeTarget && !lyricTranslations.hasOverrideOrRunning(input) {
+		onReady()
+		_ = send("done", musicLyricTranslationStreamDone{
+			Status:     lyricTranslationStatusReady,
+			Source:     input.Source,
+			TargetLang: targetLang,
+			Native:     true,
+		})
+		return nil
+	}
 	return lyricTranslations.streamWithReplay(ctx, input, onReady, send)
 }
 
-// RefreshLyricTranslations 管理员手动触发重新翻译一首歌指定来源与目标语言的歌词（忽略冷却与已有缓存），返回 pending
+// RefreshLyricTranslations 管理员手动触发重新翻译一首歌指定来源与目标语言的歌词（忽略冷却与已有缓存，支持覆盖内置翻译），返回 pending
 func (s *MusicService) RefreshLyricTranslations(ctx context.Context, id int64, source, lang string) (*dto.MusicLyricTranslationsDto, *errs.ServiceError) {
 	targetLang, track, svcerr := s.prepareTranslationAccess(ctx, id, source, lang)
 	if svcerr != nil {
@@ -228,15 +228,6 @@ func (s *MusicService) RefreshLyricTranslations(ctx context.Context, id int64, s
 	}
 	if svcerr != nil {
 		return nil, svcerr
-	}
-	if input.NativeTarget {
-		return &dto.MusicLyricTranslationsDto{
-			Status:     lyricTranslationStatusReady,
-			Source:     input.Source,
-			TargetLang: targetLang,
-			Native:     true,
-			Lines:      []dto.MusicLyricTranslationLine{},
-		}, nil
 	}
 	if input.SameLanguage {
 		return &dto.MusicLyricTranslationsDto{
@@ -255,6 +246,62 @@ func (s *MusicService) RefreshLyricTranslations(ctx context.Context, id int64, s
 		return nil, svcerr
 	}
 	return lyricTranslations.refresh(input, cfg), nil
+}
+
+// GetLyricTranslationLanguages 查询指定歌曲和词源下各支持目标语言的翻译可用状态（只读查询与运行状态检查，绝不触发 AI 生成）
+func (s *MusicService) GetLyricTranslationLanguages(ctx context.Context, id int64, source string) (*dto.MusicLyricTranslationLanguagesDto, *errs.ServiceError) {
+	if id <= 0 || (source != "" && !lyricSettingSources[source]) {
+		return nil, errs.NewBadRequest("invalid_request_parameters")
+	}
+	track := s.annotatableTrack(ctx, id)
+	if track == nil {
+		return nil, errs.NewNotFound("song_not_found")
+	}
+	resolvedSource, extracted, snapshot, svcerr := s.extractTranslationSourceLines(withLyricVersionWait(ctx, lyricVersionPollWait), track, source)
+	if svcerr == errLyricVersionPending {
+		return &dto.MusicLyricTranslationLanguagesDto{
+			Status:    lyricTranslationStatusPending,
+			Languages: []dto.MusicLyricTranslationLangStatusDto{},
+		}, nil
+	}
+	if svcerr != nil {
+		return nil, svcerr
+	}
+
+	var records []model.LyricTranslation
+	if err := repo.GetDB().Where("song_id = ? AND source = ?", track.ID, resolvedSource).Find(&records).Error; err != nil {
+		return nil, errs.Internal("failed_to_get_target", err)
+	}
+	existingAI := make(map[string]bool, len(records))
+	for _, rec := range records {
+		if len(parseLyricTranslationData(rec.Data).Lines) > 0 {
+			existingAI[rec.TargetLang+"|"+rec.LyricHash] = true
+		}
+	}
+
+	orderedLangs := []string{"zh", "zh-tw", "zh-hk", "en", "ja", "ko"}
+	statuses := make([]dto.MusicLyricTranslationLangStatusDto, 0, len(orderedLangs))
+	origLang := ""
+	for _, lang := range orderedLangs {
+		inp := s.buildTranslationInputFromExtracted(ctx, track, resolvedSource, extracted, snapshot, lang)
+		if origLang == "" {
+			origLang = inp.OrigLang
+		}
+		running, _ := lyricTranslations.jobState(translationStateKey(inp))
+		statuses = append(statuses, dto.MusicLyricTranslationLangStatusDto{
+			Lang:         lang,
+			HasAI:        existingAI[lang+"|"+inp.LyricHash],
+			HasNative:    inp.NativeTarget,
+			Generating:   running,
+			SameLanguage: inp.SameLanguage,
+		})
+	}
+	return &dto.MusicLyricTranslationLanguagesDto{
+		Status:    lyricTranslationStatusReady,
+		Source:    resolvedSource,
+		OrigLang:  origLang,
+		Languages: statuses,
+	}, nil
 }
 
 func (s *MusicService) prepareTranslationAccess(ctx context.Context, id int64, source, lang string) (string, *dto.MusicTrackDto, *errs.ServiceError) {
@@ -287,6 +334,21 @@ func (a *lyricTranslationService) hub() *lyricStreamHub[dto.MusicLyricTranslatio
 		a.hubVal = newLyricStreamHub[dto.MusicLyricTranslationLine, musicLyricTranslationStreamDone](a.prefix())
 	})
 	return a.hubVal
+}
+
+func (a *lyricTranslationService) hasOverrideOrRunning(input *lyricTranslationInput) bool {
+	if input == nil {
+		return false
+	}
+	if running, _ := a.jobState(translationStateKey(input)); running {
+		return true
+	}
+	var record model.LyricTranslation
+	err := repo.GetDB().Where(
+		"song_id = ? AND source = ? AND lyric_hash = ? AND target_lang = ?",
+		input.Track.ID, input.Source, input.LyricHash, input.TargetLang,
+	).First(&record).Error
+	return err == nil && len(parseLyricTranslationData(record.Data).Lines) > 0
 }
 
 func (a *lyricTranslationService) ensureProducer(key string, input *lyricTranslationInput) (
@@ -322,15 +384,25 @@ func (a *lyricTranslationService) ensureProducer(key string, input *lyricTransla
 		return lines, meta, true, nil
 	}
 
-	cfg := tools.GetAIConfig()
-	if !cfg.Configured() {
-		return nil, nil, false, errs.NewNotFound("lyric_translations_unavailable")
-	}
 	if running {
 		return nil, nil, false, nil
 	}
 	if coolingDown {
 		return nil, nil, false, errs.NewNotFound("lyric_translations_failed")
+	}
+	// 内置已有目标语言译文且当前既无 DB AI 覆盖也没有后台任务在跑时，绝不通过 SSE 自动启动 AI 生成
+	if input.NativeTarget {
+		meta := &musicLyricTranslationStreamDone{
+			Status:     lyricTranslationStatusReady,
+			Source:     input.Source,
+			TargetLang: input.TargetLang,
+			Native:     true,
+		}
+		return nil, meta, true, nil
+	}
+	cfg := tools.GetAIConfig()
+	if !cfg.Configured() {
+		return nil, nil, false, errs.NewNotFound("lyric_translations_unavailable")
 	}
 	if svcerr := checkSiteAIBudget(time.Now()); svcerr != nil {
 		return nil, nil, false, svcerr
@@ -425,11 +497,6 @@ func (a *lyricTranslationService) getOrStart(input *lyricTranslationInput) (*dto
 		}, nil
 	}
 
-	cfg := tools.GetAIConfig()
-	if !cfg.Configured() {
-		return nil, errs.NewNotFound("lyric_translations_unavailable")
-	}
-
 	if running {
 		var lines []dto.MusicLyricTranslationLine
 		if snap := a.hub().loadSnapshot(key); snap != nil {
@@ -447,6 +514,20 @@ func (a *lyricTranslationService) getOrStart(input *lyricTranslationInput) (*dto
 	}
 	if coolingDown {
 		return nil, errs.NewNotFound("lyric_translations_failed")
+	}
+	// 并发竞态兜底：已有内置目标语言译文时，非管理员 refresh 路径不主动启动 AI 生成
+	if input.NativeTarget {
+		return &dto.MusicLyricTranslationsDto{
+			Status:     lyricTranslationStatusReady,
+			Source:     input.Source,
+			TargetLang: input.TargetLang,
+			Native:     true,
+			Lines:      []dto.MusicLyricTranslationLine{},
+		}, nil
+	}
+	cfg := tools.GetAIConfig()
+	if !cfg.Configured() {
+		return nil, errs.NewNotFound("lyric_translations_unavailable")
 	}
 	if svcerr := checkSiteAIBudget(time.Now()); svcerr != nil {
 		return nil, svcerr
@@ -916,6 +997,7 @@ func buildLyricTranslationSystemPromptWithBlueprint(targetLang string, classical
 	b.WriteString("5. Cross-line Clause Linking (串句合译与自然断句): Lyrics often split one connected sentence across adjacent lines (e.g., \"春风吹不倒\" + \"我的杨柳腰\" forms \"春风吹不倒我的杨柳腰\"). Because you see all lines of the entire song together, when consecutive lines (including background vocals and neighboring verses) form one connected clause or modifier phrase, translate the combined thought naturally in targetLang grammar first, then split it cleanly across the exact item indices i at natural phrasing pauses so adjacent lines flow smoothly together. Do NOT cram two lines into one index while leaving the companion line \"\".\n")
 	b.WriteString("6. Reference Translations (\"ref\"), Constructed Languages & Target-Script Integrity:\n")
 	b.WriteString("   - You may receive both \"orig\" (original lyrics) and \"ref\" (an upstream/sibling reference translation, e.g. Simplified Chinese, English, or multi-language \"[lang] ...\"). Use BOTH together to grasp idioms, wordplay, implied subjects, and emotion accurately.\n")
+	b.WriteString("   - OVERRIDING AN UPSTREAM TARGET-LANGUAGE TRANSLATION: When \"orig\" is written in a foreign language (not targetLang) while \"ref\" is ALREADY in targetLang (for example, overriding a mediocre built-in platform translation with a higher-quality AI translation), use \"ref\" only as an auxiliary semantic reference and produce a fresh, faithful, literary targetLang translation of \"orig\" guided by the Director's Blueprint. NEVER output \"\" merely because \"ref\" is already in targetLang (return \"\" ONLY when \"orig\" itself is already sung in targetLang), and NEVER blindly copy mechanical/literal errors from \"ref\".\n")
 	b.WriteString("   - CONSTRUCTED / FICTIONAL / OBSCURE LANGUAGES: When \"orig\" appears to be a self-invented/constructed language (e.g., *LaVI-Bavellabion* or fantasy lyrics) or an unfamiliar non-standard language AND a meaningful \"ref\" is provided, you MUST use \"ref\" and surrounding song lines as the primary semantic basis and translate it naturally into targetLang. NEVER mistake constructed-language lines with \"ref\" for empty non-lexical scat! If \"ref\" is already in targetLang borrowed from a sibling source, refine it smoothly for this line split instead of returning \"\"; if \"ref\" is in another language, translate it rather than copying \"ref\" verbatim.\n")
 	if targetLang == "ja" || targetLang == "ko" || targetLang == "en" {
 		b.WriteString(fmt.Sprintf("   - CRITICAL TARGET-LANGUAGE RULE: When target_lang is %s (%s), NEVER copy or echo Chinese sentences from \"ref\" or Chinese \"orig\" into your output! You MUST translate Chinese/foreign lines naturally into %s using authentic target-language script and grammar", targetLang, targetDesc, targetDesc))
@@ -999,18 +1081,18 @@ func buildLyricTranslationUserPrompt(input *lyricTranslationInput, tasks []lyric
 	return string(raw)
 }
 
-// extractTranslationInput 提取指定歌曲和词源的行数据，检测原文与内置/借用译文语言，并构建任务
-func (s *MusicService) extractTranslationInput(ctx context.Context, track *dto.MusicTrackDto, requestedSource, targetLang string) (*lyricTranslationInput, *errs.ServiceError) {
+// extractTranslationSourceLines 提取并裁剪指定歌曲和词源的稳定原文行列表（供单语言生成与多语言状态查询共享同一份基线）
+func (s *MusicService) extractTranslationSourceLines(ctx context.Context, track *dto.MusicTrackDto, requestedSource string) (string, []lyricTranslationExtracted, *dto.MusicLyricCacheDto, *errs.ServiceError) {
 	snapshot, _ := loadLyricVersionSnapshot(ctx, track.ID)
 
 	resolvedSource := requestedSource
 	if resolvedSource == "" {
 		version, svcerr := s.siteLyricVersion(ctx, track.ID)
 		if svcerr != nil {
-			return nil, svcerr
+			return "", nil, nil, svcerr
 		}
 		if version == nil || version.Lines == nil || len(version.Lines.Timed) == 0 {
-			return nil, errs.NewNotFound("lyric_not_found")
+			return "", nil, nil, errs.NewNotFound("lyric_not_found")
 		}
 		resolvedSource = version.Lines.Source
 		// 刚决策出全站版本尚未落库时，确保 snapshot 中带有所选来源的数据
@@ -1021,10 +1103,10 @@ func (s *MusicService) extractTranslationInput(ctx context.Context, track *dto.M
 
 	extracted, svcerr := s.extractSourceLines(ctx, track.ID, resolvedSource, snapshot)
 	if svcerr != nil {
-		return nil, svcerr
+		return "", nil, nil, svcerr
 	}
 	if len(extracted) == 0 {
-		return nil, errs.NewNotFound("lyric_not_found")
+		return "", nil, nil, errs.NewNotFound("lyric_not_found")
 	}
 
 	// 平台歌词与前端 stripCredits 一致，裁剪首尾署名行；TTML 不去署名行
@@ -1040,12 +1122,26 @@ func (s *MusicService) extractTranslationInput(ctx context.Context, track *dto.M
 		extracted = extracted[:lyricTranslationMaxLines]
 	}
 	if len(extracted) == 0 {
-		return nil, errs.NewNotFound("lyric_not_found")
+		return "", nil, nil, errs.NewNotFound("lyric_not_found")
 	}
+	return resolvedSource, extracted, snapshot, nil
+}
 
-	// 检测内置翻译语言，若当前词源无可用翻译，从同曲其他已缓存来源（NCM / QQ / Kugou / TTML）借用参考译文
+// buildTranslationInputFromExtracted 基于稳定原文行构建目标语言任务与内容哈希（保证自带译文与 AI 覆盖共享同一 lyric_hash）
+func (s *MusicService) buildTranslationInputFromExtracted(
+	ctx context.Context,
+	track *dto.MusicTrackDto,
+	resolvedSource string,
+	extracted []lyricTranslationExtracted,
+	snapshot *dto.MusicLyricCacheDto,
+	targetLang string,
+) *lyricTranslationInput {
+	// 检测内置翻译语言：当目标语言已有内置翻译时（nativeTarget=true），仍取出其译文作为 AI 覆盖时的参考基准与哈希输入，确保全链路哈希一致
 	nativeTarget, refLang, refTexts := resolveTranslationReferences(extracted, targetLang)
-	if !nativeTarget && refLang == "" {
+	if nativeTarget {
+		_, refLang, refTexts = resolveTranslationReferencesWithOptions(extracted, targetLang, true)
+	}
+	if refLang == "" {
 		refLang, refTexts = s.borrowReferenceTranslations(ctx, track.ID, resolvedSource, targetLang, extracted, snapshot)
 	}
 
@@ -1086,7 +1182,7 @@ func (s *MusicService) extractTranslationInput(ctx context.Context, track *dto.M
 	}
 
 	origLang := detectLyricTextLang(vocalTexts, "")
-	sameLanguage := !nativeTarget && songAlreadyInTargetLang(vocalTexts, targetLang)
+	sameLanguage := songAlreadyInTargetLang(vocalTexts, targetLang)
 	classicalMode := (targetLang == "zh" || targetLang == "zh-tw" || targetLang == "zh-hk") && !sameLanguage && songHasClassicalChinese(vocalTexts)
 
 	return &lyricTranslationInput{
@@ -1100,7 +1196,16 @@ func (s *MusicService) extractTranslationInput(ctx context.Context, track *dto.M
 		SameLanguage:  sameLanguage,
 		ClassicalMode: classicalMode,
 		Tasks:         tasks,
-	}, nil
+	}
+}
+
+// extractTranslationInput 提取指定歌曲和词源的行数据，检测原文与内置/借用译文语言，并构建任务
+func (s *MusicService) extractTranslationInput(ctx context.Context, track *dto.MusicTrackDto, requestedSource, targetLang string) (*lyricTranslationInput, *errs.ServiceError) {
+	resolvedSource, extracted, snapshot, svcerr := s.extractTranslationSourceLines(ctx, track, requestedSource)
+	if svcerr != nil {
+		return nil, svcerr
+	}
+	return s.buildTranslationInputFromExtracted(ctx, track, resolvedSource, extracted, snapshot, targetLang), nil
 }
 
 func computeLyricTranslationHash(source string, extracted []lyricTranslationExtracted, refLang string, refTexts []string, classicalMode bool, tasks []lyricTranslationLineTask) string {

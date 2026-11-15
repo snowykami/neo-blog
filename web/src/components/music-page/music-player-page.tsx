@@ -11,7 +11,7 @@ import { VisitReporter } from '@/components/common/visit-reporter'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/contexts/auth-context'
-import { useMusicActions, useMusicPlayback, useMusicPreferences } from '@/contexts/music-context'
+import { useMusicActions, useMusicLyrics, useMusicPlayback, useMusicPreferences } from '@/contexts/music-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { useCachedSongMetaTranslation } from '@/contexts/song-meta-translations'
 import { useRouter } from '@/i18n/navigation'
@@ -45,7 +45,8 @@ function TrackHero({ track, playing, onCoverClick, className }: { track: MusicTr
   const t = useTranslations('MusicPage')
   const { user } = useAuth()
   const { showTranslation } = useMusicPreferences()
-  const meta = useCachedSongMetaTranslation(track.id)
+  const { effectiveTranslationLang } = useMusicLyrics()
+  const meta = useCachedSongMetaTranslation(track.id, effectiveTranslationLang)
   const titleExtra = formatTitleAliases(track.name, track.aliases, meta?.title, showTranslation, meta?.aliases)
   const displayArtists = formatDisplayArtists(track.artists, meta?.artists, showTranslation)
   // 歌词来源、重新生成 AI 歌词特效与整体偏移都是站长的工具：读者只看全站版本，不显示这些按钮

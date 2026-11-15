@@ -1,10 +1,16 @@
 'use client'
 
-import type { MusicLyricTranslationLine, MusicLyricTranslations } from '@/api/music'
+import type {
+  MusicLyricTranslationLangStatus,
+  MusicLyricTranslationLanguages,
+  MusicLyricTranslationLine,
+  MusicLyricTranslations,
+} from '@/api/music'
 import type { LyricSource } from '@/lib/lyrics/types'
 import { isAxiosError } from 'axios'
 import { useEffect, useSyncExternalStore } from 'react'
 import {
+  fetchLyricTranslationLanguages,
   fetchLyricTranslations,
   refreshLyricTranslations,
   streamLyricTranslations,
@@ -33,6 +39,9 @@ const inFlightStreams = new Map<string, AbortController>()
 const failedAt = new Map<string, number>()
 const activeRefs = new Map<string, number>()
 const abortTimers = new Map<string, ReturnType<typeof setTimeout>>()
+const languagesCache = new Map<string, MusicLyricTranslationLanguages | null>()
+const inFlightLangRequests = new Set<string>()
+const langFailedAt = new Map<string, number>()
 const listeners = new Set<() => void>()
 
 function cacheKey(id: number, source: string, lang: string): string {
@@ -45,6 +54,12 @@ function validKey(id: number | null, source: string | null | undefined, lang: st
   return cacheKey(id, source, lang)
 }
 
+function validSourceKey(id: number | null, source: string | null | undefined): string | null {
+  if (id == null || !Number.isFinite(id) || id <= 0 || !source || source === 'none')
+    return null
+  return `${id}:${source}`
+}
+
 function emit() {
   for (const listener of listeners) listener()
 }
@@ -55,6 +70,44 @@ function setEntry(key: string, next: CacheEntry) {
     return
   cache.set(key, next)
   emit()
+}
+
+function setLanguagesEntry(key: string, next: MusicLyricTranslationLanguages | null) {
+  const prev = languagesCache.get(key)
+  if (prev === next)
+    return
+  languagesCache.set(key, next)
+  emit()
+}
+
+function updateLanguageStatusEntry(
+  id: number,
+  source: string,
+  lang: string,
+  patch: Partial<MusicLyricTranslationLangStatus>,
+) {
+  const key = validSourceKey(id, source)
+  if (!key)
+    return
+  const current = languagesCache.get(key)
+  if (!current)
+    return
+  const idx = current.languages.findIndex(item => item.lang === lang)
+  if (idx < 0)
+    return
+  const prevItem = current.languages[idx]
+  const nextItem: MusicLyricTranslationLangStatus = { ...prevItem, ...patch }
+  if (
+    prevItem.hasAi === nextItem.hasAi
+    && prevItem.hasNative === nextItem.hasNative
+    && prevItem.generating === nextItem.generating
+    && prevItem.sameLanguage === nextItem.sameLanguage
+  ) {
+    return
+  }
+  const nextLanguages = [...current.languages]
+  nextLanguages[idx] = nextItem
+  setLanguagesEntry(key, { ...current, languages: nextLanguages })
 }
 
 function toSiteTranslations(res: MusicLyricTranslations, fallbackSource?: string, fallbackLang?: string): SiteLyricTranslations {
@@ -140,20 +193,30 @@ async function openTranslationStream(
             streamedLines = upsertTranslationLine(streamedLines, event.line)
             emitProgress()
             break
-          case 'done':
+          case 'done': {
             doneReceived = true
             failedAt.delete(key)
+            const doneSource = event.meta.source || resolvedSource
+            const doneLang = event.meta.targetLang || resolvedLang
+            const hasAiResult = !event.meta.native && !event.meta.sameLanguage && streamedLines.length > 0
             setEntry(key, {
               data: {
-                source: event.meta.source || resolvedSource,
-                targetLang: event.meta.targetLang || resolvedLang,
+                source: doneSource,
+                targetLang: doneLang,
                 native: event.meta.native,
                 sameLanguage: event.meta.sameLanguage,
                 lines: streamedLines.length > 0 ? [...streamedLines] : (event.meta.sameLanguage || event.meta.native ? [] : staleBase),
               },
               generating: false,
             })
+            updateLanguageStatusEntry(id, doneSource, doneLang, {
+              generating: false,
+              ...(hasAiResult ? { hasAi: true } : {}),
+            })
+            if (hasAiResult && doneSource)
+              void loadTranslationLanguages(id, doneSource, true)
             break
+          }
           case 'error':
             gotError = true
             break
@@ -167,6 +230,7 @@ async function openTranslationStream(
       failedAt.set(key, Date.now())
       const prev = cache.get(key)
       setEntry(key, { data: prev?.data ?? null, generating: false })
+      updateLanguageStatusEntry(id, resolvedSource || source, resolvedLang, { generating: false })
     }
   }
   finally {
@@ -201,23 +265,70 @@ async function loadTranslations(id: number, source: string, lang: string, force 
     const prev = cache.get(key)
     const acceptPartial = res.status === 'pending' && Boolean(res.lines?.length) && !prev?.data?.lines.length
     const hasUsableData = res.status === 'ready' || acceptPartial
+    const finalSource = res.source || source
+    const finalLang = res.targetLang || lang
     setEntry(key, {
       data: hasUsableData ? toSiteTranslations(res, source, lang) : (prev?.data ?? null),
       generating: needsStream,
     })
-    if (needsStream)
+    if (needsStream) {
+      updateLanguageStatusEntry(id, finalSource, finalLang, { generating: true })
       void openTranslationStream(id, source, lang, res)
-    else
+    }
+    else {
       failedAt.delete(key)
+      if (res.status === 'ready' && !res.native && !res.sameLanguage && Boolean(res.lines?.length))
+        updateLanguageStatusEntry(id, finalSource, finalLang, { generating: false, hasAi: true })
+    }
   }
   catch {
     failedAt.set(key, Date.now())
     const prev = cache.get(key)
     setEntry(key, { data: prev?.data ?? null, generating: false })
+    updateLanguageStatusEntry(id, source, lang, { generating: false })
   }
   finally {
     inFlightRequests.delete(key)
   }
+}
+
+async function loadTranslationLanguages(id: number, source: string, force = false): Promise<void> {
+  if (typeof fetchLyricTranslationLanguages !== 'function')
+    return
+  const key = validSourceKey(id, source)
+  if (!key || inFlightLangRequests.has(key))
+    return
+  if (!force) {
+    const failed = langFailedAt.get(key)
+    if (failed != null && Date.now() - failed < FAILURE_RETRY_MS)
+      return
+    const existing = languagesCache.get(key)
+    if (existing && existing.status === 'ready')
+      return
+  }
+
+  inFlightLangRequests.add(key)
+  try {
+    const res = await fetchLyricTranslationLanguages(id, source)
+    langFailedAt.delete(key)
+    setLanguagesEntry(key, res)
+  }
+  catch {
+    langFailedAt.set(key, Date.now())
+  }
+  finally {
+    inFlightLangRequests.delete(key)
+  }
+}
+
+export function requestLyricTranslationLanguages(
+  id: number | null,
+  source: string | null | undefined,
+  force = false,
+) {
+  if (!validSourceKey(id, source))
+    return
+  void loadTranslationLanguages(id!, source!, force)
 }
 
 export function requestLyricTranslations(id: number | null, source: string | null | undefined, lang: string) {
@@ -234,21 +345,36 @@ export async function refreshTranslations(id: number, source: string, lang: stri
   failedAt.delete(key)
   inFlightStreams.get(key)?.abort()
   inFlightStreams.delete(key)
+  updateLanguageStatusEntry(id, source, lang, { generating: true })
   try {
     const res = await refreshLyricTranslations(id, source, lang)
     const needsStream = res.status === 'pending' || Boolean(res.stale)
     const prev = cache.get(key)
     const acceptPartial = res.status === 'pending' && Boolean(res.lines?.length) && !prev?.data?.lines.length
     const hasUsableData = res.status === 'ready' || acceptPartial
+    const finalSource = res.source || source
+    const finalLang = res.targetLang || lang
     setEntry(key, {
       data: hasUsableData ? toSiteTranslations(res, source, lang) : (prev?.data ?? null),
       generating: needsStream,
     })
-    if (needsStream)
+    if (needsStream) {
+      updateLanguageStatusEntry(id, finalSource, finalLang, { generating: true })
       void openTranslationStream(id, source, lang, res)
+    }
+    else {
+      const hasAiResult = res.status === 'ready' && !res.native && !res.sameLanguage && Boolean(res.lines?.length)
+      updateLanguageStatusEntry(id, finalSource, finalLang, {
+        generating: false,
+        ...(hasAiResult ? { hasAi: true } : {}),
+      })
+      if (hasAiResult && finalSource)
+        void loadTranslationLanguages(id, finalSource, true)
+    }
     return 'started'
   }
   catch (error) {
+    updateLanguageStatusEntry(id, source, lang, { generating: false })
     const status = isAxiosError(error) ? error.response?.status : undefined
     if (status === 404 || status === 400) {
       const prev = cache.get(key)
@@ -326,6 +452,20 @@ export function useLyricTranslationsGenerating(
   )
 }
 
+export function useLyricTranslationLanguages(
+  id: number | null,
+  source: string | null | undefined,
+): MusicLyricTranslationLanguages | null {
+  return useSyncExternalStore(
+    subscribe,
+    () => {
+      const key = validSourceKey(id, source)
+      return key ? (languagesCache.get(key) ?? null) : null
+    },
+    () => null,
+  )
+}
+
 /** 测试辅助：重置模块内缓存与进行中流 */
 export function resetLyricTranslationsStoreForTest() {
   for (const timer of abortTimers.values())
@@ -335,7 +475,10 @@ export function resetLyricTranslationsStoreForTest() {
     controller.abort()
   inFlightStreams.clear()
   inFlightRequests.clear()
+  inFlightLangRequests.clear()
   failedAt.clear()
+  langFailedAt.clear()
   activeRefs.clear()
   cache.clear()
+  languagesCache.clear()
 }
