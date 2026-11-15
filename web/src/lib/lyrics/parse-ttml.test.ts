@@ -298,6 +298,10 @@ describe('解析 TTML 歌词', () => {
   </p>
   <p begin="00:13.000" end="00:15.000" ttm:agent="v1000_2" ttd:agents="v1"><span begin="00:13.000" end="00:15.000">独唱居中念白</span></p>
   <p begin="00:16.000" end="00:18.000" ttm:agent="v2_2" ttd:agents=""><span begin="00:16.000" end="00:18.000">未分配歌手但居右</span></p>
+  <p begin="00:19.000" end="00:22.000" ttm:agent="v1_2" ttd:agents="v1">
+    <span begin="00:19.000" end="00:20.500">主唱伴奏</span>
+    <span ttm:role="x-bg" ttd:agents=""><span begin="00:20.500" end="00:22.000">(显式空串和声不继承)</span></span>
+  </p>
 </div></body></tt>`
     const parsed = parseTtml(pipaxingTtml, 'ttml-custom')!
     expect(parsed.agents?.g1).toMatchObject({
@@ -318,6 +322,8 @@ describe('解析 TTML 歌词', () => {
       ['v2', 'right', true, true],
       ['v1', 'center', false, false],
       [undefined, 'right', true, false],
+      ['v1', 'left', false, false],
+      [undefined, 'left', false, true],
     ])
   })
 

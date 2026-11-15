@@ -363,7 +363,7 @@ describe('振假名渲染与 HDR 跨行平滑退场', () => {
     ctx.cleanup()
   })
 
-  it('多演唱者 Scheme A：有名切换与段落首行显示胶囊，无名两人不占位、三人仅圆点，群组用合唱文案且支持聚光灯让路', () => {
+  it('多演唱者（对齐 StarryPlayer）：待唱起手预标、演唱中胶囊逐行跟随当前行、全左置实心竖条及聚光灯让路', () => {
     const namedMulti: ResolvedLyrics = {
       source: 'ttml-amll',
       wordTimed: true,
@@ -375,7 +375,7 @@ describe('振假名渲染与 HDR 跨行平滑退场', () => {
         v1000: { id: 'v1000', color: 'lavender', isGroup: true },
       },
       lines: [
-        { words: [{ text: '甲首句', start: 0, end: 800 }], start: 0, end: 800, isDuet: false, isBackground: false, align: 'left', agent: 'v1' },
+        { words: [{ text: '甲首句', start: 200, end: 800 }], start: 200, end: 800, isDuet: false, isBackground: false, align: 'left', agent: 'v1' },
         { words: [{ text: '甲同段', start: 900, end: 1800 }], start: 900, end: 1800, isDuet: false, isBackground: false, align: 'left', agent: 'v1' },
         { words: [{ text: '甲新段', start: 1900, end: 2500 }], start: 1900, end: 2500, isDuet: false, isBackground: false, align: 'left', agent: 'v1', paragraphStart: true },
         { words: [{ text: '乙对唱', start: 2600, end: 3200 }], start: 2600, end: 3200, isDuet: true, isBackground: false, align: 'right', agent: 'v2' },
@@ -390,23 +390,42 @@ describe('振假名渲染与 HDR 跨行平滑退场', () => {
     expect(lineEls).toHaveLength(6)
     expect(ctx.container.classList.contains('lyric-player--multi-vocal')).toBe(true)
 
-    // 5 条非背景主行均有光丝，背景和声无光丝无胶囊
-    expect(lineEls.map(el => el.querySelectorAll('.lyric-edge').length)).toEqual([1, 1, 1, 1, 0, 1])
-    // 切换与新段落首行渲染胶囊，连续同歌手不重复；无名群组使用 togetherLabel
-    expect(lineEls.map(el => el.querySelector('.lyric-singer')?.textContent ?? null)).toEqual(['甲', null, '甲', '乙', null, '合唱'])
+    // 主行与背景人声行均挂载紧贴正文的 .lyric-vocal 与竖条 .lyric-edge，仅非背景主行挂载胶囊 .lyric-singer；无名群组使用 togetherLabel
+    expect(lineEls.map(el => el.querySelectorAll('.lyric-vocal').length)).toEqual([1, 1, 1, 1, 1, 1])
+    expect(lineEls.map(el => el.querySelectorAll('.lyric-edge').length)).toEqual([1, 1, 1, 1, 1, 1])
+    expect(lineEls[4].style.getPropertyValue('--singer-color')).toBe(lineEls[3].style.getPropertyValue('--singer-color'))
+    expect(lineEls[4].style.getPropertyValue('--singer-color')).not.toBe('')
+    expect(lineEls.map(el => el.querySelector('.lyric-singer')?.textContent ?? null)).toEqual(['甲', '甲', '甲', '乙', null, '合唱'])
     // 色道隔离：无 mood 行回退微光包含歌手色，有词文本保留独立通道
     expect(lineEls[0].style.getPropertyValue('--lyric-glow')).toContain('color-mix')
 
-    // 切换语言后动态更新合唱兜底文案
+    // 切换语言后动态更新所有群组行兜底文案
     ctx.player.setDisplay({ showTranslation: true, showRomanization: true, footerText: '', togetherLabel: 'Together', effects: true, hdr: false })
     expect(lineEls[5].querySelector('.lyric-singer')?.textContent).toBe('Together')
 
-    // 聚光灯激活在第 1 行（start=900ms, end=1800ms）期间，该行光丝透明度淡出让路
+    const visiblePills = () => lineEls.map(el => el.querySelector('.lyric-singer')?.classList.contains('lyric-singer--visible') ?? false)
+
+    // 未开唱前（t=0 < start=200ms）：胶囊预标在即将开唱的第 0 行起始位置
+    ctx.step(0, 16)
+    expect(visiblePills()).toEqual([true, false, false, false, false, false])
+
+    // 第 0 行演唱时（0.4s）：胶囊标在第 0 行
+    ctx.step(0.4, 400)
+    expect(visiblePills()).toEqual([true, false, false, false, false, false])
+
+    // 同歌手往后唱到第 1 行（1.2s）：第 0 行收起，第 1 行显示；聚光灯激活期间，该行竖条淡出让路
     ctx.step(1.2, 600)
+    expect(visiblePills()).toEqual([false, true, false, false, false, false])
     expect(Number.parseFloat(lineEls[1].querySelector<HTMLElement>('.lyric-edge')!.style.opacity)).toBeLessThan(0.2)
 
-    // 第 3 行同时是切换角色句与点题句：聚光灯放大期间仅光丝淡出，角色胶囊不消失且按 1/s 反向缩放保持视觉大小不变
-    ctx.step(3.0, 1800)
+    // 继续往后唱到第 2 行（2.1s）：第 2 行显示胶囊
+    ctx.step(2.1, 900)
+    expect(visiblePills()).toEqual([false, false, true, false, false, false])
+
+    // 切换到第 3 行对唱（3.0s，同时是点题句）：第 3 行显示胶囊、竖条淡出，弹簧收敛后胶囊按 1/s 反向缩放保持视觉大小不变
+    for (let s = 0; s < 20; s++)
+      ctx.step(3.0, 32)
+    expect(visiblePills()).toEqual([false, false, false, true, false, false])
     expect(Number.parseFloat(lineEls[3].querySelector<HTMLElement>('.lyric-edge')!.style.opacity)).toBeLessThan(0.2)
     const duetPill = lineEls[3].querySelector<HTMLElement>('.lyric-singer')!
     expect(duetPill.style.opacity).toBe('')
@@ -416,12 +435,30 @@ describe('振假名渲染与 HDR 跨行平滑退场', () => {
     expect(pillScale).toBeLessThan(1)
     expect(lineScale * pillScale).toBeCloseTo(1, 3)
 
-    // 聚光灯结束后，行恢复非放大态，胶囊行内 transform 清空
-    ctx.step(4.5, 1500)
+    // 切换到第 5 行合唱（3.5s）：第 5 行显示胶囊
+    ctx.step(3.5, 500)
+    expect(visiblePills()).toEqual([false, false, false, false, false, true])
+
+    // 曲末聚焦底栏（4.5s）：全部胶囊收起，对唱行恢复非放大态、胶囊行内 transform 清空
+    for (let s = 0; s < 25; s++)
+      ctx.step(4.5, 32)
+    expect(visiblePills()).toEqual([false, false, false, false, false, false])
     expect(duetPill.style.transform).toBe('')
     ctx.cleanup()
 
-    // 无名双人：零胶囊（不展示 v1/v2 等占位文本）
+    // 带足够长前奏（≥7s 触发 interlude 条目）时：前奏期间预先在第一句主唱行显示胶囊
+    const withIntro: ResolvedLyrics = {
+      ...namedMulti,
+      lines: [
+        { words: [{ text: '前奏后首句', start: 8000, end: 9000 }], start: 8000, end: 9000, isDuet: false, isBackground: false, align: 'left', agent: 'v1' },
+      ],
+    }
+    const introCtx = mountPlayer(withIntro)
+    introCtx.step(1.0, 16)
+    expect(introCtx.container.querySelector('.lyric-singer')?.classList.contains('lyric-singer--visible')).toBe(true)
+    introCtx.cleanup()
+
+    // 无名双人：零胶囊（不展示 v1/v2 等占位文本），但每句均有竖条
     const unnamedDuo: ResolvedLyrics = {
       source: 'ttml-amll',
       wordTimed: true,
@@ -437,7 +474,7 @@ describe('振假名渲染与 HDR 跨行平滑退场', () => {
     expect(duoCtx.container.querySelectorAll('.lyric-edge')).toHaveLength(2)
     duoCtx.cleanup()
 
-    // 无名三人：渲染纯圆点胶囊 .lyric-singer--dot-only
+    // 无名三人：每句主行渲染纯圆点胶囊 .lyric-singer--dot-only
     const unnamedTrio: ResolvedLyrics = {
       source: 'ttml-amll',
       wordTimed: true,
@@ -453,13 +490,13 @@ describe('振假名渲染与 HDR 跨行平滑退场', () => {
     expect(trioCtx.container.querySelectorAll('.lyric-singer.lyric-singer--dot-only')).toHaveLength(3)
     trioCtx.cleanup()
 
-    // 单行条（strip）完全不渲染胶囊与光丝
+    // 单行条（strip）完全不渲染胶囊与竖条
     const stripCtx = mountPlayer(namedMulti, { strip: true })
     expect(stripCtx.container.querySelectorAll('.lyric-singer')).toHaveLength(0)
     expect(stripCtx.container.querySelectorAll('.lyric-edge')).toHaveLength(0)
     stripCtx.cleanup()
 
-    // 4 人自定义色合唱：渲染 4 枚圆点、拼接全部成员名称，并在边缘光丝注入 4 色渐变
+    // 4 人自定义色合唱：渲染 4 枚圆点、拼接全部成员名称，并在左侧竖条注入 4 色纵向渐变
     const quartetChorus: ResolvedLyrics = {
       source: 'ttml-custom',
       wordTimed: true,
@@ -481,13 +518,15 @@ describe('振假名渲染与 HDR 跨行平滑退场', () => {
     expect(dots).toHaveLength(4)
     expect(dots.map(d => d.style.getPropertyValue('--dot-color'))).toEqual(['#d9695b', '#3f9a66', '#2f93a3', '#8462cc'])
     expect(quartetLine.querySelector('.lyric-singer__label')?.textContent).toBe('甲 · 乙 · 丙 · 丁')
-    expect(quartetLine.style.getPropertyValue('--singer-edge-gradient')).toBe('linear-gradient(90deg, #d9695b, #3f9a66, #2f93a3, #8462cc)')
+    expect(quartetLine.style.getPropertyValue('--singer-edge-gradient')).toBe('linear-gradient(180deg, #d9695b, #3f9a66, #2f93a3, #8462cc)')
     quartetCtx.cleanup()
   })
 
-  it('cSS 级联与纵向滚动对齐：.lyric-line 保持绝对定位（不叠加文档流高度），焦点行严格对齐 35% 视口且多声部槽位准确', () => {
+  it('cSS 级联与纵向滚动对齐：.lyric-line 保持绝对定位（不叠加文档流高度），竖条紧贴文字左侧、胶囊激活态保持中性样式且留白平滑不偏心', () => {
+    const cssText = readFileSync(resolve(__dirname, 'lyric-player.css'), 'utf8')
+    expect(cssText).not.toMatch(/\.lyric-line--active\s+\.lyric-singer/)
     const styleEl = document.createElement('style')
-    styleEl.textContent = readFileSync(resolve(__dirname, 'lyric-player.css'), 'utf8')
+    styleEl.textContent = cssText
     document.head.append(styleEl)
 
     const lyrics: ResolvedLyrics = {
@@ -530,21 +569,42 @@ describe('振假名渲染与 HDR 跨行平滑退场', () => {
       expect(getComputedStyle(lineEls[2]).width).toBe('85%')
       expect(getComputedStyle(lineEls[2]).boxSizing).toBe('border-box')
 
-      const singerPill = lineEls[0].querySelector<HTMLElement>('.lyric-singer')!
-      expect(getComputedStyle(singerPill).display).toBe('flex')
-      expect(getComputedStyle(singerPill).transformOrigin).toBe('left bottom')
-      expect(getComputedStyle(lineEls[1].querySelector<HTMLElement>('.lyric-singer')!).transformOrigin).toBe('right bottom')
-      expect(getComputedStyle(lineEls[2].querySelector<HTMLElement>('.lyric-singer')!).transformOrigin).toBe('center bottom')
+      // 所有声部竖条统一放在紧贴正文左侧；默认胶囊水平原点统一对齐竖条起点 (left bottom)
+      for (const lineEl of [lineEls[0], lineEls[1], lineEls[2]]) {
+        const edgeCs = getComputedStyle(lineEl.querySelector<HTMLElement>('.lyric-edge')!)
+        expect(['0', '0px']).toContain(edgeCs.insetInlineStart)
+        const pill = lineEl.querySelector<HTMLElement>('.lyric-singer')!
+        Object.defineProperty(pill, 'offsetHeight', { value: 20, configurable: true })
+        expect(getComputedStyle(pill).display).toBe('flex')
+        expect(getComputedStyle(pill).position).toBe('absolute')
+        expect(getComputedStyle(pill).transformOrigin).toBe('left bottom')
+      }
+      for (const lineEl of lineEls.slice(3))
+        Object.defineProperty(lineEl.querySelector<HTMLElement>('.lyric-singer')!, 'offsetHeight', { value: 20, configurable: true })
 
-      // 触发重新测量并推进到第 5 行（5.2s），弹簧收敛后焦点中心应落在 640 * 0.35 = 224px，相邻行间距严格等于单倍行高 52px
+      // 触发重新测量并推进到第 5 行（5.2s，非紧凑模式下 pillHeight = 20 + 6 = 26px）：
+      // 弹簧收敛后焦点第 5 行正文中心仍严格落在 640 * 0.35 = 224px；第 5 行上方为胶囊额外让出 26px（总间距 52 + 26 = 78px），无胶囊的 5→6 间距仍为 52px
       ctx.player.setDisplay({ showTranslation: true, showRomanization: false, footerText: '', togetherLabel: '合唱', effects: true, hdr: false })
       for (let stepIdx = 0; stepIdx < 80; stepIdx++)
         ctx.step(5.2, 32)
 
       const yOf = (el: HTMLElement) => Number.parseFloat(/translate3d\(0,\s*([-\d.]+)px/.exec(el.style.transform)?.[1] ?? 'NaN')
       expect(yOf(lineEls[5]) + 52 / 2).toBeCloseTo(640 * 0.35, 1)
-      expect(yOf(lineEls[5]) - yOf(lineEls[4])).toBeCloseTo(52, 1)
+      expect(yOf(lineEls[5]) - yOf(lineEls[4])).toBeCloseTo(52 + 26, 1)
       expect(yOf(lineEls[6]) - yOf(lineEls[5])).toBeCloseTo(52, 1)
+
+      // 极短对唱/合唱句（胶囊宽 > 文字包裹宽）自动切入防溢出钳制类，长句解除钳制并重新对齐竖条起点
+      Object.defineProperty(lineEls[1].querySelector<HTMLElement>('.lyric-vocal')!, 'offsetWidth', { value: 40, configurable: true })
+      Object.defineProperty(lineEls[1].querySelector<HTMLElement>('.lyric-singer')!, 'offsetWidth', { value: 110, configurable: true })
+      Object.defineProperty(lineEls[2].querySelector<HTMLElement>('.lyric-vocal')!, 'offsetWidth', { value: 48, configurable: true })
+      Object.defineProperty(lineEls[2].querySelector<HTMLElement>('.lyric-singer')!, 'offsetWidth', { value: 120, configurable: true })
+      Object.defineProperty(lineEls[0].querySelector<HTMLElement>('.lyric-vocal')!, 'offsetWidth', { value: 40, configurable: true })
+      Object.defineProperty(lineEls[0].querySelector<HTMLElement>('.lyric-singer')!, 'offsetWidth', { value: 110, configurable: true })
+      ctx.player.setDisplay({ showTranslation: false, showRomanization: false, footerText: '', togetherLabel: '合唱', effects: true, hdr: false })
+      ctx.step(5.2, 32)
+      expect(lineEls[0].querySelector('.lyric-singer')!.classList.contains('lyric-singer--clamp-end')).toBe(false)
+      expect(lineEls[1].querySelector('.lyric-singer')!.classList.contains('lyric-singer--clamp-end')).toBe(true)
+      expect(lineEls[2].querySelector('.lyric-singer')!.classList.contains('lyric-singer--clamp-center')).toBe(true)
     }
     finally {
       ctx.cleanup()

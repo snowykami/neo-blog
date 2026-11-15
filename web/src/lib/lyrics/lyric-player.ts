@@ -191,11 +191,15 @@ interface ItemView {
   hdrExitFromSpot: boolean
   hdrExiting: boolean
   mainOpacity: string
-  // 多声部边缘光丝（聚光灯亮起时淡出让路）与切换低语胶囊（聚光灯下按 1/s 反向缩放，保持 1x 大小并跟随行位置）
+  // 多声部胶囊与色条的外层紧贴容器（包裹胶囊、竖条与正文），按需展开上方空间；竖条聚光灯下淡出，胶囊按 1/s 反向缩放
+  vocal: HTMLElement | null
   edge: HTMLElement | null
   edgeOpacity: string
   singerPill: HTMLElement | null
   singerTransform: string
+  pillHeight: number
+  pillExpand?: Spring
+  pillVisible: boolean
 }
 
 // 字与字的错开比例、上浮提前开始的时长（参考 AMLL）；演出时长下限见 config.ts 的 LYRIC_EMPHASIS_MIN_MS
@@ -326,7 +330,7 @@ function resolveGroupColors(agent: LyricAgent, agents: Record<string, LyricAgent
 }
 
 /**
- * 构建演唱者切换低语胶囊（Scheme A）：
+ * 构建演唱者胶囊（参考 StarryPlayer）：
  * - 群组/合唱：多圆点 + 群组名 / 成员名拼接 / 本地化合唱文案
  * - 有名独唱：单圆点 + 歌手名
  * - 无名独唱：≤2 位独唱完全省略（零占位文字）；≥3 位独唱仅渲染颜色圆点
@@ -1081,7 +1085,6 @@ export class LyricPlayer {
     const soloAgents = agents ? Object.values(agents).filter(agent => !agent.isGroup) : []
     const soloCount = soloAgents.length
     const bgOwners = getBackgroundOwnerMap(this.lyrics.lines)
-    let prevMainAgent: string | undefined
     this.views = this.items.map((item, itemIndex) => {
       const view: ItemView = {
         item,
@@ -1111,10 +1114,13 @@ export class LyricPlayer {
         hdrExitFromSpot: false,
         hdrExiting: false,
         mainOpacity: '',
+        vocal: null,
         edge: null,
         edgeOpacity: '',
         singerPill: null,
         singerTransform: '',
+        pillHeight: 0,
+        pillVisible: false,
       }
       const { el } = view
       el.classList.add('lyric-item')
@@ -1176,38 +1182,40 @@ export class LyricPlayer {
         }
         if (line.mood)
           el.style.setProperty('--lyric-glow', MOOD_GLOW[line.mood])
-        if (!line.isBackground && !this.options.strip) {
-          const switched = line.agent !== prevMainAgent || Boolean(line.paragraphStart)
-          prevMainAgent = line.agent
+        let vocal: HTMLElement | null = null
+        if (!this.options.strip) {
           const agent = agents && line.agent ? agents[line.agent] : undefined
           if (agent && agents) {
             const colors = agent.isGroup ? resolveGroupColors(agent, agents, soloAgents) : [resolveAgentHex(agent)]
             const hex1 = colors[0]
             el.style.setProperty('--singer-color', hex1)
-            if (agent.isGroup) {
-              el.style.setProperty('--singer-color-2', colors[colors.length - 1])
-              el.style.setProperty('--singer-edge-gradient', `linear-gradient(90deg, ${colors.join(', ')})`)
-              if (colors.length > 2)
-                el.style.setProperty('--singer-edge-width', '3.25rem')
-            }
+            if (agent.isGroup)
+              el.style.setProperty('--singer-edge-gradient', `linear-gradient(180deg, ${colors.join(', ')})`)
             // 色道隔离：不染字色；无情绪标注时把默认微光淡淡拉向歌手色温度
             if (!line.mood)
               el.style.setProperty('--lyric-glow', `color-mix(in srgb, ${hex1} 38%, #ffffff)`)
+            vocal = doc.createElement('span')
+            vocal.className = 'lyric-vocal'
+            view.vocal = vocal
             const edge = doc.createElement('span')
             edge.className = 'lyric-edge'
             edge.setAttribute('aria-hidden', 'true')
-            el.append(edge)
             view.edge = edge
-            if (switched) {
+            // 背景人声保留歌手色条，但不显示歌手名称胶囊（对齐 StarryPlayer）
+            if (!line.isBackground) {
               const pill = buildSingerPill(doc, agent, agents, soloAgents, soloCount, this.display.togetherLabel)
               if (pill) {
-                el.append(pill)
+                vocal.append(pill)
                 view.singerPill = pill
+                view.pillExpand = new Spring(0, LYRIC_POSITION_SPRING)
               }
             }
+            vocal.append(edge, main)
+            el.append(vocal)
           }
         }
-        el.append(main)
+        if (!vocal)
+          el.append(main)
         if (this.options.strip)
           view.marquee = this.buildMarquee(main, item.line)
         // 主次顺序：原文（含注音行）、音译、第一翻译、第二对比翻译；已逐字对齐的音译显示在注音行，不再单独成行
@@ -1390,7 +1398,8 @@ export class LyricPlayer {
     if (this.options.strip)
       this.interludeHeight = this.containerHeight
     this.narrow = this.container.ownerDocument.defaultView?.matchMedia('(max-width: 1024px)').matches ?? false
-    const firstMain = this.container.querySelector<HTMLElement>('.lyric-main')
+    const firstMain = this.container.querySelector<HTMLElement>('.lyric-line:not(.lyric-line--bg) .lyric-main')
+      ?? this.container.querySelector<HTMLElement>('.lyric-main')
     if (firstMain)
       this.fontSize = Number.parseFloat(getComputedStyle(firstMain).fontSize) || 16
     // 注音单元的排版会改变行宽与换行，先于测量高度
@@ -1399,6 +1408,23 @@ export class LyricPlayer {
     for (const view of this.views) {
       // 缩放不影响 offsetHeight / offsetWidth
       view.height = view.item.kind === 'interlude' ? this.interludeHeight : view.el.offsetHeight
+      if (view.singerPill) {
+        if (view.el.clientWidth > 0) {
+          const style = getComputedStyle(view.el)
+          const pad = (Number.parseFloat(style.paddingLeft) || 0) + (Number.parseFloat(style.paddingRight) || 0)
+          view.singerPill.style.maxWidth = `${Math.max(0, view.el.clientWidth - pad)}px`
+        }
+        else {
+          view.singerPill.style.maxWidth = ''
+        }
+        const rawPillH = view.singerPill.offsetHeight
+        view.pillHeight = rawPillH > 0 ? rawPillH + (this.options.compact ? 4 : 6) : 0
+        const vocalW = view.vocal?.offsetWidth ?? 0
+        const pillW = view.singerPill.offsetWidth
+        const widerThanText = vocalW > 0 && pillW > vocalW
+        view.singerPill.classList.toggle('lyric-singer--clamp-end', widerThanText && view.el.classList.contains('lyric-line--duet'))
+        view.singerPill.classList.toggle('lyric-singer--clamp-center', widerThanText && view.el.classList.contains('lyric-line--center'))
+      }
       for (const word of view.words) {
         word.width = word.el.offsetWidth
         // 强调词四周、HDR 高光下所有词左右留有内边距（见 lyric-player.css）
@@ -1518,6 +1544,34 @@ export class LyricPlayer {
     return this.activeLines.has(view.item.line) || (!this.options.strip && view.owner >= 0 && this.isBgExpanded(index))
   }
 
+  /** 从指定条目起向后查找第一条非背景主唱行视图下标，不存在时返回 -1 */
+  private findNextMainLineView(fromIndex: number): number {
+    for (let i = Math.max(0, fromIndex); i < this.views.length; i++) {
+      const view = this.views[i]
+      if (view.item.kind === 'line' && !this.lyrics.lines[view.item.line]?.isBackground)
+        return i
+    }
+    return -1
+  }
+
+  /**
+   * 演唱者胶囊是否可见（参考 StarryPlayer）：
+   * - 有激活行（含句间短空隙保留的高亮）时仅显示在当前激活的主唱行上方，随演唱逐行移动
+   * - 开唱前或间奏期间（无激活行）预先显示在即将开唱的主唱起始行上方；曲末聚焦底栏时不显示
+   */
+  private isSingerPillVisible(index: number): boolean {
+    const view = this.views[index]
+    if (!view?.singerPill || view.item.kind !== 'line')
+      return false
+    if (this.activeLines.has(view.item.line))
+      return true
+    if (this.activeLines.size > 0)
+      return false
+    if (this.state.interlude != null)
+      return index === this.findNextMainLineView(this.state.interlude + 1)
+    return index === this.state.focus
+  }
+
   /** 计算各条目的当前高度、纵向起点（含段落间距）与总高度 */
   private computeTops(): { heights: number[], tops: number[], total: number } {
     const heights = this.views.map(view => view.expand ? view.height * view.expand.position : this.options.strip && view.owner >= 0 ? 0 : view.height)
@@ -1528,13 +1582,16 @@ export class LyricPlayer {
     let total = 0
     for (let i = 0; i < this.views.length; i++) {
       const view = this.views[i]
+      const pillOpen = view.pillExpand?.position ?? 0
       if (view.gapBefore && paraGap > 0) {
         const prev = this.views[i - 1]
         const interludeRatio = prev?.item.kind === 'interlude' ? 1 - (prev.expand?.position ?? 0) : 1
-        // 该行已带有切换胶囊时胶囊自身已留出上方呼吸空间，不再全额叠加段落间距
-        const pillScale = view.singerPill ? 0.35 : 1
+        // 该行展开胶囊时胶囊自身已留出上方呼吸空间，按展开度平滑折减段落间距
+        const pillScale = 1 - 0.65 * pillOpen
         total += paraGap * interludeRatio * pillScale
       }
+      // 胶囊展开空间记在正文顶部之前，确保焦点行正文中心依然对齐视口锚点
+      total += view.pillHeight * pillOpen
       tops.push(total)
       total += heights[i]
     }
@@ -1642,6 +1699,25 @@ export class LyricPlayer {
           else
             view.el.removeAttribute('aria-hidden')
         }
+      }
+    }
+
+    // 演唱者胶囊展开 / 收起（同步推进上下留白弹簧与显隐类名，避免相邻行此消彼长时抖动）
+    for (let i = 0; i < this.views.length; i++) {
+      const view = this.views[i]
+      if (!view.pillExpand || !view.singerPill)
+        continue
+      const visible = this.isSingerPillVisible(i)
+      const target = visible ? 1 : 0
+      if (jump)
+        view.pillExpand.jump(target)
+      else
+        view.pillExpand.setTarget(target)
+      view.pillExpand.step(dt)
+      animating ||= !view.pillExpand.resting
+      if (visible !== view.pillVisible) {
+        view.pillVisible = visible
+        view.singerPill.classList.toggle('lyric-singer--visible', visible)
       }
     }
 
@@ -1857,7 +1933,11 @@ export class LyricPlayer {
           }
         }
         if (view.singerPill) {
-          const nextSingerTransform = scale > 1.0005 ? `scale(${(1 / scale).toFixed(4)})` : ''
+          const clampCenter = view.singerPill.classList.contains('lyric-singer--clamp-center')
+          const invScale = scale > 1.0005 ? `scale(${(1 / scale).toFixed(4)})` : ''
+          const nextSingerTransform = clampCenter
+            ? (invScale ? `translateX(-50%) ${invScale}` : '')
+            : invScale
           if (nextSingerTransform !== view.singerTransform) {
             view.singerTransform = nextSingerTransform
             view.singerPill.style.transform = nextSingerTransform

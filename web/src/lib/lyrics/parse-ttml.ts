@@ -1029,7 +1029,9 @@ export function parseTtml(text: string, source: Extract<LyricSource, 'ttml-custo
       lastDiv = div
     const bgContent = content.background
     const hasBgWords = Boolean(bgContent && (bgContent.words.length > 0 || bgContent.plainText))
-    const bgAgent = bgContent?.agent ? agentResolver.resolve(bgContent.agent) : mainAgent
+    const bgAgent = bgContent?.hasAgentsAttr
+      ? agentResolver.resolve(bgContent.agent ?? null)
+      : (bgContent?.agent ? agentResolver.resolve(bgContent.agent) : mainAgent)
     // 背景人声：显式标注位置（ttd:position / 摆位载体 / AMLL 匿名站位）时按标注对齐，否则留空由 finalize 继承所属主唱行
     const bgExplicitAlign = bgContent ? agentResolver.resolveBgPosition(bgContent) : undefined
     const bgFallbackStart = bgContent && bgContent.words.length > 0

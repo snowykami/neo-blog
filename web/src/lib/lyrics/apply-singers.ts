@@ -209,9 +209,15 @@ export function applyLyricSingers(
       const owner = nextLines[ownerIdx]
       const ownerAlign: LyricAlign = owner.align ?? 'left'
       const ownerDuet = ownerAlign === 'right'
-      if (line.align !== ownerAlign || line.isDuet !== ownerDuet) {
+      const nextAgent = line.agent ?? owner.agent
+      if (line.align !== ownerAlign || line.isDuet !== ownerDuet || line.agent !== nextAgent) {
         linesChanged = true
-        nextLines[i] = { ...line, align: ownerAlign, isDuet: ownerDuet }
+        nextLines[i] = {
+          ...line,
+          ...(nextAgent && { agent: nextAgent }),
+          align: ownerAlign,
+          isDuet: ownerDuet,
+        }
       }
     }
   }
