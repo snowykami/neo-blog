@@ -683,6 +683,10 @@ function sameRomanizationWords(a?: readonly LyricRomanWord[], b?: readonly Lyric
   return true
 }
 
+function isTranslationExtraKind(kind: string | undefined): boolean {
+  return kind === 'translation' || kind === 'secondary-translation'
+}
+
 /** 把强调的词拆成单字放进 wordEl，非空白的字加入 chars 逐字演出；同时带上该组的字体与字形。timing 为这个音节的演唱时段 */
 function fillEmphasisChars(wordEl: HTMLElement, text: string, chars: CharView[], group: LyricEmphasis, timing: { start: number, end: number }) {
   const doc = wordEl.ownerDocument
@@ -931,12 +935,20 @@ export class LyricPlayer {
       }
       const nextRomText = nextLine.romanizationWords ? undefined : nextLine.romanization
       const prevRomText = prevLine.romanizationWords ? undefined : prevLine.romanization
-      const desired = [['romanization', nextRomText], ['translation', nextLine.translation]] as const
-      const prevTexts = { romanization: prevRomText, translation: prevLine.translation }
-      const existingTrans = byKind.get('translation')
+      const desired = [
+        ['romanization', nextRomText],
+        ['translation', nextLine.translation],
+        ['secondary-translation', nextLine.secondaryTranslation],
+      ] as const
+      const prevTexts = {
+        'romanization': prevRomText,
+        'translation': prevLine.translation,
+        'secondary-translation': prevLine.secondaryTranslation,
+      }
       const nextExtras: HTMLElement[] = []
 
-      for (const [kind, text] of desired) {
+      for (let dIdx = 0; dIdx < desired.length; dIdx++) {
+        const [kind, text] = desired[dIdx]
         const existing = byKind.get(kind)
         if (!text) {
           if (existing) {
@@ -945,7 +957,7 @@ export class LyricPlayer {
           }
           continue
         }
-        const hidden = kind === 'translation' ? !this.display.showTranslation : !this.display.showRomanization
+        const hidden = isTranslationExtraKind(kind) ? !this.display.showTranslation : !this.display.showRomanization
         if (existing) {
           if (existing.textContent !== text) {
             existing.textContent = text
@@ -965,10 +977,19 @@ export class LyricPlayer {
         extra.hidden = hidden
         if (!prevTexts[kind] && !this.reducedMotion)
           extra.classList.add('lyric-extra--enter')
-        if (kind === 'romanization' && existingTrans && existingTrans.isConnected)
-          view.el.insertBefore(extra, existingTrans)
+        let beforeEl: HTMLElement | undefined
+        for (let nextIdx = dIdx + 1; nextIdx < desired.length; nextIdx++) {
+          const candidate = byKind.get(desired[nextIdx][0])
+          if (candidate && candidate.isConnected) {
+            beforeEl = candidate
+            break
+          }
+        }
+        if (beforeEl)
+          view.el.insertBefore(extra, beforeEl)
         else
           view.el.append(extra)
+        byKind.set(kind, extra)
         changed = true
         nextExtras.push(extra)
       }
@@ -1019,7 +1040,7 @@ export class LyricPlayer {
     this.container.classList.toggle('lyric-player--no-roman', !display.showRomanization)
     if (display.showTranslation !== showTranslation || display.showRomanization !== showRomanization) {
       this.views.forEach(view => view.extras.forEach((el) => {
-        el.hidden = el.dataset.kind === 'translation' ? !display.showTranslation : !display.showRomanization
+        el.hidden = isTranslationExtraKind(el.dataset.kind) ? !display.showTranslation : !display.showRomanization
       }))
     }
     this.layoutDirty = true
@@ -1189,15 +1210,19 @@ export class LyricPlayer {
         el.append(main)
         if (this.options.strip)
           view.marquee = this.buildMarquee(main, item.line)
-        // 主次顺序：原文（含注音行）、音译、翻译；已逐字对齐的音译显示在注音行，不再单独成行
-        for (const [kind, text] of [['romanization', line.romanizationWords ? undefined : line.romanization], ['translation', line.translation]] as const) {
+        // 主次顺序：原文（含注音行）、音译、第一翻译、第二对比翻译；已逐字对齐的音译显示在注音行，不再单独成行
+        for (const [kind, text] of [
+          ['romanization', line.romanizationWords ? undefined : line.romanization],
+          ['translation', line.translation],
+          ['secondary-translation', line.secondaryTranslation],
+        ] as const) {
           if (!text)
             continue
           const extra = doc.createElement('span')
           extra.className = 'lyric-extra'
           extra.dataset.kind = kind
           extra.textContent = text
-          extra.hidden = kind === 'translation' ? !this.display.showTranslation : !this.display.showRomanization
+          extra.hidden = isTranslationExtraKind(kind) ? !this.display.showTranslation : !this.display.showRomanization
           view.extras.push(extra)
           el.append(extra)
         }

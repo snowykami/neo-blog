@@ -709,4 +709,73 @@ describe('振假名渲染与 HDR 跨行平滑退场', () => {
 
     ctx.cleanup()
   })
+
+  it('双翻译对比按顺序渲染第一与第二翻译节点，流式补全时保持第一在第二上方并同步显隐', () => {
+    const initial: ResolvedLyrics = {
+      source: 'ncm-lrc',
+      wordTimed: false,
+      instrumental: false,
+      lines: [
+        {
+          words: [{ text: '君の名は', start: 1000, end: 3000 }],
+          start: 1000,
+          end: 3000,
+          romanization: 'kimi no na wa',
+          secondaryTranslation: '原生中文：你的名字',
+          isDuet: false,
+          isBackground: false,
+        },
+        {
+          words: [{ text: '星が降る', start: 3500, end: 5500 }],
+          start: 3500,
+          end: 5500,
+          translation: 'AI 中文：繁星坠落',
+          secondaryTranslation: '原生中文：群星闪耀',
+          isDuet: false,
+          isBackground: false,
+        },
+      ],
+    }
+
+    const ctx = mountPlayer(initial)
+    ctx.container.querySelectorAll<HTMLElement>('.lyric-line').forEach((el) => {
+      Object.defineProperty(el, 'offsetHeight', { value: 64, configurable: true })
+    })
+
+    const line1 = ctx.container.querySelectorAll<HTMLElement>('.lyric-line')[1]!
+    const line1Kinds = Array.from(line1.querySelectorAll<HTMLElement>('.lyric-extra')).map(el => el.dataset.kind)
+    expect(line1Kinds).toEqual(['translation', 'secondary-translation'])
+    expect(line1.querySelector<HTMLElement>('.lyric-extra[data-kind="translation"]')?.textContent).toBe('AI 中文：繁星坠落')
+    expect(line1.querySelector<HTMLElement>('.lyric-extra[data-kind="secondary-translation"]')?.textContent).toBe('原生中文：群星闪耀')
+
+    // 当内置译文已存在、AI 第一翻译随后流式到达时，必须插入在 secondary-translation 之前
+    const patched: ResolvedLyrics = {
+      ...initial,
+      lines: [
+        {
+          ...initial.lines[0],
+          translation: 'AI 中文：你的名字是',
+        },
+        initial.lines[1],
+      ],
+    }
+    ctx.player.setLyrics(patched)
+
+    const line0 = ctx.container.querySelectorAll<HTMLElement>('.lyric-line')[0]!
+    const line0Extras = Array.from(line0.querySelectorAll<HTMLElement>('.lyric-extra'))
+    expect(line0Extras.map(el => el.dataset.kind)).toEqual(['romanization', 'translation', 'secondary-translation'])
+    expect(line0Extras.map(el => el.textContent)).toEqual([
+      'kimi no na wa',
+      'AI 中文：你的名字是',
+      '原生中文：你的名字',
+    ])
+
+    // 关闭翻译显示时同时隐藏第一与第二翻译，不影响音译
+    ctx.player.setDisplay({ showTranslation: false, showRomanization: true, footerText: '', effects: false, hdr: false })
+    expect(line0Extras[0].hidden).toBe(false)
+    expect(line0Extras[1].hidden).toBe(true)
+    expect(line0Extras[2].hidden).toBe(true)
+
+    ctx.cleanup()
+  })
 })

@@ -421,9 +421,15 @@
   opacity: 0.65;
 }
 
-.lyric-extra[data-kind='translation'] {
+.lyric-extra[data-kind='translation'],
+.lyric-extra[data-kind='secondary-translation'] {
   font-size: max(0.46em, 10px);
   opacity: 0.5;
+}
+
+.lyric-extra[data-kind='translation'] + .lyric-extra[data-kind='secondary-translation'] {
+  margin-top: 0.15rem;
+  opacity: 0.44;
 }
 
 /*
@@ -483,7 +489,8 @@
 /* 紧凑模式（参考 StarryPlayer 的小尺寸：原文 28、音译与翻译 18） */
 .lyric-player--compact .lyric-ruby,
 .lyric-player--compact .lyric-extra[data-kind='romanization'],
-.lyric-player--compact .lyric-extra[data-kind='translation'] {
+.lyric-player--compact .lyric-extra[data-kind='translation'],
+.lyric-player--compact .lyric-extra[data-kind='secondary-translation'] {
   font-size: max(0.64em, 10px);
 }
 

@@ -560,7 +560,7 @@ describe('moreControlsMenu 二阶弹簧控制菜单', () => {
     }
   })
 
-  it('翻译语言二级菜单：同时存在 AI 译文与内置原译文时展示双选项并支持来回切换', () => {
+  it('翻译语言二级菜单：同时存在 AI 译文与内置原译文时展示双选项，支持同时勾选最多两项按序对比与清空重置', () => {
     // @ts-expect-error happy-dom 的 WAAPI cancel() 会抛未捕获异常，测试走 Motion JS 动画驱动
     delete Element.prototype.animate
     lyricTranslationActions.refreshTranslations.mockReset()
@@ -586,16 +586,16 @@ describe('moreControlsMenu 二阶弹簧控制菜单', () => {
     ])
     const statuses: MusicLyricTranslationLangStatus[] = [
       { lang: 'zh', hasAi: true, hasNative: true, generating: false, sameLanguage: false },
-      { lang: 'en', hasAi: false, hasNative: false, generating: false, sameLanguage: false },
+      { lang: 'en', hasAi: true, hasNative: false, generating: false, sameLanguage: false },
       { lang: 'ja', hasAi: false, hasNative: false, generating: false, sameLanguage: true },
     ]
-    const setTranslationLang = vi.fn()
+    const setTranslationSelections = vi.fn()
     const setShowTranslation = vi.fn()
 
     const container = document.createElement('div')
     document.body.appendChild(container)
     const root = createRoot(container)
-    try {
+    const renderWithSelections = (selections: { lang: 'zh' | 'en', preferNative?: boolean }[]) => {
       flushSync(() => {
         root.render(
           React.createElement(NextIntlClientProvider, {
@@ -609,11 +609,12 @@ describe('moreControlsMenu 二阶弹簧控制菜单', () => {
               showRomaji: false,
               showTranslation: true,
               setShowTranslation,
-              translationLang: 'zh',
-              preferNativeTranslation: true,
-              effectiveTranslationLang: 'zh',
+              translationLang: selections[0]?.lang ?? null,
+              preferNativeTranslation: Boolean(selections[0]?.preferNative),
+              translationSelections: selections,
+              effectiveTranslationLang: selections[0]?.lang ?? 'zh',
               availableTranslationLangs: statuses,
-              setTranslationLang,
+              setTranslationSelections,
               isAdmin: false,
               musicAiEnabled: true,
               hdr: false,
@@ -625,6 +626,10 @@ describe('moreControlsMenu 二阶弹簧控制菜单', () => {
           }),
         )
       })
+    }
+
+    try {
+      renderWithSelections([{ lang: 'zh', preferNative: false }])
 
       flushSync(() => {
         ;(container.querySelector('button[aria-label="更多控制"]') as HTMLButtonElement).click()
@@ -635,51 +640,87 @@ describe('moreControlsMenu 二阶弹簧控制菜单', () => {
 
       const menu = container.querySelector('[role="menu"][aria-label="翻译语言"]')
       expect(menu).not.toBeNull()
-      const zhLabel = new Intl.DisplayNames(['zh'], { type: 'language' }).of('zh-Hans') ?? 'zh'
-      const buttons = Array.from(menu!.querySelectorAll('button'))
-      const zhAiBtn = buttons.find(btn => btn.textContent?.includes(zhLabel) && btn.textContent?.includes('AI'))
-      const zhNativeBtn = buttons.find(btn => btn.textContent?.includes(zhLabel) && btn.textContent?.includes('内置'))
-      const followBtn = buttons.find(btn => btn.textContent?.includes('跟随站点语言'))
-
-      expect(zhAiBtn).toBeDefined()
-      expect(zhNativeBtn).toBeDefined()
-      expect(followBtn).toBeDefined()
+      expect(menu?.textContent).toContain('可同时勾选 2 项按序上下对比')
       // 不应重复出现「AI 覆盖」按钮（已经有 AI 了，转为可直接切 AI 与内置）
       expect(menu?.textContent).not.toContain('AI 覆盖')
 
+      const zhLabel = new Intl.DisplayNames(['zh'], { type: 'language' }).of('zh-Hans') ?? 'zh'
+      const getButtons = () => {
+        const currentMenu = container.querySelector('[role="menu"][aria-label="翻译语言"]')!
+        const buttons = Array.from(currentMenu.querySelectorAll('button'))
+        return {
+          currentMenu,
+          zhAiBtn: buttons.find(btn => btn.textContent?.includes(zhLabel) && btn.textContent?.includes('AI'))!,
+          zhNativeBtn: buttons.find(btn => btn.textContent?.includes(zhLabel) && btn.textContent?.includes('内置'))!,
+          followBtn: buttons.find(btn => btn.textContent?.includes('跟随站点语言'))!,
+        }
+      }
+
+      // 在已勾选 AI 简体的基础上继续勾选 内置简体（点击后菜单保持展开以便连续选择）
+      const first = getButtons()
+      expect(first.zhAiBtn.getAttribute('aria-checked')).toBe('true')
+      expect(first.zhNativeBtn.getAttribute('aria-checked')).toBe('false')
       flushSync(() => {
-        zhAiBtn!.click()
+        first.zhNativeBtn.click()
       })
-      expect(setTranslationLang).toHaveBeenCalledWith('zh', false)
+      expect(setTranslationSelections).toHaveBeenLastCalledWith([
+        { lang: 'zh', preferNative: false },
+        { lang: 'zh', preferNative: true },
+      ])
       expect(setShowTranslation).toHaveBeenCalledWith(true)
+      expect(container.querySelector('[role="menu"][aria-label="翻译语言"]')).not.toBeNull()
 
-      flushSync(() => {
-        ;(container.querySelector('button[aria-label="翻译语言"]') as HTMLButtonElement).click()
-      })
-      const menuAfter = container.querySelector('[role="menu"][aria-label="翻译语言"]')
-      const nativeBtnAfter = Array.from(menuAfter!.querySelectorAll('button')).find(
-        btn => btn.textContent?.includes(zhLabel) && btn.textContent?.includes('内置'),
-      )
-      flushSync(() => {
-        nativeBtnAfter!.click()
-      })
-      expect(setTranslationLang).toHaveBeenCalledWith('zh', true)
+      // 传入双勾选状态重新渲染：菜单展示顺序徽标 1 与 2
+      renderWithSelections([
+        { lang: 'zh', preferNative: false },
+        { lang: 'zh', preferNative: true },
+      ])
+      const dual = getButtons()
+      expect(dual.zhAiBtn.getAttribute('aria-checked')).toBe('true')
+      expect(dual.zhNativeBtn.getAttribute('aria-checked')).toBe('true')
+      expect(dual.zhAiBtn.textContent).toContain('1')
+      expect(dual.zhNativeBtn.textContent).toContain('2')
 
+      // 取消第 1 项（AI 简体），仅剩 [内置简体]
       flushSync(() => {
-        ;(container.querySelector('button[aria-label="翻译语言"]') as HTMLButtonElement).click()
+        dual.zhAiBtn.click()
       })
-      const menuFollow = container.querySelector('[role="menu"][aria-label="翻译语言"]')
-      const followBtnAfter = Array.from(menuFollow!.querySelectorAll('button')).find(btn =>
-        btn.textContent?.includes('跟随站点语言'),
-      )
+      expect(setTranslationSelections).toHaveBeenLastCalledWith([
+        { lang: 'zh', preferNative: true },
+      ])
+
+      // 点击「跟随站点语言」清空所有手动勾选
+      renderWithSelections([{ lang: 'zh', preferNative: true }])
+      const after = getButtons()
       flushSync(() => {
-        followBtnAfter!.click()
+        after.followBtn.click()
       })
-      expect(setTranslationLang).toHaveBeenLastCalledWith(null, false)
+      expect(setTranslationSelections).toHaveBeenLastCalledWith([])
     }
     finally {
       flushSync(() => root.unmount())
       container.remove()
     }
+  })
+
+  it('复制歌词时按勾选顺序包含第一与第二对比翻译行', async () => {
+    const copied = await copyLyricsWithOptions({
+      lyrics: makeLyrics([
+        {
+          start: 1000,
+          end: 4000,
+          words: [{ text: '君の名は', start: 1000, end: 4000 }],
+          romanization: 'kimi no na wa',
+          translation: 'AI 中文：你的名字是',
+          secondaryTranslation: '内置中文：你的名字',
+          isDuet: false,
+          isBackground: false,
+        },
+      ]),
+      showRomaji: false,
+      showTranslation: true,
+    })
+
+    expect(copied).toBe('琵琶行 - 白居易\n\n君の名は\nAI 中文：你的名字是\n内置中文：你的名字')
   })
 })

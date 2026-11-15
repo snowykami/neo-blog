@@ -1,7 +1,9 @@
 'use client'
 
+import type { SiteLyricTranslations } from './lyric-translations'
 import type { MusicLyricsState } from './music-lyrics-engine-state'
 import type { MusicLyricTranslationLangStatus } from '@/api/music'
+import type { LyricTranslationSelection } from '@/lib/lyrics/lyric-language'
 import type { LyricTrackInfo } from '@/lib/lyrics/strip-credits'
 import type { LyricTargetLang } from '@/lib/lyrics/target-lang'
 import { useLocale } from 'next-intl'
@@ -10,7 +12,7 @@ import { useSiteInfo } from '@/contexts/site-info-context'
 import { applyLyricSingers, canResolveLyricSingers } from '@/lib/lyrics/apply-singers'
 import { applyEmphasis } from '@/lib/lyrics/emphasis'
 import {
-  applyLanguageTranslations,
+  applyDualLanguageTranslations,
   canAdminAiTranslateLyrics,
   canAiTranslateLyrics,
   hasNativeTargetTranslation,
@@ -48,6 +50,7 @@ export function MusicLyricsEngine({
   translationRequested,
   translationLang,
   preferNativeTranslation = false,
+  translationSelections,
   showRomaji,
   romajiRequested,
   onChange,
@@ -61,6 +64,7 @@ export function MusicLyricsEngine({
   translationRequested: boolean
   translationLang: LyricTargetLang | null
   preferNativeTranslation?: boolean
+  translationSelections?: LyricTranslationSelection[]
   showRomaji: boolean
   romajiRequested: boolean
   onChange: (state: MusicLyricsState) => void
@@ -97,12 +101,17 @@ export function MusicLyricsEngine({
     return () => clearTimeout(timer)
   }, [lyricSource, sourceTransitioning, validTrackId])
 
+  const rawSelections = useMemo<LyricTranslationSelection[]>(() => {
+    if (translationSelections !== undefined)
+      return translationSelections.slice(0, 2)
+    return translationLang ? [{ lang: translationLang, preferNative: preferNativeTranslation }] : []
+  }, [preferNativeTranslation, translationLang, translationSelections])
+
   const rawLangCapabilities = useLyricTranslationLanguages(validTrackId, lyricSource)
-  const requestedEntryGenerating = useLyricTranslationsGenerating(
-    validTrackId,
-    lyricSource,
-    translationLang ?? targetLang,
-  )
+  const rawSlot0Lang = rawSelections[0]?.lang ?? targetLang
+  const rawSlot1Lang = rawSelections[1]?.lang ?? ''
+  const rawSlot0Generating = useLyricTranslationsGenerating(validTrackId, lyricSource, rawSlot0Lang)
+  const rawSlot1Generating = useLyricTranslationsGenerating(validTrackId, lyricSource, rawSlot1Lang)
 
   const availableTranslationLangs = useMemo<MusicLyricTranslationLangStatus[]>(() => {
     if (lyricSource == null)
@@ -116,68 +125,118 @@ export function MusicLyricsEngine({
       const server = serverMap.get(lang)
       const clientNative = hasNativeTargetTranslation(rawLyrics, lang)
       const clientSameLanguage = !canAdminAiTranslateLyrics(rawLyrics, lang, track?.artists)
+      const clientSlotGenerating = (lang === rawSlot0Lang && rawSlot0Generating)
+        || (lang === rawSlot1Lang && rawSlot1Generating)
       return {
         lang,
         hasAi: Boolean(server?.hasAi),
         hasNative: Boolean(server?.hasNative || clientNative),
-        generating: Boolean(
-          server?.generating
-          || (lang === (translationLang ?? targetLang) && requestedEntryGenerating),
-        ),
+        generating: Boolean(server?.generating || clientSlotGenerating),
         sameLanguage: server?.sameLanguage ?? clientSameLanguage,
       }
     })
-  }, [lyricSource, rawLangCapabilities, rawLyrics, requestedEntryGenerating, targetLang, track?.artists, translationLang])
+  }, [lyricSource, rawLangCapabilities, rawLyrics, rawSlot0Generating, rawSlot0Lang, rawSlot1Generating, rawSlot1Lang, track?.artists])
 
-  const effectiveTranslationLang = useMemo<LyricTargetLang>(() => {
-    if (translationLang == null)
-      return targetLang
-    if (translationLang === targetLang)
-      return targetLang
-    const entry = availableTranslationLangs.find(item => item.lang === translationLang)
-    if (entry && (entry.hasAi || entry.hasNative || entry.generating))
-      return translationLang
-    return targetLang
-  }, [availableTranslationLangs, targetLang, translationLang])
+  const effectiveSelections = useMemo<LyricTranslationSelection[]>(() => {
+    const resolved: LyricTranslationSelection[] = []
+    const seen = new Set<string>()
+    for (const item of rawSelections) {
+      const entry = availableTranslationLangs.find(candidate => candidate.lang === item.lang)
+      const available = item.lang === targetLang || Boolean(entry && (entry.hasAi || entry.hasNative || entry.generating))
+      if (!available)
+        continue
+      const preferNative = Boolean(item.preferNative && hasNativeTargetTranslation(rawLyrics, item.lang))
+      const key = `${item.lang}:${preferNative}`
+      if (seen.has(key))
+        continue
+      seen.add(key)
+      resolved.push({ lang: item.lang, preferNative })
+    }
+    if (resolved.length === 2 && resolved[0].lang === resolved[1].lang) {
+      const entry = availableTranslationLangs.find(candidate => candidate.lang === resolved[0].lang)
+      const hasDualForLang = hasNativeTargetTranslation(rawLyrics, resolved[0].lang)
+        && Boolean(entry?.hasAi || entry?.generating)
+      if (!hasDualForLang)
+        resolved.splice(1)
+    }
+    if (resolved.length === 0)
+      return [{ lang: targetLang, preferNative: false }]
+    return resolved
+  }, [availableTranslationLangs, rawLyrics, rawSelections, targetLang])
 
-  const effectiveEntry = useMemo(
+  const primarySlot = effectiveSelections[0]
+  const secondarySlot = effectiveSelections[1] ?? null
+  const effectiveTranslationLang = primarySlot.lang
+
+  const primaryEntry = useMemo(
     () => availableTranslationLangs.find(item => item.lang === effectiveTranslationLang),
     [availableTranslationLangs, effectiveTranslationLang],
   )
-  const effectivePreferNative = Boolean(
-    preferNativeTranslation && hasNativeTargetTranslation(rawLyrics, effectiveTranslationLang),
+  const secondaryEntry = useMemo(
+    () => (secondarySlot ? availableTranslationLangs.find(item => item.lang === secondarySlot.lang) : undefined),
+    [availableTranslationLangs, secondarySlot],
   )
-  const hasExistingOrGeneratingAi = Boolean(effectiveEntry?.hasAi || effectiveEntry?.generating)
-  const canAutoGenerateDefault = effectiveTranslationLang === targetLang
-    && canAiTranslateLyrics(rawLyrics, targetLang, track?.artists)
-  const canAiTranslate = Boolean(siteInfo.musicAiEnabled)
-    && validTrackId != null
-    && lyricSource != null
-    && (hasExistingOrGeneratingAi || canAutoGenerateDefault)
-  const wantsTranslations = showTranslation
-    && canAiTranslate
-    && !effectivePreferNative
-    && (hasExistingOrGeneratingAi || isPlaying || translationRequested)
+
+  const checkSlotAiEnabled = (
+    slot: LyricTranslationSelection | null,
+    entry: MusicLyricTranslationLangStatus | undefined,
+  ): boolean => {
+    if (!slot || !siteInfo.musicAiEnabled || validTrackId == null || lyricSource == null)
+      return false
+    const hasAiOrGenerating = Boolean(entry?.hasAi || entry?.generating)
+    const canAutoDefault = slot.lang === targetLang && canAiTranslateLyrics(rawLyrics, targetLang, track?.artists)
+    return hasAiOrGenerating || canAutoDefault
+  }
+
+  const primaryCanAi = checkSlotAiEnabled(primarySlot, primaryEntry)
+  const secondaryCanAi = checkSlotAiEnabled(secondarySlot, secondaryEntry)
+  const canAiTranslate = primaryCanAi || secondaryCanAi
+
+  const checkWantsSlotTranslation = (
+    slot: LyricTranslationSelection | null,
+    entry: MusicLyricTranslationLangStatus | undefined,
+    slotCanAi: boolean,
+  ): boolean => {
+    if (!slot || !slotCanAi || slot.preferNative)
+      return false
+    const hasExistingOrGenerating = Boolean(entry?.hasAi || entry?.generating)
+    return showTranslation && (hasExistingOrGenerating || isPlaying || translationRequested)
+  }
+
+  const wantsPrimaryTranslations = checkWantsSlotTranslation(primarySlot, primaryEntry, primaryCanAi)
+  const wantsSecondaryTranslations = checkWantsSlotTranslation(secondarySlot, secondaryEntry, secondaryCanAi)
+  const primaryRequestLang = wantsPrimaryTranslations ? primarySlot.lang : null
+  const secondaryRequestLang = wantsSecondaryTranslations && secondarySlot && secondarySlot.lang !== primaryRequestLang
+    ? secondarySlot.lang
+    : null
+
   useEffect(() => {
-    if (!wantsTranslations || validTrackId == null || lyricSource == null)
+    if (validTrackId == null || lyricSource == null)
       return
+    if (!primaryRequestLang && !secondaryRequestLang)
+      return
+    const trigger = () => {
+      if (primaryRequestLang)
+        requestLyricTranslations(validTrackId, lyricSource, primaryRequestLang)
+      if (secondaryRequestLang)
+        requestLyricTranslations(validTrackId, lyricSource, secondaryRequestLang)
+    }
     if (!sourceTransitioning) {
-      requestLyricTranslations(validTrackId, lyricSource, effectiveTranslationLang)
+      trigger()
       return
     }
     // 歌词流仍在竞速选源且非最高优 TTML 时短暂防抖，避免为短暂过渡源误触发 AI 翻译
-    const timer = setTimeout(() => {
-      requestLyricTranslations(validTrackId, lyricSource, effectiveTranslationLang)
-    }, 650)
+    const timer = setTimeout(trigger, 650)
     return () => clearTimeout(timer)
-  }, [effectiveTranslationLang, lyricSource, sourceTransitioning, validTrackId, wantsTranslations])
+  }, [lyricSource, primaryRequestLang, secondaryRequestLang, sourceTransitioning, validTrackId])
 
   // 曲名与歌手译名并行触发，不等待歌词流结果
+  const hasExistingOrGeneratingPrimaryAi = Boolean(primaryEntry?.hasAi || primaryEntry?.generating)
   const wantsMetaTranslation = Boolean(siteInfo.musicAiEnabled)
     && validTrackId != null
     && showTranslation
-    && (effectiveTranslationLang === targetLang || hasExistingOrGeneratingAi)
-    && (hasExistingOrGeneratingAi || isPlaying || translationRequested)
+    && (effectiveTranslationLang === targetLang || hasExistingOrGeneratingPrimaryAi)
+    && (hasExistingOrGeneratingPrimaryAi || isPlaying || translationRequested)
   useEffect(() => {
     if (wantsMetaTranslation && validTrackId != null)
       requestSongMetaTranslation(validTrackId, effectiveTranslationLang)
@@ -230,26 +289,60 @@ export function MusicLyricsEngine({
     : null
   const pronunciationsGenerating = useLyricPronunciationsGenerating(canAiPronounce ? validTrackId : null, lyricSource)
 
-  const rawTranslations = useLyricTranslations(canAiTranslate ? validTrackId : null, lyricSource, effectiveTranslationLang)
-  const storedTranslations = rawTranslations?.source === lyricSource
-    && (!rawTranslations.targetLang || rawTranslations.targetLang === effectiveTranslationLang)
-    ? rawTranslations
-    : null
-  const translationsGenerating = useLyricTranslationsGenerating(
-    canAiTranslate ? validTrackId : null,
+  const rawPrimaryTranslations = useLyricTranslations(
+    primaryCanAi && !primarySlot.preferNative ? validTrackId : null,
     lyricSource,
-    effectiveTranslationLang,
+    primarySlot.lang,
   )
+  const rawSecondaryTranslations = useLyricTranslations(
+    secondarySlot && secondaryCanAi && !secondarySlot.preferNative ? validTrackId : null,
+    lyricSource,
+    secondarySlot?.lang ?? '',
+  )
+  const matchStoredTranslations = (
+    raw: SiteLyricTranslations | null,
+    lang: LyricTargetLang | undefined,
+  ): SiteLyricTranslations | null => (
+    raw?.source === lyricSource && (!raw.targetLang || raw.targetLang === lang) ? raw : null
+  )
+  const storedPrimaryTranslations = matchStoredTranslations(rawPrimaryTranslations, primarySlot.lang)
+  const storedSecondaryTranslations = matchStoredTranslations(rawSecondaryTranslations, secondarySlot?.lang)
+
+  const primaryGenerating = useLyricTranslationsGenerating(
+    primaryCanAi && !primarySlot.preferNative ? validTrackId : null,
+    lyricSource,
+    primarySlot.lang,
+  )
+  const secondaryGenerating = useLyricTranslationsGenerating(
+    secondarySlot && secondaryCanAi && !secondarySlot.preferNative ? validTrackId : null,
+    lyricSource,
+    secondarySlot?.lang ?? '',
+  )
+  const translationsGenerating = primaryGenerating || secondaryGenerating
+
   const translatedLyrics = useMemo(
-    () => applyLanguageTranslations(rawLyrics, effectiveTranslationLang, storedTranslations, effectivePreferNative),
-    [effectivePreferNative, effectiveTranslationLang, rawLyrics, storedTranslations],
+    () => applyDualLanguageTranslations(
+      rawLyrics,
+      { lang: primarySlot.lang, preferNative: primarySlot.preferNative, ai: storedPrimaryTranslations },
+      secondarySlot
+        ? { lang: secondarySlot.lang, preferNative: secondarySlot.preferNative, ai: storedSecondaryTranslations }
+        : null,
+    ),
+    [primarySlot, rawLyrics, secondarySlot, storedPrimaryTranslations, storedSecondaryTranslations],
   )
-  const aiTranslated = !effectivePreferNative && Boolean(
-    storedTranslations
-    && !storedTranslations.native
-    && !storedTranslations.sameLanguage
-    && storedTranslations.lines.some(line => line.translation.trim().length > 0),
+  const isAiTranslationActive = (
+    slot: LyricTranslationSelection | null,
+    stored: SiteLyricTranslations | null,
+  ) => Boolean(
+    slot
+    && !slot.preferNative
+    && stored
+    && !stored.native
+    && !stored.sameLanguage
+    && stored.lines.some(line => line.translation.trim().length > 0),
   )
+  const aiTranslated = isAiTranslationActive(primarySlot, storedPrimaryTranslations)
+    || isAiTranslationActive(secondarySlot, storedSecondaryTranslations)
   const pronouncedLyrics = useMemo(
     () => applyPronunciationsAndFilter(translatedLyrics, targetLang, storedPronunciations),
     [storedPronunciations, targetLang, translatedLyrics],

@@ -43,6 +43,8 @@ export interface LyricLine {
   start: number
   end: number
   translation?: string
+  // 第二翻译行：同时勾选两种译文对比时，按勾选顺序显示在第一翻译行下方
+  secondaryTranslation?: string
   translationLang?: LyricLang
   translationsByLang?: Partial<Record<LyricLang, string>>
   romanization?: string

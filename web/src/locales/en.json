@@ -3662,7 +3662,8 @@
     "translation_regenerate": "Regenerate AI translation",
     "translation_untranslated_group": "Generate translation",
     "translation_generate_started": "Started generating {lang} translation",
-    "translation_generate_failed": "Failed to start translation task"
+    "translation_generate_failed": "Failed to start translation task",
+    "translation_compare_hint": "Select up to 2 to compare in order"
   },
   "RhythmDebug": {
     "open": "Rhythm debugger",

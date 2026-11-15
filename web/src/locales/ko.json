@@ -3662,7 +3662,8 @@
     "translation_regenerate": "AI 번역 다시 생성",
     "translation_untranslated_group": "새 번역 생성",
     "translation_generate_started": "{lang} AI 번역을 시작했습니다",
-    "translation_generate_failed": "번역 작업을 시작하지 못했습니다"
+    "translation_generate_failed": "번역 작업을 시작하지 못했습니다",
+    "translation_compare_hint": "최대 2개 선택 순으로 상하 비교"
   },
   "RhythmDebug": {
     "open": "리듬 디버거",

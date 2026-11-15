@@ -24,9 +24,8 @@ export function LyricTranslationRefresh({ className }: { className?: string }) {
     lyricAiTranslated,
     lyricTranslationsGenerating,
     effectiveTranslationLang,
-    translationLang,
-    preferNativeTranslation,
-    setTranslationLang,
+    translationSelections,
+    setTranslationSelections,
   } = useMusic()
   const locale = useLocale()
   const targetLang = effectiveTranslationLang || toLyricTargetLang(locale)
@@ -68,8 +67,16 @@ export function LyricTranslationRefresh({ className }: { className?: string }) {
       const results = await Promise.allSettled(tasks)
       const anyStarted = results.some(res => res.status === 'fulfilled' && res.value === 'started')
       if (anyStarted) {
-        if (preferNativeTranslation && canTranslateLines && lyricSource)
-          setTranslationLang(translationLang ?? targetLang, false)
+        if (canTranslateLines && lyricSource && translationSelections.length > 0) {
+          const hasTargetAi = translationSelections.some(item => item.lang === targetLang && !item.preferNative)
+          if (!hasTargetAi && translationSelections.some(item => item.lang === targetLang)) {
+            setTranslationSelections(
+              translationSelections.map(item =>
+                item.lang === targetLang ? { lang: targetLang, preferNative: false } : item,
+              ),
+            )
+          }
+        }
         toast.success(t('lyric_translation_refresh_started'))
       }
       else {

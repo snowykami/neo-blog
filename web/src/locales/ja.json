@@ -3662,7 +3662,8 @@
     "translation_regenerate": "AI 翻訳を再生成",
     "translation_untranslated_group": "新しい翻訳を生成",
     "translation_generate_started": "{lang} の AI 翻訳を開始しました",
-    "translation_generate_failed": "翻訳タスクの開始に失敗しました"
+    "translation_generate_failed": "翻訳タスクの開始に失敗しました",
+    "translation_compare_hint": "最大2件を選択順に上下比較"
   },
   "RhythmDebug": {
     "open": "リズムデバッガー",

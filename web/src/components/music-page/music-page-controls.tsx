@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import type { IconType } from 'react-icons'
 import type { MusicLyricTranslationLangStatus } from '@/api/music'
 import type { PlayMode } from '@/contexts/music-context'
+import type { LyricTranslationSelection } from '@/lib/lyrics/lyric-language'
 import type { LyricTargetLang } from '@/lib/lyrics/target-lang'
 import {
   CaseSensitiveIcon,
@@ -50,7 +51,7 @@ import { useSiteInfo } from '@/contexts/site-info-context'
 import { useSongChorus } from '@/contexts/song-chorus'
 import { useHdrDisplay } from '@/hooks/use-hdr-highlight'
 import { getLyricLineText } from '@/lib/lyrics/line-utils'
-import { canAdminAiTranslateLyrics } from '@/lib/lyrics/lyric-language'
+import { canAdminAiTranslateLyrics, toggleLyricTranslationSelection } from '@/lib/lyrics/lyric-language'
 import { getMotionFeatures } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import { formatDurationMMSS } from '@/utils/common/datetime'
@@ -189,9 +190,11 @@ interface MoreControlsMenuProps {
   setShowTranslation?: (val: boolean) => void
   translationLang?: LyricTargetLang | null
   preferNativeTranslation?: boolean
+  translationSelections?: LyricTranslationSelection[]
   effectiveTranslationLang?: LyricTargetLang
   availableTranslationLangs?: MusicLyricTranslationLangStatus[]
   setTranslationLang?: (lang: LyricTargetLang | null, preferNative?: boolean) => void
+  setTranslationSelections?: (selections: LyricTranslationSelection[]) => void
   isAdmin?: boolean
   musicAiEnabled?: boolean
   hdr: boolean
@@ -227,6 +230,22 @@ function formatBackgroundLyricText(text: string): string {
   return `(${text})`
 }
 
+function TranslationSelectionIndicator({ index, total }: { index: number, total: number }) {
+  if (index >= 0 && total > 1) {
+    return (
+      <span className="inline-flex size-3.5 shrink-0 items-center justify-center rounded-full bg-white text-[10px] leading-none font-bold text-neutral-950">
+        {index + 1}
+      </span>
+    )
+  }
+  return (
+    <CheckIcon
+      aria-hidden
+      className={cn('size-3.5 shrink-0', index >= 0 ? 'opacity-100' : 'opacity-0')}
+    />
+  )
+}
+
 /**
  * 更多控制项：复制歌词、评论与旁白、歌词特效、HDR 高光。
  * 收拢为三点菜单，点击后以二阶弹簧物理动效（Spring）展开半透明浮层，
@@ -242,8 +261,10 @@ export function MoreControlsMenu({
   setShowTranslation,
   translationLang,
   preferNativeTranslation = false,
+  translationSelections,
   availableTranslationLangs,
   setTranslationLang,
+  setTranslationSelections,
   isAdmin,
   musicAiEnabled,
   hdr,
@@ -328,14 +349,46 @@ export function MoreControlsMenu({
       && canAdminAiTranslateLyrics(lyrics, item.lang as LyricTargetLang, currentTrack?.artists),
     )
   }, [adminActionable, allStatuses, currentTrack?.artists, lyrics])
-  const showLangMenuButton = Boolean(setTranslationLang)
+  const activeSelections = useMemo<LyricTranslationSelection[]>(() => {
+    if (translationSelections !== undefined)
+      return translationSelections
+    return translationLang ? [{ lang: translationLang, preferNative: Boolean(preferNativeTranslation) }] : []
+  }, [preferNativeTranslation, translationLang, translationSelections])
+
+  const applySelections = useCallback((next: LyricTranslationSelection[]) => {
+    if (setTranslationSelections) {
+      setTranslationSelections(next)
+      return
+    }
+    setTranslationLang?.(next[0]?.lang ?? null, Boolean(next[0]?.preferNative))
+  }, [setTranslationLang, setTranslationSelections])
+
+  const showLangMenuButton = Boolean(setTranslationSelections || setTranslationLang)
     && (availableItems.length > 0 || (adminActionable && untranslatedAdminItems.length > 0))
+
+  const handleToggleOption = useCallback((target: LyricTranslationSelection, hasDualSources: boolean) => {
+    const next = toggleLyricTranslationSelection(activeSelections, target, { hasDualSources })
+    applySelections(next)
+    setShowTranslation?.(true)
+    scheduleClose(8000)
+  }, [activeSelections, applySelections, scheduleClose, setShowTranslation])
 
   const handleTriggerTranslation = useCallback(async (lang: LyricTargetLang) => {
     if (!adminActionable || !currentTrack?.id || !lyricSource || triggeringLang)
       return
     setTriggeringLang(lang)
-    setTranslationLang?.(lang, false)
+    const hasSameLangAiSelected = activeSelections.some(item => item.lang === lang && !item.preferNative)
+    if (!hasSameLangAiSelected) {
+      const hasSameLangNativeOnly = activeSelections.some(item => item.lang === lang && Boolean(item.preferNative))
+      if (hasSameLangNativeOnly) {
+        applySelections(activeSelections.map(item =>
+          item.lang === lang ? { lang, preferNative: false } : item,
+        ))
+      }
+      else {
+        applySelections([{ lang, preferNative: false }])
+      }
+    }
     setShowTranslation?.(true)
     try {
       const res = await refreshTranslations(currentTrack.id, lyricSource, lang)
@@ -353,7 +406,7 @@ export function MoreControlsMenu({
     finally {
       setTriggeringLang(null)
     }
-  }, [adminActionable, currentTrack?.id, locale, lyricSource, playerT, setShowTranslation, setTranslationLang, triggeringLang])
+  }, [activeSelections, adminActionable, applySelections, currentTrack?.id, locale, lyricSource, playerT, setShowTranslation, triggeringLang])
 
   const handleCopyLyrics = useCallback(async () => {
     const lines = lyrics?.lines
@@ -376,8 +429,12 @@ export function MoreControlsMenu({
       const parts = [orig]
       if (showRomaji && line.romanization?.trim())
         parts.push(line.romanization.trim())
-      if (showTranslation && line.translation?.trim())
-        parts.push(line.translation.trim())
+      if (showTranslation) {
+        if (line.translation?.trim())
+          parts.push(line.translation.trim())
+        if (line.secondaryTranslation?.trim())
+          parts.push(line.secondaryTranslation.trim())
+      }
       return parts
     }).filter((parts): parts is string[] => parts !== null)
 
@@ -431,22 +488,24 @@ export function MoreControlsMenu({
               }}
               className="absolute right-0 bottom-full z-40 mb-14 w-64 max-w-[calc(100vw-2rem)] origin-bottom-right rounded-2xl border border-white/15 bg-neutral-950/90 p-1.5 text-white shadow-2xl backdrop-blur-2xl"
             >
+              <div className="px-2.5 py-1 text-[11px] font-medium text-white/50">
+                {playerT('translation_compare_hint')}
+              </div>
               <button
                 type="button"
                 onClick={() => {
-                  setTranslationLang?.(null, false)
+                  applySelections([])
                   setShowTranslation?.(true)
-                  setLangMenuOpen(false)
-                  scheduleClose(2500)
+                  scheduleClose(4500)
                 }}
                 className={cn(
                   'flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-left text-xs transition hover:bg-white/10',
-                  translationLang == null ? 'bg-white/10 font-medium text-white' : 'text-white/80',
+                  activeSelections.length === 0 ? 'bg-white/10 font-medium text-white' : 'text-white/80',
                 )}
               >
                 <CheckIcon
                   aria-hidden
-                  className={cn('size-3.5 shrink-0', translationLang == null ? 'opacity-100' : 'opacity-0')}
+                  className={cn('size-3.5 shrink-0', activeSelections.length === 0 ? 'opacity-100' : 'opacity-0')}
                 />
                 <span className="min-w-0 flex-1 truncate">{playerT('translation_lang_follow_site')}</span>
               </button>
@@ -457,8 +516,8 @@ export function MoreControlsMenu({
                 const canRegenerate = adminActionable && item.hasAi && !item.generating
 
                 if (hasDualSources) {
-                  const isAiSelected = translationLang === langCode && !preferNativeTranslation
-                  const isNativeSelected = translationLang === langCode && Boolean(preferNativeTranslation)
+                  const aiIndex = activeSelections.findIndex(entry => entry.lang === langCode && !entry.preferNative)
+                  const nativeIndex = activeSelections.findIndex(entry => entry.lang === langCode && Boolean(entry.preferNative))
                   return [
                     (
                       <div
@@ -467,21 +526,15 @@ export function MoreControlsMenu({
                       >
                         <button
                           type="button"
-                          onClick={() => {
-                            setTranslationLang?.(langCode, false)
-                            setShowTranslation?.(true)
-                            setLangMenuOpen(false)
-                            scheduleClose(2500)
-                          }}
+                          role="menuitemcheckbox"
+                          aria-checked={aiIndex >= 0}
+                          onClick={() => handleToggleOption({ lang: langCode, preferNative: false }, true)}
                           className={cn(
                             'flex min-w-0 flex-1 items-center gap-2 px-1.5 py-1 text-left text-xs',
-                            isAiSelected ? 'font-medium text-white' : 'text-white/85',
+                            aiIndex >= 0 ? 'font-medium text-white' : 'text-white/85',
                           )}
                         >
-                          <CheckIcon
-                            aria-hidden
-                            className={cn('size-3.5 shrink-0', isAiSelected ? 'opacity-100' : 'opacity-0')}
-                          />
+                          <TranslationSelectionIndicator index={aiIndex} total={activeSelections.length} />
                           <span className="min-w-0 flex-1 truncate">{formatTranslationLangLabel(item.lang, locale)}</span>
                           {item.generating
                             ? <Loader2Icon aria-hidden className="size-3 shrink-0 animate-spin text-white/80" />
@@ -512,21 +565,15 @@ export function MoreControlsMenu({
                       >
                         <button
                           type="button"
-                          onClick={() => {
-                            setTranslationLang?.(langCode, true)
-                            setShowTranslation?.(true)
-                            setLangMenuOpen(false)
-                            scheduleClose(2500)
-                          }}
+                          role="menuitemcheckbox"
+                          aria-checked={nativeIndex >= 0}
+                          onClick={() => handleToggleOption({ lang: langCode, preferNative: true }, true)}
                           className={cn(
                             'flex min-w-0 flex-1 items-center gap-2 px-1.5 py-1 text-left text-xs',
-                            isNativeSelected ? 'font-medium text-white' : 'text-white/85',
+                            nativeIndex >= 0 ? 'font-medium text-white' : 'text-white/85',
                           )}
                         >
-                          <CheckIcon
-                            aria-hidden
-                            className={cn('size-3.5 shrink-0', isNativeSelected ? 'opacity-100' : 'opacity-0')}
-                          />
+                          <TranslationSelectionIndicator index={nativeIndex} total={activeSelections.length} />
                           <span className="min-w-0 flex-1 truncate">{formatTranslationLangLabel(item.lang, locale)}</span>
                           <span className="shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-white/70">
                             {playerT('translation_badge_native')}
@@ -537,7 +584,7 @@ export function MoreControlsMenu({
                   ]
                 }
 
-                const isSelected = translationLang === langCode
+                const selectedIndex = activeSelections.findIndex(entry => entry.lang === langCode)
                 const canOverride = adminActionable
                   && !item.hasAi
                   && item.hasNative
@@ -551,21 +598,15 @@ export function MoreControlsMenu({
                     >
                       <button
                         type="button"
-                        onClick={() => {
-                          setTranslationLang?.(langCode, false)
-                          setShowTranslation?.(true)
-                          setLangMenuOpen(false)
-                          scheduleClose(2500)
-                        }}
+                        role="menuitemcheckbox"
+                        aria-checked={selectedIndex >= 0}
+                        onClick={() => handleToggleOption({ lang: langCode, preferNative: false }, false)}
                         className={cn(
                           'flex min-w-0 flex-1 items-center gap-2 px-1.5 py-1 text-left text-xs',
-                          isSelected ? 'font-medium text-white' : 'text-white/85',
+                          selectedIndex >= 0 ? 'font-medium text-white' : 'text-white/85',
                         )}
                       >
-                        <CheckIcon
-                          aria-hidden
-                          className={cn('size-3.5 shrink-0', isSelected ? 'opacity-100' : 'opacity-0')}
-                        />
+                        <TranslationSelectionIndicator index={selectedIndex} total={activeSelections.length} />
                         <span className="min-w-0 flex-1 truncate">{formatTranslationLangLabel(item.lang, locale)}</span>
                         {item.generating
                           ? <Loader2Icon aria-hidden className="size-3 shrink-0 animate-spin text-white/80" />
@@ -659,7 +700,7 @@ export function MoreControlsMenu({
                 <IconButton
                   icon={GlobeIcon}
                   label={playerT('translation_language')}
-                  active={langMenuOpen || translationLang != null}
+                  active={langMenuOpen || activeSelections.length > 0}
                   onClick={() => {
                     const next = !langMenuOpen
                     setLangMenuOpen(next)
@@ -766,9 +807,11 @@ export function MusicPageControls({ onOpenPlaylist, playlistSlot, compact = fals
     showTranslation,
     translationLang,
     preferNativeTranslation,
+    translationSelections,
     showRomaji,
     setShowTranslation,
     setTranslationLang,
+    setTranslationSelections,
     setShowRomaji,
     showLyricEffects,
     setShowLyricEffects,
@@ -833,9 +876,11 @@ export function MusicPageControls({ onOpenPlaylist, playlistSlot, compact = fals
             setShowTranslation={setShowTranslation}
             translationLang={translationLang}
             preferNativeTranslation={preferNativeTranslation}
+            translationSelections={translationSelections}
             effectiveTranslationLang={effectiveTranslationLang}
             availableTranslationLangs={availableTranslationLangs}
             setTranslationLang={setTranslationLang}
+            setTranslationSelections={setTranslationSelections}
             isAdmin={admin}
             musicAiEnabled={Boolean(siteInfo.musicAiEnabled)}
             hdr={hdr}

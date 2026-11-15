@@ -870,6 +870,165 @@ export function canAdminAiTranslateLyrics(lyrics: ResolvedLyrics, targetLang: Ly
   return hasTranslatableVocalLines(lyrics, targetLang, artists)
 }
 
+/** 手动勾选的单条歌词翻译来源（最多同时勾选 2 项按顺序上下展示） */
+export interface LyricTranslationSelection {
+  lang: LyricTargetLang
+  preferNative?: boolean
+}
+
+export interface ResolvedTranslationSlot {
+  lang: LyricTargetLang
+  preferNative?: boolean
+  ai: LyricTranslationSet | null
+}
+
+/**
+ * 切换翻译来源勾选状态（最多保留 2 项，按勾选顺序排列）：
+ * - 已勾选则取消勾选；
+ * - 未勾选则追加到末尾，若已满 2 项则移除最早勾选的第 1 项。
+ */
+export function toggleLyricTranslationSelection(
+  current: readonly LyricTranslationSelection[],
+  target: LyricTranslationSelection,
+  options?: { hasDualSources?: boolean },
+): LyricTranslationSelection[] {
+  const preferNative = Boolean(target.preferNative)
+  if (options?.hasDualSources) {
+    const idx = current.findIndex(
+      item => item.lang === target.lang && Boolean(item.preferNative) === preferNative,
+    )
+    if (idx >= 0)
+      return current.filter((_, i) => i !== idx)
+    const nextItem: LyricTranslationSelection = { lang: target.lang, preferNative }
+    return current.length >= 2 ? [...current.slice(-1), nextItem] : [...current, nextItem]
+  }
+
+  if (current.some(item => item.lang === target.lang))
+    return current.filter(item => item.lang !== target.lang)
+
+  const nextItem: LyricTranslationSelection = { lang: target.lang, preferNative: false }
+  return current.length >= 2 ? [...current.slice(-1), nextItem] : [...current, nextItem]
+}
+
+type SlotResolveMode = 'auto' | 'ai-only' | 'native-only'
+
+function hasValidAiSet(
+  lyrics: ResolvedLyrics,
+  targetLang: LyricTargetLang,
+  ai: LyricTranslationSet | null,
+): ai is LyricTranslationSet {
+  return Boolean(
+    ai
+    && ai.source === lyrics.source
+    && (!ai.targetLang || ai.targetLang === targetLang)
+    && !ai.native
+    && ai.lines.some(item => Boolean(item.translation?.trim())),
+  )
+}
+
+function resolveNativeSlotTranslations(lyrics: ResolvedLyrics, targetLang: LyricTargetLang): (string | undefined)[] {
+  if (hasKeyedNativeTranslation(lyrics, targetLang))
+    return lyrics.lines.map(line => line.translationsByLang?.[targetLang])
+  if (hasDefaultNativeTranslation(lyrics, targetLang))
+    return lyrics.lines.map(line => line.translation)
+  return lyrics.lines.map(() => undefined)
+}
+
+function resolveSingleSlotTranslations(
+  lyrics: ResolvedLyrics,
+  targetLang: LyricTargetLang,
+  ai: LyricTranslationSet | null,
+  mode: SlotResolveMode,
+): (string | undefined)[] {
+  if (mode === 'native-only')
+    return resolveNativeSlotTranslations(lyrics, targetLang)
+
+  if (!hasValidAiSet(lyrics, targetLang, ai))
+    return mode === 'ai-only' ? lyrics.lines.map(() => undefined) : resolveNativeSlotTranslations(lyrics, targetLang)
+
+  const hasKeyedNative = mode === 'auto' && hasKeyedNativeTranslation(lyrics, targetLang)
+  const hasDefaultNative = mode === 'auto' && !hasKeyedNative && hasDefaultNativeTranslation(lyrics, targetLang)
+  const lookup = new Map<string, string>()
+  for (const item of ai.lines) {
+    if (!item.translation)
+      continue
+    lookup.set(`${Boolean(item.bg)}:${item.occurrence}:${normalizeForMatch(item.text)}`, item.translation)
+  }
+  const occCounts = new Map<string, number>()
+  return lyrics.lines.map((line) => {
+    const bg = Boolean(line.isBackground)
+    const norm = normalizeForMatch(getLyricLineText(line))
+    const countKey = `${bg}:${norm}`
+    const occ = occCounts.get(countKey) ?? 0
+    occCounts.set(countKey, occ + 1)
+    const fallbackNative = mode === 'auto'
+      ? (hasKeyedNative ? line.translationsByLang?.[targetLang] : (hasDefaultNative ? line.translation : undefined))
+      : undefined
+    return lookup.get(`${bg}:${occ}:${norm}`) ?? fallbackNative
+  })
+}
+
+function resolveSlotMode(
+  lyrics: ResolvedLyrics,
+  slot: ResolvedTranslationSlot,
+  sameLangComparison: boolean,
+): SlotResolveMode {
+  if (slot.preferNative && hasNativeTargetTranslation(lyrics, slot.lang))
+    return 'native-only'
+  if (sameLangComparison && !slot.preferNative)
+    return 'ai-only'
+  return 'auto'
+}
+
+/**
+ * 合成单轨或双轨对比翻译：
+ * - 第 1 轨写入 `line.translation`（上方），第 2 轨写入 `line.secondaryTranslation`（下方）；
+ * - 当同一语种同时对比 AI 与内置译文时，AI 轨采用 `ai-only` 模式，避免流式未到达行被内置译文重复顶替。
+ */
+export function applyDualLanguageTranslations(
+  lyrics: ResolvedLyrics,
+  primary: ResolvedTranslationSlot,
+  secondary?: ResolvedTranslationSlot | null,
+): ResolvedLyrics {
+  if (lyrics.source === 'none' || lyrics.lines.length === 0)
+    return lyrics
+
+  const sameLangComparison = Boolean(
+    secondary
+    && secondary.lang === primary.lang
+    && Boolean(primary.preferNative) !== Boolean(secondary.preferNative),
+  )
+
+  const primaryTexts = resolveSingleSlotTranslations(
+    lyrics,
+    primary.lang,
+    primary.ai,
+    resolveSlotMode(lyrics, primary, sameLangComparison),
+  )
+  const secondaryTexts = secondary
+    ? resolveSingleSlotTranslations(
+        lyrics,
+        secondary.lang,
+        secondary.ai,
+        resolveSlotMode(lyrics, secondary, sameLangComparison),
+      )
+    : null
+
+  let changed = false
+  const nextLines = lyrics.lines.map((line, idx) => {
+    const nextTr = primaryTexts[idx]
+    const nextSec = secondaryTexts ? secondaryTexts[idx] : undefined
+    if (nextTr === line.translation && nextSec === line.secondaryTranslation)
+      return line
+    changed = true
+    if (nextSec === line.secondaryTranslation)
+      return { ...line, translation: nextTr }
+    return { ...line, translation: nextTr, secondaryTranslation: nextSec }
+  })
+
+  return changed ? { ...lyrics, lines: nextLines } : lyrics
+}
+
 /** 按当前目标语言与已就绪的 AI 翻译合成展示用译文；默认优先展示 AI 翻译，preferNative 为 true 且当前歌含同语种原生译文时切回原生译文 */
 export function applyLanguageTranslations(
   lyrics: ResolvedLyrics,
@@ -877,61 +1036,5 @@ export function applyLanguageTranslations(
   ai: LyricTranslationSet | null,
   preferNative = false,
 ): ResolvedLyrics {
-  if (lyrics.source === 'none' || lyrics.lines.length === 0)
-    return lyrics
-
-  const hasAiOverride = Boolean(
-    !(preferNative && hasNativeTargetTranslation(lyrics, targetLang))
-    && ai
-    && ai.source === lyrics.source
-    && (!ai.targetLang || ai.targetLang === targetLang)
-    && !ai.native
-    && ai.lines.some(item => Boolean(item.translation?.trim())),
-  )
-
-  if (hasAiOverride && ai) {
-    const hasKeyedNative = hasKeyedNativeTranslation(lyrics, targetLang)
-    const hasDefaultNative = !hasKeyedNative && hasDefaultNativeTranslation(lyrics, targetLang)
-    const lookup = new Map<string, string>()
-    for (const item of ai.lines) {
-      if (!item.translation)
-        continue
-      lookup.set(`${Boolean(item.bg)}:${item.occurrence}:${normalizeForMatch(item.text)}`, item.translation)
-    }
-    const occCounts = new Map<string, number>()
-    const nextLines = lyrics.lines.map((line) => {
-      const bg = Boolean(line.isBackground)
-      const norm = normalizeForMatch(getLyricLineText(line))
-      const countKey = `${bg}:${norm}`
-      const occ = occCounts.get(countKey) ?? 0
-      occCounts.set(countKey, occ + 1)
-      const fallbackNative = hasKeyedNative
-        ? line.translationsByLang?.[targetLang]
-        : (hasDefaultNative ? line.translation : undefined)
-      const next = lookup.get(`${bg}:${occ}:${norm}`) ?? fallbackNative
-      return next === line.translation ? line : { ...line, translation: next }
-    })
-    return { ...lyrics, lines: nextLines }
-  }
-
-  if (hasKeyedNativeTranslation(lyrics, targetLang)) {
-    return {
-      ...lyrics,
-      lines: lyrics.lines.map((line) => {
-        const next = line.translationsByLang?.[targetLang]
-        return next === line.translation ? line : { ...line, translation: next }
-      }),
-    }
-  }
-
-  if (hasDefaultNativeTranslation(lyrics, targetLang))
-    return lyrics
-
-  // 未命中所选语言原生翻译且 AI 翻译尚未就绪时，清除其他语言的内置翻译，避免展示错位语种（如日文界面出现简体中文）
-  if (!lyrics.lines.some(line => line.translation !== undefined))
-    return lyrics
-  return {
-    ...lyrics,
-    lines: lyrics.lines.map(line => (line.translation === undefined ? line : { ...line, translation: undefined })),
-  }
+  return applyDualLanguageTranslations(lyrics, { lang: targetLang, preferNative, ai }, null)
 }

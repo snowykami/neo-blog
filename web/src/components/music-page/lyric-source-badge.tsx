@@ -87,7 +87,7 @@ export function LyricSourceBadge({ className }: { className?: string }) {
       t(target.wordTimed ? 'lyric_badge_word' : 'lyric_badge_line'),
       (target.source === lyrics.source && (lyricAiTranslated || lyricTranslationsGenerating))
         ? t('lyric_badge_ai_translation')
-        : target.lines.some(line => line.translation) && t('lyric_badge_translation'),
+        : target.lines.some(line => line.translation || line.secondaryTranslation) && t('lyric_badge_translation'),
       (target.source === lyrics.source && (lyricAiRomanized || lyricPronunciationsGenerating))
         ? t('lyric_badge_ai_romanization')
         : target.lines.some(line => line.romanization) && t('lyric_badge_romanization'),

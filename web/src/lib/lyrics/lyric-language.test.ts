@@ -1,6 +1,7 @@
 import type { ResolvedLyrics } from './types'
 import { describe, expect, it } from 'vitest'
 import {
+  applyDualLanguageTranslations,
   applyLanguageTranslations,
   canAdminAiTranslateLyrics,
   canAiTranslateLyrics,
@@ -9,6 +10,7 @@ import {
   hasNativeTargetTranslation,
   normalizeLyricLangTag,
   songAlreadyInTargetLang,
+  toggleLyricTranslationSelection,
   toLyricTargetLang,
 } from './lyric-language'
 import { parseTtml } from './parse-ttml'
@@ -318,5 +320,115 @@ describe('歌词语言检测与多语种翻译匹配', () => {
     const fallbackAi = applyLanguageTranslations(noNativeJapanese, 'zh', lrcAiSet, true)
     expect(fallbackAi.lines[0].translation).toBe('AI 精译：呼唤着你的名字')
     expect(fallbackAi.lines[1].translation).toBe('AI 精译：直至破晓染红天际')
+  })
+
+  it('支持最多勾选两项译文来源并按勾选顺序上下对比（同语种 AI+内置 与 跨语种）', () => {
+    // 1. 勾选切换纯函数：单选 -> 双选保序 -> 取消后重选翻转顺序 -> 超过 2 项淘汰最早项 -> 全消为空
+    let selections = toggleLyricTranslationSelection([], { lang: 'zh', preferNative: false }, { hasDualSources: true })
+    expect(selections).toEqual([{ lang: 'zh', preferNative: false }])
+
+    selections = toggleLyricTranslationSelection(selections, { lang: 'zh', preferNative: true }, { hasDualSources: true })
+    expect(selections).toEqual([
+      { lang: 'zh', preferNative: false },
+      { lang: 'zh', preferNative: true },
+    ])
+
+    // 取消第 1 项后再重选，顺序翻转为 [内置, AI]
+    selections = toggleLyricTranslationSelection(selections, { lang: 'zh', preferNative: false }, { hasDualSources: true })
+    expect(selections).toEqual([{ lang: 'zh', preferNative: true }])
+    selections = toggleLyricTranslationSelection(selections, { lang: 'zh', preferNative: false }, { hasDualSources: true })
+    expect(selections).toEqual([
+      { lang: 'zh', preferNative: true },
+      { lang: 'zh', preferNative: false },
+    ])
+
+    // 再勾选第 3 项（单来源 en）时仅保留最近 2 项
+    selections = toggleLyricTranslationSelection(selections, { lang: 'en' }, { hasDualSources: false })
+    expect(selections).toEqual([
+      { lang: 'zh', preferNative: false },
+      { lang: 'en', preferNative: false },
+    ])
+
+    // 全部取消回归空数组
+    selections = toggleLyricTranslationSelection(selections, { lang: 'zh', preferNative: false }, { hasDualSources: true })
+    selections = toggleLyricTranslationSelection(selections, { lang: 'en' }, { hasDualSources: false })
+    expect(selections).toEqual([])
+
+    // 2. 同语种 AI 简体与内置简体双轨合成（上下顺序随勾选顺序翻转）
+    const lrcDual: ResolvedLyrics = {
+      source: 'ncm-lrc',
+      wordTimed: false,
+      instrumental: false,
+      lines: [
+        { words: [{ text: '君の名前を呼んでいる', start: 1000, end: 3000 }], start: 1000, end: 3000, translation: '原生中文1', isDuet: false, isBackground: false },
+        { words: [{ text: '夜明けの空が染まるまで', start: 3000, end: 5000 }], start: 3000, end: 5000, translation: '原生中文2', isDuet: false, isBackground: false },
+      ],
+    }
+    const aiZhFull = {
+      source: 'ncm-lrc',
+      targetLang: 'zh',
+      native: false,
+      lines: [
+        { text: '君の名前を呼んでいる', occurrence: 0, translation: 'AI 中文1' },
+        { text: '夜明けの空が染まるまで', occurrence: 0, translation: 'AI 中文2' },
+      ],
+    }
+
+    const aiTopNativeBottom = applyDualLanguageTranslations(
+      lrcDual,
+      { lang: 'zh', preferNative: false, ai: aiZhFull },
+      { lang: 'zh', preferNative: true, ai: null },
+    )
+    expect(aiTopNativeBottom.lines.map(l => [l.translation, l.secondaryTranslation])).toEqual([
+      ['AI 中文1', '原生中文1'],
+      ['AI 中文2', '原生中文2'],
+    ])
+
+    const nativeTopAiBottom = applyDualLanguageTranslations(
+      lrcDual,
+      { lang: 'zh', preferNative: true, ai: null },
+      { lang: 'zh', preferNative: false, ai: aiZhFull },
+    )
+    expect(nativeTopAiBottom.lines.map(l => [l.translation, l.secondaryTranslation])).toEqual([
+      ['原生中文1', 'AI 中文1'],
+      ['原生中文2', 'AI 中文2'],
+    ])
+
+    // 流式尚未到达第 2 句时，AI 轨在同语种对比下不回退显示原生中文，避免上下两行显示同一句话
+    const aiZhPartial = {
+      source: 'ncm-lrc',
+      targetLang: 'zh',
+      native: false,
+      lines: [{ text: '君の名前を呼んでいる', occurrence: 0, translation: 'AI 中文1' }],
+    }
+    const partialCompare = applyDualLanguageTranslations(
+      lrcDual,
+      { lang: 'zh', preferNative: false, ai: aiZhPartial },
+      { lang: 'zh', preferNative: true, ai: null },
+    )
+    expect(partialCompare.lines[0].translation).toBe('AI 中文1')
+    expect(partialCompare.lines[0].secondaryTranslation).toBe('原生中文1')
+    expect(partialCompare.lines[1].translation).toBeUndefined()
+    expect(partialCompare.lines[1].secondaryTranslation).toBe('原生中文2')
+
+    // 3. 跨语种对比：[en (AI), zh (原生)]
+    const aiEnSet = {
+      source: 'ncm-lrc',
+      targetLang: 'en',
+      native: false,
+      lines: [
+        { text: '君の名前を呼んでいる', occurrence: 0, translation: 'Calling your name' },
+        { text: '夜明けの空が染まるまで', occurrence: 0, translation: 'Until the dawn sky blushes' },
+      ],
+    }
+    const crossLang = applyDualLanguageTranslations(
+      lrcDual,
+      { lang: 'en', preferNative: false, ai: aiEnSet },
+      { lang: 'zh', preferNative: false, ai: null },
+    )
+    expect(crossLang.lines.map(l => [l.translation, l.secondaryTranslation])).toEqual([
+      ['Calling your name', '原生中文1'],
+      ['Until the dawn sky blushes', '原生中文2'],
+    ])
   })
 })
