@@ -36,7 +36,7 @@ import { useTranslations } from 'next-intl'
 import * as React from 'react'
 import { CONTENT_COMPONENTS } from '@/components/content-components/registry'
 import { insertImage } from '@/components/tiptap-ui/image-upload-button/use-image-upload'
-import { EDITOR_FLOATING_ATTR } from '@/components/tiptap-ui/link-popover/link-popover'
+import { EDITOR_FLOATING_ATTR } from '@/components/tiptap-ui/link-popover/floating'
 import { setTextAlign } from '@/components/tiptap-ui/text-align-button/use-text-align'
 import {
   DropdownMenu,
@@ -49,8 +49,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { CONTENT_FONTS } from '@/lib/content-theme'
 import { cn } from '@/lib/utils'
-import { AIPromptManageButton } from './ai-prompt-manager-dialog'
-import { useAIPrompts } from './ai-prompts-context'
+import { AIPromptManageButton, useAIPrompts } from './ai-prompts-context'
 import { BLOCK_TYPES, formatShortcut, getBlockTypeDef, setBlockType, TEXT_ALIGNS } from './editor-commands'
 import { EditorToolbarButton, EditorTooltip } from './editor-toolbar-button'
 

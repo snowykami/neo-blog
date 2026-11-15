@@ -1,7 +1,6 @@
 'use client'
 
 import type { Editor } from '@tiptap/react'
-import { posToDOMRect } from '@tiptap/react'
 import { ExternalLinkIcon, LinkIcon, UnlinkIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import * as React from 'react'
@@ -12,23 +11,9 @@ import { Label } from '@/components/ui/label'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import { isComposingKey } from '@/lib/ime'
 import { sanitizeUrl } from '@/lib/tiptap-utils'
+import { EDITOR_FLOATING_ATTR, useSelectionAnchor } from './floating'
 
-// 浮层标记：焦点位于带此属性的元素内时，气泡菜单不会因编辑器失焦而隐藏
-export const EDITOR_FLOATING_ATTR = 'data-editor-floating'
-
-/** 当前选区的虚拟锚点，供弹层定位到选中文字下方 */
-export function useSelectionAnchor(editor: Editor | null) {
-  return React.useMemo(() => ({
-    current: {
-      getBoundingClientRect: () => {
-        if (!editor || editor.isDestroyed)
-          return new DOMRect()
-        const { from, to } = editor.state.selection
-        return posToDOMRect(editor.view, from, to)
-      },
-    },
-  }), [editor])
-}
+export { EDITOR_FLOATING_ATTR, useSelectionAnchor } from './floating'
 
 /** 补全协议：example.com → https://example.com；站内路径、锚点与 mailto 等保持原样 */
 export function normalizeLinkUrl(value: string) {

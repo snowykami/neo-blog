@@ -6,6 +6,7 @@ import type { TextAlign } from '@/components/tiptap-ui/text-align-button/use-tex
 import type { ContentFont } from '@/lib/content-theme'
 import { NodeSelection } from '@tiptap/pm/state'
 import { useEditorState } from '@tiptap/react'
+import * as React from 'react'
 import { ANNOTATION_MARK } from '@/components/tiptap-extension/annotation-constants'
 import { CONTENT_FONT_MARK } from '@/components/tiptap-extension/content-font-extension'
 import { canColorHighlight } from '@/components/tiptap-ui/color-highlight-button/use-color-highlight'
@@ -72,10 +73,9 @@ const EMPTY_STATE: EditorToolbarState = {
   inTable: false,
 }
 
-/**
- * 订阅编辑器状态，供工具栏、气泡菜单与状态栏渲染（只有结果变化时才重新渲染）
- */
-export function useEditorToolbarState(editor: Editor | null): EditorToolbarState {
+const EditorToolbarStateContext = React.createContext<EditorToolbarState | null>(null)
+
+function useDirectEditorToolbarState(editor: Editor | null): EditorToolbarState {
   return useEditorState({
     editor,
     selector: ({ editor: ed }): EditorToolbarState => {
@@ -113,6 +113,24 @@ export function useEditorToolbarState(editor: Editor | null): EditorToolbarState
       }
     },
   }) ?? EMPTY_STATE
+}
+
+/**
+ * 在外层统一订阅一次工具栏状态，避免工具栏、气泡菜单、右键菜单与状态栏重复跑 4 套 can() 检测
+ */
+export function EditorToolbarStateProvider({ editor, children }: { editor: Editor | null, children: React.ReactNode }) {
+  const state = useDirectEditorToolbarState(editor)
+  return React.createElement(EditorToolbarStateContext.Provider, { value: state }, children)
+}
+
+/**
+ * 订阅编辑器状态，供工具栏、气泡菜单与状态栏渲染（只有结果变化时才重新渲染）
+ */
+export function useEditorToolbarState(editor: Editor | null): EditorToolbarState {
+  const shared = React.useContext(EditorToolbarStateContext)
+  // 若外层已挂载 EditorToolbarStateProvider，传入 null 跳过重复的 useEditorState 订阅，保留独立调用时的回退行为
+  const direct = useDirectEditorToolbarState(shared ? null : editor)
+  return shared ?? direct
 }
 
 function fontOf(value: unknown): ContentFont | null {

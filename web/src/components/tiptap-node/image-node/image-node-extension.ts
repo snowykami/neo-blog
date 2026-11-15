@@ -54,7 +54,7 @@ export const Image = TiptapImage.extend<ImageOptions>({
   },
 
   renderHTML({ node, HTMLAttributes }) {
-    const img = ['img', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes)] as const
+    const img = ['img', mergeAttributes({ loading: 'lazy', decoding: 'async' }, this.options.HTMLAttributes, HTMLAttributes)] as const
     const caption = node.attrs.caption as string | null
     if (!caption)
       return img

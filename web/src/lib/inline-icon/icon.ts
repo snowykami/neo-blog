@@ -1,16 +1,35 @@
 import type { IconNode, LucideIconNode } from 'lucide-react'
-import dynamicIconImports from 'lucide-react/dynamicIconImports'
 import { INLINE_ICON_ATTR, isIconName } from './constants'
 
 export * from './constants'
 
-// 行内图标的数据与渲染（存储格式见 constants.ts）：图标数据来自已安装的 lucide-react，每个图标单独按需加载
+// 行内图标的数据与渲染（存储格式见 constants.ts）：图标数据来自已安装的 lucide-react，映射表与图标均按需加载
 
-type IconImportName = keyof typeof dynamicIconImports
+type DynamicIconImports = typeof import('lucide-react/dynamicIconImports').default
+type IconImportName = keyof DynamicIconImports
+
+let dynamicIconImportsPromise: Promise<DynamicIconImports> | null = null
+
+/** 按需加载 lucide 动态图标映射表（约 129KB），同一进程内仅加载一次 */
+export function getDynamicIconImports(): Promise<DynamicIconImports> {
+  if (!dynamicIconImportsPromise) {
+    dynamicIconImportsPromise = import('lucide-react/dynamicIconImports')
+      .then(mod => mod.default)
+      .catch((error) => {
+        // 加载失败时清除缓存，允许后续重试
+        dynamicIconImportsPromise = null
+        throw error
+      })
+  }
+  return dynamicIconImportsPromise
+}
 
 /** 已安装的 lucide 中存在的图标（含别名） */
-export function hasIcon(name: string): name is IconImportName {
-  return isIconName(name) && Object.hasOwn(dynamicIconImports, name)
+export async function hasIcon(name: string): Promise<boolean> {
+  if (!isIconName(name))
+    return false
+  const imports = await getDynamicIconImports()
+  return Object.hasOwn(imports, name)
 }
 
 function escapeAttr(value: string) {
@@ -41,14 +60,20 @@ export function iconSvgMarkup(node: IconNode): string {
 // 图标数据不可变：同一进程内按名字缓存加载结果
 const svgCache = new Map<string, Promise<string | null>>()
 
-/** 按名字加载图标的 SVG 标记；未知的图标名返回 null */
+/** 按名字加载图标的 SVG 标记；非法或未知的图标名返回 null */
 export function loadIconSvg(name: string): Promise<string | null> {
-  if (!hasIcon(name))
+  if (!isIconName(name))
     return Promise.resolve(null)
   let svg = svgCache.get(name)
   if (!svg) {
-    svg = dynamicIconImports[name]()
-      .then(mod => iconSvgMarkup(mod.__iconData.node))
+    svg = getDynamicIconImports()
+      .then((imports) => {
+        if (!Object.hasOwn(imports, name)) {
+          svgCache.delete(name)
+          return null
+        }
+        return imports[name as IconImportName]().then(mod => iconSvgMarkup(mod.__iconData.node))
+      })
       .catch(() => {
         // 网络等原因加载失败时允许重试
         svgCache.delete(name)
@@ -73,7 +98,7 @@ export async function renderInlineIconsHtml(html: string): Promise<string> {
   const names = new Set<string>()
   for (const [, attrs] of html.matchAll(EMPTY_SPAN)) {
     const name = ICON_ATTR_VALUE.exec(attrs)?.[1]
-    if (name && hasIcon(name))
+    if (name && isIconName(name))
       names.add(name)
   }
   if (names.size === 0)

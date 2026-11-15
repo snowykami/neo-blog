@@ -6,12 +6,17 @@ import type { PickedAsset } from '@/components/common/asset-picker'
 import { NodeViewWrapper } from '@tiptap/react'
 import { CloudUploadIcon, FolderOpenIcon, ImageUpIcon, VideoIcon, XIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import dynamic from 'next/dynamic'
 import * as React from 'react'
 import { toast } from 'sonner'
-import { AssetPicker } from '@/components/common/asset-picker'
 import { Button } from '@/components/ui/button'
 import { focusNextNode, isValidPosition } from '@/lib/tiptap-utils'
 import { markUploadingPlaceholder, takeQueuedUploadFiles, UploadControllers } from './upload-queue'
+
+const AssetPicker = dynamic(
+  () => import('@/components/common/asset-picker').then(m => m.AssetPicker),
+  { ssr: false },
+)
 
 export interface FileItem {
   /**
@@ -404,6 +409,7 @@ export const UploadNode: React.FC<NodeViewProps> = (props) => {
     }
   }
 
+  const [pickerOpen, setPickerOpen] = React.useState(false)
   const hasFiles = fileItems.length > 0
 
   return (
@@ -426,12 +432,24 @@ export const UploadNode: React.FC<NodeViewProps> = (props) => {
           <DropZoneContent mediaType={mediaType} maxSize={maxSize} limit={limit} />
           {/* 弹层内的点击会沿 React 树冒泡到节点，阻止其触发本地文件选择 */}
           <div className="mt-1" onClick={e => e.stopPropagation()}>
-            <AssetPicker accept={accept} multiple={limit > 1} max={limit} maxSize={maxSize} onSelect={handleAssetSelect}>
-              <Button type="button" variant="outline" size="sm">
-                <FolderOpenIcon />
-                {t('choose_from_library')}
-              </Button>
-            </AssetPicker>
+            <Button type="button" variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
+              <FolderOpenIcon />
+              {t('choose_from_library')}
+            </Button>
+            {pickerOpen && (
+              <AssetPicker
+                open
+                onOpenChange={setPickerOpen}
+                accept={accept}
+                multiple={limit > 1}
+                max={limit}
+                maxSize={maxSize}
+                onSelect={(assets) => {
+                  setPickerOpen(false)
+                  handleAssetSelect(assets)
+                }}
+              />
+            )}
           </div>
         </UploadDragArea>
       )}

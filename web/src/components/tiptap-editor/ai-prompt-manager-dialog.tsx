@@ -257,13 +257,3 @@ export function AIPromptManagerDialog({ open, mode: initialMode, prompts, onOpen
     </Dialog>
   )
 }
-
-/** 打开指令管理弹窗的小图标按钮（用于下拉菜单标题行等） */
-export function AIPromptManageButton({ onClick, className }: { onClick: () => void, className?: string }) {
-  const t = useTranslations('Console.editor.ai')
-  return (
-    <Button type="button" size="icon-sm" variant="ghost" className={className} aria-label={t('manage.title')} title={t('manage.title')} onClick={onClick}>
-      <PencilIcon />
-    </Button>
-  )
-}

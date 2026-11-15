@@ -21,12 +21,12 @@ describe('图标名', () => {
     expect(isIconName(null)).toBe(false)
   })
 
-  it('别名也是存在的图标，未知图标名不存在', () => {
-    expect(hasIcon('star')).toBe(true)
+  it('别名也是存在的图标，未知图标名不存在', async () => {
+    expect(await hasIcon('star')).toBe(true)
     // lucide 改名后保留的别名
-    expect(hasIcon('alarm-check')).toBe(true)
-    expect(hasIcon('not-an-icon')).toBe(false)
-    expect(hasIcon('__proto__')).toBe(false)
+    expect(await hasIcon('alarm-check')).toBe(true)
+    expect(await hasIcon('not-an-icon')).toBe(false)
+    expect(await hasIcon('__proto__')).toBe(false)
   })
 
   // 后端 MCP 读取这份清单校验 AI 写入的图标名；升级 lucide-react 后运行 pnpm test -u 更新
@@ -41,8 +41,11 @@ describe('图标检索数据', () => {
     expect(meta.version).toBe(version)
   })
 
-  it('每个图标都有对应的组件与图标数据', () => {
-    const missing = meta.icons.filter(([name]) => !hasIcon(name) || !(iconComponentName(name) in icons))
+  it('每个图标都有对应的组件与图标数据', async () => {
+    const results = await Promise.all(
+      meta.icons.map(async ([name]) => ((await hasIcon(name)) && iconComponentName(name) in icons ? null : name)),
+    )
+    const missing = results.filter(Boolean)
     expect(missing).toEqual([])
     expect(meta.icons.length).toBe(Object.keys(icons).length)
   })
@@ -68,8 +71,10 @@ describe('sVG 渲染', () => {
       .toContain('<path d="M0 0&quot;/&gt;&lt;script&gt;" onload="x"></path></svg>')
   })
 
-  it('未知图标名返回 null', async () => {
+  it('未知或非法图标名返回 null', async () => {
     expect(await loadIconSvg('not-an-icon')).toBeNull()
+    expect(await loadIconSvg('Bad_Name')).toBeNull()
+    expect(await loadIconSvg('__proto__')).toBeNull()
   })
 })
 
@@ -79,6 +84,13 @@ describe('正文中的图标', () => {
     expect(html.match(/<svg /g)).toHaveLength(2)
     expect(html).toContain('<strong><span data-icon="minus"><svg')
     expect(html).toContain('<span class="x" data-icon="minus"><svg')
+  })
+
+  it('无图标标记或仅包含非法名时原样快速返回', async () => {
+    const plain = '<p>hello world</p>'
+    expect(await renderInlineIconsHtml(plain)).toBe(plain)
+    const invalid = '<p><span data-icon="Bad_Name"></span></p>'
+    expect(await renderInlineIconsHtml(invalid)).toBe(invalid)
   })
 
   it('未知图标名与带文字的同名标记保持原样', async () => {

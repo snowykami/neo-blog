@@ -6,13 +6,19 @@ import type { MediaWidthPreset } from '../media-width'
 import type { EditorMenuEntry } from '@/components/tiptap-editor/editor-menus'
 import { DownloadIcon, MoveHorizontalIcon, ReplaceIcon, TextAlignCenterIcon, TextAlignEndIcon, TextAlignStartIcon, Trash2Icon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { AssetPicker } from '@/components/common/asset-picker'
+import dynamic from 'next/dynamic'
+import * as React from 'react'
 import { EditorMenuContent, EditorMenuEntries } from '@/components/tiptap-editor/editor-menus'
 import { EditorToolbarButton, EditorToolbarSeparator, EditorTooltip } from '@/components/tiptap-editor/editor-toolbar-button'
 import { downloadSelectedImage } from '@/components/tiptap-ui/image-download-button/use-image-download'
 import { DropdownMenu, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { MEDIA_WIDTH_PRESETS } from '../media-width'
 import { IMAGE_TOOLBAR_ATTR } from './image-node-constants'
+
+const AssetPicker = dynamic(
+  () => import('@/components/common/asset-picker').then(m => m.AssetPicker),
+  { ssr: false },
+)
 
 export type ImageAlign = 'left' | 'center' | 'right'
 
@@ -55,6 +61,7 @@ export interface ImageNodeToolbarProps {
  */
 export function ImageNodeToolbar({ editor, align, onAlignChange, width, onWidthChange, onReplace, onDelete }: ImageNodeToolbarProps) {
   const t = useTranslations('Console.editor')
+  const [pickerOpen, setPickerOpen] = React.useState(false)
 
   return (
     <div
@@ -95,11 +102,21 @@ export function ImageNodeToolbar({ editor, align, onAlignChange, width, onWidthC
       <EditorToolbarSeparator className="mx-1" />
       {/* 替换图片：从资产库选择或本地上传；阻止弹层内事件沿 React 树冒泡到图片节点 */}
       <span className="contents" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
-        <AssetPicker accept="image/*" onSelect={([asset]) => asset && onReplace(asset.url, asset.name.replace(/\.[^/.]+$/, ''))}>
-          <EditorToolbarButton label={t('image_replace')} className="h-[30px] min-w-[30px]">
-            <ReplaceIcon className="size-[17px]" />
-          </EditorToolbarButton>
-        </AssetPicker>
+        <EditorToolbarButton label={t('image_replace')} className="h-[30px] min-w-[30px]" onClick={() => setPickerOpen(true)}>
+          <ReplaceIcon className="size-[17px]" />
+        </EditorToolbarButton>
+        {pickerOpen && (
+          <AssetPicker
+            open
+            onOpenChange={setPickerOpen}
+            accept="image/*"
+            onSelect={([asset]) => {
+              setPickerOpen(false)
+              if (asset)
+                onReplace(asset.url, asset.name.replace(/\.[^/.]+$/, ''))
+            }}
+          />
+        )}
       </span>
       <EditorToolbarButton label={t('image_download')} shortcut="mod+shift+d" className="h-[30px] min-w-[30px]" onClick={() => void downloadSelectedImage(editor)}>
         <DownloadIcon className="size-[17px]" />

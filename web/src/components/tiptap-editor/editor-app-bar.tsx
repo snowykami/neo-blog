@@ -1,5 +1,6 @@
 'use client'
 
+import type { Editor } from '@tiptap/react'
 import type { SaveState } from '@/hooks/use-content-editor'
 import {
   ArrowLeftIcon,
@@ -39,6 +40,7 @@ import { cn } from '@/lib/utils'
 import { formatShortcut } from './editor-commands'
 import { EditorTooltip } from './editor-toolbar-button'
 import { SaveStatusPill } from './save-status-pill'
+import { useEditorStats } from './use-editor-stats'
 
 export interface PublishSummaryItem {
   label: string
@@ -57,7 +59,7 @@ export interface EditorAppBarProps {
   isPrivate: boolean
   isUnpublished?: boolean
   hasUnpublishedChanges: boolean
-  words: number
+  editor: Editor
   saveState: SaveState
   saveError: string | null
   lastSavedAt: Date | null
@@ -88,6 +90,21 @@ export interface EditorAppBarProps {
 }
 
 /**
+ * 隔离顶栏字数显示叶子组件，避免打字防抖更新触发顶栏与发布弹窗重渲染
+ */
+function EditorAppBarWords({ editor }: { editor: Editor }) {
+  const t = useTranslations('Console.editor')
+  const format = useFormatter()
+  const { words } = useEditorStats(editor)
+
+  return (
+    <span className="hidden px-1.5 text-[12.5px] whitespace-nowrap text-muted-foreground tabular-nums md:inline">
+      {t('words', { count: format.number(words) })}
+    </span>
+  )
+}
+
+/**
  * 顶部应用栏（吸顶）：返回 | 面包屑与状态 | 保存状态、字数 | 预览、设置、更多、发布
  */
 export function EditorAppBar(props: EditorAppBarProps) {
@@ -101,7 +118,7 @@ export function EditorAppBar(props: EditorAppBarProps) {
     isPrivate,
     isUnpublished = false,
     hasUnpublishedChanges,
-    words,
+    editor,
     saveState,
     saveError,
     lastSavedAt,
@@ -128,7 +145,6 @@ export function EditorAppBar(props: EditorAppBarProps) {
   const t = useTranslations('Console.editor')
   const postEditT = useTranslations('Console.post_edit')
   const operationT = useOperationT()
-  const format = useFormatter()
   const { resolvedTheme, setTheme } = useTheme()
   const isDark = resolvedTheme === 'dark'
 
@@ -172,9 +188,7 @@ export function EditorAppBar(props: EditorAppBarProps) {
       <span className="min-w-2 flex-1" />
 
       <SaveStatusPill state={saveState} lastSavedAt={lastSavedAt} error={saveError} readOnly={readOnly} onSave={onSave} />
-      <span className="hidden px-1.5 text-[12.5px] whitespace-nowrap text-muted-foreground tabular-nums md:inline">
-        {t('words', { count: format.number(words) })}
-      </span>
+      <EditorAppBarWords editor={editor} />
       <span aria-hidden="true" className="mx-1 hidden h-[18px] w-px bg-border md:block" />
 
       <EditorTooltip label={t('preview_tip')} shortcut="mod+shift+p">

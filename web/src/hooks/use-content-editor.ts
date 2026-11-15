@@ -304,9 +304,15 @@ export interface EditorUiActions {
   editIcon?: (pos: number) => void
 }
 
+function matchesRouteId(candidate: ContentDoc | null | undefined, routeId: string): candidate is ContentDoc {
+  if (!candidate)
+    return false
+  return String(candidate.id) === routeId || ('slug' in candidate && Boolean(candidate.slug) && candidate.slug === routeId)
+}
+
 /**
  * 文章 / 页面编辑器的共用逻辑：
- * - 创建编辑器实例（共用扩展列表），加载草稿
+ * - 创建编辑器实例（共用扩展列表），加载草稿（SSR 已预取且匹配 routeId 时跳过客户端首次拉取并立即申请编辑会话）
  * - 编辑会话（申请 / 检查 / 被接管只读 / 接管）
  * - 与外部 AI 工具同时编辑：保存正文时带上草稿版本号；收到他人保存的事件（或保存被拒绝）时拉取最新草稿，
  *   按块三方合并进编辑器（双方改了同一块时保留本地版本），合并进来的块高亮，之后再保存
@@ -316,7 +322,7 @@ export interface EditorUiActions {
  * - AI 写作期间锁定编辑器，保存只提交打开面板时的正文，生成中的预览内容不算作修改，接受后再进入正常的保存流程
  * - 编辑页被 Activity 隐藏（SPA 跳走）时补存并清空草稿，再次显示时重新载入（见下方离开编辑页的 effect）
  */
-export function useContentEditor(kind: ContentKind, routeId: string) {
+export function useContentEditor(kind: ContentKind, routeId: string, initialDoc?: ContentDoc | null) {
   const adapter = ADAPTERS[kind]
   const t = useTranslations('Console.editor')
   const componentT = useTranslations('ContentComponents')
@@ -325,10 +331,12 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
   const errorMessageT = useErrorMessageT()
   const format = useFormatter()
 
+  const initialMatch = matchesRouteId(initialDoc, routeId) ? initialDoc : null
   const [doc, setDoc] = useState<ContentDoc | null>(null)
+  const [pendingDoc, setPendingDoc] = useState<ContentDoc | null>(() => initialMatch)
   const [loadFailed, setLoadFailed] = useState(false)
-  const [meta, setMetaState] = useState<ContentMeta>(EMPTY_META)
-  const [savedMeta, setSavedMeta] = useState<ContentMeta>(EMPTY_META)
+  const [meta, setMetaState] = useState<ContentMeta>(() => (initialMatch ? adapter.toMeta(initialMatch) : EMPTY_META))
+  const [savedMeta, setSavedMeta] = useState<ContentMeta>(() => (initialMatch ? adapter.toMeta(initialMatch) : EMPTY_META))
   const [contentDirty, setContentDirty] = useState(false)
   // 本次打开编辑器后是否保存过修改（自动保存也算），决定能否“放弃本次修改”
   const [changedSinceOpen, setChangedSinceOpen] = useState(false)
@@ -340,8 +348,8 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
   const [savedHtml, setSavedHtml] = useState<string | null>(null)
   const [publishedHtml, setPublishedHtml] = useState<string | null>(null)
 
-  // 同一内容同时只允许最新打开的编辑页保存，被顶掉后只读
-  const editSession = useEditSession(kind, doc?.id ?? 0)
+  // 同一内容同时只允许最新打开的编辑页保存，被顶掉后只读；有 SSR 初始文档时提前用其 id 申请编辑会话
+  const editSession = useEditSession(kind, doc?.id ?? pendingDoc?.id ?? 0)
   const { sessionId, status: sessionStatus, markTakenOver, check: checkEditSession } = editSession
   const isTakenOver = sessionStatus === 'taken_over'
   // 被顶掉或会话申请中不保存；申请失败时（如后端未更新）退化为不带会话保存
@@ -454,6 +462,10 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
   const leaveFlushRef = useRef<Promise<boolean> | null>(null)
   // 编辑事件是否已连上过：首次连上的 ready 不处理（内容刚载入），见下方 useEditEvents
   const eventsConnectedRef = useRef(false)
+  // SSR 传入的初始文档引用与是否已真实离开过编辑页（用于区分 StrictMode 首次双挂载与 Activity 隐藏后再显示）
+  const initialDocRef = useRef<ContentDoc | null>(initialMatch)
+  const leftAfterLoadRef = useRef(false)
+
   const applyDoc = useCallback((next: ContentDoc, ed: Editor) => {
     const draft = next.draftContent || next.content || ''
     // 载入内容不进入撤销历史，避免撤销到空文档后被自动保存成空草稿
@@ -475,9 +487,9 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
     setChangedSinceOpen(false)
     setDoc(next)
     editorStaleRef.current = false
+    initialDocRef.current = null
   }, [adapter])
 
-  const [pendingDoc, setPendingDoc] = useState<ContentDoc | null>(null)
   const load = useCallback(() => {
     setLoadFailed(false)
     const leaveFlush = leaveFlushRef.current
@@ -494,8 +506,14 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
   }, [adapter, routeId])
 
   useEffect(() => {
+    const seed = initialDocRef.current
+    if (!leftAfterLoadRef.current && !leaveFlushRef.current && matchesRouteId(seed, routeId)) {
+      setLoadFailed(false)
+      setPendingDoc(seed)
+      return
+    }
     load()
-  }, [load])
+  }, [load, routeId])
 
   // 编辑器与数据都就绪后写入内容（只在加载时写入一次，之后修改元信息不会覆盖正文）
   useEffect(() => {
@@ -720,6 +738,7 @@ export function useContentEditor(kind: ContentKind, routeId: string) {
       }
       const ed = editorRef.current
       if (!editorStaleRef.current) {
+        leftAfterLoadRef.current = true
         // AI 写作中编辑器里是生成中的预览，补存打开面板时的正文
         const content = aiBusyRef.current
           ? aiBaseRef.current

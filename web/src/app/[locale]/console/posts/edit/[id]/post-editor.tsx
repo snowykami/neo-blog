@@ -3,6 +3,7 @@
 import type { PostPinState } from '../../post-pin'
 import type { Post } from '@/models/post'
 import { useFormatter, useTranslations } from 'next-intl'
+import dynamic from 'next/dynamic'
 import { useParams } from 'next/navigation'
 import { useState } from 'react'
 import { ContentEditorShell } from '@/components/tiptap-editor/content-editor-shell'
@@ -11,15 +12,22 @@ import { useContentEditor } from '@/hooks/use-content-editor'
 import { isAdmin } from '@/utils/common/permission'
 import { consolePath, getPostUrl } from '@/utils/common/route'
 import { pinStateOf, usePinUntilText } from '../../post-pin'
-import { PostPreviewDialog } from './post-preview'
-import { PostSettingsSheet } from './post-settings-sheet'
 
-export function PostEditor() {
+const PostPreviewDialog = dynamic(
+  () => import('./post-preview').then(m => m.PostPreviewDialog),
+  { ssr: false },
+)
+const PostSettingsSheet = dynamic(
+  () => import('./post-settings-sheet').then(m => m.PostSettingsSheet),
+  { ssr: false },
+)
+
+export function PostEditor({ initialPost = null }: { initialPost?: Post | null } = {}) {
   const t = useTranslations('Console.editor')
   const postEditT = useTranslations('Console.post_edit')
   const format = useFormatter()
   const { id } = useParams() as { id: string }
-  const controller = useContentEditor('post', id)
+  const controller = useContentEditor('post', id, initialPost)
   const post = controller.doc as Post | null
   const { meta } = controller
   const { user } = useAuth()
@@ -61,7 +69,7 @@ export function PostEditor() {
           <span>{format.dateTime(new Date(post.createdAt), { dateStyle: 'long' })}</span>
         </>
       )}
-      renderSettings={panel => (
+      renderSettings={panel => panel.open && (
         <PostSettingsSheet
           {...panel}
           meta={meta}
@@ -79,7 +87,7 @@ export function PostEditor() {
           pin={canPin && post && pin ? { postId: post.id, state: pin, onChange: state => setChangedPin({ postId: post.id, state }) } : undefined}
         />
       )}
-      renderPreview={panel => post && (
+      renderPreview={panel => panel.open && post && (
         <PostPreviewDialog {...panel} post={post} onBeforePreview={() => controller.flushSave()} />
       )}
     />

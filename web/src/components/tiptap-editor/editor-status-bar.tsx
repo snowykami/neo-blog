@@ -15,12 +15,26 @@ const SESSION_DOT: Record<EditSessionStatus, string> = {
 }
 
 /**
+ * 隔离字数/阅读时长统计叶子组件，避免打字防抖更新触发状态栏外层重渲染
+ */
+function EditorStatusStats({ editor }: { editor: Editor }) {
+  const t = useTranslations('Console.editor')
+  const format = useFormatter()
+  const { words, readingMinutes } = useEditorStats(editor)
+
+  return (
+    <>
+      <span>{t('status_words', { count: format.number(words) })}</span>
+      <span>{t('status_reading', { count: readingMinutes })}</span>
+    </>
+  )
+}
+
+/**
  * 底部状态栏：字数 / 预计阅读 / 当前块类型 / 编辑会话状态
  */
 export function EditorStatusBar({ editor, sessionStatus, className }: { editor: Editor, sessionStatus: EditSessionStatus, className?: string }) {
   const t = useTranslations('Console.editor')
-  const format = useFormatter()
-  const { words, readingMinutes } = useEditorStats(editor)
   const state = useEditorToolbarState(editor)
 
   let blockLabel: string
@@ -38,8 +52,7 @@ export function EditorStatusBar({ editor, sessionStatus, className }: { editor: 
         className,
       )}
     >
-      <span>{t('status_words', { count: format.number(words) })}</span>
-      <span>{t('status_reading', { count: readingMinutes })}</span>
+      <EditorStatusStats editor={editor} />
       <span className="hidden md:inline">{t('status_block', { type: blockLabel })}</span>
       <span className="flex-1" />
       <span className="inline-flex items-center gap-2" aria-live="polite">

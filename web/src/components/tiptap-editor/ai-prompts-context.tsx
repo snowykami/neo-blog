@@ -2,9 +2,17 @@
 
 import type { AIPrompt } from '@/models/ai-prompt'
 import type { AIWriteMode } from '@/models/ai-write'
+import { PencilIcon } from 'lucide-react'
+import { useTranslations } from 'next-intl'
+import dynamic from 'next/dynamic'
 import * as React from 'react'
 import { listAIPrompts } from '@/api/ai-prompt'
-import { AIPromptManagerDialog } from './ai-prompt-manager-dialog'
+import { Button } from '@/components/ui/button'
+
+const AIPromptManagerDialog = dynamic(
+  () => import('./ai-prompt-manager-dialog').then(m => m.AIPromptManagerDialog),
+  { ssr: false },
+)
 
 interface AIPromptsContextValue {
   prompts: AIPrompt[]
@@ -49,14 +57,26 @@ export function AIPromptsProvider({ children }: { children: React.ReactNode }) {
   return (
     <AIPromptsContext.Provider value={value}>
       {children}
-      <AIPromptManagerDialog
-        open={managerMode !== null}
-        mode={managerMode ?? 'rewrite'}
-        prompts={prompts}
-        onOpenChange={open => !open && setManagerMode(null)}
-        onChanged={reload}
-      />
+      {managerMode !== null && (
+        <AIPromptManagerDialog
+          open
+          mode={managerMode}
+          prompts={prompts}
+          onOpenChange={open => !open && setManagerMode(null)}
+          onChanged={reload}
+        />
+      )}
     </AIPromptsContext.Provider>
+  )
+}
+
+/** 打开指令管理弹窗的小图标按钮（用于下拉菜单标题行等） */
+export function AIPromptManageButton({ onClick, className }: { onClick: () => void, className?: string }) {
+  const t = useTranslations('Console.editor.ai')
+  return (
+    <Button type="button" size="icon-sm" variant="ghost" className={className} aria-label={t('manage.title')} title={t('manage.title')} onClick={onClick}>
+      <PencilIcon />
+    </Button>
   )
 }
 

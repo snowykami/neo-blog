@@ -33,13 +33,13 @@ import {
   TypeIcon,
 } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import dynamic from 'next/dynamic'
 import * as React from 'react'
 import { toast } from 'sonner'
-import { AssetPicker } from '@/components/common/asset-picker'
 import { getImageWidthEntries } from '@/components/tiptap-node/image-node/image-node-toolbar'
 import { mediaWidthAttrs, parseMediaWidthPreset } from '@/components/tiptap-node/media-width'
 import { downloadSelectedImage } from '@/components/tiptap-ui/image-download-button/use-image-download'
-import { EDITOR_FLOATING_ATTR } from '@/components/tiptap-ui/link-popover/link-popover'
+import { EDITOR_FLOATING_ATTR } from '@/components/tiptap-ui/link-popover/floating'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -58,6 +58,11 @@ import { formatShortcut, INLINE_MARKS, setBlockType } from './editor-commands'
 import { getAIEntries, getBlockTypeEntries, getComponentLibraryEntry, getIconEntry, getInsertEntries, getTableEntries } from './editor-menus'
 import { markEntry } from './editor-toolbar'
 import { useEditorToolbarState } from './use-editor-toolbar-state'
+
+const AssetPicker = dynamic(
+  () => import('@/components/common/asset-picker').then(m => m.AssetPicker),
+  { ssr: false },
+)
 
 type ContextEntry
   = | EditorMenuEntry
@@ -181,20 +186,21 @@ export interface EditorContextMenuProps {
   children: React.ReactNode
 }
 
+type PickerState = { mode: 'insert' } | { mode: 'replace', pos: number, media: 'image' | 'video' } | null
+
 /**
  * 编辑器右键菜单：
  * - 有选区：AI 润色、剪切 / 复制 / 粘贴、格式、转换、链接与注释
  * - 无选区：AI 帮写、插入（图片从资产库选择、代码块、表格、分割线、内置组件）、转换、粘贴；表格内附加行列操作
  * - 图片 / 代码块：节点专属操作
- * 支持键盘（菜单键 / Shift+F10）；按住 Shift 右键或触屏设备保留浏览器原生菜单
+ * 支持键盘（菜单键 / Shift+F10）；按住 Shift 右键或触屏设备保留浏览器原生菜单；关闭时不订阅工具栏状态或渲染菜单项
  */
 export function EditorContextMenu({ editor, actions, children }: EditorContextMenuProps) {
   const t = useTranslations('Console.editor')
-  const ct = useTranslations('ContentComponents')
-  const state = useEditorToolbarState(editor)
   const coarsePointer = useCoarsePointer()
+  const [menuOpen, setMenuOpen] = React.useState(false)
   const [context, setContext] = React.useState<MenuContext>({ type: 'cursor' })
-  const [picker, setPicker] = React.useState<{ mode: 'insert' } | { mode: 'replace', pos: number, media: 'image' | 'video' } | null>(null)
+  const [picker, setPicker] = React.useState<PickerState>(null)
   // 按下右键时的选区：浏览器与编辑器可能在 contextmenu 之前就改变了选区
   const savedSelectionRef = React.useRef<Selection | null>(null)
   // 菜单打开后是否在菜单（含子菜单）内按过鼠标：没按过的 pointerup 是「打开菜单的那次手势」的松手，不算点击
@@ -274,16 +280,105 @@ export function EditorContextMenu({ editor, actions, children }: EditorContextMe
     setContext(resolveContext(editor, saved, keyboard ? null : { x: event.clientX, y: event.clientY }))
   }
 
+  const handlePicked = (assets: { url: string, name: string }[]) => {
+    const current = picker
+    setPicker(null)
+    const asset = assets[0]
+    if (!asset || !current)
+      return
+    const name = asset.name.replace(/\.[^/.]+$/, '')
+    if (current.mode === 'replace' && current.media === 'video')
+      editor.chain().focus().setNodeSelection(current.pos).updateAttributes('video', { src: asset.url }).run()
+    else if (current.mode === 'replace')
+      editor.chain().focus().setNodeSelection(current.pos).updateAttributes('image', { src: asset.url, alt: name, title: name }).run()
+    else
+      editor.chain().focus().setImage({ src: asset.url, alt: name, title: name }).run()
+  }
+
+  return (
+    <>
+      <ContextMenu modal={false} onOpenChange={setMenuOpen}>
+        <ContextMenuTrigger asChild disabled={coarsePointer}>
+          <div onMouseDownCapture={handleMouseDownCapture} onContextMenuCapture={handleContextMenuCapture}>
+            {children}
+          </div>
+        </ContextMenuTrigger>
+        <ContextMenuContent
+          {...{ [EDITOR_FLOATING_ATTR]: '' }}
+          aria-label={t('context.aria')}
+          className="min-w-56 rounded-xl p-1"
+          // 右键按下时菜单就已打开，松手的那一次 pointerup 会落在菜单项上：Radix 的 MenuItem 在没先收到
+          // pointerdown 时会自己补一个 click，于是「刚点右键」就选中一项。菜单内还没按过鼠标时吞掉它
+          onPointerDownCapture={markPointerDownInMenu}
+          onPointerUpCapture={swallowOpeningPointerUp}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            if (skipFocusRef.current)
+              skipFocusRef.current = false
+            else
+              editor.commands.focus()
+          }}
+        >
+          {menuOpen && (
+            <EditorContextMenuBody
+              editor={editor}
+              actions={actions}
+              context={context}
+              onPick={setPicker}
+              onKeepFocusFloating={() => {
+                skipFocusRef.current = true
+              }}
+              onPointerDownInMenu={markPointerDownInMenu}
+              onPointerUpInMenu={swallowOpeningPointerUp}
+            />
+          )}
+        </ContextMenuContent>
+      </ContextMenu>
+      {picker !== null && (
+        <AssetPicker
+          open
+          onOpenChange={(open) => {
+            if (!open)
+              setPicker(null)
+          }}
+          accept={picker.mode === 'replace' && picker.media === 'video' ? 'video/*' : 'image/*'}
+          onSelect={handlePicked}
+        />
+      )}
+    </>
+  )
+}
+
+function EditorContextMenuBody({
+  editor,
+  actions,
+  context,
+  onPick,
+  onKeepFocusFloating,
+  onPointerDownInMenu,
+  onPointerUpInMenu,
+}: {
+  editor: Editor
+  actions: EditorToolbarActions
+  context: MenuContext
+  onPick: (next: PickerState) => void
+  onKeepFocusFloating: () => void
+  onPointerDownInMenu: () => void
+  onPointerUpInMenu: (event: React.PointerEvent) => void
+}) {
+  const t = useTranslations('Console.editor')
+  const ct = useTranslations('ContentComponents')
+  const state = useEditorToolbarState(editor)
+  const aiPrompts = useAIPrompts()
+
   // ---------- 操作 ----------
   const withFloating = (fn: () => void) => () => {
-    skipFocusRef.current = true
+    onKeepFocusFloating()
     fn()
   }
 
   // 菜单项打开了编辑器弹层（公式编辑弹层）：关闭菜单后不把焦点抢回编辑器
-  const markFloating = () => {
-    skipFocusRef.current = true
-  }
+  const markFloating = onKeepFocusFloating
 
   const clipboardCommand = (command: 'copy' | 'cut') => {
     editor.view.focus()
@@ -353,9 +448,8 @@ export function EditorContextMenu({ editor, actions, children }: EditorContextMe
     entries: getBlockTypeEntries(editor, t, state.blockType),
   })
 
-  const aiPrompts = useAIPrompts()
   const openAI = (options: AIWriterOpenOptions) => {
-    skipFocusRef.current = true
+    onKeepFocusFloating()
     actions.openAI(options)
   }
   const entries: ContextEntry[] = []
@@ -397,7 +491,7 @@ export function EditorContextMenu({ editor, actions, children }: EditorContextMe
       const src = String(node.attrs.src ?? '')
       const align = (node.attrs['data-align'] as ImageAlign | null) ?? 'center'
       entries.push(
-        { key: 'image-replace', icon: ReplaceIcon, label: t('context.image_replace'), onSelect: withFloating(() => setPicker({ mode: 'replace', pos, media: 'image' })) },
+        { key: 'image-replace', icon: ReplaceIcon, label: t('context.image_replace'), onSelect: withFloating(() => onPick({ mode: 'replace', pos, media: 'image' })) },
         {
           type: 'sub',
           key: 'image-align',
@@ -441,7 +535,7 @@ export function EditorContextMenu({ editor, actions, children }: EditorContextMe
       const src = String(node.attrs.src ?? '')
       const align = (node.attrs['data-align'] as ImageAlign | null) ?? 'center'
       entries.push(
-        { key: 'video-replace', icon: ReplaceIcon, label: t('context.video_replace'), onSelect: withFloating(() => setPicker({ mode: 'replace', pos, media: 'video' })) },
+        { key: 'video-replace', icon: ReplaceIcon, label: t('context.video_replace'), onSelect: withFloating(() => onPick({ mode: 'replace', pos, media: 'video' })) },
         {
           type: 'sub',
           key: 'video-align',
@@ -503,7 +597,7 @@ export function EditorContextMenu({ editor, actions, children }: EditorContextMe
         { type: 'separator', key: 'sep-ai' },
         ...tableGroup(),
         { type: 'label', key: 'label-insert', label: t('insert') },
-        ...getInsertEntries(editor, t, state, withFloating(() => setPicker({ mode: 'insert' })), markFloating),
+        ...getInsertEntries(editor, t, state, withFloating(() => onPick({ mode: 'insert' })), markFloating),
         getIconEntry(editor, t, state, withFloating(actions.openIconPicker)),
         getComponentLibraryEntry(ct, state, withFloating(actions.openComponentLibrary)),
         { type: 'separator', key: 'sep-insert' },
@@ -513,59 +607,11 @@ export function EditorContextMenu({ editor, actions, children }: EditorContextMe
     }
   }
 
-  const handlePicked = (assets: { url: string, name: string }[]) => {
-    const current = picker
-    setPicker(null)
-    const asset = assets[0]
-    if (!asset || !current)
-      return
-    const name = asset.name.replace(/\.[^/.]+$/, '')
-    if (current.mode === 'replace' && current.media === 'video')
-      selectNode(current.pos).updateAttributes('video', { src: asset.url }).run()
-    else if (current.mode === 'replace')
-      selectNode(current.pos).updateAttributes('image', { src: asset.url, alt: name, title: name }).run()
-    else
-      editor.chain().focus().setImage({ src: asset.url, alt: name, title: name }).run()
-  }
-
   return (
     <>
-      <ContextMenu modal={false}>
-        <ContextMenuTrigger asChild disabled={coarsePointer}>
-          <div onMouseDownCapture={handleMouseDownCapture} onContextMenuCapture={handleContextMenuCapture}>
-            {children}
-          </div>
-        </ContextMenuTrigger>
-        <ContextMenuContent
-          {...{ [EDITOR_FLOATING_ATTR]: '' }}
-          aria-label={t('context.aria')}
-          className="min-w-56 rounded-xl p-1"
-          // 右键按下时菜单就已打开，松手的那一次 pointerup 会落在菜单项上：Radix 的 MenuItem 在没先收到
-          // pointerdown 时会自己补一个 click，于是「刚点右键」就选中一项。菜单内还没按过鼠标时吞掉它
-          onPointerDownCapture={markPointerDownInMenu}
-          onPointerUpCapture={swallowOpeningPointerUp}
-          onCloseAutoFocus={(event) => {
-            event.preventDefault()
-            if (skipFocusRef.current)
-              skipFocusRef.current = false
-            else
-              editor.commands.focus()
-          }}
-        >
-          <ContextEntries entries={entries} onPointerDownInMenu={markPointerDownInMenu} onPointerUpInMenu={swallowOpeningPointerUp} />
-          <ContextMenuSeparator />
-          <ContextMenuLabel className="px-2 py-1 text-[11px] font-normal text-muted-foreground/70">{t('context.native_hint')}</ContextMenuLabel>
-        </ContextMenuContent>
-      </ContextMenu>
-      <AssetPicker
-        open={picker !== null}
-        onOpenChange={(open) => {
-          if (!open)
-            setPicker(null)
-        }}
-        accept={picker?.mode === 'replace' && picker.media === 'video' ? 'video/*' : 'image/*'}
-        onSelect={handlePicked}
-      />
+      <ContextEntries entries={entries} onPointerDownInMenu={onPointerDownInMenu} onPointerUpInMenu={onPointerUpInMenu} />
+      <ContextMenuSeparator />
+      <ContextMenuLabel className="px-2 py-1 text-[11px] font-normal text-muted-foreground/70">{t('context.native_hint')}</ContextMenuLabel>
     </>
   )
 }

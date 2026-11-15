@@ -16,6 +16,10 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   }
 }
 
-export default function EditPostPage() {
-  return <PostEditor />
+export default async function EditPostPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const initialPost = await getPostForEditServer({ id })
+    .then(r => r.data)
+    .catch(() => null)
+  return <PostEditor initialPost={initialPost} />
 }

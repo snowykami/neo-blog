@@ -3,15 +3,52 @@ import type { MediaWidthPreset } from '../media-width'
 import { NodeViewWrapper } from '@tiptap/react'
 import { Loader2Icon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import * as React from 'react'
 import { ImagePlaceholder } from '@/components/common/safe-image'
 import { useCompositionInput } from '@/hooks/use-composition-input'
-import { useIsMobile } from '@/hooks/use-mobile'
 import { MEDIA_WIDTH_PERCENT, mediaWidthAttrs, parseMediaWidthPreset } from '../media-width'
 import { IMAGE_CAPTION_ATTR } from './image-node-constants'
 import { ImageNodeToolbar } from './image-node-toolbar'
 import './image-node-view.scss'
+
+const MOBILE_MEDIA_QUERY = '(max-width: 767px)'
+const mobileListeners = new Set<() => void>()
+let mobileMql: MediaQueryList | null = null
+
+function getMobileMql(): MediaQueryList | null {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function')
+    return null
+  if (!mobileMql)
+    mobileMql = window.matchMedia(MOBILE_MEDIA_QUERY)
+  return mobileMql
+}
+
+function handleMobileMediaChange() {
+  for (const listener of mobileListeners)
+    listener()
+}
+
+function subscribeSharedIsMobile(listener: () => void) {
+  mobileListeners.add(listener)
+  const mql = getMobileMql()
+  if (mql && mobileListeners.size === 1)
+    mql.addEventListener('change', handleMobileMediaChange)
+  return () => {
+    mobileListeners.delete(listener)
+    if (mql && mobileListeners.size === 0)
+      mql.removeEventListener('change', handleMobileMediaChange)
+  }
+}
+
+function getSharedIsMobileSnapshot() {
+  return getMobileMql()?.matches ?? false
+}
+
+// 整页共享一个 matchMedia 订阅，避免文档中每张图片各自注册监听器
+function useSharedIsMobile() {
+  return useSyncExternalStore(subscribeSharedIsMobile, getSharedIsMobileSnapshot, () => false)
+}
 
 export interface ResizeParams {
   handleUsed: 'left' | 'right' | 'corner'
@@ -57,7 +94,7 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
 }) => {
   const t = useTranslations('Console.post_edit')
   const editorT = useTranslations('Console.editor')
-  const isMobile = useIsMobile()
+  const isMobile = useSharedIsMobile()
   const [captionFocused, setCaptionFocused] = useState(false)
   // 注释写回节点属性要等 NodeView 下一次渲染，直接受控会打断输入法组字，交给 useCompositionInput 处理
   const captionInput = useCompositionInput(caption ?? '', next => onCaptionChange?.(next || null))
@@ -74,50 +111,58 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
   const imageRef = useRef<HTMLImageElement>(null)
   const activePointerIdRef = useRef<number | null>(null)
   const activeOverlayCleanupRef = useRef<(() => void) | null>(null)
+  const resizeParamsRef = useRef<ResizeParams | undefined>(undefined)
+  const widthRef = useRef<number | undefined>(initialWidth)
+  const showHandlesRef = useRef(false)
+  useEffect(() => {
+    showHandlesRef.current = showHandles
+  }, [showHandles])
 
   useEffect(() => {
+    widthRef.current = initialWidth
     setWidth(initialWidth)
     if (wrapperRef.current)
       wrapperRef.current.style.width = widthPreset ? MEDIA_WIDTH_PERCENT[widthPreset] : initialWidth ? `${initialWidth}px` : 'fit-content'
   }, [initialWidth, widthPreset])
 
   // 使用 PointerEvent 支持触摸与鼠标
-  const windowPointerMoveHandler = React.useCallback(
+  const windowPointerMoveHandler = useCallback(
     (event: PointerEvent): void => {
-      if (!resizeParams || !editor) {
+      const currentResize = resizeParamsRef.current
+      if (!currentResize || !editor) {
         return
       }
 
       let newWidth: number
 
-      if (resizeParams.handleUsed === 'corner') {
+      if (currentResize.handleUsed === 'corner') {
         // Mobile corner resize: diagonal drag
-        const deltaX = event.clientX - resizeParams.initialClientX
-        const deltaY = event.clientY - resizeParams.initialClientY
+        const deltaX = event.clientX - currentResize.initialClientX
+        const deltaY = event.clientY - currentResize.initialClientY
         // Use the larger of the two deltas for more intuitive resize
         const delta = Math.abs(deltaX) > Math.abs(deltaY) ? deltaX : deltaY
 
         if (align === 'center') {
-          newWidth = resizeParams.initialWidth + delta * 2
+          newWidth = currentResize.initialWidth + delta * 2
         }
         else {
-          newWidth = resizeParams.initialWidth + delta
+          newWidth = currentResize.initialWidth + delta
         }
       }
       else if (align === 'center') {
-        if (resizeParams.handleUsed === 'left') {
-          newWidth = resizeParams.initialWidth + (resizeParams.initialClientX - event.clientX) * 2
+        if (currentResize.handleUsed === 'left') {
+          newWidth = currentResize.initialWidth + (currentResize.initialClientX - event.clientX) * 2
         }
         else {
-          newWidth = resizeParams.initialWidth + (event.clientX - resizeParams.initialClientX) * 2
+          newWidth = currentResize.initialWidth + (event.clientX - currentResize.initialClientX) * 2
         }
       }
       else {
-        if (resizeParams.handleUsed === 'left') {
-          newWidth = resizeParams.initialWidth + resizeParams.initialClientX - event.clientX
+        if (currentResize.handleUsed === 'left') {
+          newWidth = currentResize.initialWidth + currentResize.initialClientX - event.clientX
         }
         else {
-          newWidth = resizeParams.initialWidth + event.clientX - resizeParams.initialClientX
+          newWidth = currentResize.initialWidth + event.clientX - currentResize.initialClientX
         }
       }
 
@@ -126,16 +171,21 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
 
       const newCalculatedWidth = Math.min(Math.max(newWidth, effectiveMinWidth), effectiveMaxWidth)
 
+      widthRef.current = newCalculatedWidth
       setWidth(newCalculatedWidth)
       if (wrapperRef.current) {
         wrapperRef.current.style.width = `${newCalculatedWidth}px`
       }
     },
-    [editor, align, maxWidth, minWidth, resizeParams],
+    [editor, align, maxWidth, minWidth],
   )
 
-  const windowPointerUpHandler = React.useCallback(
+  const windowPointerUpHandler = useCallback(
     (event: PointerEvent): void => {
+      if (activeOverlayCleanupRef.current) {
+        activeOverlayCleanupRef.current()
+        activeOverlayCleanupRef.current = null
+      }
       if (activePointerIdRef.current != null) {
         try {
           leftResizeHandleRef.current?.releasePointerCapture?.(activePointerIdRef.current)
@@ -153,114 +203,65 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
         (!event.target
           || !wrapperRef.current?.contains(event.target as Node)
           || !editor.isEditable)
-        && showHandles
+        && showHandlesRef.current
       ) {
         setShowHandles(false)
       }
 
-      if (!resizeParams) {
+      if (!resizeParamsRef.current) {
         return
       }
 
+      resizeParamsRef.current = undefined
       setResizeParams(undefined)
 
       if (onImageResize) {
-        onImageResize(width)
+        onImageResize(widthRef.current)
       }
     },
-    [editor, showHandles, resizeParams, onImageResize, width],
+    [editor, onImageResize],
   )
 
-  const onPointerMoveGlobal = useCallback(
-    (e: PointerEvent) => {
-      // 复用现有计算逻辑：把 PointerEvent 转给原来的 windowPointerMoveHandler 实现
-      // 假设你已有一个函数 windowPointerMoveHandler 接受 PointerEvent
-      windowPointerMoveHandler(e)
-    },
-    [windowPointerMoveHandler],
-  )
-
-  const onPointerUpGlobal = useCallback(
-    (e: PointerEvent) => {
-      // 结束拖拽：释放捕获、清 overlay、调用原本的 up handler
-      if (activeOverlayCleanupRef.current) {
-        activeOverlayCleanupRef.current()
-        activeOverlayCleanupRef.current = null
-      }
-      windowPointerUpHandler(e)
-    },
-    [windowPointerUpHandler],
-  )
-
-  const leftResizeHandlePointerDownHandler = (event: React.PointerEvent<HTMLDivElement>): void => {
+  const startResize = (handleUsed: ResizeParams['handleUsed'], event: React.PointerEvent<HTMLDivElement>): void => {
     event.preventDefault()
-    // 尝试在目标上 setPointerCapture（兼容桌面）
+    activePointerIdRef.current = event.pointerId
     try {
       (event.target as Element).setPointerCapture?.(event.pointerId)
     }
     catch { }
+
+    const initial = wrapperRef.current?.clientWidth || Number.MAX_VALUE
+    const nextParams: ResizeParams = {
+      handleUsed,
+      initialWidth: initial,
+      initialClientX: event.clientX,
+      initialClientY: event.clientY,
+    }
+    resizeParamsRef.current = nextParams
+    widthRef.current = wrapperRef.current?.clientWidth ?? widthRef.current
+
     // 创建全屏 overlay 捕获后续 pointermove/pointerup（确保移动端不会被系统抢夺）
     if (typeof window !== 'undefined') {
-      // cleanup 上一个 overlay（防御性）
       activeOverlayCleanupRef.current?.()
       activeOverlayCleanupRef.current = createPointerCaptureOverlay(
-        onPointerMoveGlobal,
-        onPointerUpGlobal,
+        windowPointerMoveHandler,
+        windowPointerUpHandler,
       )
     }
 
-    setResizeParams({
-      handleUsed: 'left',
-      initialWidth: wrapperRef.current?.clientWidth || Number.MAX_VALUE,
-      initialClientX: event.clientX,
-      initialClientY: event.clientY,
-    })
+    setResizeParams(nextParams)
+  }
+
+  const leftResizeHandlePointerDownHandler = (event: React.PointerEvent<HTMLDivElement>): void => {
+    startResize('left', event)
   }
 
   const rightResizeHandlePointerDownHandler = (event: React.PointerEvent<HTMLDivElement>): void => {
-    event.preventDefault()
-    try {
-      (event.target as Element).setPointerCapture?.(event.pointerId)
-    }
-    catch { }
-    if (typeof window !== 'undefined') {
-      activeOverlayCleanupRef.current?.()
-      activeOverlayCleanupRef.current = createPointerCaptureOverlay(
-        onPointerMoveGlobal,
-        onPointerUpGlobal,
-      )
-    }
-
-    setResizeParams({
-      handleUsed: 'right',
-      initialWidth: wrapperRef.current?.clientWidth || Number.MAX_VALUE,
-      initialClientX: event.clientX,
-      initialClientY: event.clientY,
-    })
+    startResize('right', event)
   }
 
-  const cornerResizeHandlePointerDownHandler = (
-    event: React.PointerEvent<HTMLDivElement>,
-  ): void => {
-    event.preventDefault()
-    try {
-      (event.target as Element).setPointerCapture?.(event.pointerId)
-    }
-    catch { }
-    if (typeof window !== 'undefined') {
-      activeOverlayCleanupRef.current?.()
-      activeOverlayCleanupRef.current = createPointerCaptureOverlay(
-        onPointerMoveGlobal,
-        onPointerUpGlobal,
-      )
-    }
-
-    setResizeParams({
-      handleUsed: 'corner',
-      initialWidth: wrapperRef.current?.clientWidth || Number.MAX_VALUE,
-      initialClientX: event.clientX,
-      initialClientY: event.clientY,
-    })
+  const cornerResizeHandlePointerDownHandler = (event: React.PointerEvent<HTMLDivElement>): void => {
+    startResize('corner', event)
   }
 
   const wrapperPointerEnterHandler = (): void => {
@@ -294,18 +295,24 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
     }
   }, [])
 
+  const isResizing = resizeParams !== undefined
+
   useEffect(() => {
-    // pointer events cover mouse + touch + pen
+    if (!isResizing)
+      return
+    // 仅在拖拽调整宽度期间注册 window 监听，避免文档中每张图片常驻全局事件
     window.addEventListener('pointermove', windowPointerMoveHandler, {
       passive: false,
     })
     window.addEventListener('pointerup', windowPointerUpHandler)
+    window.addEventListener('pointercancel', windowPointerUpHandler)
 
     return () => {
       window.removeEventListener('pointermove', windowPointerMoveHandler)
       window.removeEventListener('pointerup', windowPointerUpHandler)
+      window.removeEventListener('pointercancel', windowPointerUpHandler)
     }
-  }, [windowPointerMoveHandler, windowPointerUpHandler])
+  }, [isResizing, windowPointerMoveHandler, windowPointerUpHandler])
 
   return (
     <NodeViewWrapper
@@ -346,6 +353,8 @@ export const ResizableImage: React.FC<ResizableImageProps> = ({
                   ref={imageRef}
                   src={src}
                   alt={alt}
+                  loading="lazy"
+                  decoding="async"
                   className="tiptap-image-img"
                   contentEditable={false}
                   draggable={false}

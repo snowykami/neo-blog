@@ -5,8 +5,8 @@ import type { ComponentAlign, ComponentHeight, ComponentWidth } from '@/componen
 import { NodeViewWrapper } from '@tiptap/react'
 import { MoveHorizontalIcon, MoveVerticalIcon, PuzzleIcon, Settings2Icon, TextAlignCenterIcon, TextAlignEndIcon, TextAlignStartIcon, Trash2Icon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import dynamic from 'next/dynamic'
 import { Suspense, useEffect, useMemo, useState } from 'react'
-import { ComponentPropsDialog } from '@/components/content-components/component-props-dialog'
 import { ContentComponentView } from '@/components/content-components/content-component-view'
 import { COMPONENT_WIDTHS, componentHeightRem, componentLayoutAttrs, parseComponentAlign, parseComponentHeight, parseComponentWidth } from '@/components/content-components/layout'
 import { resolveComponent } from '@/components/content-components/props'
@@ -16,6 +16,11 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { COMPONENT_BLOCK_TOOLBAR_ATTR } from './component-block-constants'
 import { consumePendingComponentEdit } from './pending-edit'
+
+const ComponentPropsDialog = dynamic(
+  () => import('@/components/content-components/component-props-dialog').then(m => m.ComponentPropsDialog),
+  { ssr: false },
+)
 
 /** 预览不可用时的占位：未知组件 / props 无效 / 渲染出错 */
 function BlockNotice({ title, hint }: { title: string, hint?: string }) {
@@ -189,10 +194,10 @@ export function ComponentBlockView({ editor, node, selected, updateAttributes, d
         </div>
       )}
 
-      {def && (
+      {def && editing && (
         <ComponentPropsDialog
           def={def}
-          open={editing}
+          open
           onOpenChange={(open) => {
             setEditing(open)
             if (!open)

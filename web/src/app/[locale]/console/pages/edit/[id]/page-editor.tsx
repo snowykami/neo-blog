@@ -2,19 +2,27 @@
 
 import type { PageModel } from '@/models/page'
 import { useFormatter, useTranslations } from 'next-intl'
+import dynamic from 'next/dynamic'
 import { useParams } from 'next/navigation'
 import { ContentEditorShell } from '@/components/tiptap-editor/content-editor-shell'
 import { useContentEditor } from '@/hooks/use-content-editor'
 import { consolePath, getPageUrl } from '@/utils/common/route'
-import { PagePreviewDialog } from './page-preview'
-import { PageSettingsSheet } from './page-settings-sheet'
 
-export function PageEditor() {
+const PagePreviewDialog = dynamic(
+  () => import('./page-preview').then(m => m.PagePreviewDialog),
+  { ssr: false },
+)
+const PageSettingsSheet = dynamic(
+  () => import('./page-settings-sheet').then(m => m.PageSettingsSheet),
+  { ssr: false },
+)
+
+export function PageEditor({ initialPage = null }: { initialPage?: PageModel | null } = {}) {
   const t = useTranslations('Console.editor')
   const pageT = useTranslations('Console.pages.meta')
   const format = useFormatter()
   const { id } = useParams() as { id: string }
-  const controller = useContentEditor('page', id)
+  const controller = useContentEditor('page', id, initialPage)
   const page = controller.doc as PageModel | null
   const { meta } = controller
 
@@ -43,10 +51,10 @@ export function PageEditor() {
           <span>{format.dateTime(new Date(page.createdAt), { dateStyle: 'long' })}</span>
         </>
       )}
-      renderSettings={panel => (
+      renderSettings={panel => panel.open && (
         <PageSettingsSheet {...panel} meta={meta} onChange={controller.updateMeta} />
       )}
-      renderPreview={panel => page && (
+      renderPreview={panel => panel.open && page && (
         <PagePreviewDialog {...panel} page={page} onBeforePreview={() => controller.flushSave()} />
       )}
     />
