@@ -145,7 +145,7 @@ function useNavMenuItems(): NavMenuItem[] {
 
 // 一级菜单项：当前路由高亮
 const navItemClass = 'inline-flex h-11 items-center gap-2 rounded-lg px-4 font-medium text-foreground/75 transition-[color,background-color,transform] duration-150 hover:bg-primary/10 hover:text-primary active:scale-[.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer'
-const navItemActiveClass = 'bg-primary/10 text-primary'
+const navItemActiveClass = 'bg-primary/10 font-semibold text-secondary-foreground hover:text-secondary-foreground'
 
 // 页面滚动后导航卡片加一点阴影，与正文区分
 function useScrolled(threshold = 8) {
@@ -223,7 +223,7 @@ function NavMenuCenter({ items }: { items: NavMenuItem[] }) {
                         <NavigationMenuTrigger
                           className={cn(
                             navItemClass,
-                            'bg-transparent text-base focus:bg-primary/10 focus:text-primary data-[state=open]:bg-primary/10 data-[state=open]:text-primary data-[state=open]:hover:bg-primary/10 data-[state=open]:focus:bg-primary/10',
+                            'bg-transparent text-base focus:bg-primary/10 focus:text-primary data-[state=open]:bg-primary/10 data-[state=open]:text-secondary-foreground data-[state=open]:hover:bg-primary/10 data-[state=open]:focus:bg-primary/10',
                             active && navItemActiveClass,
                           )}
                           onClick={(e) => {
@@ -248,7 +248,7 @@ function NavMenuCenter({ items }: { items: NavMenuItem[] }) {
                                       aria-current={childActive ? 'page' : undefined}
                                       className={cn(
                                         'flex-row! items-center gap-2! rounded-lg! px-3 py-2 text-sm font-medium text-foreground/75 hover:bg-primary/10! hover:text-primary! focus:bg-primary/10! focus:text-primary!',
-                                        childActive && 'bg-primary/10 text-primary',
+                                        childActive && 'bg-primary/10 font-semibold text-secondary-foreground',
                                       )}
                                     >
                                       <child.icon aria-hidden className="size-4 text-current!" />

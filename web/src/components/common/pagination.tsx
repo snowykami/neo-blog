@@ -1,3 +1,4 @@
+import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import {
   forwardRef,
@@ -36,6 +37,8 @@ interface PaginationControllerProps extends React.HTMLAttributes<HTMLDivElement>
   maxButtons?: number
   /** 页码变化回调（用户点击或自动校正时触发） */
   onPageChange?: (page: number) => void
+  /** 生成指定页码（1-based）的链接地址；传入非空地址时渲染为可抓取的 <a>，未传或禁用时渲染为语义化 <button> */
+  buildHref?: (page: number) => string
   /** 是否禁用交互 */
   disabled?: boolean
   /** 仅一页时隐藏组件（total>0 且 totalPages===1） */
@@ -63,6 +66,7 @@ export const PaginationController = forwardRef<
       page,
       maxButtons = 7,
       onPageChange,
+      buildHref,
       disabled = false,
       hideOnSinglePage = false,
       reportAutoAdjust = true,
@@ -159,16 +163,46 @@ export const PaginationController = forwardRef<
       }
     }, [currentPage, maxBtns, totalPages])
 
+    const resolveHref = (p: number) => {
+      if (disabled || !buildHref)
+        return undefined
+      const href = buildHref(p).trim()
+      return href.length > 0 ? href : undefined
+    }
+
     // total=0 的场景: 显示单个不可切换页
     if (total === 0) {
+      const firstHref = resolveHref(1)
       return (
         <div className={className} {...rest}>
           <Pagination>
             <PaginationContent className={CONTENT_CLASS}>
               <PaginationItem>
-                <PaginationLink isActive aria-current="page">
-                  1
-                </PaginationLink>
+                {firstHref
+                  ? (
+                      <PaginationLink
+                        isActive
+                        href={firstHref}
+                        aria-label={t('go_to_page', { page: 1 })}
+                        onClick={(e) => {
+                          if (isPlainLeftClick(e))
+                            e.preventDefault()
+                        }}
+                      >
+                        1
+                      </PaginationLink>
+                    )
+                  : (
+                      <PaginationLink asChild isActive>
+                        <button
+                          type="button"
+                          disabled={disabled}
+                          aria-label={t('go_to_page', { page: 1 })}
+                        >
+                          1
+                        </button>
+                      </PaginationLink>
+                    )}
               </PaginationItem>
             </PaginationContent>
           </Pagination>
@@ -180,42 +214,77 @@ export const PaginationController = forwardRef<
       return null
     }
 
-    const renderPage = (p: number) => (
-      <PaginationItem key={p}>
-        <PaginationLink
-          isActive={p === currentPage}
-          aria-current={p === currentPage ? 'page' : undefined}
-          aria-label={t('go_to_page', { page: p })}
-          onClick={(e) => {
-            e.preventDefault()
-            handleSetPage(p)
-          }}
-          tabIndex={disabled ? -1 : 0}
-        >
-          {p}
-        </PaginationLink>
-      </PaginationItem>
-    )
+    const renderPage = (p: number) => {
+      const href = resolveHref(p)
+      const active = p === currentPage
+      return (
+        <PaginationItem key={p}>
+          {href
+            ? (
+                <PaginationLink
+                  href={href}
+                  isActive={active}
+                  aria-label={t('go_to_page', { page: p })}
+                  onClick={(e) => {
+                    if (isPlainLeftClick(e)) {
+                      e.preventDefault()
+                      handleSetPage(p)
+                    }
+                  }}
+                >
+                  {p}
+                </PaginationLink>
+              )
+            : (
+                <PaginationLink asChild isActive={active}>
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    aria-label={t('go_to_page', { page: p })}
+                    onClick={() => handleSetPage(p)}
+                  >
+                    {p}
+                  </button>
+                </PaginationLink>
+              )}
+        </PaginationItem>
+      )
+    }
 
-    const prevDisabled = disabled || currentPage === 1
-    const nextDisabled = disabled || currentPage === totalPages
+    const prevDisabled = disabled || currentPage <= 1
+    const nextDisabled = disabled || currentPage >= totalPages
+    const prevHref = !prevDisabled ? resolveHref(currentPage - 1) : undefined
+    const nextHref = !nextDisabled ? resolveHref(currentPage + 1) : undefined
 
     return (
       <div className={className} {...rest}>
         <Pagination>
           <PaginationContent className={CONTENT_CLASS}>
             <PaginationItem>
-              <PaginationPrevious
-                aria-disabled={prevDisabled}
-                aria-label={t('previous_page')}
-                tabIndex={prevDisabled ? -1 : 0}
-                onClick={(e) => {
-                  if (prevDisabled)
-                    return
-                  e.preventDefault()
-                  handleSetPage(currentPage - 1)
-                }}
-              />
+              {prevHref
+                ? (
+                    <PaginationPrevious
+                      href={prevHref}
+                      aria-label={t('previous_page')}
+                      onClick={(e) => {
+                        if (isPlainLeftClick(e)) {
+                          e.preventDefault()
+                          handleSetPage(currentPage - 1)
+                        }
+                      }}
+                    />
+                  )
+                : (
+                    <PaginationPrevious asChild aria-label={t('previous_page')}>
+                      <button
+                        type="button"
+                        disabled={prevDisabled}
+                        onClick={() => handleSetPage(currentPage - 1)}
+                      >
+                        <ChevronLeftIcon aria-hidden />
+                      </button>
+                    </PaginationPrevious>
+                  )}
             </PaginationItem>
 
             {pages.type === 'all' && pages.list.map(renderPage)}
@@ -251,17 +320,30 @@ export const PaginationController = forwardRef<
             )}
 
             <PaginationItem>
-              <PaginationNext
-                aria-disabled={nextDisabled}
-                aria-label={t('next_page')}
-                tabIndex={nextDisabled ? -1 : 0}
-                onClick={(e) => {
-                  if (nextDisabled)
-                    return
-                  e.preventDefault()
-                  handleSetPage(currentPage + 1)
-                }}
-              />
+              {nextHref
+                ? (
+                    <PaginationNext
+                      href={nextHref}
+                      aria-label={t('next_page')}
+                      onClick={(e) => {
+                        if (isPlainLeftClick(e)) {
+                          e.preventDefault()
+                          handleSetPage(currentPage + 1)
+                        }
+                      }}
+                    />
+                  )
+                : (
+                    <PaginationNext asChild aria-label={t('next_page')}>
+                      <button
+                        type="button"
+                        disabled={nextDisabled}
+                        onClick={() => handleSetPage(currentPage + 1)}
+                      >
+                        <ChevronRightIcon aria-hidden />
+                      </button>
+                    </PaginationNext>
+                  )}
             </PaginationItem>
           </PaginationContent>
         </Pagination>
@@ -271,6 +353,10 @@ export const PaginationController = forwardRef<
 )
 
 // -------- helpers --------
+function isPlainLeftClick(e: React.MouseEvent) {
+  return e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey
+}
+
 function clampPage(p: number, totalPages: number) {
   if (Number.isNaN(p))
     return 1

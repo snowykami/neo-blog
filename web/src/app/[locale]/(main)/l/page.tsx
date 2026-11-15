@@ -57,7 +57,7 @@ export default async function LabelPage() {
                   >
                     {label.name}
                     {typeof label.postCount === 'number' && (
-                      <span className="text-xs tabular-nums opacity-60">{label.postCount}</span>
+                      <span className="text-xs text-muted-foreground tabular-nums">{label.postCount}</span>
                     )}
                   </Link>
                 ))}

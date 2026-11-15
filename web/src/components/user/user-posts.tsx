@@ -76,6 +76,7 @@ export function UserPosts({ userId }: { userId: number }) {
           pageSize={pageSize}
           initialPage={page}
           total={total}
+          buildHref={p => (p === 1 ? '?' : `?page=${p}`)}
           onPageChange={(next) => {
             setPage(next)
             window.scrollTo({ top: 0, behavior: 'smooth' })

@@ -204,7 +204,7 @@ export function BlogSidebarLabels({
               )}
             >
               {l.name}
-              <span className="text-xs tabular-nums opacity-60">{(l.postCount ?? 0) > 99 ? '99+' : l.postCount}</span>
+              <span className={cn('text-xs tabular-nums', selected ? 'text-primary-foreground' : 'text-muted-foreground')}>{(l.postCount ?? 0) > 99 ? '99+' : l.postCount}</span>
             </button>
           )
         })}
