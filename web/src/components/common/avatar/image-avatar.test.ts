@@ -1,7 +1,10 @@
+import { imageConfigDefault } from 'next/dist/shared/lib/image-config'
+import { ImageConfigContext } from 'next/dist/shared/lib/image-config-context.shared-runtime'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { ImageOptimizeProvider } from '@/contexts/image-optimize-context'
+import { IMAGE_QUALITIES } from '@/utils/common/image'
 import { ImageAvatar } from './image-avatar'
 
 describe('image-avatar 服务端直出 <img>', () => {
@@ -98,5 +101,26 @@ describe('image-avatar 服务端直出 <img>', () => {
     )
     expect(unoptimizedHtml).toContain('src="https://sfkm-blog.r2.liteyuki.org/snowykami-blog/avatar.png"')
     expect(unoptimizedHtml).not.toContain('/_next/image')
+  })
+
+  it('在配置 45/60/75 档位后按头像尺寸自动选择 q=45/60/75，并允许显式覆盖', () => {
+    const config = { ...imageConfigDefault, qualities: [...IMAGE_QUALITIES] }
+    const renderWithSizes = (sizes: string, quality?: 45 | 60 | 75) => renderToStaticMarkup(
+      React.createElement(ImageConfigContext.Provider, {
+        value: config,
+        children: React.createElement(ImageAvatar, {
+          src: '/uploads/avatar.png',
+          alt: 'Alice',
+          fallback: 'A',
+          sizes,
+          quality,
+        }),
+      }),
+    )
+
+    expect(renderWithSizes('48px')).toContain('q=45')
+    expect(renderWithSizes('80px')).toContain('q=60')
+    expect(renderWithSizes('128px')).toContain('q=75')
+    expect(renderWithSizes('48px', 75)).toContain('q=75')
   })
 })

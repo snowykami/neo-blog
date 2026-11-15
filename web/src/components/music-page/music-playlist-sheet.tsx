@@ -48,7 +48,7 @@ export const MusicPlaylistItem = memo(({ track, index, active, playing, onSelect
       >
         <span className={cn('relative shrink-0 overflow-hidden bg-white/10', compact ? 'size-9 rounded-md' : 'size-11 rounded-lg')}>
           {track.albumPic
-            ? <SafeImage src={formatMusicCoverUrl(track.albumPic, 88)} alt="" fill sizes={compact ? '36px' : '44px'} className="object-cover" fallback={null} />
+            ? <SafeImage src={formatMusicCoverUrl(track.albumPic, 88)} alt="" fill sizes={compact ? '36px' : '44px'} quality={45} className="object-cover" fallback={null} />
             : <Music2Icon aria-hidden className="absolute inset-0 m-auto size-5 text-white/50" />}
         </span>
         <span className="grid min-w-0 flex-1">

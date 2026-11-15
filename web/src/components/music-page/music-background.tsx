@@ -28,6 +28,7 @@ export function MusicBackground({ cover, contained = false, imageClassName, morp
           alt=""
           fill
           sizes="256px"
+          quality={45}
           fallback={null}
           className={cn('scale-125 animate-in object-cover opacity-80 blur-3xl saturate-150 duration-1000 fade-in', imageClassName)}
         />

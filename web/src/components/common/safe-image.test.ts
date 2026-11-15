@@ -1,9 +1,13 @@
+import type { SiteInfo } from '@/utils/common/siteinfo'
 import { NextIntlClientProvider } from 'next-intl'
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ImageOptimizeProvider } from '@/contexts/image-optimize-context'
+import { SiteInfoProvider } from '@/contexts/site-info-context'
 import { SafeImage } from './safe-image'
+import { SiteLogo } from './site-logo'
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 
@@ -82,5 +86,31 @@ describe('safe-image 远程优化降级兜底', () => {
     expect(onError).toHaveBeenCalledTimes(2)
     expect(host.querySelector('img')).toBeNull()
     expect(host.querySelector('[role="img"]')).toBeTruthy()
+  })
+})
+
+describe('site-logo 图片优化控制', () => {
+  it('白名单 OSS 位图图标走 /_next/image 优化，.ico 与 .svg 保持直连', () => {
+    const renderLogo = (icon: string) => renderToStaticMarkup(
+      React.createElement(ImageOptimizeProvider, {
+        hosts: ['sfkm-blog.r2.liteyuki.org'],
+        children: React.createElement(SiteInfoProvider, {
+          initialData: { metadata: { icon } } as unknown as SiteInfo,
+          children: React.createElement(SiteLogo),
+        }),
+      }),
+    )
+
+    const pngHtml = renderLogo('https://sfkm-blog.r2.liteyuki.org/snowykami-blog/icon.png')
+    expect(pngHtml).toContain('/_next/image?url=https%3A%2F%2Fsfkm-blog.r2.liteyuki.org%2Fsnowykami-blog%2Ficon.png')
+    expect(pngHtml).toContain('w=48')
+
+    const icoHtml = renderLogo('https://sfkm-blog.r2.liteyuki.org/snowykami-blog/favicon.ico')
+    expect(icoHtml).toContain('src="https://sfkm-blog.r2.liteyuki.org/snowykami-blog/favicon.ico"')
+    expect(icoHtml).not.toContain('/_next/image')
+
+    const svgHtml = renderLogo('https://sfkm-blog.r2.liteyuki.org/snowykami-blog/logo.svg')
+    expect(svgHtml).toContain('src="https://sfkm-blog.r2.liteyuki.org/snowykami-blog/logo.svg"')
+    expect(svgHtml).not.toContain('/_next/image')
   })
 })

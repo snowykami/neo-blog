@@ -21,8 +21,6 @@ export function SiteLogo({ className }: { className?: string }) {
       alt=""
       width={24}
       height={24}
-      // 站点图标常为 svg / ico，且尺寸很小，直接使用原图不经过图片优化
-      unoptimized
       className={cn('size-6 rounded-md object-cover', className)}
       fallback={fallback}
     />

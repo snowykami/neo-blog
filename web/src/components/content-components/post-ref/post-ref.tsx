@@ -71,7 +71,7 @@ function PostRefCardBody({ postId, showCover }: PostRefProps) {
       {showCover && card.cover && (
         // 33% 宽度的窄卡片收起封面（组件根的 @container）
         <div className="relative aspect-[4/3] w-28 shrink-0 overflow-hidden rounded-lg bg-muted @max-sm:hidden">
-          <SafeImage src={card.cover} alt="" fill sizes="112px" className="object-cover" />
+          <SafeImage src={card.cover} alt="" fill sizes="112px" quality={60} className="object-cover" />
         </div>
       )}
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">

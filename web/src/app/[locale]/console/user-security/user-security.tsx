@@ -278,7 +278,7 @@ function UserOpenIdItem({ openId, onUnbind }: { openId: OpenIdDto, onUnbind: (id
     <div className="flex items-center justify-between w-full max-w-sm border p-2 rounded-md gap-2">
       {/* 左头像 */}
       <div className="flex items-center gap-2">
-        <ImageAvatar src={openId.oidcIcon} alt={openId.oidcName} fallback={(openId.oidcDisplayName || openId.oidcName).slice(0, 1)} />
+        <ImageAvatar src={openId.oidcIcon} alt={openId.oidcName} sizes="32px" fallback={(openId.oidcDisplayName || openId.oidcName).slice(0, 1)} />
         <div className="grid">
           <span className="text-sm text-muted-foreground">{openId.oidcDisplayName || openId.oidcName}</span>
           <span className="font-medium truncate">

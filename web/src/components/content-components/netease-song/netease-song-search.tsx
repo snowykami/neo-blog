@@ -87,7 +87,7 @@ export function NeteaseSongSearch({ value, onSelect }: { value: number, onSelect
                 >
                   <span className="relative size-10 shrink-0 overflow-hidden rounded-md bg-muted">
                     {song.albumPic
-                      ? <SafeImage src={formatMusicCoverUrl(song.albumPic, 80)} alt="" fill sizes="40px" className="object-cover" />
+                      ? <SafeImage src={formatMusicCoverUrl(song.albumPic, 80)} alt="" fill sizes="40px" quality={45} className="object-cover" />
                       : <Music2Icon className="absolute inset-0 m-auto size-4 text-muted-foreground" />}
                   </span>
                   <span className="grid min-w-0 flex-1">

@@ -400,6 +400,7 @@ export function UserManagePage() {
                                   <ImageAvatar
                                     src={openId.oidcIcon}
                                     alt=""
+                                    sizes="20px"
                                     fallback={providerLabel.slice(0, 1)}
                                     className="size-5"
                                     fallbackClassName="text-[10px]"

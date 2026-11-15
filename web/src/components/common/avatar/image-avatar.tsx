@@ -1,8 +1,10 @@
 'use client'
 
+import type { ImageQuality } from '@/utils/common/image'
 import { useEffect, useState } from 'react'
 import { SafeImage } from '@/components/common/safe-image'
 import { cn } from '@/lib/utils'
+import { defaultAvatarQuality } from '@/utils/common/image'
 
 export interface ImageAvatarProps {
   src?: string | null
@@ -19,6 +21,8 @@ export interface ImageAvatarProps {
   sizes?: string
   // 首屏可见的大图（如侧栏的站长头像）：不懒加载，HTML 解析到就开始下载
   eager?: boolean
+  // 图片优化压缩档位；未指定时按 sizes 自动分配（小头像 45、中头像 60、大图 75）
+  quality?: ImageQuality
 }
 
 type LoadStatus = 'loading' | 'loaded' | 'error'
@@ -31,7 +35,7 @@ type LoadStatus = 'loading' | 'loaded' | 'error'
  * 站内图片按 sizes 取缩小后的尺寸。不用 Radix Avatar：它要等水合后在 effect 里预加载成功才挂上 \<img\>，
  * 头像（尤其是首屏侧栏的站长头像）要等整页脚本下载、执行完才开始加载
  */
-export function ImageAvatar({ src, alt = '', fallback, className, imageClassName, fallbackClassName, fallbackStyle, fallbackDelayMs, sizes = '128px', eager }: ImageAvatarProps) {
+export function ImageAvatar({ src, alt = '', fallback, className, imageClassName, fallbackClassName, fallbackStyle, fallbackDelayMs, sizes = '128px', eager, quality }: ImageAvatarProps) {
   // 记录对应的地址，地址变化时自动回到加载中
   const [state, setState] = useState<{ src?: string | null, status: LoadStatus }>({ src, status: 'loading' })
   const status: LoadStatus = !src ? 'error' : state.src === src ? state.status : 'loading'
@@ -62,6 +66,7 @@ export function ImageAvatar({ src, alt = '', fallback, className, imageClassName
           alt={alt}
           fill
           sizes={sizes}
+          quality={quality ?? defaultAvatarQuality(sizes)}
           loading={eager ? 'eager' : undefined}
           // 失败时不显示 SafeImage 的占位块，换成本组件的兜底内容
           fallback={null}

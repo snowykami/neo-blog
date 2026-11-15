@@ -99,7 +99,7 @@ export function AssetField({
             className={cn('relative grid aspect-video place-items-center overflow-hidden rounded-xl border border-dashed bg-muted/50 text-[13px] text-muted-foreground data-[has-value=true]:border-solid', previewClassName)}
           >
             {url
-              ? <SafeImage src={url} alt="" fill className="object-cover" sizes="420px" />
+              ? <SafeImage src={url} alt="" fill quality={60} className="object-cover" sizes="420px" />
               : <span>{emptyText ?? t('preview_empty')}</span>}
           </div>
         )}
@@ -117,7 +117,7 @@ export function AssetField({
     <div className={cn('flex items-center gap-2', className)}>
       {showPreview && (
         <div className={cn('relative size-9 shrink-0 overflow-hidden rounded-md border', previewClassName)}>
-          <SafeImage src={url || null} alt="" fill sizes="36px" className="object-cover" fallback={<div className="size-full bg-muted" />} />
+          <SafeImage src={url || null} alt="" fill sizes="36px" quality={45} className="object-cover" fallback={<div className="size-full bg-muted" />} />
         </div>
       )}
       {input}

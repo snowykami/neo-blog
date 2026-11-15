@@ -55,7 +55,7 @@ function getThemeSampleImageSrc(src: string, optimizeHosts: readonly string[]) {
   if (formatted !== src)
     return formatted
   // 仅站内 / 白名单图片经优化器取小图；站外图片直连（依赖对方 CORS，失败时回退默认色）
-  return shouldOptimize(src, optimizeHosts) ? `/_next/image?url=${encodeURIComponent(src)}&w=64&q=75` : src
+  return shouldOptimize(src, optimizeHosts) ? `/_next/image?url=${encodeURIComponent(src)}&w=64&q=45` : src
 }
 
 function useAlbumThemeColor(src?: string) {
@@ -520,7 +520,7 @@ export function MiniPlayer({ onOpenPage }: { onOpenPage?: () => void }) {
             style={{ transform: isPlaying ? 'scale(1)' : 'scale(0.92)' }}
           >
             {currentTrack.albumPic
-              ? <SafeImage src={formatMusicCoverUrl(currentTrack.albumPic, 120)} alt={currentTrack.album} fill sizes="56px" className="object-cover" />
+              ? <SafeImage src={formatMusicCoverUrl(currentTrack.albumPic, 120)} alt={currentTrack.album} fill sizes="56px" quality={45} className="object-cover" />
               : <MusicIcon aria-hidden className="absolute inset-0 m-auto size-6 text-white/40" />}
           </span>
           <div className="grid min-w-0 flex-1 content-center gap-1">

@@ -76,7 +76,7 @@ export function MusicCardView({ cover, title, href, subtitle, action, progress, 
         {/* 封面 */}
         <div className={cn('relative shrink-0 overflow-hidden rounded-lg bg-muted', layout.cover)}>
           {cover
-            ? <SafeImage src={formatMusicCoverUrl(cover, 192)} alt="" fill sizes="96px" className="object-cover" />
+            ? <SafeImage src={formatMusicCoverUrl(cover, 192)} alt="" fill sizes="96px" quality={60} className="object-cover" />
             : loading
               ? <Skeleton className="size-full" />
               : <Music2Icon aria-hidden className="absolute inset-0 m-auto size-6 text-muted-foreground" />}

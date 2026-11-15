@@ -3,8 +3,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.stubEnv('NEXT_PUBLIC_IMAGE_OPTIMIZE_HOSTS', 'img.example.com, CDN.Example.com')
 const {
+  defaultAvatarQuality,
   formatMusicCoverUrl,
   getImageOptimizeHosts,
+  IMAGE_QUALITIES,
   parseImageOptimizeHosts,
   setRuntimeImageOptimizeHosts,
   shouldOptimize,
@@ -31,9 +33,13 @@ describe('shouldOptimize', () => {
   it.each([
     ['/api/v1/file/1', true],
     ['/logo.png', true],
+    ['/favicon.ico', false],
+    ['/logo.svg', false],
     ['//cdn.other.com/a.png', false],
     ['https://img.example.com/a.png', true],
     ['https://cdn.example.com/a.png', true],
+    ['https://img.example.com/logo.SVG?v=1', false],
+    ['https://img.example.com/favicon.ico#v2', false],
     ['http://img.example.com/a.png', false],
     ['https://p1.music.126.net/a.jpg', false],
     ['not a url', false],
@@ -91,5 +97,18 @@ describe('formatMusicCoverUrl', () => {
     expect(formatMusicCoverUrl('https://example.com/cover.jpg', 300)).toBe('https://example.com/cover.jpg')
     expect(formatMusicCoverUrl('')).toBe('')
     expect(formatMusicCoverUrl(null)).toBe('')
+  })
+})
+
+describe('defaultAvatarQuality', () => {
+  it('按头像显示宽度映射到 45 / 60 / 75 三档压缩质量', () => {
+    expect(IMAGE_QUALITIES).toEqual([45, 60, 75])
+    expect(defaultAvatarQuality('24px')).toBe(45)
+    expect(defaultAvatarQuality('48px')).toBe(45)
+    expect(defaultAvatarQuality('64px')).toBe(45)
+    expect(defaultAvatarQuality('80px')).toBe(60)
+    expect(defaultAvatarQuality('120px')).toBe(60)
+    expect(defaultAvatarQuality('128px')).toBe(75)
+    expect(defaultAvatarQuality('(max-width: 1024px) 192px, 280px')).toBe(75)
   })
 })

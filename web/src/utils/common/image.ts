@@ -1,5 +1,22 @@
 import type { ImageProps } from 'next/image'
 
+/** Next 图片优化允许的压缩质量档位（需与 next.config.ts images.qualities 同步）：45 小头像/微缩图，60 列表卡片/中图，75 详情大图与品牌图标 */
+export const IMAGE_QUALITIES = [45, 60, 75] as const
+export type ImageQuality = (typeof IMAGE_QUALITIES)[number]
+
+/** 根据 ImageAvatar 的 sizes 推导默认压缩档位：<=64px 小头像用 45，<=120px 中头像用 60，其余大头像用 75 */
+export function defaultAvatarQuality(sizes: string): ImageQuality {
+  const match = /^(\d+)px$/.exec(sizes.trim())
+  if (!match)
+    return 75
+  const px = Number(match[1])
+  if (px <= 64)
+    return 45
+  if (px <= 120)
+    return 60
+  return 75
+}
+
 /**
  * 解析逗号分隔的图床域名白名单，自动规范化为小写去重后的 hostname 列表
  * 兼容误填协议或路径的情况（如 https://cdn.example.com/path）
@@ -49,15 +66,19 @@ export function getImageOptimizeHosts(): readonly string[] {
   return runtimeImageOptimizeHosts ?? IMAGE_OPTIMIZE_HOSTS
 }
 
+const UNOPTIMIZABLE_IMAGE_RE = /\.(?:svg|ico)(?:$|[?#])/i
+
 /**
- * 是否走 Next 图片优化：静态 import、站内相对路径、白名单域名的 https 图片走优化；
- * 其余站外地址由浏览器直连，避免服务端多绕一跳；解析失败按不优化处理
+ * 是否走 Next 图片优化：静态 import、站内相对路径、白名单域名的 https 位图走优化；
+ * svg / ico 及站外非白名单地址由浏览器直连，避免无意义的服务端绕跳；解析失败按不优化处理
  */
 export function shouldOptimize(src: ImageProps['src'] | null | undefined, hosts?: readonly string[]): boolean {
   if (!src)
     return false
   if (typeof src !== 'string')
     return true
+  if (UNOPTIMIZABLE_IMAGE_RE.test(src))
+    return false
   if (src.startsWith('/'))
     return !src.startsWith('//')
   try {

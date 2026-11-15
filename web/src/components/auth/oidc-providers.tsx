@@ -116,6 +116,7 @@ export function OidcProviderButtons({
           <ImageAvatar
             src={provider.icon}
             alt=""
+            sizes="24px"
             fallback={provider.displayName.slice(0, 1)}
             className={variant === 'icon' ? 'size-5' : 'size-6'}
             fallbackClassName={variant === 'icon' ? 'text-[10px]' : 'text-xs'}

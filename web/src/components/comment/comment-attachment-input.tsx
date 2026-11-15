@@ -199,7 +199,7 @@ function AttachmentThumb({ item, onRemove }: { item: AttachmentItem, onRemove: (
   return (
     <li title={name} className="relative size-16 shrink-0 overflow-hidden rounded-lg border bg-muted">
       {src
-        ? <SafeImage src={src} alt={name} fill sizes="64px" className="object-cover" />
+        ? <SafeImage src={src} alt={name} fill sizes="64px" quality={45} className="object-cover" />
         : (
             <div className="flex size-full flex-col items-center justify-center gap-1 p-1 text-muted-foreground">
               <Icon aria-hidden className="size-5" />

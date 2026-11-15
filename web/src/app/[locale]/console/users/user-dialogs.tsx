@@ -523,6 +523,7 @@ export function UserDetailSheet({ user, isSelf, onOpenChange }: {
                           <ImageAvatar
                             src={openId.oidcIcon}
                             alt=""
+                            sizes="24px"
                             fallback={providerLabel.slice(0, 1)}
                             className="size-6 shrink-0"
                             fallbackClassName="text-xs"
@@ -535,6 +536,7 @@ export function UserDetailSheet({ user, isSelf, onOpenChange }: {
                             <ImageAvatar
                               src={openId.picture}
                               alt=""
+                              sizes="24px"
                               fallback={(openId.name || openId.preferredUsername || '?').slice(0, 1)}
                               className="ml-auto size-6 shrink-0 rounded-full"
                               fallbackClassName="text-[10px]"

@@ -112,6 +112,7 @@ export function LinkPreviewCard({
             alt={preview.title || host}
             width={320}
             height={128}
+            quality={60}
             className="w-full h-full object-cover"
           />
         </div>
@@ -163,6 +164,7 @@ export function LinkPreviewCard({
                     alt=""
                     width={16}
                     height={16}
+                    quality={45}
                     className="size-4 shrink-0"
                     // 图标失效时显示通用图标
                     fallback={<GlobeIcon className="size-4 shrink-0 text-muted-foreground" />}

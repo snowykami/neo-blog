@@ -425,6 +425,7 @@ function PostItem({
               alt={post.title}
               width={64} // 和 w-16 (4rem=64px) 保持一致
               height={36} // 和 h-9 (2.25rem=36px) 保持一致
+              quality={45}
               className="w-full h-full object-cover"
             />
           </div>

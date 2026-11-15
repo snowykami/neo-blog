@@ -39,7 +39,7 @@ export function BlogSidebarAbout() {
             <div className="mb-3">
               <div className="relative aspect-[2/1] w-full overflow-hidden rounded-xl bg-muted">
                 {/* 桌面端侧栏在首屏内：设为 eager 在 HTML 阶段尽早开始下载，但不设 fetchPriority="high"，把最高带宽优先级留给首屏第一篇封面 */}
-                <SafeImage src={aboutBackground} alt="" fill sizes="280px" loading="eager" className="object-cover" />
+                <SafeImage src={aboutBackground} alt="" fill sizes="280px" quality={60} loading="eager" className="object-cover" />
               </div>
               <ImageAvatar
                 src={avatarSrc}

@@ -52,7 +52,7 @@ function GithubRepoCardBody({ repo }: GithubRepoProps) {
         </span>
         {data?.archived && <Badge variant="secondary" className="shrink-0 rounded-md">{t('archived')}</Badge>}
         {data?.ownerAvatar && (
-          <SafeImage src={data.ownerAvatar} alt="" width={24} height={24} className="ml-auto size-6 shrink-0 rounded-full" fallback={null} />
+          <SafeImage src={data.ownerAvatar} alt="" width={24} height={24} quality={45} className="ml-auto size-6 shrink-0 rounded-full" fallback={null} />
         )}
       </div>
 

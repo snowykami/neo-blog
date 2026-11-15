@@ -58,8 +58,8 @@ export function CommentAttachments({ attachments, className }: { attachments?: C
               className={cn('relative cursor-zoom-in overflow-hidden rounded-lg border bg-muted outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50', single ? 'min-h-16 min-w-16' : 'aspect-square')}
             >
               {single
-                ? <SafeImage src={image.url} alt={attachmentName(image)} width={0} height={0} sizes="320px" className="block h-auto max-h-80 w-auto max-w-xs" fallback={<ImagePlaceholder className="size-32" />} />
-                : <SafeImage src={image.url} alt={attachmentName(image)} fill sizes="120px" className="object-cover" />}
+                ? <SafeImage src={image.url} alt={attachmentName(image)} width={0} height={0} sizes="320px" quality={60} className="block h-auto max-h-80 w-auto max-w-xs" fallback={<ImagePlaceholder className="size-32" />} />
+                : <SafeImage src={image.url} alt={attachmentName(image)} fill sizes="120px" quality={60} className="object-cover" />}
             </button>
           ))}
         </div>

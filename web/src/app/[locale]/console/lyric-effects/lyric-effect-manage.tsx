@@ -351,7 +351,7 @@ function LyricEffectItem({ row, now, selected, onSelectedChange, batchItem }: {
         />
         <span className="relative size-11 shrink-0 overflow-hidden rounded-md bg-muted">
           {track?.albumPic
-            ? <SafeImage src={formatMusicCoverUrl(track.albumPic, 88)} alt="" fill sizes="44px" className="object-cover" />
+            ? <SafeImage src={formatMusicCoverUrl(track.albumPic, 88)} alt="" fill sizes="44px" quality={45} className="object-cover" />
             : <Music2Icon className="absolute inset-0 m-auto size-4 text-muted-foreground" />}
         </span>
       </label>

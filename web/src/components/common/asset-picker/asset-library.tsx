@@ -246,6 +246,7 @@ function AssetTile({ asset, selected, disabled, onToggle, onConfirm }: {
                 alt={asset.name}
                 fill
                 sizes="160px"
+                quality={60}
                 unoptimized={asset.mimeType === 'image/svg+xml'}
                 className="object-cover"
               />
