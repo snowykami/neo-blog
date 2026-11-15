@@ -1,5 +1,14 @@
-import type { OrderBy } from '@/models/common'
 import type { Post } from '@/models/post'
+import { OrderBy } from '@/models/common'
+
+export const HOME_TABS = [OrderBy.CreatedAt, OrderBy.Heat] as const
+
+export type HomeTab = typeof HOME_TABS[number]
+
+// 归一化地址栏的 tab 参数
+export function parseHomeTab(value: unknown): HomeTab {
+  return value === OrderBy.Heat ? OrderBy.Heat : OrderBy.CreatedAt
+}
 
 // 服务端预取的首屏文章，参数与客户端默认查询一致时直接使用，避免首屏空白和重复请求
 export interface BlogHomeInitialData {

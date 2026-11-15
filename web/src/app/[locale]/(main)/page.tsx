@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import type { WebSite, WithContext } from 'schema-dts'
 import type { BlogHomeInitialData } from './blog-home-query'
+import type { OrderBy } from '@/models/common'
 import type { Post } from '@/models/post'
 import { getLocale, getTranslations } from 'next-intl/server'
 import { cacheLife, cacheTag } from 'next/cache'
@@ -16,10 +17,9 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { localeAlternates } from '@/i18n/alternates'
 import { localizePath } from '@/i18n/routing'
 import { CacheTag, skipBackendAtBuild } from '@/lib/cache-tags'
-import { OrderBy } from '@/models/common'
 import { absoluteSiteUrl, safeMetadataBase } from '@/utils/common/siteinfo'
 import BlogHome from './blog-home'
-import { blogHomeQueryKey } from './blog-home-query'
+import { blogHomeQueryKey, parseHomeTab } from './blog-home-query'
 
 export async function generateMetadata(): Promise<Metadata> {
   const siteInfo = await getCachedSiteInfo()
@@ -61,13 +61,13 @@ export async function generateMetadata(): Promise<Metadata> {
 
 type HomeSearchParams = Record<string, string | string[] | undefined>
 
-// 默认视图（第一页、不筛选、按最新）的文章列表跨请求缓存：首页最常见的就是它，文章、分类、标签变化时 posts 标签失效。
+// 默认视图（第一页、不筛选）的文章列表跨请求缓存：最新与热门各自成键，文章、分类、标签变化时 posts 标签失效。
 // 带筛选、翻页、搜索的组合来自地址栏，随手就能拼出无数个，照常每次向后端取
-async function loadDefaultPosts(pageSize: number) {
+async function loadDefaultPosts(pageSize: number, orderBy: OrderBy) {
   'use cache'
   cacheLife('site')
   cacheTag(CacheTag.Posts)
-  return listPosts({ page: 1, orderBy: OrderBy.CreatedAt, size: pageSize, desc: true, withPinned: true }).then(res => res.data)
+  return listPosts({ page: 1, orderBy, size: pageSize, desc: true, withPinned: true }).then(res => res.data)
 }
 
 // 列表只展示摘要（作者描述 → 后端纯文本摘要 → 正文兜底，见 post-list.tsx）：已经有描述或摘要时去掉截断的正文 HTML，
@@ -80,13 +80,19 @@ function slimPost(post: Post): Post {
 async function getInitialPosts(searchParams: HomeSearchParams, pageSize: number): Promise<BlogHomeInitialData | undefined> {
   const pick = (key: string) => (typeof searchParams[key] === 'string' ? searchParams[key] as string : undefined)
   const page = Math.max(1, Number.parseInt(pick('page') || '1', 10) || 1)
-  const params = { page, label: pick('label'), category: pick('category'), query: pick('query'), orderBy: OrderBy.CreatedAt }
+  const params = {
+    page,
+    label: pick('label'),
+    category: pick('category'),
+    query: pick('query'),
+    orderBy: parseHomeTab(pick('tab')),
+  }
   const isDefault = page === 1 && !params.label && !params.category && !params.query
   skipBackendAtBuild()
   try {
     const size = pageSize || 9
     const data = isDefault
-      ? await loadDefaultPosts(size)
+      ? await loadDefaultPosts(size, params.orderBy)
       : await listPosts({ ...params, size, desc: true, withPinned: true }).then(res => res.data)
     return { key: blogHomeQueryKey(params), posts: data.posts.map(slimPost), total: data.total, pinned: (data.pinned ?? []).map(slimPost) }
   }

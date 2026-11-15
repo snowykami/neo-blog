@@ -1,10 +1,10 @@
 'use client'
 
-import type { BlogHomeInitialData } from './blog-home-query'
+import type { BlogHomeInitialData, HomeTab } from './blog-home-query'
 import type { Post } from '@/models/post'
 import { Clock, TrendingUp, XIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { parseAsInteger, useQueryState } from 'nuqs'
+import { parseAsInteger, parseAsStringLiteral, useQueryState } from 'nuqs'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { listPosts } from '@/api/post'
 import { PostList } from '@/components/blog-home/post-list'
@@ -13,10 +13,9 @@ import { SectionTitle } from '@/components/layout/site-shell'
 import { Button } from '@/components/ui/button'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useSiteInfo } from '@/contexts/site-info-context'
-import { useStoredState } from '@/hooks/use-storage-state'
 import { OrderBy } from '@/models/common'
 import { parseHighlightTerms } from '@/utils/common/highlight'
-import { blogHomeQueryKey } from './blog-home-query'
+import { blogHomeQueryKey, HOME_TABS, parseHomeTab } from './blog-home-query'
 
 // 首页正文（标题、排序、文章列表、分页）；页面外壳与侧栏在 page.tsx（侧栏不依赖地址参数，属于静态外壳）
 export default function BlogHome({ initialData }: { initialData?: BlogHomeInitialData }) {
@@ -30,6 +29,10 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
   const [page, setPage] = useQueryState(
     'page',
     parseAsInteger.withDefault(1).withOptions({ history: 'replace', clearOnDefault: true }),
+  )
+  const [tab, setTab] = useQueryState(
+    'tab',
+    parseAsStringLiteral(HOME_TABS).withDefault(OrderBy.CreatedAt).withOptions({ history: 'replace', clearOnDefault: true }),
   )
   const [posts, setPosts] = useState<Post[]>(initialData?.posts ?? [])
   const [totalPosts, setTotalPosts] = useState(initialData?.total ?? 0)
@@ -46,10 +49,6 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
   // 加载失败标记与重试计数：重试时自增以重新触发请求
   const [loadError, setLoadError] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
-  const [orderByState, setOrderByState, isOrderByStateLoaded] = useStoredState<OrderBy>(
-    'order_by',
-    OrderBy.CreatedAt,
-  )
 
   // 区分浏览器 history popstate（回退/前进）与用户主动触发的分页
   const popStateRef = useRef(false)
@@ -63,7 +62,7 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
 
   // 页码或筛选真正变化时滚到顶部（浏览器回退 / 前进恢复的除外）。用 ref 记下上次的值：从文章返回首页时，
   // 被 Activity 保留的首页重新显示会重跑 effect，值没变就不滚，停在离开时的位置；首次挂载也不滚（由路由决定滚动位置）
-  const scrollKey = JSON.stringify([page, labelSlug, categorySlug, query])
+  const scrollKey = JSON.stringify([page, labelSlug, categorySlug, query, tab])
   const scrollKeyRef = useRef(scrollKey)
   useEffect(() => {
     const fromPopState = popStateRef.current
@@ -84,11 +83,8 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
   }, [initialData])
 
   useEffect(() => {
-    if (!isOrderByStateLoaded)
-      return
-    const orderBy = orderByState === OrderBy.CreatedAt ? OrderBy.CreatedAt : OrderBy.Heat
     // 首次查询与服务端预取参数一致时复用预取结果
-    const key = blogHomeQueryKey({ page, label: labelSlug, category: categorySlug, query, orderBy })
+    const key = blogHomeQueryKey({ page, label: labelSlug, category: categorySlug, query, orderBy: tab })
     // 参数变化后预取结果即失效（不在命中时清除，开发模式下 effect 会执行两次）
     if (initialKeyRef.current === key && reloadKey === 0) {
       // 首次挂载时 state 已由预取结果初始化；之后收到的新预取结果在这里换上，并作废进行中的旧请求
@@ -110,7 +106,7 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
     listPosts({
       page,
       size: siteInfo.postsPerPage || 9,
-      orderBy,
+      orderBy: tab,
       desc: true,
       query: query || undefined,
       label: labelSlug || undefined,
@@ -132,10 +128,10 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
         setLoadError(true)
         setLoading(false)
       })
-  }, [query, labelSlug, categorySlug, page, orderByState, isOrderByStateLoaded, siteInfo.postsPerPage, reloadKey, serverVersion])
+  }, [query, labelSlug, categorySlug, page, tab, siteInfo.postsPerPage, reloadKey, serverVersion])
 
   // 标题随筛选条件变化：标签/分类优先显示名称（从返回的文章中取，取不到则用 slug），其次搜索词
-  const order = orderByState === OrderBy.CreatedAt ? 'latest' : 'hottest'
+  const order = tab === OrderBy.Heat ? 'hottest' : 'latest'
   const findName = (items: { slug: string, name: string }[], slug: string) =>
     items.find(item => item.slug === slug || item.name === slug)?.name ?? slug
   const filter = labelSlug
@@ -154,9 +150,9 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
     setPage(1)
   }
 
-  const handleSortChange = (type: OrderBy) => {
-    if (orderByState !== type) {
-      setOrderByState(type)
+  const handleSortChange = (next: HomeTab) => {
+    if (next !== tab) {
+      setTab(next)
       setPage(1)
     }
   }
@@ -174,6 +170,8 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
       params.set('category', categorySlug)
     if (query)
       params.set('query', query)
+    if (tab === OrderBy.Heat)
+      params.set('tab', OrderBy.Heat)
     if (p > 1)
       params.set('page', String(p))
     const qs = params.toString()
@@ -205,35 +203,33 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
           )}
         </SectionTitle>
         {/* 排序切换 */}
-        {isOrderByStateLoaded && (
-          <ToggleGroup
-            type="single"
-            value={orderByState === OrderBy.CreatedAt ? OrderBy.CreatedAt : OrderBy.Heat}
-            onValueChange={(value) => {
-              if (value)
-                handleSortChange(value as OrderBy)
-            }}
-            disabled={loading}
-            className="gap-1 rounded-lg bg-card p-1"
+        <ToggleGroup
+          type="single"
+          value={tab}
+          onValueChange={(value) => {
+            if (value)
+              handleSortChange(parseHomeTab(value))
+          }}
+          disabled={loading}
+          className="gap-1 rounded-lg bg-card p-1"
+        >
+          <ToggleGroupItem
+            value={OrderBy.CreatedAt}
+            aria-label={t('latest')}
+            className="h-9 rounded-md px-3 first:rounded-md last:rounded-md data-[state=on]:bg-primary/10 data-[state=on]:font-semibold data-[state=on]:text-secondary-foreground"
           >
-            <ToggleGroupItem
-              value={OrderBy.CreatedAt}
-              aria-label={t('latest')}
-              className="h-9 rounded-md px-3 first:rounded-md last:rounded-md data-[state=on]:bg-primary/10 data-[state=on]:font-semibold data-[state=on]:text-secondary-foreground"
-            >
-              <Clock aria-hidden />
-              {t('latest')}
-            </ToggleGroupItem>
-            <ToggleGroupItem
-              value={OrderBy.Heat}
-              aria-label={t('hottest')}
-              className="h-9 rounded-md px-3 first:rounded-md last:rounded-md data-[state=on]:bg-primary/10 data-[state=on]:font-semibold data-[state=on]:text-secondary-foreground"
-            >
-              <TrendingUp aria-hidden />
-              {t('hottest')}
-            </ToggleGroupItem>
-          </ToggleGroup>
-        )}
+            <Clock aria-hidden />
+            {t('latest')}
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            value={OrderBy.Heat}
+            aria-label={t('hottest')}
+            className="h-9 rounded-md px-3 first:rounded-md last:rounded-md data-[state=on]:bg-primary/10 data-[state=on]:font-semibold data-[state=on]:text-secondary-foreground"
+          >
+            <TrendingUp aria-hidden />
+            {t('hottest')}
+          </ToggleGroupItem>
+        </ToggleGroup>
       </div>
 
       <PostList
