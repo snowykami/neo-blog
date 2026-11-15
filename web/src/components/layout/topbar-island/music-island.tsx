@@ -21,7 +21,7 @@ import { buildTimeline, getLineTextAt } from '@/lib/lyrics/timeline'
 // 静态引用会把它们全部拉进每一页的首屏 JS。所以有曲目（播放器已在空闲时挂上、歌单就绪）后才加载，
 // 加载完之前不出音乐活动。播放器本体也在同一个 chunk 里，这时通常已经下载过，几乎是立即就绪
 const loadCompact = () => import('./music-island-compact')
-const loadPlayer = () => import('@/components/common/music-player')
+const loadPlayer = () => import('@/components/common/mini-player')
 
 // 优先级：播放中高于文章阅读进度（读者主动开启的音乐更有个性），暂停后低于一切
 const PLAYING_PRIORITY = 50

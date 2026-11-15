@@ -8,8 +8,8 @@ import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useMusicPlayback } from '@/contexts/music-context'
 
-// 播放器本体很重（歌词引擎、特效），与悬浮球共用同一个按需加载的 chunk（main-floating-widgets 空闲时已加载）
-const MiniPlayer = dynamic(() => import('@/components/common/music-player').then(m => m.MiniPlayer), { ssr: false })
+// 播放器本体很重（歌词引擎、特效），点击展开时再按需加载
+const MiniPlayer = dynamic(() => import('@/components/common/mini-player').then(m => m.MiniPlayer), { ssr: false })
 
 /**
  * 后台顶栏的音乐入口：后台不显示悬浮球（见 components/common/music-player.tsx），在顶栏右侧放一个旋转封面按钮，
