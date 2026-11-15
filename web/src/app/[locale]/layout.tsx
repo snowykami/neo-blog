@@ -6,6 +6,7 @@ import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { getCachedSiteInfo } from '@/api/misc.server'
 import { LoginDialogProvider } from '@/components/auth/login-dialog'
 import { AppUpdateChecker } from '@/components/common/app-update-checker'
+import { LocaleSuggestToast } from '@/components/common/locale-suggest-toast'
 import { FloatingWidgets } from '@/components/common/main-floating-widgets'
 import { UserPreferenceSync } from '@/components/common/user-preference-sync'
 import { I18nScope } from '@/components/i18n-scope'
@@ -114,6 +115,8 @@ export default async function RootLayout({
                     <SiteInfoProvider initialData={siteInfo}>
                       {/* 登录后把账号里的界面语言、配色同步到本浏览器（要用站点信息里的可选配色，所以放在这里） */}
                       <UserPreferenceSync />
+                      {/* 浏览器首选语言与当前页面语言不一致时，空闲后以目标语言弹出轻量切换提示 */}
+                      <LocaleSuggestToast />
                       <LoginDialogProvider>
                         <MusicProvider>
                           <NavProvider>

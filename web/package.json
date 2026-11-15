@@ -4,18 +4,18 @@
   "private": true,
   "packageManager": "pnpm@10.23.0",
   "scripts": {
-    "dev": "pnpm gen:content && pnpm gen:fonts && pnpm i18n:scopes && next dev --turbopack",
-    "build": "pnpm gen:content && pnpm gen:fonts && pnpm i18n:scopes:check && next build --turbopack && node scripts/collect-sourcemaps.mjs",
-    "start": "next start",
+    "dev": "bun run gen:content && bun run gen:fonts && bun run i18n:scopes && bun --bun next dev --turbopack",
+    "build": "bun run gen:content && bun run gen:fonts && bun run i18n:scopes:check && bun --bun next build --turbopack && bun scripts/collect-sourcemaps.mjs",
+    "start": "bun .next/standalone/server.js",
     "format": "prettier --write \"src/**/*.{js,ts,jsx,tsx,json,css,md,mdx}\"",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test": "vitest run",
-    "gen:content": "node scripts/gen-content-components.mjs",
-    "gen:fonts": "node scripts/gen-webfonts.mjs",
-    "i18n:scopes": "node scripts/i18n-scopes.mjs",
-    "i18n:report": "node scripts/i18n-report.mjs",
-    "i18n:scopes:check": "node scripts/i18n-scopes.mjs --check"
+    "gen:content": "bun scripts/gen-content-components.mjs",
+    "gen:fonts": "bun scripts/gen-webfonts.mjs",
+    "i18n:scopes": "bun scripts/i18n-scopes.mjs",
+    "i18n:report": "bun scripts/i18n-report.mjs",
+    "i18n:scopes:check": "bun scripts/i18n-scopes.mjs --check"
   },
   "dependencies": {
     "@floating-ui/react": "^0.27.20",

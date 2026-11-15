@@ -1,28 +1,25 @@
 # -----------------------------------------------------------------------------
-# This Dockerfile is specifically configured for projects using Node and pnpm
-# For Bun or yarn, refer to the Dockerfile.bun instead
+# This Dockerfile is configured for Next.js built and executed with Bun
+# Dependencies are installed via pnpm using pnpm-lock.yaml
 # -----------------------------------------------------------------------------
 
-# 基础镜像（构建与运行两个阶段共用）。默认是 Docker Hub 官方镜像；拉取 docker.io 慢或失败时，可以通过构建参数换成
-# 镜像站或私有仓库里的同一镜像，例如 --build-arg NODE_IMAGE=docker.m.daocloud.io/library/node:24-alpine
-ARG NODE_IMAGE=node:24-alpine
+# 基础镜像（构建与运行两个阶段共用，需 >= 1.4.4 以兼容 Next.js 16 Turbopack）。
+# 默认是 Docker Hub 官方镜像；拉取 docker.io 慢或失败时，可通过构建参数换成镜像站，
+# 例如 --build-arg BUN_IMAGE=docker.m.daocloud.io/oven/bun:1.4.4-alpine
+ARG BUN_IMAGE=oven/bun:1.4.4-alpine
 
-# Use official Node image and pnpm
-FROM ${NODE_IMAGE} AS builder
+FROM ${BUN_IMAGE} AS builder
 WORKDIR /app
 ARG PNPM_VERSION=10.23.0
 # npm 镜像源（可选）。默认留空走官方源 https://registry.npmjs.org；拉取慢或失败时可通过构建参数切换，
-# 例如 --build-arg NPM_REGISTRY=https://registry.npmmirror.com（同时作用于 corepack 下载 pnpm 与 pnpm install）
+# 例如 --build-arg NPM_REGISTRY=https://registry.npmmirror.com
 ARG NPM_REGISTRY=""
-# 让 Node 24 内置 fetch（corepack 使用）在构建期遵循 Docker 预定义的 HTTP_PROXY / HTTPS_PROXY；未配置代理时无影响
-ARG NODE_USE_ENV_PROXY=1
 
-# enable corepack and activate pnpm
-RUN corepack enable && \
-  if [ -n "${NPM_REGISTRY}" ]; then \
-    NODE_USE_ENV_PROXY="${NODE_USE_ENV_PROXY}" COREPACK_NPM_REGISTRY="${NPM_REGISTRY%/}" corepack prepare pnpm@${PNPM_VERSION} --activate; \
+# 使用 pnpm-lock.yaml 严格锁定依赖版本
+RUN if [ -n "${NPM_REGISTRY}" ]; then \
+    npm_config_registry="${NPM_REGISTRY%/}" bun add -g pnpm@${PNPM_VERSION}; \
   else \
-    NODE_USE_ENV_PROXY="${NODE_USE_ENV_PROXY}" corepack prepare pnpm@${PNPM_VERSION} --activate; \
+    bun add -g pnpm@${PNPM_VERSION}; \
   fi
 
 # copy lock & package then install (dev deps needed for build)
@@ -45,11 +42,11 @@ ENV NEXT_PUBLIC_IMAGE_OPTIMIZE_HOSTS=${IMAGE_OPTIMIZE_HOSTS}
 ARG ASSET_PREFIX=""
 ENV NEXT_PUBLIC_ASSET_PREFIX=${ASSET_PREFIX}
 # 这里用 lint 而不是 lint:fix：格式不合规应当直接失败，避免 CI 静默重排代码导致镜像内容与仓库不一致
-RUN pnpm run lint && pnpm run build
+RUN bun --bun run lint && bun run build
 
 # production image
-# 运行时只执行 standalone 产物里的 node server.js，依赖已打包进 .next/standalone，不需要 pnpm
-FROM ${NODE_IMAGE} AS runner
+# 运行时只执行 standalone 产物里的 bun server.js，依赖已打包进 .next/standalone，不需要 pnpm
+FROM ${BUN_IMAGE} AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production \
@@ -57,21 +54,21 @@ ENV NODE_ENV=production \
   HOSTNAME="0.0.0.0"
 
 # create non-root user
-RUN addgroup -S nodejs && adduser -S nextjs -G nodejs
+RUN addgroup -S bunjs && adduser -S nextjs -G bunjs
 
 # copy public and standalone output from builder
 COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:bunjs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:bunjs /app/.next/static ./.next/static
 # 浏览器代码的 source map（不在公开目录里），错误报告据此还原调用栈
-COPY --from=builder --chown=nextjs:nodejs /app/.next/sourcemaps ./.next/sourcemaps
+COPY --from=builder --chown=nextjs:bunjs /app/.next/sourcemaps ./.next/sourcemaps
 
 USER nextjs
 
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
-  CMD ["node", "-e", "process.env.NODE_USE_ENV_PROXY='0';fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+  CMD ["bun", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
 
-# run with node (standalone/server.js)
-CMD ["node", "server.js"]
+# run with bun (standalone/server.js)
+CMD ["bun", "server.js"]

@@ -23,6 +23,11 @@ jobs:
           # 版本取自 packageManager 字段
           package_json_file: web/package.json
 
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
