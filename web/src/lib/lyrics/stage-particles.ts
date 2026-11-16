@@ -90,13 +90,45 @@ const NOTE_GLYPHS = ['♪', '♫', '♬', '♩']
 // 多色场景的默认色板
 const FESTIVE: LyricColor[] = ['crimson', 'amber', 'sunshine', 'spring-green', 'lake', 'starry-blue', 'lavender', 'cherry-blossom']
 
-/** 心形路径：中心在原点，大小约为 2s */
-function heartPath(ctx: CanvasRenderingContext2D, s: number) {
-  ctx.beginPath()
-  ctx.moveTo(0, s * 0.35)
-  ctx.bezierCurveTo(-s * 1.1, -s * 0.35, -s * 0.5, -s * 1.1, 0, -s * 0.45)
-  ctx.bezierCurveTo(s * 0.5, -s * 1.1, s * 1.1, -s * 0.35, 0, s * 0.35)
-  ctx.closePath()
+let unitPetalPath: Path2D | null = null
+let unitHeartPath: Path2D | null = null
+let unitLeafBodyPath: Path2D | null = null
+let unitLeafStemPath: Path2D | null = null
+
+function getUnitPetalPath() {
+  if (!unitPetalPath && typeof Path2D !== 'undefined') {
+    const p = new Path2D()
+    p.ellipse(0, 0, 0.55, 1, 0, 0, TAU)
+    unitPetalPath = p
+  }
+  return unitPetalPath
+}
+
+function getUnitHeartPath() {
+  if (!unitHeartPath && typeof Path2D !== 'undefined') {
+    const p = new Path2D()
+    p.moveTo(0, 0.35)
+    p.bezierCurveTo(-1.1, -0.35, -0.5, -1.1, 0, -0.45)
+    p.bezierCurveTo(0.5, -1.1, 1.1, -0.35, 0, 0.35)
+    p.closePath()
+    unitHeartPath = p
+  }
+  return unitHeartPath
+}
+
+function getUnitLeafPaths() {
+  if (!unitLeafBodyPath && typeof Path2D !== 'undefined') {
+    const body = new Path2D()
+    body.moveTo(0, -1)
+    body.quadraticCurveTo(0.75, 0, 0, 1)
+    body.quadraticCurveTo(-0.75, 0, 0, -1)
+    unitLeafBodyPath = body
+    const stem = new Path2D()
+    stem.moveTo(0, -0.8)
+    stem.lineTo(0, 1.3)
+    unitLeafStemPath = stem
+  }
+  return { body: unitLeafBodyPath!, stem: unitLeafStemPath! }
 }
 
 /** 光晕 + 亮核的光点 */
@@ -120,12 +152,10 @@ const SCENES: Record<LyricScene, SceneSpec> = {
       ctx.save()
       ctx.translate(p.x + Math.sin(p.age * 1.3 + p.seed) * 12, p.y)
       ctx.rotate(p.rotation)
-      // 翻转：宽度随时间变化
-      ctx.scale(Math.abs(Math.cos(p.age * 1.7 + p.seed)) * 0.7 + 0.3, 1)
+      // 翻转：宽度随时间变化，复用缓存 Path2D 避免逐帧重建矢量路径
+      ctx.scale((Math.abs(Math.cos(p.age * 1.7 + p.seed)) * 0.7 + 0.3) * p.size, p.size)
       ctx.fillStyle = rgba(p.color, 0.75 * alpha)
-      ctx.beginPath()
-      ctx.ellipse(0, 0, p.size * 0.55, p.size, 0, 0, TAU)
-      ctx.fill()
+      ctx.fill(getUnitPetalPath()!)
       ctx.restore()
     },
   },
@@ -212,21 +242,15 @@ const SCENES: Record<LyricScene, SceneSpec> = {
       ctx.save()
       ctx.translate(p.x + Math.sin(p.age * 1.1 + p.seed) * 18, p.y)
       ctx.rotate(p.rotation)
-      ctx.scale(Math.abs(Math.cos(p.age * 1.4 + p.seed)) * 0.8 + 0.2, 1)
+      const { body, stem } = getUnitLeafPaths()
       const s = p.size
+      ctx.scale((Math.abs(Math.cos(p.age * 1.4 + p.seed)) * 0.8 + 0.2) * s, s)
       ctx.fillStyle = rgba(p.color, 0.8 * alpha)
-      ctx.beginPath()
-      ctx.moveTo(0, -s)
-      ctx.quadraticCurveTo(s * 0.75, 0, 0, s)
-      ctx.quadraticCurveTo(-s * 0.75, 0, 0, -s)
-      ctx.fill()
+      ctx.fill(body)
       // 叶脉与叶柄
       ctx.strokeStyle = rgba(mixWhite(p.color, 0.4), 0.6 * alpha)
-      ctx.lineWidth = 0.8
-      ctx.beginPath()
-      ctx.moveTo(0, -s * 0.8)
-      ctx.lineTo(0, s * 1.3)
-      ctx.stroke()
+      ctx.lineWidth = 0.8 / s
+      ctx.stroke(stem)
       ctx.restore()
     },
   },
@@ -277,11 +301,10 @@ const SCENES: Record<LyricScene, SceneSpec> = {
       ctx.translate(p.x + Math.sin(p.age * 1.4 + p.seed) * 14, p.y)
       ctx.rotate(p.rotation)
       // 随拍跳动；不跟随节拍时心跳一样轻微缩放
-      const beat = heartBeat == null ? 1 + 0.08 * Math.sin(p.age * 4 + p.seed) : 1 + 0.12 * heartBeat
+      const beat = (heartBeat == null ? 1 + 0.08 * Math.sin(p.age * 4 + p.seed) : 1 + 0.12 * heartBeat) * p.size
       ctx.scale(beat, beat)
       ctx.fillStyle = rgba(p.color, 0.7 * alpha)
-      heartPath(ctx, p.size)
-      ctx.fill()
+      ctx.fill(getUnitHeartPath()!)
       ctx.restore()
     },
   },

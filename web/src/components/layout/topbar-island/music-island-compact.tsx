@@ -1,15 +1,16 @@
 'use client'
 
+import type { RhythmModel } from '@/lib/lyrics/rhythm/model'
 import { PlayIcon } from 'lucide-react'
 import { useReducedMotion } from 'motion/react'
 import dynamic from 'next/dynamic'
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { MarqueeText } from '@/components/common/marquee-text'
 import { AlbumNavIcon, useMiniPlayerHolding } from '@/components/common/music-player-shared'
 import { MusicBackground } from '@/components/music-page/music-background'
 import { MusicStageEffects } from '@/components/music-page/music-stage-effects'
 import { useSongAccent } from '@/components/music-page/use-cover-accent'
-import { useMusicActions, useMusicLyrics, useMusicPlayback } from '@/contexts/music-context'
+import { useMusicActions, useMusicLyrics, useMusicPlayback, useMusicPreferences } from '@/contexts/music-context'
 import { useHdrHighlight } from '@/hooks/use-hdr-highlight'
 import { HDR_BRIGHTNESS } from '@/lib/hdr-color'
 import { backgroundLevel, rhythmContext } from '@/lib/lyrics/rhythm/effects'
@@ -34,6 +35,8 @@ const MusicLyricStage = dynamic(() => import('@/components/music-page/music-lyri
  */
 export function MusicCompact({ beat, title, paused = false, text }: { beat: boolean, title: string, paused?: boolean, text?: string }) {
   const { currentTrack } = useMusicPlayback()
+  const { showLyricEffects } = useMusicPreferences()
+  const reducedMotion = useReducedMotion()
   const { lyricLines, lyrics } = useMusicLyrics()
   const accent = useSongAccent(currentTrack?.albumPic)
   const hasLyric = lyricLines.length > 0 || lyrics.instrumental
@@ -42,8 +45,13 @@ export function MusicCompact({ beat, title, paused = false, text }: { beat: bool
   // 收起面板时歌词引擎先交还过来，在面板底下跟上此刻的进度，胶囊露面时已是正在唱的那一句
   const effectsPaused = useMiniPlayerHolding('effects')
   const lyricsPaused = useMiniPlayerHolding('lyrics')
+  const stageDriving = showLyricEffects && !reducedMotion && !effectsPaused && !paused
   // 随拍染色层：律动条逐帧写入不透明度
   const tintRef = useRef<HTMLSpanElement>(null)
+  const beatFrameRef = useRef<((timeMs: number | null, model: RhythmModel | null) => void) | null>(null)
+  const handleStageFrame = useCallback((timeMs: number | null, model: RhythmModel | null) => {
+    beatFrameRef.current?.(timeMs, model)
+  }, [])
   // HDR 高光：染色层与律动条改由主色的 HDR 素材绘制，随拍时亮过 SDR 白（仍只改不透明度，不改大小）
   const hdr = useHdrHighlight(beat ? accent ?? '#fff' : null, HDR_BRIGHTNESS.islandBeat)
   const hdrStyle = hdr ? { backgroundImage: hdr } : undefined
@@ -52,7 +60,7 @@ export function MusicCompact({ beat, title, paused = false, text }: { beat: bool
       {/* 标题区域只有一行高，按播放器的模糊半径会糊成一片黑，改用小半径保留封面的颜色 */}
       <MusicBackground cover={currentTrack?.albumPic} contained imageClassName="blur-md" />
       <span className={cn('transition-opacity duration-300', paused && 'opacity-0')}>
-        <MusicStageEffects contained paused={effectsPaused || paused} />
+        <MusicStageEffects contained maxParticles={20} paused={effectsPaused || paused} onFrame={beat ? handleStageFrame : undefined} />
       </span>
       {beat && <span ref={tintRef} aria-hidden className="pointer-events-none absolute inset-0 bg-[color:var(--lyric-accent,#fff)] opacity-0" style={hdrStyle} />}
       {/* 封面与歌词标了 data-island-morph：展开时封面放大飞到面板里的封面处，单行歌词带着样式飞到面板歌词区的焦点行（没有歌词时不飞，见 island-morph.ts） */}
@@ -65,7 +73,7 @@ export function MusicCompact({ beat, title, paused = false, text }: { beat: bool
       </span>
       {paused
         ? <IslandSlot className="[&>svg]:size-3.5"><PlayIcon aria-hidden className="fill-current" /></IslandSlot>
-        : beat && <IslandSlot><BeatBars tintRef={tintRef} paused={effectsPaused} barStyle={hdrStyle} /></IslandSlot>}
+        : beat && <IslandSlot><BeatBars tintRef={tintRef} paused={effectsPaused} barStyle={hdrStyle} frameRef={beatFrameRef} externalDriven={stageDriving} /></IslandSlot>}
     </span>
   )
 }
@@ -86,7 +94,13 @@ const BEAT_TINT_OPACITY = 0.22
  * 没有时（关闭了歌词特效、浏览器开启省流量、分析失败等）以错开的起伏模拟，不染色。逐帧直接写 DOM，不触发 React 渲染；暂停或减少动态效果时静止，
  * paused 时（悬浮播放器开着）停在此刻
  */
-function BeatBars({ tintRef, paused, barStyle }: { tintRef: React.RefObject<HTMLSpanElement | null>, paused: boolean, barStyle?: React.CSSProperties }) {
+function BeatBars({ tintRef, paused, barStyle, frameRef, externalDriven }: {
+  tintRef: React.RefObject<HTMLSpanElement | null>
+  paused: boolean
+  barStyle?: React.CSSProperties
+  frameRef: React.MutableRefObject<((timeMs: number | null, model: RhythmModel | null) => void) | null>
+  externalDriven: boolean
+}) {
   const { isPlaying, currentTrack } = useMusicPlayback()
   const { getAudio } = useMusicActions()
   const reducedMotion = useReducedMotion()
@@ -108,18 +122,16 @@ function BeatBars({ tintRef, paused, barStyle }: { tintRef: React.RefObject<HTML
 
   useEffect(() => {
     const root = rootRef.current
-    if (!root || !isPlaying || reducedMotion || paused)
+    if (!root || !isPlaying || reducedMotion || paused) {
+      frameRef.current = null
       return
+    }
     const bars = Array.from(root.children) as HTMLElement[]
     const tint = tintRef.current
-    let frame = 0
-    const tick = () => {
-      frame = requestAnimationFrame(tick)
-      const audio = getAudio()
-      if (!audio)
+    const paintBars = (timeMs: number | null, model: RhythmModel | null) => {
+      if (timeMs == null)
         return
-      const timeMs = audio.currentTime * 1000
-      const ctx = rhythmContext(rhythmModelFor(stateRef.current.trackId))
+      const ctx = rhythmContext(model)
       bars.forEach((bar, i) => {
         const { weight, lagMs, freq } = BARS[i]
         const level = ctx.model
@@ -131,9 +143,24 @@ function BeatBars({ tintRef, paused, barStyle }: { tintRef: React.RefObject<HTML
       if (tint)
         tint.style.opacity = ctx.model ? (BEAT_TINT_OPACITY * backgroundLevel(ctx, timeMs)).toFixed(3) : ''
     }
+    if (externalDriven) {
+      frameRef.current = paintBars
+      return () => {
+        frameRef.current = null
+      }
+    }
+    frameRef.current = null
+    let frame = 0
+    const tick = () => {
+      frame = requestAnimationFrame(tick)
+      const audio = getAudio()
+      if (!audio)
+        return
+      paintBars(audio.currentTime * 1000, rhythmModelFor(stateRef.current.trackId))
+    }
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
-  }, [getAudio, isPlaying, paused, reducedMotion, tintRef])
+  }, [externalDriven, frameRef, getAudio, isPlaying, paused, reducedMotion, tintRef])
 
   return (
     <span ref={rootRef} aria-hidden className="flex h-4 items-center gap-[2px]">

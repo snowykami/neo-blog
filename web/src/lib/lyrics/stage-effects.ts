@@ -61,60 +61,137 @@ export const SCENE_MAX_LINES = 8
 export const VOCAL_TINT_FACTOR = 0.42
 
 const NO_SIGNALS: StageSignals = { pulse: 0, burst: 0, push: 0, spotlight: 0, tint: null, vocal: null, scene: null }
+const CHORUS_EFFECT_WINDOW = Math.max(BURST_ATTACK_MS + BURST_RELEASE_MS, PUSH_ATTACK_MS + PUSH_RELEASE_MS)
+const SHATTER_WINDOW_END_MS = 60 + 220 * 5
+
+interface IndexedPulse {
+  start: number
+  end: number
+  maxEnd: number
+  effect: 'swell' | 'shake' | 'heartbeat' | 'shatter'
+  factor: number
+}
+interface IndexedTint {
+  start: number
+  end: number
+  color: LyricColor
+}
+interface IndexedVocal {
+  line: LyricLine
+  align: LyricAlign
+  color: LyricColor
+}
+interface IndexedMainLine {
+  line: LyricLine
+  scene: StageScene | null
+  sceneLines: number
+}
+interface StageIndex {
+  chorusStarts: number[]
+  pulses: IndexedPulse[]
+  tints: IndexedTint[]
+  vocals: IndexedVocal[]
+  mainLines: IndexedMainLine[]
+}
+
+const stageIndexCache = new WeakMap<ResolvedLyrics, StageIndex>()
+
+function getStageIndex(lyrics: ResolvedLyrics): StageIndex {
+  const cached = stageIndexCache.get(lyrics)
+  if (cached)
+    return cached
+  const chorusStarts: number[] = []
+  const pulses: IndexedPulse[] = []
+  const tints: IndexedTint[] = []
+  const vocals: IndexedVocal[] = []
+  const mainLines: IndexedMainLine[] = []
+  const agents = lyrics.agents
+  for (const line of lyrics.lines) {
+    if (line.chorusStart)
+      chorusStarts.push(line.start)
+    for (const group of line.emphasis ?? []) {
+      if (group.effect === 'swell' || group.effect === 'shake') {
+        const baseDur = Math.max(PULSE_MIN_MS, group.end - group.start)
+        pulses.push({ start: group.start, end: group.end, maxEnd: group.start + baseDur * 2.5, effect: group.effect, factor: group.factor })
+      }
+      else if (group.effect === 'heartbeat') {
+        pulses.push({ start: group.start, end: group.end, maxEnd: group.end + 50, effect: 'heartbeat', factor: group.factor })
+      }
+      else if (group.effect === 'shatter') {
+        pulses.push({ start: group.end, end: group.end, maxEnd: group.end + SHATTER_WINDOW_END_MS, effect: 'shatter', factor: group.factor })
+      }
+      if (group.color)
+        tints.push({ start: group.start, end: group.end, color: group.color })
+    }
+    if (!line.isBackground) {
+      if (agents && line.agent && agents[line.agent])
+        vocals.push({ line, align: getLyricLineAlign(line), color: agents[line.agent].color })
+      let scene: StageScene | null = null
+      if (line.scene) {
+        // 自定义粒子在这首歌的粒子中找不到时（标注与歌词不同步）当作没有场景
+        const sprite = line.scene.startsWith('custom:') ? lyrics.sprites?.[line.scene.slice('custom:'.length)] : undefined
+        if (!line.scene.startsWith('custom:') || sprite)
+          scene = { name: line.scene, color: line.sceneColor ?? null, ...(sprite && { sprite }) }
+      }
+      mainLines.push({ line, scene, sceneLines: line.sceneLines && line.sceneLines > 0 ? line.sceneLines : SCENE_MAX_LINES })
+    }
+  }
+  const index: StageIndex = { chorusStarts, pulses, tints, vocals, mainLines }
+  stageIndexCache.set(lyrics, index)
+  return index
+}
 
 /** rhythm 为这首歌的节拍模型（没有时回退到固定快慢，见 rhythm/effects.ts） */
 export function getStageSignals(lyrics: ResolvedLyrics, timeMs: number, rhythm: RhythmModel | null = null): StageSignals {
   if (lyrics.lines.length === 0)
     return NO_SIGNALS
+  const idx = getStageIndex(lyrics)
   let pulse = 0
   let burst = 0
   let push = 0
   let tint: StageSignals['tint'] = null
-  for (const line of lyrics.lines) {
-    if (line.chorusStart) {
-      burst = Math.max(burst, burstEnvelope(line.start, timeMs))
-      push = Math.max(push, pushEnvelope(line.start, timeMs))
+  for (let i = 0; i < idx.chorusStarts.length; i++) {
+    const start = idx.chorusStarts[i]
+    if (timeMs < start || timeMs > start + CHORUS_EFFECT_WINDOW)
+      continue
+    burst = Math.max(burst, burstEnvelope(start, timeMs))
+    push = Math.max(push, pushEnvelope(start, timeMs))
+  }
+  const rCtx = idx.pulses.length > 0 ? rhythmContext(rhythm) : null
+  for (let i = 0; i < idx.pulses.length; i++) {
+    const p = idx.pulses[i]
+    if (timeMs < p.start || timeMs > p.maxEnd)
+      continue
+    if (p.effect === 'swell' || p.effect === 'shake') {
+      const duration = Math.max(PULSE_MIN_MS, p.end - p.start) * envelopeScale(rCtx!)
+      pulse = Math.max(pulse, swellCurve((timeMs - p.start) / duration) * p.factor)
     }
-    for (const group of line.emphasis ?? []) {
-      if (group.effect === 'swell' || group.effect === 'shake') {
-        const duration = Math.max(PULSE_MIN_MS, group.end - group.start) * envelopeScale(rhythmContext(rhythm))
-        pulse = Math.max(pulse, swellCurve((timeMs - group.start) / duration) * group.factor)
-      }
-      else if (group.effect === 'heartbeat') {
-        pulse = Math.max(pulse, heartbeatLevel(rhythmContext(rhythm), group.start, group.end, timeMs) * group.factor)
-      }
-      else if (group.effect === 'shatter') {
-        pulse = Math.max(pulse, shatterFlash(group.end, timeMs) * group.factor)
-      }
-      if (group.color) {
-        const strength = tintEnvelope(group.start, group.end, timeMs)
-        if (strength > 0 && (!tint || strength > tint.strength))
-          tint = { color: group.color, strength }
-      }
+    else if (p.effect === 'heartbeat') {
+      pulse = Math.max(pulse, heartbeatLevel(rCtx!, p.start, p.end, timeMs) * p.factor)
+    }
+    else {
+      pulse = Math.max(pulse, shatterFlash(p.end, timeMs) * p.factor)
     }
   }
-  return { pulse, burst, push, spotlight: spotlightLevel(lyrics, timeMs), tint, vocal: vocalAt(lyrics, timeMs), scene: sceneAt(lyrics, timeMs) }
-}
-
-/** 当前在唱多声部主唱行的舞台方向性洗光（按演唱进度包络柔化后输出，仅多声部曲目生效） */
-function vocalAt(lyrics: ResolvedLyrics, timeMs: number): StageVocalBias | null {
-  const agents = lyrics.agents
-  if (!agents)
-    return null
-  let best: { align: LyricAlign, color: LyricColor, strength: number, start: number } | null = null
-  for (const line of lyrics.lines) {
-    if (line.isBackground || !line.agent)
+  for (let i = 0; i < idx.tints.length; i++) {
+    const t = idx.tints[i]
+    if (timeMs < t.start || timeMs > t.end + TINT_RELEASE_MS)
       continue
-    const agent = agents[line.agent]
-    if (!agent)
-      continue
-    const strength = tintEnvelope(line.start, line.end, timeMs) * VOCAL_TINT_FACTOR
-    if (strength <= 0)
-      continue
-    if (!best || strength > best.strength || (strength === best.strength && line.start > best.start))
-      best = { align: getLyricLineAlign(line), color: agent.color, strength, start: line.start }
+    const strength = tintEnvelope(t.start, t.end, timeMs)
+    if (strength > 0 && (!tint || strength > tint.strength))
+      tint = { color: t.color, strength }
   }
-  return best ? { align: best.align, color: best.color, strength: best.strength } : null
+  let bestVocal: { align: LyricAlign, color: LyricColor, strength: number, start: number } | null = null
+  for (let i = 0; i < idx.vocals.length; i++) {
+    const v = idx.vocals[i]
+    if (timeMs < v.line.start || timeMs > v.line.end + TINT_RELEASE_MS)
+      continue
+    const strength = tintEnvelope(v.line.start, v.line.end, timeMs) * VOCAL_TINT_FACTOR
+    if (strength > 0 && (!bestVocal || strength > bestVocal.strength || (strength === bestVocal.strength && v.line.start > bestVocal.start)))
+      bestVocal = { align: v.align, color: v.color, strength, start: v.line.start }
+  }
+  const vocal = bestVocal ? { align: bestVocal.align, color: bestVocal.color, strength: bestVocal.strength } : null
+  return { pulse, burst, push, spotlight: spotlightLevel(lyrics, timeMs), tint, vocal, scene: sceneAtIndexed(idx.mainLines, timeMs) }
 }
 
 /**
@@ -180,35 +257,27 @@ function tintEnvelope(start: number, end: number, timeMs: number) {
 }
 
 /** 当前的粒子场景：最近一个已开始的场景行，且当前行距它不超过 SCENE_MAX_LINES 行 */
-function sceneAt(lyrics: ResolvedLyrics, timeMs: number): StageScene | null {
-  let scene: StageScene | null = null
-  let sceneIndex = -1
-  let sceneLines = SCENE_MAX_LINES
+function sceneAtIndexed(mainLines: IndexedMainLine[], timeMs: number): StageScene | null {
   let current = -1
-  lyrics.lines.forEach((line, index) => {
-    if (line.isBackground || line.start > timeMs)
-      return
-    current = index
-    if (line.scene) {
-      // 自定义粒子在这首歌的粒子中找不到时（标注与歌词不同步）当作没有场景
-      const sprite = line.scene.startsWith('custom:') ? lyrics.sprites?.[line.scene.slice('custom:'.length)] : undefined
-      if (!line.scene.startsWith('custom:') || sprite) {
-        scene = { name: line.scene, color: line.sceneColor ?? null, ...(sprite && { sprite }) }
-        sceneIndex = index
-        sceneLines = line.sceneLines && line.sceneLines > 0 ? line.sceneLines : SCENE_MAX_LINES
-      }
-    }
-  })
-  if (scene == null)
-    return null
-  // 按主唱行计数，背景人声不占行数
-  let lines = 0
-  for (let i = sceneIndex; i <= current; i++) {
-    if (!lyrics.lines[i].isBackground)
-      lines++
+  for (let i = 0; i < mainLines.length; i++) {
+    if (mainLines[i].line.start <= timeMs)
+      current = i
   }
-  // 超出行数后，最后一行唱完才结束
-  if (lines > sceneLines || (lines === sceneLines && timeMs > lyrics.lines[current].end))
+  if (current < 0)
     return null
-  return scene
+  let sceneIndex = -1
+  for (let i = current; i >= 0; i--) {
+    if (mainLines[i].scene) {
+      sceneIndex = i
+      break
+    }
+  }
+  if (sceneIndex < 0)
+    return null
+  const entry = mainLines[sceneIndex]
+  const count = current - sceneIndex + 1
+  // 超出行数后，最后一行唱完才结束
+  if (count > entry.sceneLines || (count === entry.sceneLines && timeMs > mainLines[current].line.end))
+    return null
+  return entry.scene
 }

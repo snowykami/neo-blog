@@ -66,6 +66,17 @@ const RELEASE_DELAY_MS = 1500
 const GLYPH_LEVELS = 12
 const WHITE: Rgb = [255, 255, 255]
 
+export interface DebrisMeasured {
+  box: DOMRect
+  rect: DOMRect
+  offsetHeight: number
+  fontStyle: string
+  fontWeight: string
+  fontSize: string
+  fontFamily: string
+  colorStr: string
+}
+
 /** 字的颜色：流光、HDR 高光下字本身透明（颜色由背景绘制），改取歌词色 */
 function glyphColor(charEl: HTMLElement, style: CSSStyleDeclaration) {
   if (style.color !== 'rgba(0, 0, 0, 0)')
@@ -120,13 +131,14 @@ export class LyricDebris {
     return 1 + (this.hdrGain - 1) * k * k
   }
 
-  /** 消散：从一个字生成颗粒（颜色取字当前的文字颜色） */
-  spawn(charEl: HTMLElement) {
-    const box = this.container.getBoundingClientRect()
-    const rect = charEl.getBoundingClientRect()
+  /** 消散：从一个字生成颗粒（颜色取字当前的文字颜色；传入预测量快照可避免绘制循环读写交错） */
+  spawn(charEl: HTMLElement, measured?: DebrisMeasured) {
+    const box = measured?.box ?? this.container.getBoundingClientRect()
+    const rect = measured?.rect ?? charEl.getBoundingClientRect()
     if (rect.width <= 0 || !this.ensureCanvas(box.width, box.height))
       return
-    const rgb = parseCssColor(glyphColor(charEl, getComputedStyle(charEl))) ?? WHITE
+    const colorStr = measured?.colorStr ?? glyphColor(charEl, getComputedStyle(charEl))
+    const rgb = parseCssColor(colorStr) ?? WHITE
     const count = Math.round(GRAINS_PER_CHAR * Math.min(2, rect.height / 26))
     for (let k = 0; k < count && this.grains.length < MAX_GRAINS; k++) {
       this.grains.push({
@@ -148,13 +160,13 @@ export class LyricDebris {
    * 破碎：把一个字切成碎片。push 为整个词的迸开方向（-1 ~ 1，词左侧的字向左、右侧的向右），
    * 字形按字当前的字体、颜色与缩放画到位图上
    */
-  shatter(charEl: HTMLElement, push: number) {
-    const box = this.container.getBoundingClientRect()
-    const rect = charEl.getBoundingClientRect()
+  shatter(charEl: HTMLElement, push: number, measured?: DebrisMeasured) {
+    const box = measured?.box ?? this.container.getBoundingClientRect()
+    const rect = measured?.rect ?? charEl.getBoundingClientRect()
     const text = charEl.textContent ?? ''
     if (rect.width <= 0 || !text.trim() || !this.ensureCanvas(box.width, box.height))
       return
-    const glyph = this.renderGlyph(charEl, text, rect)
+    const glyph = this.renderGlyph(charEl, text, rect, measured)
     if (!glyph)
       return
     const { width: w, height: h } = rect
@@ -308,13 +320,30 @@ export class LyricDebris {
    * 把字按当前的字体、颜色与缩放画到位图上（居中），尺寸与字的外框一致（CSS 像素）。
    * HDR 下按亮度分档（GLYPH_LEVELS）在用到时生成 float16 位图，样式在碎的一瞬间读取
    */
-  private renderGlyph(charEl: HTMLElement, text: string, rect: DOMRect): Glyph | null {
+  private renderGlyph(charEl: HTMLElement, text: string, rect: DOMRect, measured?: DebrisMeasured): Glyph | null {
     const doc = this.container.ownerDocument
-    const style = getComputedStyle(charEl)
+    let fontStyle: string
+    let fontWeight: string
+    let fontSize: string
+    let fontFamily: string
+    let offsetHeight: number
+    let colorStr: string
+    if (measured) {
+      ({ offsetHeight, fontStyle, fontWeight, fontSize, fontFamily, colorStr } = measured)
+    }
+    else {
+      const style = getComputedStyle(charEl)
+      fontStyle = style.fontStyle
+      fontWeight = style.fontWeight
+      fontSize = style.fontSize
+      fontFamily = style.fontFamily
+      offsetHeight = charEl.offsetHeight
+      colorStr = glyphColor(charEl, style)
+    }
     // 外框含字当前的缩放（如放大强调），字号按同样的比例放大
-    const scale = charEl.offsetHeight > 0 ? rect.height / charEl.offsetHeight : 1
-    const font = `${style.fontStyle} ${style.fontWeight} ${Number.parseFloat(style.fontSize) * scale}px ${style.fontFamily}`
-    const rgb = parseCssColor(glyphColor(charEl, style)) ?? WHITE
+    const scale = offsetHeight > 0 ? rect.height / offsetHeight : 1
+    const font = `${fontStyle} ${fontWeight} ${Number.parseFloat(fontSize) * scale}px ${fontFamily}`
+    const rgb = parseCssColor(colorStr) ?? WHITE
     const dpr = this.dpr
     const hdrGain = this.hdr ? this.hdrGain : 1
     const levels = new Map<number, HTMLCanvasElement | null>()

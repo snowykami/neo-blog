@@ -12,6 +12,9 @@
   inset-inline: 0;
   top: 0;
   transform-origin: left center;
+}
+
+.lyric-player--strip .lyric-item {
   will-change: transform;
 }
 
@@ -31,7 +34,7 @@
   line-height: 1.3;
   color: color-mix(in srgb, var(--lyric-color, #fff) 35%, transparent);
   cursor: pointer;
-  transition: color 0.4s ease-out, background-color 0.2s ease-out, filter 0.35s ease-out;
+  transition: color 0.4s ease-out, background-color 0.2s ease-out;
 }
 
 @media (min-width: 1024px) {
@@ -134,7 +137,6 @@
   background: color-mix(in srgb, var(--lyric-color, #fff) 14%, transparent);
   border: 1px solid color-mix(in srgb, var(--lyric-color, #fff) 10%, transparent);
   opacity: 0;
-  backdrop-filter: blur(8px);
   pointer-events: none;
   /* 水平原点对齐竖条起点、垂直贴合底边，供引擎按 1/s 反向缩放以在聚光灯下保持 1x 视觉大小并紧跟歌词位置 */
   transform-origin: left bottom;
@@ -143,6 +145,7 @@
 
 .lyric-singer--visible {
   opacity: 1;
+  backdrop-filter: blur(8px);
 }
 
 /* 极短右对齐/居中单字句宽小于胶囊时，收回到可安全放下的对齐端点避免溢出裁切 */

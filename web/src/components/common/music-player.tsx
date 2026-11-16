@@ -15,7 +15,7 @@ import { readPlaylistCache, touchPlaylistCache, writePlaylistCache } from '@/lib
 import { cn } from '@/lib/utils'
 import { formatMusicCoverUrl, shouldOptimize } from '@/utils/common/image'
 import { isConsolePreviewPath } from '@/utils/common/route'
-import { ALBUM_ROTATE_CLASSNAME, ALBUM_TRANSITION_DURATION_MS, CrossfadeAlbumImage, MINI_PLAYER_POPOVER_CLASSNAME, MINI_PLAYER_POPOVER_STYLE } from './music-player-shared'
+import { ALBUM_ROTATE_CLASSNAME, CrossfadeAlbumImage, MINI_PLAYER_POPOVER_CLASSNAME, MINI_PLAYER_POPOVER_STYLE } from './music-player-shared'
 import { useFloatingBall } from './use-floating-ball'
 
 // 弹层内的迷你播放器（歌词、舞台特效、歌单、控制栏）单独拆包，点击展开悬浮球或悬停预热时按需加载
@@ -125,60 +125,6 @@ function useAlbumThemeColor(src?: string) {
   return themeColor
 }
 
-function parseThemeColor(themeColor: string) {
-  const [r, g, b] = themeColor.split(/\s+/).map(value => Number.parseFloat(value))
-  if ([r, g, b].every(value => Number.isFinite(value))) {
-    return [r, g, b] as const
-  }
-
-  return [59, 130, 246] as const
-}
-
-function useAnimatedThemeColor(targetThemeColor: string) {
-  const [animatedThemeColor, setAnimatedThemeColor] = useState(targetThemeColor)
-  const currentColorRef = useRef(parseThemeColor(targetThemeColor))
-
-  useEffect(() => {
-    const from = currentColorRef.current
-    const to = parseThemeColor(targetThemeColor)
-
-    if (from.every((channel, index) => channel === to[index])) {
-      setAnimatedThemeColor(targetThemeColor)
-      return
-    }
-
-    let rafId = 0
-    let startTime = 0
-
-    const tick = (time: number) => {
-      if (!startTime)
-        startTime = time
-
-      const progress = Math.min(1, (time - startTime) / ALBUM_TRANSITION_DURATION_MS)
-      const easedProgress = 1 - (1 - progress) ** 3
-      const nextColor = from.map((channel, index) =>
-        Math.round(channel + (to[index] - channel) * easedProgress),
-      ) as [number, number, number]
-
-      currentColorRef.current = nextColor
-      setAnimatedThemeColor(nextColor.join(' '))
-
-      if (progress < 1) {
-        rafId = requestAnimationFrame(tick)
-      }
-      else {
-        currentColorRef.current = to
-        setAnimatedThemeColor(targetThemeColor)
-      }
-    }
-
-    rafId = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(rafId)
-  }, [targetThemeColor])
-
-  return animatedThemeColor
-}
-
 // 本地存储键：当前曲目索引、曲目 id 与播放进度（秒）
 const STORAGE_KEY_INDEX = 'music-current-index'
 const STORAGE_KEY_TRACK_ID = 'music-current-track-id'
@@ -269,7 +215,6 @@ export function MusicPlayer() {
   const inConsole = isConsolePath(pathname) && !isConsolePreviewPath(pathname)
   const showBall = Boolean(currentTrack) && !onPlayerPage && !inConsole
   const themeColor = useAlbumThemeColor(showBall && isPlaying ? currentTrack?.albumPic : undefined)
-  const animatedThemeColor = useAnimatedThemeColor(themeColor)
   // 悬浮球可拖动；开始拖动时收起播放器
   const [open, setOpen] = useState(false)
   const ball = useFloatingBall({ onDragStart: () => setOpen(false) })
@@ -414,8 +359,8 @@ export function MusicPlayer() {
           {...ball.handlers}
           style={{
             ...ball.style,
-            // 播放时以专辑主题色发光
-            boxShadow: isPlaying ? `0 6px 22px rgb(${animatedThemeColor} / 0.55)` : '0 8px 18px rgb(0 0 0 / 0.18)',
+            // 播放时以专辑主题色发光（由原生 CSS transition 平滑过渡阴影颜色，避免切歌 RAF 循环重渲染）
+            boxShadow: isPlaying ? `0 6px 22px rgb(${themeColor} / 0.55)` : '0 8px 18px rgb(0 0 0 / 0.18)',
           }}
           className={cn(
             // touch-none：在悬浮球上拖动时不滚动页面；停靠时用过渡吸附到边缘，拖动时跟手

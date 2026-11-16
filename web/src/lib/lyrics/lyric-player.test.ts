@@ -838,4 +838,38 @@ describe('振假名渲染与 HDR 跨行平滑退场', () => {
 
     ctx.cleanup()
   })
+
+  it('仅非单行条按可见性动态切换 will-change，strip 单行条由 CSS 静态处理不写行内 willChange', () => {
+    const cssText = readFileSync(resolve(__dirname, 'lyric-player.css'), 'utf8')
+    expect(cssText).toContain('.lyric-player--strip .lyric-item')
+    expect(cssText).not.toMatch(/\.lyric-line[^}]*filter 0\.35s/)
+
+    const manyLines: ResolvedLyrics = {
+      source: 'ncm-yrc',
+      wordTimed: true,
+      instrumental: false,
+      lines: Array.from({ length: 40 }, (_, i) => ({
+        words: [{ text: `L${i}`, start: i * 1000, end: i * 1000 + 800 }],
+        start: i * 1000,
+        end: i * 1000 + 800,
+        isDuet: false,
+        isBackground: false,
+      })),
+    }
+
+    const full = mountPlayer(manyLines, { strip: false })
+    full.container.querySelectorAll<HTMLElement>('.lyric-line').forEach(el => Object.defineProperty(el, 'offsetHeight', { value: 60, configurable: true }))
+    full.step(0.5, 16)
+    const fullEls = Array.from(full.container.querySelectorAll<HTMLElement>('.lyric-item'))
+    expect(fullEls[0].style.willChange).toBe('transform')
+    expect(fullEls.at(-1)?.style.willChange).toBe('')
+    full.cleanup()
+
+    const strip = mountPlayer(manyLines, { strip: true })
+    strip.container.querySelectorAll<HTMLElement>('.lyric-line').forEach(el => Object.defineProperty(el, 'offsetHeight', { value: 36, configurable: true }))
+    strip.step(0.5, 16)
+    const stripEls = Array.from(strip.container.querySelectorAll<HTMLElement>('.lyric-item'))
+    expect(stripEls.every(el => el.style.willChange === '')).toBe(true)
+    strip.cleanup()
+  })
 })

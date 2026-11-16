@@ -1,9 +1,10 @@
 'use client'
 
 import type { HdrCanvasPresenter } from '@/lib/hdr-canvas'
+import type { RhythmModel } from '@/lib/lyrics/rhythm/model'
 import type { StageParticleRhythm } from '@/lib/lyrics/stage-particles'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { useMusic } from '@/contexts/music-context'
+import { useMusic, useMusicClockStore } from '@/contexts/music-context'
 import { useHdrEnabled } from '@/hooks/use-hdr-highlight'
 import { createHdrCanvasPresenter } from '@/lib/hdr-canvas'
 import { HDR_BRIGHTNESS } from '@/lib/hdr-color'
@@ -55,8 +56,19 @@ function subscribeReducedMotion(listener: () => void) {
  * 关闭歌词特效或系统要求减少动态效果时不渲染；逐帧更新直接写 DOM / canvas，不触发 React 渲染。
  * paused 时停在此刻的画面、不再逐帧运行（如顶栏灵动岛的胶囊藏在悬浮播放器后面时），恢复后接着演出
  */
-export function MusicStageEffects({ contained = false, paused = false }: { contained?: boolean, paused?: boolean }) {
+export function MusicStageEffects({
+  contained = false,
+  paused = false,
+  maxParticles,
+  onFrame,
+}: {
+  contained?: boolean
+  paused?: boolean
+  maxParticles?: number
+  onFrame?: (timeMs: number | null, model: RhythmModel | null) => void
+}) {
   const { lyrics, isPlaying, getAudio, showLyricEffects, currentTrack } = useMusic()
+  const clock = useMusicClockStore()
   const reducedMotion = useSyncExternalStore(subscribeReducedMotion, () => window.matchMedia(REDUCED_MOTION_QUERY).matches, () => true)
   const enabled = showLyricEffects && !reducedMotion
   // 不支持 WebGPU 的 HDR 输出或设备丢失后，本次会话退回 2D
@@ -70,11 +82,18 @@ export function MusicStageEffects({ contained = false, paused = false }: { conta
   // 逐帧循环通过 ref 读取，不随渲染重启
   const stateRef = useRef({ lyrics, isPlaying, trackId: currentTrack?.id ?? null })
   const pausedRef = useRef(paused)
+  const onFrameRef = useRef(onFrame)
   // 恢复逐帧循环（由下面的循环在启动时写入）
   const resumeRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
+    onFrameRef.current = onFrame
+  }, [onFrame])
+
+  useEffect(() => {
     stateRef.current = { lyrics, isPlaying, trackId: currentTrack?.id ?? null }
+    if (!pausedRef.current)
+      resumeRef.current?.()
   }, [currentTrack?.id, isPlaying, lyrics])
 
   useEffect(() => {
@@ -96,6 +115,7 @@ export function MusicStageEffects({ contained = false, paused = false }: { conta
     const abort = new AbortController()
     const particles = new StageParticles(drawCanvas, {
       ...(contained ? CONTAINED_PARTICLES : {}),
+      ...(maxParticles != null ? { maxParticles } : {}),
       ...(hdr ? { hdrGain: HDR_BRIGHTNESS.particles, resolution: HDR_PARTICLE_RESOLUTION } : {}),
     })
     // 粒子画布空闲释放时 HDR 输出一并释放，恢复时重新配置（见 StageParticles.suspended）
@@ -129,7 +149,10 @@ export function MusicStageEffects({ contained = false, paused = false }: { conta
 
     let frame = 0
     let last = performance.now()
+    let lastRender = Number.NEGATIVE_INFINITY
     let lastTimeMs: number | null = null
+    let prevSettledTimeMs: number | null = null
+    let wasSettled = false
     let pulseOpacity = ''
     let tintOpacity = ''
     let tintColor = ''
@@ -148,8 +171,14 @@ export function MusicStageEffects({ contained = false, paused = false }: { conta
     }
     const tick = (now: number) => {
       frame = 0
-      if (pausedRef.current)
+      if (pausedRef.current || document.hidden)
         return
+      // 高刷屏将背景粒子与混色氛围限频至约 60fps（歌词逐帧仍维持原生高刷）
+      if (now - lastRender < 11.5) {
+        frame = requestAnimationFrame(tick)
+        return
+      }
+      lastRender = now
       // 切到后台再回来时不一次推进太久
       const dt = Math.min(0.05, (now - last) / 1000)
       last = now
@@ -157,6 +186,7 @@ export function MusicStageEffects({ contained = false, paused = false }: { conta
       const time = getAudio()?.currentTime
       const timeMs = time == null ? null : time * 1000
       const model = rhythmModelFor(trackId)
+      onFrameRef.current?.(timeMs, model)
       const signals = timeMs == null ? null : getStageSignals(lyrics, timeMs, model)
 
       // 跟随节拍：背景随拍呼吸；粒子取上一帧到这一帧之间经过的拍（拖动进度时不补）
@@ -177,6 +207,7 @@ export function MusicStageEffects({ contained = false, paused = false }: { conta
       if (nextPulse !== pulseOpacity) {
         pulseOpacity = nextPulse
         pulseEl.style.opacity = nextPulse
+        pulseEl.style.visibility = Number(nextPulse) > 0 ? '' : 'hidden'
       }
       const phraseTint = signals?.tint ?? null
       const vocal = signals?.vocal ?? null
@@ -185,6 +216,7 @@ export function MusicStageEffects({ contained = false, paused = false }: { conta
       if (nextTintOpacity !== tintOpacity) {
         tintOpacity = nextTintOpacity
         tintEl.style.opacity = nextTintOpacity
+        tintEl.style.visibility = Number(nextTintOpacity) > 0 ? '' : 'hidden'
       }
       // 淡出时保留最后的颜色；多声部曲目随演唱方向温柔偏移光晕，弱于短语染色时不夺主
       if (activeTint && LYRIC_COLORS[activeTint.color] !== tintColor) {
@@ -202,6 +234,7 @@ export function MusicStageEffects({ contained = false, paused = false }: { conta
       if (nextSpotlight !== spotlight) {
         spotlight = nextSpotlight
         spotlightEl.style.opacity = nextSpotlight
+        spotlightEl.style.visibility = Number(nextSpotlight) > 0 ? '' : 'hidden'
       }
       const nextPush = Math.round((signals?.push ?? 0) * 1000) / 1000
       if (pushRoot && nextPush !== push)
@@ -210,30 +243,55 @@ export function MusicStageEffects({ contained = false, paused = false }: { conta
       syncOutput()
       if (drew)
         presenter?.present(drawCanvas)
-      frame = requestAnimationFrame(tick)
+      const idleNow = !isPlaying && !drew
+      const shouldSleep = document.hidden || (idleNow && wasSettled && prevSettledTimeMs === timeMs)
+      prevSettledTimeMs = timeMs
+      wasSettled = idleNow
+      if (!shouldSleep && !pausedRef.current)
+        frame = requestAnimationFrame(tick)
     }
     const resume = () => {
-      if (frame)
+      if (frame || pausedRef.current || document.hidden)
         return
+      wasSettled = false
+      lastRender = Number.NEGATIVE_INFINITY
       last = performance.now()
       frame = requestAnimationFrame(tick)
     }
+    const onVisibility = () => {
+      if (document.hidden) {
+        if (frame) {
+          cancelAnimationFrame(frame)
+          frame = 0
+        }
+      }
+      else {
+        resume()
+      }
+    }
+    const unsubClock = clock.subscribe(() => resume())
+    document.addEventListener('visibilitychange', onVisibility)
     resumeRef.current = resume
     resume()
     return () => {
       resumeRef.current = null
+      unsubClock()
+      document.removeEventListener('visibilitychange', onVisibility)
       cancelAnimationFrame(frame)
       observer.disconnect()
       particles.clear()
       abort.abort()
       presenter?.dispose()
       pulseEl.style.opacity = '0'
+      pulseEl.style.visibility = 'hidden'
       tintEl.style.opacity = '0'
+      tintEl.style.visibility = 'hidden'
       tintEl.style.removeProperty('translate')
       spotlightEl.style.opacity = '0'
+      spotlightEl.style.visibility = 'hidden'
       pushTargets.forEach(el => el.style.removeProperty('scale'))
     }
-  }, [contained, enabled, getAudio, hdr])
+  }, [clock, contained, enabled, getAudio, hdr, maxParticles])
 
   if (!enabled)
     return null
@@ -244,22 +302,22 @@ export function MusicStageEffects({ contained = false, paused = false }: { conta
       data-stage-push={contained ? undefined : 0.08}
       className={cn('pointer-events-none inset-0 overflow-hidden', contained ? 'absolute' : 'fixed will-change-[scale]')}
     >
-      {/* 三层的透明度逐帧变化：各自提升为合成层，只改合成参数，不必每帧重新光栅化整屏渐变 */}
+      {/* 三层的透明度逐帧变化：各自提升为合成层，只改合成参数，不必每帧重新光栅化整屏渐变；不透明度为 0 时隐藏避免空合成 */}
       <div
         ref={tintRef}
         className="absolute -inset-[16%] opacity-0 mix-blend-screen transition-[translate] duration-700 ease-out will-change-[opacity,translate] motion-reduce:transition-none"
-        style={{ background: 'radial-gradient(ellipse at 65% 45%, var(--stage-tint, transparent), transparent 70%)' }}
+        style={{ background: 'radial-gradient(ellipse at 65% 45%, var(--stage-tint, transparent), transparent 70%)', visibility: 'hidden' }}
       />
       <div
         ref={pulseRef}
         className="absolute inset-0 opacity-0 mix-blend-soft-light will-change-[opacity]"
-        style={{ background: 'radial-gradient(ellipse at 50% 50%, var(--lyric-accent, #fff), transparent 75%)' }}
+        style={{ background: 'radial-gradient(ellipse at 50% 50%, var(--lyric-accent, #fff), transparent 75%)', visibility: 'hidden' }}
       />
       {/* 聚光灯：歌词区中央一团暖光（播放器页宽屏时歌词在右侧），四周略微压暗 */}
       <div
         ref={spotlightRef}
         className="absolute inset-0 opacity-0 will-change-[opacity] [--spot-x:50%] lg:[--spot-x:62%]"
-        style={{ background: `radial-gradient(42% 30% at ${contained ? '50%' : 'var(--spot-x)'} 50%, rgb(255 236 200 / ${SPOTLIGHT_WARM_OPACITY}), transparent 70%), radial-gradient(75% 60% at 50% 50%, transparent 40%, rgb(0 0 0 / ${SPOTLIGHT_DIM_OPACITY}) 100%)` }}
+        style={{ background: `radial-gradient(42% 30% at ${contained ? '50%' : 'var(--spot-x)'} 50%, rgb(255 236 200 / ${SPOTLIGHT_WARM_OPACITY}), transparent 70%), radial-gradient(75% 60% at 50% 50%, transparent 40%, rgb(0 0 0 / ${SPOTLIGHT_DIM_OPACITY}) 100%)`, visibility: 'hidden' }}
       />
       {/* key：HDR 与 2D 是不同的上下文，同一个 canvas 元素取过一种就不能再换，切换时换一个新元素 */}
       <canvas key={hdr ? 'hdr' : '2d'} ref={canvasRef} className="absolute inset-0 size-full" />

@@ -1,3 +1,4 @@
+import type { DebrisMeasured } from './lyric-debris'
 import type { LyricMarqueeKnot, LyricMarqueeWordBox } from './marquee'
 import type { RhythmModel } from './rhythm/model'
 import type { RubyMetrics } from './ruby-layout'
@@ -94,6 +95,7 @@ interface WordView {
   // 是否携带非零强度的强调动效（开启歌词特效时由 .lyric-char 自行上浮，不再叠加外层词上浮）
   emphasized: boolean
   mask: string
+  maskPos: string
   // 高亮行中还没唱到的词：整体压暗（见 paintWords）
   opacity: string
   transform: string
@@ -124,6 +126,7 @@ interface CharView {
   end: number
   // 流光的背景（光带 + 底色，裁剪到字形）与消散的不透明度
   background: string
+  bgColor: string
   opacity: string
   // HDR 高光下流光横条的位置（lyric-char--shine 的 --lyric-shine-x，见 lyric-player.css）；不在扫光时为空
   shine: string
@@ -183,6 +186,7 @@ interface ItemView {
   color: string
   opacity: string
   visible: boolean
+  willChange: boolean
   // 是否正在唱（lyric-line--active）、是否是聚光灯下的点题句（lyric-line--spot）：HDR 高光据此给字上色，见 lyric-player.css
   active: boolean
   spotlit: boolean
@@ -548,6 +552,20 @@ function preserveEdgeSpaces(text: string) {
 }
 
 const easeOut = (t: number) => 1 - (1 - t) ** 2
+const WORD_MASK_SOLID_PX = 1024
+const WORD_MASK_WIDTH_PX = 2048
+const wordMaskCache = new Map<string, string>()
+const SDR_SHIMMER_IMAGE = 'linear-gradient(105deg, transparent 36.67%, rgb(255 250 230 / 0.95) 50%, transparent 63.33%)'
+
+function getStaticWordMask(dimAlpha: number, feather: number): string {
+  const key = `${dimAlpha}|${feather.toFixed(1)}`
+  let cached = wordMaskCache.get(key)
+  if (!cached) {
+    cached = `linear-gradient(90deg, #000 0, #000 ${WORD_MASK_SOLID_PX}px, rgb(0 0 0 / ${dimAlpha}) ${(WORD_MASK_SOLID_PX + feather).toFixed(1)}px, rgb(0 0 0 / ${dimAlpha}) 100%)`
+    wordMaskCache.set(key, cached)
+  }
+  return cached
+}
 
 /**
  * 歌词引擎（第二期，见 spec 8.2 ~ 8.7、8.12）：直接操作 DOM，逐帧由 requestAnimationFrame 驱动，不经过 React 渲染。
@@ -707,7 +725,7 @@ function fillEmphasisChars(wordEl: HTMLElement, text: string, chars: CharView[],
     charEl.textContent = char
     wordEl.append(charEl)
     if (char.trim()) {
-      chars.push({ el: charEl, transform: '', shadow: '', color: '', filter: '', line: '', background: '', opacity: '', shine: '', debrisAt: null, start: timing.start + step * k, end: timing.start + step * (k + 1) })
+      chars.push({ el: charEl, transform: '', shadow: '', color: '', filter: '', line: '', background: '', bgColor: '', opacity: '', shine: '', debrisAt: null, start: timing.start + step * k, end: timing.start + step * (k + 1) })
       k++
     }
     else {
@@ -1107,7 +1125,8 @@ export class LyricPlayer {
         filter: '',
         color: '',
         opacity: '',
-        visible: true,
+        visible: false,
+        willChange: false,
         active: false,
         spotlit: false,
         hdrExitStart: null,
@@ -1124,6 +1143,7 @@ export class LyricPlayer {
       }
       const { el } = view
       el.classList.add('lyric-item')
+      el.style.visibility = 'hidden'
       if (item.kind === 'line') {
         const line = this.lyrics.lines[item.line]
         const ownerLine = line.isBackground ? bgOwners.get(item.line) : undefined
@@ -1172,7 +1192,7 @@ export class LyricPlayer {
             else
               wordEl.textContent = preserveEdgeSpaces(word.text)
             const emphasized = group >= 0 && view.emphasis[group].group.factor > 0
-            return { word, el: wordEl, width: 0, pad: 0, lifts: true, split: group >= 0, emphasized, mask: '', opacity: '', transform: '' }
+            return { word, el: wordEl, width: 0, pad: 0, lifts: true, split: group >= 0, emphasized, mask: '', maskPos: '', opacity: '', transform: '' }
           })
           view.words = [...mainWords, ...this.buildWords(main, line, mainWords, view.rubyUnits, (index) => {
             const group = groupOf(index)
@@ -1345,7 +1365,7 @@ export class LyricPlayer {
           el.textContent = item.text
           furiganaEl.append(el)
           furiganaParts.push({ el, text: item.text })
-          extraWords.push({ word: { text: item.text, start: item.start, end: item.end }, el, width: 0, pad: 0, lifts: false, split: false, emphasized: false, mask: '', opacity: '', transform: '' })
+          extraWords.push({ word: { text: item.text, start: item.start, end: item.end }, el, width: 0, pad: 0, lifts: false, split: false, emphasized: false, mask: '', maskPos: '', opacity: '', transform: '' })
         }
         unitEl.append(furiganaEl)
       }
@@ -1366,7 +1386,7 @@ export class LyricPlayer {
             el.textContent = text
           ruby.append(el)
           unitParts.push({ el, text })
-          extraWords.push({ word: { text, start: part.start, end: part.end }, el, width: 0, pad: 0, lifts: false, split: Boolean(emphasis), emphasized: false, mask: '', opacity: '', transform: '' })
+          extraWords.push({ word: { text, start: part.start, end: part.end }, el, width: 0, pad: 0, lifts: false, split: Boolean(emphasis), emphasized: false, mask: '', maskPos: '', opacity: '', transform: '' })
         }
         unitEl.append(ruby)
       }
@@ -1831,6 +1851,47 @@ export class LyricPlayer {
     return manual.offset
   }
 
+  /** 在 paint 写入任何样式前集中读取即将触发消散/破碎的字符几何，避免读写交错强迫同步布局 */
+  private collectDebrisReads(timeMs: number): Map<HTMLElement, DebrisMeasured> | null {
+    const rhythm = rhythmContext(this.rhythm)
+    const fadeMs = dissolveFadeMs(rhythm)
+    let box: DOMRect | null = null
+    let reads: Map<HTMLElement, DebrisMeasured> | null = null
+    for (const view of this.views) {
+      const y = view.y.position
+      const visible = y + view.height > -LYRIC_OVERSCAN_PX && y < this.containerHeight + LYRIC_OVERSCAN_PX
+      if (!visible || view.emphasis.length === 0 || view.item.kind !== 'line')
+        continue
+      for (const { group, chars } of view.emphasis) {
+        if (group.factor <= 0 || (group.effect !== 'dissolve' && group.effect !== 'shatter'))
+          continue
+        for (let ci = 0; ci < chars.length; ci++) {
+          const ch = chars[ci]
+          const at = group.effect === 'dissolve'
+            ? dissolveState(group.start, group.end, ci, chars.length, timeMs, this.seekAt, fadeMs).at
+            : shatterState(group.end, timeMs, this.seekAt).at
+          if (timeMs < at || ch.debrisAt === at || timeMs - at >= 300)
+            continue
+          box ??= this.container.getBoundingClientRect()
+          const st = getComputedStyle(ch.el)
+          const colorStr = st.color !== 'rgba(0, 0, 0, 0)' ? st.color : (st.getPropertyValue('--lyric-color').trim() || '#fff')
+          reads ??= new Map()
+          reads.set(ch.el, {
+            box,
+            rect: ch.el.getBoundingClientRect(),
+            offsetHeight: ch.el.offsetHeight,
+            fontStyle: st.fontStyle,
+            fontWeight: st.fontWeight,
+            fontSize: st.fontSize,
+            fontFamily: st.fontFamily,
+            colorStr,
+          })
+        }
+      }
+    }
+    return reads
+  }
+
   private paint(timeMs: number, now: number, detail: boolean) {
     const focus = this.state.focus
     const spot = this.spot
@@ -1858,6 +1919,7 @@ export class LyricPlayer {
         visibleIdx++
     }
     const focusVisual = visualIndex[focus] ?? 0
+    const debrisReads = detail && this.display.effects && !this.reducedMotion ? this.collectDebrisReads(timeMs) : null
 
     for (let i = 0; i < this.views.length; i++) {
       const view = this.views[i]
@@ -1866,6 +1928,10 @@ export class LyricPlayer {
       if (visible !== view.visible) {
         view.visible = visible
         view.el.style.visibility = visible ? '' : 'hidden'
+      }
+      if (!this.options.strip && visible !== view.willChange) {
+        view.willChange = visible
+        view.el.style.willChange = visible ? 'transform' : ''
       }
       if (!visible)
         continue
@@ -1975,7 +2041,7 @@ export class LyricPlayer {
         this.paintWords(view, active, timeMs + LYRIC_ANIMATION_HEADSTART_MS, feather, wordDimAlpha, hdrExit)
         if (view.emphasis.length > 0) {
           if (this.display.effects && !this.reducedMotion)
-            this.paintEmphasis(view, active, timeMs, hdrExit)
+            this.paintEmphasis(view, active, timeMs, hdrExit, debrisReads)
           else
             this.resetEmphasis(view)
         }
@@ -2071,6 +2137,7 @@ export class LyricPlayer {
     const wordEndAlpha = hdrExit ? hdrExitEndAlpha(hdrExit.targetAlpha, hdrExit.lineGain) : 0
     for (const word of view.words) {
       let mask = ''
+      let maskPos = ''
       let opacity = ''
       let transform = ''
       const width = word.width - word.pad * 2
@@ -2080,9 +2147,15 @@ export class LyricPlayer {
           opacity = String(dimAlpha)
         }
         else if (progress < 1) {
-          // 遮罩按像素定位：强调词四周有内边距，揭示位置从内边距之后算起
+          // 遮罩按像素定位：强调词四周有内边距，揭示位置从内边距之后算起；静态渐变图只写一次，每帧仅更新 maskPosition
           const x = word.pad + progress * (width + feather)
-          mask = `linear-gradient(90deg, #000 ${(x - feather).toFixed(1)}px, rgb(0 0 0 / ${dimAlpha}) ${x.toFixed(1)}px)`
+          if (word.width <= 960) {
+            mask = getStaticWordMask(dimAlpha, feather)
+            maskPos = `${(x - feather - WORD_MASK_SOLID_PX).toFixed(1)}px 0px`
+          }
+          else {
+            mask = `linear-gradient(90deg, #000 ${(x - feather).toFixed(1)}px, rgb(0 0 0 / ${dimAlpha}) ${x.toFixed(1)}px)`
+          }
         }
         if (!this.reducedMotion && progress > 0 && word.lifts && (!word.emphasized || !effectsOn))
           transform = `translateY(${(-floatPx * easeOut(progress)).toFixed(2)}px)`
@@ -2102,6 +2175,17 @@ export class LyricPlayer {
         word.mask = mask
         word.el.style.maskImage = mask
         word.el.style.setProperty('-webkit-mask-image', mask)
+        const sized = maskPos ? `${WORD_MASK_WIDTH_PX}px 100%` : ''
+        const repeat = maskPos ? 'no-repeat' : ''
+        word.el.style.maskSize = sized
+        word.el.style.setProperty('-webkit-mask-size', sized)
+        word.el.style.maskRepeat = repeat
+        word.el.style.setProperty('-webkit-mask-repeat', repeat)
+      }
+      if (maskPos !== word.maskPos) {
+        word.maskPos = maskPos
+        word.el.style.maskPosition = maskPos
+        word.el.style.setProperty('-webkit-mask-position', maskPos)
       }
       if (opacity !== word.opacity) {
         word.opacity = opacity
@@ -2132,6 +2216,7 @@ export class LyricPlayer {
     active: boolean,
     timeMs: number,
     hdrExit: { weight: number, targetAlpha: number, dimAlpha: number } | null = null,
+    debrisReads: Map<HTMLElement, DebrisMeasured> | null = null,
   ) {
     const bg = view.item.kind === 'line' && this.lyrics.lines[view.item.line]?.isBackground
     // 聚光灯下的点题句：辉光与字的放大随聚光灯强度收敛（见 SPOTLIGHT_EMPHASIS_GLOW）
@@ -2181,6 +2266,7 @@ export class LyricPlayer {
         let filter = ''
         let line = ''
         let background = ''
+        let bgColor = ''
         let opacity = ''
         let drift = 0
         let crack = 0
@@ -2194,7 +2280,7 @@ export class LyricPlayer {
           }
           else if (char.debrisAt !== dissolve.at && timeMs - dissolve.at < 300) {
             char.debrisAt = dissolve.at
-            this.debris.spawn(char.el)
+            this.debris.spawn(char.el, debrisReads?.get(char.el))
           }
           if (dissolve.amount > 0.002) {
             opacity = (1 - dissolve.amount).toFixed(3)
@@ -2210,7 +2296,7 @@ export class LyricPlayer {
           }
           else if (char.debrisAt !== shatter.at && timeMs - shatter.at < 300) {
             char.debrisAt = shatter.at
-            this.debris.shatter(char.el, count > 1 ? (i / (count - 1)) * 2 - 1 : 0)
+            this.debris.shatter(char.el, count > 1 ? (i / (count - 1)) * 2 - 1 : 0, debrisReads?.get(char.el))
           }
           if (shatter.amount > 0.002)
             opacity = (1 - shatter.amount).toFixed(3)
@@ -2326,7 +2412,9 @@ export class LyricPlayer {
             }
             else {
               const base = color ? color.replace('currentColor', 'var(--lyric-color, #fff)') : 'var(--lyric-color, #fff)'
-              background = `linear-gradient(105deg, transparent ${(pos - 40).toFixed(1)}%, rgb(255 250 230 / 0.95) ${pos.toFixed(1)}%, transparent ${(pos + 40).toFixed(1)}%), linear-gradient(${base}, ${base})`
+              background = SDR_SHIMMER_IMAGE
+              bgColor = base
+              shineX = shimmerPosition(pos)
             }
           }
           color = 'transparent'
@@ -2386,6 +2474,10 @@ export class LyricPlayer {
           char.background = background
           char.el.style.backgroundImage = background
         }
+        if (bgColor !== char.bgColor) {
+          char.bgColor = bgColor
+          char.el.style.backgroundColor = bgColor
+        }
         if (shineX !== char.shine) {
           if (!shineX !== !char.shine)
             char.el.classList.toggle('lyric-char--shine', !!shineX)
@@ -2425,6 +2517,10 @@ export class LyricPlayer {
         if (char.background) {
           char.background = ''
           char.el.style.backgroundImage = ''
+        }
+        if (char.bgColor) {
+          char.bgColor = ''
+          char.el.style.backgroundColor = ''
         }
         if (char.shine) {
           char.shine = ''
