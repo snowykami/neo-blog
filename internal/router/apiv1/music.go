@@ -43,6 +43,8 @@ func registerMusicRoutes(group *route.RouterGroup) {
 		musicGroup.GET("/song/:id/lyric/cache", controller.Music.SongLyricCache)
 		// 歌词的人工设置（整体偏移）：所有人播放时都要用到，公开读取
 		musicGroup.GET("/song/:id/lyric/settings", controller.Music.SongLyricSettings)
+		// 歌曲节拍分析结果：所有人公开读取（后端开启 ffmpeg 时对白名单曲目自动触发后台分析）
+		musicGroup.GET("/song/:id/rhythm", controller.Music.SongRhythm)
 
 		// 搜索歌曲只在编辑器中使用，限编辑者及以上，避免被当作公开的搜索代理
 		musicGroupWithEditor.GET("/search", controller.Music.Search)
@@ -70,5 +72,8 @@ func registerMusicRoutes(group *route.RouterGroup) {
 		musicGroupWithAdmin.POST("/lyric/ttml-cache/clear", controller.Music.ClearTTMLCache)
 		// 请求体中含 Cookie，使用 POST 避免出现在地址中
 		musicGroupWithAdmin.POST("/ncm/playlists", controller.Music.NCMPlaylists)
+		// 歌曲节拍分析上传与强制重新分析（仅管理员，防止伪造拍点污染全站缓存）
+		musicGroupWithAdmin.PUT("/song/:id/rhythm", controller.Music.SaveSongRhythm)
+		musicGroupWithAdmin.POST("/song/:id/rhythm/refresh", controller.Music.RefreshSongRhythm)
 	}
 }

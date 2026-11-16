@@ -3,6 +3,7 @@ package constant
 const (
 	EnvKeyBaseUrl                          = "BASE_URL"              // 环境变量：基础URL
 	EnvKeyMusicTTMLURL                     = "MUSIC_TTML_URL_PREFIX" // 环境变量：自定义 TTML 歌词源（单个地址，或 [{"name","url"}] 的 JSON 数组；设置后优先于后台配置）
+	EnvKeyFFmpegPath                       = "FFMPEG_PATH"           // 环境变量：ffmpeg 可执行文件路径（可选，默认从 PATH 查找；设为 false/0/off/none 时禁用后端音频节拍分析）
 	EnvKeyPasscode                         = "CAPTCHA_DEV_PASSCODE"
 	EnvKeyCaptchaProvider                  = "CAPTCHA_PROVIDER"        // captcha提供者
 	EnvKeyCaptchaSecreteKey                = "CAPTCHA_SECRET_KEY"      // captcha站点密钥

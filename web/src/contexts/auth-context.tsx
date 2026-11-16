@@ -178,3 +178,8 @@ export function useAuth() {
   }
   return ctx
 }
+
+// 在不保证外层挂载了 AuthProvider 的场景（如局部组件或测试环境）安全读取登录状态
+export function useOptionalAuth() {
+  return useContext(AuthContext)
+}

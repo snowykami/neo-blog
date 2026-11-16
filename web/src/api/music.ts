@@ -782,3 +782,57 @@ export async function refreshLyricPronunciations(id: number, source?: LyricSourc
   const res = await axiosClient.post<BaseResponse<SiteLyricPronunciations>>(`/music/song/${id}/lyric/pronunciations/refresh`, body)
   return res.data.data
 }
+
+export interface MusicRhythmBeat {
+  t: number
+  loud: number
+  strength: number
+}
+
+export interface MusicRhythmAnalysis {
+  algoVersion: number
+  durationMs: number
+  frameMs: number
+  frameOffsetMs: number
+  periodMs: number
+  basePeriodMs: number
+  bpm: number
+  confidence: number
+  loudLow: number
+  loudHigh: number
+  beats: MusicRhythmBeat[]
+  autocorr: number[]
+  onsetMax: number
+  onsetData: string
+}
+
+export interface MusicSongRhythm {
+  status: 'ready' | 'pending' | 'unavailable'
+  reason?: string
+  analysis?: MusicRhythmAnalysis
+}
+
+// 获取歌曲服务端节拍分析缓存（未命中时若后端启用 ffmpeg 会后台分析并返回 pending；404 返回 null）
+export async function fetchSongRhythm(id: number, signal?: AbortSignal): Promise<MusicSongRhythm | null> {
+  try {
+    const res = await axiosClient.get<BaseResponse<MusicSongRhythm>>(`/music/song/${id}/rhythm`, { signal })
+    return res.data.data
+  }
+  catch (err) {
+    if (isAxiosError(err) && err.response?.status === 404)
+      return null
+    throw err
+  }
+}
+
+// 保存管理员前端分析的节拍结果到服务端缓存（仅管理员）
+export async function saveSongRhythm(id: number, analysis: MusicRhythmAnalysis): Promise<MusicSongRhythm> {
+  const res = await axiosClient.put<BaseResponse<MusicSongRhythm>>(`/music/song/${id}/rhythm`, analysis)
+  return res.data.data
+}
+
+// 清除并重新分析歌曲节拍缓存（仅管理员）
+export async function refreshSongRhythm(id: number): Promise<MusicSongRhythm> {
+  const res = await axiosClient.post<BaseResponse<MusicSongRhythm>>(`/music/song/${id}/rhythm/refresh`)
+  return res.data.data
+}

@@ -61,6 +61,8 @@ jobs:
           context: .
           push: true
           tags: ${{ env.CONTAINER_TAG }}
+          build-args: |
+            ${{ vars.ENABLE_FFMPEG && format('ENABLE_FFMPEG={0}', vars.ENABLE_FFMPEG) || '' }}
 
       - name: Update container image on host
         run: |

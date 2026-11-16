@@ -35,6 +35,8 @@ import {
 } from '@/lib/lyrics/target-lang'
 import { registerTelemetryContext } from '@/lib/telemetry/context'
 import { formatMusicCoverUrl } from '@/utils/common/image'
+import { isAdmin } from '@/utils/common/permission'
+import { useOptionalAuth } from './auth-context'
 import { EMPTY_MUSIC_LYRICS_STATE } from './music-lyrics-engine-state'
 
 // 歌词引擎（来源选择、平台歌词解析、音译对齐、强调标注）与节拍分析按需加载：MusicProvider 在根布局里，
@@ -547,6 +549,12 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [hdr, setHdrState] = useState(true)
   const currentTrack = currentIndex != null ? playlist[currentIndex] ?? null : null
   const currentTrackId = currentTrack?.id ?? null
+  const auth = useOptionalAuth()
+  const userIsAdmin = Boolean(auth?.user && isAdmin({ user: auth.user }))
+  const adminRef = useRef(userIsAdmin)
+  adminRef.current = userIsAdmin
+  const trackDurationRef = useRef<number | null>(currentTrack?.duration ?? null)
+  trackDurationRef.current = currentTrack?.duration ?? null
   const getAudio = useCallback(() => audioRef.current, [])
   // 补全歌单失败、播放出错时的提示：在音频事件与切歌回调里使用，经 ref 读取，不让这些回调随语言切换重建
   const t = useTranslations('MusicPlayer')
@@ -746,7 +754,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [clock, currentTrackId, resetTrackPlayStats])
 
-  // 节拍分析（韵律动效）：开启歌词特效时分析当前曲目，结果按歌曲缓存
+  // 节拍分析（韵律动效）：开启歌词特效时优先读取缓存/服务端，未命中时再分析当前曲目
   const currentTrackAudio = currentTrack?.audio ?? null
   useEffect(() => {
     const audio = audioRef.current
@@ -757,7 +765,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (!audio.paused && audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA && document.visibilityState === 'visible') {
         void loadRhythm().then(({ requestRhythm }) => {
           if (!controller.signal.aborted)
-            requestRhythm(currentTrackId, currentTrackAudio, controller.signal)
+            requestRhythm(currentTrackId, currentTrackAudio, controller.signal, { isAdmin: adminRef.current, expectedDurationMs: trackDurationRef.current })
         }, () => {
           // 代码块加载失败（离线、发版后旧代码块被清理）时不分析节拍，动效回退到固定快慢
         })
@@ -772,6 +780,15 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       document.removeEventListener('visibilitychange', request)
     }
   }, [currentTrackAudio, currentTrackId, showLyricEffects])
+
+  // 登录态确定晚于本地分析完成时，管理员若播到仅本地缓存的曲目则在后台检查并补传服务端
+  useEffect(() => {
+    if (!userIsAdmin || !showLyricEffects || currentTrackId == null)
+      return
+    void loadRhythm().then((mod) => {
+      mod.syncRhythmForAdmin?.(currentTrackId, trackDurationRef.current)
+    }, () => {})
+  }, [currentTrackId, showLyricEffects, userIsAdmin])
 
   // 歌单的加载状态
   const [playlistState, setPlaylistState] = useState<'pending' | 'loaded' | 'failed'>('pending')

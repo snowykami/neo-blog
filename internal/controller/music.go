@@ -641,3 +641,38 @@ func (m *musicType) NCMPlaylists(ctx context.Context, c *app.RequestContext) {
 	}
 	resps.Ok(c, resps.Success, result)
 }
+
+// SongRhythm 获取歌曲服务端节拍分析缓存（未命中且后端启用 ffmpeg 时后台自动生成）
+func (m *musicType) SongRhythm(ctx context.Context, c *app.RequestContext) {
+	result, svcerr := m.service.GetSongRhythm(ctx, ctxutils.GetIDParam(c).Int64)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, result)
+}
+
+// SaveSongRhythm 保存管理员前端分析并上传的节拍缓存（仅管理员）
+func (m *musicType) SaveSongRhythm(ctx context.Context, c *app.RequestContext) {
+	var req dto.MusicRhythmAnalysisDto
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	result, svcerr := m.service.SaveSongRhythm(ctx, ctxutils.GetIDParam(c).Int64, &req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, result)
+}
+
+// RefreshSongRhythm 清除并重新分析歌曲节拍缓存（仅管理员）
+func (m *musicType) RefreshSongRhythm(ctx context.Context, c *app.RequestContext) {
+	result, svcerr := m.service.RefreshSongRhythm(ctx, ctxutils.GetIDParam(c).Int64)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, result)
+}

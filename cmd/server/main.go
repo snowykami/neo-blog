@@ -93,6 +93,9 @@ func main() {
 	// 初始化文件缓存
 	cache.InitFileCache()
 
+	// 探测是否启用可用 ffmpeg，决定音乐节拍分析是否走后端自动队列（不可用时静默降级）
+	service.InitMusicRhythm()
+
 	// 令牌有效期读取后台配置（环境变量优先）
 	utils.Jwt.Durations = tools.GetAuthDurations
 

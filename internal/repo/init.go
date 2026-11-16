@@ -331,6 +331,7 @@ var models = []any{
 	&model.LyricSingerAnnotation{},
 	&model.LyricSongSetting{},
 	&model.LyricTranslation{},
+	&model.MusicSongRhythm{},
 	&model.MusicSongTranslation{},
 	&model.Notification{},
 	&model.File{},

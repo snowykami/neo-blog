@@ -82,6 +82,8 @@ backend:
     JWT_SECRET: ""
     TOKEN_DURATION: "3600"
     REFRESH_TOKEN_DURATION: "604800"
+    # 可选：ffmpeg 可执行文件路径；留空时自动从 PATH 查找（镜像启用 ENABLE_FFMPEG=true 时为 /usr/local/bin/ffmpeg），设为 "off" 可禁用后端节拍分析
+    # FFMPEG_PATH: ""
 
   # 敏感配置从已有 Secret 读取（设置后优先于 backend.env 里的同名明文；Secret 里没有的键会被跳过）
   secrets:

@@ -74,5 +74,6 @@ jobs:
           build-args: |
             ${{ vars.GO_IMAGE && format('GO_IMAGE={0}', vars.GO_IMAGE) || '' }}
             ${{ vars.ALPINE_IMAGE && format('ALPINE_IMAGE={0}', vars.ALPINE_IMAGE) || '' }}
+            ${{ vars.ENABLE_FFMPEG && format('ENABLE_FFMPEG={0}', vars.ENABLE_FFMPEG) || '' }}
           cache-from: type=gha,scope=backend
           cache-to: type=gha,mode=max,scope=backend

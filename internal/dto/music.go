@@ -557,3 +557,36 @@ type MusicLyricPronunciationsDto struct {
 	Lang             string                        `json:"lang,omitempty"`
 	Lines            []MusicLyricPronunciationLine `json:"lines"`
 }
+
+// MusicRhythmBeatDto 检测到的单个节拍点（毫秒时间、平滑响度 dB 与起音强度）
+type MusicRhythmBeatDto struct {
+	T        float64 `json:"t"`
+	Loud     float64 `json:"loud"`
+	Strength float64 `json:"strength"`
+}
+
+// MusicRhythmAnalysisDto 音频节拍分析缓存载荷（与前端 RhythmAnalysis 对齐）：
+// OnsetData 将全曲起音包络线性量化到 [0, OnsetMax] 的 uint8 后编码为标准 Base64
+type MusicRhythmAnalysisDto struct {
+	AlgoVersion   int                  `json:"algo_version"`
+	DurationMs    float64              `json:"duration_ms"`
+	FrameMs       float64              `json:"frame_ms"`
+	FrameOffsetMs float64              `json:"frame_offset_ms"`
+	PeriodMs      float64              `json:"period_ms"`
+	BasePeriodMs  float64              `json:"base_period_ms"`
+	BPM           float64              `json:"bpm"`
+	Confidence    float64              `json:"confidence"`
+	LoudLow       float64              `json:"loud_low"`
+	LoudHigh      float64              `json:"loud_high"`
+	Beats         []MusicRhythmBeatDto `json:"beats"`
+	Autocorr      []float64            `json:"autocorr"`
+	OnsetMax      float64              `json:"onset_max"`
+	OnsetData     string               `json:"onset_data"`
+}
+
+// MusicSongRhythmDto 歌曲节拍分析结果响应（ready / pending / unavailable）
+type MusicSongRhythmDto struct {
+	Status   string                  `json:"status"`
+	Reason   string                  `json:"reason,omitempty"`
+	Analysis *MusicRhythmAnalysisDto `json:"analysis,omitempty"`
+}
