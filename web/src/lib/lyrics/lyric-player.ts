@@ -134,8 +134,9 @@ interface CharView {
   debrisAt: number | null
 }
 
-/** 单行条中一行歌词的横向滚动：时间与各词位置（相对原文左边缘，测量时写入）及上次写入的位移与两侧渐隐 */
+/** 单行条中一行歌词的横向滚动：时间与各词位置（相对滚动容器左边缘，测量时写入）及上次写入的位移与两侧渐隐 */
 interface StripMarquee {
+  scrollEl: HTMLElement
   main: HTMLElement
   line: LyricLine
   nextStart?: number
@@ -1203,41 +1204,39 @@ export class LyricPlayer {
         if (line.mood)
           el.style.setProperty('--lyric-glow', MOOD_GLOW[line.mood])
         let vocal: HTMLElement | null = null
-        if (!this.options.strip) {
-          const agent = agents && line.agent ? agents[line.agent] : undefined
-          if (agent && agents) {
-            const colors = agent.isGroup ? resolveGroupColors(agent, agents, soloAgents) : [resolveAgentHex(agent)]
-            const hex1 = colors[0]
-            el.style.setProperty('--singer-color', hex1)
-            if (agent.isGroup)
-              el.style.setProperty('--singer-edge-gradient', `linear-gradient(180deg, ${colors.join(', ')})`)
-            // 色道隔离：不染字色；无情绪标注时把默认微光淡淡拉向歌手色温度
-            if (!line.mood)
-              el.style.setProperty('--lyric-glow', `color-mix(in srgb, ${hex1} 38%, #ffffff)`)
-            vocal = doc.createElement('span')
-            vocal.className = 'lyric-vocal'
-            view.vocal = vocal
-            const edge = doc.createElement('span')
-            edge.className = 'lyric-edge'
-            edge.setAttribute('aria-hidden', 'true')
-            view.edge = edge
-            // 背景人声保留歌手色条，但不显示歌手名称胶囊（对齐 StarryPlayer）
-            if (!line.isBackground) {
-              const pill = buildSingerPill(doc, agent, agents, soloAgents, soloCount, this.display.togetherLabel)
-              if (pill) {
-                vocal.append(pill)
-                view.singerPill = pill
-                view.pillExpand = new Spring(0, LYRIC_POSITION_SPRING)
-              }
+        const agent = agents && line.agent ? agents[line.agent] : undefined
+        if (agent && agents) {
+          const colors = agent.isGroup ? resolveGroupColors(agent, agents, soloAgents) : [resolveAgentHex(agent)]
+          const hex1 = colors[0]
+          el.style.setProperty('--singer-color', hex1)
+          if (agent.isGroup)
+            el.style.setProperty('--singer-edge-gradient', `linear-gradient(180deg, ${colors.join(', ')})`)
+          // 色道隔离：不染字色；无情绪标注时把默认微光淡淡拉向歌手色温度
+          if (!line.mood)
+            el.style.setProperty('--lyric-glow', `color-mix(in srgb, ${hex1} 38%, #ffffff)`)
+          vocal = doc.createElement('span')
+          vocal.className = 'lyric-vocal'
+          view.vocal = vocal
+          const edge = doc.createElement('span')
+          edge.className = 'lyric-edge'
+          edge.setAttribute('aria-hidden', 'true')
+          view.edge = edge
+          // 灵动岛单行条（strip）仅展示左侧歌手颜色指示条，不展示歌手名称胶囊（双端同步维护约定：与 Swift CompactIslandView 一致）
+          if (!this.options.strip && !line.isBackground) {
+            const pill = buildSingerPill(doc, agent, agents, soloAgents, soloCount, this.display.togetherLabel)
+            if (pill) {
+              vocal.append(pill)
+              view.singerPill = pill
+              view.pillExpand = new Spring(0, LYRIC_POSITION_SPRING)
             }
-            vocal.append(edge, main)
-            el.append(vocal)
           }
+          vocal.append(edge, main)
+          el.append(vocal)
         }
         if (!vocal)
           el.append(main)
         if (this.options.strip)
-          view.marquee = this.buildMarquee(main, item.line)
+          view.marquee = this.buildMarquee(vocal ?? main, main, item.line)
         // 主次顺序：原文（含注音行）、音译、第一翻译、第二对比翻译；已逐字对齐的音译显示在注音行，不再单独成行
         for (const [kind, text] of [
           ['romanization', line.romanizationWords ? undefined : line.romanization],
@@ -1397,8 +1396,9 @@ export class LyricPlayer {
   }
 
   /** 单行条一行歌词的横向滚动数据：直接引用当前 LyricLine，下一行为之后最近的主唱行 */
-  private buildMarquee(main: HTMLElement, index: number): StripMarquee {
+  private buildMarquee(scrollEl: HTMLElement, main: HTMLElement, index: number): StripMarquee {
     return {
+      scrollEl,
       main,
       line: this.lyrics.lines[index],
       nextStart: this.lyrics.lines.slice(index + 1).find(next => !next.isBackground)?.start,
@@ -1452,12 +1452,13 @@ export class LyricPlayer {
       }
       const marquee = view.marquee
       if (marquee) {
-        // 可视宽度为行的内容区（见 paintMarquee）；词的位置相对原文左边缘（offsetLeft 不受位移影响），去掉强调词四周的内边距
+        // 可视宽度为行的内容区（见 paintMarquee）；若有歌手指示条包裹层（.lyric-vocal），连同左侧指示条一并计入滚动总宽与词偏移
         const style = getComputedStyle(view.el)
         marquee.padding = (Number.parseFloat(style.paddingLeft) || 0) + (Number.parseFloat(style.paddingRight) || 0)
-        marquee.contentWidth = marquee.main.offsetWidth
+        marquee.contentWidth = marquee.scrollEl.offsetWidth
+        const edgeLead = marquee.scrollEl !== marquee.main ? marquee.main.offsetLeft : 0
         marquee.boxes = view.words.slice(0, marquee.line.words.length).map(word => ({
-          left: word.el.offsetLeft - marquee.main.offsetLeft + word.pad,
+          left: edgeLead + (word.el.offsetLeft - marquee.main.offsetLeft) + word.pad,
           width: Math.max(0, word.width - word.pad * 2),
         }))
         marquee.knots = null
@@ -2108,7 +2109,7 @@ export class LyricPlayer {
     const transform = offset > 0 ? `translate3d(${(-offset).toFixed(2)}px, 0, 0)` : ''
     if (transform !== marquee.transform) {
       marquee.transform = transform
-      marquee.main.style.transform = transform
+      marquee.scrollEl.style.transform = transform
     }
     const mask = overflow > 0 ? stripFadeMask(offset > 0.5, offset < overflow - 0.5) : ''
     if (mask !== marquee.mask) {

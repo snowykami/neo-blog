@@ -639,8 +639,10 @@
 }
 
 /* 对唱行靠右：用自动外边距而不是 justify-content，超出宽度时自动外边距为 0，仍从行首开始横向滚动 */
-.lyric-player--strip .lyric-line--duet .lyric-main {
+.lyric-player--strip .lyric-line--duet > .lyric-main,
+.lyric-player--strip .lyric-line--duet > .lyric-vocal {
   margin-inline-start: auto;
+  margin-inline-end: 0;
 }
 
 .lyric-player--strip .lyric-line--center {
@@ -648,7 +650,8 @@
 }
 
 /* 合唱行居中：用自动外边距，超出宽度时两侧自动外边距归零，仍从行首开始横向滚动 */
-.lyric-player--strip .lyric-line--center .lyric-main {
+.lyric-player--strip .lyric-line--center > .lyric-main,
+.lyric-player--strip .lyric-line--center > .lyric-vocal {
   margin-inline: auto;
 }
 
@@ -666,6 +669,21 @@
   padding-block: 0;
   font-size: 0.72em;
   transition: color 0.4s ease-out, opacity 0.25s ease-out;
+}
+
+/* 单行条（灵动岛胶囊）内的歌手颜色指示条：仅在曲目有歌手标注时包裹显示颜色竖条，不显示歌手胶囊，允许随长句横向滚动 */
+.lyric-player--strip .lyric-vocal {
+  flex: none;
+  max-width: none;
+}
+
+.lyric-player--strip .lyric-edge {
+  width: 2.5px;
+  inset-block: 0.16em;
+}
+
+.lyric-player--strip .lyric-line--bg .lyric-edge {
+  width: 2px;
 }
 
 .lyric-player--strip .lyric-main {

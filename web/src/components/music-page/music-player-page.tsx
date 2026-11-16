@@ -22,6 +22,7 @@ import { isAdmin } from '@/utils/common/permission'
 import { LyricAnnotationRefresh } from './lyric-annotation-refresh'
 import { LyricOffsetControl } from './lyric-offset-control'
 import { LyricPronunciationRefresh } from './lyric-pronunciation-refresh'
+import { LyricSingerRefresh } from './lyric-singer-refresh'
 import { LyricSourceBadge } from './lyric-source-badge'
 import { LyricTranslationRefresh } from './lyric-translation-refresh'
 import { MusicBackground } from './music-background'
@@ -80,6 +81,7 @@ function TrackHero({ track, playing, onCoverClick, className }: { track: MusicTr
           <div className="mt-1 flex max-w-full min-w-0 items-center gap-1.5 justify-self-center lg:justify-self-start">
             <LyricSourceBadge className="min-w-0 shrink" />
             <LyricAnnotationRefresh className="shrink-0" />
+            <LyricSingerRefresh className="shrink-0" />
             <LyricTranslationRefresh className="shrink-0" />
             <LyricPronunciationRefresh className="shrink-0" />
             <LyricOffsetControl className="shrink-0" />

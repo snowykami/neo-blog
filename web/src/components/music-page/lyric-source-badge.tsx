@@ -11,6 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { useAuth } from '@/contexts/auth-context'
 import { reloadAnnotations, useLyricAnnotations } from '@/contexts/lyric-annotations'
 import { setLyricSitePin, useLyricSitePin } from '@/contexts/lyric-settings'
+import { useLyricSingersGenerating } from '@/contexts/lyric-singers'
 import { useMusic } from '@/contexts/music-context'
 import { setSongLyricVersion } from '@/contexts/song-lyrics'
 import { cn } from '@/lib/utils'
@@ -53,6 +54,7 @@ export function LyricSourceBadge({ className }: { className?: string }) {
   const trackId = currentTrack?.id ?? 0
   const sitePin = useLyricSitePin(trackId > 0 ? trackId : null)
   const annotationsEdited = useLyricAnnotations(trackId > 0 ? trackId : null)?.edited ?? false
+  const lyricSingersGenerating = useLyricSingersGenerating(trackId > 0 ? trackId : null, lyrics.source !== 'none' ? lyrics.source : null)
   // 等待确认的全站来源切换（当前特效手动编辑过）
   const [confirmKind, setConfirmKind] = useState<LyricSourceKind | typeof AUTO | null>(null)
   // 读者不参与歌词选择：没有这个标签，按全站版本显示即可
@@ -99,13 +101,15 @@ export function LyricSourceBadge({ className }: { className?: string }) {
   const pinned = sitePin != null
   const aiActive = lyricAnnotated
     || lyricAnnotationsGenerating
+    || lyricSingersGenerating
     || lyricAiTranslated
     || lyricTranslationsGenerating
     || lyricAiRomanized
     || lyricPronunciationsGenerating
-  const aiGenerating = lyricAnnotationsGenerating || lyricTranslationsGenerating || lyricPronunciationsGenerating
+  const aiGenerating = lyricAnnotationsGenerating || lyricSingersGenerating || lyricTranslationsGenerating || lyricPronunciationsGenerating
   const aiLabel = [
     (lyricAnnotated || lyricAnnotationsGenerating) && t(lyricAnnotationsGenerating ? 'lyric_badge_ai_generating' : 'lyric_badge_ai_effects'),
+    lyricSingersGenerating && t('lyric_badge_ai_singers'),
     (lyricAiTranslated || lyricTranslationsGenerating) && t('lyric_badge_ai_translation'),
     (lyricAiRomanized || lyricPronunciationsGenerating) && t('lyric_badge_ai_romanization'),
   ].filter(Boolean).join(' · ')

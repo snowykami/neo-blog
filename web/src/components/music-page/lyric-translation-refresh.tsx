@@ -102,7 +102,7 @@ export function LyricTranslationRefresh({ className }: { className?: string }) {
       className={cn('size-[1.125rem] rounded-full bg-white/10 text-white/70 hover:bg-white/15 hover:text-white/90', className)}
       onClick={() => void handleRefresh()}
     >
-      <LanguagesIcon aria-hidden className={cn('size-2.5', busy && 'motion-safe:animate-spin')} />
+      <LanguagesIcon aria-hidden className={cn('size-2.5', busy && 'motion-safe:animate-pulse')} />
     </Button>
   )
 }

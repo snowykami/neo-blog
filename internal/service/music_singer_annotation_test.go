@@ -144,6 +144,113 @@ func TestLyricSingersSoloFastPathAndNamedTTML(t *testing.T) {
 	}
 }
 
+func TestLyricSingersExplicitTTMLSkipsAutoAIUntilManualRefresh(t *testing.T) {
+	t.Run("single_named_ttml_skips_auto_ai", func(t *testing.T) {
+		tracks := []dto.MusicTrackDto{
+			{ID: 731, Name: "初音单人具名曲", Artists: []string{"初音ミク"}},
+		}
+		setupMusicTranslationEnv(t, tracks)
+
+		singleNamedTTML := `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata">
+<head><metadata>
+  <ttm:agent xml:id="v1" type="person"><ttm:name>初音未来</ttm:name></ttm:agent>
+</metadata></head>
+<body><div>
+  <p begin="00:01.000" end="00:04.000" ttm:agent="v1">第一句歌声</p>
+  <p begin="00:05.000" end="00:08.000" ttm:agent="v1">第二句歌声</p>
+</div></body></tt>`
+
+		stubLyricSources(t, map[string]lyricSourceResult{
+			"ttml": {
+				data:    &dto.MusicTTMLDto{Source: "ttml-amll", TTML: singleNamedTTML},
+				outcome: lyricOutcomeHit,
+			},
+		})
+		attrCalls, _, _ := stubLyricSingerService(t,
+			func(_, _ string) (string, error) { return `{"empty":true}`, nil },
+			func(_, _ string) (string, error) { return `{}`, nil },
+			nil,
+		)
+
+		s := NewMusicService()
+		soloResp, svcerr := s.GetLyricSingers(context.Background(), 731, "ttml-amll", "")
+		if svcerr != nil || soloResp.Status != "ready" || attrCalls.Load() != 0 {
+			t.Fatalf("expected single named TTML to skip auto AI, got resp=%+v, err=%v, calls=%d", soloResp, svcerr, attrCalls.Load())
+		}
+	})
+
+	t.Run("named_duet_ttml_manual_refresh_overrides", func(t *testing.T) {
+		tracks := []dto.MusicTrackDto{
+			{ID: 732, Name: "珊瑚海", Artists: []string{"周杰伦", "梁心颐"}},
+		}
+		setupMusicTranslationEnv(t, tracks)
+
+		namedDuetTTML := `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata">
+<head><metadata>
+  <ttm:agent xml:id="v1" type="person"><ttm:name>男主唱</ttm:name></ttm:agent>
+  <ttm:agent xml:id="v2" type="person"><ttm:name>女主唱</ttm:name></ttm:agent>
+</metadata></head>
+<body><div>
+  <p begin="00:01.000" end="00:04.000" ttm:agent="v1">海平面远方开始阴霾</p>
+  <p begin="00:05.000" end="00:08.000" ttm:agent="v2">悲伤要怎么平静纯白</p>
+</div></body></tt>`
+
+		stubLyricSources(t, map[string]lyricSourceResult{
+			"ttml": {
+				data:    &dto.MusicTTMLDto{Source: "ttml-amll", TTML: namedDuetTTML},
+				outcome: lyricOutcomeHit,
+			},
+		})
+		attrCalls, _, wait := stubLyricSingerService(t,
+			func(_, _ string) (string, error) {
+				return `{
+					"empty": false,
+					"evidence_source": "ttml_agents",
+					"evidence_url": "ttml_agents",
+					"singers": [
+						{"id": "v1", "name": "周杰伦", "role": "person", "color": "ocean", "align": "left"},
+						{"id": "v2", "name": "Lara梁心颐", "role": "person", "color": "cherry-blossom", "align": "right"}
+					],
+					"lines": [
+						{"i": 1, "agent": "v1"},
+						{"i": 2, "agent": "v2"}
+					]
+				}`, nil
+			},
+			func(_, _ string) (string, error) { return `{}`, nil },
+			nil,
+		)
+
+		s := NewMusicService()
+		ctx := context.Background()
+
+		autoResp, svcerr := s.GetLyricSingers(ctx, 732, "ttml-amll", "")
+		if svcerr != nil || autoResp.Status != "ready" || autoResp.Manual || attrCalls.Load() != 0 {
+			t.Fatalf("expected named duet TTML auto get without AI, got resp=%+v, err=%v, calls=%d", autoResp, svcerr, attrCalls.Load())
+		}
+		if len(autoResp.Singers) != 2 || autoResp.Singers[0].Name != "男主唱" {
+			t.Fatalf("expected native TTML names before manual trigger, got %+v", autoResp.Singers)
+		}
+
+		manualStart, svcerr := s.RefreshLyricSingers(ctx, 732, "ttml-amll", "", false)
+		if svcerr != nil || !manualStart.Stale {
+			t.Fatalf("expected manual refresh to keep existing singers with stale=true, got %+v, err=%v", manualStart, svcerr)
+		}
+		wait()
+
+		if attrCalls.Load() != 1 {
+			t.Fatalf("expected 1 AI call after manual refresh, got %d", attrCalls.Load())
+		}
+		manualReady, svcerr := s.GetLyricSingers(ctx, 732, "ttml-amll", "")
+		if svcerr != nil || manualReady.Status != "ready" || !manualReady.Manual || manualReady.Stale {
+			t.Fatalf("expected manual ready result, got %+v, err=%v", manualReady, svcerr)
+		}
+		if len(manualReady.Singers) != 2 || manualReady.Singers[0].Name != "周杰伦" || manualReady.Singers[1].Name != "Lara梁心颐" {
+			t.Fatalf("expected manual AI singer names persisted, got %+v", manualReady.Singers)
+		}
+	})
+}
+
 func TestLyricSingersAIAttributionWithLRC(t *testing.T) {
 	t.Run("plain_solo_lyrics_without_cues_skip_ai", func(t *testing.T) {
 		tracks := []dto.MusicTrackDto{

@@ -887,14 +887,24 @@ func TestLyricSingerUnnamedTTMLTriggersExternalSearch(t *testing.T) {
 	}
 
 	svc := NewMusicService()
+	// 1. 已声明多声部对唱标签（含无名 v1/v2）的 TTML：常规播放请求绝不自动触发外部检索或 AI 生成
 	first, svcerr := svc.GetLyricSingers(context.Background(), 304, "ttml-amll", "")
-	if svcerr != nil || first.Status != lyricTranslationStatusPending {
-		t.Fatalf("expected pending for unnamed TTML, got %+v, err=%v", first, svcerr)
+	if svcerr != nil || first.Status != lyricTranslationStatusReady || len(first.Singers) != 0 {
+		t.Fatalf("expected immediate empty ready without AI for unnamed multi-agent TTML, got %+v, err=%v", first, svcerr)
+	}
+	if custom.called.Load() != 0 {
+		t.Fatalf("expected ZERO external provider calls before manual trigger, got %d", custom.called.Load())
+	}
+
+	// 2. 管理员手动触发后：允许执行多源检索与 AI 对齐，并持久化 Manual 标记供后续读取
+	refreshed, svcerr := svc.RefreshLyricSingers(context.Background(), 304, "ttml-amll", "", false)
+	if svcerr != nil || refreshed.Status != lyricTranslationStatusPending {
+		t.Fatalf("expected pending on manual RefreshLyricSingers for unnamed TTML, got %+v, err=%v", refreshed, svcerr)
 	}
 	wait()
 
 	if custom.called.Load() == 0 {
-		t.Fatalf("expected external provider search to run for unnamed TTML")
+		t.Fatalf("expected external provider search to run on manual RefreshLyricSingers")
 	}
 	if !sawExternalEvidence.Load() {
 		t.Fatalf("expected cleaned external evidence injected into aligner prompt for unnamed TTML")
@@ -904,8 +914,8 @@ func TestLyricSingerUnnamedTTMLTriggersExternalSearch(t *testing.T) {
 	}
 
 	ready, svcerr := svc.GetLyricSingers(context.Background(), 304, "ttml-amll", "")
-	if svcerr != nil || ready.Status != lyricTranslationStatusReady || len(ready.Singers) != 2 || len(ready.Lines) != 5 {
-		t.Fatalf("unexpected unnamed TTML ready result: %+v, err=%v", ready, svcerr)
+	if svcerr != nil || ready.Status != lyricTranslationStatusReady || !ready.Manual || len(ready.Singers) != 2 || len(ready.Lines) != 5 {
+		t.Fatalf("unexpected unnamed TTML ready result after manual trigger: %+v, err=%v", ready, svcerr)
 	}
 	if ready.Singers[0].Name != "花里实乃里" || ready.Singers[1].Name != "桐谷遥" {
 		t.Fatalf("expected real character names resolved from external evidence, got %+v", ready.Singers)

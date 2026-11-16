@@ -179,6 +179,34 @@ describe('独立演唱者声部与曲名歌手译名格式化', () => {
     const withoutTrans = applyLyricSingers(base, singersData, false)
     expect(withoutTrans.agents?.v1.name).toBe('周杰伦')
     expect(withoutTrans.agents?.v2.name).toBe('梁心颐')
+
+    const unnamedDuetTtml = parseTtml(`<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata">
+<head><metadata>
+  <ttm:agent xml:id="v1" type="person"/>
+  <ttm:agent xml:id="v2" type="person"/>
+</metadata></head>
+<body><div>
+  <p begin="00:01.000" end="00:03.000" ttm:agent="v1">第一句</p>
+  <p begin="00:04.000" end="00:06.000" ttm:agent="v2">第二句</p>
+</div></body></tt>`, 'ttml-amll')!
+    const manualApplied = applyLyricSingers(unnamedDuetTtml, {
+      status: 'ready',
+      manual: true,
+      source: 'ttml-amll',
+      singers: [
+        { id: 's1', name: '花里实乃里', role: 'person', color: 'cherry-blossom', align: 'left' },
+        { id: 's2', name: '桐谷遥', role: 'person', color: 'ocean', align: 'right' },
+      ],
+      lines: [
+        { text: '第一句', occurrence: 0, bg: false, agent: 's2' },
+        { text: '第二句', occurrence: 0, bg: false, agent: 's1' },
+      ],
+    }, false)
+    expect(manualApplied.agents?.v1).toBeUndefined()
+    expect(manualApplied.agents?.s1?.name).toBe('花里实乃里')
+    expect(manualApplied.agents?.s2?.name).toBe('桐谷遥')
+    expect(manualApplied.lines[0]).toMatchObject({ agent: 's2', align: 'right', isDuet: true })
+    expect(manualApplied.lines[1]).toMatchObject({ agent: 's1', align: 'left', isDuet: false })
   })
 
   it('曲名与歌手译名拼接去重', () => {

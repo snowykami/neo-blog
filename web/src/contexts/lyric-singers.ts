@@ -17,9 +17,10 @@ function pollDelayMs(polls: number): number {
 interface CacheEntry {
   data: SiteLyricSingers | null
   generating: boolean
+  attributing: boolean
 }
 
-const EMPTY_ENTRY: CacheEntry = { data: null, generating: false }
+const EMPTY_ENTRY: CacheEntry = { data: null, generating: false, attributing: false }
 const cache = new Map<string, CacheEntry>()
 // 仅按 id + source 保存最新就绪声部数据，供翻译开关关闭（lang === ''）时无闪烁回退读取
 const baseCache = new Map<string, CacheEntry>()
@@ -43,8 +44,8 @@ function emit() {
 function setEntry(key: string, id: number, source: string, next: CacheEntry) {
   const prev = cache.get(key)
   if (next.data)
-    baseCache.set(baseKey(id, source), { data: next.data, generating: false })
-  if (prev && prev.data === next.data && prev.generating === next.generating)
+    baseCache.set(baseKey(id, source), { data: next.data, generating: false, attributing: false })
+  if (prev && prev.data === next.data && prev.generating === next.generating && prev.attributing === next.attributing)
     return
   cache.set(key, next)
   emit()
@@ -67,7 +68,7 @@ function schedulePoll(id: number, source: string, lang: LyricTargetLang | '') {
   if (nextCount > MAX_POLLS) {
     pollCounts.delete(key)
     const prev = cache.get(key) ?? EMPTY_ENTRY
-    setEntry(key, id, source, { ...prev, generating: false })
+    setEntry(key, id, source, { ...prev, generating: false, attributing: false })
     return
   }
   pollCounts.set(key, nextCount)
@@ -96,14 +97,16 @@ async function loadSingers(id: number, source: string, lang: LyricTargetLang | '
     if (!res) {
       clearRetry(key)
       const prev = cache.get(key)
-      setEntry(key, id, source, { data: prev?.data ?? null, generating: false })
+      setEntry(key, id, source, { data: prev?.data ?? null, generating: false, attributing: false })
       return
     }
-    const generating = res.status === 'pending' || Boolean(res.stale) || Boolean(res.translationPending)
+    const attributing = res.status === 'pending' || Boolean(res.stale)
+    const generating = attributing || Boolean(res.translationPending)
     const prev = cache.get(key)
     setEntry(key, id, source, {
       data: res.status === 'ready' ? res : (prev?.data ?? null),
       generating,
+      attributing,
     })
     if (generating)
       schedulePoll(id, source, lang)
@@ -113,7 +116,7 @@ async function loadSingers(id: number, source: string, lang: LyricTargetLang | '
   catch {
     clearRetry(key)
     const prev = cache.get(key)
-    setEntry(key, id, source, { data: prev?.data ?? null, generating: false })
+    setEntry(key, id, source, { data: prev?.data ?? null, generating: false, attributing: false })
   }
   finally {
     inFlight.delete(key)
@@ -141,13 +144,24 @@ export async function refreshSingers(
     return 'unavailable'
   const key = cacheKey(id, source, lang)
   clearRetry(key)
+  if (!translateOnly) {
+    const prefix = `${baseKey(id, source)}:`
+    for (const existingKey of Array.from(cache.keys())) {
+      if (existingKey.startsWith(prefix) && existingKey !== key) {
+        clearRetry(existingKey)
+        cache.delete(existingKey)
+      }
+    }
+  }
   try {
     const res = await refreshLyricSingers(id, source as LyricSource, lang || undefined, translateOnly)
-    const generating = res.status === 'pending' || Boolean(res.stale) || Boolean(res.translationPending)
+    const attributing = res.status === 'pending' || Boolean(res.stale)
+    const generating = attributing || Boolean(res.translationPending)
     const prev = cache.get(key)
     setEntry(key, id, source, {
       data: res.status === 'ready' ? res : (prev?.data ?? null),
       generating,
+      attributing,
     })
     if (generating)
       schedulePoll(id, source, lang)
@@ -157,7 +171,7 @@ export async function refreshSingers(
     const status = isAxiosError(error) ? error.response?.status : undefined
     if (status === 404 || status === 400) {
       const prev = cache.get(key)
-      setEntry(key, id, source, { data: prev?.data ?? null, generating: false })
+      setEntry(key, id, source, { data: prev?.data ?? null, generating: false, attributing: false })
       return 'unavailable'
     }
     throw error
@@ -173,6 +187,17 @@ function getEntry(id: number | null, source: string | null | undefined, lang: Ly
   if (lang === '')
     return baseCache.get(baseKey(id, source)) ?? EMPTY_ENTRY
   return EMPTY_ENTRY
+}
+
+function isSourceAttributing(id: number | null, source: string | null | undefined): boolean {
+  if (id == null || id <= 0 || !source || source === 'none')
+    return false
+  const prefix = `${baseKey(id, source)}:`
+  for (const [key, entry] of cache) {
+    if (key.startsWith(prefix) && entry.attributing)
+      return true
+  }
+  return false
 }
 
 function subscribe(listener: () => void): () => void {
@@ -195,11 +220,11 @@ export function useLyricSingers(
 export function useLyricSingersGenerating(
   id: number | null,
   source: string | null | undefined,
-  lang: LyricTargetLang | '' = '',
+  lang?: LyricTargetLang | '',
 ): boolean {
   return useSyncExternalStore(
     subscribe,
-    () => getEntry(id, source, lang).generating,
+    () => (lang !== undefined ? getEntry(id, source, lang).attributing : isSourceAttributing(id, source)),
     () => false,
   )
 }

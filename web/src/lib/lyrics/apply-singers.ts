@@ -1,4 +1,4 @@
-import type { LyricAgent, LyricAlign, LyricColor, ResolvedLyrics } from './types'
+import type { LyricAgent, LyricAlign, LyricColor, LyricLine, ResolvedLyrics } from './types'
 import { LYRIC_COLORS } from './colors'
 import { getBackgroundOwnerMap, getLyricLineText } from './line-utils'
 import { normalizeForMatch } from './strip-credits'
@@ -22,6 +22,7 @@ export interface SiteLyricSingerLine {
 export interface SiteLyricSingers {
   status: 'ready' | 'pending'
   stale?: boolean
+  manual?: boolean
   translationPending?: boolean
   source?: string
   singers: SiteLyricSingerItem[]
@@ -103,11 +104,12 @@ export function applyLyricSingers(
   if (singersData.source && singersData.source !== lyrics.source)
     return lyrics
 
+  const manualOverride = Boolean(singersData.manual && singersData.singers.length > 0 && singersData.lines.length > 0)
   const translatedNames = showTranslation ? singersData.translatedNames : undefined
   const nextAgents: Record<string, LyricAgent> = {}
   const alignByAgent = new Map<string, LyricAlign>()
 
-  if (lyrics.agents) {
+  if (lyrics.agents && !manualOverride) {
     for (const [id, existing] of Object.entries(lyrics.agents)) {
       const displayName = formatSingerDisplayName(existing.name, translatedNames?.[id])
       nextAgents[id] = displayName === existing.name
@@ -119,8 +121,11 @@ export function applyLyricSingers(
   for (const item of singersData.singers) {
     if (!item.id)
       continue
-    const existing = nextAgents[item.id] ?? lyrics.agents?.[item.id]
-    const baseName = item.name?.trim() || existing?.name
+    const rawExisting = lyrics.agents?.[item.id]
+    const existing = manualOverride ? undefined : (nextAgents[item.id] ?? rawExisting)
+    const baseName = manualOverride
+      ? (item.name?.trim() || rawExisting?.name)
+      : (rawExisting?.name || item.name?.trim())
     const displayName = formatSingerDisplayName(baseName, translatedNames?.[item.id])
     const isGroup = existing?.isGroup ?? (item.role === 'group' ? true : undefined)
     const color: LyricColor = existing?.color
@@ -142,8 +147,10 @@ export function applyLyricSingers(
   if (Object.keys(nextAgents).length === 0)
     return lyrics
 
-  const hasNativePositioning = Boolean(lyrics.agents && Object.keys(lyrics.agents).length > 0)
+  const hasNativePositioning = !manualOverride && (
+    Boolean(lyrics.agents && Object.keys(lyrics.agents).length > 0)
     || lyrics.lines.some(l => l.align === 'right' || l.align === 'center' || l.isDuet)
+  )
 
   const lineLookup = new Map<string, string>()
   for (const line of singersData.lines) {
@@ -154,7 +161,7 @@ export function applyLyricSingers(
 
   const occCounts = new Map<string, number>()
   let linesChanged = false
-  const nextLines = lyrics.lines.map((line) => {
+  const nextLines = lyrics.lines.map((line): LyricLine => {
     const bg = Boolean(line.isBackground)
     const norm = normalizeForMatch(getLyricLineText(line))
     const countKey = `${bg}:${norm}`
@@ -165,9 +172,24 @@ export function applyLyricSingers(
       return line
 
     const matchedAgent = lineLookup.get(`${bg}:${occ}:${norm}`)
-    const agentId = (matchedAgent && nextAgents[matchedAgent]) ? matchedAgent : line.agent
-    if (!agentId || !nextAgents[agentId])
-      return line
+    const fallbackAgent = manualOverride ? undefined : line.agent
+    const agentId = (matchedAgent && nextAgents[matchedAgent]) ? matchedAgent : fallbackAgent
+    if (!agentId || !nextAgents[agentId]) {
+      if (!manualOverride)
+        return line
+      if (bg) {
+        if (!line.agent)
+          return line
+        linesChanged = true
+        const { agent: _, ...rest } = line
+        return rest
+      }
+      if (!line.agent && line.align === 'left' && !line.isDuet)
+        return line
+      linesChanged = true
+      const { agent: _, ...rest } = line
+      return { ...rest, align: 'left' as LyricAlign, isDuet: false }
+    }
 
     if (bg) {
       if (line.agent === agentId)
@@ -178,9 +200,10 @@ export function applyLyricSingers(
 
     const agentInfo = nextAgents[agentId]
     const explicitAlign = alignByAgent.get(agentId)
+    const baseAlign = manualOverride ? undefined : line.align
     const nextAlign: LyricAlign = agentInfo.isGroup
-      ? (line.align === 'right' ? 'right' : (line.align ?? explicitAlign ?? 'center'))
-      : (line.align ?? explicitAlign ?? 'left')
+      ? (baseAlign === 'right' ? 'right' : (baseAlign ?? explicitAlign ?? 'center'))
+      : (baseAlign ?? explicitAlign ?? 'left')
     const nextDuet = nextAlign === 'right'
 
     if (line.agent === agentId && line.align === nextAlign && line.isDuet === nextDuet)

@@ -490,10 +490,10 @@ describe('振假名渲染与 HDR 跨行平滑退场', () => {
     expect(trioCtx.container.querySelectorAll('.lyric-singer.lyric-singer--dot-only')).toHaveLength(3)
     trioCtx.cleanup()
 
-    // 单行条（strip）完全不渲染胶囊与竖条
+    // 单行条（strip）仅在有歌手标注时渲染左侧颜色竖条，不渲染歌手名称胶囊
     const stripCtx = mountPlayer(namedMulti, { strip: true })
     expect(stripCtx.container.querySelectorAll('.lyric-singer')).toHaveLength(0)
-    expect(stripCtx.container.querySelectorAll('.lyric-edge')).toHaveLength(0)
+    expect(stripCtx.container.querySelectorAll('.lyric-edge')).toHaveLength(6)
     stripCtx.cleanup()
 
     // 4 人自定义色合唱：渲染 4 枚圆点、拼接全部成员名称，并在左侧竖条注入 4 色纵向渐变
@@ -871,5 +871,59 @@ describe('振假名渲染与 HDR 跨行平滑退场', () => {
     const stripEls = Array.from(strip.container.querySelectorAll<HTMLElement>('.lyric-item'))
     expect(stripEls.every(el => el.style.willChange === '')).toBe(true)
     strip.cleanup()
+  })
+
+  it('strip 单行条仅在曲目包含歌手标注时渲染左侧颜色指示条 .lyric-edge，且不渲染歌手胶囊 .lyric-singer', () => {
+    const soloLyrics: ResolvedLyrics = {
+      source: 'ncm-yrc',
+      wordTimed: true,
+      instrumental: false,
+      lines: [
+        {
+          words: [{ text: '独唱歌词', start: 0, end: 2000 }],
+          start: 0,
+          end: 2000,
+          isDuet: false,
+          isBackground: false,
+        },
+      ],
+    }
+    const soloStrip = mountPlayer(soloLyrics, { strip: true })
+    expect(soloStrip.container.querySelectorAll('.lyric-edge').length).toBe(0)
+    expect(soloStrip.container.querySelectorAll('.lyric-singer').length).toBe(0)
+    soloStrip.cleanup()
+
+    const duetLyrics: ResolvedLyrics = {
+      source: 'ttml-custom',
+      wordTimed: true,
+      instrumental: false,
+      agents: {
+        v1: { id: 'v1', name: 'Singer A', color: 'sky' },
+        v2: { id: 'v2', name: 'Singer B', color: 'rose' },
+      },
+      lines: [
+        {
+          words: [{ text: '主唱句', start: 0, end: 2000 }],
+          start: 0,
+          end: 2000,
+          agent: 'v1',
+          isDuet: false,
+          isBackground: false,
+        },
+        {
+          words: [{ text: '对唱句', start: 2200, end: 4000 }],
+          start: 2200,
+          end: 4000,
+          agent: 'v2',
+          align: 'right',
+          isDuet: true,
+          isBackground: false,
+        },
+      ],
+    }
+    const duetStrip = mountPlayer(duetLyrics, { strip: true })
+    expect(duetStrip.container.querySelectorAll('.lyric-edge').length).toBe(2)
+    expect(duetStrip.container.querySelectorAll('.lyric-singer').length).toBe(0)
+    duetStrip.cleanup()
   })
 })

@@ -96,19 +96,20 @@ type lyricSingerLineTask struct {
 }
 
 type lyricSingerInput struct {
-	Track            *dto.MusicTrackDto
-	Source           string
-	LyricHash        string
-	IsTTML           bool
-	HasSeparatedPos  bool
-	Agents           []lyricSingerDeclaredAgent
-	Lines            []lyricSingerExtractedLine
-	Tasks            []lyricSingerLineTask
-	HasInlineMarkers bool // 歌词自身是否包含结构化行首/独立段声部标点（冒号或方括号）
-	MultiAgentSys    bool // TTML 是否存在 >=2 独唱或群组声部
-	Credits          []string
-	Songwriters      []string
-	ArtistHints      [][]string
+	Track              *dto.MusicTrackDto
+	Source             string
+	LyricHash          string
+	IsTTML             bool
+	HasSeparatedPos    bool
+	Agents             []lyricSingerDeclaredAgent
+	Lines              []lyricSingerExtractedLine
+	Tasks              []lyricSingerLineTask
+	HasInlineMarkers   bool // 歌词自身是否包含结构化行首/独立段声部标点（冒号或方括号）
+	MultiAgentSys      bool // TTML 是否存在 >=2 独唱或群组声部
+	HasExplicitSingers bool // TTML 是否已具备明确歌手/多声部对唱标识（具名 <ttm:name>/starry:extensions 或多声部 v1/v2 等）
+	Credits            []string
+	Songwriters        []string
+	ArtistHints        [][]string
 }
 
 type lyricSingerAIResp struct {
@@ -398,22 +399,73 @@ func (s *MusicService) extractLyricSingerInput(ctx context.Context, track *dto.M
 	lyricHash := hex.EncodeToString(sum[:])
 	hints := loadSongHints(track.ID)
 	multiAgentSys := isTTML && (len(usedSolo) >= 2 || (usedGroup && len(usedSolo) >= 1))
+	hasExplicitSingers := hasExplicitTTMLSingerMarkers(isTTML, agents, tasks, usedSolo, usedGroup, multiAgentSys)
 
 	return &lyricSingerInput{
-		Track:            track,
-		Source:           resolvedSource,
-		LyricHash:        lyricHash,
-		IsTTML:           isTTML,
-		HasSeparatedPos:  hasSeparatedPos,
-		Agents:           agents,
-		Lines:            lines,
-		Tasks:            tasks,
-		HasInlineMarkers: hasStructuralCueMarkers(tasks),
-		MultiAgentSys:    multiAgentSys,
-		Credits:          credits,
-		Songwriters:      ttmlSongwriters,
-		ArtistHints:      hints.ArtistHints,
+		Track:              track,
+		Source:             resolvedSource,
+		LyricHash:          lyricHash,
+		IsTTML:             isTTML,
+		HasSeparatedPos:    hasSeparatedPos,
+		Agents:             agents,
+		Lines:              lines,
+		Tasks:              tasks,
+		HasInlineMarkers:   hasStructuralCueMarkers(tasks),
+		MultiAgentSys:      multiAgentSys,
+		HasExplicitSingers: hasExplicitSingers,
+		Credits:            credits,
+		Songwriters:        ttmlSongwriters,
+		ArtistHints:        hints.ArtistHints,
 	}, nil
+}
+
+// hasExplicitTTMLSingerMarkers 判断 TTML 词源是否已带有明确的歌手或对唱标识（具名 <ttm:name>/starry:extensions 或多声部 v1/v2 等）；
+// 仅含单个无名默认占位 <ttm:agent xml:id="v1"/> 的普通独唱/未标声部 TTML 返回 false。
+func hasExplicitTTMLSingerMarkers(
+	isTTML bool,
+	agents []lyricSingerDeclaredAgent,
+	tasks []lyricSingerLineTask,
+	usedSolo map[string]bool,
+	usedGroup bool,
+	multiAgentSys bool,
+) bool {
+	if !isTTML {
+		return false
+	}
+	if multiAgentSys {
+		return true
+	}
+	soloRank := 0
+	declaredMap := make(map[string]lyricSingerDeclaredAgent, len(agents))
+	soloRankMap := make(map[string]int, len(agents))
+	for _, ag := range agents {
+		if strings.TrimSpace(ag.Name) != "" {
+			return true
+		}
+		declaredMap[ag.ID] = ag
+		if !ag.IsGroup {
+			if _, seen := soloRankMap[ag.ID]; !seen {
+				soloRankMap[ag.ID] = soloRank
+				soloRank++
+			}
+		}
+	}
+	if len(usedSolo) == 1 && !usedGroup {
+		var singleID string
+		for id := range usedSolo {
+			singleID = id
+		}
+		decl := declaredMap[singleID]
+		isSecondary := strings.EqualFold(decl.Type, "other") || decl.Position == "right" || soloRankMap[singleID] > 0
+		if isSecondary {
+			for _, t := range tasks {
+				if !t.Bg && strings.TrimSpace(t.RawAgent) == "" {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func (a *lyricSingerService) prefix() string {
@@ -461,26 +513,6 @@ func emptyReadyLyricSingersDto(source string) *dto.MusicLyricSingersDto {
 func (a *lyricSingerService) getOrStart(input *lyricSingerInput, targetLang string) (*dto.MusicLyricSingersDto, *errs.ServiceError) {
 	a.mu.Lock()
 
-	// Fast Path A: TTML 多声部且所有独唱声部均已自带 <ttm:name> -> 确定性分配色板与左右居中对齐并落库（保留已生成的多语言译名）
-	if fastData, ok := buildNamedTTMLSingerData(input); ok {
-		var record model.LyricSingerAnnotation
-		err := repo.GetDB().Where("song_id = ? AND source = ? AND lyric_hash = ?", input.Track.ID, input.Source, input.LyricHash).First(&record).Error
-		if err == nil {
-			a.mu.Unlock()
-			return a.buildReadyResponse(input, &record, fastData, targetLang, false, false)
-		}
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			a.mu.Unlock()
-			return nil, errs.Internal("failed_to_get_target", err)
-		}
-		rec := a.saveAndLoadData(input, fastData, "ttml:agents")
-		a.mu.Unlock()
-		if rec == nil {
-			return nil, errs.NewInternalServer("failed_to_update_target")
-		}
-		return a.buildReadyResponse(input, rec, fastData, targetLang, false, false)
-	}
-
 	if len(input.Tasks) == 0 {
 		a.mu.Unlock()
 		return emptyReadyLyricSingersDto(input.Source), nil
@@ -495,6 +527,54 @@ func (a *lyricSingerService) getOrStart(input *lyricSingerInput, targetLang stri
 		a.mu.Unlock()
 		return nil, errs.Internal("failed_to_get_target", err)
 	}
+
+	// TTML 已自带明确的歌手或对唱标识（具名 <ttm:name>/starry:extensions，或已声明多声部对唱 v1/v2 等）：
+	// 默认绝不自动触发 AI 生成歌手标识，仅在管理员曾手动触发生成时采用手动标注
+	if input.HasExplicitSingers {
+		if err == nil {
+			saved := parseLyricSingerData(record.Data)
+			if saved.Manual && !saved.Empty && len(saved.Singers) > 0 {
+				a.mu.Unlock()
+				return a.buildReadyResponse(input, &record, saved, targetLang, running, false)
+			}
+		}
+		if running {
+			if fastData, ok := buildNamedTTMLSingerData(input); ok && !fastData.Empty {
+				if err == nil && record.Model == "ttml:agents" {
+					a.mu.Unlock()
+					return a.buildReadyResponse(input, &record, fastData, targetLang, true, false)
+				}
+				rec := a.saveAndLoadData(input, fastData, "ttml:agents")
+				a.mu.Unlock()
+				if rec != nil {
+					return a.buildReadyResponse(input, rec, fastData, targetLang, true, false)
+				}
+			} else {
+				a.mu.Unlock()
+			}
+			return &dto.MusicLyricSingersDto{
+				Status:  lyricTranslationStatusPending,
+				Source:  input.Source,
+				Singers: []dto.LyricSingerItem{},
+				Lines:   []dto.LyricSingerLine{},
+			}, nil
+		}
+		if fastData, ok := buildNamedTTMLSingerData(input); ok {
+			if err == nil && record.Model == "ttml:agents" {
+				a.mu.Unlock()
+				return a.buildReadyResponse(input, &record, fastData, targetLang, false, false)
+			}
+			rec := a.saveAndLoadData(input, fastData, "ttml:agents")
+			a.mu.Unlock()
+			if rec == nil {
+				return nil, errs.NewInternalServer("failed_to_update_target")
+			}
+			return a.buildReadyResponse(input, rec, fastData, targetLang, false, false)
+		}
+		a.mu.Unlock()
+		return emptyReadyLyricSingersDto(input.Source), nil
+	}
+
 	if err == nil {
 		a.mu.Unlock()
 		data := parseLyricSingerData(record.Data)
@@ -524,7 +604,7 @@ func (a *lyricSingerService) getOrStart(input *lyricSingerInput, targetLang stri
 		a.mu.Unlock()
 		return nil, svcerr
 	}
-	a.startAttributionLocked(jobKey, failedKey, input, cfg)
+	a.startAttributionLocked(jobKey, failedKey, input, cfg, false)
 	a.mu.Unlock()
 
 	return &dto.MusicLyricSingersDto{
@@ -536,31 +616,33 @@ func (a *lyricSingerService) getOrStart(input *lyricSingerInput, targetLang stri
 }
 
 func (a *lyricSingerService) refresh(input *lyricSingerInput, targetLang string, translateOnly bool) (*dto.MusicLyricSingersDto, *errs.ServiceError) {
-	if fastData, ok := buildNamedTTMLSingerData(input); ok {
-		rec := a.saveAndLoadData(input, fastData, "ttml:agents")
-		if rec == nil {
-			return nil, errs.NewInternalServer("failed_to_update_target")
-		}
-		return a.buildReadyResponse(input, rec, fastData, targetLang, false, targetLang != "")
-	}
-
 	if translateOnly {
 		if targetLang == "" {
 			return emptyReadyLyricSingersDto(input.Source), nil
 		}
 		var record model.LyricSingerAnnotation
 		err := repo.GetDB().Where("song_id = ? AND source = ? AND lyric_hash = ?", input.Track.ID, input.Source, input.LyricHash).First(&record).Error
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return emptyReadyLyricSingersDto(input.Source), nil
-		}
-		if err != nil {
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errs.Internal("failed_to_get_target", err)
 		}
-		data := parseLyricSingerData(record.Data)
-		if data.Empty || len(data.Singers) == 0 {
+		if err == nil {
+			data := parseLyricSingerData(record.Data)
+			if (!input.HasExplicitSingers || data.Manual) && !data.Empty && len(data.Singers) > 0 {
+				return a.buildReadyResponse(input, &record, data, targetLang, false, true)
+			}
+			if fastData, ok := buildNamedTTMLSingerData(input); ok && !fastData.Empty && len(fastData.Singers) > 0 {
+				return a.buildReadyResponse(input, &record, fastData, targetLang, false, true)
+			}
 			return emptyReadyLyricSingersDto(input.Source), nil
 		}
-		return a.buildReadyResponse(input, &record, data, targetLang, false, true)
+		if fastData, ok := buildNamedTTMLSingerData(input); ok && !fastData.Empty && len(fastData.Singers) > 0 {
+			rec := a.saveAndLoadData(input, fastData, "ttml:agents")
+			if rec == nil {
+				return nil, errs.NewInternalServer("failed_to_update_target")
+			}
+			return a.buildReadyResponse(input, rec, fastData, targetLang, false, true)
+		}
+		return emptyReadyLyricSingersDto(input.Source), nil
 	}
 
 	if len(input.Tasks) == 0 {
@@ -578,7 +660,7 @@ func (a *lyricSingerService) refresh(input *lyricSingerInput, targetLang string,
 	jobKey, failedKey := a.stateKeys(input)
 	a.mu.Lock()
 	if running, _ := a.jobState(jobKey, failedKey); !running {
-		a.startAttributionLocked(jobKey, failedKey, input, cfg)
+		a.startAttributionLocked(jobKey, failedKey, input, cfg, true)
 	}
 	var record model.LyricSingerAnnotation
 	err := repo.GetDB().Where("song_id = ? AND source = ? AND lyric_hash = ?", input.Track.ID, input.Source, input.LyricHash).First(&record).Error
@@ -586,12 +668,23 @@ func (a *lyricSingerService) refresh(input *lyricSingerInput, targetLang string,
 
 	if err == nil {
 		data := parseLyricSingerData(record.Data)
-		if !data.Empty && len(data.Singers) > 0 {
+		if (!input.HasExplicitSingers || data.Manual) && !data.Empty && len(data.Singers) > 0 {
 			if targetLang != "" {
 				return a.buildReadyResponse(input, &record, data, targetLang, true, true)
 			}
 			return toLyricSingersDto(input.Source, data, nil, true, false), nil
 		}
+		if fastData, ok := buildNamedTTMLSingerData(input); ok && !fastData.Empty && len(fastData.Singers) > 0 {
+			if targetLang != "" {
+				return a.buildReadyResponse(input, &record, fastData, targetLang, true, true)
+			}
+			return toLyricSingersDto(input.Source, fastData, nil, true, false), nil
+		}
+	} else if fastData, ok := buildNamedTTMLSingerData(input); ok && !fastData.Empty && len(fastData.Singers) > 0 {
+		if rec := a.saveAndLoadData(input, fastData, "ttml:agents"); rec != nil && targetLang != "" {
+			return a.buildReadyResponse(input, rec, fastData, targetLang, true, true)
+		}
+		return toLyricSingersDto(input.Source, fastData, nil, true, false), nil
 	}
 	return &dto.MusicLyricSingersDto{
 		Status:  lyricTranslationStatusPending,
@@ -860,6 +953,7 @@ func toLyricSingersDto(source string, data dto.LyricSingerData, translatedNames 
 	return &dto.MusicLyricSingersDto{
 		Status:             lyricTranslationStatusReady,
 		Stale:              stale,
+		Manual:             data.Manual && !data.Empty,
 		TranslationPending: transPending,
 		Source:             source,
 		Singers:            singers,
@@ -868,16 +962,16 @@ func toLyricSingersDto(source string, data dto.LyricSingerData, translatedNames 
 	}
 }
 
-func (a *lyricSingerService) startAttributionLocked(jobKey, failedKey string, input *lyricSingerInput, cfg tools.AIConfig) {
+func (a *lyricSingerService) startAttributionLocked(jobKey, failedKey string, input *lyricSingerInput, cfg tools.AIConfig, manual bool) {
 	lease, err := sharedstate.AcquireLease(jobKey, lyricSingerJobTTL)
 	if err != nil || lease == nil {
 		return
 	}
 	_ = sharedstate.Current().Delete(failedKey)
-	go a.executeAttribution(lease, failedKey, input, cfg)
+	go a.executeAttribution(lease, failedKey, input, cfg, manual)
 }
 
-func (a *lyricSingerService) executeAttribution(lease *sharedstate.Lease, failedKey string, input *lyricSingerInput, cfg tools.AIConfig) {
+func (a *lyricSingerService) executeAttribution(lease *sharedstate.Lease, failedKey string, input *lyricSingerInput, cfg tools.AIConfig, manual bool) {
 	var jobErr error
 	defer func() {
 		if r := recover(); r != nil {
@@ -905,6 +999,14 @@ func (a *lyricSingerService) executeAttribution(lease *sharedstate.Lease, failed
 		logrus.Warnf("lyric singer attribution failed for song %d (%s): %v", input.Track.ID, input.Source, err)
 		jobErr = err
 		return
+	}
+	if manual {
+		if !data.Empty && len(data.Singers) > 0 {
+			data.Manual = true
+		} else if fastData, ok := buildNamedTTMLSingerData(input); ok && !fastData.Empty {
+			data = fastData
+			savedModel = "ttml:agents"
+		}
 	}
 	if strings.TrimSpace(savedModel) == "" {
 		savedModel = cfg.Model

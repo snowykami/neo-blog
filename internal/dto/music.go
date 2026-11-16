@@ -508,9 +508,10 @@ type LyricSingerLine struct {
 	Agent      string `json:"agent"`
 }
 
-// LyricSingerData 保存在数据库中的歌词多声部结构（Empty 为 true 表示独唱或无需标注）
+// LyricSingerData 保存在数据库中的歌词多声部结构（Empty 为 true 表示独唱或无需标注；Manual 为管理员手动触发生成）
 type LyricSingerData struct {
 	Empty   bool              `json:"empty,omitempty"`
+	Manual  bool              `json:"manual,omitempty"`
 	Singers []LyricSingerItem `json:"singers,omitempty"`
 	Lines   []LyricSingerLine `json:"lines,omitempty"`
 }
@@ -519,6 +520,7 @@ type LyricSingerData struct {
 type MusicLyricSingersDto struct {
 	Status             string            `json:"status"`
 	Stale              bool              `json:"stale,omitempty"`
+	Manual             bool              `json:"manual,omitempty"`
 	TranslationPending bool              `json:"translation_pending,omitempty"`
 	Source             string            `json:"source,omitempty"`
 	Singers            []LyricSingerItem `json:"singers"`

@@ -252,8 +252,7 @@ function mergeLyricAgents(
     const ai = aiById.get(id)
     merged[id] = {
       ...agent,
-      // TTML 原生 <ttm:name> 与 ttv:color 始终优先于 AI 推断值；未声明原生颜色时允许 AI 调色盘覆盖默认轮换色
-      name: agent.name || ai?.name?.trim() || undefined,
+      // 仅允许 AI 歌词特效调色盘在未声明原生 ttv:color 时协调声部颜色，绝不自动注入或覆盖歌手标识名称
       color: agent.colorHex ? agent.color : (ai?.color ?? agent.color),
     }
   }

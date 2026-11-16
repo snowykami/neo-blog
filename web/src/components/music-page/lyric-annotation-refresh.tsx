@@ -1,7 +1,7 @@
 'use client'
 
-import { RefreshCwIcon } from 'lucide-react'
-import { useLocale, useTranslations } from 'next-intl'
+import { SparklesIcon } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { fetchLyricAnnotations } from '@/api/music'
@@ -9,11 +9,7 @@ import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/auth-context'
 import { refreshAnnotations, useLyricAnnotations } from '@/contexts/lyric-annotations'
-import { refreshSingers } from '@/contexts/lyric-singers'
 import { useMusic } from '@/contexts/music-context'
-import { useSiteInfo } from '@/contexts/site-info-context'
-import { canResolveLyricSingers } from '@/lib/lyrics/apply-singers'
-import { toLyricTargetLang } from '@/lib/lyrics/target-lang'
 import { cn } from '@/lib/utils'
 import { isAdmin } from '@/utils/common/permission'
 
@@ -25,11 +21,8 @@ import { isAdmin } from '@/utils/common/permission'
  */
 export function LyricAnnotationRefresh({ className }: { className?: string }) {
   const t = useTranslations('MusicPage')
-  const locale = useLocale()
-  const targetLang = toLyricTargetLang(locale)
   const { user } = useAuth()
-  const { siteInfo } = useSiteInfo()
-  const { currentTrack, lyrics, showLyricEffects, showTranslation, lyricIsSiteVersion } = useMusic()
+  const { currentTrack, lyrics, showLyricEffects, lyricIsSiteVersion, lyricAnnotationsGenerating } = useMusic()
   const [refreshing, setRefreshing] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const trackId = currentTrack?.id ?? 0
@@ -37,10 +30,10 @@ export function LyricAnnotationRefresh({ className }: { className?: string }) {
   if (!user || !isAdmin({ user }) || trackId <= 0 || !lyrics.wordTimed || !showLyricEffects || !lyricIsSiteVersion)
     return null
 
+  const busy = refreshing || lyricAnnotationsGenerating
+
   const refresh = async () => {
     setRefreshing(true)
-    if (siteInfo.musicAiEnabled && canResolveLyricSingers(lyrics))
-      void refreshSingers(trackId, lyrics.source, showTranslation ? targetLang : '').catch(() => {})
     try {
       await refreshAnnotations(trackId)
       toast.success(t('lyric_ai_refresh_started'))
@@ -54,6 +47,8 @@ export function LyricAnnotationRefresh({ className }: { className?: string }) {
   }
 
   const onClick = async () => {
+    if (busy)
+      return
     setRefreshing(true)
     const current = edited ? null : await fetchLyricAnnotations(trackId).catch(() => null)
     setRefreshing(false)
@@ -71,11 +66,11 @@ export function LyricAnnotationRefresh({ className }: { className?: string }) {
         size="icon"
         title={t('lyric_ai_refresh')}
         aria-label={t('lyric_ai_refresh')}
-        disabled={refreshing}
+        disabled={busy}
         onClick={() => void onClick()}
         className={cn('size-[1.125rem] rounded-full bg-white/10 text-white/70 hover:bg-white/15 hover:text-white/90', className)}
       >
-        <RefreshCwIcon aria-hidden className={cn('size-2.5', refreshing && 'motion-safe:animate-spin')} />
+        <SparklesIcon aria-hidden className={cn('size-2.5', busy && 'motion-safe:animate-pulse')} />
       </Button>
       <ConfirmDialog
         open={confirmOpen}
