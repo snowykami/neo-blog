@@ -22,7 +22,12 @@ import { IslandSlot, IslandText } from './island-parts'
  * 灵动岛音乐胶囊的内容（模糊封面底、舞台特效、单行歌词、律动条）。
  *
  * 这些都依赖播放器那一套重模块（舞台特效、粒子、HDR 画布、节拍模型……），而灵动岛每页都挂着：
- * 单独成文件、由 music-island.tsx 在开始播放后才按需加载，不进首屏 JS
+ * 单独成文件、由 music-island.tsx 在开始播放后才按需加载，不进首屏 JS。
+ *
+ * 【双端同步维护约定】
+ * 本组件的胶囊布局、封面染色、节拍律动条与单行歌词动效在 macOS 原生端对应：
+ * `macos-island/Sources/NeoBlogIsland/Views/CompactIslandView.swift` 与 `LyricSweepViews.swift`。
+ * 新增或调整任何胶囊视觉/歌词特性时，两端必须同步实现。
  */
 
 // 单行歌词同样用歌词引擎，延后到真正需要时再加载

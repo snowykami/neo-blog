@@ -5,8 +5,10 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { updateUser } from '@/api/user'
 import { ColorSchemeSelector } from '@/components/console/common/color-scheme-selector'
+import { DesktopIslandSettingsForm } from '@/components/console/user-preference/desktop-island-settings-form'
 import { AIWritingHabitForm } from '@/components/tiptap-editor/ai-writing-habit-form'
 import { useAuth } from '@/contexts/auth-context'
+import { useSiteInfo } from '@/contexts/site-info-context'
 import { useErrorMessageT } from '@/hooks/use-translations'
 import { Link } from '@/i18n/navigation'
 import { isEditor } from '@/utils/common/permission'
@@ -16,6 +18,7 @@ export function UserPreferencePage() {
   const t = useTranslations('Console.user_preference')
   const errorMessageT = useErrorMessageT()
   const { user, setUser } = useAuth()
+  const { siteInfo } = useSiteInfo()
   const [color, setColor] = useState<string | null>(user?.preferredColor || null)
 
   useEffect(() => {
@@ -62,6 +65,12 @@ export function UserPreferencePage() {
             </Link>
           </div>
         </div>
+        {siteInfo.musicEnabled && (
+          <div className="grid gap-2">
+            <h2 className="text">{t('desktop_island.section_title')}</h2>
+            <DesktopIslandSettingsForm className="max-w-2xl" />
+          </div>
+        )}
         {/* AI 写作只对编辑者与管理员开放 */}
         {user && isEditor({ user }) && (
           <div className="grid gap-2">

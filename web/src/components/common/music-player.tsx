@@ -9,6 +9,7 @@ import { readMusicShareParamsFromLocation } from '@/components/music-page/music-
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useImageOptimizeHosts } from '@/contexts/image-optimize-context'
 import { useMusicActions, useMusicClockStore, useMusicPlayback } from '@/contexts/music-context'
+import { useDesktopIslandPrefs, useDesktopIslandRuntime } from '@/hooks/use-desktop-island-pref'
 import { usePathname } from '@/i18n/navigation'
 import { isConsolePath } from '@/i18n/routing'
 import { readPlaylistCache, touchPlaylistCache, writePlaylistCache } from '@/lib/music-playlist-cache'
@@ -213,7 +214,10 @@ export function MusicPlayer() {
   // 后台也不显示悬浮球：后台的保存栏、编辑器状态、仪表盘卡片都贴着右下角，悬浮球停在哪都会挡住操作；
   // 后台的播放器入口在顶栏右侧（见 components/console/console-music-button.tsx）。文章 / 页面预览用的是前台外壳（有灵动岛），照常显示
   const inConsole = isConsolePath(pathname) && !isConsolePreviewPath(pathname)
-  const showBall = Boolean(currentTrack) && !onPlayerPage && !inConsole
+  const desktopPrefs = useDesktopIslandPrefs()
+  const { status: desktopStatus } = useDesktopIslandRuntime()
+  const hiddenByDesktopIsland = desktopPrefs.enabled && desktopPrefs.hideFloatingBallWhenConnected && desktopStatus === 'connected'
+  const showBall = Boolean(currentTrack) && !onPlayerPage && !inConsole && !hiddenByDesktopIsland
   const themeColor = useAlbumThemeColor(showBall && isPlaying ? currentTrack?.albumPic : undefined)
   // 悬浮球可拖动；开始拖动时收起播放器
   const [open, setOpen] = useState(false)

@@ -11,6 +11,7 @@ import { useMusicActions, useMusicClockStore, useMusicLyrics, useMusicPlayback, 
 import { useSongChorus } from '@/contexts/song-chorus'
 import { useCachedSongMetaTranslation } from '@/contexts/song-meta-translations'
 import { dismissIslandAlert, pushIslandAlert, useIslandActivity } from '@/contexts/topbar-island'
+import { useDesktopIslandPrefs, useDesktopIslandRuntime } from '@/hooks/use-desktop-island-pref'
 import { usePathname } from '@/i18n/navigation'
 import { getLyricLineVocalStart } from '@/lib/lyrics/line-utils'
 import { lyricGlowAt } from '@/lib/lyrics/lyric-glow'
@@ -49,15 +50,25 @@ function trackTitle(track: MusicTrack, translatedTitle?: string | null, translat
  * 右侧律动条跟随节拍；副歌段胶囊描边发光，颜色随此刻在唱的歌词（强调短语的颜色、这一行情绪的辉光色），没有时取封面主色，唱到强调或点题句时辉光范围更大；切歌时短暂显示封面与歌名（不显示导语、热评等句子，岛上只放歌词）；
  * 暂停后（本页播放过时）变成封面 + 暂停那一刻的那句歌词（静态文字，间奏、开唱前或没有歌词时为歌名）+ 播放键，宽度收到正好放下文字（不超过播放时的宽度），点按继续；
  * 点按展开与悬浮球相同的播放器弹层（从胶囊下方弹出）。播放器页本身就是完整播放器，不显示；
- * 悬浮球的弹层开着时同样不显示（待命，岛收起成没有音乐时的样子），关上后再出现
+ * 悬浮球的弹层开着时同样不显示（待命，岛收起成没有音乐时的样子），关上后再出现。
+ *
+ * 【双端同步维护约定】
+ * 网页音乐灵动岛与 macOS 原生系统灵动岛（`macos-island/Sources/NeoBlogIsland/`）保持行为、排版、动效与交互 1:1 同构。
+ * 一旦在此处或歌词/迷你播放器侧新增或修改任何特性（新状态、新交互、新视觉动效、新配置项等），必须同步在：
+ * 1. 桥接协议层：`web/src/components/common/desktop-island-bridge.tsx` 与 `macos-island/Sources/NeoBlogIsland/Models/IslandModels.swift`
+ * 2. Swift 状态与视图层：`macos-island/Sources/NeoBlogIsland/Services/IslandStore.swift` 及 `Views/` 下对应视图
+ * 一并实现，禁止只改单边导致双端行为割裂。
  */
 export function MusicIsland({ settings }: { settings: IslandSettings }) {
   const t = useTranslations('TopbarIsland')
   const { currentTrack, isPlaying } = useMusicPlayback()
   const { play } = useMusicActions()
   const onPlayerPage = usePathname() === '/music'
-  // 悬浮球的弹层开着：歌词与特效都在弹层里，岛上不再重复显示
+  // 悬浮球的弹层开着，或本机已连接桌面系统灵动岛且配置了避让：歌词与特效已在另一处展示，网页顶栏岛不再重复显示
   const floatingOpen = useMiniPlayerHolding('floating')
+  const desktopPrefs = useDesktopIslandPrefs()
+  const { status: desktopStatus } = useDesktopIslandRuntime()
+  const islandStandby = floatingOpen || (desktopPrefs.enabled && desktopPrefs.hideWebIslandWhenConnected && desktopStatus === 'connected')
   // 本页播放过才在暂停后保留：刚打开页面时歌单已恢复到上次的曲目，但读者还没听，不应常驻
   const [hasPlayed, setHasPlayed] = useState(false)
   if (isPlaying && !hasPlayed)
@@ -73,8 +84,8 @@ export function MusicIsland({ settings }: { settings: IslandSettings }) {
   }, [isPlaying])
   // 刚暂停的一小段时间内仍按播放中显示
   const showPlaying = isPlaying || (hasPlayed && !pauseSettled)
-  const coverAccent = useCoverAccent(isPlaying && settings.musicChorus && !floatingOpen ? currentTrack?.albumPic : undefined)
-  const inChorus = useInChorus(isPlaying && settings.musicChorus && !floatingOpen ? currentTrack?.id ?? null : null)
+  const coverAccent = useCoverAccent(isPlaying && settings.musicChorus && !islandStandby ? currentTrack?.albumPic : undefined)
+  const inChorus = useInChorus(isPlaying && settings.musicChorus && !islandStandby ? currentTrack?.id ?? null : null)
   const glow = useLyricGlow(inChorus, coverAccent)
   const lyricStarted = useLyricStarted(isPlaying)
   const pausedLine = usePausedLine(!showPlaying && hasPlayed)
@@ -96,7 +107,7 @@ export function MusicIsland({ settings }: { settings: IslandSettings }) {
         feature: 'music',
         hideable: true,
         sessionKey: String(currentTrack.id),
-        standby: floatingOpen,
+        standby: islandStandby,
         priority: PLAYING_PRIORITY,
         label: t('music_playing', { title }),
         compact: <MusicCompact beat={settings.musicBeat} title={title} />,
@@ -114,7 +125,7 @@ export function MusicIsland({ settings }: { settings: IslandSettings }) {
       feature: 'musicPaused',
       hideable: true,
       sessionKey: String(currentTrack.id),
-      standby: floatingOpen,
+      standby: islandStandby,
       priority: PAUSED_PRIORITY,
       label: t('music_paused', { title }),
       // 与播放中是同一个组件：模糊封面底与封面不重新挂载，只换中间的文字与右侧的播放键，宽度随之以弹簧收放
@@ -122,7 +133,7 @@ export function MusicIsland({ settings }: { settings: IslandSettings }) {
       minimal: <AlbumNavIcon />,
       onPress: play,
     }
-  }, [compactModule, currentTrack, floatingOpen, glow, hasPlayed, onPlayerPage, pausedLine, play, playerModule, settings.musicBeat, showPlaying, t, title])
+  }, [compactModule, currentTrack, glow, hasPlayed, islandStandby, onPlayerPage, pausedLine, play, playerModule, settings.musicBeat, showPlaying, t, title])
   useIslandActivity(activity)
 
   // 开始播放或切歌时短暂显示歌名（同一首只提示一次）；歌词已经在唱（如从中段继续播放）时不提示，直接显示歌词。
@@ -132,7 +143,7 @@ export function MusicIsland({ settings }: { settings: IslandSettings }) {
     if (!isPlaying || !currentTrack || onPlayerPage || peekedRef.current === currentTrack.id)
       return
     peekedRef.current = currentTrack.id
-    if (lyricStarted || floatingOpen)
+    if (lyricStarted || islandStandby)
       return
     pushIslandAlert({
       key: PEEK_KEY,
@@ -149,11 +160,11 @@ export function MusicIsland({ settings }: { settings: IslandSettings }) {
     // lyricStarted、floatingOpen 不放进依赖：只在切歌、开始播放时判断一次，歌词开唱后由下面的 effect 撤下提示
   }, [currentTrack, isPlaying, onPlayerPage, t])
 
-  // 歌词一开唱、或打开了悬浮球的弹层，就撤下切歌提示
+  // 歌词一开唱、或打开了悬浮球的弹层 / 交由桌面灵动岛展示，就撤下切歌提示
   useEffect(() => {
-    if (lyricStarted || floatingOpen)
+    if (lyricStarted || islandStandby)
       dismissIslandAlert(PEEK_KEY)
-  }, [currentTrack?.id, floatingOpen, lyricStarted])
+  }, [currentTrack?.id, islandStandby, lyricStarted])
 
   return null
 }

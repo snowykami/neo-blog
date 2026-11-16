@@ -5,11 +5,13 @@ import Script from 'next/script'
 import { useEffect, useState } from 'react'
 import ScrollToTopButton from '@/components/common/scroll-to-top'
 import { useSiteInfo } from '@/contexts/site-info-context'
+import { useDesktopIslandPrefs } from '@/hooks/use-desktop-island-pref'
 import { usePathname } from '@/i18n/navigation'
 
 // 播放器体积不小（歌词引擎、封面取色、舞台特效），不挡首屏：空闲时再挂载，
 // 功能不变——歌单加载与播放进度恢复照常执行，只比之前晚一两秒
 const MusicPlayer = dynamic(() => import('./music-player').then(m => m.MusicPlayer), { ssr: false })
+const DesktopIslandBridge = dynamic(() => import('./desktop-island-bridge').then(m => m.DesktopIslandBridge), { ssr: false })
 
 /** 首屏绘制完成、浏览器空闲后再挂载重组件 */
 function useIdleMounted() {
@@ -32,6 +34,7 @@ export function FloatingWidgets() {
   const { siteInfo } = useSiteInfo()
   const pathname = usePathname()
   const playerReady = useIdleMounted()
+  const desktopIslandPrefs = useDesktopIslandPrefs()
   // 第三方脚本仅在前台加载，且可在后台关闭；空闲时再加载，避免阻塞首屏
   const isConsole = pathname?.startsWith('/console')
   // 歌单只来自后台配置的网易云歌单：没配好（API 地址或歌单为空）时不挂载播放器，也不发任何歌单请求
@@ -47,6 +50,7 @@ export function FloatingWidgets() {
       <ScrollToTopButton positionClass={quickNavPosition} />
       {/* 未配置歌单时不显示音乐播放器；空闲挂载，避免播放器进首屏关键路径 */}
       {musicEnabled && playerReady && <MusicPlayer />}
+      {musicEnabled && playerReady && desktopIslandPrefs.enabled && <DesktopIslandBridge />}
     </>
   )
 }
