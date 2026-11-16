@@ -32,13 +32,13 @@ RUN set -eu; \
   mkdir -p /out/bin /out/share/licenses/ffmpeg; \
   case "$(printf '%s' "${ENABLE_FFMPEG}" | tr '[:upper:]' '[:lower:]')" in \
     1|true|yes|on) \
-      apk --no-cache add build-base pkgconf curl tar xz; \
+      apk --no-cache add build-base pkgconf curl tar xz zlib-dev; \
       if [ "$(uname -m)" = "x86_64" ]; then apk --no-cache add nasm; fi; \
       mkdir -p /tmp/ffsrc; \
       (curl -fsSL "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz" -o /tmp/ffmpeg.tar.xz && tar -xf /tmp/ffmpeg.tar.xz -C /tmp/ffsrc --strip-components=1) || \
       (curl -fsSL "https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${FFMPEG_VERSION}.tar.gz" -o /tmp/ffmpeg.tar.gz && tar -xf /tmp/ffmpeg.tar.gz -C /tmp/ffsrc --strip-components=1); \
       cd /tmp/ffsrc; \
-      FF_CFG="--prefix=/tmp/ffbuild --disable-gpl --disable-nonfree --disable-everything --disable-network --disable-autodetect --disable-doc --disable-debug --disable-ffplay --disable-ffprobe --enable-small --enable-ffmpeg --enable-avcodec --enable-avformat --enable-avfilter --enable-swresample --enable-avutil --enable-protocol=file,pipe --enable-demuxer=aac,flac,matroska,mov,mp3,ogg,s16le,wav --enable-decoder=aac,aac_latm,alac,flac,mp3,mp3float,opus,pcm_f32le,pcm_f64le,pcm_s16be,pcm_s16le,pcm_s24be,pcm_s24le,pcm_s32le,vorbis --enable-parser=aac,aac_latm,flac,mpegaudio,opus,vorbis --enable-filter=abuffer,abuffersink,aformat,anull,aresample --enable-encoder=pcm_f32le --enable-muxer=f32le"; \
+      FF_CFG="--prefix=/tmp/ffbuild --disable-gpl --disable-nonfree --disable-everything --disable-network --disable-autodetect --disable-doc --disable-debug --disable-ffplay --disable-ffprobe --enable-small --enable-ffmpeg --enable-avcodec --enable-avformat --enable-avfilter --enable-swresample --enable-avutil --enable-zlib --enable-protocol=fd,file,pipe --enable-demuxer=aac,flac,matroska,mov,mp3,ogg,pcm_f32le,pcm_s16le,wav --enable-decoder=aac,aac_latm,alac,flac,mp3,mp3float,opus,pcm_f32le,pcm_f64le,pcm_s16be,pcm_s16le,pcm_s24be,pcm_s24le,pcm_s32le,vorbis --enable-parser=aac,aac_latm,flac,mpegaudio,opus,vorbis --enable-filter=aformat,anull,aresample --enable-encoder=pcm_f32le,pcm_s16le --enable-muxer=pcm_f32le,pcm_s16le,wav"; \
       ./configure ${FF_CFG}; \
       make -j"$(nproc)"; \
       cp ffmpeg /out/bin/ffmpeg; \
