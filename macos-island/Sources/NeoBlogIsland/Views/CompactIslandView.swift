@@ -262,7 +262,7 @@ struct CompactIslandContent: View {
         if useNotch {
             NotchMergedCompactView(store: store, metrics: metrics, coverNamespace: coverNamespace)
         } else {
-            FloatingCapsuleCompactView(store: store, coverNamespace: coverNamespace)
+            FloatingCapsuleCompactView(store: store, metrics: metrics, coverNamespace: coverNamespace)
         }
     }
 }
@@ -316,32 +316,42 @@ private struct NotchMergedCompactView: View {
 
 private struct FloatingCapsuleCompactView: View {
     let store: IslandStore
+    let metrics: ScreenNotchMetrics
     let coverNamespace: Namespace.ID
 
     var body: some View {
-        let playingStripWidth: CGFloat = 264
-        HStack(spacing: 8) {
+        let docked = store.isDockedInMenuBar
+        let barHeight = metrics.dockedCapsuleHeight
+        let capsuleHeight: CGFloat = docked ? barHeight : 36
+        let coverSize: CGFloat = docked ? max(16, barHeight - 6) : 24
+        let playingStripWidth: CGFloat = docked ? 216 : 264
+        let fontSize: CGFloat = docked ? (barHeight <= 24 ? 12.8 : 13.5) : 15.5
+        let hPadding: CGFloat = docked ? 7 : 10
+        let itemSpacing: CGFloat = docked ? 6 : 8
+
+        HStack(spacing: itemSpacing) {
             AlbumCoverView(
                 albumPicURL: store.track?.albumPic,
                 accent: store.accentColor,
                 isSpinning: store.showPlaying,
-                size: 24,
-                cornerRadius: 12
+                size: coverSize,
+                cornerRadius: coverSize * 0.5
             )
             .matchedGeometryEffect(id: "albumCover", in: coverNamespace)
 
             CompactCenterStageSlot(
                 store: store,
                 stripWidth: playingStripWidth,
-                stripHeight: 36,
-                baseFontSize: 15.5,
+                stripHeight: capsuleHeight,
+                baseFontSize: fontSize,
                 staticHorizontalPadding: 4
             )
 
             CompactTrailingSlotView(store: store)
+                .scaleEffect(docked ? 0.86 : 1.0)
         }
-        .padding(.horizontal, 10)
-        .frame(height: 36)
+        .padding(.horizontal, hPadding)
+        .frame(height: capsuleHeight)
     }
 }
 

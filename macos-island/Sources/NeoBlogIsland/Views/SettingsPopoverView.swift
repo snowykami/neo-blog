@@ -65,6 +65,20 @@ struct SettingsPopoverView: View {
                 .controlSize(.small)
             }
 
+            if store.hasCustomCapsulePosition {
+                HStack(spacing: 8) {
+                    Button("重置胶囊默认位置") {
+                        store.resetCapsulePosition()
+                    }
+                    .controlSize(.small)
+
+                    Button(store.isPositionLocked ? "解锁位置" : "锁定位置") {
+                        store.togglePositionLock()
+                    }
+                    .controlSize(.small)
+                }
+            }
+
             Divider()
 
             HStack {

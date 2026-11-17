@@ -97,11 +97,27 @@ final class IslandStore {
     var isExpanded: Bool = false
     var isHovering: Bool = false
     var showPlaylistOverlay: Bool = false
+    var isDockedInMenuBar: Bool = false
+    var expandsUpward: Bool = false
+    var isDraggingCapsule: Bool = false
+    var hasCustomCapsulePosition: Bool = false
+    var isPositionLocked: Bool = UserDefaults.standard.bool(forKey: "NeoBlogIsland.positionLocked")
     var startupBannerText: String? = "桌面灵动岛已就绪 · 等待博客播放音乐"
     var hiddenTrackId: Int? = nil
 
     @ObservationIgnored var onRequestKeyFocus: (() -> Void)?
     @ObservationIgnored var onReleaseKeyFocus: ((Bool) -> Void)?
+    @ObservationIgnored var onResetCapsulePosition: (() -> Void)?
+    @ObservationIgnored var onLayoutTriggerChanged: (() -> Void)?
+    @ObservationIgnored private var lastDragEndedAt: Date = .distantPast
+
+    var shouldSuppressTapAfterDrag: Bool {
+        Date().timeIntervalSince(lastDragEndedAt) < 0.18
+    }
+
+    func markDragEnded() {
+        lastDragEndedAt = Date()
+    }
 
     func requestKeyFocus() {
         onRequestKeyFocus?()
@@ -109,6 +125,15 @@ final class IslandStore {
 
     func releaseKeyFocus(restorePreviousApp: Bool = true) {
         onReleaseKeyFocus?(restorePreviousApp)
+    }
+
+    func resetCapsulePosition() {
+        onResetCapsulePosition?()
+    }
+
+    func togglePositionLock() {
+        isPositionLocked.toggle()
+        UserDefaults.standard.set(isPositionLocked, forKey: "NeoBlogIsland.positionLocked")
     }
 
     var shouldDisplayIsland: Bool {
@@ -740,6 +765,7 @@ final class IslandStore {
         currentIndex = session.currentIndex
 
         if let st = session.state {
+            let formChanged = (config.formMode != st.config.formMode)
             withAnimation(.spring(duration: 0.36, bounce: 0.22)) {
                 webVisible = st.visible
                 showPlaying = st.showPlaying
@@ -748,6 +774,9 @@ final class IslandStore {
                 if !st.config.expandable && isExpanded {
                     isExpanded = false
                 }
+            }
+            if formChanged {
+                onLayoutTriggerChanged?()
             }
             pendingStep = st.pendingStep
             lyricStatus = st.lyricStatus

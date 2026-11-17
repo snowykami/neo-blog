@@ -3,16 +3,39 @@ import SwiftUI
 
 /// 读取当前屏幕的物理刘海（摄像头外壳）尺寸与安全区信息，纯使用 Apple 公开 API
 struct ScreenNotchMetrics: Equatable {
+    let displayID: CGDirectDisplayID
     let screenFrame: NSRect
+    let visibleFrame: NSRect
     let hasPhysicalNotch: Bool
     let notchWidth: CGFloat
     let notchHeight: CGFloat
     let menuBarHeight: CGFloat
 
-    static func current(for screen: NSScreen? = NSScreen.main) -> ScreenNotchMetrics {
+    /// 嵌入系统状态栏/菜单栏时的紧凑胶囊高度（无刘海屏 24pt 菜单栏下为 22pt，刘海屏两侧菜单栏下为 28~30pt）
+    var dockedCapsuleHeight: CGFloat {
+        min(30, max(22, menuBarHeight - (hasPhysicalNotch ? 4 : 2)))
+    }
+
+    static func displayID(of screen: NSScreen) -> CGDirectDisplayID {
+        (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID) ?? 0
+    }
+
+    static func screen(forDisplayID id: CGDirectDisplayID) -> NSScreen? {
+        guard id != 0 else { return nil }
+        return NSScreen.screens.first { displayID(of: $0) == id }
+    }
+
+    static func screen(containing point: NSPoint) -> NSScreen? {
+        NSScreen.screens.first { NSMouseInRect(point, $0.frame, false) }
+            ?? NSScreen.screens.first { $0.frame.insetBy(dx: -2, dy: -2).contains(point) }
+    }
+
+    static func current(for screen: NSScreen? = NSScreen.main ?? NSScreen.screens.first) -> ScreenNotchMetrics {
         guard let screen else {
             return ScreenNotchMetrics(
+                displayID: 0,
                 screenFrame: NSRect(x: 0, y: 0, width: 1440, height: 900),
+                visibleFrame: NSRect(x: 0, y: 40, width: 1440, height: 836),
                 hasPhysicalNotch: false,
                 notchWidth: 188,
                 notchHeight: 32,
@@ -20,14 +43,18 @@ struct ScreenNotchMetrics: Equatable {
             )
         }
 
+        let id = displayID(of: screen)
         let topSafeInset = screen.safeAreaInsets.top
-        let menuThickness = NSStatusBar.system.thickness
+        let menuFromFrame = max(0, screen.frame.maxY - screen.visibleFrame.maxY)
+        let menuThickness = max(NSStatusBar.system.thickness, menuFromFrame)
         if topSafeInset > 0,
            let leftAux = screen.auxiliaryTopLeftArea,
            let rightAux = screen.auxiliaryTopRightArea {
             let deadZoneWidth = max(160, rightAux.minX - leftAux.maxX)
             return ScreenNotchMetrics(
+                displayID: id,
                 screenFrame: screen.frame,
+                visibleFrame: screen.visibleFrame,
                 hasPhysicalNotch: true,
                 notchWidth: deadZoneWidth,
                 notchHeight: max(topSafeInset, 32),
@@ -36,7 +63,9 @@ struct ScreenNotchMetrics: Equatable {
         }
 
         return ScreenNotchMetrics(
+            displayID: id,
             screenFrame: screen.frame,
+            visibleFrame: screen.visibleFrame,
             hasPhysicalNotch: false,
             notchWidth: 188, // 模拟刘海模式下的基准宽度
             notchHeight: 32,
