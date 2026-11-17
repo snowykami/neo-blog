@@ -723,4 +723,143 @@ struct BridgeAndEngineTests {
         let s1 = ambience.smoothAmbience(date: t0.addingTimeInterval(0.05), tintHex: "#ff6f91", tintAlpha: 0.25, vocalShiftRatio: 0.07)
         #expect(s1.shiftRatio > -0.065 && s1.shiftRatio < -0.02)
     }
+
+    @Test("应用自更新：Nightly / 正式版通道自动识别、版本与提交比对、SHA256 摘要解析及退出后替换脚本语法校验")
+    func appUpdateChannelAndScriptVerification() throws {
+        let appURL = URL(fileURLWithPath: "/Applications/NeoBlogIsland.app")
+
+        // 1. 当前运行包通道自动推断
+        let stableInstalled = InstalledAppVersion.current(
+            info: ["CFBundleShortVersionString": "0.2.0", "CFBundleVersion": "12"],
+            bundleURL: appURL
+        )
+        #expect(stableInstalled.channel == .stable)
+        #expect(stableInstalled.displayBadge == "v0.2.0")
+
+        let nightlyInstalled = InstalledAppVersion.current(
+            info: ["CFBundleShortVersionString": "0.2.0-nightly.46ab33f", "CFBundleVersion": "14"],
+            bundleURL: appURL
+        )
+        #expect(nightlyInstalled.channel == .nightly)
+        #expect(nightlyInstalled.commitSHA == "46ab33f")
+        #expect(nightlyInstalled.displayBadge == "Nightly · 46ab33f")
+
+        // 2. GitHub Releases JSON 解析（过滤非灵动岛 tag，准确提取最新正式版与 Nightly）
+        let releasesJSON = Data(##"""
+        [
+          {
+            "tag_name": "v2.5.0",
+            "name": "Blog Backend v2.5.0",
+            "draft": false,
+            "prerelease": false,
+            "assets": []
+          },
+          {
+            "tag_name": "island-nightly",
+            "name": "NeoBlogIsland Nightly (2026-11-17 · 46ab33f)",
+            "body": "### NeoBlogIsland Nightly 自动构建\n\n- **版本标识**：`0.2.0-nightly.46ab33f`（Build `#14`）\n- **对应提交**：`46ab33f` (46ab33f61a72cf6be4a2a97c0112312961b67eb8)\n",
+            "draft": false,
+            "prerelease": true,
+            "target_commitish": "46ab33f61a72cf6be4a2a97c0112312961b67eb8",
+            "published_at": "2026-11-17T05:29:29Z",
+            "assets": [
+              {
+                "name": "NeoBlogIsland-universal.app.zip",
+                "size": 1485763,
+                "updated_at": "2026-11-17T16:45:41Z",
+                "browser_download_url": "https://github.com/snowykami/neo-blog/releases/download/island-nightly/NeoBlogIsland-universal.app.zip"
+              },
+              {
+                "name": "SHA256SUMS.txt",
+                "size": 192,
+                "updated_at": "2026-11-17T16:45:40Z",
+                "browser_download_url": "https://github.com/snowykami/neo-blog/releases/download/island-nightly/SHA256SUMS.txt"
+              }
+            ]
+          },
+          {
+            "tag_name": "island-v0.1.9",
+            "name": "NeoBlogIsland v0.1.9",
+            "draft": false,
+            "prerelease": false,
+            "assets": [
+              {
+                "name": "NeoBlogIsland-universal.app.zip",
+                "size": 1300000,
+                "browser_download_url": "https://example.com/v0.1.9.app.zip"
+              }
+            ]
+          },
+          {
+            "tag_name": "island-v0.2.0",
+            "name": "NeoBlogIsland v0.2.0",
+            "draft": false,
+            "prerelease": false,
+            "assets": [
+              {
+                "name": "NeoBlogIsland-universal.app.zip",
+                "size": 1419038,
+                "browser_download_url": "https://example.com/v0.2.0.app.zip"
+              },
+              {
+                "name": "SHA256SUMS.txt",
+                "size": 192,
+                "browser_download_url": "https://example.com/SHA256SUMS.txt"
+              }
+            ]
+          }
+        ]
+        """##.utf8)
+
+        let list = try JSONDecoder().decode([GitHubReleaseDTO].self, from: releasesJSON)
+        let latestStable = AppUpdateService.selectLatestStableRelease(from: list)
+        #expect(latestStable?.tagName == "island-v0.2.0")
+        #expect(latestStable?.displayVersion == "v0.2.0")
+
+        let nightlyInfo = AppUpdateService.parseNightlyRelease(list[1])
+        #expect(nightlyInfo?.displayVersion == "0.2.0-nightly.46ab33f")
+        #expect(nightlyInfo?.commitSHA == "46ab33f61a72cf6be4a2a97c0112312961b67eb8")
+
+        // 3. 同通道升级与跨通道切换判定
+        #expect(AppUpdateService.evaluateUpdate(installed: stableInstalled, remote: latestStable!, targetChannel: .stable).available == false)
+        let olderStable = InstalledAppVersion.current(
+            info: ["CFBundleShortVersionString": "0.1.9"],
+            bundleURL: appURL
+        )
+        #expect(AppUpdateService.evaluateUpdate(installed: olderStable, remote: latestStable!, targetChannel: .stable) == (true, false))
+
+        // Nightly 短 SHA 与远端 40 位 SHA 前缀一致时视为已是最新
+        #expect(AppUpdateService.evaluateUpdate(installed: nightlyInstalled, remote: nightlyInfo!, targetChannel: .nightly).available == false)
+        let olderNightly = InstalledAppVersion.current(
+            info: ["CFBundleShortVersionString": "0.2.0-nightly.10c2d92"],
+            bundleURL: appURL
+        )
+        #expect(AppUpdateService.evaluateUpdate(installed: olderNightly, remote: nightlyInfo!, targetChannel: .nightly) == (true, false))
+
+        // 跨通道切换（Nightly -> 正式版 / 正式版 -> Nightly）
+        #expect(AppUpdateService.evaluateUpdate(installed: nightlyInstalled, remote: latestStable!, targetChannel: .stable) == (true, true))
+        #expect(AppUpdateService.evaluateUpdate(installed: stableInstalled, remote: nightlyInfo!, targetChannel: .nightly) == (true, true))
+
+        // 4. SHA256SUMS.txt 解析与守护替换脚本 POSIX sh 语法校验
+        let sumsText = """
+        a1b2c3d4e5f60718293a4b5c6d7e8f90123456789abcdef0123456789abcdef0  NeoBlogIsland-universal.dmg
+        0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef  NeoBlogIsland-universal.app.zip
+        """
+        #expect(
+            AppUpdateService.parseSHA256Sums(sumsText, assetName: "NeoBlogIsland-universal.app.zip")
+                == "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        )
+
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("UpdaterScriptTest-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        let scriptURL = try AppUpdateService.writeDetachedUpdaterScript(in: tempDir)
+
+        let lintProc = Process()
+        lintProc.executableURL = URL(fileURLWithPath: "/bin/sh")
+        lintProc.arguments = ["-n", scriptURL.path]
+        try lintProc.run()
+        lintProc.waitUntilExit()
+        #expect(lintProc.terminationStatus == 0)
+    }
 }

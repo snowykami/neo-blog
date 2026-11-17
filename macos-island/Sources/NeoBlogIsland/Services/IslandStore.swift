@@ -75,6 +75,7 @@ final class IslandStore {
     @ObservationIgnored private let networkServicesEnabled: Bool
     @ObservationIgnored let bridgeServer = LocalBridgeServer()
     let peerService: PeerContinuityService
+    let updater: AppUpdateService
     let debrisEngine = DebrisEngine()
     let stageSpringEngine = StageSpringEngine()
     let compactStageParticles = StageParticlesEngine(scale: 0.7, maxParticles: 20)
@@ -215,6 +216,7 @@ final class IslandStore {
     init(startNetworkServices: Bool = true, peerService: PeerContinuityService? = nil) {
         self.networkServicesEnabled = startNetworkServices
         self.peerService = peerService ?? PeerContinuityService()
+        self.updater = AppUpdateService(startBackgroundCheck: startNetworkServices)
         setupPeerCallbacks()
         if startNetworkServices {
             setupBridge()

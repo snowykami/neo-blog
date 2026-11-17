@@ -14,8 +14,17 @@ struct SettingsPopoverView: View {
                     .foregroundStyle(store.connectedOrigins.isEmpty ? .secondary : store.accentColor)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("neo-blog 桌面灵动岛")
-                        .font(.system(size: 13.5, weight: .bold))
+                    HStack(spacing: 6) {
+                        Text("neo-blog 桌面灵动岛")
+                            .font(.system(size: 13.5, weight: .bold))
+
+                        Text(store.updater.installed.displayBadge)
+                            .font(.system(size: 10, weight: .medium).monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 5.5)
+                            .padding(.vertical, 1.5)
+                            .background(Color.primary.opacity(0.07), in: Capsule())
+                    }
                     Text("纯显示与遥控端 · 监听 127.0.0.1:\(store.boundPort)")
                         .font(.system(size: 11).monospacedDigit())
                         .foregroundStyle(.secondary)
@@ -91,6 +100,10 @@ struct SettingsPopoverView: View {
 
             Divider()
 
+            AppUpdatePopoverSection(updater: store.updater)
+
+            Divider()
+
             HStack {
                 Text(hasPhysicalNotch ? "屏幕：内建刘海屏" : "屏幕：无刘海显示器")
                     .font(.system(size: 11))
@@ -104,6 +117,188 @@ struct SettingsPopoverView: View {
         }
         .padding(14)
         .frame(width: 326)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private struct AppUpdatePopoverSection: View {
+    @Bindable var updater: AppUpdateService
+
+    private var isBusyInstalling: Bool {
+        switch updater.state {
+        case .downloading, .verifying, .restarting:
+            return true
+        default:
+            return false
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .foregroundStyle(updater.hasAvailableUpdate ? Color.accentColor : .secondary)
+                Text("版本更新")
+                    .font(.system(size: 12, weight: .semibold))
+                Spacer()
+                Picker("更新通道", selection: $updater.channelSelection) {
+                    ForEach(UpdateChannel.allCases, id: \.self) { ch in
+                        Text(ch.label).tag(ch)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .controlSize(.mini)
+                .frame(width: 118)
+                .disabled(isBusyInstalling)
+            }
+
+            switch updater.state {
+            case .idle:
+                HStack(spacing: 6) {
+                    Text("当前：\(updater.installed.displayBadge)")
+                        .font(.system(size: 11).monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Spacer()
+                    Button("检查更新") {
+                        updater.checkForUpdates(silent: false)
+                    }
+                    .controlSize(.small)
+                }
+
+            case .checking:
+                HStack(spacing: 6) {
+                    ProgressView()
+                        .controlSize(.mini)
+                    Text("正在检查 GitHub \(updater.selectedChannel.label)最新构建…")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+
+            case .upToDate(let versionLabel):
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(Color.green)
+                        .frame(width: 6, height: 6)
+                    Text("已是最新（\(versionLabel)）")
+                        .font(.system(size: 11).monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Spacer()
+                    Button("重新检查") {
+                        updater.checkForUpdates(silent: false)
+                    }
+                    .controlSize(.mini)
+                }
+
+            case .available(let release, let isChannelSwitch):
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(Color.accentColor)
+                            .frame(width: 6, height: 6)
+                        Text(isChannelSwitch ? "可切换至 \(release.displayVersion)" : "发现新版本：\(release.displayVersion)")
+                            .font(.system(size: 11.5, weight: .medium).monospacedDigit())
+                            .lineLimit(1)
+                        Spacer()
+                        if release.zipSizeBytes > 0 {
+                            Text(Self.formatByteCount(release.zipSizeBytes))
+                                .font(.system(size: 10.5).monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    HStack(spacing: 8) {
+                        Button("下载并重启安装") {
+                            updater.downloadAndInstall(release)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+
+                        if let htmlURL = release.htmlURL {
+                            Button("发布说明") {
+                                NSWorkspace.shared.open(htmlURL)
+                            }
+                            .controlSize(.small)
+                        }
+                    }
+                }
+
+            case .downloading(_, let progress, let downloaded, let total):
+                VStack(alignment: .leading, spacing: 5) {
+                    ProgressView(value: max(0, min(1, progress)))
+                        .controlSize(.small)
+                    HStack(spacing: 6) {
+                        let pct = Int(round(progress * 100))
+                        let sizeDetail = total > 0
+                            ? "\(Self.formatByteCount(downloaded)) / \(Self.formatByteCount(total))"
+                            : Self.formatByteCount(downloaded)
+                        Text("正在下载更新包 \(pct)%（\(sizeDetail)）…")
+                            .font(.system(size: 10.5).monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        Spacer()
+                        Button("取消") {
+                            updater.cancelActiveDownload()
+                        }
+                        .controlSize(.mini)
+                    }
+                }
+
+            case .verifying:
+                HStack(spacing: 6) {
+                    ProgressView()
+                        .controlSize(.mini)
+                    Text("正在校验 SHA-256 摘要并解压应用包…")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+
+            case .restarting:
+                HStack(spacing: 6) {
+                    ProgressView()
+                        .controlSize(.mini)
+                    Text("校验通过，正在退出并自动替换重启…")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color.accentColor)
+                    Spacer()
+                }
+
+            case .failed(let message, let fallbackURL):
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(message)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack(spacing: 8) {
+                        Button("重试") {
+                            updater.checkForUpdates(silent: false)
+                        }
+                        .controlSize(.mini)
+
+                        if let url = fallbackURL {
+                            Button("打开 GitHub 发布页") {
+                                NSWorkspace.shared.open(url)
+                            }
+                            .controlSize(.mini)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static func formatByteCount(_ bytes: Int64) -> String {
+        let mb = Double(bytes) / (1024.0 * 1024.0)
+        if mb >= 1.0 {
+            return String(format: "%.1f MB", mb)
+        }
+        let kb = max(1, Int(round(Double(bytes) / 1024.0)))
+        return "\(kb) KB"
     }
 }
 

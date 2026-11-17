@@ -79,10 +79,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let hasNotch = ScreenNotchMetrics.current().hasPhysicalNotch
         popover.behavior = .transient
-        popover.contentSize = NSSize(width: 340, height: 360)
-        popover.contentViewController = NSHostingController(
+        let hostingController = NSHostingController(
             rootView: SettingsPopoverView(store: store, hasPhysicalNotch: hasNotch)
         )
+        hostingController.sizingOptions = [.preferredContentSize]
+        popover.contentViewController = hostingController
     }
 
     @objc private func toggleSettingsPopover(_ sender: AnyObject?) {

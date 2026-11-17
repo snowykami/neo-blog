@@ -72,6 +72,8 @@ jobs:
         env:
           APP_VERSION: ${{ steps.meta.outputs.app_version }}
           BUILD_NUMBER: ${{ github.run_number }}
+          GIT_COMMIT: ${{ steps.meta.outputs.short_sha }}
+          RELEASE_CHANNEL: ${{ steps.meta.outputs.is_nightly == 'true' && 'nightly' || 'stable' }}
         run: |
           ./macos-island/scripts/build-app.sh --release --universal --package
 

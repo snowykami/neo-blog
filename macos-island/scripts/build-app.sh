@@ -33,6 +33,14 @@ done
 APP_VERSION="${APP_VERSION:-0.2.0}"
 BUILD_NUMBER="${BUILD_NUMBER:-1}"
 CODESIGN_IDENTITY="${CODESIGN_IDENTITY:--}"
+GIT_COMMIT="${GIT_COMMIT:-$(git rev-parse --short=7 HEAD 2>/dev/null || echo unknown)}"
+if [[ -z "${RELEASE_CHANNEL:-}" ]]; then
+    if [[ "$APP_VERSION" == *"-nightly"* ]]; then
+        RELEASE_CHANNEL="nightly"
+    else
+        RELEASE_CHANNEL="stable"
+    fi
+fi
 
 APP_DIR="dist/NeoBlogIsland.app"
 CONTENTS_DIR="$APP_DIR/Contents"
@@ -87,6 +95,12 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
     <string>${APP_VERSION}</string>
     <key>CFBundleVersion</key>
     <string>${BUILD_NUMBER}</string>
+    <key>NeoBlogReleaseChannel</key>
+    <string>${RELEASE_CHANNEL}</string>
+    <key>NeoBlogGitCommit</key>
+    <string>${GIT_COMMIT}</string>
+    <key>NeoBlogGitHubRepo</key>
+    <string>snowykami/neo-blog</string>
     <key>LSMinimumSystemVersion</key>
     <string>15.0</string>
     <key>LSUIElement</key>
