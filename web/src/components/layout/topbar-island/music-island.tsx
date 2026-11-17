@@ -61,7 +61,7 @@ function trackTitle(track: MusicTrack, translatedTitle?: string | null, translat
  */
 export function MusicIsland({ settings }: { settings: IslandSettings }) {
   const t = useTranslations('TopbarIsland')
-  const { currentTrack, isPlaying } = useMusicPlayback()
+  const { currentTrack, isPlaying, hasPlayed: sessionHasPlayed } = useMusicPlayback()
   const { play } = useMusicActions()
   const onPlayerPage = usePathname() === '/music'
   // 悬浮球的弹层开着，或本机已连接桌面系统灵动岛且配置了避让：歌词与特效已在另一处展示，网页顶栏岛不再重复显示
@@ -69,11 +69,13 @@ export function MusicIsland({ settings }: { settings: IslandSettings }) {
   const desktopPrefs = useDesktopIslandPrefs()
   const { status: desktopStatus } = useDesktopIslandRuntime()
   const islandStandby = floatingOpen || (desktopPrefs.enabled && desktopPrefs.hideWebIslandWhenConnected && desktopStatus === 'connected')
-  // 本页播放过才在暂停后保留：刚打开页面时歌单已恢复到上次的曲目，但读者还没听，不应常驻
-  const [hasPlayed, setHasPlayed] = useState(false)
-  if (isPlaying && !hasPlayed)
-    setHasPlayed(true)
-  const [pauseSettled, setPauseSettled] = useState(false)
+  // 本次会话播放过才在暂停后保留：刚打开页面时歌单已恢复到上次的曲目，但读者还没听，不应常驻；
+  // 从后台或播放器页回到前台时 Navbar 会重挂载，沿用会话级的 hasPlayed
+  const [localHasPlayed, setLocalHasPlayed] = useState(false)
+  const hasPlayed = Boolean(sessionHasPlayed) || localHasPlayed
+  if (isPlaying && !localHasPlayed)
+    setLocalHasPlayed(true)
+  const [pauseSettled, setPauseSettled] = useState(() => !isPlaying)
   useEffect(() => {
     if (isPlaying) {
       setPauseSettled(false)

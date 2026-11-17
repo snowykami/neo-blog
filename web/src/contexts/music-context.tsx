@@ -85,6 +85,8 @@ export interface MusicPlaybackValue {
   currentIndex: number | null
   currentTrack: MusicTrack | null
   isPlaying: boolean
+  /** 本次浏览器会话内是否已经实际开始播放过（跨路由组与 [locale] 软跳转保留） */
+  hasPlayed: boolean
   playMode: PlayMode
   duration: number | null
   playlistComplete: boolean
@@ -515,22 +517,97 @@ function useLazyModule<T>(load: () => Promise<T>, enabled: boolean): T | null {
   return loaded
 }
 
+// 浏览器会话级单例状态：根布局位于 app/[locale]/layout.tsx，前后台软路由若因语言偏好与地址前缀不一致触发 [locale] 段切换，
+// MusicProvider 会被卸载重建而 window 不刷新。将底层 Audio 与播放会话放在模块级复用，保证重挂载无缝接管同一音轨、不产生孤儿双播
+const audioRef: { current: HTMLAudioElement | null } = { current: null }
+const pendingPlayRef = { current: false }
+// 待恢复的播放进度：仅当音频元数据就绪且当前曲目 id 一致时才应用，避免进度被应用到别的曲目上
+const pendingSeekRef: { current: { trackId: number, time: number } | null } = { current: null }
+const prevTrackIdRef: { current: number | null } = { current: null }
+const playlistRef: { current: MusicTrack[] } = { current: [] }
+const currentIndexRef: { current: number | null } = { current: null }
+const playModeRef: { current: PlayMode } = { current: 'repeat-all' }
+const playlistStateRef: { current: 'pending' | 'loaded' | 'failed' } = { current: 'pending' }
+const playlistCompleteRef = { current: true }
+const deferredPlaylistRef: { current: (() => Promise<MusicTrack[]>) | null } = { current: null }
+const playlistLoadingRef: { current: Promise<boolean> | null } = { current: null }
+const playlistWantedRef = { current: false }
+const playedMsRef = { current: 0 }
+const playingSinceRef: { current: number | null } = { current: null }
+const seekedNearEndRef = { current: false }
+const abnormalEndCountRef = { current: 0 }
+const mediaStormCountRef = { current: 0 }
+const lastMediaSkipAtRef = { current: 0 }
+const circuitTrippedRef = { current: false }
+const hasPlayedRef = { current: false }
+const volumeRef = { current: 1 }
+const isMutedRef = { current: false }
+
+const sharedSession = {
+  /** 是否已在客户端完成过首次水合：首次水合前保持与 SSR 一致的默认初值，后续软路由重挂载时直接继承活跃会话 */
+  hydrated: false,
+  clock: createMusicClock(),
+  lyricCursor: createLyricCursor(),
+  syncActiveProvider: null as (() => void) | null,
+}
+
+/** 仅供单元测试在用例间重置模块级音频与播放会话 */
+export function resetMusicSessionForTests(): void {
+  const prevAudio = audioRef.current
+  if (prevAudio) {
+    try {
+      prevAudio.pause()
+      prevAudio.removeAttribute('src')
+      prevAudio.load()
+    }
+    catch { }
+  }
+  audioRef.current = null
+  pendingPlayRef.current = false
+  pendingSeekRef.current = null
+  prevTrackIdRef.current = null
+  playlistRef.current = []
+  currentIndexRef.current = null
+  playModeRef.current = 'repeat-all'
+  playlistStateRef.current = 'pending'
+  playlistCompleteRef.current = true
+  deferredPlaylistRef.current = null
+  playlistLoadingRef.current = null
+  playlistWantedRef.current = false
+  playedMsRef.current = 0
+  playingSinceRef.current = null
+  seekedNearEndRef.current = false
+  abnormalEndCountRef.current = 0
+  mediaStormCountRef.current = 0
+  lastMediaSkipAtRef.current = 0
+  circuitTrippedRef.current = false
+  hasPlayedRef.current = false
+  volumeRef.current = 1
+  isMutedRef.current = false
+  sharedSession.hydrated = false
+  sharedSession.clock = createMusicClock()
+  sharedSession.lyricCursor = createLyricCursor()
+  sharedSession.syncActiveProvider = null
+}
+
 export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const audioRef = useRef<HTMLAudioElement | null>(null)
-  const pendingPlayRef = useRef(false)
-  // 待恢复的播放进度：仅当音频元数据就绪且当前曲目 id 一致时才应用，避免进度被应用到别的曲目上
-  const pendingSeekRef = useRef<{ trackId: number, time: number } | null>(null)
-  const prevTrackIdRef = useRef<number | null>(null)
-  const [playlist, setPlaylist] = useState<MusicTrack[]>([])
-  const [currentIndex, setCurrentIndex] = useState<number | null>(null)
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [playMode, setPlayModeState] = useState<PlayMode>('repeat-all')
-  // 播放时钟：进度不进 React 状态，见 useMusicClock
-  const [clock] = useState(createMusicClock)
-  const [lyricCursor] = useState(createLyricCursor)
-  const [duration, setDuration] = useState<number | null>(null)
-  const [volume, setVolumeState] = useState(1)
-  const [isMuted, setIsMuted] = useState(false)
+  const canAdopt = typeof window !== 'undefined' && sharedSession.hydrated
+  const [playlist, setPlaylist] = useState<MusicTrack[]>(() => (canAdopt ? playlistRef.current : []))
+  const [currentIndex, setCurrentIndex] = useState<number | null>(() => (canAdopt ? currentIndexRef.current : null))
+  const [isPlaying, setIsPlaying] = useState(() => (canAdopt && audioRef.current ? !audioRef.current.paused && !audioRef.current.ended : false))
+  const [hasPlayed, setHasPlayed] = useState(() => (canAdopt ? hasPlayedRef.current : false))
+  const [playMode, setPlayModeState] = useState<PlayMode>(() => (canAdopt ? playModeRef.current : 'repeat-all'))
+  // 播放时钟：进度不进 React 状态，见 useMusicClock；SSR 每次请求独立创建，浏览器内复用单例时钟
+  const [clock] = useState(() => (typeof window === 'undefined' ? createMusicClock() : sharedSession.clock))
+  const [lyricCursor] = useState(() => (typeof window === 'undefined' ? createLyricCursor() : sharedSession.lyricCursor))
+  const [duration, setDuration] = useState<number | null>(() => (
+    canAdopt && audioRef.current && Number.isFinite(audioRef.current.duration) && audioRef.current.duration > 0
+      ? audioRef.current.duration
+      : null
+  ))
+  const [volume, setVolumeState] = useState(() => (canAdopt ? volumeRef.current : 1))
+  const [isMuted, setIsMuted] = useState(() => (canAdopt ? isMutedRef.current : false))
+  const volumeSyncedRef = useRef(canAdopt)
   // 跨语种兜底与细粒度本地存储偏好：同语种读音/翻译默认关闭、允许手动打开，按「界面目标语言 × 歌曲语种分桶」记忆
   const locale = useLocale()
   const targetLang = useMemo(() => toLyricTargetLang(locale), [locale])
@@ -571,46 +648,51 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }), [currentTrack])
 
   // 供事件回调读取最新值，避免闭包拿到过期的 playlist / index / mode
-  const playlistRef = useRef(playlist)
-  const currentIndexRef = useRef(currentIndex)
-  const playModeRef = useRef(playMode)
   useEffect(() => {
     playlistRef.current = playlist
     currentIndexRef.current = currentIndex
     playModeRef.current = playMode
   }, [playlist, currentIndex, playMode])
 
-  // 创建 audio 元素并恢复本地偏好（仅在客户端首次挂载时执行）
+  // 创建或复用单例 audio 元素并恢复本地偏好
   useEffect(() => {
     if (typeof window === 'undefined')
       return
 
+    const firstHydration = !sharedSession.hydrated
     if (!audioRef.current) {
       const audio = new Audio()
       audio.preload = 'metadata'
       audioRef.current = audio
     }
+    sharedSession.hydrated = true
 
     try {
-      const storedVolume = localStorage.getItem('music-volume')
-      if (storedVolume != null) {
-        const nextVolume = Math.max(0, Math.min(1, Number(JSON.parse(storedVolume))))
-        if (Number.isFinite(nextVolume)) {
-          setVolumeState(nextVolume)
-          audioRef.current.volume = nextVolume
+      if (firstHydration) {
+        const storedVolume = localStorage.getItem('music-volume')
+        if (storedVolume != null) {
+          const nextVolume = Math.max(0, Math.min(1, Number(JSON.parse(storedVolume))))
+          if (Number.isFinite(nextVolume)) {
+            volumeRef.current = nextVolume
+            setVolumeState(nextVolume)
+            audioRef.current.volume = nextVolume
+          }
+        }
+
+        const storedMuted = localStorage.getItem('music-muted')
+        if (storedMuted != null) {
+          const nextMuted = Boolean(JSON.parse(storedMuted))
+          isMutedRef.current = nextMuted
+          setIsMuted(nextMuted)
+          audioRef.current.muted = nextMuted
+        }
+
+        const storedPlayMode = JSON.parse(localStorage.getItem(STORAGE_KEY_PLAY_MODE) ?? 'null')
+        if (PLAY_MODES.includes(storedPlayMode)) {
+          playModeRef.current = storedPlayMode
+          setPlayModeState(storedPlayMode)
         }
       }
-
-      const storedMuted = localStorage.getItem('music-muted')
-      if (storedMuted != null) {
-        const nextMuted = Boolean(JSON.parse(storedMuted))
-        setIsMuted(nextMuted)
-        audioRef.current.muted = nextMuted
-      }
-
-      const storedPlayMode = JSON.parse(localStorage.getItem(STORAGE_KEY_PLAY_MODE) ?? 'null')
-      if (PLAY_MODES.includes(storedPlayMode))
-        setPlayModeState(storedPlayMode)
 
       const storedEffects = readStoredBoolean(STORAGE_KEY_SHOW_LYRIC_EFFECTS)
       if (storedEffects != null)
@@ -681,6 +763,12 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [])
 
   useEffect(() => {
+    if (!volumeSyncedRef.current) {
+      volumeSyncedRef.current = true
+      return
+    }
+    volumeRef.current = volume
+    isMutedRef.current = isMuted
     if (!audioRef.current)
       return
     audioRef.current.volume = volume
@@ -688,13 +776,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [isMuted, volume])
 
   // 单曲实际出声时长统计与自动切歌熔断（见 spec 5.2）：防止浏览器缓存异常、空音频流或系统媒体会话失控导致「不播放、无限切歌」
-  const playedMsRef = useRef(0)
-  const playingSinceRef = useRef<number | null>(null)
-  const seekedNearEndRef = useRef(false)
-  const abnormalEndCountRef = useRef(0)
-  const mediaStormCountRef = useRef(0)
-  const lastMediaSkipAtRef = useRef(0)
-  const circuitTrippedRef = useRef(false)
 
   const resetTrackPlayStats = useCallback(() => {
     playedMsRef.current = 0
@@ -791,9 +872,13 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [currentTrackId, showLyricEffects, userIsAdmin])
 
   // 歌单的加载状态
-  const [playlistState, setPlaylistState] = useState<'pending' | 'loaded' | 'failed'>('pending')
+  const [playlistState, setPlaylistState] = useState<'pending' | 'loaded' | 'failed'>(() => (canAdopt ? playlistStateRef.current : 'pending'))
   const markPlaylistFailed = useCallback(() => {
-    setPlaylistState(state => (state === 'loaded' ? state : 'failed'))
+    setPlaylistState((state) => {
+      const next = state === 'loaded' ? state : 'failed'
+      playlistStateRef.current = next
+      return next
+    })
   }, [])
 
   const updatePlaylist = useCallback((tracks: MusicTrack[]) => {
@@ -802,19 +887,33 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const next = rebasePlaylist(tracks, current, index)
     playlistRef.current = next.tracks
     currentIndexRef.current = next.index
+    playlistStateRef.current = 'loaded'
     setPlaylist(next.tracks)
     setCurrentIndex(next.index)
     setPlaylistState('loaded')
   }, [])
 
   // 待取的完整歌单（见 deferPlaylist）：取到后换上（不换歌、不动进度，见 updatePlaylist）
-  const [playlistComplete, setPlaylistComplete] = useState(true)
-  const playlistCompleteRef = useRef(true)
-  const [playlistLoading, setPlaylistLoading] = useState(false)
-  const deferredPlaylistRef = useRef<(() => Promise<MusicTrack[]>) | null>(null)
-  const playlistLoadingRef = useRef<Promise<boolean> | null>(null)
-  const playlistWantedRef = useRef(false)
+  const [playlistComplete, setPlaylistComplete] = useState(() => (canAdopt ? playlistCompleteRef.current : true))
+  const [playlistLoading, setPlaylistLoading] = useState(() => (canAdopt ? Boolean(playlistLoadingRef.current) : false))
   const ensurePlaylistRef = useRef<() => Promise<boolean>>(() => Promise.resolve(true))
+
+  // 跨 MusicProvider 重挂载同步异步歌单补全结果
+  useEffect(() => {
+    const sync = () => {
+      setPlaylist(playlistRef.current)
+      setCurrentIndex(currentIndexRef.current)
+      setPlaylistState(playlistStateRef.current)
+      setPlaylistComplete(playlistCompleteRef.current)
+      setPlaylistLoading(Boolean(playlistLoadingRef.current))
+    }
+    sharedSession.syncActiveProvider = sync
+    sync()
+    return () => {
+      if (sharedSession.syncActiveProvider === sync)
+        sharedSession.syncActiveProvider = null
+    }
+  }, [])
 
   const ensurePlaylist = useCallback((): Promise<boolean> => {
     const load = deferredPlaylistRef.current
@@ -831,9 +930,14 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           return deferredPlaylistRef.current ? ensurePlaylistRef.current() : playlistCompleteRef.current
         deferredPlaylistRef.current = null
         playlistWantedRef.current = false
-        updatePlaylist(tracks)
+        const index = currentIndexRef.current
+        const current = index == null ? null : playlistRef.current[index] ?? null
+        const next = rebasePlaylist(tracks, current, index)
+        playlistRef.current = next.tracks
+        currentIndexRef.current = next.index
+        playlistStateRef.current = 'loaded'
         playlistCompleteRef.current = true
-        setPlaylistComplete(true)
+        sharedSession.syncActiveProvider?.()
         return true
       })
       .catch((error) => {
@@ -843,12 +947,13 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       .finally(() => {
         if (playlistLoadingRef.current === loading) {
           playlistLoadingRef.current = null
-          setPlaylistLoading(false)
+          sharedSession.syncActiveProvider?.()
         }
       })
     playlistLoadingRef.current = loading
+    sharedSession.syncActiveProvider?.()
     return loading
-  }, [updatePlaylist])
+  }, [])
   useEffect(() => {
     ensurePlaylistRef.current = ensurePlaylist
   }, [ensurePlaylist])
@@ -1005,6 +1110,8 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return
 
     const onPlay = () => {
+      hasPlayedRef.current = true
+      setHasPlayed(true)
       setIsPlaying(true)
     }
     const onPlaying = () => {
@@ -1084,6 +1191,24 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     audio.addEventListener('seeked', onTimeUpdate)
     audio.addEventListener('ended', onEnded)
     audio.addEventListener('error', onError)
+
+    // 重挂载时立即与复用中的 audio 实时状态对齐，避免卸载到再挂载间隙错过状态变化
+    const actuallyPlaying = !audio.paused && !audio.ended
+    setIsPlaying(actuallyPlaying)
+    if (actuallyPlaying) {
+      hasPlayedRef.current = true
+      setHasPlayed(true)
+      playingSinceRef.current ??= performance.now()
+    }
+    else if (hasPlayedRef.current) {
+      setHasPlayed(true)
+    }
+    if (Number.isFinite(audio.duration) && audio.duration > 0)
+      setDuration(audio.duration)
+    if (audio.currentTime > 0 && Number.isFinite(audio.currentTime))
+      clock.set(audio.currentTime)
+    if (audio.ended && prevTrackIdRef.current != null && !circuitTrippedRef.current)
+      onEnded()
 
     return () => {
       audio.removeEventListener('play', onPlay)
@@ -1199,6 +1324,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     playlistRef.current = tracks
     currentIndexRef.current = index
+    playlistStateRef.current = 'loaded'
     setPlaylist(tracks)
     setCurrentIndex(index)
     setPlaylistState('loaded')
@@ -1306,6 +1432,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const setVolume = useCallback((v: number) => {
     const audio = audioRef.current
     const nextVolume = Math.max(0, Math.min(1, v))
+    volumeRef.current = nextVolume
     setVolumeState(nextVolume)
     if (audio)
       audio.volume = nextVolume
@@ -1318,6 +1445,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const adjustVolume = useCallback((delta: number) => {
     setVolumeState((prev) => {
       const nextVolume = Math.max(0, Math.min(1, prev + delta))
+      volumeRef.current = nextVolume
       if (audioRef.current)
         audioRef.current.volume = nextVolume
       try {
@@ -1331,6 +1459,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const toggleMuted = useCallback(() => {
     setIsMuted((prev) => {
       const nextMuted = !prev
+      isMutedRef.current = nextMuted
       if (audioRef.current)
         audioRef.current.muted = nextMuted
       try {
@@ -1342,6 +1471,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [])
 
   const setPlayMode = useCallback((mode: PlayMode) => {
+    playModeRef.current = mode
     setPlayModeState(mode)
     writeStored(STORAGE_KEY_PLAY_MODE, mode)
   }, [])
@@ -1601,6 +1731,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     currentIndex,
     currentTrack,
     isPlaying,
+    hasPlayed,
     playMode,
     duration,
     playlistComplete,
@@ -1612,6 +1743,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     currentIndex,
     currentTrack,
     isPlaying,
+    hasPlayed,
     playMode,
     duration,
     playlistComplete,

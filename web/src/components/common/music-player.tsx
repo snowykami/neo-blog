@@ -201,9 +201,11 @@ export function MusicPlayer() {
     currentIndex,
     duration,
     isPlaying,
+    playlistState,
   } = useMusicPlayback()
   const {
     replacePlaylist,
+    updatePlaylist,
     deferPlaylist,
     markPlaylistFailed,
   } = useMusicActions()
@@ -229,14 +231,30 @@ export function MusicPlayer() {
   const restoredTrackIdRef = useRef<number | null>(null)
   // 节流写入存储，避免频繁 localStorage 写入
   const lastSavedTimeRef = useRef(0)
+  const currentTrackId = currentTrack?.id ?? null
+  const initialSessionRef = useRef({ playlistState, currentTrackId })
+  initialSessionRef.current = { playlistState, currentTrackId }
 
   // 拉取歌单后一次性以“存储的曲目 + 进度”初始化，不再先切到第 0 首再切回，避免多余的歌词请求与竞态。
   // 歌单有本地缓存：先用缓存渲染（悬浮球立刻出现、直接恢复上次的曲目），再只校验版本，版本变了在需要时再下载整份歌单；
   // 没有缓存时只取要恢复的那一首（几百字节，完整歌单约 90 KB gzip），完整歌单等开始出声、打开播放器 / 歌单或切歌时再取（见 music-context 的 ensurePlaylist）
   useEffect(() => {
+    // 因 [locale] 软路由重挂载时，共享音频会话已完成初始化：直接接管进度保存，不再用缓存覆盖正在播放的曲目与实时秒数
+    if (initialSessionRef.current.playlistState === 'loaded') {
+      restoredTrackIdRef.current = initialSessionRef.current.currentTrackId
+      restoredRef.current = true
+      return
+    }
+
     let cancelled = false
-    // 首次应用：恢复上次的曲目与进度
+    // 首次应用：恢复上次的曲目与进度；若挂载前读者已在文章内点播了单曲，则只合并歌单、不打断当前播放
     const applyRestored = (tracks: MusicTrack[]) => {
+      if (initialSessionRef.current.currentTrackId != null) {
+        restoredTrackIdRef.current = initialSessionRef.current.currentTrackId
+        updatePlaylist(tracks)
+        restoredRef.current = true
+        return
+      }
       const { index, time } = getRestoredPlayback(tracks)
       restoredTrackIdRef.current = tracks[index]?.id ?? null
       replacePlaylist(tracks, index, time)
@@ -303,10 +321,9 @@ export function MusicPlayer() {
     return () => {
       cancelled = true
     }
-  }, [replacePlaylist, deferPlaylist, markPlaylistFailed])
+  }, [replacePlaylist, updatePlaylist, deferPlaylist, markPlaylistFailed])
 
   // 曲目变化时保存索引与曲目 id；切到新曲目时进度清零，保证进度始终属于已保存的曲目
-  const currentTrackId = currentTrack?.id ?? null
   useEffect(() => {
     if (!restoredRef.current || currentTrackId == null || currentIndex == null)
       return

@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client'
 import { toast } from 'sonner'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EMPTY_LYRICS } from '@/lib/lyrics/types'
-import { MAX_ABNORMAL_AUTO_SKIPS, MAX_MEDIA_SESSION_STORM_SKIPS, MIN_VALID_PLAY_MS, MusicProvider, useMusic } from './music-context'
+import { MAX_ABNORMAL_AUTO_SKIPS, MAX_MEDIA_SESSION_STORM_SKIPS, MIN_VALID_PLAY_MS, MusicProvider, resetMusicSessionForTests, useMusic } from './music-context'
 
 // 提示文案直接用键名，便于断言
 vi.mock('next-intl', () => ({ useLocale: () => 'zh', useTranslations: () => (key: string) => key }))
@@ -61,6 +61,7 @@ async function mount({ audible = false } = {}) {
 afterEach(() => {
   act(() => root?.unmount())
   root = null
+  resetMusicSessionForTests()
   localStorage.clear()
   vi.restoreAllMocks()
   vi.mocked(toast.error).mockClear()
@@ -424,5 +425,66 @@ describe('异常自动切歌熔断', () => {
       })
     }
     expect(toast.error).toHaveBeenCalledWith('playback_circuit_broken', expect.anything())
+  })
+})
+
+describe('跨 [locale] 软路由重挂载复用单一音频会话', () => {
+  it('播放中卸载重建 MusicProvider：复用同一个 Audio、不断播且状态保持播放中，后续操作不产生双实例', async () => {
+    await mount()
+    await act(async () => {
+      music.replacePlaylist([track(10), track(20)], 0)
+    })
+    const firstAudio = music.getAudio()!
+    const firstSrc = firstAudio.src
+    const pauseSpy = vi.spyOn(firstAudio, 'pause')
+    Object.defineProperty(firstAudio, 'paused', { configurable: true, get: () => false })
+    Object.defineProperty(firstAudio, 'duration', { configurable: true, value: 180 })
+    firstAudio.currentTime = 42
+
+    await act(async () => {
+      firstAudio.dispatchEvent(new Event('play'))
+      firstAudio.dispatchEvent(new Event('loadedmetadata'))
+      firstAudio.dispatchEvent(new Event('timeupdate'))
+    })
+    expect(music.isPlaying).toBe(true)
+    expect(music.hasPlayed).toBe(true)
+
+    // 模拟前后台切换导致 [locale] 根布局卸载重建（window 未刷新）
+    act(() => root?.unmount())
+    expect(pauseSpy).not.toHaveBeenCalled()
+
+    root = createRoot(document.createElement('div'))
+    await act(async () => {
+      root!.render(createElement(MusicProvider, null, createElement(Probe)))
+    })
+
+    // 新挂载的 MusicProvider 直接接管同一个 Audio 与当前歌单，不重置 src / 进度
+    expect(music.getAudio()).toBe(firstAudio)
+    expect(firstAudio.src).toBe(firstSrc)
+    expect(firstAudio.currentTime).toBe(42)
+    expect(music.currentTrack?.id).toBe(10)
+    expect(music.playlistState).toBe('loaded')
+    expect(music.isPlaying).toBe(true)
+    expect(music.hasPlayed).toBe(true)
+    expect(music.duration).toBe(180)
+
+    // 在后台暂停后再次卸载重建回前台：保持暂停态且保留会话级 hasPlayed
+    Object.defineProperty(firstAudio, 'paused', { configurable: true, get: () => true })
+    await act(async () => {
+      music.pause()
+      firstAudio.dispatchEvent(new Event('pause'))
+    })
+    expect(pauseSpy).toHaveBeenCalledTimes(1)
+    expect(music.isPlaying).toBe(false)
+    expect(music.hasPlayed).toBe(true)
+
+    act(() => root?.unmount())
+    root = createRoot(document.createElement('div'))
+    await act(async () => {
+      root!.render(createElement(MusicProvider, null, createElement(Probe)))
+    })
+    expect(music.getAudio()).toBe(firstAudio)
+    expect(music.isPlaying).toBe(false)
+    expect(music.hasPlayed).toBe(true)
   })
 })
