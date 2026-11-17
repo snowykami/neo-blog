@@ -1784,7 +1784,11 @@
         "chorus_glow": "副歌情緒描邊與外發光",
         "chorus_glow_desc": "進入副歌段時隨此刻歌詞強調色或情緒色點亮膠囊外圈輝光",
         "hdr": "啟用 XDR 螢幕原生 HDR 高光",
-        "hdr_desc": "在支援擴展動態範圍的 Mac 顯示器上以超白亮度渲染律動條與強調詞高光"
+        "hdr_desc": "在支援擴展動態範圍的 Mac 顯示器上以超白亮度渲染律動條與強調詞高光",
+        "download_title": "取得 macOS 桌面動態島用戶端（Universal Binary）",
+        "download_desc": "支援 macOS 15.0+（Apple Silicon 與 Intel 通用）；首次開啟若受攔截，可在終端機執行 xattr -cr /Applications/NeoBlogIsland.app",
+        "download_nightly": "下載最新安裝包 (.dmg)",
+        "download_releases": "查看全部版本"
       }
     },
     "pages": {

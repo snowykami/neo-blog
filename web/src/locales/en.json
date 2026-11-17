@@ -1784,7 +1784,11 @@
         "chorus_glow": "Chorus mood outline & halo glow",
         "chorus_glow_desc": "Illuminate the island outline and outer halo with lyric emphasis or mood colors during chorus sections",
         "hdr": "Native XDR display HDR highlights",
-        "hdr_desc": "Render beat bars and emphasized lyrics with Extended Dynamic Range brightness on supported Mac displays"
+        "hdr_desc": "Render beat bars and emphasized lyrics with Extended Dynamic Range brightness on supported Mac displays",
+        "download_title": "Download macOS Dynamic Island Companion (Universal Binary)",
+        "download_desc": "Requires macOS 15.0+ (Apple Silicon & Intel). If blocked on first launch, run: xattr -cr /Applications/NeoBlogIsland.app",
+        "download_nightly": "Download Latest (.dmg)",
+        "download_releases": "All Releases"
       }
     },
     "pages": {

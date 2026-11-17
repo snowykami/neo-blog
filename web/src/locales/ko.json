@@ -1784,7 +1784,11 @@
         "chorus_glow": "후렴 무드 외곽 발광",
         "chorus_glow_desc": "후렴 구간에서 가사 강조색이나 무드 색상으로 캡슐 외곽 글로우를 밝힙니다",
         "hdr": "XDR 디스플레이 네이티브 HDR 하이라이트",
-        "hdr_desc": "EDR을 지원하는 Mac 디스플레이에서 리듬 바와 강조 가사를 고휘도로 렌더링합니다"
+        "hdr_desc": "EDR을 지원하는 Mac 디스플레이에서 리듬 바와 강조 가사를 고휘도로 렌더링합니다",
+        "download_title": "macOS 다이내믹 아일랜드 클라이언트 다운로드 (Universal Binary)",
+        "download_desc": "macOS 15.0+ 지원 (Apple Silicon 및 Intel 공용). 첫 실행 시 차단되면 터미널에서 xattr -cr /Applications/NeoBlogIsland.app 을 실행하세요",
+        "download_nightly": "최신 설치 패키지 (.dmg)",
+        "download_releases": "전체 릴리스 보기"
       }
     },
     "pages": {

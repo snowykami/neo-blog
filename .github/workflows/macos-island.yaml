@@ -1,0 +1,174 @@
+name: Build and Release macOS Island
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'macos-island/**'
+      - '.github/workflows/macos-island.yaml'
+    tags:
+      - 'island-v*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: '可选：指定要发布的正式版标签（如 island-v0.1.0，留空则发布 Nightly）'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: macos-island-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/island-v') }}
+
+jobs:
+  build-and-release:
+    runs-on: macos-15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version and release channel
+        id: meta
+        env:
+          INPUT_TAG: ${{ inputs.release_tag }}
+        run: |
+          SHORT_SHA="$(git rev-parse --short=7 HEAD)"
+          BUILD_DATE="$(date -u +'%Y-%m-%d')"
+          if [[ -n "${INPUT_TAG}" && "${INPUT_TAG}" == island-v* ]]; then
+            RELEASE_TAG="${INPUT_TAG}"
+            APP_VERSION="${RELEASE_TAG#island-v}"
+            IS_NIGHTLY="false"
+            RELEASE_TITLE="NeoBlogIsland v${APP_VERSION}"
+          elif [[ "${GITHUB_REF}" == refs/tags/island-v* ]]; then
+            RELEASE_TAG="${GITHUB_REF#refs/tags/}"
+            APP_VERSION="${RELEASE_TAG#island-v}"
+            IS_NIGHTLY="false"
+            RELEASE_TITLE="NeoBlogIsland v${APP_VERSION}"
+          else
+            RELEASE_TAG="island-nightly"
+            APP_VERSION="0.1.0-nightly.${SHORT_SHA}"
+            IS_NIGHTLY="true"
+            RELEASE_TITLE="NeoBlogIsland Nightly (${BUILD_DATE} · ${SHORT_SHA})"
+          fi
+          {
+            echo "release_tag=${RELEASE_TAG}"
+            echo "app_version=${APP_VERSION}"
+            echo "is_nightly=${IS_NIGHTLY}"
+            echo "release_title=${RELEASE_TITLE}"
+            echo "short_sha=${SHORT_SHA}"
+            echo "build_date=${BUILD_DATE}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run Swift unit tests
+        working-directory: macos-island
+        run: swift test
+
+      - name: Build Universal Binary (.app, .dmg, .zip)
+        env:
+          APP_VERSION: ${{ steps.meta.outputs.app_version }}
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          ./macos-island/scripts/build-app.sh --release --universal --package
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NeoBlogIsland-${{ steps.meta.outputs.app_version }}-universal
+          path: |
+            macos-island/dist/NeoBlogIsland-universal.dmg
+            macos-island/dist/NeoBlogIsland-universal.app.zip
+            macos-island/dist/SHA256SUMS.txt
+          retention-days: 14
+
+      - name: Publish Nightly Pre-release
+        if: steps.meta.outputs.is_nightly == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.meta.outputs.release_tag }}
+          RELEASE_TITLE: ${{ steps.meta.outputs.release_title }}
+          APP_VERSION: ${{ steps.meta.outputs.app_version }}
+          SHORT_SHA: ${{ steps.meta.outputs.short_sha }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f "${RELEASE_TAG}" "${GITHUB_SHA}"
+          git push origin "refs/tags/${RELEASE_TAG}" --force
+
+          NOTES_FILE="$(mktemp)"
+          cat > "${NOTES_FILE}" <<EOF
+          ### NeoBlogIsland Nightly 自动构建
+
+          - **版本标识**：\`${APP_VERSION}\`（Build \`#${GITHUB_RUN_NUMBER}\`）
+          - **对应提交**：\`${SHORT_SHA}\` (${GITHUB_SHA})
+          - **系统要求**：macOS 15.0 (Sequoia) 及以上（Universal Binary：原生支持 Apple Silicon M1~M4 与 Intel）
+
+          #### 安装与首次启动说明
+          1. 下载下方 **\`NeoBlogIsland-universal.dmg\`**，双击打开并将 \`NeoBlogIsland.app\` 拖入 \`Applications\`（应用程序）。
+          2. 因采用零成本 Ad-hoc 签名，首次启动若提示「未验证开发者」或「已损坏」，请在终端执行一次：
+             \`\`\`bash
+             xattr -cr /Applications/NeoBlogIsland.app
+             open /Applications/NeoBlogIsland.app
+             \`\`\`
+          EOF
+
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh release edit "${RELEASE_TAG}" \
+              --title "${RELEASE_TITLE}" \
+              --notes-file "${NOTES_FILE}" \
+              --prerelease \
+              --target "${GITHUB_SHA}"
+            gh release upload "${RELEASE_TAG}" \
+              macos-island/dist/NeoBlogIsland-universal.dmg \
+              macos-island/dist/NeoBlogIsland-universal.app.zip \
+              macos-island/dist/SHA256SUMS.txt \
+              --clobber
+          else
+            gh release create "${RELEASE_TAG}" \
+              macos-island/dist/NeoBlogIsland-universal.dmg \
+              macos-island/dist/NeoBlogIsland-universal.app.zip \
+              macos-island/dist/SHA256SUMS.txt \
+              --title "${RELEASE_TITLE}" \
+              --notes-file "${NOTES_FILE}" \
+              --prerelease \
+              --target "${GITHUB_SHA}"
+          fi
+
+      - name: Publish Tagged Formal Release
+        if: steps.meta.outputs.is_nightly == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.meta.outputs.release_tag }}
+          RELEASE_TITLE: ${{ steps.meta.outputs.release_title }}
+          APP_VERSION: ${{ steps.meta.outputs.app_version }}
+        run: |
+          NOTES_FILE="$(mktemp)"
+          cat > "${NOTES_FILE}" <<EOF
+          ### NeoBlogIsland v${APP_VERSION}
+
+          - **系统要求**：macOS 15.0 (Sequoia) 及以上（Universal Binary：原生支持 Apple Silicon M1~M4 与 Intel）
+          - **安装方式**：下载 \`NeoBlogIsland-universal.dmg\` 拖入「应用程序」即可；若首次打开受 Gatekeeper 拦截，可执行：
+            \`\`\`bash
+            xattr -cr /Applications/NeoBlogIsland.app && open /Applications/NeoBlogIsland.app
+            \`\`\`
+          EOF
+
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh release upload "${RELEASE_TAG}" \
+              macos-island/dist/NeoBlogIsland-universal.dmg \
+              macos-island/dist/NeoBlogIsland-universal.app.zip \
+              macos-island/dist/SHA256SUMS.txt \
+              --clobber
+          else
+            gh release create "${RELEASE_TAG}" \
+              macos-island/dist/NeoBlogIsland-universal.dmg \
+              macos-island/dist/NeoBlogIsland-universal.app.zip \
+              macos-island/dist/SHA256SUMS.txt \
+              --title "${RELEASE_TITLE}" \
+              --notes-file "${NOTES_FILE}" \
+              --generate-notes
+          fi

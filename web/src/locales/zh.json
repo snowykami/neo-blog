@@ -1784,7 +1784,11 @@
         "chorus_glow": "副歌情绪描边与外发光",
         "chorus_glow_desc": "进入副歌段时随此刻歌词强调色或情绪色点亮胶囊外圈辉光",
         "hdr": "启用 XDR 屏幕原生 HDR 高光",
-        "hdr_desc": "在支持扩展动态范围的 Mac 显示器上以超白亮度渲染律动条与强调词高光"
+        "hdr_desc": "在支持扩展动态范围的 Mac 显示器上以超白亮度渲染律动条与强调词高光",
+        "download_title": "获取 macOS 桌面灵动岛客户端（Universal Binary）",
+        "download_desc": "支持 macOS 15.0+（Apple Silicon 与 Intel 通用）；首次打开若受拦截，可在终端运行 xattr -cr /Applications/NeoBlogIsland.app",
+        "download_nightly": "下载最新安装包 (.dmg)",
+        "download_releases": "查看全部版本"
       }
     },
     "pages": {

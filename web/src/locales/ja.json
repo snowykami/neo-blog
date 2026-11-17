@@ -1784,7 +1784,11 @@
         "chorus_glow": "サビのムード輪郭発光",
         "chorus_glow_desc": "サビ区間で歌詞の強調色やムードカラーに合わせて外周グローを点灯します",
         "hdr": "XDR ディスプレイのネイティブ HDR ハイライト",
-        "hdr_desc": "対応する Mac ディスプレイでレベルバーと強調歌詞を EDR 高輝度で描画します"
+        "hdr_desc": "対応する Mac ディスプレイでレベルバーと強調歌詞を EDR 高輝度で描画します",
+        "download_title": "macOS Dynamic Island クライアントを入手（Universal Binary）",
+        "download_desc": "macOS 15.0+ 対応（Apple Silicon / Intel 共通）。初回起動時にブロックされた場合は xattr -cr /Applications/NeoBlogIsland.app を実行してください",
+        "download_nightly": "最新パッケージ (.dmg)",
+        "download_releases": "すべてのリリース"
       }
     },
     "pages": {

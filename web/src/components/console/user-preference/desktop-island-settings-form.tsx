@@ -1,7 +1,7 @@
 'use client'
 
 import type { DesktopIslandFormMode, DesktopIslandPreferences } from '@/hooks/use-desktop-island-pref'
-import { RefreshCwIcon } from 'lucide-react'
+import { DownloadIcon, ExternalLinkIcon, RefreshCwIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
@@ -84,6 +84,9 @@ const BEHAVIOR_SWITCH_ITEMS: {
   },
 ]
 
+const NIGHTLY_DMG_URL = 'https://github.com/snowykami/neo-blog/releases/download/island-nightly/NeoBlogIsland-universal.dmg'
+const RELEASES_PAGE_URL = 'https://github.com/snowykami/neo-blog/releases'
+
 export function DesktopIslandSettingsForm({ className }: { className?: string }) {
   const t = useTranslations('Console.user_preference')
   const prefs = useDesktopIslandPrefs()
@@ -143,6 +146,27 @@ export function DesktopIslandSettingsForm({ className }: { className?: string })
         </div>
       </CardHeader>
       <CardContent className="grid gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3">
+          <div className="grid gap-1">
+            <span className="text-xs font-medium">{t('desktop_island.download_title')}</span>
+            <span className="text-muted-foreground text-xs">{t('desktop_island.download_desc')}</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button asChild size="sm" variant="secondary">
+              <a href={NIGHTLY_DMG_URL} target="_blank" rel="noopener noreferrer">
+                <DownloadIcon className="mr-1.5 size-3.5" />
+                {t('desktop_island.download_nightly')}
+              </a>
+            </Button>
+            <Button asChild size="sm" variant="outline">
+              <a href={RELEASES_PAGE_URL} target="_blank" rel="noopener noreferrer">
+                <ExternalLinkIcon className="mr-1.5 size-3.5" />
+                {t('desktop_island.download_releases')}
+              </a>
+            </Button>
+          </div>
+        </div>
+
         <Form {...form}>
           <form className="grid gap-4" onSubmit={form.handleSubmit(onSavePort)}>
             <div className="grid gap-4 sm:grid-cols-2">
