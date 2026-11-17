@@ -6,14 +6,14 @@ export const DESKTOP_ISLAND_STORAGE_KEY = 'neo-blog:desktop-island-prefs'
 export const DEFAULT_DESKTOP_ISLAND_PORT = 29170
 
 export type DesktopIslandFormMode = 'auto' | 'notch' | 'capsule'
-export type DesktopIslandConnectionStatus = 'disabled' | 'connecting' | 'connected' | 'disconnected'
+export type DesktopIslandConnectionStatus = 'disabled' | 'standby' | 'connecting' | 'connected' | 'disconnected'
 
 export interface DesktopIslandPreferences {
-  /** 是否启用本地桌面灵动岛联动（默认关闭，普通访客绝不主动探测 127.0.0.1） */
+  /** 是否启用本地桌面灵动岛联动（默认开启，仅在本页首次开始播放音乐后后台异步连接 127.0.0.1，绝不阻塞播放与首屏） */
   enabled: boolean
   /** 本地 WebSocket 监听端口（127.0.0.1:<port>） */
   port: number
-  /** 顶部外观形态：自动检测物理刘海 / 强制刘海融合 / 无刘海悬浮胶囊 */
+  /** 顶部外观形态：无刘海悬浮胶囊（默认） / 自动检测物理刘海 / 强制刘海融合 */
   formMode: DesktopIslandFormMode
   /** 连接上桌面灵动岛后自动收起网页顶栏音乐胶囊，避免双岛同框 */
   hideWebIslandWhenConnected: boolean
@@ -34,9 +34,9 @@ export interface DesktopIslandPreferences {
 }
 
 export const DEFAULT_DESKTOP_ISLAND_PREFS: DesktopIslandPreferences = {
-  enabled: false,
+  enabled: true,
   port: DEFAULT_DESKTOP_ISLAND_PORT,
-  formMode: 'auto',
+  formMode: 'capsule',
   hideWebIslandWhenConnected: true,
   hideFloatingBallWhenConnected: false,
   expandable: true,
@@ -57,7 +57,7 @@ function normalizePort(raw: unknown): number {
 function normalizeFormMode(raw: unknown): DesktopIslandFormMode {
   if (raw === 'notch' || raw === 'capsule' || raw === 'auto')
     return raw
-  return 'auto'
+  return 'capsule'
 }
 
 function parsePreferences(raw: string | null): DesktopIslandPreferences {
@@ -66,7 +66,7 @@ function parsePreferences(raw: string | null): DesktopIslandPreferences {
   try {
     const parsed = JSON.parse(raw) as Partial<DesktopIslandPreferences>
     return {
-      enabled: Boolean(parsed.enabled),
+      enabled: typeof parsed.enabled === 'boolean' ? parsed.enabled : true,
       port: normalizePort(parsed.port),
       formMode: normalizeFormMode(parsed.formMode),
       hideWebIslandWhenConnected: parsed.hideWebIslandWhenConnected !== false,
@@ -162,7 +162,7 @@ interface RuntimeSnapshot {
 }
 
 let runtime: RuntimeSnapshot = {
-  status: 'disabled',
+  status: 'standby',
   reconnectEpoch: 0,
 }
 const runtimeListeners = new Set<() => void>()
@@ -189,7 +189,7 @@ function subscribeRuntime(listener: () => void): () => void {
 }
 
 const SERVER_RUNTIME_SNAPSHOT: RuntimeSnapshot = {
-  status: 'disabled',
+  status: 'standby',
   reconnectEpoch: 0,
 }
 

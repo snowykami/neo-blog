@@ -55,6 +55,15 @@ function createTabId() {
   return `tab_${Math.random().toString(36).slice(2, 10)}`
 }
 
+function isMacPlatform(): boolean {
+  if (typeof navigator === 'undefined')
+    return false
+  const uaData = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData
+  if (uaData?.platform)
+    return /mac/i.test(uaData.platform)
+  return /Macintosh|Mac OS X/i.test(navigator.userAgent) && !/Mobile|iPad|iPhone/i.test(navigator.userAgent)
+}
+
 function toAbsoluteCoverUrl(raw?: string, size = 240): string | null {
   if (!raw)
     return null
@@ -627,16 +636,32 @@ export function DesktopIslandBridge() {
     }
   }, [])
 
-  // 建立并维护本地 ws://127.0.0.1:<port>/ws 长连接（指数退避自动重连）
+  // 建立并维护本地 ws://127.0.0.1:<port>/ws 长连接：
+  // 1. 仅在本页首次开始播放音乐（hasPlayed）或用户在设置页手动点击重连（reconnectEpoch > 0）后才激活，进站绝不提前请求 localhost；
+  // 2. 非 macOS 设备除非手动触发重连，否则保持静默待命；
+  // 3. 首次连接通过异步延迟脱离 <audio>.play() 关键路径，绝不阻塞音乐起播；未安装本地客户端时最多轻量重试 2 次即静默休眠。
   useEffect(() => {
     if (!prefs.enabled) {
       setDesktopIslandRuntimeStatus('disabled')
       return
     }
 
+    const manualTrigger = reconnectEpoch > 0
+    if (!hasPlayed && !manualTrigger) {
+      setDesktopIslandRuntimeStatus('standby')
+      return
+    }
+
+    if (!isMacPlatform() && !manualTrigger) {
+      setDesktopIslandRuntimeStatus('standby')
+      return
+    }
+
     let disposed = false
+    let everConnected = false
     let retryAttempt = 0
     let retryTimer = 0
+    let initialTimer = 0
 
     const connect = () => {
       if (disposed)
@@ -661,6 +686,7 @@ export function DesktopIslandBridge() {
           socket.close()
           return
         }
+        everConnected = true
         retryAttempt = 0
         setDesktopIslandRuntimeStatus('connected')
         setWsOpenEpoch(n => n + 1)
@@ -685,7 +711,12 @@ export function DesktopIslandBridge() {
         if (disposed)
           return
         setDesktopIslandRuntimeStatus('disconnected')
-        const delay = Math.min(8000, 1000 * 2 ** Math.min(3, retryAttempt))
+        // 若本机从未连上过桌面灵动岛（用户未安装/未打开客户端），仅做最多 2 次轻量探测即停止轮询，杜绝后台刷屏与干扰
+        if (!everConnected && retryAttempt >= 2)
+          return
+        const delay = everConnected
+          ? Math.min(8000, 1000 * 2 ** Math.min(3, retryAttempt))
+          : (retryAttempt === 0 ? 2000 : 5000)
         retryAttempt += 1
         retryTimer = window.setTimeout(connect, delay)
       }
@@ -693,7 +724,8 @@ export function DesktopIslandBridge() {
       socket.onerror = () => {}
     }
 
-    connect()
+    // 让出首帧音频缓冲与 UI 渲染，异步发起本地回环握手，100% 不阻塞音乐起播
+    initialTimer = window.setTimeout(connect, manualTrigger ? 0 : 160)
 
     const onPageHide = () => {
       wsRef.current?.close()
@@ -701,7 +733,8 @@ export function DesktopIslandBridge() {
     const onVisibility = () => {
       if (document.visibilityState === 'visible' && (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED)) {
         retryAttempt = 0
-        connect()
+        window.clearTimeout(initialTimer)
+        initialTimer = window.setTimeout(connect, 120)
       }
     }
     window.addEventListener('pagehide', onPageHide)
@@ -709,15 +742,16 @@ export function DesktopIslandBridge() {
 
     return () => {
       disposed = true
+      window.clearTimeout(initialTimer)
       window.clearTimeout(retryTimer)
       window.removeEventListener('pagehide', onPageHide)
       document.removeEventListener('visibilitychange', onVisibility)
       const active = wsRef.current
       wsRef.current = null
       active?.close()
-      setDesktopIslandRuntimeStatus(prefs.enabled ? 'disconnected' : 'disabled')
+      setDesktopIslandRuntimeStatus(prefs.enabled ? 'standby' : 'disabled')
     }
-  }, [handleIncomingCommand, prefs.enabled, prefs.port, reconnectEpoch])
+  }, [handleIncomingCommand, hasPlayed, prefs.enabled, prefs.port, reconnectEpoch])
 
   // 1. 推送曲目与完整歌词结构
   useEffect(() => {

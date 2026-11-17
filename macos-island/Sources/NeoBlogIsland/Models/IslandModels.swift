@@ -737,13 +737,30 @@ struct IslandDisplayConfig: Codable, Equatable {
         case hdr
     }
 
-    static let `default` = IslandDisplayConfig(
-        formMode: .auto,
-        expandable: true,
-        beatBars: true,
-        chorusGlow: true,
-        hdr: true
-    )
+    init(
+        formMode: IslandFormMode = .floatingCapsule,
+        expandable: Bool = true,
+        beatBars: Bool = true,
+        chorusGlow: Bool = true,
+        hdr: Bool = true
+    ) {
+        self.formMode = formMode
+        self.expandable = expandable
+        self.beatBars = beatBars
+        self.chorusGlow = chorusGlow
+        self.hdr = hdr
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        formMode = try c.decodeIfPresent(IslandFormMode.self, forKey: .formMode) ?? .floatingCapsule
+        expandable = try c.decodeIfPresent(Bool.self, forKey: .expandable) ?? true
+        beatBars = try c.decodeIfPresent(Bool.self, forKey: .beatBars) ?? true
+        chorusGlow = try c.decodeIfPresent(Bool.self, forKey: .chorusGlow) ?? true
+        hdr = try c.decodeIfPresent(Bool.self, forKey: .hdr) ?? true
+    }
+
+    static let `default` = IslandDisplayConfig()
 }
 
 // MARK: - WebSocket 入站与出站帧

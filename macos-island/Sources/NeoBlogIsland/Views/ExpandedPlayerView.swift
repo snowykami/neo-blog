@@ -428,6 +428,7 @@ private struct StagePlacedEntryView: View {
                 showRomaji: store.preferences.showRomaji,
                 showTranslation: store.preferences.showTranslation
             ) {
+                guard !store.isDraggingCapsule, !store.shouldSuppressTapAfterDrag else { return }
                 store.stageSpringEngine.cancelManualScroll()
                 store.seek(toMs: item.line.start)
                 if !store.isPlaying { store.play() }
@@ -963,6 +964,14 @@ private struct PlaybackScrubberBar: View {
                     )
                 }
                 .frame(height: 16)
+                .onGeometryChange(for: CGRect.self) { proxy in
+                    proxy.frame(in: .named("panelCanvas"))
+                } action: { rect in
+                    store.scrubberCanvasRect = rect
+                }
+                .onDisappear {
+                    store.scrubberCanvasRect = .zero
+                }
 
                 HStack {
                     Text(Self.formatDurationMMSS(ms: currentMs))

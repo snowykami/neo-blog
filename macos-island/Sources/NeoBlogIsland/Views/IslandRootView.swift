@@ -202,7 +202,7 @@ private struct IslandSurfaceView: View {
                         store.resetCapsulePosition()
                     }
                 }
-                Button(store.isPositionLocked ? "解锁胶囊拖拽位置" : "锁定当前胶囊位置") {
+                Button(store.isPositionLocked ? "解锁拖拽位置" : "锁定当前位置") {
                     store.togglePositionLock()
                 }
             }

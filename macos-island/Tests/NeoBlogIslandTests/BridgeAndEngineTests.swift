@@ -415,6 +415,7 @@ struct BridgeAndEngineTests {
         macA.ingestTestPayload(mediaJSON, clientId: localTabId)
         macA.ingestTestPayload(stateJSON, clientId: localTabId)
         #expect(macA.shouldDisplayIsland == true)
+        #expect(macA.config.formMode == .floatingCapsule)
 
         // 2. 启动回环监听并由 Mac B 发起首次配对连接
         peerA.startLoopbackForTesting()
@@ -461,12 +462,13 @@ struct BridgeAndEngineTests {
         }
         #expect(receivedCommandsOnMacA.contains("next"))
 
-        // 6. 从 Mac B 左屏幕边缘甩回 Mac A -> Mac B 收起，Mac A 重新接棒显示
-        macB.commitPortalThrow(PeerPortalPayload(fromEdge: .left, offsetFromTopPt: 26, dockedInMenuBar: false))
+        // 6. 在 Mac B 展开小窗后从左屏幕边缘甩回 Mac A -> Mac B 收起，Mac A 重新接棒并保持展开小窗形态
+        macB.commitPortalThrow(PeerPortalPayload(fromEdge: .left, offsetFromTopPt: 26, dockedInMenuBar: false, isExpanded: true))
         for _ in 0..<50 where !macA.shouldDisplayIsland {
             try await Task.sleep(for: .milliseconds(15))
         }
         #expect(macA.shouldDisplayIsland == true)
+        #expect(macA.isExpanded == true)
         #expect(macB.shouldDisplayIsland == false)
     }
 }

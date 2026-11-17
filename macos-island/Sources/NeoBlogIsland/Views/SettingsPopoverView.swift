@@ -41,7 +41,7 @@ struct SettingsPopoverView: View {
                 }
 
                 if store.connectedOrigins.isEmpty && !store.isDisplayingRemotePeerSession {
-                    Text("请在任一台 Mac 的博客「后台 › 个人设置 › 个性化」中开启「桌面灵动岛（macOS）」开关并播放音乐。")
+                    Text("在任一台 Mac 打开博客页面并播放音乐即可自动连接（也可在「后台 › 个人设置 › 个性化」自定义外观）。")
                         .font(.system(size: 11.5))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -177,7 +177,7 @@ private struct PeerContinuityPopoverSection: View {
                     }
                 }
 
-                Text("提示：按住胶囊拖到屏幕最左/最右边缘松手，即可将灵动岛跨屏甩到另一台 Mac（状态栏高度松手会自动吸附进对方状态栏）。")
+                Text("提示：按住胶囊或展开小窗拖到屏幕最左/最右边缘松手，即可跨屏甩到另一台 Mac（收起态在状态栏高度松手会自动吸附进对方状态栏）。")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

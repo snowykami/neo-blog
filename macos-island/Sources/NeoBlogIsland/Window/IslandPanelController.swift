@@ -38,6 +38,7 @@ final class IslandPanelController {
     private var customPlacement: PersistedCapsulePlacement?
     private var dragMouseStartScreen: NSPoint?
     private var dragCapsuleCenterStart: CGPoint?
+    private var dragLockedExpandsUpward: Bool?
     private var isDraggingActive: Bool = false
     private var pendingPortalThrow: PeerPortalPayload? = nil
 
@@ -210,9 +211,9 @@ final class IslandPanelController {
         placement: PersistedCapsulePlacement
     ) -> (center: CGPoint, docked: Bool, expandsUpward: Bool) {
         let sFrame = m.screenFrame
-        let docked = placement.dockedInMenuBar
+        let docked = placement.dockedInMenuBar && !(isDraggingActive && store.isExpanded)
         let capsuleH: CGFloat = docked ? m.dockedCapsuleHeight : 36
-        let halfW: CGFloat = docked ? 132 : 164
+        let halfW: CGFloat = store.isExpanded ? 180 : (docked ? 132 : 164)
 
         var cx = sFrame.minX + CGFloat(placement.normalizedX) * sFrame.width
         cx = max(sFrame.minX + halfW + 4, min(sFrame.maxX - halfW - 4, cx))
@@ -229,16 +230,29 @@ final class IslandPanelController {
         }
 
         let cy: CGFloat
+        let expandsUp: Bool
         if docked {
             cy = sFrame.maxY - m.menuBarHeight * 0.5
+            expandsUp = false
+        } else if store.isExpanded {
+            let rawY = sFrame.maxY - CGFloat(placement.offsetFromTopPt)
+            let lockedUp = dragLockedExpandsUpward ?? ((rawY - m.visibleFrame.minY) < 420)
+            let minY: CGFloat = lockedUp
+                ? max(sFrame.minY, m.visibleFrame.minY) + 22
+                : max(sFrame.minY, m.visibleFrame.minY) + 72
+            let maxY: CGFloat = lockedUp
+                ? (sFrame.maxY - 72)
+                : (sFrame.maxY - 20)
+            cy = max(minY, min(maxY, rawY))
+            expandsUp = lockedUp
         } else {
             let rawY = sFrame.maxY - CGFloat(placement.offsetFromTopPt)
             let minY = max(sFrame.minY, m.visibleFrame.minY) + capsuleH * 0.5 + 4
             let maxY = sFrame.maxY - capsuleH * 0.5 - 2
             cy = max(minY, min(maxY, rawY))
+            expandsUp = (cy - m.visibleFrame.minY) < 420
         }
 
-        let expandsUp = !docked && ((cy - m.visibleFrame.minY) < 420)
         return (CGPoint(x: cx, y: cy), docked, expandsUp)
     }
 
@@ -364,16 +378,32 @@ final class IslandPanelController {
         repositionPanel(animated: false)
     }
 
-    // MARK: - 胶囊自由拖拽与顶部状态栏磁吸状态机（基于 AppKit 全局屏幕坐标，120Hz 零抖动）
+    // MARK: - 胶囊与展开小窗自由拖拽及顶部状态栏磁吸状态机（基于 AppKit 全局屏幕坐标，120Hz 零抖动）
 
-    private func canDragCompactCapsule(for event: NSEvent) -> Bool {
+    private func canDragPanel(for event: NSEvent) -> Bool {
         guard store.shouldDisplayIsland,
-              !store.isExpanded,
               store.config.formMode != .notchMerged,
               !store.isPositionLocked,
               store.peerService.pendingPairRequest == nil,
               event.modifierFlags.intersection([.control]) == [] else {
             return false
+        }
+        if store.isExpanded {
+            let loc = event.locationInWindow
+            let canvasPt = CGPoint(x: loc.x, y: canvasSize.height - loc.y)
+            if store.scrubberCanvasRect.width > 1,
+               store.scrubberCanvasRect.insetBy(dx: -6, dy: -8).contains(canvasPt) {
+                return false
+            }
+            if let hitView = panel?.contentView?.hitTest(loc) {
+                var cur: NSView? = hitView
+                while let v = cur {
+                    if v is NSSlider || v is NSText || v is NSTextField || v is NSScroller {
+                        return false
+                    }
+                    cur = v.superview
+                }
+            }
         }
         return true
     }
@@ -381,8 +411,18 @@ final class IslandPanelController {
     private func beginPotentialDrag() {
         dragMouseStartScreen = NSEvent.mouseLocation
         pendingPortalThrow = nil
+        dragLockedExpandsUpward = store.isExpanded ? store.expandsUpward : nil
         if let p = customPlacement {
-            dragCapsuleCenterStart = resolveCustomCapsuleGeometry(for: metrics, placement: p).center
+            let resolved = resolveCustomCapsuleGeometry(for: metrics, placement: p)
+            if store.isExpanded && resolved.docked {
+                // 从状态栏磁吸态展开后起拖时，将锚点无缝对齐到展开小窗当前的真实顶部坐标，保证起拖首帧 0px 跳变
+                dragCapsuleCenterStart = CGPoint(
+                    x: resolved.center.x,
+                    y: metrics.screenFrame.maxY - metrics.menuBarHeight - 4 - 18
+                )
+            } else {
+                dragCapsuleCenterStart = resolved.center
+            }
         } else {
             dragCapsuleCenterStart = defaultCapsuleCenter(for: metrics)
         }
@@ -448,8 +488,8 @@ final class IslandPanelController {
         }
 
         let sFrame = nextMetrics.screenFrame
-        // 拖入屏幕顶部菜单栏热区（距顶边 <= menuBarHeight + 6pt）时自动磁吸居中对齐状态栏
-        let inMenuBarBand = targetCenter.y >= (sFrame.maxY - nextMetrics.menuBarHeight - 6)
+        // 收起态拖入屏幕顶部菜单栏热区（距顶边 <= menuBarHeight + 6pt）时自动磁吸居中对齐状态栏；展开小窗自由移动不磁吸进菜单栏
+        let inMenuBarBand = !store.isExpanded && (targetCenter.y >= (sFrame.maxY - nextMetrics.menuBarHeight - 6))
         let normX = max(0.0, min(1.0, Double((targetCenter.x - sFrame.minX) / max(1, sFrame.width))))
         let offsetTop = Double(max(0, sFrame.maxY - targetCenter.y))
 
@@ -463,11 +503,21 @@ final class IslandPanelController {
             let atOuterRight = (mouse.x >= sFrame.maxX - rightThreshold) && (ScreenNotchMetrics.screen(containing: beyondRight) == nil)
 
             if atOuterLeft {
-                let p = PeerPortalPayload(fromEdge: .left, offsetFromTopPt: offsetTop, dockedInMenuBar: inMenuBarBand)
+                let p = PeerPortalPayload(
+                    fromEdge: .left,
+                    offsetFromTopPt: offsetTop,
+                    dockedInMenuBar: inMenuBarBand,
+                    isExpanded: store.isExpanded
+                )
                 pendingPortalThrow = p
                 store.updatePortalDragPreview(p)
             } else if atOuterRight {
-                let p = PeerPortalPayload(fromEdge: .right, offsetFromTopPt: offsetTop, dockedInMenuBar: inMenuBarBand)
+                let p = PeerPortalPayload(
+                    fromEdge: .right,
+                    offsetFromTopPt: offsetTop,
+                    dockedInMenuBar: inMenuBarBand,
+                    isExpanded: store.isExpanded
+                )
                 pendingPortalThrow = p
                 store.updatePortalDragPreview(p)
             } else {
@@ -497,9 +547,11 @@ final class IslandPanelController {
     private func finishPotentialDrag() -> Bool {
         let wasDragging = isDraggingActive
         let portalToCommit = pendingPortalThrow
+        let lockedUp = dragLockedExpandsUpward
         pendingPortalThrow = nil
         dragMouseStartScreen = nil
         dragCapsuleCenterStart = nil
+        dragLockedExpandsUpward = nil
         isDraggingActive = false
         if store.isDraggingCapsule {
             store.isDraggingCapsule = false
@@ -510,6 +562,26 @@ final class IslandPanelController {
                 store.commitPortalThrow(portalToCommit)
             } else {
                 store.updatePortalDragPreview(nil)
+                // 展开小窗拖动松手时：若跨过了上下半屏锚点分界线，将 offsetFromTopPt 等价折算到新锚点，保证松手与日后收起均 0px 跳变
+                if store.isExpanded, let lockedUp, var p = customPlacement, !p.dockedInMenuBar {
+                    let sFrame = metrics.screenFrame
+                    let curCy = sFrame.maxY - CGFloat(p.offsetFromTopPt)
+                    let naturalUp = (curCy - metrics.visibleFrame.minY) < 420
+                    if naturalUp != lockedUp {
+                        let cardH = effectiveInteractiveTopLeftRect().height
+                        let convertedCy: CGFloat
+                        if naturalUp {
+                            let cardBottomY = max(metrics.visibleFrame.minY + 4, (curCy + 18) - cardH)
+                            convertedCy = cardBottomY + 18
+                        } else {
+                            let cardTopY = min(sFrame.maxY - 4, (curCy - 18) + cardH)
+                            convertedCy = cardTopY - 18
+                        }
+                        p.offsetFromTopPt = Double(max(0, sFrame.maxY - convertedCy))
+                        customPlacement = p
+                        repositionPanel(animated: false)
+                    }
+                }
                 if let placement = customPlacement {
                     Self.savePersistedPlacement(placement)
                 }
@@ -614,7 +686,7 @@ final class IslandPanelController {
             guard let self else { return event }
             switch event.type {
             case .leftMouseDown:
-                if self.canDragCompactCapsule(for: event) {
+                if self.canDragPanel(for: event) {
                     self.beginPotentialDrag()
                 }
                 return event
@@ -627,10 +699,25 @@ final class IslandPanelController {
                 return event
 
             case .leftMouseUp:
+                var didDrag = false
                 if self.dragMouseStartScreen != nil {
-                    _ = self.finishPotentialDrag()
+                    didDrag = self.finishPotentialDrag()
                 }
                 self.updateMousePassthrough()
+                // 若本次已构成窗口拖拽，将回传给 SwiftUI 的 mouseUp 坐标移出画布，使按钮正常释放按压高亮且绝不误触点击动作
+                if didDrag, let relocated = NSEvent.mouseEvent(
+                    with: .leftMouseUp,
+                    location: NSPoint(x: -9999, y: -9999),
+                    modifierFlags: event.modifierFlags,
+                    timestamp: event.timestamp,
+                    windowNumber: event.windowNumber,
+                    context: nil,
+                    eventNumber: event.eventNumber,
+                    clickCount: 0,
+                    pressure: 0
+                ) {
+                    return relocated
+                }
                 return event
 
             default:

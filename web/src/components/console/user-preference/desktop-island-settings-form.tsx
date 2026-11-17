@@ -119,13 +119,15 @@ export function DesktopIslandSettingsForm({ className }: { className?: string })
       ? 'secondary'
       : 'outline'
 
-  const statusText = status === 'connected'
-    ? t('desktop_island.status_connected')
-    : status === 'connecting'
-      ? t('desktop_island.status_connecting')
-      : prefs.enabled
-        ? t('desktop_island.status_disconnected')
-        : t('desktop_island.status_disabled')
+  const statusText = !prefs.enabled
+    ? t('desktop_island.status_disabled')
+    : status === 'connected'
+      ? t('desktop_island.status_connected')
+      : status === 'connecting'
+        ? t('desktop_island.status_connecting')
+        : status === 'standby'
+          ? t('desktop_island.status_standby')
+          : t('desktop_island.status_disconnected')
 
   return (
     <Card className={cn(className)}>
@@ -216,7 +218,9 @@ export function DesktopIslandSettingsForm({ className }: { className?: string })
 
             {prefs.enabled && status !== 'connected' && (
               <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/40 px-3 py-2 text-xs">
-                <span className="text-muted-foreground">{t('desktop_island.reconnect_hint')}</span>
+                <span className="text-muted-foreground">
+                  {status === 'standby' ? t('desktop_island.standby_hint') : t('desktop_island.reconnect_hint')}
+                </span>
                 <Button
                   type="button"
                   size="sm"

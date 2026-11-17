@@ -42,6 +42,7 @@ struct PeerPortalPayload: Codable, Equatable, Sendable {
     let fromEdge: PortalEdge
     let offsetFromTopPt: Double
     let dockedInMenuBar: Bool
+    var isExpanded: Bool? = nil
 }
 
 struct PeerFullSnapshot: Codable, Sendable {

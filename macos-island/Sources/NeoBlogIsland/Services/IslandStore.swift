@@ -125,6 +125,7 @@ final class IslandStore {
     @ObservationIgnored var onLayoutTriggerChanged: (() -> Void)?
     @ObservationIgnored var onReceivePortalArrival: ((PeerPortalPayload) -> Void)?
     @ObservationIgnored var onInterceptCommandForTest: ((OutgoingCommand) -> Void)?
+    @ObservationIgnored var scrubberCanvasRect: CGRect = .zero
     @ObservationIgnored private var lastDragEndedAt: Date = .distantPast
 
     var shouldSuppressTapAfterDrag: Bool {
@@ -733,7 +734,7 @@ final class IslandStore {
                 self.incomingPortalPreview = nil
                 self.displayOwnership = .singleActiveMac
                 self.activeOwnerPeerId = self.peerService.localPeerId
-                self.isExpanded = false
+                self.isExpanded = portal.isExpanded ?? false
                 self.showPlaylistOverlay = false
                 self.startupBannerText = nil
                 self.hiddenTrackId = nil
