@@ -37,16 +37,24 @@ private struct StripLineCellView: View {
     let item: IslandStore.StripRenderItem
     let nowMs: Double
     let cellWidth: CGFloat
+    let stageHeight: CGFloat
     let baseFontSize: CGFloat
 
     @State private var actualContentWidth: CGFloat = 0
 
     var body: some View {
         let line = item.line
-        // 保持固定基准字号（不随 slot 离散跳变 Font），双层并发缩放交由外层 GPU .scaleEffect 连续弹簧插值（1:1 对齐 lyric-player.ts view.scale）
+        // 保持固定基准字号（不随 slot 离散跳变 Font），双层/四宫格缩放交由外层 GPU .scaleEffect 连续弹簧插值；
+        // 状态栏矮胶囊（22~30pt）按实际舞台高度自适应压小分层缩放比（0.70~0.90），确保双行与左双右双四宫格清晰不重叠
         let renderFontSize: CGFloat = line.isBackground ? baseFontSize * 0.72 : baseFontSize
-        let tieredScale: CGFloat = (item.slot != nil && !line.isBackground) ? CGFloat(LyricSpecs.stripTierScale) : 1.0
-        let horizontalPad: CGFloat = 8
+        let tieredScale: CGFloat = {
+            guard item.slot != nil else { return 1.0 }
+            if line.isBackground {
+                return min(1.0, max(0.85, stageHeight / 28.0))
+            }
+            return min(CGFloat(LyricSpecs.stripTierScale), max(0.70, stageHeight / 36.0))
+        }()
+        let horizontalPad: CGFloat = (item.slot?.half == true && cellWidth < 120) ? 4.5 : 8
         let innerWidth = max(20, Double(cellWidth - horizontalPad * 2))
 
         let edgeHexes = (line.edgeColors?.isEmpty == false) ? line.edgeColors! : nil
@@ -183,7 +191,7 @@ private struct StripStageContainerView: View {
     var body: some View {
         TimelineView(.animation(paused: !store.isPlaying && !store.debrisEngine.hasActiveDebris)) { context in
             let nowMs = store.currentPositionMs(at: context.date)
-            let plan = store.stripRenderItems(at: nowMs, containerHeight: Double(height))
+            let plan = store.stripRenderItems(at: nowMs)
             let animTokens = plan.items.map {
                 StripAnimStateToken(id: $0.id, slot: $0.slot, isFocus: $0.isFocus)
             }
@@ -200,6 +208,8 @@ private struct StripStageContainerView: View {
                         hdrEnabled: store.config.hdr
                     )
                 } else if !plan.items.isEmpty {
+                    let topRatio: CGFloat = height < 30 ? -0.235 : CGFloat(LyricSpecs.stripTierTop)
+                    let bottomRatio: CGFloat = height < 30 ? 0.245 : CGFloat(LyricSpecs.stripTierBottom)
                     ForEach(plan.items) { item in
                         let isHalf = item.slot?.half == true
                         let isDuet = item.line.isDuet || item.line.align == "right"
@@ -207,7 +217,7 @@ private struct StripStageContainerView: View {
                         let xOffset: CGFloat = isHalf ? (isDuet ? width * 0.25 : -width * 0.25) : 0
                         let yOffset: CGFloat = {
                             guard let slot = item.slot else { return 0 }
-                            return CGFloat(slot.row == .top ? LyricSpecs.stripTierTop : LyricSpecs.stripTierBottom) * height
+                            return (slot.row == .top ? topRatio : bottomRatio) * height
                         }()
 
                         StripLineCellView(
@@ -215,6 +225,7 @@ private struct StripStageContainerView: View {
                             item: item,
                             nowMs: nowMs,
                             cellWidth: cellW,
+                            stageHeight: height,
                             baseFontSize: baseFontSize
                         )
                         .offset(x: xOffset)

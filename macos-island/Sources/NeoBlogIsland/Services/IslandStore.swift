@@ -296,8 +296,8 @@ final class IslandStore {
         return ([], firstMain, nil)
     }
 
-    /// 计算紧凑胶囊单行条此刻应显示的 1～4 句及其槽位（对齐 strip-slots.ts placeStripLines）
-    func stripRenderItems(at ms: Double, containerHeight: Double) -> (items: [StripRenderItem], interlude: TimeIntervalRange?) {
+    /// 计算紧凑胶囊单行条此刻应显示的 1～4 句及其槽位（对齐 strip-slots.ts placeStripLines；状态栏矮胶囊同样保留双行与 2x2 四宫格，由视图层自适应缩小字号）
+    func stripRenderItems(at ms: Double) -> (items: [StripRenderItem], interlude: TimeIntervalRange?) {
         let state = timelineState(at: ms)
         if let inter = state.interlude {
             return ([], inter)
@@ -313,10 +313,6 @@ final class IslandStore {
                 return lines[j].start
             }
             return nil
-        }
-
-        guard containerHeight >= LyricSpecs.stripTierMinHeightPx else {
-            return ([StripRenderItem(trackId: tid, lineIndex: focusIdx, line: lines[focusIdx], nextLineStart: nextStartFor(focusIdx), slot: nil, isFocus: true)], nil)
         }
 
         let makeCandidate = { (idx: Int) -> StripCandidateLine in

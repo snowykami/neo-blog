@@ -95,7 +95,6 @@ enum LyricSpecs {
     static let maxFrameSec: Double = 0.1
 
     // 单行条分层（对齐 lyric-player.ts STRIP_TIER_*）
-    static let stripTierMinHeightPx: Double = 32
     static let stripTierTop: Double = -0.21
     static let stripTierBottom: Double = 0.24
     static let stripTierScale: Double = 0.90
