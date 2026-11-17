@@ -4,6 +4,8 @@ import (
 	"context"
 	"slices"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -85,6 +87,8 @@ func checkSiteAIBudget(now time.Time) *errs.ServiceError {
 	return nil
 }
 
+var inflightLLMCalls atomic.Int64
+
 // beginLLMCall 每次调用模型前调用：按用途检查全站预算（AI 用户的调用不受全站预算拦截），
 // 通过时返回在调用结束后记录用量的函数（失败也记，token 为 0、带错误）
 func beginLLMCall(ctx context.Context, modelName string) (func(usage llmUsage, err error), error) {
@@ -98,8 +102,13 @@ func beginLLMCall(ctx context.Context, modelName string) (func(usage llmUsage, e
 	}
 	start := time.Now()
 	requestID := ctxutils.RequestID(ctx)
+	inflightLLMCalls.Add(1)
+	var finishOnce sync.Once
 	return func(usage llmUsage, err error) {
-		recordLLMUsage(info, modelName, requestID, usage, err, time.Since(start))
+		finishOnce.Do(func() {
+			inflightLLMCalls.Add(-1)
+			recordLLMUsage(info, modelName, requestID, usage, err, time.Since(start))
+		})
 	}, nil
 }
 

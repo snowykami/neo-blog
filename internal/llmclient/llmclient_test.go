@@ -400,3 +400,64 @@ func TestChatCompletionStreamCallWithEffortAndFallback(t *testing.T) {
 		t.Fatalf("stream B reqs = %+v, want %+v", reqsB, wantB)
 	}
 }
+
+func TestLimiterHighConcurrencyAndQueuedCount(t *testing.T) {
+	sharedstate.UseMemory()
+	t.Cleanup(sharedstate.UseMemory)
+
+	limiter := &Limiter{Name: "test_100_" + t.Name()}
+	hundred := func() int { return 100 }
+	baseQueued := QueuedTasks()
+
+	// 上限 100 时公共名额为 1..99（共 99 个），第 0 个名额留给交互式请求
+	for i := range 99 {
+		if err := limiter.AcquireTier(context.Background(), hundred, TierFirstScreen, nil); err != nil {
+			t.Fatalf("acquire general slot %d: %v", i, err)
+		}
+	}
+	// 交互式请求仍可立即拿到预留的 0 号名额（共 100 个并发）
+	if err := limiter.AcquireTier(context.Background(), hundred, TierInteractive, nil); err != nil {
+		t.Fatalf("acquire reserved interactive slot: %v", err)
+	}
+
+	// 再来两个任务应进入排队计数，取消或释放后排队计数恢复
+	ctx1, cancel1 := context.WithCancel(context.Background())
+	defer cancel1()
+	waiting1 := make(chan struct{})
+	done1 := make(chan error, 1)
+	go func() {
+		done1 <- limiter.AcquireTier(ctx1, hundred, TierFirstScreen, func() { close(waiting1) })
+	}()
+	<-waiting1
+
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	defer cancel2()
+	waiting2 := make(chan struct{})
+	done2 := make(chan error, 1)
+	go func() {
+		done2 <- limiter.AcquireTier(ctx2, hundred, TierBackground, func() { close(waiting2) })
+	}()
+	<-waiting2
+
+	if got := QueuedTasks() - baseQueued; got != 2 {
+		t.Fatalf("queued tasks = %d, want 2", got)
+	}
+
+	cancel2()
+	<-done2
+	if got := QueuedTasks() - baseQueued; got != 1 {
+		t.Fatalf("queued tasks after cancel = %d, want 1", got)
+	}
+
+	limiter.Release()
+	if err := <-done1; err != nil {
+		t.Fatalf("waiting1 acquire after release: %v", err)
+	}
+	if got := QueuedTasks() - baseQueued; got != 0 {
+		t.Fatalf("queued tasks after acquire = %d, want 0", got)
+	}
+
+	for range 100 {
+		limiter.Release()
+	}
+}

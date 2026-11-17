@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/snowykami/neo-blog/internal/llmclient"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/metrics"
@@ -33,6 +34,12 @@ func init() {
 	metrics.RegisterGoRuntime()
 	metrics.NewGaugeFunc("neo_blog_http_requests_in_flight", "HTTP requests currently being handled (including event streams).", func() float64 {
 		return float64(requestStats.inflight.Load())
+	})
+	metrics.NewGaugeFunc("neo_blog_ai_tasks_in_flight", "AI model tasks currently executing (including streams).", func() float64 {
+		return float64(inflightLLMCalls.Load())
+	})
+	metrics.NewGaugeFunc("neo_blog_ai_tasks_queued", "AI model tasks currently waiting for a concurrency slot.", func() float64 {
+		return float64(llmclient.QueuedTasks())
 	})
 	metrics.NewCollectorFunc("neo_blog_db_connections", "Database connection pool connections, by state (in_use / idle).", "gauge", []string{"state"}, func() []metrics.Sample {
 		db := repo.GetDB()

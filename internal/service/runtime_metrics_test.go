@@ -1,10 +1,12 @@
 package service
 
 import (
+	"context"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/snowykami/neo-blog/internal/config"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/pkg/sharedstate"
 )
@@ -147,5 +149,59 @@ func TestRedisDBKeys(t *testing.T) {
 	}
 	if got := redisDBKeys(""); got != 0 {
 		t.Fatalf("keys = %d", got)
+	}
+}
+
+func TestRuntimeMetricsAITasksAndConcurrency100(t *testing.T) {
+	setupEditTest(t)
+	sharedstate.UseMemory()
+	t.Cleanup(sharedstate.UseMemory)
+
+	// 验证全局配置允许将 AI 并发上限设为 100，超出 100 则拒绝
+	if svcerr := config.Save([]config.Change{
+		{Key: "ai_api_base_url", Value: "https://api.deepseek.com/v1"},
+		{Key: "ai_model", Value: "deepseek-chat"},
+		{Key: "ai_api_key", Value: "sk-test-100"},
+		{Key: "ai_summary_concurrency", Value: 100},
+	}); svcerr != nil {
+		t.Fatalf("save ai_summary_concurrency=100 failed: %v", svcerr)
+	}
+	if svcerr := config.Save([]config.Change{{Key: "ai_summary_concurrency", Value: 101}}); svcerr == nil {
+		t.Fatal("expected ai_summary_concurrency=101 to fail validation")
+	}
+	if got := config.Int("ai_summary_concurrency"); got != 100 {
+		t.Fatalf("config ai_summary_concurrency = %d, want 100", got)
+	}
+
+	base := inflightLLMCalls.Load()
+	finish1, err := beginLLMCall(context.Background(), "deepseek-chat")
+	if err != nil {
+		t.Fatalf("beginLLMCall 1: %v", err)
+	}
+	finish2, err := beginLLMCall(context.Background(), "deepseek-chat")
+	if err != nil {
+		t.Fatalf("beginLLMCall 2: %v", err)
+	}
+
+	resp, svcerr := ListRuntimeMetrics()
+	if svcerr != nil || len(resp.Instances) != 1 {
+		t.Fatalf("ListRuntimeMetrics = %+v, %v", resp, svcerr)
+	}
+	if resp.AIConcurrencyLimit != 100 {
+		t.Fatalf("AIConcurrencyLimit = %d, want 100", resp.AIConcurrencyLimit)
+	}
+	if got := resp.Instances[0].Core.AITasks - base; got != 2 {
+		t.Fatalf("Core.AITasks = %d, want 2", got)
+	}
+
+	// 重复调用 finish 幂等，不会多扣计数
+	finish1(llmUsage{}, nil)
+	finish1(llmUsage{}, nil)
+	if got := inflightLLMCalls.Load() - base; got != 1 {
+		t.Fatalf("inflight after finish1 = %d, want 1", got)
+	}
+	finish2(llmUsage{}, nil)
+	if got := inflightLLMCalls.Load() - base; got != 0 {
+		t.Fatalf("inflight after finish2 = %d, want 0", got)
 	}
 }

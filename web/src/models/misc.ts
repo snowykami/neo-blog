@@ -109,6 +109,8 @@ export interface BackendCoreMetrics {
   goroutines: number
   dbInUse: number
   dbOpen: number
+  aiTasks?: number // 正在调用模型的 AI 任务数（含流式生成）
+  aiQueued?: number // 正在排队等待并发名额的 AI 任务数
 }
 
 /** 前端实例的核心指标 */
@@ -250,6 +252,7 @@ export interface DependencyMetrics {
 /** 全部存活前后端实例的运行时指标；未配置 Redis 时只有本实例，前端没有配置 Redis 时 frontends 为空 */
 export interface RuntimeMetrics {
   shared: boolean
+  aiConcurrencyLimit?: number // 0 表示尚未配置模型
   instances: RuntimeInstance[]
   frontends: FrontendInstance[]
   dependencies: DependencyMetrics | null // 启动后第一次采集前为空

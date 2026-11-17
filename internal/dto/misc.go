@@ -42,6 +42,8 @@ type RuntimeCoreDto struct {
 	Goroutines        int     `json:"goroutines"`
 	DBInUse           int     `json:"db_in_use"` // 数据库连接池：使用中
 	DBOpen            int     `json:"db_open"`   // 数据库连接池：已打开
+	AITasks           int64   `json:"ai_tasks"`  // 正在调用模型的 AI 任务数（含流式生成）
+	AIQueued          int64   `json:"ai_queued"` // 正在排队等待并发名额的 AI 任务数
 }
 
 // FrontendInstanceDto 一个前端（Next.js）实例的运行时指标快照，由前端写进共享状态
@@ -73,10 +75,11 @@ type FrontendCoreDto struct {
 
 // RuntimeMetricsResp 全部存活前后端实例的运行时指标
 type RuntimeMetricsResp struct {
-	Shared       bool                  `json:"shared"` // 是否通过 Redis 共享（多副本可见）；否则只有本实例
-	Instances    []RuntimeInstanceDto  `json:"instances"`
-	Frontends    []FrontendInstanceDto `json:"frontends"`    // 前端实例写进共享状态的快照；前端没有配置 Redis 时为空
-	Dependencies *DependencyMetricsDto `json:"dependencies"` // 数据库与 Redis；启动后第一次采集前为空
+	Shared             bool                  `json:"shared"` // 是否通过 Redis 共享（多副本可见）；否则只有本实例
+	AIConcurrencyLimit int                   `json:"ai_concurrency_limit"`
+	Instances          []RuntimeInstanceDto  `json:"instances"`
+	Frontends          []FrontendInstanceDto `json:"frontends"`    // 前端实例写进共享状态的快照；前端没有配置 Redis 时为空
+	Dependencies       *DependencyMetricsDto `json:"dependencies"` // 数据库与 Redis；启动后第一次采集前为空
 }
 
 // DependencyMetricsDto 依赖服务（数据库、Redis 与 Meilisearch）的运行统计，每 15 秒由一个实例采集

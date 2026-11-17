@@ -32,7 +32,7 @@ const CPU_CRITICAL = 90
 // 事件循环延迟超过这个值时标「偏高」
 const EVENT_LOOP_WARNING_MS = 100
 // 各列条形的最小刻度：数值都很小时条形不会被放大成满格
-const BAR_FLOOR = { inflight: 5, latency: 200, memory: 256 << 20, goroutines: 200, db: 10, connections: 20, eventLoop: 50 }
+const BAR_FLOOR = { inflight: 5, aiTasks: 5, latency: 200, memory: 256 << 20, goroutines: 200, db: 10, connections: 20, eventLoop: 50 }
 
 /**
  * 轮询拉取数据：页面不可见时暂停，重新可见时立即拉取一次
@@ -165,6 +165,7 @@ export function RuntimeCard() {
       ? t('runtime_frontend_not_reported')
       : null
   const loading = !runtime.data
+  const aiConcurrencyLimit = runtime.data?.aiConcurrencyLimit ?? 0
 
   return (
     <Card className="gap-4 py-4">
@@ -180,7 +181,7 @@ export function RuntimeCard() {
         <CardContent className="grid gap-4 px-4">
           {!!runtime.error && <MetricsError error={runtime.error} label={t('backend_metrics')} />}
           {!!frontend.error && <MetricsError error={frontend.error} label={t('frontend_metrics')} />}
-          <SummaryTiles backends={backends} frontends={frontends} loading={loading} />
+          <SummaryTiles backends={backends} frontends={frontends} aiConcurrencyLimit={aiConcurrencyLimit} loading={loading} />
           {frontendNotice && (
             <Alert>
               <TriangleAlert className="text-amber-500" aria-hidden="true" />
@@ -190,7 +191,7 @@ export function RuntimeCard() {
           <ReplicaGroup title={t('runtime_backend_replicas')} subtitle="Go · Hertz">
             {loading
               ? <TableSkeleton />
-              : <BackendTable instances={backends} />}
+              : <BackendTable instances={backends} aiConcurrencyLimit={aiConcurrencyLimit} />}
           </ReplicaGroup>
           <ReplicaGroup title={t('runtime_frontend_replicas')} subtitle="Next.js · Node">
             {frontends.length === 0
@@ -217,12 +218,24 @@ export function RuntimeCard() {
   )
 }
 
-function SummaryTiles({ backends, frontends, loading }: { backends: RuntimeInstance[], frontends: FrontendInstance[], loading: boolean }) {
+function SummaryTiles({ backends, frontends, aiConcurrencyLimit, loading }: {
+  backends: RuntimeInstance[]
+  frontends: FrontendInstance[]
+  aiConcurrencyLimit: number
+  loading: boolean
+}) {
   const t = useTranslations('Console.dashboard')
   const backendHistory = sumHistories(backends.map(i => i.requestsHistory))
   const frontendHistory = sumHistories(frontends.map(i => i.requestsHistory))
   const backendInflight = sum(backends.map(i => i.core.inflightRequests))
   const frontendInflight = sum(frontends.map(i => i.core.inflightRequests))
+  const aiTasks = sum(backends.map(i => i.core.aiTasks ?? 0))
+  const aiQueued = sum(backends.map(i => i.core.aiQueued ?? 0))
+  const aiSub = aiConcurrencyLimit <= 0
+    ? t('runtime_ai_unconfigured')
+    : aiQueued > 0
+      ? t('runtime_ai_tasks_queued_sub', { queued: aiQueued, limit: aiConcurrencyLimit })
+      : t('runtime_ai_tasks_sub', { limit: aiConcurrencyLimit })
   const rateTile = (label: string, history: number[], current: number) => ({
     label,
     value: formatRate(current),
@@ -244,10 +257,11 @@ function SummaryTiles({ backends, frontends, loading }: { backends: RuntimeInsta
     rateTile(t('runtime_backend_rps'), backendHistory, sum(backends.map(i => i.core.requestsPerSecond))),
     rateTile(t('runtime_frontend_rps'), frontendHistory, sum(frontends.map(i => i.core.requestsPerSecond))),
     { label: t('runtime_inflight'), value: String(backendInflight + frontendInflight), unit: t('runtime_unit_count'), sub: t('runtime_inflight_split', { backend: backendInflight, frontend: frontendInflight }), trend: null },
+    { label: t('runtime_ai_tasks'), value: String(aiTasks), unit: t('runtime_unit_count'), sub: aiSub, trend: null },
     { label: t('runtime_replicas'), value: `${backends.length} + ${frontends.length}`, unit: '', sub: t('runtime_replicas_split'), trend: null },
   ]
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
       {tiles.map(tile => (
         <div key={tile.label} className="grid min-w-0 gap-0.5 rounded-md border px-3 py-2">
           <span className="text-xs text-muted-foreground">{tile.label}</span>
@@ -456,15 +470,35 @@ function useCommonColumns<T extends Replica & { core: BackendCoreMetrics | Front
   ]
 }
 
-function BackendTable({ instances }: { instances: RuntimeInstance[] }) {
+function BackendTable({ instances, aiConcurrencyLimit }: { instances: RuntimeInstance[], aiConcurrencyLimit: number }) {
   const t = useTranslations('Console.dashboard')
   const format = useFormatter()
   const rows = instances.map(i => ({ ...i, id: i.instanceId, label: replicaLabel(instances, i), history: i.requestsHistory }))
   const common = useCommonColumns(rows, 'backend')
+  const aiScale = scaleOf(rows.map(r => r.core.aiTasks ?? 0), Math.max(BAR_FLOOR.aiTasks, aiConcurrencyLimit))
   const goroutineScale = scaleOf(rows.map(r => r.core.goroutines), BAR_FLOOR.goroutines)
   const dbScale = scaleOf(rows.map(r => r.core.dbOpen), BAR_FLOOR.db)
   const columns: Column<(typeof rows)[number]>[] = [
     ...common,
+    {
+      key: 'ai_tasks',
+      title: t('runtime_col_ai_tasks'),
+      render: (r) => {
+        const running = r.core.aiTasks ?? 0
+        const queued = r.core.aiQueued ?? 0
+        const tipLines = [t('runtime_tip_ai_tasks')]
+        if (queued > 0)
+          tipLines.push(t('runtime_tip_ai_queued', { queued }))
+        return (
+          <BarCell
+            value={String(running)}
+            unit={t('runtime_unit_count')}
+            ratio={running / aiScale}
+            tip={<Tip value={`${running} ${t('runtime_unit_count')}`.trim()} lines={tipLines} />}
+          />
+        )
+      },
+    },
     {
       key: 'goroutines',
       title: 'Goroutine',

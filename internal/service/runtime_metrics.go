@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"github.com/snowykami/neo-blog/internal/dto"
+	"github.com/snowykami/neo-blog/internal/llmclient"
 	"github.com/snowykami/neo-blog/internal/repo"
+	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/sharedstate"
 )
@@ -128,13 +130,15 @@ func (s *coreSampler) sample(now time.Time) {
 	}
 }
 
-// snapshot 最近一次计算的核心指标；进行中的请求与 Goroutine 数取实时值
+// snapshot 最近一次计算的核心指标；进行中的请求、AI 任务与 Goroutine 数取实时值
 func (s *coreSampler) snapshot() (dto.RuntimeCoreDto, []float64) {
 	s.mu.Lock()
 	core, history := s.core, slices.Clone(s.history)
 	s.mu.Unlock()
 	core.InflightRequests = requestStats.inflight.Load()
 	core.Goroutines = runtime.NumGoroutine()
+	core.AITasks = inflightLLMCalls.Load()
+	core.AIQueued = llmclient.QueuedTasks()
 	if history == nil {
 		history = []float64{}
 	}
@@ -212,7 +216,17 @@ func ListRuntimeMetrics() (*dto.RuntimeMetricsResp, *errs.ServiceError) {
 	if svcerr != nil {
 		return nil, svcerr
 	}
-	return &dto.RuntimeMetricsResp{Shared: sharedstate.Shared(), Instances: instances, Frontends: frontends, Dependencies: GetDependencyMetrics()}, nil
+	aiConcurrencyLimit := 0
+	if tools.GetAIConfig().Configured() {
+		aiConcurrencyLimit = tools.GetAISummaryConcurrency()
+	}
+	return &dto.RuntimeMetricsResp{
+		Shared:             sharedstate.Shared(),
+		AIConcurrencyLimit: aiConcurrencyLimit,
+		Instances:          instances,
+		Frontends:          frontends,
+		Dependencies:       GetDependencyMetrics(),
+	}, nil
 }
 
 // listFrontendMetrics 前端实例写进共享状态的快照，按启动时间排序
