@@ -721,27 +721,32 @@ private struct SingerPillBadgeView: View {
     let singerName: String?
     let dotOnly: Bool
 
+    @ViewBuilder
+    private var dotCluster: some View {
+        HStack(spacing: -1.8) {
+            ForEach(dots) { dot in
+                Circle()
+                    .fill(Color(cssColor: dot.hex))
+                    .frame(width: 6.2, height: 6.2)
+                    .overlay {
+                        if dots.count > 1 {
+                            Circle()
+                                .stroke(Color.black.opacity(0.32), lineWidth: 0.8)
+                        }
+                    }
+            }
+        }
+    }
+
     var body: some View {
         if dotOnly || (singerName ?? "").isEmpty {
-            HStack(spacing: -2) {
-                ForEach(dots) { dot in
-                    Circle()
-                        .fill(Color(cssColor: dot.hex))
-                        .frame(width: 6, height: 6)
-                }
-            }
-            .padding(3.5)
-            .background(Color.white.opacity(0.14), in: Capsule())
-            .overlay(Capsule().strokeBorder(Color.white.opacity(0.10), lineWidth: 0.6))
+            dotCluster
+                .padding(3.5)
+                .background(Color.white.opacity(0.14), in: Capsule())
+                .overlay(Capsule().strokeBorder(Color.white.opacity(0.10), lineWidth: 0.6))
         } else if let name = singerName {
             HStack(spacing: 4) {
-                HStack(spacing: -2) {
-                    ForEach(dots) { dot in
-                        Circle()
-                            .fill(Color(cssColor: dot.hex))
-                            .frame(width: 6, height: 6)
-                    }
-                }
+                dotCluster
                 Text(name)
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.88))

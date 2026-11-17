@@ -191,7 +191,7 @@
   white-space: nowrap;
 }
 
-/* 歌手提示竖条（参考 StarryPlayer）：统一定位在每句正文紧左侧，实心圆角，合唱为纵向多色渐变（聚光灯下由引擎让路淡出） */
+/* 歌手提示竖条（参考 StarryPlayer）：统一定位在每句正文紧左侧，实心圆角，多人合唱为边界分明的纵向等分纯色段（聚光灯下由引擎让路淡出） */
 .lyric-edge {
   position: absolute;
   inset-block: 0.14em;
@@ -582,11 +582,11 @@
 
 .lyric-player--compact .lyric-edge {
   inset-block: 0.12em;
-  width: 2.5px;
+  width: 3px;
 }
 
 .lyric-player--compact .lyric-line--bg .lyric-edge {
-  width: 2px;
+  width: 2.25px;
 }
 
 .lyric-player--compact .lyric-extra {

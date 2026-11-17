@@ -524,7 +524,9 @@ describe('振假名渲染与 HDR 跨行平滑退场', () => {
     expect(dots).toHaveLength(4)
     expect(dots.map(d => d.style.getPropertyValue('--dot-color'))).toEqual(['#d9695b', '#3f9a66', '#2f93a3', '#8462cc'])
     expect(quartetLine.querySelector('.lyric-singer__label')?.textContent).toBe('甲 · 乙 · 丙 · 丁')
-    expect(quartetLine.style.getPropertyValue('--singer-edge-gradient')).toBe('linear-gradient(180deg, #d9695b, #3f9a66, #2f93a3, #8462cc)')
+    expect(quartetLine.style.getPropertyValue('--singer-edge-gradient')).toBe(
+      'linear-gradient(180deg, #d9695b 0%, #d9695b 25%, #3f9a66 25%, #3f9a66 50%, #2f93a3 50%, #2f93a3 75%, #8462cc 75%, #8462cc 100%)',
+    )
     quartetCtx.cleanup()
   })
 

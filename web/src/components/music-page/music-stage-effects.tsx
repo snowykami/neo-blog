@@ -295,32 +295,44 @@ export function MusicStageEffects({
 
   if (!enabled)
     return null
+  const particleCanvas = <canvas key={hdr ? 'hdr' : '2d'} ref={canvasRef} className="absolute inset-0 size-full" />
   return (
-    <div
-      ref={rootRef}
-      aria-hidden
-      data-stage-push={contained ? undefined : 0.08}
-      className={cn('pointer-events-none inset-0 overflow-hidden', contained ? 'absolute' : 'fixed will-change-[scale]')}
-    >
-      {/* 三层的透明度逐帧变化：各自提升为合成层，只改合成参数，不必每帧重新光栅化整屏渐变；不透明度为 0 时隐藏避免空合成 */}
+    <>
       <div
-        ref={tintRef}
-        className="absolute -inset-[16%] opacity-0 mix-blend-screen transition-[translate] duration-700 ease-out will-change-[opacity,translate] motion-reduce:transition-none"
-        style={{ background: 'radial-gradient(ellipse at 65% 45%, var(--stage-tint, transparent), transparent 70%)', visibility: 'hidden' }}
-      />
-      <div
-        ref={pulseRef}
-        className="absolute inset-0 opacity-0 mix-blend-soft-light will-change-[opacity]"
-        style={{ background: 'radial-gradient(ellipse at 50% 50%, var(--lyric-accent, #fff), transparent 75%)', visibility: 'hidden' }}
-      />
-      {/* 聚光灯：歌词区中央一团暖光（播放器页宽屏时歌词在右侧），四周略微压暗 */}
-      <div
-        ref={spotlightRef}
-        className="absolute inset-0 opacity-0 will-change-[opacity] [--spot-x:50%] lg:[--spot-x:62%]"
-        style={{ background: `radial-gradient(42% 30% at ${contained ? '50%' : 'var(--spot-x)'} 50%, rgb(255 236 200 / ${SPOTLIGHT_WARM_OPACITY}), transparent 70%), radial-gradient(75% 60% at 50% 50%, transparent 40%, rgb(0 0 0 / ${SPOTLIGHT_DIM_OPACITY}) 100%)`, visibility: 'hidden' }}
-      />
-      {/* key：HDR 与 2D 是不同的上下文，同一个 canvas 元素取过一种就不能再换，切换时换一个新元素 */}
-      <canvas key={hdr ? 'hdr' : '2d'} ref={canvasRef} className="absolute inset-0 size-full" />
-    </div>
+        ref={rootRef}
+        aria-hidden
+        data-stage-push={contained ? undefined : 0.08}
+        className={cn('pointer-events-none inset-0 overflow-hidden', contained ? 'absolute' : 'fixed will-change-[scale]')}
+      >
+        {/* 三层的透明度逐帧变化：各自提升为合成层，只改合成参数，不必每帧重新光栅化整屏渐变；不透明度为 0 时隐藏避免空合成 */}
+        <div
+          ref={tintRef}
+          className="absolute -inset-[16%] opacity-0 mix-blend-screen transition-[translate] duration-700 ease-out will-change-[opacity,translate] motion-reduce:transition-none"
+          style={{ background: 'radial-gradient(ellipse at 65% 45%, var(--stage-tint, transparent), transparent 70%)', visibility: 'hidden' }}
+        />
+        <div
+          ref={pulseRef}
+          className="absolute inset-0 opacity-0 mix-blend-soft-light will-change-[opacity]"
+          style={{ background: 'radial-gradient(ellipse at 50% 50%, var(--lyric-accent, #fff), transparent 75%)', visibility: 'hidden' }}
+        />
+        {/* 聚光灯：歌词区中央一团暖光（播放器页宽屏时歌词在右侧），四周略微压暗 */}
+        <div
+          ref={spotlightRef}
+          className="absolute inset-0 opacity-0 will-change-[opacity] [--spot-x:50%] lg:[--spot-x:62%]"
+          style={{ background: `radial-gradient(42% 30% at ${contained ? '50%' : 'var(--spot-x)'} 50%, rgb(255 236 200 / ${SPOTLIGHT_WARM_OPACITY}), transparent 70%), radial-gradient(75% 60% at 50% 50%, transparent 40%, rgb(0 0 0 / ${SPOTLIGHT_DIM_OPACITY}) 100%)`, visibility: 'hidden' }}
+        />
+        {contained && particleCanvas}
+      </div>
+      {/* 全屏播放器页（!contained）将粒子画布单独置于 z-[15]，盖过 z-10 的封面/MV 视频层，同时保持氛围染色与暗角在视频后方、歌词与控件在 z-20 前景 */}
+      {!contained && (
+        <div
+          aria-hidden
+          data-stage-push={0.08}
+          className="pointer-events-none fixed inset-0 z-[15] overflow-hidden will-change-[scale]"
+        >
+          {particleCanvas}
+        </div>
+      )}
+    </>
   )
 }

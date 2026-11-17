@@ -58,7 +58,7 @@ private struct StripLineCellView: View {
         let innerWidth = max(20, Double(cellWidth - horizontalPad * 2))
 
         let edgeHexes = (line.edgeColors?.isEmpty == false) ? line.edgeColors! : nil
-        let edgeLeadPx: Double = edgeHexes != nil ? (Double(line.isBackground ? 2.0 : 2.5) + 4.5) : 0
+        let edgeLeadPx: Double = edgeHexes != nil ? (Double(line.isBackground ? 2.2 : 3.0) + 4.5) : 0
 
         let (rawBoxes, estimatedTextWidth) = LyricFontResolver.measureLineWords(
             line: line,

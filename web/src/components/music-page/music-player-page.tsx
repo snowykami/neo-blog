@@ -228,7 +228,7 @@ export function MusicPlayerPage() {
       <MusicBackground cover={placeholder ? undefined : currentTrack?.albumPic} />
       {!placeholder && <MusicStageEffects />}
 
-      <header className="relative z-10 flex items-center justify-between px-4 pt-4 lg:px-8 lg:pt-6">
+      <header className="relative z-20 flex items-center justify-between px-4 pt-4 lg:px-8 lg:pt-6">
         <button
           type="button"
           onClick={goBack}
@@ -275,7 +275,7 @@ export function MusicPlayerPage() {
         : (
             <main
               className={cn(
-                'relative z-10 mx-auto grid min-h-0 w-full max-w-7xl flex-1 gap-6 px-5 pt-4 pb-6',
+                'relative mx-auto grid min-h-0 w-full max-w-7xl flex-1 gap-6 px-5 pt-4 pb-6',
                 // 移动端：内容区（封面或歌词）+ 控制栏；桌面端：左栏封面与控制栏，右栏歌词
                 'grid-rows-[minmax(0,1fr)_auto] [grid-template-areas:"main"_"controls"]',
                 'lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:gap-x-16 lg:px-12 lg:pt-2 lg:pb-12 lg:[grid-template-areas:"hero_stage"_"controls_stage"]',
@@ -285,13 +285,13 @@ export function MusicPlayerPage() {
                 track={currentTrack}
                 playing={isPlaying}
                 onCoverClick={() => setView('lyrics')}
-                className={cn('[grid-area:main] lg:[grid-area:hero]', view === 'lyrics' && 'max-lg:hidden')}
+                className={cn('relative z-10 [grid-area:main] lg:[grid-area:hero]', view === 'lyrics' && 'max-lg:hidden')}
               />
-              {/* 副歌开唱时随镜头推近略微放大（见 MusicStageEffects） */}
-              <MusicLyricStage stagePush={0.04} className={cn('min-h-0 [grid-area:main] lg:[grid-area:stage]', view === 'cover' && 'max-lg:hidden')} />
+              {/* 副歌开唱时随镜头推近略微放大（见 MusicStageEffects）；歌词与控件位于 z-20，粒子画布（z-[15]）穿行于封面/MV（z-10）之上、文字之下 */}
+              <MusicLyricStage stagePush={0.04} className={cn('relative z-20 min-h-0 [grid-area:main] lg:[grid-area:stage]', view === 'cover' && 'max-lg:hidden')} />
               {/* 与歌词舞台叠在同一网格区域，贴着底部：前奏导语与尾奏热评 */}
-              <MusicLyricMoments className={cn('self-end pb-4 [grid-area:main] lg:[grid-area:stage] lg:pb-10', view === 'cover' && 'max-lg:hidden')} />
-              <MusicPageControls className="[grid-area:controls]" onOpenPlaylist={() => setPlaylistOpen(true)} />
+              <MusicLyricMoments className={cn('relative z-20 self-end pb-4 [grid-area:main] lg:[grid-area:stage] lg:pb-10', view === 'cover' && 'max-lg:hidden')} />
+              <MusicPageControls className="relative z-20 [grid-area:controls]" onOpenPlaylist={() => setPlaylistOpen(true)} />
             </main>
           )}
 

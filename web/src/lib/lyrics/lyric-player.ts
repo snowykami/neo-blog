@@ -339,6 +339,20 @@ function resolveGroupColors(agent: LyricAgent, agents: Record<string, LyricAgent
   return [c1, c2]
 }
 
+/** 将多人合唱的成员颜色构建为边界分明的等分色块竖条背景（硬切 stop，避免红绿互补色过渡混成发灰泥色） */
+function buildSegmentedEdgeGradient(colors: string[]): string {
+  if (colors.length <= 1)
+    return colors[0] ?? '#fff'
+  const n = colors.length
+  const stops: string[] = []
+  for (let i = 0; i < n; i++) {
+    const start = Math.round((i / n) * 10000) / 100
+    const end = Math.round(((i + 1) / n) * 10000) / 100
+    stops.push(`${colors[i]} ${start}%`, `${colors[i]} ${end}%`)
+  }
+  return `linear-gradient(180deg, ${stops.join(', ')})`
+}
+
 /**
  * 构建演唱者胶囊（参考 StarryPlayer）：
  * - 群组/合唱：多圆点 + 群组名 / 成员名拼接 / 本地化合唱文案
@@ -1237,7 +1251,7 @@ export class LyricPlayer {
           const hex1 = colors[0]
           el.style.setProperty('--singer-color', hex1)
           if (agent.isGroup)
-            el.style.setProperty('--singer-edge-gradient', `linear-gradient(180deg, ${colors.join(', ')})`)
+            el.style.setProperty('--singer-edge-gradient', buildSegmentedEdgeGradient(colors))
           // 色道隔离：不染字色；无情绪标注时把默认微光淡淡拉向歌手色温度
           if (!line.mood)
             el.style.setProperty('--lyric-glow', `color-mix(in srgb, ${hex1} 38%, #ffffff)`)
