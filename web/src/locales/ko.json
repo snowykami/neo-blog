@@ -4852,7 +4852,19 @@
     "lyric_site_pin_failed": "사이트 전체 가사 출처를 설정하지 못했습니다",
     "lyric_site_switch_edited_title": "사이트 전체 가사 버전을 바꿀까요?",
     "lyric_site_switch_edited_description": "현재 가사 효과는 관리 화면에서 직접 편집되었습니다. 바꾸면 새 가사 버전에 맞춰 효과가 생성되고, 직접 편집한 내용은 더 이상 표시되지 않습니다(내용은 보존되며 원래 출처로 되돌리면 복원됩니다).",
-    "lyric_site_switch_confirm": "그래도 바꾸기"
+    "lyric_site_switch_confirm": "그래도 바꾸기",
+    "mv_mode_video": "MV",
+    "mv_mode_cover": "커버",
+    "mv_switch_to_video": "뮤직비디오로 전환",
+    "mv_switch_to_cover": "정적 커버로 전환",
+    "mv_setting_title": "MV 싱크 설정",
+    "mv_offset_hint": "양수는 MV 인트로를 건너뛰고, 음수는 시작을 늦춥니다. 조절 시 실시간으로 미리보기가 적용되며 저장하면 사이트 전체에 반영됩니다.",
+    "mv_disable_label": "이 곡의 MV 비활성화",
+    "mv_offset_reset": "초기화",
+    "mv_setting_save": "저장",
+    "mv_setting_saving": "저장 중…",
+    "mv_setting_saved": "MV 설정을 저장했습니다",
+    "mv_setting_save_failed": "MV 설정을 저장하지 못했습니다"
   },
   "LyricOptions": {
     "categories": {

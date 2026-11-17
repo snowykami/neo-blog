@@ -4852,7 +4852,19 @@
     "lyric_site_pin_failed": "设置全站歌词来源失败",
     "lyric_site_switch_edited_title": "切换全站歌词版本？",
     "lyric_site_switch_edited_description": "当前的歌词特效在后台手动编辑过。切换后会按新的歌词版本生成特效，手动编辑的内容不再显示（仍保留，切换回原来的来源即可恢复）。",
-    "lyric_site_switch_confirm": "仍然切换"
+    "lyric_site_switch_confirm": "仍然切换",
+    "mv_mode_video": "动态 MV",
+    "mv_mode_cover": "封面",
+    "mv_switch_to_video": "切换为动态 MV",
+    "mv_switch_to_cover": "切换为静态封面",
+    "mv_setting_title": "MV 同步设置",
+    "mv_offset_hint": "正数跳过 MV 片头，负数延后开始。调节实时生效，点击保存后对全站生效。",
+    "mv_disable_label": "禁用该歌曲 MV",
+    "mv_offset_reset": "归零",
+    "mv_setting_save": "保存",
+    "mv_setting_saving": "保存中…",
+    "mv_setting_saved": "已保存 MV 设置",
+    "mv_setting_save_failed": "保存 MV 设置失败"
   },
   "LyricOptions": {
     "categories": {

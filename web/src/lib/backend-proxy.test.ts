@@ -65,11 +65,20 @@ describe('backendResponse', () => {
     await expect(res.text()).rejects.toThrow()
   })
 
-  it('去掉编码相关的响应头', () => {
+  it('去掉编码相关的响应头，无编码的 206 Range 响应保留 Content-Length', () => {
     const res = backendResponse(new Response('x', { headers: { 'content-encoding': 'gzip', 'content-length': '1', 'x-a': '1' } }))
     expect(res.headers.has('content-encoding')).toBe(false)
     expect(res.headers.has('content-length')).toBe(false)
     expect(res.headers.get('x-a')).toBe('1')
+
+    const rangeRes = backendResponse(new Response('012345', {
+      status: 206,
+      headers: { 'content-type': 'video/mp4', 'content-range': 'bytes 0-5/24', 'content-length': '6', 'accept-ranges': 'bytes' },
+    }))
+    expect(rangeRes.status).toBe(206)
+    expect(rangeRes.headers.get('content-length')).toBe('6')
+    expect(rangeRes.headers.get('content-range')).toBe('bytes 0-5/24')
+    expect(rangeRes.headers.get('accept-ranges')).toBe('bytes')
   })
 
   it('后端回写的请求 ID 原样交回，没有时补上转发用的', () => {

@@ -4,7 +4,7 @@ import type { LyricTargetLang } from '@/lib/lyrics/lyric-language'
 import type { SiteLyricPronunciationLine, SiteLyricPronunciations } from '@/lib/lyrics/lyric-pronunciation'
 import type { LyricSourceKind } from '@/lib/lyrics/resolve'
 import type { LyricOutro, LyricSource } from '@/lib/lyrics/types'
-import type { MusicSearchSong, MusicSong, MusicTrack, NCMPlaylists } from '@/models/music'
+import type { MusicMVSettingInput, MusicSearchSong, MusicSong, MusicSongMV, MusicTrack, NCMPlaylists } from '@/models/music'
 import type { BaseResponse } from '@/models/resp'
 import { isAxiosError } from 'axios'
 import { snakeToCamelObj } from 'field-conv'
@@ -834,5 +834,24 @@ export async function saveSongRhythm(id: number, analysis: MusicRhythmAnalysis):
 // 清除并重新分析歌曲节拍缓存（仅管理员）
 export async function refreshSongRhythm(id: number): Promise<MusicSongRhythm> {
   const res = await axiosClient.post<BaseResponse<MusicSongRhythm>>(`/music/song/${id}/rhythm/refresh`)
+  return res.data.data
+}
+
+// 获取歌曲关联的封面 MV 信息与同步偏移设置（404 返回 null）
+export async function fetchSongMV(id: number, signal?: AbortSignal): Promise<MusicSongMV | null> {
+  try {
+    const res = await axiosClient.get<BaseResponse<MusicSongMV>>(`/music/song/${id}/mv`, { signal })
+    return res.data.data
+  }
+  catch (err) {
+    if (isAxiosError(err) && err.response?.status === 404)
+      return null
+    throw err
+  }
+}
+
+// 保存单曲 MV 时间轴偏移与禁用状态（仅管理员）
+export async function saveSongMVSetting(id: number, setting: MusicMVSettingInput): Promise<MusicSongMV> {
+  const res = await axiosClient.put<BaseResponse<MusicSongMV>>(`/music/song/${id}/mv/setting`, setting)
   return res.data.data
 }

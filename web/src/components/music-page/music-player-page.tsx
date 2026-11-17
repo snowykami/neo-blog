@@ -1,7 +1,7 @@
 'use client'
 
 import type { MusicTrack } from '@/models/music'
-import { ArrowLeftIcon, BugIcon, Disc3Icon, MicVocalIcon, MusicIcon } from 'lucide-react'
+import { ArrowLeftIcon, BugIcon, Disc3Icon, FilmIcon, ImageIcon, MicVocalIcon, MusicIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import dynamic from 'next/dynamic'
 import { useEffect, useState } from 'react'
@@ -31,9 +31,11 @@ import { MusicLyricStage } from './music-lyric-stage'
 import { MusicPageControls } from './music-page-controls'
 import { MusicPlaylistSheet } from './music-playlist-sheet'
 import { MusicStageEffects } from './music-stage-effects'
+import { MvOffsetControl } from './mv-offset-control'
 import { useSongAccent } from './use-cover-accent'
 import { useMusicHotkeys } from './use-music-hotkeys'
 import { useMusicShareUrl } from './use-music-share-url'
+import { useMvSync } from './use-mv-sync'
 
 // 韵律调试面板（含 KaTeX）只在打开时加载
 const RhythmDebugPanel = dynamic(() => import('./rhythm-debug/rhythm-debug-panel'), { ssr: false })
@@ -45,6 +47,7 @@ const PAGE_STYLE = { '--primary': 'oklch(0.97 0 0)', '--primary-foreground': 'ok
 function TrackHero({ track, playing, onCoverClick, className }: { track: MusicTrack, playing: boolean, onCoverClick: () => void, className?: string }) {
   const t = useTranslations('MusicPage')
   const { user } = useAuth()
+  const { getAudio } = useMusicActions()
   const { showTranslation } = useMusicPreferences()
   const { effectiveTranslationLang } = useMusicLyrics()
   const meta = useCachedSongMetaTranslation(track.id, effectiveTranslationLang)
@@ -52,20 +55,86 @@ function TrackHero({ track, playing, onCoverClick, className }: { track: MusicTr
   const displayArtists = formatDisplayArtists(track.artists, meta?.artists, showTranslation)
   // 歌词来源、重新生成 AI 歌词特效与整体偏移都是站长的工具：读者只看全站版本，不显示这些按钮
   const admin = !!user && isAdmin({ user })
+  const mv = useMvSync({ trackId: track.id, getAudio, isAdmin: admin })
   return (
     <div className={cn('flex min-h-0 flex-col justify-center gap-6', className)}>
-      <button
-        type="button"
-        aria-label={t('show_lyrics')}
-        onClick={onCoverClick}
-        // 只有移动端可以点封面切换到歌词视图；移动端同时受宽度与高度约束，避免矮屏上把控制栏挤出屏幕
-        className="relative mx-auto aspect-square w-[min(80vw,46dvh)] shrink-0 overflow-hidden rounded-2xl bg-white/10 shadow-2xl transition-transform duration-500 ease-out lg:pointer-events-none lg:w-full lg:max-w-[26rem]"
+      <div
+        onContextMenu={e => e.preventDefault()}
+        // 正方形封面容器：拦截右键菜单，内部承载静态封面、静音同步 MV 与角落轻量控制按钮
+        className="group relative mx-auto aspect-square w-[min(80vw,46dvh)] shrink-0 overflow-hidden rounded-2xl bg-white/10 shadow-2xl transition-transform duration-500 ease-out select-none lg:w-full lg:max-w-[26rem]"
         style={{ transform: playing ? 'scale(1)' : 'scale(0.92)' }}
       >
         {track.albumPic
-          ? <SafeImage src={formatMusicCoverUrl(track.albumPic, 400)} alt={track.album} fill priority sizes="(min-width: 1024px) 416px, 72vw" className="object-cover" />
-          : <MusicIcon aria-hidden className="absolute inset-0 m-auto size-16 text-white/40" />}
-      </button>
+          ? <SafeImage src={formatMusicCoverUrl(track.albumPic, 400)} alt={track.album} fill priority sizes="(min-width: 1024px) 416px, 72vw" className="pointer-events-none object-cover select-none" />
+          : <MusicIcon aria-hidden className="pointer-events-none absolute inset-0 m-auto size-16 text-white/40" />}
+
+        {/* 静音同步 MV 层：canplay 前或时间轴越界时透明隐藏，平滑显示底部静态专辑封面；object-contain 居中不裁剪画面 */}
+        <div
+          aria-hidden="true"
+          className={cn(
+            'pointer-events-none absolute inset-0 z-[5] flex items-center justify-center bg-black/85 transition-opacity duration-300 ease-out select-none',
+            mv.videoVisible ? 'opacity-100' : 'opacity-0',
+          )}
+        >
+          <video
+            ref={mv.videoRef}
+            src={mv.shouldLoadVideo ? mv.mvInfo?.streamUrl : undefined}
+            controls={false}
+            muted
+            playsInline
+            disablePictureInPicture
+            disableRemotePlayback
+            preload="auto"
+            tabIndex={-1}
+            aria-hidden="true"
+            className="pointer-events-none size-full object-contain select-none"
+          />
+        </div>
+
+        {/* 只有移动端可以点封面切换到歌词视图 */}
+        <button
+          type="button"
+          aria-label={t('show_lyrics')}
+          onClick={onCoverClick}
+          className="absolute inset-0 z-10 lg:pointer-events-none"
+        />
+
+        {/* 角落操作栏：容器 pointer-events-none，仅各按钮本身启用 pointer-events-auto */}
+        {mv.mvInfo?.available && (
+          <div className="pointer-events-none absolute right-2.5 bottom-2.5 z-20 flex items-center gap-1.5">
+            {!mv.disabled && (
+              <button
+                type="button"
+                aria-label={t(mv.localMvEnabled ? 'mv_switch_to_cover' : 'mv_switch_to_video')}
+                title={t(mv.localMvEnabled ? 'mv_switch_to_cover' : 'mv_switch_to_video')}
+                aria-pressed={mv.localMvEnabled}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  mv.toggleLocalMv()
+                }}
+                className="pointer-events-auto inline-flex h-7 items-center gap-1 rounded-full bg-black/55 px-2.5 text-xs font-medium text-white/85 opacity-80 shadow-sm backdrop-blur-md transition-all group-hover:opacity-100 hover:bg-black/75 hover:text-white focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:outline-none"
+              >
+                {mv.localMvEnabled
+                  ? <ImageIcon aria-hidden className="size-3.5" />
+                  : <FilmIcon aria-hidden className="size-3.5" />}
+                <span>{t(mv.localMvEnabled ? 'mv_mode_cover' : 'mv_mode_video')}</span>
+              </button>
+            )}
+            {admin && (
+              <MvOffsetControl
+                offsetMs={mv.offsetMs}
+                disabled={mv.disabled}
+                saving={mv.saving}
+                isDirty={mv.isDirty}
+                onAdjustOffset={mv.adjustOffset}
+                onDisabledChange={mv.setDisabledDraft}
+                onSave={mv.saveSetting}
+                className="opacity-85 group-hover:opacity-100 focus-visible:opacity-100"
+              />
+            )}
+          </div>
+        )}
+      </div>
       <div className="grid min-w-0 gap-1 text-center lg:text-left">
         {/* 歌名与歌手过长时以跑马灯滚动（跑马灯内部是块级元素，标题用 role="heading" 而不是 h1）；key：切歌时从头滚动 */}
         <div role="heading" aria-level={1} className="min-w-0">

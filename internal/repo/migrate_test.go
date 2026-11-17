@@ -68,6 +68,7 @@ func TestMigrateFreshDatabase(t *testing.T) {
 			{&model.InteractionEvent{}, "idx_interaction_event_dedupe"},
 			{&model.Notification{}, "idx_notification_event_user"},
 			{&model.Notification{}, "idx_notification_dedupe"},
+			{&model.MusicMVSetting{}, "SongID"},
 		} {
 			if !db.Migrator().HasTable(check.value) {
 				t.Errorf("missing table for %T", check.value)
@@ -78,6 +79,9 @@ func TestMigrateFreshDatabase(t *testing.T) {
 		}
 		if !db.Migrator().HasColumn(&model.User{}, "notification_prefs") {
 			t.Error("missing column users.notification_prefs")
+		}
+		if !db.Migrator().HasTable(&model.MusicMVSetting{}) || !db.Migrator().HasIndex(&model.MusicMVSetting{}, "SongID") {
+			t.Error("missing music_mv_settings table or unique SongID index after upgrading a legacy database")
 		}
 		if !db.Migrator().HasIndex(&model.Post{}, "idx_posts_list_created") {
 			t.Error("missing index idx_posts_list_created")
@@ -141,6 +145,9 @@ func TestMigrateLegacyDatabase(t *testing.T) {
 		}
 		if !db.Migrator().HasColumn(&model.User{}, "notification_prefs") {
 			t.Error("missing column users.notification_prefs")
+		}
+		if !db.Migrator().HasTable(&model.MusicMVSetting{}) || !db.Migrator().HasIndex(&model.MusicMVSetting{}, "SongID") {
+			t.Error("missing music_mv_settings table or unique SongID index after upgrading a legacy database")
 		}
 		var posts []model.Post
 		if err := db.Unscoped().Order("id").Find(&posts).Error; err != nil {

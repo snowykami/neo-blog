@@ -451,6 +451,7 @@ func fetchNCMTracks(ctx context.Context, cfg tools.NCMConfig) ([]dto.MusicTrackD
 			Alia []string `json:"alia"`
 			Tns  []string `json:"tns"`
 			Dt   int64    `json:"dt"` // 时长（毫秒）
+			MV   int64    `json:"mv"` // 关联 MV ID（0 表示无 MV）
 		} `json:"songs"`
 		Privileges []struct {
 			ID int64 `json:"id"`
@@ -481,6 +482,9 @@ func fetchNCMTracks(ctx context.Context, cfg tools.NCMConfig) ([]dto.MusicTrackD
 		}
 		trackAliases := mergeAliases(song.Alia, song.Tns)
 		storeSongHints(song.ID, trackAliases, artistHints)
+		if song.MV > 0 {
+			storePlaylistSongMVID(cfg.BaseURL, song.ID, song.MV)
+		}
 		id := strconv.FormatInt(song.ID, 10)
 		tracks = append(tracks, dto.MusicTrackDto{
 			ID:       song.ID,
@@ -779,7 +783,7 @@ func (s *MusicService) SearchSongs(ctx context.Context, keywords string) ([]dto.
 	return songs, nil
 }
 
-// ncmSong 网易云歌曲：API 与新版接口为 ar / al / dt，网易云旧接口为 artists / album / duration
+// ncmSong 网易云歌曲：API 与新版接口为 ar / al / dt / mv，网易云旧接口为 artists / album / duration / mvid
 type ncmSong struct {
 	ID       int64          `json:"id"`
 	Name     string         `json:"name"`
@@ -791,6 +795,8 @@ type ncmSong struct {
 	Tns      []string       `json:"tns"`
 	Dt       int64          `json:"dt"`       // 时长（毫秒）
 	Duration int64          `json:"duration"` // 旧接口的时长（毫秒）
+	MV       int64          `json:"mv"`       // MV ID（0 表示无 MV）
+	MVID     int64          `json:"mvid"`     // 旧接口的 MV ID
 }
 
 type ncmNamedItem struct {
@@ -834,6 +840,17 @@ func (s ncmSong) duration() int64 {
 		return s.Dt
 	}
 	return s.Duration
+}
+
+// mvID 关联的 MV ID：新版接口为 mv，旧接口为 mvid
+func (s ncmSong) mvID() int64 {
+	if s.MV > 0 {
+		return s.MV
+	}
+	if s.MVID > 0 {
+		return s.MVID
+	}
+	return 0
 }
 
 func (s ncmSong) album() (name, pic string) {

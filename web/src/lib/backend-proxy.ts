@@ -78,11 +78,15 @@ function endQuietlyOnError(body: ReadableStream<Uint8Array>) {
   })
 }
 
-/** 把后端的响应原样交回浏览器（去掉逐跳头与编码相关的头）；后端没有回写请求 ID 时补上本次转发用的 */
+/** 把后端的响应原样交回浏览器（去掉逐跳头与编码相关的头；无编码的 206 分片响应保留 Content-Length 供音视频流定位）；后端没有回写请求 ID 时补上本次转发用的 */
 export function backendResponse(upstream: Response, requestId?: string) {
   const headers = new Headers(upstream.headers)
-  for (const name of RESPONSE_SKIP_HEADERS)
+  const keepPartialLength = upstream.status === 206 && !upstream.headers.has('content-encoding')
+  for (const name of RESPONSE_SKIP_HEADERS) {
+    if (keepPartialLength && name === 'content-length')
+      continue
     headers.delete(name)
+  }
   if (requestId && !headers.has(REQUEST_ID_HEADER))
     headers.set(REQUEST_ID_HEADER, requestId)
   const isEventStream = headers.get('content-type')?.includes('text/event-stream')

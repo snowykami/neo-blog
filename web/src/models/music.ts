@@ -73,3 +73,18 @@ export interface MusicSearchSong {
   duration: number // 时长（毫秒）
   inPlaylist: boolean // 是否在博客歌单内（可在站内播放）
 }
+
+// 歌曲封面 MV 信息与同步设置
+export interface MusicSongMV {
+  mvid: number
+  available: boolean
+  offsetMs: number
+  disabled: boolean
+  streamUrl: string
+}
+
+// 管理员保存单曲 MV 同步偏移（毫秒）与禁用开关
+export interface MusicMVSettingInput {
+  offsetMs: number
+  disabled: boolean
+}

@@ -45,6 +45,9 @@ func registerMusicRoutes(group *route.RouterGroup) {
 		musicGroup.GET("/song/:id/lyric/settings", controller.Music.SongLyricSettings)
 		// 歌曲节拍分析结果：所有人公开读取（后端开启 ffmpeg 时对白名单曲目自动触发后台分析）
 		musicGroup.GET("/song/:id/rhythm", controller.Music.SongRhythm)
+		// 歌曲封面 MV 信息与视频流 Range 代理：公开读取（仅白名单曲目开放流地址）
+		musicGroup.GET("/song/:id/mv", controller.Music.SongMV)
+		musicGroup.GET("/mv/:mvid/stream", controller.Music.MVStream)
 
 		// 搜索歌曲只在编辑器中使用，限编辑者及以上，避免被当作公开的搜索代理
 		musicGroupWithEditor.GET("/search", controller.Music.Search)
@@ -75,5 +78,7 @@ func registerMusicRoutes(group *route.RouterGroup) {
 		// 歌曲节拍分析上传与强制重新分析（仅管理员，防止伪造拍点污染全站缓存）
 		musicGroupWithAdmin.PUT("/song/:id/rhythm", controller.Music.SaveSongRhythm)
 		musicGroupWithAdmin.POST("/song/:id/rhythm/refresh", controller.Music.RefreshSongRhythm)
+		// 单曲 MV 同步偏移与禁用开关：对所有人生效，仅管理员可以调整
+		musicGroupWithAdmin.PUT("/song/:id/mv/setting", controller.Music.SaveSongMVSetting)
 	}
 }

@@ -4852,7 +4852,19 @@
     "lyric_site_pin_failed": "設定全站歌詞來源失敗",
     "lyric_site_switch_edited_title": "切換全站歌詞版本？",
     "lyric_site_switch_edited_description": "目前的歌詞特效在後台手動編輯過。切換後會依新的歌詞版本產生特效，手動編輯的內容不再顯示（仍會保留，切換回原本的來源即可恢復）。",
-    "lyric_site_switch_confirm": "仍要切換"
+    "lyric_site_switch_confirm": "仍要切換",
+    "mv_mode_video": "動態 MV",
+    "mv_mode_cover": "封面",
+    "mv_switch_to_video": "切換為動態 MV",
+    "mv_switch_to_cover": "切換為靜態封面",
+    "mv_setting_title": "MV 同步設定",
+    "mv_offset_hint": "正數略過 MV 片頭，負數延後開始。調整即時生效，點擊儲存後對全站生效。",
+    "mv_disable_label": "停用此歌曲 MV",
+    "mv_offset_reset": "歸零",
+    "mv_setting_save": "儲存",
+    "mv_setting_saving": "儲存中…",
+    "mv_setting_saved": "已儲存 MV 設定",
+    "mv_setting_save_failed": "儲存 MV 設定失敗"
   },
   "LyricOptions": {
     "categories": {

@@ -4852,7 +4852,19 @@
     "lyric_site_pin_failed": "Failed to set the site-wide lyric source",
     "lyric_site_switch_edited_title": "Switch the site-wide lyric version?",
     "lyric_site_switch_edited_description": "The current lyric effects were edited by hand in the console. After switching, effects are generated for the new lyric version and the manual edits are no longer shown (they are kept and come back if you switch back to the original source).",
-    "lyric_site_switch_confirm": "Switch anyway"
+    "lyric_site_switch_confirm": "Switch anyway",
+    "mv_mode_video": "MV",
+    "mv_mode_cover": "Cover",
+    "mv_switch_to_video": "Switch to MV",
+    "mv_switch_to_cover": "Switch to static cover",
+    "mv_setting_title": "MV sync settings",
+    "mv_offset_hint": "Positive skips the MV intro; negative delays the start. Changes preview live and apply site-wide once saved.",
+    "mv_disable_label": "Disable MV for this song",
+    "mv_offset_reset": "Reset",
+    "mv_setting_save": "Save",
+    "mv_setting_saving": "Saving…",
+    "mv_setting_saved": "MV settings saved",
+    "mv_setting_save_failed": "Failed to save MV settings"
   },
   "LyricOptions": {
     "categories": {

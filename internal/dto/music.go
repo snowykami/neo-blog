@@ -592,3 +592,19 @@ type MusicSongRhythmDto struct {
 	Reason   string                  `json:"reason,omitempty"`
 	Analysis *MusicRhythmAnalysisDto `json:"analysis,omitempty"`
 }
+
+// MusicSongMVDto 歌曲 MV 信息与同步设置：mvid 为 0 或 available 为 false 表示无可用 MV；
+// disabled 为管理员禁用该歌曲封面 MV；stream_url 为站内视频流 Range 代理地址
+type MusicSongMVDto struct {
+	MVID      int64  `json:"mvid"`
+	Available bool   `json:"available"`
+	OffsetMs  int    `json:"offset_ms"`
+	Disabled  bool   `json:"disabled"`
+	StreamURL string `json:"stream_url"`
+}
+
+// MusicMVSettingReq 管理员保存单曲 MV 时间轴偏移（毫秒）与禁用状态
+type MusicMVSettingReq struct {
+	OffsetMs int  `json:"offset_ms"`
+	Disabled bool `json:"disabled"`
+}

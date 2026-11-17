@@ -4852,7 +4852,19 @@
     "lyric_site_pin_failed": "サイト全体の歌詞ソースを設定できませんでした",
     "lyric_site_switch_edited_title": "サイト全体の歌詞バージョンを切り替えますか？",
     "lyric_site_switch_edited_description": "現在の歌詞エフェクトは管理画面で手動編集されています。切り替えると新しい歌詞バージョンに合わせてエフェクトが生成され、手動編集した内容は表示されなくなります（内容は保持され、元のソースに戻すと復元されます）。",
-    "lyric_site_switch_confirm": "切り替える"
+    "lyric_site_switch_confirm": "切り替える",
+    "mv_mode_video": "MV",
+    "mv_mode_cover": "静止画",
+    "mv_switch_to_video": "MV 表示に切り替え",
+    "mv_switch_to_cover": "静止画ジャケットに切り替え",
+    "mv_setting_title": "MV 同期設定",
+    "mv_offset_hint": "プラスで MV の冒頭をスキップし、マイナスで開始を遅らせます。調整は即座にプレビューされ、保存するとサイト全体に反映されます。",
+    "mv_disable_label": "この曲の MV を無効化",
+    "mv_offset_reset": "リセット",
+    "mv_setting_save": "保存",
+    "mv_setting_saving": "保存中…",
+    "mv_setting_saved": "MV 設定を保存しました",
+    "mv_setting_save_failed": "MV 設定を保存できませんでした"
   },
   "LyricOptions": {
     "categories": {

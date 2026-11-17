@@ -676,3 +676,64 @@ func (m *musicType) RefreshSongRhythm(ctx context.Context, c *app.RequestContext
 	}
 	resps.Ok(c, resps.Success, result)
 }
+
+// SongMV 获取歌曲 MV 信息与同步设置（公开可读）
+func (m *musicType) SongMV(ctx context.Context, c *app.RequestContext) {
+	result, svcerr := m.service.GetSongMV(ctx, ctxutils.GetIDParam(c).Int64)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, result)
+}
+
+// SaveSongMVSetting 保存单曲 MV 时间轴偏移与禁用状态（仅管理员）
+func (m *musicType) SaveSongMVSetting(ctx context.Context, c *app.RequestContext) {
+	var req dto.MusicMVSettingReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	result, svcerr := m.service.SaveSongMVSetting(ctx, ctxutils.GetIDParam(c).Int64, &req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, result)
+}
+
+// MVStream 代理网易云 MV 视频流并完整透传 Range / 206 Partial Content
+func (m *musicType) MVStream(ctx context.Context, c *app.RequestContext) {
+	mvid, err := strconv.ParseInt(strings.TrimSpace(c.Param("mvid")), 10, 64)
+	if err != nil || mvid <= 0 {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	stream, svcerr := m.service.OpenMVStream(ctx, mvid, string(c.GetHeader("Range")))
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+
+	c.Header("Cache-Control", "private, max-age=300")
+	c.Header("X-Content-Type-Options", "nosniff")
+	if stream.AcceptRanges != "" {
+		c.Header("Accept-Ranges", stream.AcceptRanges)
+	}
+	if stream.ContentRange != "" {
+		c.Header("Content-Range", stream.ContentRange)
+	}
+	if stream.StatusCode == http.StatusRequestedRangeNotSatisfiable {
+		_ = stream.Body.Close()
+		c.SetStatusCode(http.StatusRequestedRangeNotSatisfiable)
+		return
+	}
+	bodySize := -1
+	if stream.ContentLength >= 0 {
+		c.Header("Content-Length", strconv.FormatInt(stream.ContentLength, 10))
+		bodySize = int(stream.ContentLength)
+	}
+	c.SetStatusCode(stream.StatusCode)
+	c.SetContentType(stream.ContentType)
+	c.SetBodyStream(stream.Body, bodySize)
+}
