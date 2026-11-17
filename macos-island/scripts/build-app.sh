@@ -34,23 +34,6 @@ APP_VERSION="${APP_VERSION:-0.1.0}"
 BUILD_NUMBER="${BUILD_NUMBER:-1}"
 CODESIGN_IDENTITY="${CODESIGN_IDENTITY:--}"
 
-if [[ "$UNIVERSAL" == "true" ]]; then
-    echo "==> 编译 NeoBlogIsland Universal Binary ($CONFIG: arm64 + x86_64, version=$APP_VERSION)..."
-    swift build -c "$CONFIG" --arch arm64 --arch x86_64
-    BIN_DIR="$(swift build -c "$CONFIG" --arch arm64 --arch x86_64 --show-bin-path)"
-else
-    echo "==> 编译 NeoBlogIsland ($CONFIG, version=$APP_VERSION)..."
-    swift build -c "$CONFIG"
-    BIN_DIR="$(swift build -c "$CONFIG" --show-bin-path)"
-fi
-
-BIN_PATH="${BIN_DIR}/NeoBlogIsland"
-
-if [[ ! -f "$BIN_PATH" ]]; then
-    echo "错误：未找到编译产物 $BIN_PATH" >&2
-    exit 1
-fi
-
 APP_DIR="dist/NeoBlogIsland.app"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
@@ -58,7 +41,27 @@ MACOS_DIR="$CONTENTS_DIR/MacOS"
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR"
 
-cp "$BIN_PATH" "$MACOS_DIR/NeoBlogIsland"
+if [[ "$UNIVERSAL" == "true" ]]; then
+    echo "==> 编译 NeoBlogIsland Universal Binary ($CONFIG: arm64 + x86_64, version=$APP_VERSION)..."
+    swift build -c "$CONFIG" --arch arm64
+    ARM64_DIR="$(swift build -c "$CONFIG" --arch arm64 --show-bin-path)"
+    cp "${ARM64_DIR}/NeoBlogIsland" "$MACOS_DIR/NeoBlogIsland.arm64"
+
+    swift build -c "$CONFIG" --arch x86_64
+    X86_64_DIR="$(swift build -c "$CONFIG" --arch x86_64 --show-bin-path)"
+    cp "${X86_64_DIR}/NeoBlogIsland" "$MACOS_DIR/NeoBlogIsland.x86_64"
+
+    lipo -create -output "$MACOS_DIR/NeoBlogIsland" \
+        "$MACOS_DIR/NeoBlogIsland.arm64" \
+        "$MACOS_DIR/NeoBlogIsland.x86_64"
+    rm -f "$MACOS_DIR/NeoBlogIsland.arm64" "$MACOS_DIR/NeoBlogIsland.x86_64"
+else
+    echo "==> 编译 NeoBlogIsland ($CONFIG, version=$APP_VERSION)..."
+    swift build -c "$CONFIG"
+    BIN_DIR="$(swift build -c "$CONFIG" --show-bin-path)"
+    cp "${BIN_DIR}/NeoBlogIsland" "$MACOS_DIR/NeoBlogIsland"
+fi
+
 chmod +x "$MACOS_DIR/NeoBlogIsland"
 
 if [[ "$CONFIG" == "release" ]]; then
