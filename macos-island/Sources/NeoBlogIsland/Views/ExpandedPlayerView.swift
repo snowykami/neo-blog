@@ -1849,23 +1849,41 @@ private struct PlaylistEqualizerBadge: View {
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 0.08, paused: !isPlaying)) { context in
-            let t = context.date.timeIntervalSinceReferenceDate
+            let now = context.date.timeIntervalSinceReferenceDate
             HStack(alignment: .bottom, spacing: 2) {
-                ForEach(0..<3, id: \.self) { idx in
-                    let ratio: CGFloat = isPlaying
-                        ? CGFloat(0.35 + 0.65 * (0.5 + 0.5 * sin(t * (5.2 + Double(idx) * 1.35) + Double(idx) * 1.4)))
-                        : (idx == 1 ? 0.55 : 0.32)
-                    Capsule()
-                        .fill(Color.white)
-                        .frame(width: 2.4, height: max(3.5, 13.0 * ratio))
-                }
+                Capsule()
+                    .fill(Color.white)
+                    .frame(width: 2.4, height: Self.barHeight(index: 0, isPlaying: isPlaying, time: now))
+                Capsule()
+                    .fill(Color.white)
+                    .frame(width: 2.4, height: Self.barHeight(index: 1, isPlaying: isPlaying, time: now))
+                Capsule()
+                    .fill(Color.white)
+                    .frame(width: 2.4, height: Self.barHeight(index: 2, isPlaying: isPlaying, time: now))
             }
             .frame(width: 14, height: 14, alignment: .bottom)
         }
     }
+
+    private static func barHeight(index: Int, isPlaying: Bool, time: TimeInterval) -> CGFloat {
+        let ratio: Double
+        if isPlaying {
+            let speed = 5.2 + Double(index) * 1.35
+            let phase = Double(index) * 1.4
+            let wave = 0.5 + 0.5 * sin(time * speed + phase)
+            ratio = 0.35 + 0.65 * wave
+        } else {
+            ratio = (index == 1) ? 0.55 : 0.32
+        }
+        return max(3.5, CGFloat(13.0 * ratio))
+    }
 }
 
 // MARK: - 歌单封面内存缩略图缓存（后台 ImageIO 降采样解码 + NSCache 同步命中，杜绝 LazyVStack 复用闪烁）
+
+private struct SendableCGThumbnail: @unchecked Sendable {
+    let cgImage: CGImage
+}
 
 @MainActor
 private final class PlaylistCoverMemoryCache {
@@ -1933,15 +1951,19 @@ private struct CachedPlaylistCoverThumb: View {
             }
             guard let url = URL(string: key) else { return }
             let targetPixelSize = max(72, Int(ceil(size * max(1.0, displayScale) * 1.5)))
-            if let downsampled = await Self.fetchAndDownsample(url: url, maxPixelSize: targetPixelSize) {
+            if let thumb = await Self.fetchAndDownsample(url: url, maxPixelSize: targetPixelSize) {
                 guard !Task.isCancelled else { return }
-                PlaylistCoverMemoryCache.shared.insert(downsampled, for: key)
-                loadedImage = downsampled
+                let nsImage = NSImage(
+                    cgImage: thumb.cgImage,
+                    size: NSSize(width: thumb.cgImage.width, height: thumb.cgImage.height)
+                )
+                PlaylistCoverMemoryCache.shared.insert(nsImage, for: key)
+                loadedImage = nsImage
             }
         }
     }
 
-    private nonisolated static func fetchAndDownsample(url: URL, maxPixelSize: Int) async -> NSImage? {
+    private nonisolated static func fetchAndDownsample(url: URL, maxPixelSize: Int) async -> SendableCGThumbnail? {
         let req = URLRequest(url: url, cachePolicy: .returnCacheDataElseLoad, timeoutInterval: 12)
         guard let (data, response) = try? await URLSession.shared.data(for: req),
               let http = response as? HTTPURLResponse,
@@ -1964,6 +1986,6 @@ private struct CachedPlaylistCoverThumb: View {
         guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, downsampleOptions as CFDictionary) else {
             return nil
         }
-        return NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
+        return SendableCGThumbnail(cgImage: cgImage)
     }
 }
