@@ -87,6 +87,40 @@ describe('safe-image 远程优化降级兜底', () => {
     expect(host.querySelector('img')).toBeNull()
     expect(host.querySelector('[role="img"]')).toBeTruthy()
   })
+
+  it('站内 /api/v1/file/f/ 图片经 /_next/image 优化时附带 proxy=1，失败后静默降级为原始直连路径', async () => {
+    const onError = vi.fn()
+    await act(async () => {
+      root.render(
+        React.createElement(NextIntlClientProvider, {
+          locale: 'zh',
+          messages: { Common: { image_load_failed: '加载失败' } },
+          children: React.createElement(ImageOptimizeProvider, {
+            hosts: [],
+            children: React.createElement(SafeImage, {
+              src: '/api/v1/file/f/105',
+              alt: '站内图',
+              fill: true,
+              sizes: '320px',
+              onError,
+            }),
+          }),
+        }),
+      )
+    })
+
+    const firstImg = host.querySelector('img')
+    expect(firstImg?.getAttribute('src')).toContain('/_next/image?url=%2Fapi%2Fv1%2Ffile%2Ff%2F105%3Fproxy%3D1')
+
+    await act(async () => {
+      firstImg?.dispatchEvent(new Event('error'))
+    })
+
+    expect(onError).not.toHaveBeenCalled()
+    const directImg = host.querySelector('img')
+    expect(directImg?.getAttribute('src')).toMatch(/^(?:http:\/\/localhost:3000)?\/api\/v1\/file\/f\/105$/)
+    expect(directImg?.getAttribute('srcset')).toBeNull()
+  })
 })
 
 describe('site-logo 图片优化控制', () => {

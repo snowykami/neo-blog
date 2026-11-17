@@ -65,6 +65,9 @@ func TestFileRedirectsToDirectStorage(t *testing.T) {
 			t.Fatalf("%s: status %d location %q cache %q", path, resp.StatusCode, resp.Header.Get("Location"), resp.Header.Get("Cache-Control"))
 		}
 	}
+	if resp, body := get("/file/f/" + utoa(png.ID) + "?proxy=1"); resp.StatusCode != http.StatusOK || body != "png-bytes" || resp.Header.Get("Content-Type") != "image/png" {
+		t.Fatalf("proxy=1: status %d body %q type %q", resp.StatusCode, body, resp.Header.Get("Content-Type"))
+	}
 	if resp, body := get("/file/f/" + utoa(zip.ID) + "/report.zip"); resp.StatusCode != http.StatusOK || body != "zip-bytes" ||
 		resp.Header.Get("Content-Type") != "application/octet-stream" || !strings.Contains(resp.Header.Get("Content-Disposition"), "report.zip") {
 		t.Fatalf("attachment: %d %q %q %q", resp.StatusCode, body, resp.Header.Get("Content-Type"), resp.Header.Get("Content-Disposition"))

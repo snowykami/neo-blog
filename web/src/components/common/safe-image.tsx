@@ -52,6 +52,18 @@ function srcKey(src: SafeImageProps['src']) {
   return typeof src === 'string' ? src : 'default' in src ? src.default.src : src.src
 }
 
+// 站内文件默认 302 跳转到公开存储，Next.js /_next/image 内部抓图不允许 3xx 重定向；
+// 仅在经 /_next/image 优化时附带 proxy=1 让后端直出字节流，直连或降级重试仍用原地址保留 CDN 302
+function withInternalFileProxy(src: ImageProps['src']): ImageProps['src'] {
+  if (typeof src !== 'string' || !src.startsWith('/api/v1/file/f/'))
+    return src
+  const [base, hash] = src.split('#', 2)
+  if (/(?:^|[?&])proxy=/.test(base))
+    return src
+  const sep = base.includes('?') ? '&' : '?'
+  return `${base}${sep}proxy=1${hash ? `#${hash}` : ''}`
+}
+
 /**
  * 带兜底的图片：原图 → 备用图 → 占位块，每一级只尝试一次；src 变化后重新从原图开始
  */
@@ -84,12 +96,13 @@ export function SafeImage({ src, fallbackSrc, fallback, alt = '', onError, ...pr
   }
 
   const canOptimize = !props.unoptimized && shouldOptimize(current, optimizeHosts)
-  const canFallbackDirect = canOptimize && !directFallback && typeof current === 'string' && current.startsWith('https://')
+  const canFallbackDirect = canOptimize && !directFallback && typeof current === 'string' && (current.startsWith('https://') || current.startsWith('/api/v1/file/f/'))
+  const renderSrc = canOptimize && !directFallback ? withInternalFileProxy(current) : current
 
   return (
     <Image
       key={directFallback ? `${srcKey(current)}#direct` : srcKey(current)}
-      src={current}
+      src={renderSrc}
       alt={alt}
       onError={(event) => {
         // 远程白名单图经 /_next/image 失败时（如上游返回非 image/* MIME），先静默降级为浏览器直连原图重试一次

@@ -119,6 +119,11 @@ export default (phase: string): NextConfig => {
     images: {
       formats: ['image/avif', 'image/webp'],
       qualities: [...IMAGE_QUALITIES],
+      // 放行无 query 的本地图片，以及带 ?proxy=1 的站内文件（供 /_next/image 内部抓图跳过后端 302 重定向）
+      localPatterns: [
+        { pathname: '/**', search: '' },
+        { pathname: '/api/v1/file/f/**', search: '?proxy=1' },
+      ],
       // 只优化白名单内的 https 图床域名，保持 Next 默认的私网地址拦截，避免 /_next/image 被用作 SSRF 跳板
       // 站内文件使用相对路径（/api/v1/...），经 app/api/v1 路由转发到后端，不受此限制；其余外链由 SafeImage 交给浏览器直接加载
       // standalone 运行时会根据启动环境变量 IMAGE_OPTIMIZE_HOSTS 动态覆盖（见 scripts/collect-sourcemaps.mjs）

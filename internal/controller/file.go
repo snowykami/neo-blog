@@ -187,8 +187,8 @@ func (f *FileController) GetFile(ctx context.Context, c *app.RequestContext) {
 	}
 	// 可直连的存储（配置了公开地址的 S3）：可直接显示的类型跳转到对象的公开地址，浏览器直接向存储（CDN）读取，不经后端转发；
 	// 跳转目标只在换存储时变化（迁移不删除源对象），可缓存一天。附件仍经后端返回（带下载文件名、按二进制下载），
-	// SVG 也经后端返回（附带禁止执行脚本的 CSP）
-	if utils.DirectSafeContentType(contentType) {
+	// SVG 也经后端返回（附带禁止执行脚本的 CSP）；请求带 proxy=1 时跳过跳转（如 Next.js /_next/image 内部抓图不允许 3xx）
+	if c.Query("proxy") != "1" && utils.DirectSafeContentType(contentType) {
 		if provider, ok := storage.GetStorageProvider(fileModel.ProviderID); ok && !provider.IsProxy() {
 			if url, err := provider.GetURL(ctx, filepath.Join(utils.FilePath(fileModel.Hash)), 0); err == nil {
 				c.Header("Cache-Control", "public, max-age=86400")
