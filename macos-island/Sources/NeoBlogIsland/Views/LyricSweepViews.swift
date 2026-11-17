@@ -1,4 +1,96 @@
+import AppKit
+import ImageIO
 import SwiftUI
+
+private struct SendableDecodedCover: @unchecked Sendable {
+    let cgImage: CGImage
+}
+
+/// 灵动岛全局专辑封面解码与预热缓存（NSCache 内存同步直读 + 后台 ImageIO 降采样）：
+/// 切歌或展开/收起形变时若目标封面已在前后一首空闲预热中解码完毕，首帧 0ms 直接命中内存，彻底消除占位图标闪烁。
+@MainActor
+final class IslandArtworkCache {
+    static let shared = IslandArtworkCache()
+
+    private let cache: NSCache<NSString, NSImage> = {
+        let c = NSCache<NSString, NSImage>()
+        c.countLimit = 64
+        return c
+    }()
+
+    private var inFlight: Set<String> = []
+
+    func image(for urlString: String?) -> NSImage? {
+        guard let key = urlString, !key.isEmpty else { return nil }
+        return cache.object(forKey: key as NSString)
+    }
+
+    func preload(urlStrings: [String?]) {
+        for raw in urlStrings {
+            guard let key = raw, !key.isEmpty else { continue }
+            if cache.object(forKey: key as NSString) != nil || inFlight.contains(key) {
+                continue
+            }
+            guard let url = URL(string: key) else { continue }
+            inFlight.insert(key)
+            Task(priority: .utility) { [weak self] in
+                let decoded = await Self.fetchAndDecode(url: url, maxPixelSize: 480)
+                await MainActor.run {
+                    guard let self else { return }
+                    self.inFlight.remove(key)
+                    if let decoded {
+                        let img = NSImage(
+                            cgImage: decoded.cgImage,
+                            size: NSSize(width: decoded.cgImage.width, height: decoded.cgImage.height)
+                        )
+                        self.cache.setObject(img, forKey: key as NSString)
+                    }
+                }
+            }
+        }
+    }
+
+    func load(urlString: String?) async -> NSImage? {
+        guard let key = urlString, !key.isEmpty else { return nil }
+        if let hit = cache.object(forKey: key as NSString) {
+            return hit
+        }
+        guard let url = URL(string: key) else { return nil }
+        guard let decoded = await Self.fetchAndDecode(url: url, maxPixelSize: 480) else {
+            return nil
+        }
+        let img = NSImage(
+            cgImage: decoded.cgImage,
+            size: NSSize(width: decoded.cgImage.width, height: decoded.cgImage.height)
+        )
+        cache.setObject(img, forKey: key as NSString)
+        return img
+    }
+
+    private nonisolated static func fetchAndDecode(url: URL, maxPixelSize: Int) async -> SendableDecodedCover? {
+        let req = URLRequest(url: url, cachePolicy: .returnCacheDataElseLoad, timeoutInterval: 12)
+        guard let (data, response) = try? await URLSession.shared.data(for: req),
+              let http = response as? HTTPURLResponse,
+              (200..<300).contains(http.statusCode),
+              !data.isEmpty else {
+            return nil
+        }
+        let srcOpts: [CFString: Any] = [kCGImageSourceShouldCache: false]
+        guard let src = CGImageSourceCreateWithData(data as CFData, srcOpts as CFDictionary) else {
+            return nil
+        }
+        let thumbOpts: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
+        ]
+        guard let cg = CGImageSourceCreateThumbnailAtIndex(src, 0, thumbOpts as CFDictionary) else {
+            return nil
+        }
+        return SendableDecodedCover(cgImage: cg)
+    }
+}
 
 // 【双端同步维护约定】
 // 本文件对应网页端 `web/src/lib/lyrics/lyric-player.ts`、`ruby-layout.ts`、`word-effects.ts`、`lyric-debris.ts`、
@@ -46,7 +138,11 @@ private struct CoverArtworkLayer: View {
     let size: CGFloat
     let cornerRadius: CGFloat
 
+    @State private var loadedImage: NSImage? = nil
+
     var body: some View {
+        let resolvedImage = IslandArtworkCache.shared.image(for: albumPicURL) ?? loadedImage
+
         ZStack {
             LinearGradient(
                 colors: [accent.opacity(0.65), Color(white: 0.14)],
@@ -54,14 +150,10 @@ private struct CoverArtworkLayer: View {
                 endPoint: .bottomTrailing
             )
 
-            if let urlStr = albumPicURL, let url = URL(string: urlStr) {
-                AsyncImage(url: url) { phase in
-                    if case .success(let image) = phase {
-                        image.resizable().scaledToFill()
-                    } else {
-                        PlaceholderDiscIcon(size: size)
-                    }
-                }
+            if let nsImage = resolvedImage {
+                Image(nsImage: nsImage)
+                    .resizable()
+                    .scaledToFill()
             } else {
                 PlaceholderDiscIcon(size: size)
             }
@@ -71,6 +163,20 @@ private struct CoverArtworkLayer: View {
         }
         .frame(width: size, height: size)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .task(id: albumPicURL) {
+            guard let urlStr = albumPicURL, !urlStr.isEmpty else {
+                loadedImage = nil
+                return
+            }
+            if let hit = IslandArtworkCache.shared.image(for: urlStr) {
+                loadedImage = hit
+                return
+            }
+            let fetched = await IslandArtworkCache.shared.load(urlString: urlStr)
+            if !Task.isCancelled {
+                loadedImage = fetched
+            }
+        }
     }
 }
 
@@ -122,27 +228,41 @@ private struct CoverBlurredArtworkLayer: View {
     let expanded: Bool
     let size: CGSize
 
+    @State private var loadedImage: NSImage? = nil
+
     var body: some View {
+        let resolvedImage = IslandArtworkCache.shared.image(for: albumPicURL) ?? loadedImage
+
         ZStack {
             Color(red: 0.04, green: 0.04, blue: 0.05)
 
-            if let urlStr = albumPicURL, let url = URL(string: urlStr) {
-                AsyncImage(url: url) { phase in
-                    if case .success(let image) = phase {
-                        image
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: size.width * 1.2, height: size.height * 1.2)
-                            .blur(radius: expanded ? 26 : 12)
-                            .opacity(expanded ? 0.44 : 0.36)
-                    }
-                }
+            if let nsImage = resolvedImage {
+                Image(nsImage: nsImage)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: size.width * 1.2, height: size.height * 1.2)
+                    .blur(radius: expanded ? 26 : 12)
+                    .opacity(expanded ? 0.44 : 0.36)
             } else {
                 LinearGradient(
                     colors: [accentColor.opacity(expanded ? 0.30 : 0.20), .clear],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
+            }
+        }
+        .task(id: albumPicURL) {
+            guard let urlStr = albumPicURL, !urlStr.isEmpty else {
+                loadedImage = nil
+                return
+            }
+            if let hit = IslandArtworkCache.shared.image(for: urlStr) {
+                loadedImage = hit
+                return
+            }
+            let fetched = await IslandArtworkCache.shared.load(urlString: urlStr)
+            if !Task.isCancelled {
+                loadedImage = fetched
             }
         }
     }
@@ -390,7 +510,7 @@ private struct MarqueeScrollingTrackView<Content: View>: View {
     }
 }
 
-// MARK: - 歌手颜色指示竖条（1:1 对应 lyric-player.css .lyric-edge：仅在有歌手标注时展示颜色或合唱纵向渐变，胶囊态不显示名称胶囊）
+// MARK: - 歌手颜色指示竖条（1:1 对应 lyric-player.css .lyric-edge：独唱为单色胶囊竖条，多人合唱为边界分明的纵向等分纯色块，避免过渡渐变发灰）
 
 struct SingerEdgeBarView: View {
     let edgeHexes: [String]
@@ -399,16 +519,23 @@ struct SingerEdgeBarView: View {
     let opacity: Double
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 2, style: .continuous)
-            .fill(
-                LinearGradient(
-                    colors: edgeHexes.map { Color(cssColor: $0) },
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-            .frame(width: isBackground ? 2.0 : 2.5, height: fontSize * 0.90)
-            .opacity(opacity)
+        let barWidth: CGFloat = isBackground ? 2.2 : 3.0
+        let barHeight: CGFloat = fontSize * 1.0
+        Group {
+            if edgeHexes.count <= 1 {
+                Capsule(style: .continuous)
+                    .fill(Color(cssColor: edgeHexes.first))
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(edgeHexes.enumerated()), id: \.offset) { _, hex in
+                        Color(cssColor: hex)
+                    }
+                }
+                .clipShape(Capsule(style: .continuous))
+            }
+        }
+        .frame(width: barWidth, height: barHeight)
+        .opacity(opacity)
     }
 }
 

@@ -765,6 +765,33 @@ struct IslandDisplayConfig: Codable, Equatable {
 
 // MARK: - WebSocket 入站与出站帧
 
+struct PreloadedTrackBundle: Codable, Equatable {
+    let track: IslandTrack
+    let accentHex: String?
+    let chorus: [TimeIntervalRange]?
+    let lyrics: LyricsBundlePayload?
+
+    enum CodingKeys: String, CodingKey {
+        case track, chorus, lyrics
+        case accentHex = "accent_hex"
+    }
+}
+
+struct WebPreloadMessage: Codable {
+    let type: String
+    let tabId: String?
+    let nextTrackId: Int?
+    let prevTrackId: Int?
+    let items: [PreloadedTrackBundle]
+
+    enum CodingKeys: String, CodingKey {
+        case type, items
+        case tabId = "tab_id"
+        case nextTrackId = "next_track_id"
+        case prevTrackId = "prev_track_id"
+    }
+}
+
 struct WebMediaMessage: Codable {
     let type: String
     let tabId: String?

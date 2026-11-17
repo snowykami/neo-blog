@@ -61,8 +61,84 @@ export function formatMvOffset(offsetMs: number): string {
   return offsetMs > 0 ? `+${seconds}s` : `${seconds}s`
 }
 
-// 本页会话内按歌曲 ID 缓存 MV 元数据，切换移动端封面/歌词视图无需重复请求
+// 本页会话内按歌曲 ID 缓存 MV 元数据，切换移动端封面/歌词视图或切往已预热相邻歌曲无需重复请求
 const songMvCache = new Map<number, MusicSongMV | null>()
+const inFlightMv = new Map<number, Promise<MusicSongMV | null>>()
+const warmedStreamUrls = new Set<string>()
+let warmupVideoEl: HTMLVideoElement | null = null
+let warmupTimer = 0
+
+/** 后台静默预取指定歌曲的 MV 元数据（与播放器页共享缓存与请求去重） */
+export function preloadSongMvInfo(trackId: number): Promise<MusicSongMV | null> {
+  if (!Number.isFinite(trackId) || trackId <= 0)
+    return Promise.resolve(null)
+  if (songMvCache.has(trackId))
+    return Promise.resolve(songMvCache.get(trackId) ?? null)
+  const existing = inFlightMv.get(trackId)
+  if (existing)
+    return existing
+  const req = fetchSongMV(trackId)
+    .then((info) => {
+      songMvCache.set(trackId, info)
+      return info
+    }, () => {
+      songMvCache.set(trackId, null)
+      return null
+    })
+    .finally(() => {
+      inFlightMv.delete(trackId)
+    })
+  inFlightMv.set(trackId, req)
+  return req
+}
+
+/**
+ * 轻量预热下一首 MV 视频流的连接与 MP4 moov 元数据（preload="metadata"，仅请求 ~256KB Range 头，不拉取整段视频）：
+ * 全局严格复用单个离屏静音 <video>，元数据就绪或超时后立即释放源引用，零解码器泄漏。
+ */
+export function warmMvStreamMetadata(streamUrl?: string | null): void {
+  if (typeof document === 'undefined' || typeof window === 'undefined' || !streamUrl)
+    return
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
+    return
+  if (warmedStreamUrls.has(streamUrl))
+    return
+  warmedStreamUrls.add(streamUrl)
+  if (warmedStreamUrls.size > 40) {
+    const oldest = warmedStreamUrls.values().next().value
+    if (oldest)
+      warmedStreamUrls.delete(oldest)
+  }
+
+  window.clearTimeout(warmupTimer)
+  if (!warmupVideoEl) {
+    warmupVideoEl = document.createElement('video')
+    warmupVideoEl.muted = true
+    warmupVideoEl.defaultMuted = true
+    warmupVideoEl.playsInline = true
+    warmupVideoEl.preload = 'metadata'
+  }
+  const v = warmupVideoEl
+  const release = () => {
+    window.clearTimeout(warmupTimer)
+    v.removeEventListener('loadedmetadata', release)
+    v.removeEventListener('error', release)
+    try {
+      v.removeAttribute('src')
+      v.load()
+    }
+    catch {}
+  }
+  v.addEventListener('loadedmetadata', release, { once: true })
+  v.addEventListener('error', release, { once: true })
+  warmupTimer = window.setTimeout(release, 8000)
+  try {
+    v.src = streamUrl
+  }
+  catch {
+    release()
+  }
+}
 
 interface FetchedMvEntry {
   trackId: number
@@ -147,24 +223,17 @@ export function useMvSync({ trackId, getAudio, isAdmin }: UseMvSyncOptions) {
     }
   }, [])
 
-  // 按歌曲 ID 获取 MV 信息与偏移配置
+  // 按歌曲 ID 获取 MV 信息与偏移配置（复用预热中的请求，避免切歌瞬间重复发包）
   useEffect(() => {
     if (trackId <= 0 || songMvCache.has(trackId))
       return
-    const controller = new AbortController()
-    fetchSongMV(trackId, controller.signal).then((info) => {
-      if (controller.signal.aborted)
-        return
-      songMvCache.set(trackId, info)
-      setFetched({ trackId, info })
-    }, () => {
-      if (!controller.signal.aborted) {
-        songMvCache.set(trackId, null)
-        setFetched({ trackId, info: null })
-      }
+    let cancelled = false
+    preloadSongMvInfo(trackId).then((info) => {
+      if (!cancelled)
+        setFetched({ trackId, info })
     })
     return () => {
-      controller.abort()
+      cancelled = true
     }
   }, [trackId])
 

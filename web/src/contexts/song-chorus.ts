@@ -17,25 +17,44 @@ interface Entry {
 const EMPTY: MusicChorus[] = []
 const entries = new Map<number, Entry>()
 
+function ensureChorusEntry(id: number): Entry {
+  let entry = entries.get(id)
+  if (!entry) {
+    entry = { chorus: EMPTY, listeners: new Set(), started: false }
+    entries.set(id, entry)
+  }
+  if (!entry.started) {
+    entry.started = true
+    const current = entry
+    fetchSongChorus(id).then((chorus) => {
+      current.chorus = chorus
+      current.listeners.forEach(fn => fn())
+    }, () => {})
+  }
+  return entry
+}
+
+/** 后台静默预热指定曲目的副歌时间区间缓存（同一首歌全局只请求一次） */
+export function preloadSongChorus(id: number): void {
+  if (!Number.isFinite(id) || id <= 0)
+    return
+  ensureChorusEntry(id)
+}
+
+/** 读取已缓存的副歌区间（尚未就绪时返回空数组） */
+export function getCachedSongChorus(id: number | null | undefined): MusicChorus[] {
+  if (id == null || id <= 0)
+    return EMPTY
+  return entries.get(id)?.chorus ?? EMPTY
+}
+
 export function useSongChorus(id: number | null): MusicChorus[] {
   const valid = id != null && id > 0
   const subscribe = useCallback((listener: () => void) => {
     if (!valid)
       return () => {}
-    let entry = entries.get(id)
-    if (!entry) {
-      entry = { chorus: EMPTY, listeners: new Set(), started: false }
-      entries.set(id, entry)
-    }
+    const entry = ensureChorusEntry(id)
     entry.listeners.add(listener)
-    if (!entry.started) {
-      entry.started = true
-      const current = entry
-      fetchSongChorus(id).then((chorus) => {
-        current.chorus = chorus
-        current.listeners.forEach(fn => fn())
-      }, () => {})
-    }
     return () => {
       entries.get(id)?.listeners.delete(listener)
     }

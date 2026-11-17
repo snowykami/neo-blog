@@ -9,7 +9,7 @@ import type { LyricAgent, ResolvedLyrics } from '@/lib/lyrics/types'
 import type { MusicTrack } from '@/models/music'
 import { useLocale } from 'next-intl'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { useSongAccent } from '@/components/music-page/use-cover-accent'
+import { useCoverAccent, useSongAccent } from '@/components/music-page/use-cover-accent'
 import {
   useMusicActions,
   useMusicClockStore,
@@ -18,7 +18,8 @@ import {
   useMusicPreferences,
   useMusicVolume,
 } from '@/contexts/music-context'
-import { useSongChorus } from '@/contexts/song-chorus'
+import { getCachedSongChorus, useSongChorus } from '@/contexts/song-chorus'
+import { usePassiveResolvedSongLyrics } from '@/contexts/song-lyrics'
 import { useCachedSongMetaTranslation } from '@/contexts/song-meta-translations'
 import {
   setDesktopIslandRuntimeStatus,
@@ -372,6 +373,7 @@ export function DesktopIslandBridge() {
     duration: playbackDurationSec,
     playlistComplete,
     pendingStep,
+    adjacentTracks,
   } = useMusicPlayback()
   const {
     lyrics,
@@ -877,6 +879,82 @@ export function DesktopIslandBridge() {
       })),
     })
   }, [currentIndex, playlist, playlistComplete, sendJSON, wsOpenEpoch])
+
+  // 3.5 空闲推送前后一首相邻曲目的预热包（封面高分 URL、主色、副歌区间与已解析歌词），使桌面灵动岛切歌实现 0ms 瞬显
+  const nextTrack = adjacentTracks.next
+  const prevTrack = adjacentTracks.prev
+  const nextPreloaded = usePassiveResolvedSongLyrics(nextTrack?.id ?? null, nextTrack)
+  const prevPreloaded = usePassiveResolvedSongLyrics(prevTrack?.id ?? null, prevTrack)
+  const nextCoverAccent = useCoverAccent(nextTrack?.albumPic)
+  const prevCoverAccent = useCoverAccent(prevTrack?.albumPic)
+  const lastPreloadSigRef = useRef<string>('')
+
+  useEffect(() => {
+    if (!wsOpenEpoch || !isPlaying)
+      return
+    const buildItem = (
+      track: MusicTrack | null,
+      resolved: ReturnType<typeof usePassiveResolvedSongLyrics>,
+      coverAcc: string | null,
+    ) => {
+      if (!track || resolved.status === 'loading' || resolved.pending)
+        return null
+      const titleExtra = formatTitleAliases(track.name, track.aliases)
+      const inlineTitle = [track.name, track.artists.join(' / ')].filter(Boolean).join(' - ')
+      return {
+        track: {
+          id: track.id,
+          name: track.name,
+          title_extra: titleExtra || null,
+          artists: track.artists,
+          display_artists: track.artists,
+          inline_title: inlineTitle,
+          album: track.album,
+          album_pic: toAbsoluteCoverUrl(track.albumPic, 240),
+          duration_ms: track.duration ?? 0,
+        },
+        accent_hex: resolved.lyrics.accent ?? coverAcc ?? null,
+        chorus: getCachedSongChorus(track.id),
+        lyrics: serializeLyrics(resolved.lyrics),
+      }
+    }
+
+    const items = [
+      buildItem(nextTrack, nextPreloaded, nextCoverAccent),
+      prevTrack?.id !== nextTrack?.id ? buildItem(prevTrack, prevPreloaded, prevCoverAccent) : null,
+    ].filter((item): item is NonNullable<typeof item> => item != null)
+
+    const nextId = nextTrack?.id ?? null
+    const prevId = prevTrack?.id ?? null
+    if (items.length === 0 && nextId == null && prevId == null)
+      return
+
+    const sig = `${wsOpenEpoch}|${nextId ?? 0}|${prevId ?? 0}|${items.map(it => `${it.track.id}:${it.lyrics.source}:${it.accent_hex ?? ''}`).join(',')}`
+    if (sig === lastPreloadSigRef.current)
+      return
+
+    const timer = window.setTimeout(() => {
+      lastPreloadSigRef.current = sig
+      sendJSON({
+        type: 'preload',
+        tab_id: tabIdRef.current,
+        next_track_id: nextId,
+        prev_track_id: prevId,
+        items,
+      })
+    }, 180)
+    return () => window.clearTimeout(timer)
+  }, [
+    isPlaying,
+    nextCoverAccent,
+    nextPreloaded,
+    nextTrack,
+    prevCoverAccent,
+    prevPreloaded,
+    prevTrack,
+    sendJSON,
+    wsOpenEpoch,
+  ])
 
   // 4. 构建并推送实时状态与时钟锚点帧（所有时长与进度严格以 _ms 毫秒为单位）
   const buildStatePayload = useCallback((

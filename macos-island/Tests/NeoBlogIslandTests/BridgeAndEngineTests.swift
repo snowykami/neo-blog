@@ -583,5 +583,24 @@ struct BridgeAndEngineTests {
         #expect(store.isExpanded == false)
         #expect(capturedCmd?.action == "open_player_page")
         #expect(capturedCmd?.focusToken?.hasPrefix("nbf_") == true)
+
+        // 验证前后相邻歌曲预热包：点击下一首/上一首时 0ms 乐观切入已预热的封面与歌词，且忽略滞后的旧曲目心跳
+        let preloadJSON = Data(##"{"type":"preload","next_track_id":202,"prev_track_id":200,"items":[{"track":{"id":202,"name":"预热下一首","artists":["NextArtist"],"album":"Album2","duration_ms":210000},"accent_hex":"#4ade80","chorus":[{"start":30000,"end":60000}],"lyrics":{"source":"ttml-amll","word_synced":true,"instrumental":false,"spotlights":[],"interludes":[],"lines":[{"start":0,"end":4000,"words":[{"text":"下一首首句秒开","start":0,"end":4000}]}]}},{"track":{"id":200,"name":"预热上一首","artists":["PrevArtist"],"album":"Album0","duration_ms":195000},"accent_hex":"#f472b6","chorus":[],"lyrics":{"source":"ncm-yrc","word_synced":true,"instrumental":false,"spotlights":[],"interludes":[],"lines":[{"start":0,"end":3000,"words":[{"text":"上一首首句秒开","start":0,"end":3000}]}]}}]}"##.utf8)
+        store.ingestTestPayload(preloadJSON, clientId: clientId, origin: "https://blog.example.com")
+
+        store.nextTrack()
+        #expect(store.track?.id == 202)
+        #expect(store.track?.name == "预热下一首")
+        #expect(store.accentHex == "#4ade80")
+        #expect(store.lyrics.lines.first?.plainText == "下一首首句秒开")
+
+        // 旧曲目 (id=1) 的滞后心跳在乐观窗口内不得把画面闪回旧曲目
+        let staleState = Data(#"{"type":"state","visible":true,"show_playing":true,"is_playing":true,"has_played":true,"track_id":1,"position_ms":99000,"duration_ms":180000,"anchor_ms":1700000000000}"#.utf8)
+        store.ingestTestPayload(staleState, clientId: clientId, origin: "https://blog.example.com")
+        #expect(store.track?.id == 202)
+
+        store.prevTrack()
+        #expect(store.track?.id == 200)
+        #expect(store.lyrics.lines.first?.plainText == "上一首首句秒开")
     }
 }

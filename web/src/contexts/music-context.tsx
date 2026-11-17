@@ -18,7 +18,6 @@ import React, {
   useSyncExternalStore,
 } from 'react'
 import { toast } from 'sonner'
-import { fetchSongAudioURL } from '@/api/music'
 import {
   findActiveLyricLineIndex,
   getLyricLineText,
@@ -39,10 +38,11 @@ import { isAdmin } from '@/utils/common/permission'
 import { useOptionalAuth } from './auth-context'
 import { EMPTY_MUSIC_LYRICS_STATE } from './music-lyrics-engine-state'
 
-// 歌词引擎（来源选择、平台歌词解析、音译对齐、强调标注）与节拍分析按需加载：MusicProvider 在根布局里，
+// 歌词引擎（来源选择、平台歌词解析、音译对齐、强调标注）、节拍分析与前后曲目预热均按需加载：MusicProvider 在根布局里，
 // 静态引用会把它们连同 wanakana、Worker 调度一起打进每一页的首屏包（见 music-lyrics-engine.tsx）
 const loadLyricsEngine = () => import('./music-lyrics-engine')
 const loadRhythm = () => import('@/lib/lyrics/rhythm/source')
+const loadAdjacentPreloader = () => import('./preload-adjacent')
 
 export type PlayMode = 'repeat-all' | 'repeat-one' | 'shuffle'
 
@@ -93,6 +93,7 @@ export interface MusicPlaybackValue {
   playlistLoading: boolean
   pendingStep: 1 | -1 | null
   playlistState: 'pending' | 'loaded' | 'failed'
+  adjacentTracks: { prev: MusicTrack | null, next: MusicTrack | null }
 }
 
 /** 音量状态与控制（拖动滑块时高频更新，仅音量控件订阅） */
@@ -968,38 +969,60 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       void ensurePlaylist()
   }, [ensurePlaylist])
 
-  const prefetchedTrackIds = useRef<Map<number, number>>(new Map())
+  const shufflePlanRef = useRef<{ forIndex: number | null, forLen: number, prev: number | null, next: number | null }>({
+    forIndex: null,
+    forLen: 0,
+    prev: null,
+    next: null,
+  })
+  const [shufflePlan, setShufflePlan] = useState(shufflePlanRef.current)
 
   useEffect(() => {
-    const audio = audioRef.current
-    if (!currentTrack || !audio)
+    if (playMode !== 'shuffle' || !playlistComplete || currentIndex == null || playlist.length <= 1) {
+      const empty = { forIndex: null, forLen: 0, prev: null, next: null }
+      shufflePlanRef.current = empty
+      setShufflePlan(prev => (prev.forIndex == null && prev.forLen === 0 ? prev : empty))
       return
-    const request = () => {
-      if (audio.paused || audio.readyState < HTMLMediaElement.HAVE_FUTURE_DATA)
-        return
-      if (deferredPlaylistRef.current) {
-        void ensurePlaylist()
-        return
+    }
+    const len = playlist.length
+    const pickOther = (excludeA: number, excludeB: number | null) => {
+      if (len <= 2)
+        return (excludeA + 1) % len
+      let idx = Math.floor(Math.random() * len)
+      if (idx === excludeA || idx === excludeB)
+        idx = (idx + 1) % len
+      if (idx === excludeA || idx === excludeB)
+        idx = (idx + 1) % len
+      return idx
+    }
+    const nextIdx = pickOther(currentIndex, null)
+    const prevIdx = pickOther(currentIndex, nextIdx)
+    const plan = { forIndex: currentIndex, forLen: len, prev: prevIdx, next: nextIdx }
+    shufflePlanRef.current = plan
+    setShufflePlan(plan)
+  }, [currentIndex, playMode, playlist.length, playlistComplete])
+
+  const adjacentTracks = useMemo<{ prev: MusicTrack | null, next: MusicTrack | null }>(() => {
+    if (!playlistComplete || currentIndex == null || playlist.length <= 1)
+      return { prev: null, next: null }
+    const len = playlist.length
+    if (playMode === 'shuffle') {
+      if (shufflePlan.forIndex !== currentIndex || shufflePlan.forLen !== len)
+        return { prev: null, next: null }
+      const next = shufflePlan.next != null ? playlist[shufflePlan.next] ?? null : null
+      const prev = shufflePlan.prev != null ? playlist[shufflePlan.prev] ?? null : null
+      return {
+        prev: prev && prev.id !== currentTrack?.id ? prev : null,
+        next: next && next.id !== currentTrack?.id ? next : null,
       }
-      if (document.visibilityState !== 'visible')
-        return
-      if (playModeRef.current === 'shuffle')
-        return
-      const nextIndex = getAdjacentIndex(playlistRef.current, currentIndexRef.current, playModeRef.current, 1)
-      const next = nextIndex == null ? null : playlistRef.current[nextIndex]
-      if (!next || next.id === currentTrack.id || !shouldPrefetch(prefetchedTrackIds.current, next.id, Date.now()))
-        return
-      prefetchedTrackIds.current.set(next.id, Date.now())
-      fetchSongAudioURL(next.id).catch(() => prefetchedTrackIds.current.delete(next.id))
     }
-    request()
-    audio.addEventListener('playing', request)
-    document.addEventListener('visibilitychange', request)
-    return () => {
-      audio.removeEventListener('playing', request)
-      document.removeEventListener('visibilitychange', request)
+    const next = playlist[(currentIndex + 1) % len] ?? null
+    const prev = playlist[(currentIndex - 1 + len) % len] ?? null
+    return {
+      prev: prev && prev.id !== currentTrack?.id ? prev : null,
+      next: next && next.id !== currentTrack?.id ? next : null,
     }
-  }, [currentTrack, ensurePlaylist])
+  }, [currentIndex, currentTrack?.id, playMode, playlist, playlistComplete, shufflePlan])
 
   const goTo = useCallback((index: number | null, autoplay: boolean, startTime?: number) => {
     if (index == null) {
@@ -1050,7 +1073,20 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [])
 
   const step = useCallback((direction: 1 | -1) => {
-    const go = () => goTo(getAdjacentIndex(playlistRef.current, currentIndexRef.current, playModeRef.current, direction), true)
+    const go = () => {
+      const list = playlistRef.current
+      const curr = currentIndexRef.current
+      const mode = playModeRef.current
+      const plan = shufflePlanRef.current
+      if (mode === 'shuffle' && curr != null && plan.forIndex === curr && plan.forLen === list.length) {
+        const planned = direction === 1 ? plan.next : plan.prev
+        if (planned != null && list[planned]) {
+          goTo(planned, true)
+          return
+        }
+      }
+      goTo(getAdjacentIndex(list, curr, mode, direction), true)
+    }
     if (playlistCompleteRef.current) {
       go()
       return
@@ -1253,6 +1289,47 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const lyricIsSiteVersion = lyricsState.isSiteVersion
   const lyricsPending = lyricsState.pending
   const lyricStatus = lyricsState.status
+
+  // 当前曲目音频缓冲充裕且自身歌词加载稳定后，在空闲时段预热前后相邻一首歌的音频、歌词、封面与 MV（动态 import，零首屏开销）
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!currentTrack || !audio)
+      return
+    let cancelScheduled: (() => void) | null = null
+    let disposed = false
+
+    const tryPreload = () => {
+      if (disposed || audio.paused || audio.readyState < HTMLMediaElement.HAVE_FUTURE_DATA)
+        return
+      if (deferredPlaylistRef.current) {
+        void ensurePlaylist()
+        return
+      }
+      if (document.visibilityState !== 'visible')
+        return
+      if (lyricStatus === 'loading' || lyricsPending)
+        return
+      if (!adjacentTracks.next && !adjacentTracks.prev)
+        return
+      cancelScheduled?.()
+      void loadAdjacentPreloader().then(({ scheduleAdjacentTrackPreload }) => {
+        if (!disposed)
+          cancelScheduled = scheduleAdjacentTrackPreload(adjacentTracks)
+      }, () => {})
+    }
+
+    tryPreload()
+    audio.addEventListener('playing', tryPreload)
+    audio.addEventListener('canplaythrough', tryPreload)
+    document.addEventListener('visibilitychange', tryPreload)
+    return () => {
+      disposed = true
+      cancelScheduled?.()
+      audio.removeEventListener('playing', tryPreload)
+      audio.removeEventListener('canplaythrough', tryPreload)
+      document.removeEventListener('visibilitychange', tryPreload)
+    }
+  }, [adjacentTracks, currentTrack, ensurePlaylist, lyricStatus, lyricsPending])
 
   const sameTrackState = lyricsState.trackId === currentTrackId
   const activePronunciationBucket: PronunciationLangBucket | null = sameTrackState ? lyricsState.pronunciationBucket : null
@@ -1738,6 +1815,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     playlistLoading,
     pendingStep,
     playlistState,
+    adjacentTracks,
   }), [
     playlist,
     currentIndex,
@@ -1750,6 +1828,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     playlistLoading,
     pendingStep,
     playlistState,
+    adjacentTracks,
   ])
 
   const volumeValue = useMemo<MusicVolumeValue>(() => ({

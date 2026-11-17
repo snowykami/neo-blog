@@ -262,8 +262,7 @@ registerClientSongLyricsCacheClearer(clearClientSongLyricsCache)
 
 const EMPTY_SOURCES: SongLyricSources = {}
 
-/** 订阅一首歌的歌词来源并在需要时开始获取；id 为空或不大于 0（示例曲目）时不获取 */
-export function useSongLyricSources(id: number | null): SongLyricSources | null {
+function useSongLyricSourcesInternal(id: number | null, autoLoad: boolean): SongLyricSources | null {
   const valid = id != null && id > 0
   const subscribe = useCallback((listener: () => void) => {
     if (!valid)
@@ -276,14 +275,19 @@ export function useSongLyricSources(id: number | null): SongLyricSources | null 
   }, [id, valid])
   const sources = useSyncExternalStore(
     subscribe,
-    () => (valid ? entries.get(id)?.sources ?? EMPTY_SOURCES : null),
+    () => (valid ? (autoLoad ? entries.get(id)?.sources ?? EMPTY_SOURCES : entries.get(id)?.sources ?? null) : null),
     () => null,
   )
   useEffect(() => {
-    if (valid)
+    if (valid && autoLoad)
       loadSongLyrics(id)
-  }, [id, valid])
+  }, [autoLoad, id, valid])
   return sources
+}
+
+/** 订阅一首歌的歌词来源并在需要时开始获取；id 为空或不大于 0（示例曲目）时不获取 */
+export function useSongLyricSources(id: number | null): SongLyricSources | null {
+  return useSongLyricSourcesInternal(id, true)
 }
 
 export interface SongLyrics {
@@ -312,9 +316,8 @@ function safely<T>(parse: () => T, label: string): T | null {
   }
 }
 
-/** 一首歌最终显示的歌词：获取各来源并按同一套规则选择（读者不选来源，一律按全站版本）；track 用于去掉「歌名 - 歌手」等署名行 */
-export function useResolvedSongLyrics(id: number | null, track?: LyricTrackInfo | null): SongLyrics {
-  const fresh = useSongLyricSources(id)
+function useResolvedSongLyricsInternal(id: number | null, track: LyricTrackInfo | null | undefined, autoLoad: boolean): SongLyrics {
+  const fresh = useSongLyricSourcesInternal(id, autoLoad)
   // 实时来源还在请求中或失败时，用缓存快照中的同一来源补位
   const sources = useMemo(() => withCachedSources(fresh), [fresh])
   const trackName = track?.name ?? ''
@@ -350,7 +353,9 @@ export function useResolvedSongLyrics(id: number | null, track?: LyricTrackInfo 
 
   const result = useMemo<SongLyrics>(() => {
     const resolution = resolveLyrics({ ttml: ttmlLyrics, ncm: ncmLyrics, ncmParsed, qq: qqLyrics, qqParsed, kugou: kugouLyrics, kugouParsed, pin: siteKind })
-    const pending = fresh != null && (fresh.ncm === undefined || fresh.ttml === undefined || fresh.qq === undefined || fresh.kugou === undefined)
+    const pending = fresh == null
+      ? Boolean(id != null && id > 0 && !autoLoad)
+      : (fresh.ncm === undefined || fresh.ttml === undefined || fresh.qq === undefined || fresh.kugou === undefined)
     return {
       // 音译对齐到原文音节（逐字音译），再按这一来源的整体偏移平移时间
       lyrics: shiftLyrics(withRomanizationWords(resolution.lyrics), offsets[resolution.lyrics.source] ?? 0),
@@ -361,8 +366,18 @@ export function useResolvedSongLyrics(id: number | null, track?: LyricTrackInfo 
       siteKind,
       isSiteVersion: siteKind == null || resolution.kind === siteKind,
     }
-  }, [fresh, kugouLyrics, kugouParsed, ncmLyrics, ncmParsed, offsets, qqLyrics, qqParsed, siteKind, ttmlLyrics])
+  }, [autoLoad, fresh, id, kugouLyrics, kugouParsed, ncmLyrics, ncmParsed, offsets, qqLyrics, qqParsed, siteKind, ttmlLyrics])
   return result
+}
+
+/** 一首歌最终显示的歌词：获取各来源并按同一套规则选择（读者不选来源，一律按全站版本）；track 用于去掉「歌名 - 歌手」等署名行 */
+export function useResolvedSongLyrics(id: number | null, track?: LyricTrackInfo | null): SongLyrics {
+  return useResolvedSongLyricsInternal(id, track, true)
+}
+
+/** 被动订阅已由空闲预取器加载的相邻曲目歌词（自身绝不主动发起网络请求） */
+export function usePassiveResolvedSongLyrics(id: number | null, track?: LyricTrackInfo | null): SongLyrics {
+  return useResolvedSongLyricsInternal(id, track, false)
 }
 
 /** 用缓存快照补齐还在请求中（undefined）或失败（null）的来源 */

@@ -33,6 +33,23 @@ final class IslandStore {
         var lastRhythmRawJSON: Data?
         var lastPlaylistRawJSON: Data?
         var lastStateRawJSON: Data?
+        var lastPreloadRawJSON: Data?
+        var preloadedBundles: [Int: PreloadedTrackBundle] = [:]
+        var preloadedOrder: [Int] = []
+        var nextTrackIdHint: Int?
+        var prevTrackIdHint: Int?
+        var optimisticTrackUntil: (id: Int, until: Date)?
+
+        mutating func storePreloaded(_ bundle: PreloadedTrackBundle) {
+            let id = bundle.track.id
+            preloadedBundles[id] = bundle
+            preloadedOrder.removeAll { $0 == id }
+            preloadedOrder.append(id)
+            while preloadedOrder.count > 12 {
+                let evicted = preloadedOrder.removeFirst()
+                preloadedBundles.removeValue(forKey: evicted)
+            }
+        }
     }
 
     struct StripRenderItem: Identifiable, Equatable {
@@ -470,8 +487,61 @@ final class IslandStore {
     func play() { sendCommand(OutgoingCommand(action: "play")) }
     func pause() { sendCommand(OutgoingCommand(action: "pause")) }
     func togglePlay() { sendCommand(OutgoingCommand(action: "toggle")) }
-    func nextTrack() { sendCommand(OutgoingCommand(action: "next")) }
-    func prevTrack() { sendCommand(OutgoingCommand(action: "prev")) }
+
+    func nextTrack() {
+        optimisticallySwitchToAdjacent(direction: 1)
+        sendCommand(OutgoingCommand(action: "next"))
+    }
+
+    func prevTrack() {
+        optimisticallySwitchToAdjacent(direction: -1)
+        sendCommand(OutgoingCommand(action: "prev"))
+    }
+
+    private func optimisticallySwitchToAdjacent(direction: Int) {
+        guard let activeId = activeClientId, var session = tabSessions[activeId] else { return }
+        let hintedId = direction > 0 ? session.nextTrackIdHint : session.prevTrackIdHint
+        let fallbackId: Int? = {
+            guard playMode != .shuffle,
+                  let cur = session.currentIndex,
+                  !session.playlist.isEmpty else { return nil }
+            let len = session.playlist.count
+            let idx = (cur + direction + len) % len
+            return session.playlist.indices.contains(idx) ? session.playlist[idx].id : nil
+        }()
+        if let targetId = hintedId ?? fallbackId, targetId != track?.id {
+            applyOptimisticPreloadIfAvailable(trackId: targetId, session: &session, activeId: activeId)
+        }
+    }
+
+    private func applyOptimisticPreloadIfAvailable(trackId targetId: Int, session: inout TabSession, activeId: UUID) {
+        guard let bundle = session.preloadedBundles[targetId] else { return }
+        session.track = bundle.track
+        session.accentHex = bundle.accentHex
+        session.chorus = bundle.chorus ?? []
+        session.lyrics = bundle.lyrics ?? .empty
+        session.rhythm = .fallback
+        session.optimisticTrackUntil = (targetId, Date().addingTimeInterval(0.65))
+        if let matchedIdx = session.playlist.first(where: { $0.id == targetId })?.index {
+            session.currentIndex = matchedIdx
+            currentIndex = matchedIdx
+        }
+        tabSessions[activeId] = session
+
+        track = bundle.track
+        effectiveDurationMs = bundle.track.durationMs
+        accentHex = bundle.accentHex
+        chorusRanges = bundle.chorus ?? []
+        rhythm = .fallback
+        seekAtMs = -.infinity
+        anchorPositionMs = 0
+        anchorLocalDate = Date()
+        debrisEngine.reset()
+        stageSpringEngine.reset()
+        compactStageParticles.reset()
+        expandedStageParticles.reset()
+        updateLyrics(bundle.lyrics ?? .empty, trackId: bundle.track.id)
+    }
 
     func seek(toMs ms: Double) {
         let maxBound = effectiveDurationMs > 0 ? effectiveDurationMs : .infinity
@@ -485,6 +555,11 @@ final class IslandStore {
     func playTrack(at index: Int) {
         showPlaylistOverlay = false
         releaseKeyFocus(restorePreviousApp: true)
+        if let activeId = activeClientId,
+           var session = tabSessions[activeId],
+           let item = session.playlist.first(where: { $0.index == index }) {
+            applyOptimisticPreloadIfAvailable(trackId: item.id, session: &session, activeId: activeId)
+        }
         sendCommand(OutgoingCommand(action: "play_track", index: index))
     }
 
@@ -724,6 +799,9 @@ final class IslandStore {
             if let playlist = snap.playlistRawJSON {
                 self.handleIncomingPayload(clientId: Self.remotePeerVirtualClientId, meta: meta, data: playlist, fromPeer: true, peerLivePosMs: nil)
             }
+            if let preload = snap.preloadRawJSON {
+                self.handleIncomingPayload(clientId: Self.remotePeerVirtualClientId, meta: meta, data: preload, fromPeer: true, peerLivePosMs: nil)
+            }
             if let state = snap.stateRawJSON {
                 self.handleIncomingPayload(clientId: Self.remotePeerVirtualClientId, meta: meta, data: state, fromPeer: true, peerLivePosMs: snap.livePositionMs)
             }
@@ -813,6 +891,7 @@ final class IslandStore {
             rhythmRawJSON: session.lastRhythmRawJSON,
             playlistRawJSON: session.lastPlaylistRawJSON,
             stateRawJSON: session.lastStateRawJSON,
+            preloadRawJSON: session.lastPreloadRawJSON,
             livePositionMs: currentPositionMs(),
             isPlaying: isPlaying
         )
@@ -872,7 +951,11 @@ final class IslandStore {
             session.accentHex = msg.accentHex
             session.chorus = msg.chorus ?? []
             session.lyrics = msg.lyrics ?? .empty
+            session.optimisticTrackUntil = nil
             session.lastMediaRawJSON = data
+            if networkServicesEnabled {
+                IslandArtworkCache.shared.preload(urlStrings: [msg.track?.albumPic])
+            }
             tabSessions[clientId] = session
             if activeClientId == nil {
                 activeClientId = clientId
@@ -915,8 +998,33 @@ final class IslandStore {
                 }
             }
 
+        case "preload":
+            guard let msg = decodeJSON(WebPreloadMessage.self, from: data, label: "preload") else { return }
+            session.nextTrackIdHint = msg.nextTrackId
+            session.prevTrackIdHint = msg.prevTrackId
+            session.lastPreloadRawJSON = data
+            for item in msg.items {
+                session.storePreloaded(item)
+            }
+            tabSessions[clientId] = session
+            if networkServicesEnabled {
+                IslandArtworkCache.shared.preload(urlStrings: msg.items.map(\.track.albumPic))
+            }
+            if activeClientId == clientId && !fromPeer && peerService.isConnected {
+                peerService.sendBridgeFrame(data, livePositionMs: nil)
+            }
+
         case "state":
             guard let msg = decodeJSON(WebStateMessage.self, from: data, label: "state") else { return }
+            if let opt = session.optimisticTrackUntil {
+                if msg.trackId == opt.id {
+                    session.optimisticTrackUntil = nil
+                } else if Date() < opt.until {
+                    return
+                } else {
+                    session.optimisticTrackUntil = nil
+                }
+            }
             if msg.isPlaying || msg.hasPlayed || msg.showPlaying {
                 session.hasEverPlayed = true
             }
@@ -1000,7 +1108,7 @@ final class IslandStore {
         }
         lyrics = nextLyrics
         let builtLines: [IndexedLyricLine] = nextLyrics.lines.enumerated().map { idx, line in
-            let dots = (line.edgeColors ?? []).prefix(3).enumerated().map { dotIdx, hex in
+            let dots = (line.edgeColors ?? []).prefix(6).enumerated().map { dotIdx, hex in
                 SingerColorDot(id: "\(tid)-\(idx)-d\(dotIdx)", hex: hex)
             }
             return IndexedLyricLine(
@@ -1074,6 +1182,21 @@ final class IslandStore {
             chorusRanges = session.chorus
             updateLyrics(session.lyrics, trackId: session.track?.id)
             rhythm = session.rhythm
+        } else if let expectedId = expectedTrackId, let bundle = session.preloadedBundles[expectedId] {
+            track = bundle.track
+            if expectedId != prevTrackId {
+                hiddenTrackId = nil
+                seekAtMs = -.infinity
+                debrisEngine.reset()
+                stageSpringEngine.reset()
+                compactStageParticles.reset()
+                expandedStageParticles.reset()
+            }
+            accentHex = bundle.accentHex
+            chorusRanges = bundle.chorus ?? []
+            updateLyrics(bundle.lyrics ?? .empty, trackId: expectedId)
+            rhythm = .fallback
+            scheduleSnapshotHeal(for: session.clientId, expectedTrackId: expectedTrackId)
         } else {
             if prevTrackId != nil && prevTrackId != expectedTrackId {
                 updateLyrics(.empty, trackId: expectedTrackId)

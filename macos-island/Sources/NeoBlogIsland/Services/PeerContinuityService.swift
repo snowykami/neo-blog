@@ -50,6 +50,7 @@ struct PeerFullSnapshot: Codable, Sendable {
     let rhythmRawJSON: Data?
     let playlistRawJSON: Data?
     let stateRawJSON: Data?
+    var preloadRawJSON: Data? = nil
     let livePositionMs: Double
     let isPlaying: Bool
 }
