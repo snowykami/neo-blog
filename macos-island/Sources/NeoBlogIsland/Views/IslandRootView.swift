@@ -48,7 +48,15 @@ struct IslandRootView: View {
         }
         .frame(width: canvasSize.width, height: canvasSize.height, alignment: .top)
         .coordinateSpace(name: "panelCanvas")
+        .environment(\.colorScheme, .dark)
+        .preferredColorScheme(.dark)
         .animation(.spring(duration: 0.38, bounce: 0.25), value: store.shouldDisplayIsland)
+        .onChange(of: store.isExpanded) { _, expanded in
+            if !expanded {
+                store.showPlaylistOverlay = false
+                store.releaseKeyFocus(restorePreviousApp: false)
+            }
+        }
     }
 }
 

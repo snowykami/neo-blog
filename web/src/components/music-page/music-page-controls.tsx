@@ -10,6 +10,8 @@ import type { LyricTargetLang } from '@/lib/lyrics/target-lang'
 import {
   CaseSensitiveIcon,
   CheckIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   CopyIcon,
   GlobeIcon,
   LanguagesIcon,
@@ -36,6 +38,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { TbHdr } from 'react-icons/tb'
 import { toast } from 'sonner'
 import { ProgressControl } from '@/components/common/controlled-progress'
+import { PLAYER_STYLE } from '@/components/common/music-player-shared'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useAuth } from '@/contexts/auth-context'
 import { refreshTranslations, requestLyricTranslationLanguages } from '@/contexts/lyric-translations'
 import {
@@ -233,6 +237,53 @@ function formatBackgroundLyricText(text: string): string {
     return text
   }
   return `(${text})`
+}
+
+function buildFormattedLyricsClipboardText({
+  currentTrack,
+  lyrics,
+  showRomaji,
+  showTranslation,
+}: {
+  currentTrack: ReturnType<typeof useMusicPlayback>['currentTrack']
+  lyrics: ReturnType<typeof useMusicLyrics>['lyrics']
+  showRomaji: boolean
+  showTranslation: boolean
+}): string | null {
+  const lines = lyrics?.lines
+  if (!lines || lines.length === 0)
+    return null
+
+  const title = currentTrack?.name ?? ''
+  const artists = currentTrack?.artists
+    ? (Array.isArray(currentTrack.artists) ? currentTrack.artists.join(' / ') : currentTrack.artists)
+    : ''
+  const header = title ? `${title}${artists ? ` - ${artists}` : ''}\n\n` : ''
+
+  const groups = lines.map((line) => {
+    const rawOrig = getLyricLineText(line).trim()
+    if (!rawOrig)
+      return null
+    const orig = line.isBackground ? formatBackgroundLyricText(rawOrig) : rawOrig
+    const parts = [orig]
+    if (showRomaji && line.romanization?.trim())
+      parts.push(line.romanization.trim())
+    if (showTranslation) {
+      if (line.translation?.trim())
+        parts.push(line.translation.trim())
+      if (line.secondaryTranslation?.trim())
+        parts.push(line.secondaryTranslation.trim())
+    }
+    return parts
+  }).filter((parts): parts is string[] => parts !== null)
+
+  const hasExtra = groups.some(parts => parts.length > 1)
+  const content = groups.map(parts => parts.join('\n')).join(hasExtra ? '\n\n' : '\n')
+  if (!content)
+    return null
+
+  const fullText = (header + content).trim()
+  return fullText || null
 }
 
 function TranslationSelectionIndicator({ index, total }: { index: number, total: number }) {
@@ -711,43 +762,12 @@ export function MoreControlsMenu({
   }, [open])
 
   const handleCopyLyrics = useCallback(async () => {
-    const lines = lyrics?.lines
-    if (!lines || lines.length === 0) {
-      toast.error(playerT('no_lyrics_to_copy'))
-      return
-    }
-
-    const title = currentTrack?.name ?? ''
-    const artists = currentTrack?.artists
-      ? (Array.isArray(currentTrack.artists) ? currentTrack.artists.join(' / ') : currentTrack.artists)
-      : ''
-    const header = title ? `${title}${artists ? ` - ${artists}` : ''}\n\n` : ''
-
-    const groups = lines.map((line) => {
-      const rawOrig = getLyricLineText(line).trim()
-      if (!rawOrig)
-        return null
-      const orig = line.isBackground ? formatBackgroundLyricText(rawOrig) : rawOrig
-      const parts = [orig]
-      if (showRomaji && line.romanization?.trim())
-        parts.push(line.romanization.trim())
-      if (showTranslation) {
-        if (line.translation?.trim())
-          parts.push(line.translation.trim())
-        if (line.secondaryTranslation?.trim())
-          parts.push(line.secondaryTranslation.trim())
-      }
-      return parts
-    }).filter((parts): parts is string[] => parts !== null)
-
-    const hasExtra = groups.some(parts => parts.length > 1)
-    const content = groups.map(parts => parts.join('\n')).join(hasExtra ? '\n\n' : '\n')
-    if (!content) {
-      toast.error(playerT('no_lyrics_to_copy'))
-      return
-    }
-
-    const fullText = (header + content).trim()
+    const fullText = buildFormattedLyricsClipboardText({
+      currentTrack,
+      lyrics,
+      showRomaji,
+      showTranslation,
+    })
     if (!fullText) {
       toast.error(playerT('no_lyrics_to_copy'))
       return
@@ -853,8 +873,531 @@ export function MoreControlsMenu({
 }
 
 /**
+ * 悬浮小窗（MiniPlayer）顶栏右上角统一控制中心：
+ * 将原本小窗第 3 排的音量/静音、翻译、音译、歌词特效、评论旁白、HDR、复制歌词及翻译语言选择收纳为紧凑卡片，
+ * 为小窗省出整排底部高度并补贴给歌词舞台（与 macOS 灵动岛 ExpandedControlCenterPopover 1:1 对齐）。
+ */
+export function MiniPlayerMoreMenu() {
+  const t = useTranslations('MusicPage')
+  const playerT = useTranslations('MusicPlayer')
+  const locale = useLocale()
+  const { user } = useAuth()
+  const { siteInfo } = useSiteInfo()
+  const admin = user ? checkIsAdmin({ user }) : false
+  const { currentTrack } = useMusicPlayback()
+  const { volume, isMuted, setVolume, toggleMuted } = useMusicVolume()
+  const {
+    canToggleTranslation,
+    lyricTranslationsGenerating,
+    availableTranslationLangs,
+    canToggleRomaji,
+    lyricPronunciationsGenerating,
+    lyrics,
+  } = useMusicLyrics()
+  const {
+    showTranslation,
+    translationLang,
+    preferNativeTranslation,
+    translationSelections,
+    showRomaji,
+    setShowTranslation,
+    setTranslationLang,
+    setTranslationSelections,
+    setShowRomaji,
+    showLyricEffects,
+    setShowLyricEffects,
+    showLyricMoments,
+    setShowLyricMoments,
+    hdr,
+    setHdr,
+  } = useMusicPreferences()
+  const hdrDisplay = useHdrDisplay()
+
+  const [open, setOpen] = useState(false)
+  const [panelPage, setPanelPage] = useState<'main' | 'languages'>('main')
+  const [copied, setCopied] = useState(false)
+  const [triggeringLang, setTriggeringLang] = useState<string | null>(null)
+
+  const muted = isMuted || volume === 0
+  const volumePercent = Math.round((muted ? 0 : volume) * 100)
+  const VolumeIcon = muted ? VolumeXIcon : volume < 0.5 ? Volume1Icon : Volume2Icon
+
+  const lyricSource = lyrics?.source && lyrics.source !== 'none' ? lyrics.source : null
+  const adminActionable = Boolean(admin && siteInfo.musicAiEnabled && currentTrack?.id && lyricSource)
+  const allStatuses = useMemo(() => availableTranslationLangs ?? [], [availableTranslationLangs])
+  const availableItems = useMemo(
+    () => allStatuses.filter(item => item.hasAi || item.hasNative || item.generating),
+    [allStatuses],
+  )
+  const untranslatedAdminItems = useMemo(() => {
+    if (!adminActionable)
+      return []
+    return allStatuses.filter(item =>
+      !(item.hasAi || item.hasNative || item.generating)
+      && !item.sameLanguage
+      && canAdminAiTranslateLyrics(lyrics, item.lang as LyricTargetLang, currentTrack?.artists),
+    )
+  }, [adminActionable, allStatuses, currentTrack?.artists, lyrics])
+
+  const activeSelections = useMemo<LyricTranslationSelection[]>(() => {
+    if (translationSelections !== undefined)
+      return translationSelections
+    return translationLang ? [{ lang: translationLang, preferNative: Boolean(preferNativeTranslation) }] : []
+  }, [preferNativeTranslation, translationLang, translationSelections])
+
+  const applySelections = useCallback((next: LyricTranslationSelection[]) => {
+    if (setTranslationSelections) {
+      setTranslationSelections(next)
+      return
+    }
+    setTranslationLang?.(next[0]?.lang ?? null, Boolean(next[0]?.preferNative))
+  }, [setTranslationLang, setTranslationSelections])
+
+  const canOpenLangList = availableItems.length > 0 || (adminActionable && untranslatedAdminItems.length > 0)
+
+  const currentLangSummary = useMemo(() => {
+    if (activeSelections.length === 0)
+      return playerT('translation_lang_follow_site')
+    return activeSelections.map(s => formatTranslationLangLabel(s.lang, locale)).join(' + ')
+  }, [activeSelections, locale, playerT])
+
+  const handleToggleOption = useCallback((target: LyricTranslationSelection, hasDualSources: boolean) => {
+    const next = toggleLyricTranslationSelection(activeSelections, target, { hasDualSources })
+    applySelections(next)
+    setShowTranslation(true)
+  }, [activeSelections, applySelections, setShowTranslation])
+
+  const handleTriggerTranslation = useCallback(async (lang: LyricTargetLang) => {
+    if (!adminActionable || !currentTrack?.id || !lyricSource || triggeringLang)
+      return
+    setTriggeringLang(lang)
+    const hasSameLangAiSelected = activeSelections.some(item => item.lang === lang && !item.preferNative)
+    if (!hasSameLangAiSelected) {
+      const hasSameLangNativeOnly = activeSelections.some(item => item.lang === lang && Boolean(item.preferNative))
+      if (hasSameLangNativeOnly) {
+        applySelections(activeSelections.map(item =>
+          item.lang === lang ? { lang, preferNative: false } : item,
+        ))
+      }
+      else {
+        applySelections([{ lang, preferNative: false }])
+      }
+    }
+    setShowTranslation(true)
+    try {
+      const res = await refreshTranslations(currentTrack.id, lyricSource, lang)
+      if (res === 'started') {
+        toast.success(playerT('translation_generate_started', { lang: formatTranslationLangLabel(lang, locale) }))
+        requestLyricTranslationLanguages(currentTrack.id, lyricSource, true)
+      }
+      else {
+        toast.error(playerT('translation_generate_failed'))
+      }
+    }
+    catch {
+      toast.error(playerT('translation_generate_failed'))
+    }
+    finally {
+      setTriggeringLang(null)
+    }
+  }, [activeSelections, adminActionable, applySelections, currentTrack?.id, locale, lyricSource, playerT, setShowTranslation, triggeringLang])
+
+  const handleCopy = useCallback(async () => {
+    const fullText = buildFormattedLyricsClipboardText({
+      currentTrack,
+      lyrics,
+      showRomaji,
+      showTranslation,
+    })
+    if (!fullText) {
+      toast.error(playerT('no_lyrics_to_copy'))
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(fullText)
+      setCopied(true)
+      toast.success(playerT('lyrics_copied'))
+      setTimeout(setCopied, 2000, false)
+    }
+    catch {
+      toast.error(playerT('no_lyrics_to_copy'))
+    }
+  }, [currentTrack, lyrics, playerT, showRomaji, showTranslation])
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (!next)
+          setPanelPage('main')
+        else if (currentTrack?.id && lyricSource)
+          requestLyricTranslationLanguages(currentTrack.id, lyricSource, true)
+      }}
+    >
+      <PopoverTrigger
+        aria-label={playerT('more_options')}
+        title={playerT('more_options')}
+        className={cn(
+          MUSIC_ICON_BUTTON_CLASSNAME,
+          'relative -mt-1 self-start',
+          open && 'bg-white/15 text-white',
+        )}
+      >
+        <MoreHorizontalIcon aria-hidden className={cn('size-4 transition-transform duration-200', open && 'rotate-90')} />
+        {muted && (
+          <span
+            aria-hidden
+            className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-amber-400 ring-1 ring-neutral-950"
+          />
+        )}
+      </PopoverTrigger>
+      <PopoverContent
+        side="bottom"
+        align="end"
+        sideOffset={6}
+        collisionPadding={10}
+        style={PLAYER_STYLE}
+        className="dark z-1001 w-62 max-w-[calc(100vw-1rem)] rounded-2xl border-white/12 bg-neutral-900/95 p-2.5 text-white shadow-2xl backdrop-blur-2xl"
+      >
+        {panelPage === 'main'
+          ? (
+              <div className="grid gap-2.5">
+                {/* 1. 音量滑块 + 一键静音 */}
+                <div className="flex items-center gap-2 px-0.5">
+                  <button
+                    type="button"
+                    aria-label={playerT(isMuted ? 'unmute' : 'mute')}
+                    title={playerT(isMuted ? 'unmute' : 'mute')}
+                    onClick={toggleMuted}
+                    className="inline-flex size-7 shrink-0 items-center justify-center rounded-full text-white/80 transition hover:bg-white/10 hover:text-white"
+                  >
+                    <VolumeIcon aria-hidden className="size-4" />
+                  </button>
+                  <div className="min-w-0 flex-1">
+                    <ProgressControl
+                      value={volumePercent}
+                      step={5}
+                      ariaLabel={t('volume')}
+                      ariaValueText={`${volumePercent}%`}
+                      onChange={(next) => {
+                        setVolume(next / 100)
+                        if (isMuted && next > 0)
+                          toggleMuted()
+                      }}
+                    />
+                  </div>
+                  <span className="w-8 shrink-0 text-right text-[11px] font-medium text-white/60 tabular-nums">
+                    {`${volumePercent}%`}
+                  </span>
+                </div>
+
+                <div className="border-t border-white/10" />
+
+                {/* 2. 3×2 短标签胶囊开关网格 */}
+                <div className="grid grid-cols-3 gap-1.5">
+                  <MiniTileButton
+                    icon={LanguagesIcon}
+                    label={t('lyric_badge_translation')}
+                    title={lyricTranslationsGenerating ? playerT('translating_lyric') : canToggleTranslation ? playerT('show_translation') : playerT('no_extra_lyric')}
+                    active={canToggleTranslation && showTranslation}
+                    disabled={!canToggleTranslation}
+                    busy={lyricTranslationsGenerating}
+                    onClick={() => setShowTranslation(!showTranslation)}
+                  />
+                  <MiniTileButton
+                    icon={CaseSensitiveIcon}
+                    label={t('lyric_badge_romanization')}
+                    title={lyricPronunciationsGenerating ? playerT('generating_romaji') : canToggleRomaji ? playerT('show_romaji') : playerT('no_extra_lyric')}
+                    active={canToggleRomaji && showRomaji}
+                    disabled={!canToggleRomaji}
+                    busy={lyricPronunciationsGenerating}
+                    onClick={() => setShowRomaji(!showRomaji)}
+                  />
+                  <MiniTileButton
+                    icon={SparklesIcon}
+                    label={playerT('show_lyric_effects')}
+                    active={showLyricEffects}
+                    onClick={() => setShowLyricEffects(!showLyricEffects)}
+                  />
+                  <MiniTileButton
+                    icon={MessageSquareQuoteIcon}
+                    label={playerT('show_lyric_moments')}
+                    active={showLyricMoments}
+                    onClick={() => setShowLyricMoments(!showLyricMoments)}
+                  />
+                  <MiniTileButton
+                    icon={TbHdr}
+                    label="HDR"
+                    title={hdrDisplay ? playerT('hdr_highlight') : playerT('hdr_unsupported')}
+                    active={hdrDisplay && hdr}
+                    disabled={!hdrDisplay}
+                    onClick={() => setHdr(!hdr)}
+                  />
+                  <MiniTileButton
+                    icon={copied ? CheckIcon : CopyIcon}
+                    label={playerT('copy_lyrics')}
+                    title={copied ? playerT('lyrics_copied') : playerT('copy_lyrics')}
+                    active={copied}
+                    highlightEmerald={copied}
+                    onClick={() => void handleCopy()}
+                  />
+                </div>
+
+                {/* 3. 翻译语言折叠展开入口 */}
+                {canOpenLangList && (
+                  <>
+                    <div className="border-t border-white/10" />
+                    <button
+                      type="button"
+                      onClick={() => setPanelPage('languages')}
+                      className="flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition hover:bg-white/10"
+                    >
+                      <GlobeIcon aria-hidden className="size-3.5 shrink-0 text-white/70" />
+                      <span className="shrink-0 text-xs font-medium text-white/85">
+                        {playerT('translation_language')}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-right text-[11px] text-white/50">
+                        {currentLangSummary}
+                      </span>
+                      <ChevronRightIcon aria-hidden className="size-3.5 shrink-0 text-white/45" />
+                    </button>
+                  </>
+                )}
+              </div>
+            )
+          : (
+              <div className="grid gap-1">
+                <div className="flex items-center justify-between gap-2 px-1 pb-1">
+                  <button
+                    type="button"
+                    onClick={() => setPanelPage('main')}
+                    className="inline-flex items-center gap-0.5 rounded-lg px-1.5 py-1 text-xs font-medium text-white/80 transition hover:bg-white/10 hover:text-white"
+                  >
+                    <ChevronLeftIcon aria-hidden className="size-3.5" />
+                    <span>{t('back')}</span>
+                  </button>
+                  <span className="truncate text-[10px] text-white/45">
+                    {playerT('translation_compare_hint')}
+                  </span>
+                </div>
+
+                <div className="max-h-56 overflow-y-auto overscroll-contain">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      applySelections([])
+                      setShowTranslation(true)
+                    }}
+                    className={cn(
+                      'flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-left text-xs transition hover:bg-white/10',
+                      activeSelections.length === 0 ? 'bg-white/10 font-medium text-white' : 'text-white/80',
+                    )}
+                  >
+                    <CheckIcon
+                      aria-hidden
+                      className={cn('size-3.5 shrink-0', activeSelections.length === 0 ? 'opacity-100' : 'opacity-0')}
+                    />
+                    <span className="min-w-0 flex-1 truncate">{playerT('translation_lang_follow_site')}</span>
+                  </button>
+
+                  {availableItems.flatMap((item) => {
+                    const langCode = item.lang as LyricTargetLang
+                    const hasDualSources = (item.hasAi || item.generating) && item.hasNative
+                    const canRegenerate = adminActionable && item.hasAi && !item.generating
+
+                    if (hasDualSources) {
+                      const aiIndex = activeSelections.findIndex(entry => entry.lang === langCode && !entry.preferNative)
+                      const nativeIndex = activeSelections.findIndex(entry => entry.lang === langCode && Boolean(entry.preferNative))
+                      return [
+                        (
+                          <div key={item.lang} className="flex items-center gap-1 rounded-xl px-1 py-0.5 transition hover:bg-white/10">
+                            <button
+                              type="button"
+                              role="menuitemcheckbox"
+                              aria-checked={aiIndex >= 0}
+                              onClick={() => handleToggleOption({ lang: langCode, preferNative: false }, true)}
+                              className={cn(
+                                'flex min-w-0 flex-1 items-center gap-2 px-1.5 py-1 text-left text-xs',
+                                aiIndex >= 0 ? 'font-medium text-white' : 'text-white/85',
+                              )}
+                            >
+                              <TranslationSelectionIndicator index={aiIndex} total={activeSelections.length} />
+                              <span className="min-w-0 flex-1 truncate">{formatTranslationLangLabel(item.lang, locale)}</span>
+                              {item.generating
+                                ? <Loader2Icon aria-hidden className="size-3 shrink-0 animate-spin text-white/80" />
+                                : <span className="shrink-0 rounded bg-white/15 px-1.5 py-0.5 text-[10px] font-medium text-white/90">{playerT('translation_badge_ai')}</span>}
+                            </button>
+                            {canRegenerate && (
+                              <button
+                                type="button"
+                                aria-label={playerT('translation_regenerate')}
+                                title={playerT('translation_regenerate')}
+                                disabled={triggeringLang != null}
+                                onClick={() => void handleTriggerTranslation(langCode)}
+                                className="flex size-6 shrink-0 items-center justify-center rounded-md text-white/70 transition hover:bg-white/15 hover:text-white disabled:opacity-50"
+                              >
+                                <RotateCwIcon aria-hidden className="size-3" />
+                              </button>
+                            )}
+                          </div>
+                        ),
+                        (
+                          <div key={`${item.lang}-native`} className="flex items-center gap-1 rounded-xl px-1 py-0.5 transition hover:bg-white/10">
+                            <button
+                              type="button"
+                              role="menuitemcheckbox"
+                              aria-checked={nativeIndex >= 0}
+                              onClick={() => handleToggleOption({ lang: langCode, preferNative: true }, true)}
+                              className={cn(
+                                'flex min-w-0 flex-1 items-center gap-2 px-1.5 py-1 text-left text-xs',
+                                nativeIndex >= 0 ? 'font-medium text-white' : 'text-white/85',
+                              )}
+                            >
+                              <TranslationSelectionIndicator index={nativeIndex} total={activeSelections.length} />
+                              <span className="min-w-0 flex-1 truncate">{formatTranslationLangLabel(item.lang, locale)}</span>
+                              <span className="shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-white/70">{playerT('translation_badge_native')}</span>
+                            </button>
+                          </div>
+                        ),
+                      ]
+                    }
+
+                    const selectedIndex = activeSelections.findIndex(entry => entry.lang === langCode)
+                    const canOverride = adminActionable
+                      && !item.hasAi
+                      && item.hasNative
+                      && !item.generating
+                      && canAdminAiTranslateLyrics(lyrics, langCode, currentTrack?.artists)
+                    return [
+                      (
+                        <div key={item.lang} className="flex items-center gap-1 rounded-xl px-1 py-0.5 transition hover:bg-white/10">
+                          <button
+                            type="button"
+                            role="menuitemcheckbox"
+                            aria-checked={selectedIndex >= 0}
+                            onClick={() => handleToggleOption({ lang: langCode, preferNative: false }, false)}
+                            className={cn(
+                              'flex min-w-0 flex-1 items-center gap-2 px-1.5 py-1 text-left text-xs',
+                              selectedIndex >= 0 ? 'font-medium text-white' : 'text-white/85',
+                            )}
+                          >
+                            <TranslationSelectionIndicator index={selectedIndex} total={activeSelections.length} />
+                            <span className="min-w-0 flex-1 truncate">{formatTranslationLangLabel(item.lang, locale)}</span>
+                            {item.generating
+                              ? <Loader2Icon aria-hidden className="size-3 shrink-0 animate-spin text-white/80" />
+                              : item.hasAi
+                                ? <span className="shrink-0 rounded bg-white/15 px-1.5 py-0.5 text-[10px] font-medium text-white/90">{playerT('translation_badge_ai')}</span>
+                                : <span className="shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-white/70">{playerT('translation_badge_native')}</span>}
+                          </button>
+                          {canOverride && (
+                            <button
+                              type="button"
+                              disabled={triggeringLang != null}
+                              onClick={() => void handleTriggerTranslation(langCode)}
+                              className="shrink-0 rounded-md bg-white/15 px-1.5 py-0.5 text-[10px] font-medium text-white transition hover:bg-white/25 disabled:opacity-50"
+                            >
+                              {playerT('translation_ai_override')}
+                            </button>
+                          )}
+                          {canRegenerate && (
+                            <button
+                              type="button"
+                              aria-label={playerT('translation_regenerate')}
+                              title={playerT('translation_regenerate')}
+                              disabled={triggeringLang != null}
+                              onClick={() => void handleTriggerTranslation(langCode)}
+                              className="flex size-6 shrink-0 items-center justify-center rounded-md text-white/70 transition hover:bg-white/15 hover:text-white disabled:opacity-50"
+                            >
+                              <RotateCwIcon aria-hidden className="size-3" />
+                            </button>
+                          )}
+                        </div>
+                      ),
+                    ]
+                  })}
+
+                  {adminActionable && untranslatedAdminItems.length > 0 && (
+                    <>
+                      <div className="my-1 border-t border-white/10" />
+                      <div className="px-2.5 py-1 text-[11px] font-medium text-white/50">
+                        {playerT('translation_untranslated_group')}
+                      </div>
+                      {untranslatedAdminItems.map((item) => {
+                        const langCode = item.lang as LyricTargetLang
+                        return (
+                          <button
+                            key={item.lang}
+                            type="button"
+                            disabled={triggeringLang != null}
+                            onClick={() => void handleTriggerTranslation(langCode)}
+                            className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-left text-xs text-white/75 transition hover:bg-white/10 hover:text-white disabled:opacity-50"
+                          >
+                            <span className="size-3.5 shrink-0" aria-hidden />
+                            <span className="min-w-0 flex-1 truncate">{formatTranslationLangLabel(item.lang, locale)}</span>
+                            {triggeringLang === item.lang
+                              ? <Loader2Icon aria-hidden className="size-3 shrink-0 animate-spin" />
+                              : <SparklesIcon aria-hidden className="size-3 shrink-0 text-white/60" />}
+                          </button>
+                        )
+                      })}
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+function MiniTileButton({
+  icon: Icon,
+  label,
+  title,
+  active,
+  disabled,
+  busy,
+  highlightEmerald,
+  onClick,
+}: {
+  icon: LucideIcon | IconType
+  label: string
+  title?: string
+  active?: boolean
+  disabled?: boolean
+  busy?: boolean
+  highlightEmerald?: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={title ?? label}
+      title={title ?? label}
+      aria-pressed={active}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        'flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl border px-1.5 py-2 text-center transition-[color,background-color,border-color,transform] active:scale-95 disabled:pointer-events-none disabled:opacity-30',
+        active
+          ? 'border-white/20 bg-white/16 text-white'
+          : 'border-transparent bg-white/6 text-white/60 hover:bg-white/11 hover:text-white/90',
+      )}
+    >
+      {busy
+        ? <Loader2Icon aria-hidden className="size-4 animate-spin" />
+        : <Icon aria-hidden className={cn('size-4 shrink-0', highlightEmerald && 'text-emerald-400')} />}
+      <span className="w-full truncate text-[11px] leading-tight font-medium">
+        {label}
+      </span>
+    </button>
+  )
+}
+
+/**
  * 播放器页控制栏：进度、上一首 / 播放 / 下一首、播放模式、音量、翻译与音译开关、歌单。
- * compact 为悬浮播放器使用的紧凑模式：布局相同，按钮更小、间距更紧
+ * compact 为悬浮播放器使用的紧凑模式：仅保留进度条与经典对称五键，次级偏好统一收纳到顶栏右上角 MiniPlayerMoreMenu
  */
 export function MusicPageControls({ onOpenPlaylist, playlistSlot, compact = false, className }: {
   onOpenPlaylist?: () => void
@@ -920,55 +1463,57 @@ export function MusicPageControls({ onOpenPlaylist, playlistSlot, compact = fals
         <IconButton icon={SkipForwardIcon} label={playerT('next')} onClick={next} busy={pendingStep === 1} iconClassName={cn(compact ? 'size-5' : 'size-7', 'fill-current')} />
         {playlistSlot ?? <IconButton icon={ListMusicIcon} label={t('open_playlist')} onClick={() => onOpenPlaylist?.()} />}
       </div>
-      <div className="flex items-center justify-between gap-2">
-        <VolumeControl compact={compact} />
-        {/* 次要按钮：保留高频的翻译语言、翻译与读音，其余收纳为三点菜单 */}
-        <div className="flex items-center gap-1 pointer-coarse:gap-1.5">
-          <TranslationLanguageMenu
-            compact={compact}
-            setShowTranslation={setShowTranslation}
-            translationLang={translationLang}
-            preferNativeTranslation={preferNativeTranslation}
-            translationSelections={translationSelections}
-            availableTranslationLangs={availableTranslationLangs}
-            setTranslationLang={setTranslationLang}
-            setTranslationSelections={setTranslationSelections}
-            isAdmin={admin}
-            musicAiEnabled={Boolean(siteInfo.musicAiEnabled)}
-            currentTrack={currentTrack}
-            lyrics={lyrics}
-          />
-          <IconButton
-            icon={LanguagesIcon}
-            label={lyricTranslationsGenerating ? playerT('translating_lyric') : canToggleTranslation ? playerT('show_translation') : playerT('no_extra_lyric')}
-            active={canToggleTranslation && showTranslation}
-            disabled={!canToggleTranslation}
-            busy={lyricTranslationsGenerating}
-            onClick={() => setShowTranslation(!showTranslation)}
-          />
-          <IconButton
-            icon={CaseSensitiveIcon}
-            label={lyricPronunciationsGenerating ? playerT('generating_romaji') : canToggleRomaji ? playerT('show_romaji') : playerT('no_extra_lyric')}
-            active={canToggleRomaji && showRomaji}
-            disabled={!canToggleRomaji}
-            busy={lyricPronunciationsGenerating}
-            onClick={() => setShowRomaji(!showRomaji)}
-          />
-          <MoreControlsMenu
-            showLyricMoments={showLyricMoments}
-            setShowLyricMoments={setShowLyricMoments}
-            showLyricEffects={showLyricEffects}
-            setShowLyricEffects={setShowLyricEffects}
-            showRomaji={showRomaji}
-            showTranslation={showTranslation}
-            hdr={hdr}
-            setHdr={setHdr}
-            hdrDisplay={hdrDisplay}
-            currentTrack={currentTrack}
-            lyrics={lyrics}
-          />
+      {!compact && (
+        <div className="flex items-center justify-between gap-2">
+          <VolumeControl compact={compact} />
+          {/* 次要按钮：保留高频的翻译语言、翻译与读音，其余收纳为三点菜单 */}
+          <div className="flex items-center gap-1 pointer-coarse:gap-1.5">
+            <TranslationLanguageMenu
+              compact={compact}
+              setShowTranslation={setShowTranslation}
+              translationLang={translationLang}
+              preferNativeTranslation={preferNativeTranslation}
+              translationSelections={translationSelections}
+              availableTranslationLangs={availableTranslationLangs}
+              setTranslationLang={setTranslationLang}
+              setTranslationSelections={setTranslationSelections}
+              isAdmin={admin}
+              musicAiEnabled={Boolean(siteInfo.musicAiEnabled)}
+              currentTrack={currentTrack}
+              lyrics={lyrics}
+            />
+            <IconButton
+              icon={LanguagesIcon}
+              label={lyricTranslationsGenerating ? playerT('translating_lyric') : canToggleTranslation ? playerT('show_translation') : playerT('no_extra_lyric')}
+              active={canToggleTranslation && showTranslation}
+              disabled={!canToggleTranslation}
+              busy={lyricTranslationsGenerating}
+              onClick={() => setShowTranslation(!showTranslation)}
+            />
+            <IconButton
+              icon={CaseSensitiveIcon}
+              label={lyricPronunciationsGenerating ? playerT('generating_romaji') : canToggleRomaji ? playerT('show_romaji') : playerT('no_extra_lyric')}
+              active={canToggleRomaji && showRomaji}
+              disabled={!canToggleRomaji}
+              busy={lyricPronunciationsGenerating}
+              onClick={() => setShowRomaji(!showRomaji)}
+            />
+            <MoreControlsMenu
+              showLyricMoments={showLyricMoments}
+              setShowLyricMoments={setShowLyricMoments}
+              showLyricEffects={showLyricEffects}
+              setShowLyricEffects={setShowLyricEffects}
+              showRomaji={showRomaji}
+              showTranslation={showTranslation}
+              hdr={hdr}
+              setHdr={setHdr}
+              hdrDisplay={hdrDisplay}
+              currentTrack={currentTrack}
+              lyrics={lyrics}
+            />
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

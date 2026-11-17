@@ -1,27 +1,24 @@
+import AppKit
+import ImageIO
 import SwiftUI
 
-/// 展开后的迷你播放器面板（遵循 swiftui-expert-skill：按职责拆分为顶栏、舞台、三行控制栏与浮层菜单独立子视图边界）
+/// 展开后的迷你播放器面板（遵循 swiftui-expert-skill：按职责拆分为顶栏、舞台/内嵌歌单、精简两排主控栏与右上角控制中心浮层独立子视图边界）
 ///
-/// 【双端同步维护约定】对应网页端 `web/src/components/common/mini-player.tsx` 与 `music-page-controls.tsx` (compact)；
+/// 【双端同步维护约定】对应网页端 `web/src/components/common/mini-player.tsx` 与 `music-page-controls.tsx` (compact + MiniPlayerMoreMenu)；
 /// 新增展开态交互、控件或舞台特性时双端必须同步实现。
 struct ExpandedPlayerView: View {
-    private enum FloatingMenuKind: Equatable {
-        case none
-        case playlist
-        case translationLang
-        case moreControls
-        case volumeSlider
-    }
-
     let store: IslandStore
     let topReservedHeight: CGFloat
     let coverNamespace: Namespace.ID
 
-    @State private var activeMenu: FloatingMenuKind = .none
+    @State private var isControlCenterOpen: Bool = false
     @State private var copiedFeedback: Bool = false
 
     var body: some View {
-        ZStack(alignment: .bottom) {
+        let topPad: CGFloat = topReservedHeight > 0 ? 4 : 16
+        let isMutedNow = store.isMuted || store.volume <= 0.001
+
+        ZStack(alignment: .topTrailing) {
             VStack(spacing: 12) {
                 if topReservedHeight > 0 {
                     Spacer().frame(height: topReservedHeight)
@@ -31,102 +28,95 @@ struct ExpandedPlayerView: View {
                     track: store.track,
                     accentColor: store.accentColor,
                     isPlaying: store.isPlaying,
+                    isMuted: isMutedNow,
+                    isControlCenterOpen: isControlCenterOpen,
                     coverNamespace: coverNamespace,
+                    onToggleControlCenter: { toggleControlCenter() },
                     onOpenFullPlayer: { store.openBlogPlayerPage() }
                 )
 
-                CompactStageLyricsView(
-                    store: store,
-                    allowWheelScroll: activeMenu == .none
-                )
-                .frame(height: 176)
+                if store.showPlaylistOverlay {
+                    ExpandedPlaylistQueueSection(
+                        store: store,
+                        onDismiss: { closePlaylist() }
+                    )
+                    .frame(height: 268)
+                    .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .bottom)))
+                } else {
+                    CompactStageLyricsView(
+                        store: store,
+                        allowWheelScroll: !isControlCenterOpen
+                    )
+                    .frame(height: 200)
+                    .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
+                }
 
                 ExpandedControlsSection(
                     store: store,
-                    isPlaylistOpen: activeMenu == .playlist,
-                    isLangMenuOpen: activeMenu == .translationLang,
-                    isMoreMenuOpen: activeMenu == .moreControls,
-                    isVolumeSliderOpen: activeMenu == .volumeSlider,
-                    onTogglePlaylist: { toggleMenu(.playlist) },
-                    onToggleLangMenu: { toggleMenu(.translationLang) },
-                    onToggleMoreMenu: { toggleMenu(.moreControls) },
-                    onToggleVolumeSlider: { toggleMenu(.volumeSlider) }
+                    isPlaylistOpen: store.showPlaylistOverlay,
+                    onTogglePlaylist: { togglePlaylist() }
                 )
             }
             .frame(width: 328)
             .padding(.horizontal, 16)
-            .padding(.top, topReservedHeight > 0 ? 4 : 16)
+            .padding(.top, topPad)
             .padding(.bottom, 16)
 
-            // 浮层菜单锚定在底部控制栏上方（1:1 对齐网页端 MiniPlayer 内 TranslationLanguageMenu / MoreControlsMenu / MusicMiniPlaylist）
-            if activeMenu != .none {
+            // 右上角统一「小窗控制中心」浮层（1:1 对齐网页端 MiniPlayerMoreMenu）
+            if isControlCenterOpen {
                 Color.black.opacity(0.001)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .contentShape(Rectangle())
                     .onTapGesture {
                         withAnimation(.spring(duration: 0.24, bounce: 0.12)) {
-                            activeMenu = .none
+                            isControlCenterOpen = false
                         }
                     }
 
-                Group {
-                    switch activeMenu {
-                    case .playlist:
-                        MiniPlaylistPopoverCard(store: store) {
-                            withAnimation(.spring(duration: 0.24, bounce: 0.12)) {
-                                activeMenu = .none
+                ExpandedControlCenterPopover(
+                    store: store,
+                    copied: copiedFeedback,
+                    onCopyLyrics: {
+                        if store.copyFormattedLyricsToPasteboard() {
+                            copiedFeedback = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                                copiedFeedback = false
                             }
                         }
-                        .padding(.horizontal, 14)
-                        .padding(.bottom, 102)
-
-                    case .translationLang:
-                        TranslationLanguagePopoverCard(store: store)
-                            .padding(.trailing, 16)
-                            .padding(.bottom, 54)
-                            .frame(maxWidth: .infinity, alignment: .trailing)
-
-                    case .moreControls:
-                        MoreControlsFloatingPill(
-                            copied: copiedFeedback,
-                            showLyricMoments: store.preferences.showLyricMoments,
-                            showLyricEffects: store.preferences.showLyricEffects,
-                            hdrEnabled: store.config.hdr,
-                            onCopyLyrics: {
-                                if store.copyFormattedLyricsToPasteboard() {
-                                    copiedFeedback = true
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                                        copiedFeedback = false
-                                    }
-                                }
-                            },
-                            onToggleMoments: { store.toggleMoments() },
-                            onToggleEffects: { store.toggleEffects() },
-                            onToggleHdr: { store.toggleHdr() }
-                        )
-                        .padding(.trailing, 16)
-                        .padding(.bottom, 54)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-
-                    case .volumeSlider:
-                        VolumeSliderFloatingPill(store: store)
-                            .padding(.leading, 16)
-                            .padding(.bottom, 54)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-
-                    case .none:
-                        EmptyView()
                     }
-                }
-                .transition(.opacity.combined(with: .scale(scale: 0.90, anchor: .bottom)))
+                )
+                .padding(.top, topPad + topReservedHeight + 36)
+                .padding(.trailing, 14)
+                .transition(.opacity.combined(with: .scale(scale: 0.90, anchor: .topTrailing)))
             }
         }
         .frame(width: 360)
         .clipped()
+        .animation(.spring(duration: 0.32, bounce: 0.16), value: store.showPlaylistOverlay)
     }
 
-    private func toggleMenu(_ target: FloatingMenuKind) {
-        withAnimation(.spring(duration: 0.28, bounce: 0.18)) {
-            activeMenu = (activeMenu == target) ? .none : target
+    private func togglePlaylist() {
+        let willOpen = !store.showPlaylistOverlay
+        withAnimation(.spring(duration: 0.32, bounce: 0.16)) {
+            isControlCenterOpen = false
+            store.showPlaylistOverlay = willOpen
+        }
+        if !willOpen {
+            store.releaseKeyFocus(restorePreviousApp: true)
+        }
+    }
+
+    private func closePlaylist() {
+        guard store.showPlaylistOverlay else { return }
+        withAnimation(.spring(duration: 0.28, bounce: 0.14)) {
+            store.showPlaylistOverlay = false
+        }
+        store.releaseKeyFocus(restorePreviousApp: true)
+    }
+
+    private func toggleControlCenter() {
+        withAnimation(.spring(duration: 0.26, bounce: 0.16)) {
+            isControlCenterOpen.toggle()
         }
     }
 }
@@ -182,13 +172,16 @@ private struct PlayerIconButton<IconContent: View>: View {
     }
 }
 
-// MARK: - 1. 顶栏（对齐 mini-player.tsx 79-110：56pt 圆角封面 + 标题/别名 + 歌手·专辑 + 右上角打开完整播放器页）
+// MARK: - 1. 顶栏（对齐 mini-player.tsx：56pt 圆角封面 + 标题/别名 + 歌手·专辑 + 右上角「更多控制中心」与「打开完整播放器页」）
 
 private struct ExpandedHeaderSection: View {
     let track: IslandTrack?
     let accentColor: Color
     let isPlaying: Bool
+    let isMuted: Bool
+    let isControlCenterOpen: Bool
     let coverNamespace: Namespace.ID
+    let onToggleControlCenter: () -> Void
     let onOpenFullPlayer: () -> Void
 
     var body: some View {
@@ -210,12 +203,12 @@ private struct ExpandedHeaderSection: View {
                     HStack(spacing: 4) {
                         Text(track?.name ?? "")
                             .font(.system(size: 15.5, weight: .semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.white)
 
                         if let extra = track?.titleExtra, !extra.isEmpty {
                             Text("(\(extra))")
                                 .font(.system(size: 13.5))
-                                .foregroundStyle(.white.opacity(0.50))
+                                .foregroundStyle(Color.white.opacity(0.50))
                         }
                     }
                 }
@@ -223,17 +216,41 @@ private struct ExpandedHeaderSection: View {
                 MarqueeTextView(resetId: "artist-\(track?.id ?? 0)-\(track?.artistSubtitle ?? "")") {
                     Text(track?.artistSubtitle ?? "")
                         .font(.system(size: 13))
-                        .foregroundStyle(.white.opacity(0.60))
+                        .foregroundStyle(Color.white.opacity(0.60))
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            PlayerIconButton(helpText: "打开播放器页面", action: onOpenFullPlayer) {
-                Image(systemName: "arrow.up.left.and.arrow.down.right")
-                    .font(.system(size: 13, weight: .semibold))
+            HStack(spacing: 0) {
+                PlayerIconButton(
+                    helpText: "更多控制",
+                    highlightedBg: isControlCenterOpen,
+                    action: onToggleControlCenter
+                ) {
+                    ZStack(alignment: .topTrailing) {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 14.5, weight: .semibold))
+                            .rotationEffect(.degrees(isControlCenterOpen ? 90 : 0))
+                            .animation(.easeOut(duration: 0.2), value: isControlCenterOpen)
+                            .frame(width: 20, height: 20)
+
+                        if isMuted {
+                            Circle()
+                                .fill(Color.orange)
+                                .frame(width: 5.5, height: 5.5)
+                                .offset(x: 1, y: 1)
+                        }
+                    }
+                }
+
+                PlayerIconButton(helpText: "打开播放器页面", action: onOpenFullPlayer) {
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        .font(.system(size: 13, weight: .semibold))
+                }
             }
-            .offset(x: 4, y: -4)
+            .offset(x: 4, y: -6)
         }
+        .contentShape(Rectangle())
     }
 }
 
@@ -295,6 +312,7 @@ private struct CompactStageLyricsView: View {
                                     store: store,
                                     placed: placed,
                                     stageWidth: stageW - 8,
+                                    stageHeight: stageGeo.size.height,
                                     isMultiVocal: isMultiVocal,
                                     isManualScrolling: springEngine.isManualScrolling,
                                     nowMs: nowMs
@@ -304,6 +322,8 @@ private struct CompactStageLyricsView: View {
                         .padding(.horizontal, 4)
                         .frame(width: stageGeo.size.width, height: stageGeo.size.height, alignment: .topLeading)
                         .clipped()
+                        // 关键防护：.clipped() 仅裁剪视觉绘制不裁剪命中测试；紧跟 .contentShape(Rectangle()) 将子视图 offset 溢出的点击严格限制在舞台矩形内
+                        .contentShape(Rectangle())
                         .mask(
                             LinearGradient(
                                 stops: [
@@ -355,6 +375,7 @@ private struct StagePlacedEntryView: View {
     let store: IslandStore
     let placed: PlacedStageEntry
     let stageWidth: CGFloat
+    let stageHeight: CGFloat
     let isMultiVocal: Bool
     let isManualScrolling: Bool
     let nowMs: Double
@@ -374,6 +395,7 @@ private struct StagePlacedEntryView: View {
             .opacity(placed.expand)
             .scaleEffect(placed.scale)
             .offset(y: placed.y)
+            .allowsHitTesting(false)
 
         case .footer(_, let text):
             Text(text)
@@ -388,6 +410,7 @@ private struct StagePlacedEntryView: View {
                     store.stageSpringEngine.reportHeight(id: placed.id, height: h)
                 }
                 .offset(y: placed.y)
+                .allowsHitTesting(false)
 
         case .line(let item):
             LyricStageRow(
@@ -395,6 +418,7 @@ private struct StagePlacedEntryView: View {
                 item: item,
                 placed: placed,
                 stageWidth: stageWidth,
+                stageHeight: stageHeight,
                 isMultiVocal: isMultiVocal,
                 isUserScrolling: isManualScrolling,
                 nowMs: nowMs,
@@ -530,6 +554,7 @@ private struct LyricStageRow: View {
     let item: IndexedLyricLine
     let placed: PlacedStageEntry
     let stageWidth: CGFloat
+    let stageHeight: CGFloat
     let isMultiVocal: Bool
     let isUserScrolling: Bool
     let nowMs: Double
@@ -540,6 +565,7 @@ private struct LyricStageRow: View {
     let onSelect: () -> Void
 
     @State private var isHovered: Bool = false
+    @State private var measuredRowHeight: CGFloat = 26
 
     var body: some View {
         let line = item.line
@@ -664,6 +690,9 @@ private struct LyricStageRow: View {
         .onGeometryChange(for: CGFloat.self) { proxy in
             proxy.size.height
         } action: { h in
+            if abs(h - measuredRowHeight) > 0.5 {
+                measuredRowHeight = h
+            }
             store.stageSpringEngine.reportHeight(id: placed.id, height: h)
         }
         .scaleEffect(placed.scale, anchor: scaleAnchor)
@@ -676,6 +705,11 @@ private struct LyricStageRow: View {
             }
         }
         .onTapGesture(perform: onSelect)
+        .allowsHitTesting(
+            placed.y + max(20, measuredRowHeight) > 4
+                && placed.y < stageHeight - 4
+                && (!line.isBackground || placed.expand > 0.35)
+        )
         .offset(y: placed.y)
     }
 }
@@ -719,30 +753,21 @@ private struct SingerPillBadgeView: View {
     }
 }
 
-// MARK: - 3. 底部三行控制栏（1:1 对齐 MusicPageControls compact：第 1 行副歌标记进度条 + 第 2 行主控五键 + 第 3 行静音与四颗次级图标按钮）
+// MARK: - 3. 底部两行纯粹主控栏（1:1 对齐 MusicPageControls compact：第 1 行副歌标记进度条 + 第 2 行经典对称五键）
 
 private struct ExpandedControlsSection: View {
     let store: IslandStore
     let isPlaylistOpen: Bool
-    let isLangMenuOpen: Bool
-    let isMoreMenuOpen: Bool
-    let isVolumeSliderOpen: Bool
     let onTogglePlaylist: () -> Void
-    let onToggleLangMenu: () -> Void
-    let onToggleMoreMenu: () -> Void
-    let onToggleVolumeSlider: () -> Void
 
     @State private var isPlayHovered: Bool = false
 
     var body: some View {
-        let prefs = store.preferences
-        let canOpenLangMenu = !prefs.availableTranslationLangs.isEmpty
-
         VStack(spacing: 8) {
             // 第 1 行：8pt 圆角进度条（带副歌高光区间标记）+ 双侧等宽数字时间戳
             PlaybackScrubberBar(store: store)
 
-            // 第 2 行：主控五键（播放模式 / 上一首 / 44pt 居中播放圆钮 / 下一首 / 歌单浮层）
+            // 第 2 行：主控五键（播放模式 / 上一首 / 44pt 居中播放圆钮 / 下一首 / 歌单）
             HStack {
                 PlayerIconButton(helpText: store.playMode.label, action: { store.cyclePlayMode() }) {
                     Image(systemName: store.playMode.iconName)
@@ -804,84 +829,9 @@ private struct ExpandedControlsSection: View {
                     LucideListMusicIcon()
                 }
             }
-
-            // 第 3 行：左侧静音按钮（右键可调音量滑块）+ 右侧四颗次要图标按钮（翻译语言 / 译文开关 / 读音开关 / 更多三点菜单）
-            HStack(spacing: 8) {
-                PlayerIconButton(
-                    helpText: (store.isMuted || store.volume <= 0.001) ? "取消静音（右键调节音量）" : "静音（右键调节音量）",
-                    active: store.isMuted ? true : nil,
-                    highlightedBg: isVolumeSliderOpen,
-                    action: { store.toggleMuted() }
-                ) {
-                    Image(systemName: volumeSymbol)
-                        .font(.system(size: 16, weight: .medium))
-                }
-                .contextMenu {
-                    Button(isVolumeSliderOpen ? "收起音量滑块" : "调节音量…") {
-                        onToggleVolumeSlider()
-                    }
-                    Button(store.isMuted ? "取消静音" : "静音") {
-                        store.toggleMuted()
-                    }
-                }
-
-                Spacer()
-
-                HStack(spacing: 4) {
-                    // 1) 翻译语言菜单（GlobeIcon）
-                    PlayerIconButton(
-                        helpText: canOpenLangMenu ? "翻译语言" : "暂无可用翻译语种",
-                        active: !prefs.translationSelections.isEmpty ? true : nil,
-                        highlightedBg: isLangMenuOpen,
-                        disabled: !canOpenLangMenu,
-                        action: onToggleLangMenu
-                    ) {
-                        Image(systemName: "globe")
-                            .font(.system(size: 16, weight: .medium))
-                    }
-
-                    // 2) 翻译显示开关（1:1 复刻 Lucide LanguagesIcon 文A，不使用气泡 SF Symbol）
-                    PlayerIconButton(
-                        helpText: prefs.translationsGenerating ? "正在翻译歌词…" : (prefs.canToggleTranslation ? "显示翻译" : "暂无额外歌词"),
-                        active: prefs.canToggleTranslation && prefs.showTranslation,
-                        disabled: !prefs.canToggleTranslation,
-                        busy: prefs.translationsGenerating,
-                        action: { store.toggleTranslation() }
-                    ) {
-                        LucideLanguagesIcon()
-                    }
-
-                    // 3) 音译/罗马音显示开关（1:1 复刻 Lucide CaseSensitiveIcon Aa，杜绝中文系统下 SF Symbol textformat 被本地化为「格式」二字）
-                    PlayerIconButton(
-                        helpText: prefs.pronunciationsGenerating ? "正在生成读音…" : (prefs.canToggleRomaji ? "显示读音" : "暂无额外歌词"),
-                        active: prefs.canToggleRomaji && prefs.showRomaji,
-                        disabled: !prefs.canToggleRomaji,
-                        busy: prefs.pronunciationsGenerating,
-                        action: { store.toggleRomaji() }
-                    ) {
-                        LucideCaseSensitiveIcon()
-                    }
-
-                    // 4) 更多选项三点菜单（MoreHorizontalIcon，展开时顺时针旋转 90°）
-                    PlayerIconButton(
-                        helpText: "更多选项",
-                        highlightedBg: isMoreMenuOpen,
-                        action: onToggleMoreMenu
-                    ) {
-                        Image(systemName: "ellipsis")
-                            .font(.system(size: 16, weight: .semibold))
-                            .rotationEffect(.degrees(isMoreMenuOpen ? 90 : 0))
-                            .animation(.easeOut(duration: 0.2), value: isMoreMenuOpen)
-                    }
-                }
-            }
         }
-    }
-
-    private var volumeSymbol: String {
-        if store.isMuted || store.volume <= 0.001 { return "speaker.slash.fill" }
-        if store.volume < 0.50 { return "speaker.wave.1.fill" }
-        return "speaker.wave.2.fill"
+        .background(Color.black.opacity(0.001))
+        .contentShape(Rectangle())
     }
 }
 
@@ -1030,147 +980,369 @@ private struct PlaybackScrubberBar: View {
     }
 }
 
-// MARK: - 浮层 A：更多选项横向胶囊菜单（1:1 对齐 MoreControlsMenu：复制歌词 / 评论与旁白 / 歌词特效 / HDR 高光）
+// MARK: - 右上角统一「小窗控制中心」浮层（1:1 对齐网页端 MiniPlayerMoreMenu：音量条 + 3×2 短标签开关网格 + 原地展开翻译语种）
 
-private struct MoreControlsFloatingPill: View {
-    let copied: Bool
-    let showLyricMoments: Bool
-    let showLyricEffects: Bool
-    let hdrEnabled: Bool
-    let onCopyLyrics: () -> Void
-    let onToggleMoments: () -> Void
-    let onToggleEffects: () -> Void
-    let onToggleHdr: () -> Void
-
-    var body: some View {
-        HStack(spacing: 4) {
-            PlayerIconButton(
-                helpText: copied ? "已复制歌词" : "复制歌词",
-                active: copied ? true : nil,
-                action: onCopyLyrics
-            ) {
-                Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(copied ? Color.green : .white)
-            }
-
-            PlayerIconButton(
-                helpText: "评论与旁白",
-                active: showLyricMoments,
-                action: onToggleMoments
-            ) {
-                Image(systemName: "text.bubble")
-                    .font(.system(size: 15, weight: .medium))
-            }
-
-            PlayerIconButton(
-                helpText: "歌词特效",
-                active: showLyricEffects,
-                action: onToggleEffects
-            ) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 15.5, weight: .medium))
-            }
-
-            PlayerIconButton(
-                helpText: "HDR 高光",
-                active: hdrEnabled,
-                action: onToggleHdr
-            ) {
-                Text("HDR")
-                    .font(.system(size: 9.5, weight: .heavy, design: .rounded))
-                    .padding(.horizontal, 3.5)
-                    .padding(.vertical, 1.5)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 3.5, style: .continuous)
-                            .strokeBorder(lineWidth: 1.2)
-                    }
-            }
-        }
-        .padding(4)
-        .background(Color(white: 0.05).opacity(0.92), in: Capsule())
-        .overlay {
-            Capsule()
-                .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
-        }
-        .shadow(color: .black.opacity(0.50), radius: 16, y: 6)
+private struct ExpandedControlCenterPopover: View {
+    private enum PanelPage: Equatable {
+        case main
+        case languages
     }
-}
 
-// MARK: - 浮层 B：翻译语言选择菜单（1:1 对齐 TranslationLanguageMenu：跟随界面语言 + AI/原版双语对比勾选）
+    @Bindable var store: IslandStore
+    let copied: Bool
+    let onCopyLyrics: () -> Void
 
-private struct TranslationLanguagePopoverCard: View {
-    let store: IslandStore
+    @State private var page: PanelPage = .main
+
+    private var volumeSymbol: String {
+        if store.isMuted || store.volume <= 0.001 { return "speaker.slash.fill" }
+        if store.volume < 0.50 { return "speaker.wave.1.fill" }
+        return "speaker.wave.2.fill"
+    }
+
+    private var currentLangSummary: String {
+        let selections = store.preferences.translationSelections
+        guard !selections.isEmpty else { return "跟随站点语言" }
+        let items = store.preferences.availableTranslationLangs
+        let labels = selections.map { sel in
+            items.first(where: { $0.lang == sel.lang })?.label ?? sel.lang
+        }
+        return labels.joined(separator: " + ")
+    }
 
     var body: some View {
-        let selections = store.preferences.translationSelections
-        let items = store.preferences.availableTranslationLangs
+        let prefs = store.preferences
+        let items = prefs.availableTranslationLangs
+        let selections = prefs.translationSelections
+        let volPercent = Int(round((store.isMuted ? 0 : store.volume) * 100))
 
-        VStack(alignment: .leading, spacing: 2) {
-            Text("可勾选两项上下对比")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.white.opacity(0.50))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
+        Group {
+            switch page {
+            case .main:
+                VStack(alignment: .leading, spacing: 10) {
+                    // 1. 音量滑块 + 点喇叭一键静音
+                    HStack(spacing: 8) {
+                        Button {
+                            store.toggleMuted()
+                        } label: {
+                            Image(systemName: volumeSymbol)
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(Color.white.opacity(0.85))
+                                .frame(width: 26, height: 26)
+                                .background(Color.white.opacity(store.isMuted ? 0.14 : 0), in: Circle())
+                                .contentShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .help(store.isMuted ? "取消静音" : "静音")
 
-            TranslationOptionRow(
-                title: "跟随界面语言",
-                selectionOrder: selections.isEmpty ? 0 : nil,
-                totalSelected: selections.isEmpty ? 1 : selections.count,
-                generating: false
-            ) {
-                store.resetTranslationLangs()
-            }
+                        Slider(value: $store.sliderVolume, in: 0...1)
+                            .tint(Color.white)
 
-            ScrollView(.vertical, showsIndicators: true) {
-                VStack(alignment: .leading, spacing: 2) {
-                    ForEach(items) { item in
-                        let hasDual = item.hasAi && item.hasNative
-                        if hasDual {
-                            let aiIdx = selections.firstIndex(where: { $0.lang == item.lang && !$0.preferNative })
-                            TranslationOptionRow(
-                                title: "\(item.label) · AI",
-                                selectionOrder: aiIdx,
-                                totalSelected: selections.count,
-                                generating: item.generating
+                        Text("\(volPercent)%")
+                            .font(.system(size: 11, weight: .medium).monospacedDigit())
+                            .foregroundStyle(Color.white.opacity(0.60))
+                            .frame(width: 32, alignment: .trailing)
+                    }
+                    .padding(.horizontal, 2)
+
+                    Rectangle()
+                        .fill(Color.white.opacity(0.10))
+                        .frame(height: 1)
+
+                    // 2. 3×2 短标签胶囊开关网格
+                    Grid(horizontalSpacing: 6, verticalSpacing: 6) {
+                        GridRow {
+                            ControlCenterTileButton(
+                                label: "翻译",
+                                helpText: prefs.translationsGenerating ? "正在翻译歌词…" : (prefs.canToggleTranslation ? "显示翻译" : "暂无额外歌词"),
+                                active: prefs.canToggleTranslation && prefs.showTranslation,
+                                disabled: !prefs.canToggleTranslation,
+                                busy: prefs.translationsGenerating,
+                                action: { store.toggleTranslation() }
                             ) {
-                                store.toggleTranslationLang(lang: item.lang, preferNative: false, hasDualSources: true)
+                                LucideLanguagesIcon()
+                                    .scaleEffect(0.86)
                             }
 
-                            let nativeIdx = selections.firstIndex(where: { $0.lang == item.lang && $0.preferNative })
-                            TranslationOptionRow(
-                                title: "\(item.label) · 原版",
-                                selectionOrder: nativeIdx,
-                                totalSelected: selections.count,
-                                generating: false
+                            ControlCenterTileButton(
+                                label: "音译",
+                                helpText: prefs.pronunciationsGenerating ? "正在生成读音…" : (prefs.canToggleRomaji ? "显示音译" : "暂无额外歌词"),
+                                active: prefs.canToggleRomaji && prefs.showRomaji,
+                                disabled: !prefs.canToggleRomaji,
+                                busy: prefs.pronunciationsGenerating,
+                                action: { store.toggleRomaji() }
                             ) {
-                                store.toggleTranslationLang(lang: item.lang, preferNative: true, hasDualSources: true)
+                                LucideCaseSensitiveIcon()
+                                    .scaleEffect(0.86)
                             }
-                        } else {
-                            let preferNative = item.hasNative && !item.hasAi
-                            let selIdx = selections.firstIndex(where: { $0.lang == item.lang })
-                            TranslationOptionRow(
-                                title: item.label,
-                                selectionOrder: selIdx,
-                                totalSelected: selections.count,
-                                generating: item.generating
+
+                            ControlCenterTileButton(
+                                label: "歌词特效",
+                                helpText: "歌词特效",
+                                active: prefs.showLyricEffects,
+                                action: { store.toggleEffects() }
                             ) {
-                                store.toggleTranslationLang(lang: item.lang, preferNative: preferNative, hasDualSources: false)
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 14, weight: .medium))
+                            }
+                        }
+
+                        GridRow {
+                            ControlCenterTileButton(
+                                label: "评论与旁白",
+                                helpText: "评论与旁白",
+                                active: prefs.showLyricMoments,
+                                action: { store.toggleMoments() }
+                            ) {
+                                Image(systemName: "text.bubble")
+                                    .font(.system(size: 13.5, weight: .medium))
+                            }
+
+                            ControlCenterTileButton(
+                                label: "HDR",
+                                helpText: "HDR 高光",
+                                active: store.config.hdr,
+                                action: { store.toggleHdr() }
+                            ) {
+                                Text("HDR")
+                                    .font(.system(size: 9, weight: .heavy, design: .rounded))
+                                    .padding(.horizontal, 3)
+                                    .padding(.vertical, 1)
+                                    .overlay {
+                                        RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                            .strokeBorder(lineWidth: 1.1)
+                                    }
+                            }
+
+                            ControlCenterTileButton(
+                                label: copied ? "已复制" : "复制歌词",
+                                helpText: copied ? "已复制歌词及译文" : "复制歌词",
+                                active: copied,
+                                action: onCopyLyrics
+                            ) {
+                                Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                                    .font(.system(size: 13.5, weight: .semibold))
+                                    .foregroundStyle(copied ? Color.green : Color.white)
+                            }
+                        }
+                    }
+
+                    // 3. 翻译语言原地展开入口
+                    if !items.isEmpty {
+                        Rectangle()
+                            .fill(Color.white.opacity(0.10))
+                            .frame(height: 1)
+
+                        ControlCenterLangSummaryRow(summary: currentLangSummary) {
+                            withAnimation(.easeOut(duration: 0.18)) {
+                                page = .languages
                             }
                         }
                     }
                 }
+
+            case .languages:
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Button {
+                            withAnimation(.easeOut(duration: 0.18)) {
+                                page = .main
+                            }
+                        } label: {
+                            HStack(spacing: 3) {
+                                Image(systemName: "chevron.left")
+                                    .font(.system(size: 10.5, weight: .semibold))
+                                Text("返回")
+                                    .font(.system(size: 11.5, weight: .medium))
+                            }
+                            .foregroundStyle(Color.white.opacity(0.85))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 4)
+                            .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+
+                        Spacer(minLength: 4)
+
+                        Text("可勾选两项上下对比")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(Color.white.opacity(0.45))
+                            .lineLimit(1)
+                    }
+                    .padding(.horizontal, 2)
+                    .padding(.bottom, 2)
+
+                    ScrollView(.vertical, showsIndicators: true) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            TranslationOptionRow(
+                                title: "跟随站点语言",
+                                selectionOrder: selections.isEmpty ? 0 : nil,
+                                totalSelected: selections.isEmpty ? 1 : selections.count,
+                                generating: false
+                            ) {
+                                store.resetTranslationLangs()
+                            }
+
+                            ForEach(items) { item in
+                                let hasDual = item.hasAi && item.hasNative
+                                if hasDual {
+                                    let aiIdx = selections.firstIndex(where: { $0.lang == item.lang && !$0.preferNative })
+                                    TranslationOptionRow(
+                                        title: "\(item.label) · AI",
+                                        selectionOrder: aiIdx,
+                                        totalSelected: selections.count,
+                                        generating: item.generating
+                                    ) {
+                                        store.toggleTranslationLang(lang: item.lang, preferNative: false, hasDualSources: true)
+                                    }
+
+                                    let nativeIdx = selections.firstIndex(where: { $0.lang == item.lang && $0.preferNative })
+                                    TranslationOptionRow(
+                                        title: "\(item.label) · 原版",
+                                        selectionOrder: nativeIdx,
+                                        totalSelected: selections.count,
+                                        generating: false
+                                    ) {
+                                        store.toggleTranslationLang(lang: item.lang, preferNative: true, hasDualSources: true)
+                                    }
+                                } else {
+                                    let preferNative = item.hasNative && !item.hasAi
+                                    let selIdx = selections.firstIndex(where: { $0.lang == item.lang })
+                                    TranslationOptionRow(
+                                        title: item.label,
+                                        selectionOrder: selIdx,
+                                        totalSelected: selections.count,
+                                        generating: item.generating
+                                    ) {
+                                        store.toggleTranslationLang(lang: item.lang, preferNative: preferNative, hasDualSources: false)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .frame(maxHeight: 196)
+                }
             }
-            .frame(maxHeight: 190)
         }
-        .padding(6)
-        .frame(width: 220)
-        .background(Color(white: 0.05).opacity(0.94), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(10)
+        .frame(width: 244)
+        .background(
+            Color(white: 0.06).opacity(0.96),
+            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+        )
         .overlay {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
+                .strokeBorder(Color.white.opacity(0.14), lineWidth: 1)
         }
-        .shadow(color: .black.opacity(0.55), radius: 18, y: 6)
+        .shadow(color: .black.opacity(0.55), radius: 20, y: 8)
+        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+private struct ControlCenterTileButton<IconContent: View>: View {
+    let label: String
+    let helpText: String
+    var active: Bool = false
+    var disabled: Bool = false
+    var busy: Bool = false
+    let action: () -> Void
+    @ViewBuilder let icon: () -> IconContent
+
+    @State private var isHovered: Bool = false
+
+    var body: some View {
+        let fgOpacity: Double = {
+            if disabled { return 0.28 }
+            if active { return 1.0 }
+            return isHovered ? 0.92 : 0.62
+        }()
+
+        Button(action: action) {
+            VStack(spacing: 4) {
+                ZStack {
+                    if busy {
+                        ProgressView()
+                            .controlSize(.mini)
+                            .tint(Color.white)
+                    } else {
+                        icon()
+                            .foregroundStyle(Color.white.opacity(fgOpacity))
+                    }
+                }
+                .frame(height: 17)
+
+                Text(label)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(Color.white.opacity(fgOpacity))
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 7)
+            .padding(.horizontal, 4)
+            .background(
+                Color.white.opacity(active ? 0.16 : (isHovered && !disabled ? 0.11 : 0.06)),
+                in: RoundedRectangle(cornerRadius: 11, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .strokeBorder(Color.white.opacity(active ? 0.20 : 0), lineWidth: 1)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+        .help(helpText)
+        .onHover { hovering in
+            if isHovered != hovering {
+                isHovered = hovering
+            }
+        }
+    }
+}
+
+private struct ControlCenterLangSummaryRow: View {
+    let summary: String
+    let action: () -> Void
+
+    @State private var isHovered: Bool = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: "globe")
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundStyle(Color.white.opacity(0.72))
+
+                Text("翻译语言")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color.white.opacity(0.88))
+
+                Spacer(minLength: 4)
+
+                Text(summary)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.white.opacity(0.50))
+                    .lineLimit(1)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(Color.white.opacity(0.45))
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(
+                Color.white.opacity(isHovered ? 0.10 : 0),
+                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            if isHovered != hovering {
+                isHovered = hovering
+            }
+        }
     }
 }
 
@@ -1190,19 +1362,19 @@ private struct TranslationOptionRow: View {
                 if let order = selectionOrder, totalSelected > 1 {
                     Text("\(order + 1)")
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.black)
+                        .foregroundStyle(Color.black)
                         .frame(width: 14, height: 14)
                         .background(Color.white, in: Circle())
                 } else {
                     Image(systemName: "checkmark")
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.white.opacity(isSelected ? 1.0 : 0))
+                        .foregroundStyle(Color.white.opacity(isSelected ? 1.0 : 0))
                         .frame(width: 14, height: 14)
                 }
 
                 Text(title)
                     .font(.system(size: 12, weight: isSelected ? .medium : .regular))
-                    .foregroundStyle(.white.opacity(isSelected ? 1.0 : 0.80))
+                    .foregroundStyle(Color.white.opacity(isSelected ? 1.0 : 0.80))
                     .lineLimit(1)
 
                 Spacer(minLength: 4)
@@ -1210,7 +1382,7 @@ private struct TranslationOptionRow: View {
                 if generating {
                     ProgressView()
                         .controlSize(.mini)
-                        .tint(.white)
+                        .tint(Color.white)
                 }
             }
             .padding(.horizontal, 10)
@@ -1230,145 +1402,188 @@ private struct TranslationOptionRow: View {
     }
 }
 
-// MARK: - 浮层 C：音量精细调节胶囊（右键静音按钮呼出）
+// MARK: - 内嵌式歌单队列舞台（1:1 对齐 MusicMiniPlaylist & MusicPlaylistItem：封面缩略图、别名、权重检索与输入法焦点）
 
-private struct VolumeSliderFloatingPill: View {
-    @Bindable var store: IslandStore
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: store.isMuted || store.volume <= 0.001 ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                .font(.system(size: 12))
-                .foregroundStyle(.white.opacity(0.75))
-                .frame(width: 16)
-
-            Slider(value: $store.sliderVolume, in: 0...1)
-                .frame(width: 120)
-                .tint(.white)
-
-            Text("\(Int(round((store.isMuted ? 0 : store.volume) * 100)))%")
-                .font(.system(size: 11, weight: .medium).monospacedDigit())
-                .foregroundStyle(.white.opacity(0.65))
-                .frame(width: 34, alignment: .trailing)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color(white: 0.05).opacity(0.94), in: Capsule())
-        .overlay {
-            Capsule()
-                .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
-        }
-        .shadow(color: .black.opacity(0.50), radius: 16, y: 6)
-    }
-}
-
-// MARK: - 浮层 D：小歌单弹出卡片（1:1 对齐 MusicMiniPlaylist：歌单计数标题 + 搜索框 + 定位当前曲目）
-
-private struct MiniPlaylistPopoverCard: View {
+private struct ExpandedPlaylistQueueSection: View {
     let store: IslandStore
     let onDismiss: () -> Void
 
     @State private var query: String = ""
     @State private var filteredTracks: [PlaylistTrackItem] = []
+    @State private var scrollRequestToken: Int = 0
+    @FocusState private var isSearchFocused: Bool
+
+    private var activeTrackIndex: Int? {
+        if let idx = store.currentIndex, store.playlist.indices.contains(idx) {
+            return idx
+        }
+        if let curId = store.track?.id {
+            return store.playlist.first(where: { $0.id == curId })?.index
+        }
+        return nil
+    }
+
+    private var headerTitle: String {
+        guard store.playlistComplete else { return "播放列表" }
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            return "播放列表 · \(store.playlist.count) 首"
+        }
+        return "找到 \(filteredTracks.count) / \(store.playlist.count) 首"
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(store.playlistComplete ? "播放列表 (\(store.playlist.count))" : "正在加载播放列表…")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.60))
-                Spacer()
-                Button(action: onDismiss) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 10.5, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.50))
-                        .frame(width: 20, height: 20)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 4)
+        let curIdx = activeTrackIndex
+        let curId = store.track?.id
+        let isPlaying = store.isPlaying
+        let accent = store.accentColor
 
+        VStack(alignment: .leading, spacing: 8) {
+            // 1. 顶部标题栏 + 定位当前曲目 + 收起按钮
+            HStack(spacing: 6) {
+                Text(headerTitle)
+                    .font(.system(size: 12, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(Color.white.opacity(0.76))
+                    .lineLimit(1)
+
+                Spacer(minLength: 4)
+
+                if store.playlistComplete && curIdx != nil {
+                    PlaylistSmallIconButton(helpText: "定位当前播放曲目", systemImage: "scope") {
+                        if !query.isEmpty {
+                            query = ""
+                        }
+                        scrollRequestToken &+= 1
+                    }
+                }
+
+                PlaylistSmallIconButton(helpText: "返回歌词", systemImage: "xmark", action: onDismiss)
+            }
+            .padding(.horizontal, 2)
+
+            // 2. 搜索输入框（支持中英日输入法、⌘A/C/V/X、回车即播首条、Esc 清空或关闭）
             HStack(spacing: 7) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.white.opacity(0.50))
-                TextField("搜索歌曲、歌手或专辑…", text: $query)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.white)
-                    .disabled(!store.playlistComplete)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color.white.opacity(isSearchFocused ? 0.85 : 0.50))
+
+                TextField(
+                    "",
+                    text: $query,
+                    prompt: Text("搜索歌名、别名、歌手或专辑…")
+                        .foregroundStyle(Color.white.opacity(0.42))
+                )
+                .textFieldStyle(.plain)
+                .focusEffectDisabled()
+                .focused($isSearchFocused)
+                .font(.system(size: 12.5))
+                .foregroundStyle(Color.white)
+                .tint(Color.white)
+                .disabled(!store.playlistComplete)
+                .onSubmit {
+                    if let first = filteredTracks.first {
+                        store.playTrack(at: first.index)
+                    }
+                }
+                .onExitCommand {
+                    if !query.isEmpty {
+                        query = ""
+                    } else {
+                        onDismiss()
+                    }
+                }
+
                 if !query.isEmpty {
-                    Button { query = "" } label: {
+                    Button {
+                        query = ""
+                        focusSearchField()
+                    } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 11.5))
-                            .foregroundStyle(.white.opacity(0.45))
+                            .font(.system(size: 12))
+                            .foregroundStyle(Color.white.opacity(0.55))
                     }
                     .buttonStyle(.plain)
+                    .help("清空搜索词")
                 }
             }
-            .padding(.horizontal, 9)
-            .padding(.vertical, 6)
-            .background(Color.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .padding(.horizontal, 10)
+            .frame(height: 30)
+            .background(
+                Color.white.opacity(isSearchFocused ? 0.13 : 0.08),
+                in: RoundedRectangle(cornerRadius: 9, style: .continuous)
+            )
             .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .strokeBorder(
+                        Color.white.opacity(isSearchFocused ? 0.36 : 0.14),
+                        lineWidth: 1
+                    )
             }
-
-            if !store.playlistComplete {
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .controlSize(.small)
-                        .tint(.white)
-                    Text("正在补全完整歌单…")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.white.opacity(0.55))
+            .contentShape(Rectangle())
+            .simultaneousGesture(
+                TapGesture().onEnded {
+                    if store.playlistComplete {
+                        focusSearchField()
+                    }
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 28)
+            )
+
+            // 3. 列表主体（加载骨架屏 / 空状态 / 虚拟化曲目列表）
+            if !store.playlistComplete {
+                PlaylistPendingSkeletonView {
+                    store.requestFullPlaylistIfNeeded()
+                }
             } else if filteredTracks.isEmpty {
-                Text(store.playlist.isEmpty ? "暂无曲目" : "未找到匹配的曲目")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.white.opacity(0.50))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 28)
+                PlaylistEmptyStateView(
+                    hasQuery: !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ) {
+                    query = ""
+                    focusSearchField()
+                }
             } else {
                 ScrollViewReader { proxy in
                     ScrollView(.vertical, showsIndicators: true) {
-                        LazyVStack(spacing: 2) {
-                            ForEach(filteredTracks) { item in
+                        LazyVStack(spacing: 3) {
+                            ForEach(filteredTracks, id: \.index) { item in
                                 PlaylistTrackRow(
                                     item: item,
-                                    isCurrent: item.id == store.track?.id,
-                                    isPlaying: store.isPlaying,
-                                    accentColor: store.accentColor
+                                    isCurrent: (curIdx != nil ? item.index == curIdx : item.id == curId),
+                                    isPlaying: isPlaying,
+                                    accentColor: accent
                                 ) {
                                     store.playTrack(at: item.index)
-                                    onDismiss()
                                 }
+                                .id(item.index)
                             }
                         }
+                        .padding(.trailing, 2)
                     }
-                    .frame(maxHeight: 192)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .onAppear {
-                        if let curId = store.track?.id {
-                            DispatchQueue.main.async {
-                                proxy.scrollTo(curId, anchor: .center)
-                            }
+                        scrollToActiveTrack(using: proxy, animated: false)
+                    }
+                    .onChange(of: scrollRequestToken) { _, _ in
+                        DispatchQueue.main.async {
+                            scrollToActiveTrack(using: proxy, animated: true)
                         }
                     }
                 }
             }
         }
         .padding(10)
-        .background(Color(white: 0.06).opacity(0.96), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(
+            Color.black.opacity(0.36),
+            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+        )
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+                .strokeBorder(Color.white.opacity(0.11), lineWidth: 1)
         }
-        .shadow(color: .black.opacity(0.55), radius: 20, y: 8)
         .onAppear {
             rebuildFilteredTracks()
             store.requestFullPlaylistIfNeeded()
+            focusSearchField()
         }
         .onChange(of: query) { _, _ in
             rebuildFilteredTracks()
@@ -1376,22 +1591,169 @@ private struct MiniPlaylistPopoverCard: View {
         .onChange(of: store.playlist) { _, _ in
             rebuildFilteredTracks()
         }
+        .onChange(of: store.playlistComplete) { _, complete in
+            if complete {
+                rebuildFilteredTracks()
+                focusSearchField()
+                scrollRequestToken &+= 1
+            }
+        }
+    }
+
+    private func focusSearchField() {
+        store.requestKeyFocus()
+        DispatchQueue.main.async {
+            if store.playlistComplete {
+                isSearchFocused = true
+            }
+        }
+    }
+
+    private func scrollToActiveTrack(using proxy: ScrollViewProxy, animated: Bool) {
+        guard let target = activeTrackIndex,
+              filteredTracks.contains(where: { $0.index == target }) else { return }
+        if animated {
+            withAnimation(.easeOut(duration: 0.22)) {
+                proxy.scrollTo(target, anchor: .center)
+            }
+        } else {
+            DispatchQueue.main.async {
+                proxy.scrollTo(target, anchor: .center)
+            }
+        }
     }
 
     private func rebuildFilteredTracks() {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            filteredTracks = store.playlist
-            return
+        filteredTracks = PlaylistSearchFilter.filter(store.playlist, query: query)
+    }
+}
+
+private struct PlaylistSmallIconButton: View {
+    let helpText: String
+    let systemImage: String
+    let action: () -> Void
+
+    @State private var isHovered: Bool = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Color.white.opacity(isHovered ? 0.95 : 0.58))
+                .frame(width: 22, height: 22)
+                .background(
+                    Color.white.opacity(isHovered ? 0.14 : 0.05),
+                    in: Circle()
+                )
+                .contentShape(Circle())
         }
-        filteredTracks = store.playlist.filter {
-            $0.name.localizedStandardContains(trimmed)
-                || $0.artists.localizedStandardContains(trimmed)
-                || $0.album.localizedStandardContains(trimmed)
+        .buttonStyle(.plain)
+        .help(helpText)
+        .onHover { hovering in
+            if isHovered != hovering {
+                isHovered = hovering
+            }
         }
     }
 }
 
+private struct PlaylistPendingSkeletonView: View {
+    let onRetry: () -> Void
+    @State private var pulse: Bool = false
+    @State private var showRetryHint: Bool = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(0..<4, id: \.self) { row in
+                HStack(spacing: 10) {
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(Color.white.opacity(pulse ? 0.15 : 0.08))
+                        .frame(width: 36, height: 36)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(Color.white.opacity(pulse ? 0.16 : 0.09))
+                            .frame(width: row.isMultiple(of: 2) ? 156 : 124, height: 11)
+
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(Color.white.opacity(pulse ? 0.12 : 0.06))
+                            .frame(width: row.isMultiple(of: 2) ? 98 : 82, height: 9)
+                    }
+
+                    Spacer()
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+            }
+
+            if showRetryHint {
+                HStack {
+                    Spacer()
+                    Button("重新加载歌单", action: onRetry)
+                        .buttonStyle(.plain)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color.white.opacity(0.82))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(Color.white.opacity(0.12), in: Capsule())
+                    Spacer()
+                }
+                .padding(.top, 2)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 0.85).repeatForever(autoreverses: true)) {
+                pulse = true
+            }
+        }
+        .task {
+            try? await Task.sleep(for: .seconds(4))
+            if !Task.isCancelled {
+                showRetryHint = true
+            }
+        }
+    }
+}
+
+private struct PlaylistEmptyStateView: View {
+    let hasQuery: Bool
+    let onClearQuery: () -> Void
+
+    @State private var isHovered: Bool = false
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: hasQuery ? "magnifyingglass" : "music.note.list")
+                .font(.system(size: 18))
+                .foregroundStyle(Color.white.opacity(0.35))
+
+            Text(hasQuery ? "未找到匹配的曲目" : "歌单暂无曲目")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Color.white.opacity(0.56))
+
+            if hasQuery {
+                Button(action: onClearQuery) {
+                    Text("清空搜索条件")
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(Color.white.opacity(isHovered ? 0.95 : 0.78))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 4.5)
+                        .background(Color.white.opacity(isHovered ? 0.16 : 0.10), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .onHover { hovering in
+                    if isHovered != hovering {
+                        isHovered = hovering
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// 遵循 swiftui-expert-skill：单根节点（unary Button）、只接收纯值参数，隔绝 60Hz 播放时钟重绘
 private struct PlaylistTrackRow: View {
     let item: PlaylistTrackItem
     let isCurrent: Bool
@@ -1401,42 +1763,76 @@ private struct PlaylistTrackRow: View {
 
     @State private var isHovered: Bool = false
 
+    private var titleText: AttributedString {
+        var main = AttributedString(item.name)
+        main.foregroundColor = isCurrent ? Color.white : Color.white.opacity(0.90)
+        main.font = .system(size: 12.5, weight: isCurrent ? .semibold : .medium)
+
+        if let extra = item.resolvedTitleExtra, !extra.isEmpty {
+            var alias = AttributedString(" (\(extra))")
+            alias.foregroundColor = Color.white.opacity(isCurrent ? 0.56 : 0.44)
+            alias.font = .system(size: 11.5, weight: .regular)
+            main.append(alias)
+        }
+        return main
+    }
+
     var body: some View {
         Button(action: onSelect) {
-            HStack(spacing: 8) {
-                if isCurrent {
-                    Image(systemName: isPlaying ? "waveform" : "pause.fill")
-                        .font(.system(size: 10.5, weight: .bold))
-                        .foregroundStyle(accentColor)
-                        .frame(width: 16)
-                } else {
-                    Text("\(item.index + 1)")
-                        .font(.system(size: 10.5).monospacedDigit())
-                        .foregroundStyle(.white.opacity(0.38))
-                        .frame(width: 16)
-                }
+            HStack(spacing: 9) {
+                ZStack {
+                    CachedPlaylistCoverThumb(
+                        urlString: item.albumPic,
+                        size: 36,
+                        cornerRadius: 7,
+                        accent: accentColor
+                    )
 
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(item.name)
-                        .font(.system(size: 12.5, weight: isCurrent ? .semibold : .regular))
-                        .foregroundStyle(isCurrent ? .white : .white.opacity(0.88))
-                        .lineLimit(1)
-                    if !item.artists.isEmpty {
-                        Text(item.artists)
-                            .font(.system(size: 10.5))
-                            .foregroundStyle(.white.opacity(0.45))
-                            .lineLimit(1)
+                    if isCurrent {
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(Color.black.opacity(0.46))
+                            .frame(width: 36, height: 36)
+
+                        PlaylistEqualizerBadge(isPlaying: isPlaying)
                     }
                 }
+                .frame(width: 36, height: 36)
 
-                Spacer(minLength: 4)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(titleText)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+
+                    if !item.subtitle.isEmpty {
+                        Text(item.subtitle)
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color.white.opacity(isCurrent ? 0.68 : 0.50))
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                if let dur = item.formattedDuration {
+                    Text(dur)
+                        .font(.system(size: 11, weight: isCurrent ? .medium : .regular).monospacedDigit())
+                        .foregroundStyle(Color.white.opacity(isCurrent ? 0.82 : 0.38))
+                }
             }
-            .padding(.horizontal, 8)
+            .padding(.horizontal, 7)
             .padding(.vertical, 5)
             .background(
-                Color.white.opacity(isCurrent ? 0.12 : (isHovered ? 0.07 : 0)),
-                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                Color.white.opacity(isCurrent ? 0.13 : (isHovered ? 0.08 : 0)),
+                in: RoundedRectangle(cornerRadius: 9, style: .continuous)
             )
+            .overlay(alignment: .leading) {
+                if isCurrent {
+                    Capsule()
+                        .fill(accentColor)
+                        .frame(width: 2.5, height: 18)
+                        .offset(x: 1.5)
+                }
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -1445,5 +1841,129 @@ private struct PlaylistTrackRow: View {
                 isHovered = hovering
             }
         }
+    }
+}
+
+private struct PlaylistEqualizerBadge: View {
+    let isPlaying: Bool
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 0.08, paused: !isPlaying)) { context in
+            let t = context.date.timeIntervalSinceReferenceDate
+            HStack(alignment: .bottom, spacing: 2) {
+                ForEach(0..<3, id: \.self) { idx in
+                    let ratio: CGFloat = isPlaying
+                        ? CGFloat(0.35 + 0.65 * (0.5 + 0.5 * sin(t * (5.2 + Double(idx) * 1.35) + Double(idx) * 1.4)))
+                        : (idx == 1 ? 0.55 : 0.32)
+                    Capsule()
+                        .fill(Color.white)
+                        .frame(width: 2.4, height: max(3.5, 13.0 * ratio))
+                }
+            }
+            .frame(width: 14, height: 14, alignment: .bottom)
+        }
+    }
+}
+
+// MARK: - 歌单封面内存缩略图缓存（后台 ImageIO 降采样解码 + NSCache 同步命中，杜绝 LazyVStack 复用闪烁）
+
+@MainActor
+private final class PlaylistCoverMemoryCache {
+    static let shared = PlaylistCoverMemoryCache()
+
+    private let cache: NSCache<NSString, NSImage> = {
+        let c = NSCache<NSString, NSImage>()
+        c.countLimit = 320
+        return c
+    }()
+
+    func image(for key: String) -> NSImage? {
+        cache.object(forKey: key as NSString)
+    }
+
+    func insert(_ image: NSImage, for key: String) {
+        cache.setObject(image, forKey: key as NSString)
+    }
+}
+
+private struct CachedPlaylistCoverThumb: View {
+    let urlString: String?
+    let size: CGFloat
+    let cornerRadius: CGFloat
+    let accent: Color
+
+    @Environment(\.displayScale) private var displayScale
+    @State private var loadedImage: NSImage? = nil
+
+    var body: some View {
+        let cached = urlString.flatMap { PlaylistCoverMemoryCache.shared.image(for: $0) } ?? loadedImage
+
+        ZStack {
+            LinearGradient(
+                colors: [accent.opacity(0.45), Color(white: 0.14)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            if let nsImage = cached {
+                Image(nsImage: nsImage)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Image(systemName: "music.note")
+                    .font(.system(size: size * 0.40, weight: .semibold))
+                    .foregroundStyle(Color.white.opacity(0.48))
+            }
+
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.14), lineWidth: 0.7)
+        }
+        .frame(width: size, height: size)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .task(id: urlString) {
+            guard let key = urlString, !key.isEmpty else {
+                loadedImage = nil
+                return
+            }
+            if let hit = PlaylistCoverMemoryCache.shared.image(for: key) {
+                if loadedImage !== hit {
+                    loadedImage = hit
+                }
+                return
+            }
+            guard let url = URL(string: key) else { return }
+            let targetPixelSize = max(72, Int(ceil(size * max(1.0, displayScale) * 1.5)))
+            if let downsampled = await Self.fetchAndDownsample(url: url, maxPixelSize: targetPixelSize) {
+                guard !Task.isCancelled else { return }
+                PlaylistCoverMemoryCache.shared.insert(downsampled, for: key)
+                loadedImage = downsampled
+            }
+        }
+    }
+
+    private nonisolated static func fetchAndDownsample(url: URL, maxPixelSize: Int) async -> NSImage? {
+        let req = URLRequest(url: url, cachePolicy: .returnCacheDataElseLoad, timeoutInterval: 12)
+        guard let (data, response) = try? await URLSession.shared.data(for: req),
+              let http = response as? HTTPURLResponse,
+              (200..<300).contains(http.statusCode),
+              !data.isEmpty else {
+            return nil
+        }
+
+        let sourceOptions: [CFString: Any] = [kCGImageSourceShouldCache: false]
+        guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions as CFDictionary) else {
+            return nil
+        }
+
+        let downsampleOptions: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
+        ]
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, downsampleOptions as CFDictionary) else {
+            return nil
+        }
+        return NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
     }
 }

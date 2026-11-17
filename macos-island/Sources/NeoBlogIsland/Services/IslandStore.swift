@@ -100,6 +100,17 @@ final class IslandStore {
     var startupBannerText: String? = "桌面灵动岛已就绪 · 等待博客播放音乐"
     var hiddenTrackId: Int? = nil
 
+    @ObservationIgnored var onRequestKeyFocus: (() -> Void)?
+    @ObservationIgnored var onReleaseKeyFocus: ((Bool) -> Void)?
+
+    func requestKeyFocus() {
+        onRequestKeyFocus?()
+    }
+
+    func releaseKeyFocus(restorePreviousApp: Bool = true) {
+        onReleaseKeyFocus?(restorePreviousApp)
+    }
+
     var shouldDisplayIsland: Bool {
         if startupBannerText != nil { return true }
         guard activeClientId != nil, let track else { return false }
@@ -337,6 +348,7 @@ final class IslandStore {
 
     func playTrack(at index: Int) {
         showPlaylistOverlay = false
+        releaseKeyFocus(restorePreviousApp: true)
         sendCommand(OutgoingCommand(action: "play_track", index: index))
     }
 
@@ -476,12 +488,13 @@ final class IslandStore {
 
         bridgeServer.start()
 
-        portPollTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] timer in
+        portPollTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self else { return }
                 if self.bridgeServer.boundPort > 0 {
                     self.boundPort = self.bridgeServer.boundPort
-                    timer.invalidate()
+                    self.portPollTimer?.invalidate()
+                    self.portPollTimer = nil
                 }
             }
         }

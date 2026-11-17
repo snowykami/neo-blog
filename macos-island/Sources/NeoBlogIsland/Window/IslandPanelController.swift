@@ -1,9 +1,10 @@
 import AppKit
 import SwiftUI
 
-/// 无边框、不抢夺当前前台软件焦点的顶部悬浮面板
+/// 无边框、平时不抢夺当前前台软件焦点，仅在歌单搜索框激活时按需接收键盘与中文/日文输入法事件的顶部悬浮面板
 final class IslandOverlayPanel: NSPanel {
-    override var canBecomeKey: Bool { false }
+    var allowsKeyInput: Bool = false
+    override var canBecomeKey: Bool { allowsKeyInput }
     override var canBecomeMain: Bool { false }
 }
 
@@ -14,8 +15,9 @@ final class IslandPanelController {
     private var panel: IslandOverlayPanel?
     private var hostingView: NSHostingView<IslandRootView>?
     private var metrics: ScreenNotchMetrics = .current()
+    private weak var previousExternalApp: NSRunningApplication?
 
-    /// 固定画布尺寸：宽度容纳展开态（360pt）+ 两侧副歌辉光出血区，高度 580pt 留足展开面板底部圆角、弹簧回弹与 26pt 辉光阴影空间，绝不裁切底部
+    /// 固定画布尺寸：宽度容纳展开态（360pt）+ 两侧副歌辉光出血区，高度 580pt 留足展开面板与内嵌歌单队列、弹簧回弹及 26pt 辉光阴影空间
     private let canvasSize = CGSize(width: 520, height: 580)
     /// 灵动岛当前实际可交互区域（SwiftUI 顶部向下坐标系，相对于 canvasSize）
     private var interactiveTopLeftRect: CGRect = .zero
@@ -24,9 +26,16 @@ final class IslandPanelController {
     private var localMouseMonitor: Any?
     private var globalClickOutsideMonitor: Any?
     private var screenObserver: NSObjectProtocol?
+    private var appResignObserver: NSObjectProtocol?
 
     init(store: IslandStore) {
         self.store = store
+        store.onRequestKeyFocus = { [weak self] in
+            self?.activateKeyInput()
+        }
+        store.onReleaseKeyFocus = { [weak self] restorePrevious in
+            self?.releaseKeyInput(restorePreviousApp: restorePrevious)
+        }
     }
 
     func show() {
@@ -38,6 +47,9 @@ final class IslandPanelController {
             backing: .buffered,
             defer: false
         )
+        // 灵动岛始终为深色界面：强制面板使用 DarkAqua 外观，避免系统浅色模式下 TextField 占位符/编辑态文字变黑或滚动条泛白
+        overlay.appearance = NSAppearance(named: .darkAqua)
+        overlay.becomesKeyOnlyIfNeeded = true
         // 高于系统菜单栏（statusBar / mainMenu），使胶囊能融合覆盖在刘海与顶栏之上
         let menuLevel = Int(CGWindowLevelForKey(.mainMenuWindow))
         overlay.level = NSWindow.Level(rawValue: menuLevel + 2)
@@ -75,8 +87,41 @@ final class IslandPanelController {
         if let m = localMouseMonitor { NSEvent.removeMonitor(m) }
         if let m = globalClickOutsideMonitor { NSEvent.removeMonitor(m) }
         if let obs = screenObserver { NotificationCenter.default.removeObserver(obs) }
+        if let obs = appResignObserver { NotificationCenter.default.removeObserver(obs) }
         panel?.close()
         panel = nil
+    }
+
+    /// 激活面板键盘输入能力（用于播放列表搜索框，完整支持中英日输入法候选窗与快捷键）
+    func activateKeyInput() {
+        guard let panel else { return }
+        if let front = NSWorkspace.shared.frontmostApplication,
+           front.processIdentifier != ProcessInfo.processInfo.processIdentifier {
+            previousExternalApp = front
+        }
+        panel.allowsKeyInput = true
+        panel.ignoresMouseEvents = false
+        NSApplication.shared.activate()
+        panel.makeKeyAndOrderFront(nil)
+    }
+
+    /// 释放面板键盘焦点并按需将焦点归还给先前的宿主前台应用
+    func releaseKeyInput(restorePreviousApp: Bool) {
+        guard let panel else { return }
+        let wasKey = panel.isKeyWindow || panel.allowsKeyInput
+        panel.allowsKeyInput = false
+        panel.makeFirstResponder(nil)
+        if panel.isKeyWindow {
+            panel.resignKey()
+        }
+        if restorePreviousApp, wasKey, NSApplication.shared.isActive {
+            if let prev = previousExternalApp, !prev.isTerminated {
+                prev.activate()
+            } else {
+                NSApplication.shared.deactivate()
+            }
+        }
+        previousExternalApp = nil
     }
 
     private func makeRootView(metrics: ScreenNotchMetrics) -> IslandRootView {
@@ -153,17 +198,35 @@ final class IslandPanelController {
             return event
         }
 
-        // 面板展开时，点击面板以外的任意桌面区域自动收起回胶囊
+        // 面板展开时，点击面板以外的任意桌面区域自动收起回胶囊（排除中文/日文输入法组字候选条点击）
         globalClickOutsideMonitor = NSEvent.addGlobalMonitorForEvents(
             matching: [.leftMouseDown, .rightMouseDown]
         ) { [weak self] _ in
             Task { @MainActor in
                 guard let self, self.store.isExpanded, let panel = self.panel else { return }
+                if let textView = panel.firstResponder as? NSTextView, textView.hasMarkedText() {
+                    return
+                }
                 if panel.ignoresMouseEvents {
+                    self.releaseKeyInput(restorePreviousApp: false)
                     withAnimation(.spring(duration: 0.34, bounce: 0.2)) {
                         self.store.showPlaylistOverlay = false
                         self.store.isExpanded = false
                     }
+                }
+            }
+        }
+
+        appResignObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didResignActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, let panel = self.panel else { return }
+                if panel.allowsKeyInput {
+                    panel.allowsKeyInput = false
+                    panel.makeFirstResponder(nil)
                 }
             }
         }

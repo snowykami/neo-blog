@@ -522,6 +522,10 @@ struct StageScrollWheelCatcher: NSViewRepresentable {
         nsView.onScrollDeltaY = onScrollDeltaY
     }
 
+    static func dismantleNSView(_ nsView: ScrollCatcherNSView, coordinator: ()) {
+        nsView.cleanupMonitor()
+    }
+
     final class ScrollCatcherNSView: NSView {
         var onScrollDeltaY: ((Double, Bool) -> Void)?
         private var localMonitor: Any?
@@ -539,15 +543,15 @@ struct StageScrollWheelCatcher: NSViewRepresentable {
                     self.onScrollDeltaY?(dy, isMomentum)
                     return nil
                 }
-            } else if window == nil, let mon = localMonitor {
-                NSEvent.removeMonitor(mon)
-                localMonitor = nil
+            } else if window == nil {
+                cleanupMonitor()
             }
         }
 
-        deinit {
+        func cleanupMonitor() {
             if let mon = localMonitor {
                 NSEvent.removeMonitor(mon)
+                localMonitor = nil
             }
         }
 

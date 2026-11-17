@@ -8,7 +8,7 @@ import { SafeImage } from '@/components/common/safe-image'
 import { useIslandPanelPhase } from '@/components/layout/topbar-island/island-panel-phase'
 import { MusicBackground } from '@/components/music-page/music-background'
 import { MusicLyricMoments } from '@/components/music-page/music-lyric-moments'
-import { MUSIC_ICON_BUTTON_CLASSNAME, MusicPageControls } from '@/components/music-page/music-page-controls'
+import { MiniPlayerMoreMenu, MUSIC_ICON_BUTTON_CLASSNAME, MusicPageControls } from '@/components/music-page/music-page-controls'
 import { MusicStageEffects } from '@/components/music-page/music-stage-effects'
 import { useSongAccent } from '@/components/music-page/use-cover-accent'
 import { useCurrentLyric, useMusicActions, useMusicPlayback, useMusicPreferences } from '@/contexts/music-context'
@@ -98,18 +98,21 @@ export function MiniPlayer({ onOpenPage }: { onOpenPage?: () => void }) {
               {[displayArtists.join(' / '), currentTrack.album].filter(Boolean).join(' · ')}
             </MarqueeText>
           </div>
-          <Link
-            href="/music"
-            onClick={onOpenPage}
-            aria-label={t('open_player_page')}
-            title={t('open_player_page')}
-            className={cn(MUSIC_ICON_BUTTON_CLASSNAME, '-mt-1 -mr-1 self-start')}
-          >
-            <Maximize2Icon aria-hidden className="size-4" />
-          </Link>
+          <div className="-mr-1 flex shrink-0 items-center self-start">
+            <MiniPlayerMoreMenu />
+            <Link
+              href="/music"
+              onClick={onOpenPage}
+              aria-label={t('open_player_page')}
+              title={t('open_player_page')}
+              className={cn(MUSIC_ICON_BUTTON_CLASSNAME, '-mt-1')}
+            >
+              <Maximize2Icon aria-hidden className="size-4" />
+            </Link>
+          </div>
         </div>
         {/* 展开时歌词区不跟着平移（胶囊里的歌词飞到替身那里）；挂上歌词引擎后收起时整块平移回胶囊里的歌词处 */}
-        <div data-island-morph={panelReady ? 'lyrics' : undefined} className="relative h-44">
+        <div data-island-morph={panelReady ? 'lyrics' : undefined} className="relative h-50">
           {panelReady
             ? (
                 <>

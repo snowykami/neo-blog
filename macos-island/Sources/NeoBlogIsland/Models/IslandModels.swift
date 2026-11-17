@@ -107,6 +107,8 @@ struct PlaylistTrackItem: Codable, Equatable, Identifiable {
     let index: Int
     let id: Int
     let name: String
+    let aliases: [String]
+    let titleExtra: String?
     let artists: String
     let album: String
     let albumPic: String?
@@ -114,10 +116,33 @@ struct PlaylistTrackItem: Codable, Equatable, Identifiable {
     let durationMs: Double
 
     enum CodingKeys: String, CodingKey {
-        case index, id, name, artists, album
+        case index, id, name, aliases, artists, album
+        case titleExtra = "title_extra"
         case albumPic = "album_pic"
         case durationMs = "duration_ms"
         case legacyDuration = "duration"
+    }
+
+    init(
+        index: Int,
+        id: Int,
+        name: String,
+        aliases: [String] = [],
+        titleExtra: String? = nil,
+        artists: String,
+        album: String,
+        albumPic: String? = nil,
+        durationMs: Double = 0
+    ) {
+        self.index = index
+        self.id = id
+        self.name = name
+        self.aliases = aliases
+        self.titleExtra = titleExtra
+        self.artists = artists
+        self.album = album
+        self.albumPic = albumPic
+        self.durationMs = durationMs
     }
 
     init(from decoder: Decoder) throws {
@@ -125,6 +150,8 @@ struct PlaylistTrackItem: Codable, Equatable, Identifiable {
         index = try c.decode(Int.self, forKey: .index)
         id = try c.decode(Int.self, forKey: .id)
         name = try c.decode(String.self, forKey: .name)
+        aliases = try c.decodeIfPresent([String].self, forKey: .aliases) ?? []
+        titleExtra = try c.decodeIfPresent(String.self, forKey: .titleExtra)
         artists = try c.decodeIfPresent(String.self, forKey: .artists) ?? ""
         album = try c.decodeIfPresent(String.self, forKey: .album) ?? ""
         albumPic = try c.decodeIfPresent(String.self, forKey: .albumPic)
@@ -137,10 +164,147 @@ struct PlaylistTrackItem: Codable, Equatable, Identifiable {
         try c.encode(index, forKey: .index)
         try c.encode(id, forKey: .id)
         try c.encode(name, forKey: .name)
+        if !aliases.isEmpty {
+            try c.encode(aliases, forKey: .aliases)
+        }
+        try c.encodeIfPresent(titleExtra, forKey: .titleExtra)
         try c.encode(artists, forKey: .artists)
         try c.encode(album, forKey: .album)
         try c.encodeIfPresent(albumPic, forKey: .albumPic)
         try c.encode(durationMs, forKey: .durationMs)
+    }
+
+    var resolvedTitleExtra: String? {
+        if let extra = titleExtra, !extra.isEmpty {
+            return extra
+        }
+        let valid = aliases.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && $0.caseInsensitiveCompare(name) != .orderedSame }
+        return valid.isEmpty ? nil : valid.joined(separator: " / ")
+    }
+
+    var subtitle: String {
+        [artists, album].filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    var formattedDuration: String? {
+        guard durationMs >= 1000 else { return nil }
+        let totalSec = Int(floor(durationMs / 1000.0))
+        return String(format: "%02d:%02d", totalSec / 60, totalSec % 60)
+    }
+}
+
+/// 1:1 对齐前端 `web/src/components/music-page/playlist-filter.ts`：
+/// 支持歌名、别名、歌手、专辑与歌曲 ID 检索，统一全半角/大小写与平片假名，支持空格多关键词与权重相关度排序
+enum PlaylistSearchFilter {
+    private static let nameWeight = 100
+    private static let aliasWeight = 80
+    private static let artistWeight = 60
+    private static let albumWeight = 40
+    private static let exactBonus = 30
+    private static let prefixBonus = 15
+    private static let idScore = 10_000
+
+    struct SearchField {
+        let text: String
+        let weight: Int
+    }
+
+    static func normalize(_ text: String) -> String {
+        guard !text.isEmpty else { return "" }
+        let nfkc = text.precomposedStringWithCompatibilityMapping.lowercased()
+        var scalars = String.UnicodeScalarView()
+        scalars.reserveCapacity(nfkc.unicodeScalars.count)
+        for scalar in nfkc.unicodeScalars {
+            let v = scalar.value
+            // 片假名 (U+30A1...U+30F6) 统一折算为平假名 (-0x60)
+            let mapped: UnicodeScalar
+            if v >= 0x30A1 && v <= 0x30F6, let hira = UnicodeScalar(v - 0x60) {
+                mapped = hira
+            } else {
+                mapped = scalar
+            }
+            if CharacterSet.whitespacesAndNewlines.contains(mapped)
+                || CharacterSet.punctuationCharacters.contains(mapped)
+                || CharacterSet.symbols.contains(mapped) {
+                continue
+            }
+            scalars.append(mapped)
+        }
+        return String(scalars)
+    }
+
+    private static func fields(for item: PlaylistTrackItem) -> [SearchField] {
+        var raw: [(String, Int)] = [(item.name, nameWeight)]
+        for alias in item.aliases {
+            raw.append((alias, aliasWeight))
+        }
+        if let extra = item.titleExtra, !extra.isEmpty {
+            raw.append((extra, aliasWeight))
+        }
+        for artist in item.artists.components(separatedBy: "/") {
+            raw.append((artist, artistWeight))
+        }
+        raw.append((item.album, albumWeight))
+
+        return raw.compactMap { text, weight in
+            let norm = normalize(text)
+            return norm.isEmpty ? nil : SearchField(text: norm, weight: weight)
+        }
+    }
+
+    private static func tokenScore(normToken: String, rawToken: String, item: PlaylistTrackItem, fields: [SearchField]) -> Int {
+        if !rawToken.isEmpty, rawToken.allSatisfy(\.isWholeNumber), String(item.id) == rawToken {
+            return idScore
+        }
+        guard !normToken.isEmpty else { return 0 }
+        var best = 0
+        for field in fields where field.text.contains(normToken) {
+            let bonus = (field.text == normToken)
+                ? exactBonus
+                : (field.text.hasPrefix(normToken) ? prefixBonus : 0)
+            best = max(best, field.weight + bonus)
+        }
+        return best
+    }
+
+    static func filter(_ playlist: [PlaylistTrackItem], query: String) -> [PlaylistTrackItem] {
+        let tokens = query
+            .split(whereSeparator: \.isWhitespace)
+            .map { rawSub -> (raw: String, norm: String) in
+                let raw = String(rawSub)
+                return (raw, normalize(raw))
+            }
+            .filter { !$0.norm.isEmpty || (!$0.raw.isEmpty && $0.raw.allSatisfy(\.isWholeNumber)) }
+
+        guard !tokens.isEmpty else { return playlist }
+
+        var scored: [(item: PlaylistTrackItem, score: Int)] = []
+        scored.reserveCapacity(min(playlist.count, 64))
+
+        for item in playlist {
+            let itemFields = fields(for: item)
+            var total = 0
+            for token in tokens {
+                let s = tokenScore(normToken: token.norm, rawToken: token.raw, item: item, fields: itemFields)
+                if s == 0 {
+                    total = 0
+                    break
+                }
+                total += s
+            }
+            if total > 0 {
+                scored.append((item, total))
+            }
+        }
+
+        scored.sort { lhs, rhs in
+            if lhs.score != rhs.score {
+                return lhs.score > rhs.score
+            }
+            return lhs.item.index < rhs.item.index
+        }
+        return scored.map(\.item)
     }
 }
 

@@ -757,6 +757,8 @@ export function DesktopIslandBridge() {
         index,
         id: item.id,
         name: item.name,
+        aliases: item.aliases ?? [],
+        title_extra: formatTitleAliases(item.name, item.aliases) || null,
         artists: item.artists.join(' / '),
         album: item.album,
         album_pic: toAbsoluteCoverUrl(item.albumPic, 96),

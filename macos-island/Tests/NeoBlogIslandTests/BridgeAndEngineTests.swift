@@ -266,4 +266,43 @@ struct BridgeAndEngineTests {
         #expect(dy2 < 0.01)
         #expect(springStage.isAnimating == true)
     }
+
+    @Test("歌单内搜索：支持别名、平片假名互通、空格多词与歌曲 ID 权重排序")
+    func testPlaylistSearchFilter() {
+        let sample: [PlaylistTrackItem] = [
+            PlaylistTrackItem(
+                index: 0,
+                id: 1001,
+                name: "インターネットやめろ",
+                aliases: ["戒网吧"],
+                titleExtra: "戒网吧",
+                artists: "Aiobahn / KOTOKO",
+                album: "NEEDY GIRL OVERDOSE",
+                durationMs: 215_000
+            ),
+            PlaylistTrackItem(
+                index: 1,
+                id: 2668056312,
+                name: "天天天国地獄国 (feat. ななひら & P丸様。)",
+                aliases: ["天天天国地狱国"],
+                titleExtra: "天天天国地狱国",
+                artists: "Aiobahn +81 / ななひら / P丸様。",
+                album: "天天天国地獄国",
+                durationMs: 228_428
+            )
+        ]
+
+        // 1. 简体别名检索命中繁体/日文汉字原名
+        let byAlias = PlaylistSearchFilter.filter(sample, query: "地狱国")
+        #expect(byAlias.map(\.id) == [2668056312])
+
+        // 2. 片假名查询「ナナヒラ」命中平假名歌手「ななひら」+ 空格多词联合过滤
+        let byKanaAndMulti = PlaylistSearchFilter.filter(sample, query: "ナナヒラ aiobahn")
+        #expect(byKanaAndMulti.map(\.id) == [2668056312])
+
+        // 3. 纯数字 ID 精确置顶检索
+        let byId = PlaylistSearchFilter.filter(sample, query: "2668056312")
+        #expect(byId.map(\.id) == [2668056312])
+        #expect(byId.first?.formattedDuration == "03:48")
+    }
 }

@@ -14,7 +14,7 @@ let package = Package(
             name: "NeoBlogIsland",
             path: "Sources/NeoBlogIsland",
             swiftSettings: [
-                .swiftLanguageMode(.v5)
+                .swiftLanguageMode(.v6)
             ]
         ),
         .testTarget(
@@ -22,9 +22,9 @@ let package = Package(
             dependencies: ["NeoBlogIsland"],
             path: "Tests/NeoBlogIslandTests",
             swiftSettings: [
-                .swiftLanguageMode(.v5)
+                .swiftLanguageMode(.v6)
             ]
         )
     ],
-    swiftLanguageModes: [.v5]
+    swiftLanguageModes: [.v6]
 )

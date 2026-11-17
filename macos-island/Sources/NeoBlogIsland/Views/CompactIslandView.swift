@@ -6,6 +6,32 @@ import SwiftUI
 
 // MARK: - 单行条单元格（基于 SwiftUI 真实几何宽度 + 原生左/中/右对齐 + 溢出时舒适走廊拉紧弦 C² 平滑横向滚动）
 
+/// 1:1 对齐网页端 `lyric-player.ts` 单行条进出场区分：主唱/对唱上下弹簧滑入滑出，背景和声（x-bg）在下层原地淡入淡出
+private struct StripLineTransition: Transition {
+    let isBackground: Bool
+    let verticalTravel: CGFloat
+
+    func body(content: Content, phase: TransitionPhase) -> some View {
+        let dy: CGFloat = {
+            guard !isBackground else { return 0 }
+            switch phase {
+            case .willAppear: return verticalTravel
+            case .identity: return 0
+            case .didDisappear: return -verticalTravel
+            }
+        }()
+        content
+            .opacity(phase.isIdentity ? 1.0 : 0.0)
+            .offset(y: dy)
+    }
+}
+
+private struct StripAnimStateToken: Equatable {
+    let id: String
+    let slot: StripSlotAssignment?
+    let isFocus: Bool
+}
+
 private struct StripLineCellView: View {
     let store: IslandStore
     let item: IslandStore.StripRenderItem
@@ -17,9 +43,9 @@ private struct StripLineCellView: View {
 
     var body: some View {
         let line = item.line
-        let fontSize: CGFloat = line.isBackground ? baseFontSize * 0.72 : baseFontSize
+        // 保持固定基准字号（不随 slot 离散跳变 Font），双层并发缩放交由外层 GPU .scaleEffect 连续弹簧插值（1:1 对齐 lyric-player.ts view.scale）
+        let renderFontSize: CGFloat = line.isBackground ? baseFontSize * 0.72 : baseFontSize
         let tieredScale: CGFloat = (item.slot != nil && !line.isBackground) ? CGFloat(LyricSpecs.stripTierScale) : 1.0
-        let effectiveFontSize = fontSize * tieredScale
         let horizontalPad: CGFloat = 8
         let innerWidth = max(20, Double(cellWidth - horizontalPad * 2))
 
@@ -29,7 +55,7 @@ private struct StripLineCellView: View {
         let (rawBoxes, estimatedTextWidth) = LyricFontResolver.measureLineWords(
             line: line,
             songFont: store.lyrics.font,
-            fontSize: effectiveFontSize,
+            fontSize: renderFontSize,
             showEffects: store.preferences.showLyricEffects
         )
         let estimatedTotalWidth = estimatedTextWidth + edgeLeadPx
@@ -63,16 +89,18 @@ private struct StripLineCellView: View {
             }
         }()
 
+        let isDuetRight = line.isDuet || line.align == "right"
+        let scaleAnchor: UnitPoint = {
+            if isDuetRight { return .trailing }
+            if line.align == "center" { return .center }
+            return .leading
+        }()
+
         let nativeAlignment: Alignment = {
             guard !isOverflowing else { return .leading }
-            switch line.align {
-            case "right":
-                return .trailing
-            case "center":
-                return .center
-            default:
-                return .leading
-            }
+            if isDuetRight { return .trailing }
+            if line.align == "center" { return .center }
+            return .leading
         }()
 
         let fadeLeft = isOverflowing && offsetPx > 0.5
@@ -85,7 +113,7 @@ private struct StripLineCellView: View {
             if let edgeHexes {
                 SingerEdgeBarView(
                     edgeHexes: edgeHexes,
-                    fontSize: effectiveFontSize,
+                    fontSize: renderFontSize,
                     isBackground: line.isBackground,
                     opacity: 0.96
                 )
@@ -102,7 +130,7 @@ private struct StripLineCellView: View {
                 seekAtMs: store.seekAtMs,
                 debrisEngine: store.debrisEngine,
                 nowMs: nowMs,
-                fontSize: effectiveFontSize,
+                fontSize: renderFontSize,
                 isBackground: line.isBackground,
                 allowsWrapping: false,
                 wrapAlignment: .leading,
@@ -140,6 +168,7 @@ private struct StripLineCellView: View {
                 Rectangle()
             }
         }
+        .scaleEffect(tieredScale, anchor: scaleAnchor)
     }
 }
 
@@ -155,6 +184,9 @@ private struct StripStageContainerView: View {
         TimelineView(.animation(paused: !store.isPlaying && !store.debrisEngine.hasActiveDebris)) { context in
             let nowMs = store.currentPositionMs(at: context.date)
             let plan = store.stripRenderItems(at: nowMs, containerHeight: Double(height))
+            let animTokens = plan.items.map {
+                StripAnimStateToken(id: $0.id, slot: $0.slot, isFocus: $0.isFocus)
+            }
 
             ZStack {
                 if let interlude = plan.interlude {
@@ -185,10 +217,13 @@ private struct StripStageContainerView: View {
                             cellWidth: cellW,
                             baseFontSize: baseFontSize
                         )
-                        .offset(x: xOffset, y: yOffset)
-                        .transition(.asymmetric(
-                            insertion: .offset(y: height * 0.42).combined(with: .opacity),
-                            removal: .offset(y: -height * 0.42).combined(with: .opacity)
+                        .offset(x: xOffset)
+                        // 对齐网页端 lyric-player.css .lyric-line--half：全宽与 50% 四宫格切换时宽度瞬切不做横向拉伸
+                        .animation(nil, value: isHalf)
+                        .offset(y: yOffset)
+                        .transition(StripLineTransition(
+                            isBackground: item.line.isBackground,
+                            verticalTravel: height * 0.42
                         ))
                     }
                 } else {
@@ -210,7 +245,7 @@ private struct StripStageContainerView: View {
             }
             .frame(width: width, height: height)
             .coordinateSpace(name: "debrisSpace")
-            .animation(.spring(duration: 0.38, bounce: 0.14), value: plan.items.map(\.id))
+            .animation(.spring(duration: 0.38, bounce: 0.14), value: animTokens)
         }
     }
 }
