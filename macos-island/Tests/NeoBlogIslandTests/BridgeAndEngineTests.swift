@@ -377,4 +377,96 @@ struct BridgeAndEngineTests {
         #expect(maxY <= startY + 0.05)
         #expect(finalY < startY - 12.0)
     }
+
+    @Test("跨 Mac 点对点互联：首次配对授权、全量歌词快照与时钟同步、屏幕边缘甩屏传岛及反向控播")
+    @MainActor
+    func testCrossMacPeerContinuityHandoffAndRemoteControl() async throws {
+        let suiteA = "NeoBlogIslandTest.MacA.\(UUID().uuidString)"
+        let suiteB = "NeoBlogIslandTest.MacB.\(UUID().uuidString)"
+        let defaultsA = try #require(UserDefaults(suiteName: suiteA))
+        let defaultsB = try #require(UserDefaults(suiteName: suiteB))
+        defer {
+            defaultsA.removePersistentDomain(forName: suiteA)
+            defaultsB.removePersistentDomain(forName: suiteB)
+        }
+
+        let peerA = PeerContinuityService(overridePeerId: "aaaa1111-2222-3333-4444-555555555555", overrideDeviceName: "MacBook Pro", isolatedDefaults: defaultsA)
+        let peerB = PeerContinuityService(overridePeerId: "bbbb1111-2222-3333-4444-555555555555", overrideDeviceName: "Mac Studio", isolatedDefaults: defaultsB)
+        let macA = IslandStore(startNetworkServices: false, peerService: peerA)
+        let macB = IslandStore(startNetworkServices: false, peerService: peerB)
+        defer {
+            peerA.stop()
+            peerB.stop()
+        }
+
+        var receivedCommandsOnMacA: [String] = []
+        macA.onInterceptCommandForTest = { cmd in
+            receivedCommandsOnMacA.append(cmd.action)
+        }
+        var lastArrivedPortalOnMacB: PeerPortalPayload? = nil
+        macB.onReceivePortalArrival = { portal in
+            lastArrivedPortalOnMacB = portal
+        }
+
+        // 1. Mac A 本地浏览器正在播放曲目
+        let localTabId = UUID()
+        let mediaJSON = Data(#"{"type":"media","track":{"id":2668056312,"name":"天天天国地獄国","artists":["Aiobahn"],"album":"Single","duration_ms":228428},"lyrics":{"source":"ttml-custom","motion":"bouncy","word_synced":true,"instrumental":false,"spotlights":[],"interludes":[],"lines":[{"start":0,"end":5000,"words":[{"text":"テスト","start":0,"end":5000}]}]}}"#.utf8)
+        let stateJSON = Data(#"{"type":"state","visible":true,"show_playing":true,"is_playing":true,"has_played":true,"track_id":2668056312,"position_ms":42500,"duration_ms":228428,"anchor_ms":1700000000000}"#.utf8)
+        macA.ingestTestPayload(mediaJSON, clientId: localTabId)
+        macA.ingestTestPayload(stateJSON, clientId: localTabId)
+        #expect(macA.shouldDisplayIsland == true)
+
+        // 2. 启动回环监听并由 Mac B 发起首次配对连接
+        peerA.startLoopbackForTesting()
+        for _ in 0..<40 where peerA.directListeningPort == 0 {
+            try await Task.sleep(for: .milliseconds(15))
+        }
+        let port = peerA.directListeningPort
+        #expect(port > 0)
+
+        peerB.connectLoopbackForTesting(port: port, requestPairingIfUntrusted: true)
+        for _ in 0..<50 where peerA.pendingPairRequest == nil {
+            try await Task.sleep(for: .milliseconds(15))
+        }
+        #expect(peerA.pendingPairRequest?.deviceName == "Mac Studio")
+
+        // 3. Mac A 点击「允许」确认配对 -> 双方自动互存信任 Token，Mac B 立即收到完整曲目与毫秒时钟
+        peerA.respondToPairRequest(accept: true)
+        for _ in 0..<60 where macB.track?.id != 2668056312 {
+            try await Task.sleep(for: .milliseconds(15))
+        }
+        #expect(peerA.isConnected == true)
+        #expect(peerB.isConnected == true)
+        #expect(macB.track?.name == "天天天国地獄国")
+        #expect(macB.lyrics.motion == "bouncy")
+        #expect(macB.currentPositionMs() >= 42_500)
+        // 未把岛拖过去之前，仅播放主机 Mac A 显示，镜像机 Mac B 保持安静待命
+        #expect(macA.shouldDisplayIsland == true)
+        #expect(macB.shouldDisplayIsland == false)
+
+        // 4. 从 Mac A 右屏幕边缘（状态栏高度）把胶囊甩向 Mac B -> Mac A 自动收起隐藏，Mac B 左边缘接棒显示并停靠状态栏
+        macA.commitPortalThrow(PeerPortalPayload(fromEdge: .right, offsetFromTopPt: 12, dockedInMenuBar: true))
+        for _ in 0..<50 where !macB.shouldDisplayIsland {
+            try await Task.sleep(for: .milliseconds(15))
+        }
+        #expect(macA.shouldDisplayIsland == false)
+        #expect(macB.shouldDisplayIsland == true)
+        #expect(lastArrivedPortalOnMacB?.fromEdge.oppositeOnReceivingMac == .left)
+        #expect(lastArrivedPortalOnMacB?.dockedInMenuBar == true)
+
+        // 5. 在 Mac B 上点击「下一首」-> 反向控制指令实时穿透回 Mac A
+        macB.nextTrack()
+        for _ in 0..<50 where !receivedCommandsOnMacA.contains("next") {
+            try await Task.sleep(for: .milliseconds(15))
+        }
+        #expect(receivedCommandsOnMacA.contains("next"))
+
+        // 6. 从 Mac B 左屏幕边缘甩回 Mac A -> Mac B 收起，Mac A 重新接棒显示
+        macB.commitPortalThrow(PeerPortalPayload(fromEdge: .left, offsetFromTopPt: 26, dockedInMenuBar: false))
+        for _ in 0..<50 where !macA.shouldDisplayIsland {
+            try await Task.sleep(for: .milliseconds(15))
+        }
+        #expect(macA.shouldDisplayIsland == true)
+        #expect(macB.shouldDisplayIsland == false)
+    }
 }

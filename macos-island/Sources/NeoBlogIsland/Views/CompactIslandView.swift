@@ -374,7 +374,16 @@ private struct CompactCenterStageSlot: View {
     let staticHorizontalPadding: CGFloat
 
     var body: some View {
-        if store.showPlaying && store.startupBannerText == nil && store.peekText == nil && !store.lyrics.instrumental {
+        if let edge = store.portalDragTargetEdge {
+            let arrow = edge == .left ? "←" : "→"
+            let targetName = store.peerService.connectedPeerName ?? "另一台 Mac"
+            Text("\(arrow) 松手传至 \(targetName)")
+                .font(.system(size: max(11.5, baseFontSize - 1.0), weight: .bold))
+                .foregroundStyle(Color(red: 0.56, green: 0.90, blue: 1.0))
+                .lineLimit(1)
+                .padding(.horizontal, staticHorizontalPadding)
+                .frame(width: stripWidth)
+        } else if store.showPlaying && store.startupBannerText == nil && store.peekText == nil && !store.lyrics.instrumental {
             StripStageContainerView(
                 store: store,
                 width: stripWidth,

@@ -93,6 +93,12 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
     <true/>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>用于通过苹果无线直连（AWDL / Bonjour）发现并连接附近运行灵动岛的另一台 Mac，实现跨屏拖拽传岛与歌词同步控制。</string>
+    <key>NSBonjourServices</key>
+    <array>
+        <string>_neoblog._tcp</string>
+    </array>
     <key>NSAppTransportSecurity</key>
     <dict>
         <key>NSAllowsLocalNetworking</key>

@@ -13,7 +13,8 @@ struct IslandRootView: View {
     @Namespace private var coverNamespace
 
     var body: some View {
-        let useNotch = metrics.effectiveUseNotch(mode: store.config.formMode)
+        let detached = store.hasCustomCapsulePosition || store.isDraggingCapsule
+        let useNotch = metrics.effectiveUseNotch(mode: store.config.formMode, detachedFromNotch: detached)
         let alignBottom = !useNotch && store.expandsUpward
         let dockedBar = !useNotch && !store.isExpanded && store.isDockedInMenuBar
         let topEarRadius: CGFloat = useNotch ? 11 : 0
@@ -85,12 +86,25 @@ private struct IslandSurfaceView: View {
 
     var body: some View {
         let activeGlow = (store.config.chorusGlow && store.showPlaying) ? store.glow : nil
-        let glowColor = Color(cssColor: activeGlow?.color ?? store.accentHex)
-        let isStrongGlow = activeGlow?.strong == true
+        let isPortalArmed = store.portalDragTargetEdge != nil || store.incomingPortalPreview != nil
+        let portalCyan = Color(red: 0.36, green: 0.82, blue: 1.0)
+        let glowColor = isPortalArmed ? portalCyan : Color(cssColor: activeGlow?.color ?? store.accentHex)
+        let isStrongGlow = isPortalArmed || activeGlow?.strong == true
         let morphAnchor: UnitPoint = alignBottom ? .bottom : .top
+        let previewOffsetX: CGFloat = {
+            if let incoming = store.incomingPortalPreview {
+                return incoming.fromEdge.oppositeOnReceivingMac == .left ? -18 : 18
+            }
+            if let outgoing = store.portalDragTargetEdge {
+                return outgoing == .left ? -8 : 8
+            }
+            return 0
+        }()
 
         ZStack(alignment: alignBottom ? .bottom : .top) {
-            if store.isExpanded {
+            if let pairReq = store.peerService.pendingPairRequest {
+                PeerPairApprovalCapsuleView(store: store, request: pairReq)
+            } else if store.isExpanded {
                 ExpandedPlayerView(
                     store: store,
                     topReservedHeight: useNotch ? metrics.notchHeight : 0,
@@ -132,26 +146,29 @@ private struct IslandSurfaceView: View {
         .overlay {
             shape
                 .stroke(
-                    activeGlow != nil ? glowColor.opacity(0.92) : Color.white.opacity(0.11),
-                    lineWidth: activeGlow != nil ? 1.5 : 0.9
+                    (activeGlow != nil || isPortalArmed) ? glowColor.opacity(0.95) : Color.white.opacity(0.11),
+                    lineWidth: (activeGlow != nil || isPortalArmed) ? 1.6 : 0.9
                 )
                 .allowsHitTesting(false)
         }
         .fixedSize()
         .shadow(
-            color: activeGlow != nil
+            color: (activeGlow != nil || isPortalArmed)
                 ? glowColor.opacity(isStrongGlow ? 0.72 : 0.54)
                 : Color.black.opacity(store.isExpanded ? 0.50 : 0.28),
-            radius: activeGlow != nil
-                ? (isStrongGlow ? 26 : 15)
+            radius: (activeGlow != nil || isPortalArmed)
+                ? (isStrongGlow ? 22 : 15)
                 : (store.isExpanded ? 24 : 10),
             x: 0,
-            y: activeGlow != nil ? 2 : (store.isExpanded ? 12 : 4)
+            y: (activeGlow != nil || isPortalArmed) ? 2 : (store.isExpanded ? 12 : 4)
         )
+        .opacity(store.incomingPortalPreview != nil ? 0.72 : 1.0)
+        .offset(x: previewOffsetX)
         .scaleEffect(!store.isExpanded && store.isHovering && !store.isDraggingCapsule ? 1.016 : 1.0, anchor: morphAnchor)
         .animation(.spring(duration: 0.38, bounce: 0.25), value: store.isExpanded)
         .animation(.spring(duration: 0.36, bounce: 0.22), value: store.showPlaying)
         .animation(.spring(duration: 0.28, bounce: 0.14), value: store.isDockedInMenuBar)
+        .animation(.spring(duration: 0.24, bounce: 0.18), value: isPortalArmed)
         .animation(.easeOut(duration: 0.2), value: store.isHovering)
         .animation(.easeInOut(duration: 0.4), value: activeGlow)
         .onHover { hovering in
@@ -176,7 +193,17 @@ private struct IslandSurfaceView: View {
             Button("下一首") {
                 store.nextTrack()
             }
-            if !useNotch {
+            if store.peerService.isConnected {
+                let peerLabel = store.peerService.connectedPeerName ?? "另一台 Mac"
+                Divider()
+                Button("投送到 \(peerLabel)") {
+                    store.handoffToConnectedPeer()
+                }
+                Button(store.displayOwnership == .mirrorBothMacs ? "退出双机同时显示" : "双机同时显示") {
+                    store.toggleMirrorBothMacs()
+                }
+            }
+            if store.config.formMode != .notchMerged {
                 Divider()
                 if store.hasCustomCapsulePosition {
                     Button("重置回默认顶栏位置") {
@@ -210,5 +237,49 @@ private struct IslandSurfaceView: View {
                 onInteractiveFrameChanged(newRect)
             }
         }
+    }
+}
+
+private struct PeerPairApprovalCapsuleView: View {
+    let store: IslandStore
+    let request: PendingPairRequest
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "dot.radiowaves.left.and.right")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color(red: 0.42, green: 0.85, blue: 1.0))
+
+            Text("\(request.deviceName) 请求跨屏互联")
+                .font(.system(size: 12.5, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.95))
+                .lineLimit(1)
+
+            Button {
+                store.peerService.respondToPairRequest(accept: true)
+            } label: {
+                Text("允许")
+                    .font(.system(size: 11.5, weight: .bold))
+                    .foregroundStyle(.black)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 3.5)
+                    .background(Color(red: 0.46, green: 0.90, blue: 1.0), in: Capsule())
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                store.peerService.respondToPairRequest(accept: false)
+            } label: {
+                Text("拒绝")
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.80))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3.5)
+                    .background(Color.white.opacity(0.14), in: Capsule())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 36)
     }
 }

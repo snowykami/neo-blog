@@ -39,6 +39,7 @@ final class IslandPanelController {
     private var dragMouseStartScreen: NSPoint?
     private var dragCapsuleCenterStart: CGPoint?
     private var isDraggingActive: Bool = false
+    private var pendingPortalThrow: PeerPortalPayload? = nil
 
     /// 固定画布尺寸：宽度容纳展开态（360pt）+ 两侧副歌辉光出血区，高度 580pt 留足展开面板与内嵌歌单队列、弹簧回弹及 26pt 辉光阴影空间
     private let canvasSize = CGSize(width: 520, height: 580)
@@ -67,6 +68,9 @@ final class IslandPanelController {
         }
         store.onLayoutTriggerChanged = { [weak self] in
             self?.repositionPanel(animated: true)
+        }
+        store.onReceivePortalArrival = { [weak self] portal in
+            self?.applyIncomingPortalArrival(portal)
         }
     }
 
@@ -173,7 +177,10 @@ final class IslandPanelController {
     }
 
     private var currentUseNotch: Bool {
-        metrics.effectiveUseNotch(mode: store.config.formMode)
+        metrics.effectiveUseNotch(
+            mode: store.config.formMode,
+            detachedFromNotch: customPlacement != nil || isDraggingActive
+        )
     }
 
     private func defaultCapsuleCenter(for m: ScreenNotchMetrics) -> CGPoint {
@@ -339,8 +346,9 @@ final class IslandPanelController {
     private func canDragCompactCapsule(for event: NSEvent) -> Bool {
         guard store.shouldDisplayIsland,
               !store.isExpanded,
-              !currentUseNotch,
+              store.config.formMode != .notchMerged,
               !store.isPositionLocked,
+              store.peerService.pendingPairRequest == nil,
               event.modifierFlags.intersection([.control]) == [] else {
             return false
         }
@@ -349,12 +357,39 @@ final class IslandPanelController {
 
     private func beginPotentialDrag() {
         dragMouseStartScreen = NSEvent.mouseLocation
+        pendingPortalThrow = nil
         if let p = customPlacement {
             dragCapsuleCenterStart = resolveCustomCapsuleGeometry(for: metrics, placement: p).center
         } else {
             dragCapsuleCenterStart = defaultCapsuleCenter(for: metrics)
         }
         isDraggingActive = false
+    }
+
+    private func applyIncomingPortalArrival(_ portal: PeerPortalPayload) {
+        let arrivalEdge = portal.fromEdge.oppositeOnReceivingMac
+        let targetScreen: NSScreen? = {
+            let screens = NSScreen.screens
+            guard !screens.isEmpty else { return NSScreen.main }
+            return arrivalEdge == .left
+                ? screens.min(by: { $0.frame.minX < $1.frame.minX })
+                : screens.max(by: { $0.frame.maxX < $1.frame.maxX })
+        }()
+        let nextMetrics = ScreenNotchMetrics.current(for: targetScreen)
+        if nextMetrics != metrics {
+            metrics = nextMetrics
+            hostingView?.rootView = makeRootView(metrics: nextMetrics)
+        }
+        let targetNormX = (arrivalEdge == .left) ? 0.12 : 0.88
+        let arrivedPlacement = PersistedCapsulePlacement(
+            displayID: nextMetrics.displayID,
+            normalizedX: targetNormX,
+            offsetFromTopPt: portal.offsetFromTopPt,
+            dockedInMenuBar: portal.dockedInMenuBar
+        )
+        customPlacement = arrivedPlacement
+        Self.savePersistedPlacement(arrivedPlacement)
+        repositionPanel(animated: true)
     }
 
     private func updateCapsuleDrag() -> Bool {
@@ -392,6 +427,30 @@ final class IslandPanelController {
         let normX = max(0.0, min(1.0, Double((targetCenter.x - sFrame.minX) / max(1, sFrame.width))))
         let offsetTop = Double(max(0, sFrame.maxY - targetCenter.y))
 
+        // 检测是否推到了本机最外侧物理屏幕左/右边界（若存在已连接跨屏 Mac，进入边缘传送门预备态）
+        if store.canPortalThrowToPeer {
+            let beyondLeft = NSPoint(x: sFrame.minX - 14, y: mouse.y)
+            let beyondRight = NSPoint(x: sFrame.maxX + 14, y: mouse.y)
+            let atOuterLeft = (mouse.x <= sFrame.minX + 12) && (ScreenNotchMetrics.screen(containing: beyondLeft) == nil)
+            let atOuterRight = (mouse.x >= sFrame.maxX - 12) && (ScreenNotchMetrics.screen(containing: beyondRight) == nil)
+
+            if atOuterLeft {
+                let p = PeerPortalPayload(fromEdge: .left, offsetFromTopPt: offsetTop, dockedInMenuBar: inMenuBarBand)
+                pendingPortalThrow = p
+                store.updatePortalDragPreview(p)
+            } else if atOuterRight {
+                let p = PeerPortalPayload(fromEdge: .right, offsetFromTopPt: offsetTop, dockedInMenuBar: inMenuBarBand)
+                pendingPortalThrow = p
+                store.updatePortalDragPreview(p)
+            } else {
+                pendingPortalThrow = nil
+                store.updatePortalDragPreview(nil)
+            }
+        } else {
+            pendingPortalThrow = nil
+            store.updatePortalDragPreview(nil)
+        }
+
         customPlacement = PersistedCapsulePlacement(
             displayID: nextMetrics.displayID,
             normalizedX: normX,
@@ -407,15 +466,24 @@ final class IslandPanelController {
 
     private func finishPotentialDrag() -> Bool {
         let wasDragging = isDraggingActive
+        let portalToCommit = pendingPortalThrow
+        pendingPortalThrow = nil
         dragMouseStartScreen = nil
         dragCapsuleCenterStart = nil
         isDraggingActive = false
         if store.isDraggingCapsule {
             store.isDraggingCapsule = false
         }
-        if wasDragging, let placement = customPlacement {
+        if wasDragging {
             store.markDragEnded()
-            Self.savePersistedPlacement(placement)
+            if let portalToCommit, store.canPortalThrowToPeer {
+                store.commitPortalThrow(portalToCommit)
+            } else {
+                store.updatePortalDragPreview(nil)
+                if let placement = customPlacement {
+                    Self.savePersistedPlacement(placement)
+                }
+            }
             updateMousePassthrough()
         }
         return wasDragging

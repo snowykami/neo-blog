@@ -73,9 +73,9 @@ struct ScreenNotchMetrics: Equatable {
         )
     }
 
-    func effectiveUseNotch(mode: IslandFormMode) -> Bool {
+    func effectiveUseNotch(mode: IslandFormMode, detachedFromNotch: Bool = false) -> Bool {
         switch mode {
-        case .auto: return hasPhysicalNotch
+        case .auto: return hasPhysicalNotch && !detachedFromNotch
         case .notchMerged: return true
         case .floatingCapsule: return false
         }

@@ -12,6 +12,8 @@ import SwiftUI
 @Observable
 @MainActor
 final class IslandStore {
+    static let remotePeerVirtualClientId = UUID(uuidString: "00000000-0000-0000-8000-00000000BEEF")!
+
     struct TabSession {
         let clientId: UUID
         var origin: String
@@ -26,6 +28,10 @@ final class IslandStore {
         var playlistComplete: Bool = false
         var currentIndex: Int?
         var state: WebStateMessage?
+        var lastMediaRawJSON: Data?
+        var lastRhythmRawJSON: Data?
+        var lastPlaylistRawJSON: Data?
+        var lastStateRawJSON: Data?
     }
 
     struct StripRenderItem: Identifiable, Equatable {
@@ -49,6 +55,7 @@ final class IslandStore {
 
     @ObservationIgnored private let logger = Logger(subsystem: "org.liteyuki.NeoBlogIsland", category: "IslandStore")
     @ObservationIgnored let bridgeServer = LocalBridgeServer()
+    let peerService: PeerContinuityService
     let debrisEngine = DebrisEngine()
     let stageSpringEngine = StageSpringEngine()
     let compactStageParticles = StageParticlesEngine(scale: 0.7, maxParticles: 20)
@@ -105,10 +112,19 @@ final class IslandStore {
     var startupBannerText: String? = "桌面灵动岛已就绪 · 等待博客播放音乐"
     var hiddenTrackId: Int? = nil
 
+    // 跨 Mac AWDL 点对点接力与传送门状态
+    private(set) var displayOwnership: PeerDisplayOwnership = .singleActiveMac
+    private(set) var activeOwnerPeerId: String? = nil
+    var portalDragTargetEdge: PortalEdge? = nil
+    private(set) var incomingPortalPreview: PeerPortalPayload? = nil
+    @ObservationIgnored private var lastSentPortalPreview: PeerPortalPayload? = nil
+
     @ObservationIgnored var onRequestKeyFocus: (() -> Void)?
     @ObservationIgnored var onReleaseKeyFocus: ((Bool) -> Void)?
     @ObservationIgnored var onResetCapsulePosition: (() -> Void)?
     @ObservationIgnored var onLayoutTriggerChanged: (() -> Void)?
+    @ObservationIgnored var onReceivePortalArrival: ((PeerPortalPayload) -> Void)?
+    @ObservationIgnored var onInterceptCommandForTest: ((OutgoingCommand) -> Void)?
     @ObservationIgnored private var lastDragEndedAt: Date = .distantPast
 
     var shouldSuppressTapAfterDrag: Bool {
@@ -136,10 +152,31 @@ final class IslandStore {
         UserDefaults.standard.set(isPositionLocked, forKey: "NeoBlogIsland.positionLocked")
     }
 
+    var isDisplayingRemotePeerSession: Bool {
+        activeClientId == Self.remotePeerVirtualClientId
+    }
+
+    var canPortalThrowToPeer: Bool {
+        peerService.isConnected && track != nil
+    }
+
+    var isIslandHandedOffToPeer: Bool {
+        guard peerService.isConnected, displayOwnership == .singleActiveMac else {
+            return false
+        }
+        if let owner = activeOwnerPeerId {
+            return owner != peerService.localPeerId
+        }
+        return isDisplayingRemotePeerSession
+    }
+
     var shouldDisplayIsland: Bool {
+        if peerService.pendingPairRequest != nil { return true }
         if startupBannerText != nil { return true }
+        if incomingPortalPreview != nil && track != nil { return true }
         guard activeClientId != nil, let track else { return false }
         if hiddenTrackId == track.id { return false }
+        if isIslandHandedOffToPeer { return false }
         if isExpanded { return true }
         return webVisible
     }
@@ -154,12 +191,19 @@ final class IslandStore {
         set { setVolume(newValue) }
     }
 
-    init() {
-        setupBridge()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.8) { [weak self] in
-            withAnimation(.spring(duration: 0.38, bounce: 0.22)) {
-                self?.startupBannerText = nil
+    init(startNetworkServices: Bool = true, peerService: PeerContinuityService? = nil) {
+        self.peerService = peerService ?? PeerContinuityService()
+        setupPeerCallbacks()
+        if startNetworkServices {
+            setupBridge()
+            self.peerService.start()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.8) { [weak self] in
+                withAnimation(.spring(duration: 0.38, bounce: 0.22)) {
+                    self?.startupBannerText = nil
+                }
             }
+        } else {
+            self.startupBannerText = nil
         }
     }
 
@@ -349,7 +393,73 @@ final class IslandStore {
     // MARK: - 反向控制指令
 
     func sendCommand(_ command: OutgoingCommand) {
-        bridgeServer.sendCommand(command, to: activeClientId)
+        onInterceptCommandForTest?(command)
+        if activeClientId == Self.remotePeerVirtualClientId {
+            peerService.sendRemoteCommand(command)
+        } else {
+            bridgeServer.sendCommand(command, to: activeClientId)
+        }
+    }
+
+    // MARK: - 跨 Mac 边缘传送门投送 / 双机同显 / 召回
+
+    func updatePortalDragPreview(_ payload: PeerPortalPayload?) {
+        let nextEdge = payload?.fromEdge
+        if portalDragTargetEdge != nextEdge {
+            withAnimation(.easeOut(duration: 0.16)) {
+                portalDragTargetEdge = nextEdge
+            }
+        }
+        guard peerService.isConnected else { return }
+        if lastSentPortalPreview != payload {
+            lastSentPortalPreview = payload
+            peerService.sendPortalPreview(payload)
+        }
+    }
+
+    func commitPortalThrow(_ payload: PeerPortalPayload) {
+        lastSentPortalPreview = nil
+        portalDragTargetEdge = nil
+        guard let remoteId = peerService.connectedPeerId else { return }
+        withAnimation(.spring(duration: 0.34, bounce: 0.18)) {
+            isExpanded = false
+            showPlaylistOverlay = false
+            displayOwnership = .singleActiveMac
+            activeOwnerPeerId = remoteId
+        }
+        peerService.sendPortalThrow(payload)
+        onLayoutTriggerChanged?()
+    }
+
+    func handoffToConnectedPeer() {
+        let payload = PeerPortalPayload(
+            fromEdge: .right,
+            offsetFromTopPt: isDockedInMenuBar ? 14 : 28,
+            dockedInMenuBar: isDockedInMenuBar
+        )
+        commitPortalThrow(payload)
+    }
+
+    func recallIslandToThisMac() {
+        withAnimation(.spring(duration: 0.34, bounce: 0.22)) {
+            displayOwnership = .singleActiveMac
+            activeOwnerPeerId = peerService.localPeerId
+            incomingPortalPreview = nil
+        }
+        peerService.sendOwnershipUpdate(mode: .singleActiveMac, activeOwnerPeerId: peerService.localPeerId)
+        onLayoutTriggerChanged?()
+    }
+
+    func toggleMirrorBothMacs() {
+        let nextMode: PeerDisplayOwnership = (displayOwnership == .mirrorBothMacs) ? .singleActiveMac : .mirrorBothMacs
+        let nextOwner = (nextMode == .singleActiveMac) ? peerService.localPeerId : nil
+        withAnimation(.spring(duration: 0.34, bounce: 0.22)) {
+            displayOwnership = nextMode
+            activeOwnerPeerId = nextOwner
+            incomingPortalPreview = nil
+        }
+        peerService.sendOwnershipUpdate(mode: nextMode, activeOwnerPeerId: nextOwner)
+        onLayoutTriggerChanged?()
     }
 
     func play() { sendCommand(OutgoingCommand(action: "play")) }
@@ -536,17 +646,158 @@ final class IslandStore {
         }
     }
 
-    private func handleIncomingPayload(clientId: UUID, meta: LocalBridgeServer.ClientMeta, data: Data) {
+    private func setupPeerCallbacks() {
+        peerService.onPeerAuthenticated = { [weak self] _, _ in
+            guard let self else { return }
+            self.pushFullSnapshotToConnectedPeer()
+        }
+
+        peerService.onPeerDisconnected = { [weak self] _ in
+            guard let self else { return }
+            self.incomingPortalPreview = nil
+            self.portalDragTargetEdge = nil
+            self.lastSentPortalPreview = nil
+            self.displayOwnership = .singleActiveMac
+            self.activeOwnerPeerId = nil
+            if self.tabSessions.removeValue(forKey: Self.remotePeerVirtualClientId) != nil,
+               self.activeClientId == Self.remotePeerVirtualClientId {
+                self.electNextActiveTab()
+            }
+            self.onLayoutTriggerChanged?()
+        }
+
+        peerService.onReceiveFullSnapshot = { [weak self] snap in
+            guard let self else { return }
+            let peerOrigin = "peer://\(self.peerService.connectedPeerName ?? "Mac")"
+            let meta = LocalBridgeServer.ClientMeta(
+                id: Self.remotePeerVirtualClientId,
+                tabId: "peer-mirror",
+                origin: peerOrigin
+            )
+            if let media = snap.mediaRawJSON {
+                self.handleIncomingPayload(clientId: Self.remotePeerVirtualClientId, meta: meta, data: media, fromPeer: true, peerLivePosMs: nil)
+            }
+            if let rhythm = snap.rhythmRawJSON {
+                self.handleIncomingPayload(clientId: Self.remotePeerVirtualClientId, meta: meta, data: rhythm, fromPeer: true, peerLivePosMs: nil)
+            }
+            if let playlist = snap.playlistRawJSON {
+                self.handleIncomingPayload(clientId: Self.remotePeerVirtualClientId, meta: meta, data: playlist, fromPeer: true, peerLivePosMs: nil)
+            }
+            if let state = snap.stateRawJSON {
+                self.handleIncomingPayload(clientId: Self.remotePeerVirtualClientId, meta: meta, data: state, fromPeer: true, peerLivePosMs: snap.livePositionMs)
+            }
+        }
+
+        peerService.onReceiveBridgeFrame = { [weak self] raw, livePosMs in
+            guard let self else { return }
+            let peerOrigin = "peer://\(self.peerService.connectedPeerName ?? "Mac")"
+            let meta = LocalBridgeServer.ClientMeta(
+                id: Self.remotePeerVirtualClientId,
+                tabId: "peer-mirror",
+                origin: peerOrigin
+            )
+            self.handleIncomingPayload(
+                clientId: Self.remotePeerVirtualClientId,
+                meta: meta,
+                data: raw,
+                fromPeer: true,
+                peerLivePosMs: livePosMs
+            )
+        }
+
+        peerService.onReceiveRemoteCommand = { [weak self] cmd in
+            guard let self else { return }
+            let localClient = self.tabSessions.keys.first { $0 != Self.remotePeerVirtualClientId && $0 == self.activeClientId }
+                ?? self.tabSessions.keys.first { $0 != Self.remotePeerVirtualClientId }
+            self.onInterceptCommandForTest?(cmd)
+            if let localClient {
+                self.bridgeServer.sendCommand(cmd, to: localClient)
+            }
+        }
+
+        peerService.onReceivePortalPreview = { [weak self] preview in
+            guard let self else { return }
+            withAnimation(.spring(duration: 0.26, bounce: 0.14)) {
+                self.incomingPortalPreview = preview
+            }
+            if let preview {
+                self.onReceivePortalArrival?(preview)
+            }
+            self.onLayoutTriggerChanged?()
+        }
+
+        peerService.onReceivePortalThrow = { [weak self] portal in
+            guard let self else { return }
+            withAnimation(.spring(duration: 0.36, bounce: 0.22)) {
+                self.incomingPortalPreview = nil
+                self.displayOwnership = .singleActiveMac
+                self.activeOwnerPeerId = self.peerService.localPeerId
+                self.startupBannerText = nil
+                self.hiddenTrackId = nil
+            }
+            self.onReceivePortalArrival?(portal)
+            self.onLayoutTriggerChanged?()
+        }
+
+        peerService.onReceiveOwnershipUpdate = { [weak self] mode, ownerId in
+            guard let self else { return }
+            withAnimation(.spring(duration: 0.34, bounce: 0.20)) {
+                self.incomingPortalPreview = nil
+                self.displayOwnership = mode
+                self.activeOwnerPeerId = ownerId
+                if mode == .singleActiveMac && ownerId != self.peerService.localPeerId {
+                    self.isExpanded = false
+                    self.showPlaylistOverlay = false
+                }
+            }
+            self.onLayoutTriggerChanged?()
+        }
+    }
+
+    private func pushFullSnapshotToConnectedPeer() {
+        guard peerService.isConnected else { return }
+        guard let activeId = activeClientId,
+              activeId != Self.remotePeerVirtualClientId,
+              let session = tabSessions[activeId] else {
+            return
+        }
+        let snap = PeerFullSnapshot(
+            mediaRawJSON: session.lastMediaRawJSON,
+            rhythmRawJSON: session.lastRhythmRawJSON,
+            playlistRawJSON: session.lastPlaylistRawJSON,
+            stateRawJSON: session.lastStateRawJSON,
+            livePositionMs: currentPositionMs(),
+            isPlaying: isPlaying
+        )
+        peerService.sendFullSnapshot(snap)
+    }
+
+    func ingestTestPayload(_ data: Data, clientId: UUID, origin: String = "https://blog.example.com") {
+        let meta = LocalBridgeServer.ClientMeta(id: clientId, tabId: "test-tab", origin: origin)
+        handleIncomingPayload(clientId: clientId, meta: meta, data: data, fromPeer: false, peerLivePosMs: nil)
+    }
+
+    private func handleIncomingPayload(
+        clientId: UUID,
+        meta: LocalBridgeServer.ClientMeta,
+        data: Data,
+        fromPeer: Bool = false,
+        peerLivePosMs: Double? = nil
+    ) {
         guard let probe = decodeJSON(EnvelopeProbe.self, from: data, label: "envelope") else { return }
-        bridgeServer.updateClientInfo(id: clientId, tabId: probe.tab_id, origin: probe.origin)
+        if !fromPeer {
+            bridgeServer.updateClientInfo(id: clientId, tabId: probe.tab_id, origin: probe.origin)
+        }
 
         var session = tabSessions[clientId] ?? TabSession(
             clientId: clientId,
             origin: probe.origin ?? meta.origin,
             tabId: probe.tab_id ?? meta.tabId
         )
-        if let origin = probe.origin, !origin.isEmpty { session.origin = origin }
-        if let tabId = probe.tab_id, !tabId.isEmpty { session.tabId = tabId }
+        if !fromPeer {
+            if let origin = probe.origin, !origin.isEmpty { session.origin = origin }
+            if let tabId = probe.tab_id, !tabId.isEmpty { session.tabId = tabId }
+        }
 
         switch probe.type {
         case "media":
@@ -558,6 +809,7 @@ final class IslandStore {
             session.accentHex = msg.accentHex
             session.chorus = msg.chorus ?? []
             session.lyrics = msg.lyrics ?? .empty
+            session.lastMediaRawJSON = data
             tabSessions[clientId] = session
             if activeClientId == nil {
                 activeClientId = clientId
@@ -565,15 +817,22 @@ final class IslandStore {
             if activeClientId == clientId {
                 snapshotHealTask?.cancel()
                 applyActiveSession(session, updateClock: false)
+                if !fromPeer && peerService.isConnected {
+                    peerService.sendBridgeFrame(data, livePositionMs: nil)
+                }
             }
 
         case "rhythm":
             guard let msg = decodeJSON(WebRhythmMessage.self, from: data, label: "rhythm") else { return }
             if msg.trackId == nil || msg.trackId == session.track?.id {
                 session.rhythm = msg.rhythm.toEngineContext()
+                session.lastRhythmRawJSON = data
                 tabSessions[clientId] = session
                 if activeClientId == clientId {
                     rhythm = session.rhythm
+                    if !fromPeer && peerService.isConnected {
+                        peerService.sendBridgeFrame(data, livePositionMs: nil)
+                    }
                 }
             }
 
@@ -582,11 +841,15 @@ final class IslandStore {
             session.playlist = msg.tracks
             session.playlistComplete = msg.complete
             session.currentIndex = msg.currentIndex
+            session.lastPlaylistRawJSON = data
             tabSessions[clientId] = session
             if activeClientId == clientId {
                 playlist = session.playlist
                 playlistComplete = session.playlistComplete
                 currentIndex = session.currentIndex
+                if !fromPeer && peerService.isConnected {
+                    peerService.sendBridgeFrame(data, livePositionMs: nil)
+                }
             }
 
         case "state":
@@ -595,18 +858,27 @@ final class IslandStore {
                 session.hasEverPlayed = true
             }
             session.state = msg
+            session.lastStateRawJSON = data
             tabSessions[clientId] = session
 
-            if msg.visible {
+            if msg.visible && !fromPeer {
                 startupBannerText = nil
             }
 
+            let prevActive = activeClientId
             if shouldPromoteClient(clientId, incomingState: msg) {
                 activeClientId = clientId
             }
 
             if activeClientId == clientId {
-                applyActiveSession(session, updateClock: true)
+                applyActiveSession(session, updateClock: true, peerLivePosMs: peerLivePosMs)
+                if !fromPeer && peerService.isConnected {
+                    if prevActive != clientId {
+                        pushFullSnapshotToConnectedPeer()
+                    } else {
+                        peerService.sendBridgeFrame(data, livePositionMs: currentPositionMs())
+                    }
+                }
             }
 
         default:
@@ -720,7 +992,7 @@ final class IslandStore {
         stageEntries = entries
     }
 
-    private func applyActiveSession(_ session: TabSession, updateClock: Bool) {
+    private func applyActiveSession(_ session: TabSession, updateClock: Bool, peerLivePosMs: Double? = nil) {
         let prevTrackId = track?.id
         let expectedTrackId = session.state?.trackId ?? session.track?.id
         let mediaMatchesState = (expectedTrackId == nil) || (session.track?.id == expectedTrackId)
@@ -789,9 +1061,14 @@ final class IslandStore {
             }
 
             if updateClock {
-                let transitMs = max(0, Date().timeIntervalSince1970 * 1000.0 - st.anchorMs)
-                anchorPositionMs = st.isPlaying ? (st.positionMs + min(transitMs, 200)) : st.positionMs
-                anchorLocalDate = Date()
+                if let peerLivePosMs {
+                    anchorPositionMs = st.isPlaying ? (peerLivePosMs + peerService.oneWayLatencyMs) : peerLivePosMs
+                    anchorLocalDate = Date()
+                } else {
+                    let transitMs = max(0, Date().timeIntervalSince1970 * 1000.0 - st.anchorMs)
+                    anchorPositionMs = st.isPlaying ? (st.positionMs + min(transitMs, 200)) : st.positionMs
+                    anchorLocalDate = Date()
+                }
             }
         }
     }
@@ -807,8 +1084,8 @@ final class IslandStore {
                   session.track?.id != expectedTrackId else {
                 return
             }
-            self.logger.notice("检测到曲目 \(expectedTrackId) 元数据未就绪，主动请求前端重推全量快照")
-            self.bridgeServer.sendCommand(OutgoingCommand(action: "sync_snapshot"), to: clientId)
+            self.logger.notice("检测到曲目 \(expectedTrackId) 元数据未就绪，主动请求重推全量快照")
+            self.sendCommand(OutgoingCommand(action: "sync_snapshot"))
         }
     }
 }
