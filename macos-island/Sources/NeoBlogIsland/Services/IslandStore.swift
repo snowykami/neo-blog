@@ -722,8 +722,9 @@ final class IslandStore {
             }
             if let preview {
                 self.onReceivePortalArrival?(preview)
+            } else {
+                self.onLayoutTriggerChanged?()
             }
-            self.onLayoutTriggerChanged?()
         }
 
         peerService.onReceivePortalThrow = { [weak self] portal in
@@ -732,11 +733,12 @@ final class IslandStore {
                 self.incomingPortalPreview = nil
                 self.displayOwnership = .singleActiveMac
                 self.activeOwnerPeerId = self.peerService.localPeerId
+                self.isExpanded = false
+                self.showPlaylistOverlay = false
                 self.startupBannerText = nil
                 self.hiddenTrackId = nil
             }
             self.onReceivePortalArrival?(portal)
-            self.onLayoutTriggerChanged?()
         }
 
         peerService.onReceiveOwnershipUpdate = { [weak self] mode, ownerId in

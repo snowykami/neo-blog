@@ -49,12 +49,6 @@ struct IslandRootView: View {
                         removal: .scale(scale: 0.82, anchor: transitionAnchor).combined(with: .opacity)
                     )
                 )
-            } else {
-                Color.clear
-                    .frame(width: 0, height: 0)
-                    .onAppear {
-                        onInteractiveFrameChanged(.zero)
-                    }
             }
         }
         .frame(width: canvasSize.width, height: canvasSize.height, alignment: vAlign)
@@ -81,8 +75,6 @@ private struct IslandSurfaceView: View {
     let shape: NotchIslandShape
     let coverNamespace: Namespace.ID
     let onInteractiveFrameChanged: (CGRect) -> Void
-
-    @State private var lastReportedRect: CGRect = .zero
 
     var body: some View {
         let activeGlow = (store.config.chorusGlow && store.showPlaying) ? store.glow : nil
@@ -229,11 +221,7 @@ private struct IslandSurfaceView: View {
         .onGeometryChange(for: CGRect.self) { proxy in
             proxy.frame(in: .named("panelCanvas"))
         } action: { newRect in
-            if abs(newRect.minX - lastReportedRect.minX) > 0.5
-                || abs(newRect.minY - lastReportedRect.minY) > 0.5
-                || abs(newRect.width - lastReportedRect.width) > 0.5
-                || abs(newRect.height - lastReportedRect.height) > 0.5 {
-                lastReportedRect = newRect
+            if newRect.width > 1 && newRect.height > 1 {
                 onInteractiveFrameChanged(newRect)
             }
         }

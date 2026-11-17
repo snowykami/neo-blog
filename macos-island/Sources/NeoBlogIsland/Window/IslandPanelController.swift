@@ -45,10 +45,14 @@ final class IslandPanelController {
     private let canvasSize = CGSize(width: 520, height: 580)
     /// 灵动岛当前实际可交互区域（SwiftUI 顶部向下坐标系，相对于 canvasSize）
     private var interactiveTopLeftRect: CGRect = .zero
+    /// 面板目标屏幕帧（动画进行中也以目标落点计算鼠标穿透，避免 0.22s 飞行途中与动画收尾后命中框停留在旧坐标）
+    private var targetPanelFrame: NSRect = .zero
+    private var lastPolledMouseScreen: NSPoint = .zero
 
     private var globalMouseMonitor: Any?
     private var localMouseMonitor: Any?
     private var globalClickOutsideMonitor: Any?
+    private var cursorPollTimer: Timer?
     private var screenObserver: NSObjectProtocol?
     private var appResignObserver: NSObjectProtocol?
 
@@ -81,8 +85,10 @@ final class IslandPanelController {
         metrics = ScreenNotchMetrics.current(for: initialScreen)
         syncStorePlacementFlags(animated: false)
 
+        let initialFrame = computePanelScreenFrame(for: metrics)
+        targetPanelFrame = initialFrame
         let overlay = IslandOverlayPanel(
-            contentRect: computePanelScreenFrame(for: metrics),
+            contentRect: initialFrame,
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -123,6 +129,8 @@ final class IslandPanelController {
     }
 
     func close() {
+        cursorPollTimer?.invalidate()
+        cursorPollTimer = nil
         if let m = globalMouseMonitor { NSEvent.removeMonitor(m) }
         if let m = localMouseMonitor { NSEvent.removeMonitor(m) }
         if let m = globalClickOutsideMonitor { NSEvent.removeMonitor(m) }
@@ -171,7 +179,13 @@ final class IslandPanelController {
             canvasSize: canvasSize
         ) { [weak self] newRect in
             guard let self else { return }
-            self.interactiveTopLeftRect = newRect
+            let old = self.interactiveTopLeftRect
+            if abs(newRect.minX - old.minX) > 0.5
+                || abs(newRect.minY - old.minY) > 0.5
+                || abs(newRect.width - old.width) > 0.5
+                || abs(newRect.height - old.height) > 0.5 {
+                self.interactiveTopLeftRect = newRect
+            }
             self.updateMousePassthrough()
         }
     }
@@ -258,11 +272,19 @@ final class IslandPanelController {
         syncStorePlacementFlags(animated: animated)
         guard let panel else { return }
         let target = computePanelScreenFrame(for: metrics)
+        targetPanelFrame = target
+        if store.shouldDisplayIsland {
+            panel.orderFrontRegardless()
+        }
         if animated {
             NSAnimationContext.runAnimationGroup { ctx in
                 ctx.duration = 0.22
                 ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
                 panel.animator().setFrame(target, display: true)
+            } completionHandler: { [weak self] in
+                Task { @MainActor in
+                    self?.updateMousePassthrough()
+                }
             }
         } else {
             panel.setFrame(target, display: true)
@@ -272,6 +294,7 @@ final class IslandPanelController {
 
     private func resetToDefaultPosition() {
         customPlacement = nil
+        interactiveTopLeftRect = .zero
         UserDefaults.standard.removeObject(forKey: Self.placementStorageKey)
         let mainScreen = NSScreen.main ?? NSScreen.screens.first
         let nextMetrics = ScreenNotchMetrics.current(for: mainScreen)
@@ -387,6 +410,9 @@ final class IslandPanelController {
             offsetFromTopPt: portal.offsetFromTopPt,
             dockedInMenuBar: portal.dockedInMenuBar
         )
+        if customPlacement?.dockedInMenuBar != arrivedPlacement.dockedInMenuBar || customPlacement == nil {
+            interactiveTopLeftRect = .zero
+        }
         customPlacement = arrivedPlacement
         Self.savePersistedPlacement(arrivedPlacement)
         repositionPanel(animated: true)
@@ -427,12 +453,14 @@ final class IslandPanelController {
         let normX = max(0.0, min(1.0, Double((targetCenter.x - sFrame.minX) / max(1, sFrame.width))))
         let offsetTop = Double(max(0, sFrame.maxY - targetCenter.y))
 
-        // 检测是否推到了本机最外侧物理屏幕左/右边界（若存在已连接跨屏 Mac，进入边缘传送门预备态）
+        // 检测是否推到了本机最外侧物理屏幕左/右边界（带 12pt 进入 / 26pt 退出回差，防止屏幕边缘手抖反复闪烁预备态）
         if store.canPortalThrowToPeer {
             let beyondLeft = NSPoint(x: sFrame.minX - 14, y: mouse.y)
             let beyondRight = NSPoint(x: sFrame.maxX + 14, y: mouse.y)
-            let atOuterLeft = (mouse.x <= sFrame.minX + 12) && (ScreenNotchMetrics.screen(containing: beyondLeft) == nil)
-            let atOuterRight = (mouse.x >= sFrame.maxX - 12) && (ScreenNotchMetrics.screen(containing: beyondRight) == nil)
+            let leftThreshold: CGFloat = (pendingPortalThrow?.fromEdge == .left) ? 26 : 12
+            let rightThreshold: CGFloat = (pendingPortalThrow?.fromEdge == .right) ? 26 : 12
+            let atOuterLeft = (mouse.x <= sFrame.minX + leftThreshold) && (ScreenNotchMetrics.screen(containing: beyondLeft) == nil)
+            let atOuterRight = (mouse.x >= sFrame.maxX - rightThreshold) && (ScreenNotchMetrics.screen(containing: beyondRight) == nil)
 
             if atOuterLeft {
                 let p = PeerPortalPayload(fromEdge: .left, offsetFromTopPt: offsetTop, dockedInMenuBar: inMenuBarBand)
@@ -459,7 +487,9 @@ final class IslandPanelController {
         )
         syncStorePlacementFlags(animated: true)
         if let panel {
-            panel.setFrame(computePanelScreenFrame(for: nextMetrics), display: true)
+            let nextFrame = computePanelScreenFrame(for: nextMetrics)
+            targetPanelFrame = nextFrame
+            panel.setFrame(nextFrame, display: true)
         }
         return true
     }
@@ -489,6 +519,23 @@ final class IslandPanelController {
         return wasDragging
     }
 
+    /// 当跨屏刚抵达首帧、SwiftUI 几何回调尚未跑完时，提供确定性的胶囊/面板命中兜底框，杜绝 interactiveTopLeftRect 为零导致点不动
+    private func effectiveInteractiveTopLeftRect() -> CGRect {
+        if interactiveTopLeftRect.width > 1 && interactiveTopLeftRect.height > 1 {
+            return interactiveTopLeftRect
+        }
+        let w: CGFloat = store.isExpanded ? 364 : (store.isDockedInMenuBar ? 276 : 332)
+        let h: CGFloat = store.isExpanded ? 420 : (store.isDockedInMenuBar ? metrics.dockedCapsuleHeight : 38)
+        let x = (canvasSize.width - w) * 0.5
+        let y: CGFloat
+        if !currentUseNotch && store.expandsUpward {
+            y = canvasSize.height - Self.bottomCanvasBleed - h
+        } else {
+            y = currentUseNotch ? 0 : Self.topCanvasBleed
+        }
+        return CGRect(x: x, y: y, width: w, height: h)
+    }
+
     /// 精确判断鼠标是否落在胶囊/展开面板实体内：在出血辉光区时开启 ignoresMouseEvents 100% 穿透给底层菜单栏和应用
     private func updateMousePassthrough() {
         guard let panel else { return }
@@ -496,21 +543,22 @@ final class IslandPanelController {
             if panel.ignoresMouseEvents { panel.ignoresMouseEvents = false }
             return
         }
-        if !store.shouldDisplayIsland || interactiveTopLeftRect.width <= 1 {
+        if !store.shouldDisplayIsland {
             if !panel.ignoresMouseEvents { panel.ignoresMouseEvents = true }
             if store.isHovering { store.isHovering = false }
             return
         }
 
         let mouseScreen = NSEvent.mouseLocation
-        let pFrame = panel.frame
+        let pFrame = targetPanelFrame.width > 1 ? targetPanelFrame : panel.frame
+        let hitLocal = effectiveInteractiveTopLeftRect()
         // 将 SwiftUI 顶对齐坐标 (0,0 在左上) 换算为 AppKit 屏幕坐标 (0,0 在左下)
         let screenHitRect = NSRect(
-            x: pFrame.minX + interactiveTopLeftRect.minX,
-            y: pFrame.maxY - interactiveTopLeftRect.maxY,
-            width: interactiveTopLeftRect.width,
-            height: interactiveTopLeftRect.height
-        ).insetBy(dx: -2, dy: -2)
+            x: pFrame.minX + hitLocal.minX,
+            y: pFrame.maxY - hitLocal.maxY,
+            width: hitLocal.width,
+            height: hitLocal.height
+        ).insetBy(dx: -4, dy: -4)
 
         let inside = screenHitRect.contains(mouseScreen)
         let shouldIgnore = !inside
@@ -524,12 +572,41 @@ final class IslandPanelController {
 
     private func installMonitors() {
         globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(
-            matching: [.mouseMoved, .leftMouseDragged]
+            matching: [.mouseMoved, .leftMouseDragged, .leftMouseDown, .rightMouseDown]
         ) { [weak self] _ in
             Task { @MainActor in
                 self?.updateMousePassthrough()
             }
         }
+
+        // 兜底苹果「通用控制 (Universal Control)」跨机注入虚拟光标时偶发吞掉全局 mouseMoved 事件的问题：
+        // 仅在岛可见且鼠标屏幕坐标实际发生变化时刷新穿透状态，静止时零布局开销
+        let pollTimer = Timer(timeInterval: 0.08, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.store.shouldDisplayIsland, !self.isDraggingActive else { return }
+                let cur = NSEvent.mouseLocation
+                if abs(cur.x - self.lastPolledMouseScreen.x) > 0.5 || abs(cur.y - self.lastPolledMouseScreen.y) > 0.5 {
+                    self.lastPolledMouseScreen = cur
+                    self.updateMousePassthrough()
+                } else if let panel = self.panel {
+                    // 即使鼠标静止停在刚飞过来的灵动岛落点正上方，也确保穿透开关与真实命中状态一致
+                    let pFrame = self.targetPanelFrame.width > 1 ? self.targetPanelFrame : panel.frame
+                    let hitLocal = self.effectiveInteractiveTopLeftRect()
+                    let screenHitRect = NSRect(
+                        x: pFrame.minX + hitLocal.minX,
+                        y: pFrame.maxY - hitLocal.maxY,
+                        width: hitLocal.width,
+                        height: hitLocal.height
+                    ).insetBy(dx: -4, dy: -4)
+                    let shouldIgnore = !screenHitRect.contains(cur)
+                    if panel.ignoresMouseEvents != shouldIgnore {
+                        panel.ignoresMouseEvents = shouldIgnore
+                    }
+                }
+            }
+        }
+        RunLoop.main.add(pollTimer, forMode: .common)
+        cursorPollTimer = pollTimer
 
         localMouseMonitor = NSEvent.addLocalMonitorForEvents(
             matching: [.mouseMoved, .leftMouseDown, .leftMouseDragged, .leftMouseUp]
