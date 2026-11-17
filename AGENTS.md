@@ -4,9 +4,10 @@
 
 ## 1. 项目概览
 
-- 本仓库是一个前后端同仓项目：
+- 本仓库是一个多端同仓项目：
   - 后端：Go + Hertz + GORM，代码主要在仓库根目录的 `cmd/`、`internal/`、`pkg/`
   - 前端：Next.js App Router + TypeScript + Tailwind CSS，代码在 `web/`
+  - 桌面端伴侣：macOS 原生系统灵动岛（Swift 6 + AppKit `NSPanel` + SwiftUI，纯 SwiftPM 工程），代码在 `macos-island/`
 - 前端包管理器使用 `pnpm`，且相关操作在 `web/` 目录下进行
 - 文档与大量注释以中文为主；已有代码中的标识符、错误码、接口字段为英文
 
@@ -23,6 +24,7 @@
 - 前端 API：`web/src/api/`
 - 前端页面与组件：`web/src/app/`、`web/src/components/`
 - 国际化：`web/src/locales/`
+- macOS 原生灵动岛：`macos-island/Sources/NeoBlogIsland/`（桥接端 `web/src/components/common/desktop-island-bridge.tsx`）
 - 项目文档：[liteyuki 文档站](https://docs.liteyuki.org/s/ea43142f-26e9-471a-b226-04a02c039c69/doc/neo-blog-uFghniQJdb)（部署、配置、功能说明、开发约定都在这里）
 - 设计规格：`docs/music-player-spec.md`（音乐播放器，代码注释按章节号引用）、`docs/prototypes/`（交互原型）
 
@@ -213,6 +215,18 @@ pnpm dlx shadcn@latest add <comp>
 
 风格相近的页面和组件，尽量复用相同或相似的 Tailwind 类名组合。
 
+### macOS 原生灵动岛（`macos-island/`）
+
+改动 `macos-island/` 或网页音乐灵动岛时，优先激活 `swiftui-expert-skill` 与 `macos-patterns` 技能，并严格遵守以下实战铁律：
+
+- **双端 1:1 同步维护**：网页灵动岛（`web/src/components/layout/topbar-island/`、`mini-player.tsx`）与 macOS 原生灵动岛（`macos-island/Sources/NeoBlogIsland/`）保持功能、排版与动效对齐；跨端 WebSocket 协议（`desktop-island-bridge.tsx` ↔ `IslandModels.swift`）所有时长与进度字段统一使用毫秒（`_ms` 后缀）
+- **Swift 6 严格并发模式（`.swiftLanguageMode(.v6)`）**：新增类型、AppKit 回调与异步任务必须满足 `@MainActor` 与 `Sendable` 隔离检查；`NSViewRepresentable` 资源释放走主线程隔离的 `dismantleNSView` / `viewDidMoveToWindow`，不要在 `nonisolated deinit` 中访问非 `Sendable` 属性
+- **裁切与点击命中防穿透（必查）**：SwiftUI 的 `.clipped()` **只裁剪视觉像素、不裁剪点击命中区域**（不同于 CSS `overflow: hidden`）。凡内部包含 `.offset` 溢出子视图的可裁剪舞台，`.frame(...).clipped()` 后**必须紧跟 `.contentShape(Rectangle())`**，并对滚出可视区的缓冲行设置 `.allowsHitTesting(false)`，严防点击空白缝隙穿透到底层隐藏条目
+- **深色外观双层锁定**：灵动岛恒为深色背景，AppKit `NSPanel` 必须显式指定 `NSAppearance(named: .darkAqua)`，且 SwiftUI 根视图指定 `.environment(\.colorScheme, .dark)`；正文与 `TextField(prompt:)` 显式使用 `Color.white` 透明度，避免浅色系统主题下输入框占位符/文字发黑或滚动条泛白
+- **无头悬浮窗键盘焦点与输入法**：面板平时保持非激活不抢焦点（`allowsKeyInput = false`）；涉及文本输入（如歌单搜索）时通过 `store.requestKeyFocus()` 按需开启 `canBecomeKey` 并激活窗口以支持中/日文输入法候选条（外部点击收起监听需豁免 `NSTextView.hasMarkedText()` 组字态），关闭时调用 `store.releaseKeyFocus()` 归还焦点；保持隐藏的标准 `Edit` 菜单响应链以支持 `⌘A / ⌘C / ⌘V / ⌘X / ⌘Z`
+- **无约束尺寸探针与图标本地化避坑**：跑马灯等需要 `.fixedSize(horizontal: true)` 测量自然宽度的节点必须隔离在 `.background` / `.overlay` 中，严禁直接放入主布局流撑大父级 `HStack` / `VStack`；避免使用在中文 macOS 下会被本地化替换成汉字的字符类 SF Symbol（如 `textformat` 会变成「格式」），优先使用自绘矢量图标
+- **视图失效边界与流畅动画**：`ForEach` 保持单根节点（unary view）与稳定基本类型 ID，列表行只传纯值参数以隔绝 60Hz 时钟重绘；平滑字号缩放统一使用 `.scaleEffect`（不要动态修改 `.font(.system(size:))` 导致离散跳变）；列表缩略图结合 `@Environment(\.displayScale)` 走后台 `ImageIO` 降采样与 `NSCache` 缓存
+
 ## 5. 现有实现中的关键约定
 
 - 前端使用 `next-intl` 做国际化
@@ -255,6 +269,16 @@ pnpm lint
 pnpm lint:fix
 ```
 
+### macOS 灵动岛目录 `macos-island/`
+
+```bash
+# 运行单元测试（Swift 6 严格并发模式）
+cd macos-island && swift test
+
+# 构建本地无头 .app 应用包（追加 --universal --package 可生成双架构通用包与 DMG/ZIP）
+./macos-island/scripts/build-app.sh --release
+```
+
 ## 8. 验证要求
 
 按改动范围选择最小但足够的验证：
@@ -264,7 +288,8 @@ pnpm lint:fix
 - 数据库迁移改动：除 SQLite 外，尽量再在 Postgres 上跑 `go test ./internal/repo/`（设置 `NEO_TEST_POSTGRES_DSN`，key=value 格式；未设置时 Postgres 用例自动跳过）
 - 前端代码改动：至少运行 `cd web && pnpm lint`
 - 前端路由、构建、配置类改动：补充运行 `cd web && pnpm build`
-- 前后端接口联动改动：检查 DTO、前端 model、API 封装、页面使用是否一致
+- macOS 灵动岛改动：至少运行 `cd macos-island && swift test`，涉及 UI / 打包改动补充运行 `./macos-island/scripts/build-app.sh --release`
+- 前后端 / 桌面桥接接口联动改动：检查 DTO、前端 model、桥接载荷与 Swift model、页面使用是否一致
 
 如果当前环境无法完整执行验证，请在结果说明里明确写出“已执行”和“未执行”的部分。
 
