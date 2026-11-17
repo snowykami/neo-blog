@@ -256,6 +256,12 @@ const INTERLUDE_HEIGHT_COMPACT_PX = 28
 // 紧凑模式下焦点条目的对齐位置与模糊系数：歌词区很矮，焦点放在中间附近，模糊减半以免远处的行完全糊掉
 const COMPACT_ALIGN_POSITION = 0.4
 const COMPACT_BLUR_FACTOR = 0.5
+// 紧凑模式下多行同时高亮时的折中对齐参数（与 macOS StageSpringEngine 严格 1:1 对齐）：
+// 单行时锚定在 0.40；两行及以上同时开唱时，向活跃行组几何中心折中 0.72，并将视口基准温和下移至 0.47（上下遮罩安全区中心），同时保护首行顶部不越过 0.12 安全线
+const COMPACT_MULTI_SYNC_TARGET = 0.47
+const COMPACT_MULTI_GROUP_BLEND = 0.72
+const COMPACT_MULTI_SPAN_REF_RATIO = 0.45
+const COMPACT_MIN_TOP_SAFE_RATIO = 0.12
 // 聚光灯（点题句，可以有多句、每次出现都演出，见 stage-effects.ts 的 spotlightAt）：唱到的这一句移到歌词区垂直中央、放大（不超出右侧，见 spotlightFit），
 // 暖光由舞台层（MusicStageEffects）在身后打出；其余行向两侧让开、变淡（不透明度降到 SPOTLIGHT_OTHERS_ALPHA）、略微变虚。紧凑模式放大与让开都更小。
 // 点题句通常也带着强调短语，整行放大后字的辉光会连成一片显得发虚，因此聚光灯亮起时收敛这一句的字词特效：
@@ -1787,22 +1793,58 @@ export class LyricPlayer {
 
     const { heights, tops, total } = this.computeTops()
 
-    // 自动对齐：焦点条目的中心对齐到固定位置；间奏按展开后的高度计算，避免展开过程中目标漂移
+    // 自动对齐：单行时焦点条目中心对齐到固定位置；紧凑小窗模式下若存在多行同时演唱（对唱/和声/叠句），向活跃行组中心平滑折中并做顶部防裁切保护
     const focus = this.state.focus
     const focusHeight = this.views[focus]?.item.kind === 'interlude' ? this.interludeHeight : heights[focus] ?? 0
-    const autoScroll = (tops[focus] ?? 0) + focusHeight / 2 - this.containerHeight * this.alignPosition
+    const focusTop = tops[focus] ?? 0
+    const focusCenter = focusTop + focusHeight / 2
+    const singleScroll = focusCenter - this.containerHeight * this.alignPosition
+    let effectiveAlignRatio = this.alignPosition
+    let autoScroll = singleScroll
+
+    if (this.options.compact && !this.options.strip && this.state.interlude == null && this.views[focus]?.item.kind === 'line' && this.containerHeight > 0) {
+      let groupTop = focusTop
+      let groupBottom = focusTop + focusHeight
+      let firstIdx = focus
+      const lo = Math.max(0, focus - 4)
+      const hi = Math.min(this.views.length - 1, focus + 4)
+      for (let i = lo; i <= hi; i++) {
+        if (i !== focus && (!this.isLineRenderActive(i) || heights[i] <= 1))
+          continue
+        if (tops[i] < groupTop) {
+          groupTop = tops[i]
+          firstIdx = i
+        }
+        if (tops[i] + heights[i] > groupBottom)
+          groupBottom = tops[i] + heights[i]
+      }
+      const extraSpan = Math.max(0, (groupBottom - groupTop) - focusHeight)
+      if (extraSpan > 0.5) {
+        const extraRatio = Math.min(1, extraSpan / (this.containerHeight * COMPACT_MULTI_SPAN_REF_RATIO))
+        effectiveAlignRatio = this.alignPosition + (COMPACT_MULTI_SYNC_TARGET - this.alignPosition) * extraRatio
+        const groupCenter = (groupTop + groupBottom) * 0.5
+        const anchorDocY = focusCenter + (groupCenter - focusCenter) * COMPACT_MULTI_GROUP_BLEND
+        const rawScroll = anchorDocY - this.containerHeight * effectiveAlignRatio
+        const firstView = this.views[firstIdx]
+        const firstPill = (firstView?.pillHeight ?? 0) * (firstView?.pillExpand?.position ?? 0)
+        const firstVisualTop = (tops[firstIdx] ?? focusTop) - firstPill
+        const maxAllowedScroll = Math.max(singleScroll, firstVisualTop - this.containerHeight * COMPACT_MIN_TOP_SAFE_RATIO)
+        autoScroll = Math.min(rawScroll, maxAllowedScroll)
+      }
+    }
+
     const scroll = this.updateManual(dt, now, autoScroll, total) ?? autoScroll
     const dragging = this.manual?.touching ?? false
 
     // 聚光灯：整体平移使点题句移到垂直中央，其余行再向两侧让开；
-    // 采用相对视口对齐比例的固定偏移 (0.5 - alignPosition) * H * spot，避免焦点切到下一句瞬间因 scroll 跳变反向把全舞台往下拽
+    // 采用相对视口对齐比例的固定偏移 (0.5 - effectiveAlignRatio) * H * spot，避免焦点切到下一句瞬间因 scroll 跳变反向把全舞台往下拽
     const spot = this.spot
     const spotView = spot > 0 ? this.spotView : -1
     let spotShift = 0
     let spotSpread = 0
     let spotScale = 1
     if (spotView >= 0) {
-      spotShift = (0.5 - this.alignPosition) * this.containerHeight * spot
+      spotShift = (0.5 - effectiveAlignRatio) * this.containerHeight * spot
       spotSpread = (this.options.compact ? SPOTLIGHT_SPREAD_COMPACT_EM : SPOTLIGHT_SPREAD_EM) * this.fontSize * spot
       this.spotScale ??= spotlightFit(this.views[spotView].el, this.options.compact ? SPOTLIGHT_SCALE_COMPACT : SPOTLIGHT_SCALE)
       spotScale = this.spotScale

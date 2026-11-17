@@ -376,6 +376,73 @@ struct BridgeAndEngineTests {
         }
         #expect(maxY <= startY + 0.05)
         #expect(finalY < startY - 12.0)
+
+        // 验证小窗多行同时演唱时水平同步线折中：双行同唱比单行独唱温和上移，且三行高跨度同唱首行不越过 12% 顶部安全线
+        func decodeTestLine(start: Int, end: Int, text: String, translation: String) throws -> LyricLinePayload {
+            let json = #"{"start":\#(start),"end":\#(end),"translation":"\#(translation)","words":[{"text":"\#(text)","start":\#(start),"end":\#(end)}]}"#
+            return try JSONDecoder().decode(LyricLinePayload.self, from: Data(json.utf8))
+        }
+        let multiLines: [LyricLinePayload] = [
+            try decodeTestLine(start: 0, end: 2000, text: "独唱转双声部首句", translation: "首句翻译"),
+            try decodeTestLine(start: 1000, end: 2000, text: "第二声部加入同唱", translation: "次句翻译"),
+            try decodeTestLine(start: 2200, end: 3200, text: "三声部同唱甲", translation: "甲译"),
+            try decodeTestLine(start: 2200, end: 3200, text: "三声部同唱乙", translation: "乙译"),
+            try decodeTestLine(start: 2200, end: 3200, text: "三声部同唱丙", translation: "丙译"),
+        ]
+        let multiEntries: [StageTimelineEntry] = multiLines.enumerated().map { idx, l in
+            .line(IndexedLyricLine(id: "multi-\(idx)", index: idx, line: l, singerDots: []))
+        }
+        let multiEngine = StageSpringEngine()
+        var mClock = Date(timeIntervalSinceReferenceDate: 5000.0)
+        var soloPlaced = multiEngine.stepLayout(
+            entries: multiEntries, lines: multiLines, stageHeight: 200,
+            showRomaji: false, showTranslation: true,
+            date: mClock, nowMs: 500,
+            tState: (active: [0], focus: 0, interlude: nil),
+            spot: nil, motion: "flow"
+        )
+        for _ in 0..<45 {
+            mClock = mClock.addingTimeInterval(1.0 / 60.0)
+            soloPlaced = multiEngine.stepLayout(
+                entries: multiEntries, lines: multiLines, stageHeight: 200,
+                showRomaji: false, showTranslation: true,
+                date: mClock, nowMs: 600,
+                tState: (active: [0], focus: 0, interlude: nil),
+                spot: nil, motion: "flow"
+            )
+        }
+        let soloLine0Y = try #require(soloPlaced.first(where: { $0.entryIndex == 0 })?.y)
+
+        var duoPlaced = soloPlaced
+        for _ in 0..<55 {
+            mClock = mClock.addingTimeInterval(1.0 / 60.0)
+            duoPlaced = multiEngine.stepLayout(
+                entries: multiEntries, lines: multiLines, stageHeight: 200,
+                showRomaji: false, showTranslation: true,
+                date: mClock, nowMs: 1400,
+                tState: (active: [0, 1], focus: 0, interlude: nil),
+                spot: nil, motion: "flow"
+            )
+        }
+        let duoLine0Y = try #require(duoPlaced.first(where: { $0.entryIndex == 0 })?.y)
+        let duoLine1Y = try #require(duoPlaced.first(where: { $0.entryIndex == 1 })?.y)
+        #expect(duoLine0Y < soloLine0Y - 8.0)
+        #expect(duoLine0Y >= 23.5)
+        #expect(duoLine1Y < 130.0)
+
+        var trioPlaced = duoPlaced
+        for _ in 0..<60 {
+            mClock = mClock.addingTimeInterval(1.0 / 60.0)
+            trioPlaced = multiEngine.stepLayout(
+                entries: multiEntries, lines: multiLines, stageHeight: 200,
+                showRomaji: false, showTranslation: true,
+                date: mClock, nowMs: 2600,
+                tState: (active: [2, 3, 4], focus: 2, interlude: nil),
+                spot: nil, motion: "flow"
+            )
+        }
+        let trioFirstY = try #require(trioPlaced.first(where: { $0.entryIndex == 2 })?.y)
+        #expect(trioFirstY >= 23.5)
     }
 
     @Test("跨 Mac 点对点互联：首次配对授权、全量歌词快照与时钟同步、屏幕边缘甩屏传岛及反向控播")

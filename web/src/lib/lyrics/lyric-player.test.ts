@@ -49,7 +49,7 @@ describe('振假名渲染与 HDR 跨行平滑退场', () => {
     vi.restoreAllMocks()
   })
 
-  function mountPlayer(lyrics: ResolvedLyrics, opts?: { strip?: boolean, hdr?: boolean }) {
+  function mountPlayer(lyrics: ResolvedLyrics, opts?: { strip?: boolean, compact?: boolean, hdr?: boolean, height?: number, itemHeight?: number }) {
     let currentSec = 0
     let rafCb: FrameRequestCallback | null = null
     let nowMs = 1000
@@ -64,13 +64,14 @@ describe('振假名渲染与 HDR 跨行平滑退场', () => {
 
     const container = document.createElement('div')
     Object.defineProperty(container, 'clientWidth', { value: 480, configurable: true })
-    Object.defineProperty(container, 'clientHeight', { value: 640, configurable: true })
+    Object.defineProperty(container, 'clientHeight', { value: opts?.height ?? 640, configurable: true })
     document.body.append(container)
 
     const player = new LyricPlayer(container, {
       getTime: () => currentSec,
       isPlaying: () => true,
       onSeek: () => {},
+      compact: opts?.compact,
       strip: opts?.strip,
     })
     player.setDisplay({
@@ -81,6 +82,11 @@ describe('振假名渲染与 HDR 跨行平滑退场', () => {
       hdr: opts?.hdr ?? false,
     })
     player.setLyrics(lyrics)
+    if (opts?.itemHeight != null) {
+      container.querySelectorAll<HTMLElement>('.lyric-line').forEach((el) => {
+        Object.defineProperty(el, 'offsetHeight', { value: opts.itemHeight, configurable: true })
+      })
+    }
 
     const step = (sec: number, deltaMs: number) => {
       currentSec = sec
@@ -976,6 +982,53 @@ describe('振假名渲染与 HDR 跨行平滑退场', () => {
     const prevNode = lineEls[1]
     ctx.player.setLyrics({ ...lyrics, motion: 'gentle' })
     expect(ctx.container.querySelectorAll('.lyric-line')[1]).toBe(prevNode)
+    ctx.cleanup()
+  })
+
+  it('小窗紧凑模式（compact）：多行同时演唱时折中水平同步线，拉高下方合唱句且首行顶部不越过 12% 安全线', () => {
+    const parseTranslateY = (el: HTMLElement) => {
+      const m = /translate3d\([^,]+,\s*([-\d.]+)px/.exec(el.style.transform)
+      return m ? Number.parseFloat(m[1]) : Number.NaN
+    }
+
+    const duetLyrics: ResolvedLyrics = {
+      source: 'ttml-amll',
+      wordTimed: true,
+      instrumental: false,
+      lines: [
+        // 0~1s 单行独唱；1~2s 第 0 行与第 1 行双行重叠同唱；2~3s 三行高跨度同唱验证顶部防裁切
+        { words: [{ text: '独唱转合唱首句', start: 0, end: 2000 }], start: 0, end: 2000, isDuet: false, isBackground: false },
+        { words: [{ text: '第二声部加入同唱', start: 1000, end: 2000 }], start: 1000, end: 2000, isDuet: true, isBackground: false, align: 'right' },
+        { words: [{ text: '高跨度三声部甲', start: 2100, end: 3000 }], start: 2100, end: 3000, isDuet: false, isBackground: false },
+        { words: [{ text: '高跨度三声部乙', start: 2100, end: 3000 }], start: 2100, end: 3000, isDuet: true, isBackground: false, align: 'right' },
+        { words: [{ text: '高跨度三声部丙', start: 2100, end: 3000 }], start: 2100, end: 3000, isDuet: false, isBackground: false },
+      ],
+    }
+
+    const ctx = mountPlayer(duetLyrics, { compact: true, height: 200, itemHeight: 54 })
+    const lineEls = Array.from(ctx.container.querySelectorAll<HTMLElement>('.lyric-line'))
+
+    // 0.5s：仅第 0 行单行演唱，中心锚定在 200 * 0.40 = 80px -> top = 80 - 27 = 53px
+    ctx.step(0.5, 16)
+    for (let i = 0; i < 45; i++)
+      ctx.step(0.5, 16)
+    const soloTopY = parseTranslateY(lineEls[0])
+    expect(soloTopY).toBeCloseTo(53, 0)
+
+    // 1.4s：第 1 行加入形成双行同唱 -> 同步线向两行中心折中，第 0 行温和上移让位，第 1 行完整落入小窗中下部可视区
+    for (let i = 0; i < 55; i++)
+      ctx.step(1.4, 16)
+    const duoLine0Y = parseTranslateY(lineEls[0])
+    const duoLine1Y = parseTranslateY(lineEls[1])
+    expect(duoLine0Y).toBeLessThan(soloTopY - 8)
+    expect(duoLine0Y).toBeGreaterThanOrEqual(24 - 0.5)
+    expect(duoLine1Y + 54).toBeLessThan(165)
+
+    // 2.5s：三行同时演唱（总跨度 162px）-> 顶部防裁切守卫保证首行顶部不低于 200 * 0.12 = 24px
+    for (let i = 0; i < 60; i++)
+      ctx.step(2.5, 16)
+    const trioFirstY = parseTranslateY(lineEls[2])
+    expect(trioFirstY).toBeGreaterThanOrEqual(24 - 0.5)
     ctx.cleanup()
   })
 })

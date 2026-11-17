@@ -68,6 +68,10 @@ final class StageSpringEngine {
     private static let pillSlotHeightPx: Double = 18.0
     private static let itemGapPx: Double = 6.0
     private static let mainFontSizePx: Double = 16.5
+    private static let compactMultiSyncTarget: Double = 0.47
+    private static let compactMultiGroupBlend: Double = 0.72
+    private static let compactMultiSpanRefRatio: Double = 0.45
+    private static let compactMinTopSafeRatio: Double = 0.12
 
     /// 仅在动画活跃/静止或手动滚动生灭边界翻转，避免静止暂停时 60Hz 唤醒
     private(set) var isAnimating: Bool = false
@@ -378,14 +382,53 @@ final class StageSpringEngine {
         }
         lastComputedTops = tops
 
-        // 4. 自动滚动锚点与手动滚轮暂驻切换
+        // 4. 自动滚动锚点与多行同唱水平同步线折中（严格 1:1 对齐 web lyric-player.ts 紧凑小窗算法）
         let focusNaturalH: Double = {
             if case .interlude = entries[focusEntryIdx] {
                 return Self.interludeHeightPx
             }
             return heights[focusEntryIdx]
         }()
-        let autoScroll = tops[focusEntryIdx] + focusNaturalH * 0.5 - stageHeight * LyricSpecs.compactAlignPosition
+        let focusTop = tops[focusEntryIdx]
+        let focusCenter = focusTop + focusNaturalH * 0.5
+        let singleScroll = focusCenter - stageHeight * LyricSpecs.compactAlignPosition
+        var effectiveAlignRatio = LyricSpecs.compactAlignPosition
+        var autoScroll = singleScroll
+
+        if tState.interlude == nil, case .line = entries[focusEntryIdx], stageHeight > 0 {
+            var groupTop = focusTop
+            var groupBottom = focusTop + focusNaturalH
+            var firstIdx = focusEntryIdx
+            let lo = max(0, focusEntryIdx - 4)
+            let hi = min(entries.count - 1, focusEntryIdx + 4)
+            for i in lo...hi {
+                if i != focusEntryIdx {
+                    guard case .line = entries[i], lineRenderActiveFlags[i], heights[i] > 1.0 else {
+                        continue
+                    }
+                }
+                if tops[i] < groupTop {
+                    groupTop = tops[i]
+                    firstIdx = i
+                }
+                if tops[i] + heights[i] > groupBottom {
+                    groupBottom = tops[i] + heights[i]
+                }
+            }
+            let extraSpan = max(0.0, (groupBottom - groupTop) - focusNaturalH)
+            if extraSpan > 0.5 {
+                let extraRatio = min(1.0, extraSpan / (stageHeight * Self.compactMultiSpanRefRatio))
+                effectiveAlignRatio = LyricSpecs.compactAlignPosition
+                    + (Self.compactMultiSyncTarget - LyricSpecs.compactAlignPosition) * extraRatio
+                let groupCenter = (groupTop + groupBottom) * 0.5
+                let anchorDocY = focusCenter + (groupCenter - focusCenter) * Self.compactMultiGroupBlend
+                let rawScroll = anchorDocY - stageHeight * effectiveAlignRatio
+                let firstPill = Self.pillSlotHeightPx * (entryNodes[firstIdx].pillExpand?.position ?? 0)
+                let firstVisualTop = tops[firstIdx] - firstPill
+                let maxAllowedScroll = max(singleScroll, firstVisualTop - stageHeight * Self.compactMinTopSafeRatio)
+                autoScroll = min(rawScroll, maxAllowedScroll)
+            }
+        }
 
         var returnFromManual = false
         if manualOffset != nil && date >= manualHoldUntil {
@@ -413,7 +456,7 @@ final class StageSpringEngine {
         var spotSpread = 0.0
         let spotScale = 1.10
         if spotEntryIdx != nil {
-            spotShift = (0.5 - LyricSpecs.compactAlignPosition) * stageHeight * spotLevel
+            spotShift = (0.5 - effectiveAlignRatio) * stageHeight * spotLevel
             spotSpread = 0.35 * Self.mainFontSizePx * spotLevel
         }
 
