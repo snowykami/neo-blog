@@ -106,13 +106,20 @@ struct AlbumCoverView: View {
     let size: CGFloat
     let cornerRadius: CGFloat
 
+    @State private var accumulatedSeconds: TimeInterval = 0
+    @State private var spinAnchorDate: Date? = nil
+
     var body: some View {
         let shouldRotateDisc = cornerRadius >= size * 0.45
         if shouldRotateDisc {
             TimelineView(.animation(paused: !isSpinning)) { context in
-                let angle = isSpinning
-                    ? (context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 14.0) / 14.0) * 360.0
-                    : 0.0
+                let activeDelta: TimeInterval = {
+                    guard isSpinning else { return 0 }
+                    let anchor = spinAnchorDate ?? context.date
+                    return max(0, context.date.timeIntervalSince(anchor))
+                }()
+                let totalElapsed = accumulatedSeconds + activeDelta
+                let angle = (totalElapsed.truncatingRemainder(dividingBy: 14.0) / 14.0) * 360.0
                 CoverArtworkLayer(
                     albumPicURL: albumPicURL,
                     accent: accent,
@@ -120,6 +127,24 @@ struct AlbumCoverView: View {
                     cornerRadius: cornerRadius
                 )
                 .rotationEffect(.degrees(angle))
+            }
+            .onAppear {
+                spinAnchorDate = isSpinning ? Date() : nil
+            }
+            .onChange(of: isSpinning) { _, spinning in
+                let now = Date()
+                if spinning {
+                    spinAnchorDate = now
+                } else {
+                    if let anchor = spinAnchorDate {
+                        accumulatedSeconds += max(0, now.timeIntervalSince(anchor))
+                    }
+                    spinAnchorDate = nil
+                }
+            }
+            .onChange(of: albumPicURL) { _, _ in
+                accumulatedSeconds = 0
+                spinAnchorDate = isSpinning ? Date() : nil
             }
         } else {
             CoverArtworkLayer(
@@ -283,18 +308,24 @@ private struct ContainedStageEffectsOverlay: View {
                 let beat = store.rhythm.reliable ? store.rhythm.backgroundLevel(timeMs: ms) : 0
                 let pulseAlpha = max(signals.pulse * 0.22, max(signals.burst * 0.45, beat * 0.12))
                 let tintAlpha = signals.tintStrength * 0.38
+                let smoothedAmbience = engine.smoothAmbience(
+                    date: context.date,
+                    tintHex: signals.tintColorHex,
+                    tintAlpha: tintAlpha,
+                    vocalShiftRatio: signals.vocalShiftRatio
+                )
                 let w = geo.size.width
                 let h = geo.size.height
 
                 ZStack {
-                    if tintAlpha > 0.004, let tintHex = signals.tintColorHex {
+                    if let tintColor = smoothedAmbience.color {
                         RadialGradient(
-                            colors: [Color(cssColor: tintHex).opacity(tintAlpha), .clear],
+                            colors: [tintColor, .clear],
                             center: UnitPoint(x: 0.65, y: 0.45),
                             startRadius: 0,
                             endRadius: max(w, h) * 0.72
                         )
-                        .offset(x: CGFloat(signals.vocalShiftRatio) * w)
+                        .offset(x: CGFloat(smoothedAmbience.shiftRatio) * w)
                         .blendMode(.screen)
                     }
 
@@ -866,6 +897,7 @@ private struct FeatheredWordWipeModifier: ViewModifier {
     let bleedEm: CGFloat
     let peakGain: Double
     let hdrEnabled: Bool
+    var activeBlend: Double = 1.0
     let nowMs: Double
 
     func body(content: Content) -> some View {
@@ -875,19 +907,27 @@ private struct FeatheredWordWipeModifier: ViewModifier {
             ? (shiftedMs >= wordStart ? 1.0 : 0.0)
             : min(1.0, max(0.0, (shiftedMs - wordStart) / dur))
 
+        let inactiveDim = Color.hdrMaskDimAlpha(baseDimAlpha: LyricSpecs.inactiveAlpha, gain: 1.0, hdrEnabled: hdrEnabled)
         let rightDimAlpha = Color.hdrMaskDimAlpha(
             baseDimAlpha: LyricSpecs.inactiveAlpha,
             gain: progress > 0 ? peakGain : 1.0,
             hdrEnabled: hdrEnabled
         )
+        let sungExitAlpha = inactiveDim + (1.0 - inactiveDim) * activeBlend
         let bleed = fontSize * bleedEm
 
         if progress <= 0 {
             content
-                .opacity(Color.hdrMaskDimAlpha(baseDimAlpha: LyricSpecs.inactiveAlpha, gain: 1.0, hdrEnabled: hdrEnabled))
+                .opacity(inactiveDim)
         } else if progress >= 0.999 {
-            content
+            if activeBlend >= 0.999 {
+                content
+            } else {
+                content
+                    .opacity(sungExitAlpha)
+            }
         } else {
+            let leftStopAlpha = activeBlend >= 0.999 ? 1.0 : sungExitAlpha
             content
                 .padding(bleed)
                 .mask {
@@ -900,8 +940,8 @@ private struct FeatheredWordWipeModifier: ViewModifier {
                         let rightStop = max(leftStop + 0.001, min(1, x / totalW))
                         LinearGradient(
                             stops: [
-                                .init(color: .black, location: 0),
-                                .init(color: .black, location: leftStop),
+                                .init(color: .black.opacity(leftStopAlpha), location: 0),
+                                .init(color: .black.opacity(leftStopAlpha), location: leftStop),
                                 .init(color: .black.opacity(rightDimAlpha), location: rightStop),
                                 .init(color: .black.opacity(rightDimAlpha), location: 1)
                             ],
@@ -915,22 +955,32 @@ private struct FeatheredWordWipeModifier: ViewModifier {
     }
 }
 
-// MARK: - 展开态非激活行静态排版视图（0Hz 无 TimelineView，复用同一套 WrappingWordFlowLayout 保证激活切换时振假名与逐字音译 0px 跳变）
+// MARK: - 展开态非激活行静态排版视图（0Hz 无 TimelineView，复用同一套 WrappingWordFlowLayout 与强调字形保证激活进出 0px 0 亮度差跳变）
 
 struct StaticStageLyricLineView: View {
     let line: LyricLinePayload
     let lineKeyPrefix: String
     let songFont: String?
     let wordSynced: Bool
+    var showEffects: Bool = true
     let showRomaji: Bool
+    var hdrEnabled: Bool = false
+    var isUserScrolling: Bool = false
     let fontSize: CGFloat
     let wrapAlignment: HorizontalAlignment
 
     var body: some View {
-        let baseAlpha = wordSynced ? LyricSpecs.inactiveAlpha : LyricSpecs.inactiveAlphaLineTimed
+        let rawBaseAlpha: Double = {
+            if isUserScrolling {
+                return wordSynced ? 0.55 : 0.45
+            }
+            return wordSynced ? LyricSpecs.inactiveAlpha : LyricSpecs.inactiveAlphaLineTimed
+        }()
+        let baseAlpha = rawBaseAlpha * (hdrEnabled ? 0.6 : 1.0)
         let defaultFont = LyricFontResolver.swiftUIFont(key: songFont, size: fontSize, bold: false)
         let hasAlignedRomaji = showRomaji && !line.romanizationWords.isEmpty
-        let needsUnitFlow = wordSynced && !line.words.isEmpty && (line.hasFurigana || hasAlignedRomaji)
+        let hasEmphasisStyle = showEffects && !line.emphasis.isEmpty
+        let needsUnitFlow = wordSynced && !line.words.isEmpty && (line.hasFurigana || hasAlignedRomaji || hasEmphasisStyle)
 
         if !needsUnitFlow {
             let textAlign: TextAlignment = wrapAlignment == .trailing ? .trailing : (wrapAlignment == .center ? .center : .leading)
@@ -946,8 +996,18 @@ struct StaticStageLyricLineView: View {
 
             WrappingWordFlowLayout(alignment: wrapAlignment, lineSpacing: 2, rubyGap: rubyFontSize * 0.25) {
                 ForEach(Array(line.words.enumerated()), id: \.offset) { wIdx, word in
-                    Text(word.text)
-                        .font(defaultFont)
+                    let matchedGroup = hasEmphasisStyle
+                        ? line.emphasis.first(where: { wIdx >= $0.from && wIdx < $0.to })
+                        : nil
+                    let wordBold = matchedGroup.map { $0.styles.contains("bold") || $0.factor > 0 } ?? false
+                    let wordItalic = matchedGroup?.styles.contains("italic") ?? false
+                    let wordFont = matchedGroup != nil
+                        ? LyricFontResolver.swiftUIFont(key: matchedGroup?.font ?? songFont, size: fontSize, bold: wordBold)
+                        : defaultFont
+                    let baseWordText = Text(word.text).font(wordFont)
+                    let styledWordText = wordItalic ? baseWordText.italic() : baseWordText
+
+                    styledWordText
                         .foregroundStyle(.white.opacity(baseAlpha))
                         .lyricWordSlotRole(.main(unitIndex: wIdx))
 
@@ -975,7 +1035,7 @@ struct StaticStageLyricLineView: View {
     }
 }
 
-// MARK: - 全特性逐字歌词行渲染器（7 套字体 + 9 种 AI 强调特效 + 上方振假名与下方逐音节音译同步擦除 & 强调联动 + 原生 EDR）
+// MARK: - 全特性逐字歌词行渲染器（7 套字体 + 9 种 AI 强调特效 + 上方振假名与下方逐音节音译同步擦除 & 强调联动 + 连续跨行退场与原生 EDR）
 
 struct LyricLineSweepView: View {
     let line: LyricLinePayload
@@ -994,22 +1054,28 @@ struct LyricLineSweepView: View {
     var allowsWrapping: Bool = false
     var wrapAlignment: HorizontalAlignment = .leading
     var spotlightLevel: Double = 0
-    var hdrSpotBoost: Bool = false
+    var activeBlend: Double = 1.0
 
     var body: some View {
         let defaultFont = LyricFontResolver.swiftUIFont(key: songFont, size: fontSize, bold: false)
+        let clampedSpot = min(1.0, max(0.0, spotlightLevel))
+        let clampedBlend = min(1.0, max(0.0, activeBlend))
 
         if !wordSynced || line.words.isEmpty {
-            let active = nowMs >= line.start && nowMs < line.end + 400
-            let gain = (hdrEnabled && active) ? (hdrSpotBoost ? 1.85 : 1.35) : 1.0
+            let inTimeWindow = nowMs >= line.start && nowMs < line.end + 400
+            let effBlend = allowsWrapping ? clampedBlend : (inTimeWindow ? 1.0 : 0.0)
+            let fullGain = 1.35 + (1.85 - 1.35) * clampedSpot
+            let gain = hdrEnabled ? (1.0 + (fullGain - 1.0) * effBlend) : 1.0
+            let inactiveAlpha = LyricSpecs.inactiveAlphaLineTimed * (hdrEnabled ? 0.6 : 1.0)
+            let lineOpacity = inactiveAlpha + (0.98 - inactiveAlpha) * effBlend
             let textAlign: TextAlignment = wrapAlignment == .trailing ? .trailing : (wrapAlignment == .center ? .center : .leading)
             Text(line.plainText)
                 .font(defaultFont)
-                .foregroundStyle(Color.edrCss("#ffffff", tint: 0, gain: gain, opacity: active ? 0.98 : LyricSpecs.inactiveAlphaLineTimed))
+                .foregroundStyle(Color.edrCss("#ffffff", tint: 0, gain: gain, opacity: lineOpacity))
                 .lineLimit(allowsWrapping ? 4 : 1)
                 .multilineTextAlignment(textAlign)
                 .fixedSize(horizontal: !allowsWrapping, vertical: false)
-                .allowedDynamicRange(hdrEnabled ? .high : .standard)
+                .allowedDynamicRange(hdrEnabled && effBlend > 0.005 ? .high : .standard)
         } else {
             let includeRuby = allowsWrapping
             let units = Self.buildWordUnits(
@@ -1033,8 +1099,8 @@ struct LyricLineSweepView: View {
                             fontSize: fontSize,
                             isBackground: isBackground,
                             hdrEnabled: hdrEnabled,
-                            hdrSpotBoost: hdrSpotBoost,
-                            spotlightLevel: spotlightLevel,
+                            spotlightLevel: clampedSpot,
+                            activeBlend: clampedBlend,
                             rhythm: rhythm,
                             seekAtMs: seekAtMs,
                             debrisEngine: debrisEngine,
@@ -1048,7 +1114,8 @@ struct LyricLineSweepView: View {
                                 prefix: unit.id,
                                 fontSize: furiFontSize,
                                 hdrEnabled: hdrEnabled,
-                                hdrSpotBoost: hdrSpotBoost,
+                                spotlightLevel: clampedSpot,
+                                activeBlend: clampedBlend,
                                 nowMs: nowMs
                             )
                             .lyricWordSlotRole(.furigana(unitIndex: unit.wordIndex))
@@ -1062,8 +1129,8 @@ struct LyricLineSweepView: View {
                                 fontSize: rubyFontSize,
                                 isBackground: isBackground,
                                 hdrEnabled: hdrEnabled,
-                                hdrSpotBoost: hdrSpotBoost,
-                                spotlightLevel: spotlightLevel,
+                                spotlightLevel: clampedSpot,
+                                activeBlend: clampedBlend,
                                 rhythm: rhythm,
                                 seekAtMs: seekAtMs,
                                 debrisEngine: debrisEngine,
@@ -1084,8 +1151,8 @@ struct LyricLineSweepView: View {
                             fontSize: fontSize,
                             isBackground: isBackground,
                             hdrEnabled: hdrEnabled,
-                            hdrSpotBoost: hdrSpotBoost,
-                            spotlightLevel: spotlightLevel,
+                            spotlightLevel: clampedSpot,
+                            activeBlend: 1.0,
                             rhythm: rhythm,
                             seekAtMs: seekAtMs,
                             debrisEngine: debrisEngine,
@@ -1290,7 +1357,8 @@ private struct FuriganaGroupSweepView: View {
     let prefix: String
     let fontSize: CGFloat
     let hdrEnabled: Bool
-    let hdrSpotBoost: Bool
+    let spotlightLevel: Double
+    let activeBlend: Double
     let nowMs: Double
 
     var body: some View {
@@ -1303,7 +1371,8 @@ private struct FuriganaGroupSweepView: View {
                     fontSize: fontSize,
                     isBackground: false,
                     hdrEnabled: hdrEnabled,
-                    hdrSpotBoost: hdrSpotBoost,
+                    spotlightLevel: spotlightLevel,
+                    activeBlend: activeBlend,
                     allowsFloat: false,
                     nowMs: nowMs
                 )
@@ -1322,8 +1391,8 @@ private struct RubyRomanGroupSweepView: View {
     let fontSize: CGFloat
     let isBackground: Bool
     let hdrEnabled: Bool
-    let hdrSpotBoost: Bool
     let spotlightLevel: Double
+    let activeBlend: Double
     let rhythm: RhythmEngineContext
     let seekAtMs: Double
     let debrisEngine: DebrisEngine
@@ -1342,7 +1411,8 @@ private struct RubyRomanGroupSweepView: View {
                             fontSize: fontSize,
                             isBackground: isBackground,
                             hdrEnabled: hdrEnabled,
-                            hdrSpotBoost: hdrSpotBoost,
+                            spotlightLevel: spotlightLevel,
+                            activeBlend: activeBlend,
                             allowsFloat: false,
                             nowMs: nowMs
                         )
@@ -1358,8 +1428,8 @@ private struct RubyRomanGroupSweepView: View {
                             fontSize: fontSize,
                             isBackground: isBackground,
                             hdrEnabled: hdrEnabled,
-                            hdrSpotBoost: hdrSpotBoost,
                             spotlightLevel: spotlightLevel,
+                            activeBlend: activeBlend,
                             allowsDebris: false,
                             rhythm: rhythm,
                             seekAtMs: seekAtMs,
@@ -1383,8 +1453,8 @@ private struct LyricWordUnitView: View {
     let fontSize: CGFloat
     let isBackground: Bool
     let hdrEnabled: Bool
-    let hdrSpotBoost: Bool
     let spotlightLevel: Double
+    let activeBlend: Double
     let rhythm: RhythmEngineContext
     let seekAtMs: Double
     let debrisEngine: DebrisEngine
@@ -1400,7 +1470,8 @@ private struct LyricWordUnitView: View {
                     fontSize: fontSize,
                     isBackground: isBackground,
                     hdrEnabled: hdrEnabled,
-                    hdrSpotBoost: hdrSpotBoost,
+                    spotlightLevel: spotlightLevel,
+                    activeBlend: activeBlend,
                     allowsFloat: true,
                     nowMs: nowMs
                 )
@@ -1417,8 +1488,8 @@ private struct LyricWordUnitView: View {
                     fontSize: fontSize,
                     isBackground: isBackground,
                     hdrEnabled: hdrEnabled,
-                    hdrSpotBoost: hdrSpotBoost,
                     spotlightLevel: spotlightLevel,
+                    activeBlend: activeBlend,
                     allowsDebris: true,
                     rhythm: rhythm,
                     seekAtMs: seekAtMs,
@@ -1436,7 +1507,8 @@ private struct PlainWordSpanView: View {
     let fontSize: CGFloat
     let isBackground: Bool
     let hdrEnabled: Bool
-    var hdrSpotBoost: Bool = false
+    var spotlightLevel: Double = 0
+    var activeBlend: Double = 1.0
     var allowsFloat: Bool = true
     let nowMs: Double
 
@@ -1446,9 +1518,13 @@ private struct PlainWordSpanView: View {
         let progress = word.end <= word.start
             ? (shiftedMs >= word.start ? 1.0 : 0.0)
             : min(1.0, max(0.0, (shiftedMs - word.start) / dur))
+        let liftBlend = min(1.0, max(0.0, activeBlend * 1.85))
         let floatPx = allowsFloat ? (LyricSpecs.wordFloatEm * Double(fontSize) * (isBackground ? 2.0 : 1.0)) : 0
-        let dy = (allowsFloat && progress > 0) ? CGFloat(-floatPx * CubicBezier.easeOut.eval(progress)) : 0
-        let peakGain = hdrEnabled ? (hdrSpotBoost ? 1.78 : 1.32) : 1.0
+        let dy = (allowsFloat && progress > 0 && liftBlend > 0)
+            ? CGFloat(-floatPx * CubicBezier.easeOut.eval(progress) * liftBlend)
+            : 0
+        let fullPeakGain = 1.32 + (1.78 - 1.32) * spotlightLevel
+        let peakGain = hdrEnabled ? (1.0 + (fullPeakGain - 1.0) * activeBlend) : 1.0
         let activeWhite = Color.edrCss("#ffffff", tint: 0, gain: progress > 0 ? peakGain : 1.0)
 
         Text(word.text)
@@ -1462,11 +1538,12 @@ private struct PlainWordSpanView: View {
                     bleedEm: 0.16,
                     peakGain: peakGain,
                     hdrEnabled: hdrEnabled,
+                    activeBlend: activeBlend,
                     nowMs: nowMs
                 )
             )
             .offset(y: dy)
-            .allowedDynamicRange(hdrEnabled && progress > 0 ? .high : .standard)
+            .allowedDynamicRange(hdrEnabled && progress > 0 && activeBlend > 0.005 ? .high : .standard)
     }
 }
 
@@ -1481,8 +1558,8 @@ private struct EmphasizedWordSpanView: View {
     let fontSize: CGFloat
     let isBackground: Bool
     let hdrEnabled: Bool
-    let hdrSpotBoost: Bool
     let spotlightLevel: Double
+    let activeBlend: Double
     let allowsDebris: Bool
     let rhythm: RhythmEngineContext
     let seekAtMs: Double
@@ -1524,7 +1601,10 @@ private struct EmphasizedWordSpanView: View {
         let isUnderlined = group.styles.contains("underline")
         let resolvedFont = LyricFontResolver.swiftUIFont(key: group.font ?? songFont, size: fontSize, bold: isBold)
         let shatterFlash = group.effect == "shatter" ? LyricWordEffects.shatterFlash(end: group.end, timeMs: nowMs) : 0
-        let wordPeakGain = hdrEnabled ? (hdrSpotBoost ? 1.88 : 1.55) : 1.0
+        let fullWordPeakGain = 1.55 + (1.88 - 1.55) * spotlightLevel
+        let wordPeakGain = hdrEnabled ? (1.0 + (fullWordPeakGain - 1.0) * activeBlend) : 1.0
+        let shiftedWordMs = nowMs + LyricSpecs.animationHeadstartMs
+        let wordWipeStarted = word.end <= word.start ? (shiftedWordMs >= word.start) : (shiftedWordMs > word.start)
         let needsDebrisGeometry = allowsDebris && (group.effect == "dissolve" || group.effect == "shatter") && f > 0
 
         HStack(spacing: 0) {
@@ -1553,8 +1633,9 @@ private struct EmphasizedWordSpanView: View {
                         isItalic: isItalic,
                         isUnderlined: isUnderlined,
                         hdrEnabled: hdrEnabled,
-                        hdrSpotBoost: hdrSpotBoost,
+                        wordWipeStarted: wordWipeStarted,
                         spotlightLevel: spotlightLevel,
+                        activeBlend: activeBlend,
                         rhythm: rhythm,
                         seekAtMs: seekAtMs,
                         debrisEngine: debrisEngine,
@@ -1582,8 +1663,9 @@ private struct EmphasizedWordSpanView: View {
                         isItalic: isItalic,
                         isUnderlined: isUnderlined,
                         hdrEnabled: hdrEnabled,
-                        hdrSpotBoost: hdrSpotBoost,
+                        wordWipeStarted: wordWipeStarted,
                         spotlightLevel: spotlightLevel,
+                        activeBlend: activeBlend,
                         rhythm: rhythm,
                         dissolveAmount: 0,
                         shatterCrack: 0,
@@ -1601,6 +1683,7 @@ private struct EmphasizedWordSpanView: View {
                 bleedEm: 0.34,
                 peakGain: wordPeakGain,
                 hdrEnabled: hdrEnabled,
+                activeBlend: activeBlend,
                 nowMs: nowMs
             )
         )
@@ -1637,8 +1720,9 @@ private struct DebrisEmphasisCharWrapper: View {
     let isItalic: Bool
     let isUnderlined: Bool
     let hdrEnabled: Bool
-    let hdrSpotBoost: Bool
+    let wordWipeStarted: Bool
     let spotlightLevel: Double
+    let activeBlend: Double
     let rhythm: RhythmEngineContext
     let seekAtMs: Double
     let debrisEngine: DebrisEngine
@@ -1681,8 +1765,9 @@ private struct DebrisEmphasisCharWrapper: View {
             isItalic: isItalic,
             isUnderlined: isUnderlined,
             hdrEnabled: hdrEnabled,
-            hdrSpotBoost: hdrSpotBoost,
+            wordWipeStarted: wordWipeStarted,
             spotlightLevel: spotlightLevel,
+            activeBlend: activeBlend,
             rhythm: rhythm,
             dissolveAmount: dissolveInfo.amount,
             shatterCrack: shatterInfo.crack,
@@ -1740,13 +1825,18 @@ private struct EmphasisCharGlyphView: View {
     let isItalic: Bool
     let isUnderlined: Bool
     let hdrEnabled: Bool
-    let hdrSpotBoost: Bool
+    let wordWipeStarted: Bool
     let spotlightLevel: Double
+    let activeBlend: Double
     let rhythm: RhythmEngineContext
     let dissolveAmount: Double
     let shatterCrack: Double
     let shatterAmount: Double
     let nowMs: Double
+
+    // 1:1 对齐 web/src/lib/hdr-color.ts SHIMMER_HALF_BAND = 0.4（光带半宽 0.4 字宽，中心峰值权重 0.95）
+    private static let shimmerHalfBand: Double = 0.40
+    private static let shimmerPeakWeight: Double = 0.95
 
     var body: some View {
         let em = Double(fontSize)
@@ -1758,7 +1848,7 @@ private struct EmphasisCharGlyphView: View {
             : baseV
         let vibrato = holdState?.amount ?? 0
         let liftArg = min(1.0, max(0.0, (nowMs - begin + LyricSpecs.emphasisFloatLeadMs) / (duration * LyricSpecs.emphasisFloatStretch)))
-        let lift = sin(.pi * liftArg)
+        let lift = sin(.pi * liftArg) * min(1.0, max(0.0, activeBlend * 1.85))
 
         let shiftedMs = nowMs + LyricSpecs.animationHeadstartMs
         let sliceDur = max(1, slice.end - slice.start)
@@ -1767,31 +1857,69 @@ private struct EmphasisCharGlyphView: View {
             : min(1.0, max(0.0, (shiftedMs - slice.start) / sliceDur))
 
         let holdRamp = min(1.0, wipeProgress * 1.35) * LyricSpecs.emphasisTintHold
-        let tint: Double = (group.colorHex != nil && wipeProgress > 0)
+        let rawTint: Double = (group.colorHex != nil && wipeProgress > 0)
             ? max(v * LyricSpecs.emphasisTintPeak, holdRamp)
             : 0
+        let tint = rawTint * activeBlend
 
         let motion = computeMotion(
             em: em, f: f, begin: begin, v: v, lift: lift, vibrato: vibrato,
             dissolveAmount: dissolveAmount, crack: shatterCrack
         )
 
-        let shimmerBoost: Double = {
-            guard let center = shineCenter else { return 0 }
-            let dist = abs(Double(charIndex) + 0.5 - center)
-            return max(0, 1.0 - dist / 1.35)
+        let baseHex = group.colorHex ?? "#ffffff"
+        let fullBaseHdr = 1.55 + (1.88 - 1.55) * spotlightLevel
+        let rawBaseGain = fullBaseHdr + 0.55 * v
+        let baseGain: Double = (hdrEnabled && wordWipeStarted)
+            ? (1.0 + (rawBaseGain - 1.0) * activeBlend)
+            : 1.0
+        let baseColor = Color.edrCss(baseHex, tint: tint, gain: baseGain)
+
+        let localShineCenter = shineCenter.map { $0 - Double(charIndex) }
+        let isShiningBand = localShineCenter.map { $0 >= -0.65 && $0 <= 1.65 } ?? false
+
+        let charForegroundStyle: AnyShapeStyle = {
+            guard isShiningBand, let localCenter = localShineCenter else {
+                return AnyShapeStyle(baseColor)
+            }
+            let spotPeakFloor = 3.25 + (3.60 - 3.25) * spotlightLevel
+            let fullWipedBandGain = max(rawBaseGain * 2.10, spotPeakFloor)
+            let wipedBandGain = 1.0 + (fullWipedBandGain - 1.0) * activeBlend
+            let effectiveBaseHdr = max(1.0, 1.0 + (fullBaseHdr - 1.0) * activeBlend)
+            let bandGain: Double = hdrEnabled
+                ? (wordWipeStarted ? wipedBandGain : (wipedBandGain / effectiveBaseHdr))
+                : 1.0
+            let midColor = Color.edrShimmerMix(
+                baseHex: baseHex,
+                baseTint: tint,
+                baseGain: baseGain,
+                bandGain: bandGain,
+                weight: Self.shimmerPeakWeight * 0.5
+            )
+            let peakColor = Color.edrShimmerMix(
+                baseHex: baseHex,
+                baseTint: tint,
+                baseGain: baseGain,
+                bandGain: bandGain,
+                weight: Self.shimmerPeakWeight
+            )
+            let half = Self.shimmerHalfBand
+            return AnyShapeStyle(
+                LinearGradient(
+                    stops: [
+                        .init(color: baseColor, location: 0.0),
+                        .init(color: midColor, location: 0.25),
+                        .init(color: peakColor, location: 0.50),
+                        .init(color: midColor, location: 0.75),
+                        .init(color: baseColor, location: 1.0)
+                    ],
+                    startPoint: UnitPoint(x: localCenter - half, y: 0.45),
+                    endPoint: UnitPoint(x: localCenter + half, y: 0.55)
+                )
+            )
         }()
 
-        let baseHdr = hdrSpotBoost ? 1.88 : 1.55
-        let activeGain: Double = (hdrEnabled && wipeProgress > 0)
-            ? (baseHdr + 0.55 * v + 0.85 * shimmerBoost)
-            : 1.0
-
-        let charColor: Color = shimmerBoost > 0.15
-            ? Color.edrCss("#fffae6", tint: 0.7 * shimmerBoost, gain: activeGain)
-            : Color.edrCss(group.colorHex ?? "#ffffff", tint: tint, gain: activeGain)
-
-        let glowColor = Color(cssColor: group.colorHex ?? "#ffffff")
+        let glowColor = Color(cssColor: baseHex)
         let underlineProgress = isUnderlined
             ? min(1.0, max(0.0, (nowMs - slice.start) / max(1, slice.end - slice.start)))
             : 0
@@ -1802,7 +1930,7 @@ private struct EmphasisCharGlyphView: View {
         let styledText = isItalic ? baseText.italic() : baseText
 
         styledText
-            .foregroundStyle(charColor)
+            .foregroundStyle(charForegroundStyle)
             .shadow(
                 color: (wipeProgress > 0 && motion.glow > 0.01) ? glowColor.opacity(min(0.95, motion.glow)) : .clear,
                 radius: CGFloat(motion.glowRadiusPx)
@@ -1810,7 +1938,7 @@ private struct EmphasisCharGlyphView: View {
             .overlay(alignment: .bottomLeading) {
                 if isUnderlined && underlineProgress > 0 && slice.char.trimmingCharacters(in: .whitespaces).isEmpty == false {
                     Capsule()
-                        .fill(charColor)
+                        .fill(charForegroundStyle)
                         .frame(height: max(1.2, fontSize * 0.075))
                         .scaleEffect(x: underlineProgress, y: 1, anchor: .leading)
                         .offset(y: -fontSize * 0.04)
@@ -1820,7 +1948,7 @@ private struct EmphasisCharGlyphView: View {
             .scaleEffect(motion.scale)
             .offset(x: CGFloat(motion.dxPx), y: CGFloat(motion.dyPx))
             .opacity(charVisibility)
-            .allowedDynamicRange(hdrEnabled && wipeProgress > 0 ? .high : .standard)
+            .allowedDynamicRange(hdrEnabled && activeBlend > 0.005 && (wordWipeStarted || isShiningBand) ? .high : .standard)
     }
 
     private struct CharMotion {
@@ -1906,10 +2034,11 @@ private struct EmphasisCharGlyphView: View {
 
         case "shimmer", "dissolve", "shatter":
             scale = 1.0 + v * 0.04 * f
-            glow = shineCenter == nil ? v * (0.25 + 0.3 * f) : 0.35
+            glow = shineCenter == nil ? v * (0.25 + 0.3 * f) : 0
             if crack > 0 {
-                xEm += sin(nowMs * 0.65 + Double(charIndex) * 2.1) * 0.03 * crack
-                yEm += cos(nowMs * 0.55 + Double(charIndex) * 1.7) * 0.025 * crack
+                // 1:1 对齐 lyric-player.ts 碎前蓄力颤抖频率（~14.3Hz / ~17.5Hz），消除 60fps 下高频混叠乱跳
+                xEm += sin(nowMs * 0.09 + Double(charIndex) * 1.7) * 0.03 * crack
+                yEm += cos(nowMs * 0.11 + Double(charIndex)) * 0.02 * crack
             }
 
         case "wave":

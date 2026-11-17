@@ -32,6 +32,11 @@ private struct StripAnimStateToken: Equatable {
     let isFocus: Bool
 }
 
+private struct StripStageAnimState: Equatable {
+    let interludeStart: Double?
+    let items: [StripAnimStateToken]
+}
+
 private struct StripLineCellView: View {
     let store: IslandStore
     let item: IslandStore.StripRenderItem
@@ -114,7 +119,7 @@ private struct StripLineCellView: View {
         let fadeLeft = isOverflowing && offsetPx > 0.5
         let fadeRight = isOverflowing && offsetPx < overflow - 0.5
         let spot = store.spotlightState(at: nowMs)
-        let isHdrSpot = store.config.hdr && spot?.line == item.lineIndex && (spot?.level ?? 0) >= 0.5
+        let rowSpotLevel = (spot?.line == item.lineIndex) ? (spot?.level ?? 0) : 0
 
         HStack(alignment: .center, spacing: 4.5) {
             // 仅在有歌手标注时展示句首左侧歌手颜色指示条，不展示歌手名称胶囊（与网页端 strip 模式 1:1 一致）
@@ -142,7 +147,7 @@ private struct StripLineCellView: View {
                 isBackground: line.isBackground,
                 allowsWrapping: false,
                 wrapAlignment: .leading,
-                hdrSpotBoost: isHdrSpot
+                spotlightLevel: rowSpotLevel
             )
         }
         .fixedSize(horizontal: true, vertical: false)
@@ -195,6 +200,7 @@ private struct StripStageContainerView: View {
             let animTokens = plan.items.map {
                 StripAnimStateToken(id: $0.id, slot: $0.slot, isFocus: $0.isFocus)
             }
+            let animState = StripStageAnimState(interludeStart: plan.interlude?.start, items: animTokens)
 
             ZStack {
                 if let interlude = plan.interlude {
@@ -207,6 +213,10 @@ private struct StripStageContainerView: View {
                         dotSize: 6.5,
                         hdrEnabled: store.config.hdr
                     )
+                    .transition(StripLineTransition(
+                        isBackground: false,
+                        verticalTravel: height * 0.42
+                    ))
                 } else if !plan.items.isEmpty {
                     let topRatio: CGFloat = height < 30 ? -0.235 : CGFloat(LyricSpecs.stripTierTop)
                     let bottomRatio: CGFloat = height < 30 ? 0.245 : CGFloat(LyricSpecs.stripTierBottom)
@@ -256,7 +266,7 @@ private struct StripStageContainerView: View {
             }
             .frame(width: width, height: height)
             .coordinateSpace(name: "debrisSpace")
-            .animation(.spring(duration: 0.38, bounce: 0.14), value: animTokens)
+            .animation(.spring(duration: 0.38, bounce: 0.14), value: animState)
         }
     }
 }

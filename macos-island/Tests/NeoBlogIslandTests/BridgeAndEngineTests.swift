@@ -603,4 +603,124 @@ struct BridgeAndEngineTests {
         #expect(store.track?.id == 200)
         #expect(store.lyrics.lines.first?.plainText == "上一首首句秒开")
     }
+
+    @Test("流光线性光混合：权重 0 与底色严格恒等，峰值向超白暖光平滑抬升且字间连续推进")
+    func shimmerLinearLightContinuity() {
+        let baseEdr = Color.edrCss("#74c0fc", tint: 0.72, gain: 1.65)
+        let edgeEdr = Color.edrShimmerMix(
+            baseHex: "#74c0fc",
+            baseTint: 0.72,
+            baseGain: 1.65,
+            bandGain: 3.40,
+            weight: 0.0
+        )
+        #expect(baseEdr == edgeEdr)
+
+        let baseSdr = Color.edrCss("#74c0fc", tint: 0.72, gain: 1.0)
+        let edgeSdr = Color.edrShimmerMix(
+            baseHex: "#74c0fc",
+            baseTint: 0.72,
+            baseGain: 1.0,
+            bandGain: 1.0,
+            weight: 0.0
+        )
+        #expect(baseSdr == edgeSdr)
+
+        // 验证两拍扫光期间光带中心连续穿过字内左边缘(0.0) -> 中心(0.5) -> 字间缝隙(1.0) -> 下一字中心(1.5)
+        let rhythm = RhythmEngineContext.fallback // 750ms 一拍，leadMs = 20
+        let c0 = rhythm.shimmerCenter(start: 1000, timeMs: 980, count: 4)
+        let cMid = rhythm.shimmerCenter(start: 1000, timeMs: 1355, count: 4)
+        let cEnd = rhythm.shimmerCenter(start: 1000, timeMs: 1729, count: 4)
+        #expect(c0 != nil && abs(c0! - (-1.0)) < 0.01)
+        #expect(cMid != nil && abs(cMid! - 2.0) < 0.02)
+        #expect(cEnd != nil && cEnd! > 4.9)
+    }
+
+    @Test("跨行退场与舞台染色连续性：行结束时 activeBlend 二次缓出、模糊阻尼渐进，对唱换色按指数阻尼混合不跳变")
+    @MainActor
+    func crossLineExitAndAmbienceContinuity() throws {
+        let bundleJSON = Data(##"""
+        {
+          "source": "ttml-amll",
+          "word_synced": true,
+          "instrumental": false,
+          "spotlights": [],
+          "interludes": [],
+          "lines": [
+            {
+              "start": 0,
+              "end": 2000,
+              "words": [{"text": "第一句", "start": 0, "end": 2000}],
+              "align": "left",
+              "singer_name": "歌手A",
+              "edge_colors": ["#74c0fc"]
+            },
+            {
+              "start": 2000,
+              "end": 4000,
+              "words": [{"text": "第二句", "start": 2000, "end": 4000}],
+              "is_duet": true,
+              "align": "right",
+              "singer_name": "歌手B",
+              "edge_colors": ["#ff6f91"]
+            }
+          ]
+        }
+        """##.utf8)
+        let bundle = try JSONDecoder().decode(LyricsBundlePayload.self, from: bundleJSON)
+        let l0 = bundle.lines[0]
+        let l1 = bundle.lines[1]
+        let entries: [StageTimelineEntry] = [
+            .line(IndexedLyricLine(id: "t-0", index: 0, line: l0, singerDots: [SingerColorDot(id: "0", hex: "#74c0fc")])),
+            .line(IndexedLyricLine(id: "t-1", index: 1, line: l1, singerDots: [SingerColorDot(id: "0", hex: "#ff6f91")]))
+        ]
+        let spring = StageSpringEngine()
+        let t0 = Date(timeIntervalSinceReferenceDate: 1000.0)
+
+        // 第 0 句演唱中：activeBlend == 1.0，blurProgress == 0.0
+        let frame0 = spring.stepLayout(
+            entries: entries, lines: [l0, l1], stageHeight: 200,
+            showRomaji: false, showTranslation: false,
+            date: t0, nowMs: 1500,
+            tState: (active: [0], focus: 0, interlude: nil), spot: nil
+        )
+        let row0Active = frame0.first(where: { $0.entryIndex == 0 })!
+        #expect(row0Active.isActive == true)
+        #expect(row0Active.activeBlend == 1.0)
+        #expect(row0Active.blurProgress == 0.0)
+
+        // 刚切到第 1 句后 50ms：第 0 句虽已非激活，但 activeBlend 仍处于平滑退场中（~0.77），blurProgress 从 0 渐进抬升而非瞬跳到 1
+        let frame1 = spring.stepLayout(
+            entries: entries, lines: [l0, l1], stageHeight: 200,
+            showRomaji: false, showTranslation: false,
+            date: t0.addingTimeInterval(0.05), nowMs: 2050,
+            tState: (active: [1], focus: 1, interlude: nil), spot: nil
+        )
+        let row0Exiting = frame1.first(where: { $0.entryIndex == 0 })!
+        #expect(row0Exiting.isActive == false)
+        #expect(row0Exiting.activeBlend > 0.70 && row0Exiting.activeBlend < 0.90)
+        #expect(row0Exiting.blurProgress > 0.05 && row0Exiting.blurProgress < 0.50)
+
+        // 500ms 后退场完成：activeBlend 归零
+        var curDate = t0.addingTimeInterval(0.05)
+        var lastRow0 = row0Exiting
+        for step in 1...10 {
+            curDate = t0.addingTimeInterval(0.05 + Double(step) * 0.05)
+            let f = spring.stepLayout(
+                entries: entries, lines: [l0, l1], stageHeight: 200,
+                showRomaji: false, showTranslation: false,
+                date: curDate, nowMs: 2050 + Double(step) * 50,
+                tState: (active: [1], focus: 1, interlude: nil), spot: nil
+            )
+            lastRow0 = f.first(where: { $0.entryIndex == 0 })!
+        }
+        #expect(lastRow0.activeBlend == 0.0)
+
+        // 验证舞台方向染色交接阻尼：左声部 (-0.07) 切到右声部 (+0.07) 首帧不会瞬移到 +0.07，而是平滑插值过渡
+        let ambience = StageParticlesEngine(scale: 0.7, maxParticles: 20)
+        let s0 = ambience.smoothAmbience(date: t0, tintHex: "#74c0fc", tintAlpha: 0.25, vocalShiftRatio: -0.07)
+        #expect(abs(s0.shiftRatio - (-0.07)) < 0.001)
+        let s1 = ambience.smoothAmbience(date: t0.addingTimeInterval(0.05), tintHex: "#ff6f91", tintAlpha: 0.25, vocalShiftRatio: 0.07)
+        #expect(s1.shiftRatio > -0.065 && s1.shiftRatio < -0.02)
+    }
 }

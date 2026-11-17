@@ -17,8 +17,11 @@ struct PlacedStageEntry: Identifiable {
     let scale: CGFloat
     let expand: Double
     let isActive: Bool
+    let activeBlend: Double
     let isFocus: Bool
     let isSingerPillVisible: Bool
+    let pillOpen: Double
+    let blurProgress: Double
     let visualDistance: Int
     let isPast: Bool
     let rowSpotLevel: Double
@@ -33,6 +36,9 @@ final class StageSpringEngine {
         let scale: DampedSpring
         let expand: DampedSpring?
         let pillExpand: DampedSpring?
+        var wasActive: Bool = false
+        var exitLinear: Double = 0.0
+        var blurProgress: Double = 1.0
 
         init(entry: StageTimelineEntry) {
             self.y = DampedSpring(initial: 0, params: LyricSpecs.positionSpring)
@@ -543,6 +549,39 @@ final class StageSpringEngine {
 
         for (i, e) in entries.enumerated() {
             let node = entryNodes[i]
+            let isAct = lineRenderActiveFlags[i]
+            if jump {
+                node.wasActive = isAct
+                node.exitLinear = isAct ? 1.0 : 0.0
+            } else {
+                if isAct {
+                    node.exitLinear = 1.0
+                } else if node.wasActive || node.exitLinear > 0 {
+                    node.exitLinear = max(0.0, node.exitLinear - dt / 0.42)
+                    if node.exitLinear > 0.001 {
+                        anySpringMoving = true
+                    } else {
+                        node.exitLinear = 0.0
+                    }
+                }
+                node.wasActive = isAct
+            }
+
+            let visDelta = visualIndices[i] - focusVisual
+            let targetBlur: Double = (isAct || visDelta == 0 || manualOffset != nil) ? 0.0 : 1.0
+            if jump {
+                node.blurProgress = targetBlur
+            } else {
+                let tau = targetBlur < node.blurProgress ? 0.09 : 0.16
+                let stepBlend = 1.0 - exp(-dt / tau)
+                node.blurProgress += (targetBlur - node.blurProgress) * stepBlend
+                if abs(node.blurProgress - targetBlur) > 0.008 {
+                    anySpringMoving = true
+                } else {
+                    node.blurProgress = targetBlur
+                }
+            }
+
             let expPos = node.expand?.position ?? 1.0
             if node.expand != nil && expPos < 0.012 && (node.expand?.target ?? 0) == 0 {
                 continue
@@ -552,7 +591,9 @@ final class StageSpringEngine {
             guard curY + estH > -Self.overscanPx && curY < stageHeight + Self.overscanPx else {
                 continue
             }
-            let visDelta = visualIndices[i] - focusVisual
+
+            let activeBlend = isAct ? 1.0 : (node.exitLinear * node.exitLinear)
+            let pillOpen = min(1.0, max(0.0, node.pillExpand?.position ?? 0.0))
 
             visibleOut.append(
                 PlacedStageEntry(
@@ -562,9 +603,12 @@ final class StageSpringEngine {
                     y: CGFloat(curY),
                     scale: CGFloat(node.scale.position),
                     expand: expPos,
-                    isActive: lineRenderActiveFlags[i],
+                    isActive: isAct,
+                    activeBlend: activeBlend,
                     isFocus: i == focusEntryIdx,
                     isSingerPillVisible: pillVisibleFlags[i],
+                    pillOpen: pillOpen,
+                    blurProgress: node.blurProgress,
                     visualDistance: abs(visDelta),
                     isPast: visDelta < 0,
                     rowSpotLevel: spotEntryIdx == i ? spotLevel : 0,

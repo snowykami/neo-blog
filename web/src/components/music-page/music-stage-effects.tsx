@@ -8,7 +8,7 @@ import { useMusic, useMusicClockStore } from '@/contexts/music-context'
 import { useHdrEnabled } from '@/hooks/use-hdr-highlight'
 import { createHdrCanvasPresenter } from '@/lib/hdr-canvas'
 import { HDR_BRIGHTNESS } from '@/lib/hdr-color'
-import { LYRIC_COLORS } from '@/lib/lyrics/colors'
+import { hexToRgb, LYRIC_COLORS } from '@/lib/lyrics/colors'
 import { backgroundLevel, particleHeartLevel, particlePulses, periodOf, rhythmContext } from '@/lib/lyrics/rhythm/effects'
 import { rhythmModelFor } from '@/lib/lyrics/rhythm/source'
 import { getStageSignals } from '@/lib/lyrics/stage-effects'
@@ -157,6 +157,9 @@ export function MusicStageEffects({
     let tintOpacity = ''
     let tintColor = ''
     let tintShift = ''
+    let curTintRgb: [number, number, number] | null = null
+    let curShiftPct = 0
+    let wasTintVisible = false
     let push = 0
     let spotlight = ''
     // 镜头推近作用于页面中标了 data-stage-push 的层（小窗不推近）；每次推近开始时重新查找，推近期间复用
@@ -212,24 +215,47 @@ export function MusicStageEffects({
       const phraseTint = signals?.tint ?? null
       const vocal = signals?.vocal ?? null
       const activeTint = phraseTint && (!vocal || phraseTint.strength >= vocal.strength) ? phraseTint : vocal
-      const nextTintOpacity = ((activeTint?.strength ?? 0) * TINT_MAX_OPACITY).toFixed(3)
+      const rawTintStrength = activeTint?.strength ?? 0
+      const nextTintOpacity = (rawTintStrength * TINT_MAX_OPACITY).toFixed(3)
+      const tintVisibleNow = Number(nextTintOpacity) > 0
       if (nextTintOpacity !== tintOpacity) {
         tintOpacity = nextTintOpacity
         tintEl.style.opacity = nextTintOpacity
-        tintEl.style.visibility = Number(nextTintOpacity) > 0 ? '' : 'hidden'
+        tintEl.style.visibility = tintVisibleNow ? '' : 'hidden'
       }
-      // 淡出时保留最后的颜色；多声部曲目随演唱方向温柔偏移光晕，弱于短语染色时不夺主
-      if (activeTint && LYRIC_COLORS[activeTint.color] !== tintColor) {
-        tintColor = LYRIC_COLORS[activeTint.color]
-        tintEl.style.setProperty('--stage-tint', tintColor)
+      // 多声部交替对唱或短语染色切换时，按指数阻尼平滑过渡 RGB 色值与左右偏移（从暗态首次亮起时直接到位不闪旧色）
+      const targetRgb = activeTint ? hexToRgb(LYRIC_COLORS[activeTint.color]) : curTintRgb
+      const targetShiftPct = vocal
+        ? (vocal.align === 'left' ? -7 : vocal.align === 'right' ? 7 : 0)
+        : (!phraseTint ? 0 : curShiftPct)
+      const tintBlend = !wasTintVisible || curTintRgb == null ? 1 : (1 - Math.exp(-dt / 0.28))
+      if (targetRgb) {
+        curTintRgb = curTintRgb == null || tintBlend >= 0.999
+          ? [targetRgb[0], targetRgb[1], targetRgb[2]]
+          : [
+              curTintRgb[0] + (targetRgb[0] - curTintRgb[0]) * tintBlend,
+              curTintRgb[1] + (targetRgb[1] - curTintRgb[1]) * tintBlend,
+              curTintRgb[2] + (targetRgb[2] - curTintRgb[2]) * tintBlend,
+            ]
+        const nextTintCss = `rgb(${Math.round(curTintRgb[0])} ${Math.round(curTintRgb[1])} ${Math.round(curTintRgb[2])})`
+        if (nextTintCss !== tintColor) {
+          tintColor = nextTintCss
+          tintEl.style.setProperty('--stage-tint', nextTintCss)
+        }
       }
-      const nextShift = vocal
-        ? (vocal.align === 'left' ? '-7% 0' : vocal.align === 'right' ? '7% 0' : '0 0')
-        : (!phraseTint ? '0 0' : tintShift)
+      curShiftPct = !wasTintVisible || Math.abs(targetShiftPct - curShiftPct) < 0.02
+        ? targetShiftPct
+        : curShiftPct + (targetShiftPct - curShiftPct) * tintBlend
+      const nextShift = Math.abs(curShiftPct) < 0.02 ? '0 0' : `${curShiftPct.toFixed(2)}% 0`
       if (nextShift !== tintShift) {
         tintShift = nextShift
         tintEl.style.translate = nextShift
       }
+      const tintSettling = tintVisibleNow && targetRgb != null && curTintRgb != null && (
+        Math.hypot(targetRgb[0] - curTintRgb[0], targetRgb[1] - curTintRgb[1], targetRgb[2] - curTintRgb[2]) > 0.8
+        || Math.abs(targetShiftPct - curShiftPct) > 0.04
+      )
+      wasTintVisible = tintVisibleNow
       const nextSpotlight = (signals?.spotlight ?? 0).toFixed(3)
       if (nextSpotlight !== spotlight) {
         spotlight = nextSpotlight
@@ -243,7 +269,7 @@ export function MusicStageEffects({
       syncOutput()
       if (drew)
         presenter?.present(drawCanvas)
-      const idleNow = !isPlaying && !drew
+      const idleNow = !isPlaying && !drew && !tintSettling
       const shouldSleep = document.hidden || (idleNow && wasSettled && prevSettledTimeMs === timeMs)
       prevSettledTimeMs = timeMs
       wasSettled = idleNow
@@ -307,7 +333,7 @@ export function MusicStageEffects({
         {/* 三层的透明度逐帧变化：各自提升为合成层，只改合成参数，不必每帧重新光栅化整屏渐变；不透明度为 0 时隐藏避免空合成 */}
         <div
           ref={tintRef}
-          className="absolute -inset-[16%] opacity-0 mix-blend-screen transition-[translate] duration-700 ease-out will-change-[opacity,translate] motion-reduce:transition-none"
+          className="absolute -inset-[16%] opacity-0 mix-blend-screen will-change-[opacity,translate]"
           style={{ background: 'radial-gradient(ellipse at 65% 45%, var(--stage-tint, transparent), transparent 70%)', visibility: 'hidden' }}
         />
         <div

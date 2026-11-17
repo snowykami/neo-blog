@@ -679,9 +679,18 @@ export class StageParticles {
     heartBeat = rhythm?.heart ?? null
     colorGain = this.hdrGain
     const key = sceneKey(scene)
-    // 换场景（或颜色主题）时先渐出旧场景，渐出完再渐入新场景
-    if (key !== sceneKey(this.scene) && this.density === 0)
-      this.scene = scene
+    // 换到新场景（或颜色主题）时立即切入并从柔和初密度起爬升，旧粒子各自沿 LEAVE_SECONDS 自然淡出（交叉淡入淡出，消除 1.2s 空档）；
+    // 场景结束为 null 时维持 this.scene 直到 density 渐出归零后再清空
+    if (key !== sceneKey(this.scene)) {
+      if (scene != null) {
+        this.scene = scene
+        this.pending = 0
+        this.density = Math.min(this.density, 0.18)
+      }
+      else if (this.density === 0) {
+        this.scene = null
+      }
+    }
     const current = this.scene
     const currentKey = sceneKey(current)
     const target = active && current != null && key === currentKey ? 1 : 0
@@ -756,6 +765,7 @@ export class StageParticles {
 
   clear() {
     this.particles = []
+    this.scene = null
     this.density = 0
     this.pending = 0
     this.painted = false

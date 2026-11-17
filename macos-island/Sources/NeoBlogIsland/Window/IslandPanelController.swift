@@ -116,6 +116,7 @@ final class IslandPanelController {
         let rootView = makeRootView(metrics: metrics)
         let host = NSHostingView(rootView: rootView)
         host.frame = NSRect(origin: .zero, size: canvasSize)
+        host.wantsLayer = true
         // 允许 XDR 显示器渲染超出 SDR 1.0 的原生 EDR 高光
         host.layer?.wantsExtendedDynamicRangeContent = true
 

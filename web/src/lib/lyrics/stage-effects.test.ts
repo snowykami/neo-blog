@@ -1,6 +1,7 @@
 import type { LyricLine, ResolvedLyrics } from './types'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { getStageSignals, SCENE_MAX_LINES, spotlightAt, spotlightLevel, VOCAL_TINT_FACTOR } from './stage-effects'
+import { StageParticles } from './stage-particles'
 
 /** 每行 1 秒、间隔 1 秒的歌词：第 i 行在 [2i, 2i+1) 秒演唱 */
 function lyricsOf(lines: Partial<LyricLine>[]): ResolvedLyrics {
@@ -131,5 +132,46 @@ describe('播放器页全屏特效信号', () => {
     const atChorus = getStageSignals(multi, 6500).vocal
     expect(atChorus?.align).toBe('center')
     expect(atChorus?.color).toBe('lavender')
+  })
+
+  it('粒子引擎跨场景无缝交叉过渡：切到相邻新场景时旧粒子渐隐的同时立即生成新场景粒子，无 1.2s 真空断档', () => {
+    const noopCtx = {
+      setTransform: vi.fn(),
+      clearRect: vi.fn(),
+      save: vi.fn(),
+      restore: vi.fn(),
+      translate: vi.fn(),
+      rotate: vi.fn(),
+      scale: vi.fn(),
+      beginPath: vi.fn(),
+      arc: vi.fn(),
+      fill: vi.fn(),
+      stroke: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      fillStyle: '',
+      strokeStyle: '',
+      lineWidth: 1,
+    } as unknown as CanvasRenderingContext2D
+    const canvas = {
+      width: 1280,
+      height: 800,
+      getContext: () => noopCtx,
+    } as unknown as HTMLCanvasElement
+
+    const engine = new StageParticles(canvas)
+    engine.resize(1280, 800)
+
+    // 先把 snow 场景推进到满密度
+    for (let i = 0; i < 40; i++)
+      engine.update(0.05, { name: 'snow', color: null }, true)
+    expect(engine.idle).toBe(false)
+
+    // 紧接着直接切到 rain（高频生成）：首 0.25s 内无需等待旧 density 排空即已进入交叉绘制态
+    noopCtx.stroke = vi.fn()
+    for (let i = 0; i < 5; i++)
+      engine.update(0.05, { name: 'rain', color: null }, true)
+    // snow 只用 fill 画圆，rain 只用 stroke 画雨线；stroke 被调用证明新场景 rain 已并行生成绘制
+    expect(noopCtx.stroke).toHaveBeenCalled()
   })
 })

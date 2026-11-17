@@ -325,6 +325,10 @@ final class StageParticlesEngine {
     @ObservationIgnored private var lastStepDate: Date? = nil
     @ObservationIgnored private var lastTimeMs: Double? = nil
     @ObservationIgnored private var compiledSprites: [String: [(paint: String, path: Path)]] = [:]
+    @ObservationIgnored private var smoothedTintRGB: (r: Double, g: Double, b: Double)? = nil
+    @ObservationIgnored private var smoothedVocalShift: Double = 0
+    @ObservationIgnored private var lastAmbienceDate: Date? = nil
+    @ObservationIgnored private var wasAmbienceVisible: Bool = false
 
     init(scale: Double = 0.7, maxParticles: Int = 80) {
         self.particleScale = scale
@@ -339,7 +343,55 @@ final class StageParticlesEngine {
         lastStepDate = nil
         lastTimeMs = nil
         compiledSprites.removeAll()
+        smoothedTintRGB = nil
+        smoothedVocalShift = 0
+        lastAmbienceDate = nil
+        wasAmbienceVisible = false
         syncActiveFlag()
+    }
+
+    /// 对舞台多声部方向染色与短语染色做指数阻尼平滑（对齐 music-stage-effects.tsx，消除对唱交接时的跳色与左右瞬移）
+    func smoothAmbience(
+        date: Date,
+        tintHex: String?,
+        tintAlpha: Double,
+        vocalShiftRatio: Double
+    ) -> (color: Color?, shiftRatio: Double) {
+        let dt: Double = {
+            guard let prev = lastAmbienceDate else { return 0 }
+            return min(0.08, max(0, date.timeIntervalSince(prev)))
+        }()
+        lastAmbienceDate = date
+
+        let visibleNow = tintAlpha > 0.004 && (tintHex != nil || smoothedTintRGB != nil)
+        let blend: Double = (!wasAmbienceVisible || smoothedTintRGB == nil || dt <= 0)
+            ? 1.0
+            : (1.0 - exp(-dt / 0.28))
+
+        if let hex = tintHex {
+            let target = Color.parseRGBComponents(hex)
+            if let cur = smoothedTintRGB, blend < 0.999 {
+                smoothedTintRGB = (
+                    r: cur.r + (target.r - cur.r) * blend,
+                    g: cur.g + (target.g - cur.g) * blend,
+                    b: cur.b + (target.b - cur.b) * blend
+                )
+            } else {
+                smoothedTintRGB = target
+            }
+        }
+
+        if !wasAmbienceVisible || abs(vocalShiftRatio - smoothedVocalShift) < 0.0005 {
+            smoothedVocalShift = vocalShiftRatio
+        } else {
+            smoothedVocalShift += (vocalShiftRatio - smoothedVocalShift) * blend
+        }
+        wasAmbienceVisible = visibleNow
+
+        guard visibleNow, let rgb = smoothedTintRGB else {
+            return (nil, smoothedVocalShift)
+        }
+        return (Color(.sRGB, red: rgb.r, green: rgb.g, blue: rgb.b, opacity: tintAlpha), smoothedVocalShift)
     }
 
     private func syncActiveFlag() {
@@ -371,8 +423,16 @@ final class StageParticlesEngine {
         lastStepDate = date
 
         let incomingKey = scene?.cacheKey ?? ""
-        if incomingKey != (currentScene?.cacheKey ?? "") && density <= 0.0001 {
-            currentScene = scene
+        // 换到新场景或新颜色主题时立即切入并从柔和初密度起爬升，旧粒子各自沿 leaveSeconds 自然淡出（交叉淡入淡出，消除 1.2s 空档）；
+        // 场景结束（scene == nil）时维持 currentScene 直到 density 归零后再清空
+        if incomingKey != (currentScene?.cacheKey ?? "") {
+            if let scene {
+                currentScene = scene
+                pending = 0
+                density = min(density, 0.18)
+            } else if density <= 0.0001 {
+                currentScene = nil
+            }
         }
 
         let cur = currentScene

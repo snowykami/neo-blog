@@ -1013,6 +1013,46 @@ extension Color {
         )
     }
 
+    /// 1:1 对齐 web/src/lib/hdr-color.ts hdrShimmerUrl 与 SDR_SHIMMER_IMAGE：
+    /// 在线性光（EDR）或 sRGB（SDR）空间按权重 weight (0...1) 连续混合强调底色与流光暖白光带（#fffae6），
+    /// weight == 0 时与 edrCss(baseHex, tint: baseTint, gain: baseGain) 严格恒等，保证光带进出字形边界 0 跳变。
+    static func edrShimmerMix(
+        baseHex: String?,
+        baseTint: Double,
+        baseGain: Double,
+        bandHex: String = "#fffae6",
+        bandGain: Double,
+        weight: Double
+    ) -> Color {
+        let w = max(0.0, min(1.0, weight))
+        if w <= 0.0005 {
+            return edrCss(baseHex, tint: baseTint, gain: baseGain)
+        }
+        let (cr, cg, cb) = parseRGBComponents(baseHex)
+        let br = 1.0 * (1.0 - baseTint) + cr * baseTint
+        let bg = 1.0 * (1.0 - baseTint) + cg * baseTint
+        let bb = 1.0 * (1.0 - baseTint) + cb * baseTint
+        let (sr, sg, sb) = parseRGBComponents(bandHex)
+
+        if baseGain <= 1.001 && bandGain <= 1.001 {
+            return Color(
+                .sRGB,
+                red: br * (1.0 - w) + sr * w,
+                green: bg * (1.0 - w) + sg * w,
+                blue: bb * (1.0 - w) + sb * w,
+                opacity: 1.0
+            )
+        }
+
+        func toLinear(_ c: Double) -> Double {
+            c <= 0.04045 ? (c / 12.92) : pow((c + 0.055) / 1.055, 2.4)
+        }
+        let lr = toLinear(br) * baseGain * (1.0 - w) + toLinear(sr) * bandGain * w
+        let lg = toLinear(bg) * baseGain * (1.0 - w) + toLinear(sg) * bandGain * w
+        let lb = toLinear(bb) * baseGain * (1.0 - w) + toLinear(sb) * bandGain * w
+        return Color(.sRGBLinear, red: lr, green: lg, blue: lb, opacity: 1.0)
+    }
+
     /// 对齐 lyric-player.ts hdrExitEndAlpha：在启用 EDR 超白高光时，对擦除遮罩未唱侧的不透明度做扩展 sRGB 等效亮度补偿，
     /// 保证 progress 从 0 跨入 >0 的瞬间右侧未唱部分亮度与未开唱态严丝合缝，绝不跳亮。
     static func hdrMaskDimAlpha(baseDimAlpha: Double, gain: Double, hdrEnabled: Bool) -> Double {

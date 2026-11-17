@@ -572,6 +572,7 @@ private struct LyricStageRow: View {
     var body: some View {
         let line = item.line
         let isActive = placed.isActive
+        let activeBlend = placed.activeBlend
         let dist = placed.visualDistance
         let hAlign: HorizontalAlignment = line.align == "right" ? .trailing : (line.align == "center" ? .center : .leading)
         let frameAlign: Alignment = line.align == "right" ? .trailing : (line.align == "center" ? .center : .leading)
@@ -584,17 +585,25 @@ private struct LyricStageRow: View {
         let isSpotted = rowSpotLevel > 0
         let spotDimmed = globalSpot > 0 && !isSpotted && !isActive && dist > 0
 
-        // 1:1 对齐 lyric-player.ts lineAppearance：焦点/激活/悬停/手动滚动行完全清晰（0px），过去行温和模糊，聚光灯下其余行额外压暗变虚
+        // 1:1 对齐 lyric-player.ts lineAppearance + 0.35s 连续模糊阻尼过渡：焦点/激活/悬停/手动滚动行完全清晰（0px），脱离激活态后平滑渐虚
         let blurRadius: CGFloat = {
             if isActive || dist == 0 || isHovered || isUserScrolling { return 0 }
             let baseBlur = placed.isPast ? 3.0 : min(4.0, 1.0 + Double(dist))
             let spotBlur = spotDimmed ? (2.5 * globalSpot) : 0
-            return CGFloat(max(baseBlur, spotBlur) * LyricSpecs.compactBlurFactor)
+            return CGFloat(max(baseBlur, spotBlur) * LyricSpecs.compactBlurFactor * placed.blurProgress)
         }()
 
         let rowDimFactor: Double = spotDimmed ? (1.0 - 0.35 * globalSpot) : 1.0
         let bgAlpha: Double = line.isBackground ? (0.75 * placed.expand) : 1.0
         let slotMaxWidth: CGFloat = isMultiVocal ? (stageWidth * 0.85) : stageWidth
+
+        // 句尾若带 shatter / dissolve / glow 余韵，保持动态行视图至余韵结束，杜绝行刚结束时截断碎裂或呼吸尾迹
+        let hasActiveTailEffect: Bool = store.preferences.showLyricEffects
+            && nowMs >= line.end
+            && nowMs < line.end + 1250
+            && line.emphasis.contains { $0.effect == "shatter" || $0.effect == "dissolve" || $0.effect == "glow" }
+        let useSweepRenderer = isActive || activeBlend > 0.004 || hasActiveTailEffect
+        let inactiveDimScale = store.config.hdr ? 0.6 : 1.0
 
         // 已逐字对齐的音译由行内 .lyric-ruby 在每个音节正下方渲染并同步擦除，不再重复渲染整行音译（对齐 lyric-player.ts 1242）
         let showWholeLineRomaji = showRomaji && line.romanizationWords.isEmpty
@@ -602,15 +611,16 @@ private struct LyricStageRow: View {
         VStack(alignment: hAlign, spacing: 2.5) {
             HStack(alignment: .center, spacing: 5) {
                 if let edgeHexes = line.edgeColors, !edgeHexes.isEmpty {
+                    let activeEdgeOpacity = (1.0 - 0.5 * rowSpotLevel) * 0.96
                     SingerEdgeBarView(
                         edgeHexes: edgeHexes,
                         fontSize: mainFontSize,
                         isBackground: line.isBackground,
-                        opacity: isActive ? (1.0 - 0.5 * rowSpotLevel) * 0.96 : 0.55
+                        opacity: 0.55 + (activeEdgeOpacity - 0.55) * activeBlend
                     )
                 }
 
-                if isActive {
+                if useSweepRenderer {
                     LyricLineSweepView(
                         line: line,
                         lineKeyPrefix: "stage-\(item.id)",
@@ -628,7 +638,7 @@ private struct LyricStageRow: View {
                         allowsWrapping: true,
                         wrapAlignment: hAlign,
                         spotlightLevel: rowSpotLevel,
-                        hdrSpotBoost: store.config.hdr && rowSpotLevel >= 0.5
+                        activeBlend: activeBlend
                     )
                 } else {
                     StaticStageLyricLineView(
@@ -636,7 +646,10 @@ private struct LyricStageRow: View {
                         lineKeyPrefix: "stage-static-\(item.id)",
                         songFont: songFont,
                         wordSynced: wordSynced,
+                        showEffects: store.preferences.showLyricEffects,
                         showRomaji: showRomaji,
+                        hdrEnabled: store.config.hdr,
+                        isUserScrolling: isUserScrolling,
                         fontSize: mainFontSize,
                         wrapAlignment: hAlign
                     )
@@ -644,25 +657,28 @@ private struct LyricStageRow: View {
             }
 
             if showWholeLineRomaji, let roma = line.romanization, !roma.isEmpty {
+                let inactiveRoma = 0.24 * inactiveDimScale
                 Text(roma)
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.white.opacity(isActive ? 0.65 : 0.24))
+                    .foregroundStyle(.white.opacity(inactiveRoma + (0.65 - inactiveRoma) * activeBlend))
                     .lineLimit(2)
                     .multilineTextAlignment(textAlign)
             }
 
             if showTranslation, let trans = line.translation, !trans.isEmpty {
+                let inactiveTrans = 0.22 * inactiveDimScale
                 Text(trans)
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.white.opacity(isActive ? 0.52 : 0.22))
+                    .foregroundStyle(.white.opacity(inactiveTrans + (0.52 - inactiveTrans) * activeBlend))
                     .lineLimit(2)
                     .multilineTextAlignment(textAlign)
             }
 
             if showTranslation, let secTrans = line.secondaryTranslation, !secTrans.isEmpty {
+                let inactiveSec = 0.18 * inactiveDimScale
                 Text(secTrans)
                     .font(.system(size: 10.5, weight: .medium))
-                    .foregroundStyle(.white.opacity(isActive ? 0.42 : 0.18))
+                    .foregroundStyle(.white.opacity(inactiveSec + (0.42 - inactiveSec) * activeBlend))
                     .lineLimit(2)
                     .multilineTextAlignment(textAlign)
             }
@@ -674,15 +690,15 @@ private struct LyricStageRow: View {
                 .fill(Color.white.opacity(isHovered ? 0.06 : 0))
         )
         .overlay(alignment: line.align == "right" ? .topTrailing : (line.align == "center" ? .top : .topLeading)) {
-            if placed.isSingerPillVisible {
+            if placed.pillOpen > 0.01 {
                 SingerPillBadgeView(
                     dots: item.singerDots,
                     singerName: line.singerName,
                     dotOnly: line.singerDotOnly
                 )
-                .scaleEffect(placed.scale > 1.001 ? (1.0 / placed.scale) : 1.0, anchor: .bottom)
-                .offset(y: -17)
-                .transition(.opacity)
+                .opacity(placed.pillOpen)
+                .scaleEffect((placed.scale > 1.001 ? (1.0 / placed.scale) : 1.0) * CGFloat(0.92 + 0.08 * placed.pillOpen), anchor: .bottom)
+                .offset(y: -17 + CGFloat(1.0 - placed.pillOpen) * 4.0)
                 .allowsHitTesting(false)
             }
         }
