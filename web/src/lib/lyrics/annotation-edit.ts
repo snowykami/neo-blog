@@ -1,5 +1,5 @@
 import type { LyricAnnotationLine, LyricAnnotationPhrase, LyricAnnotations } from './emphasis'
-import type { LyricColor, LyricEffect, LyricFont, LyricMood, LyricSceneName, LyricTextStyle } from './types'
+import type { LyricColor, LyricEffect, LyricFont, LyricMood, LyricMotion, LyricSceneName, LyricTextStyle } from './types'
 
 /**
  * 后台歌词特效编辑器的数据处理（纯函数）：标注按行文本保存（同一文本的行共用一条），所以编辑器按「去重后的行」编辑；
@@ -29,6 +29,7 @@ export interface LineForm {
 
 export interface AnnotationForm {
   font: LyricFont | ''
+  motion: LyricMotion | ''
   intro: string
   // 主题色 #rrggbb，为空时用封面主色
   accent: string
@@ -147,6 +148,7 @@ export function toAnnotationForm(lines: string[], annotation: LyricAnnotations |
   const unique = uniqueLyricLines(lines)
   return {
     font: annotation?.font ?? '',
+    motion: annotation?.motion ?? '',
     intro: annotation?.intro ?? '',
     accent: annotation?.accent ?? '',
     spotlights: [...new Set((annotation?.spotlights ?? []).flatMap((spot) => {
@@ -191,6 +193,7 @@ export function fromAnnotationForm(lines: string[], form: AnnotationForm) {
     }))
   return {
     font: form.font || undefined,
+    motion: form.motion || undefined,
     intro: form.intro.trim(),
     accent: form.accent || undefined,
     spotlights: [...new Set(form.spotlights)]

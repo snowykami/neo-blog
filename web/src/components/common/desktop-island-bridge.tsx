@@ -225,6 +225,7 @@ function serializeLyrics(lyrics: ResolvedLyrics) {
     source: lyrics.source,
     source_name: lyrics.sourceName ?? null,
     font: lyrics.font ?? null,
+    motion: lyrics.motion ?? null,
     word_synced: lyrics.wordTimed,
     instrumental: Boolean(lyrics.instrumental),
     spotlights: lyrics.spotlights ?? [],

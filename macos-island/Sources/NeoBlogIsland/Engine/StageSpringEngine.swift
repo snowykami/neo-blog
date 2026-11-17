@@ -60,7 +60,6 @@ final class StageSpringEngine {
         }
     }
 
-    private static let staggerBaseSec: Double = 0.05
     private static let staggerDecay: Double = 1.05
     private static let overscanPx: Double = 220.0
     private static let seekThresholdMs: Double = 1000.0
@@ -82,6 +81,8 @@ final class StageSpringEngine {
     @ObservationIgnored private var lastStepDate: Date? = nil
     @ObservationIgnored private var lastTimeMs: Double? = nil
     @ObservationIgnored private var lastFocusEntryIndex: Int? = nil
+    @ObservationIgnored private var lastFocusChangeMs: Double? = nil
+    @ObservationIgnored private var currentStepIntervalMs: Double? = nil
     @ObservationIgnored private var forceTeleportNext: Bool = true
 
     @ObservationIgnored private var manualOffset: Double? = nil
@@ -96,6 +97,8 @@ final class StageSpringEngine {
         lastStepDate = nil
         lastTimeMs = nil
         lastFocusEntryIndex = nil
+        lastFocusChangeMs = nil
+        currentStepIntervalMs = nil
         forceTeleportNext = true
         manualOffset = nil
         manualHoldUntil = .distantPast
@@ -192,7 +195,8 @@ final class StageSpringEngine {
         date: Date,
         nowMs: Double,
         tState: (active: [Int], focus: Int?, interlude: TimeIntervalRange?),
-        spot: (line: Int, level: Double)?
+        spot: (line: Int, level: Double)?,
+        motion: String? = nil
     ) -> [PlacedStageEntry] {
         guard !entries.isEmpty, stageHeight > 10 else {
             syncFlags(animating: false, manual: false)
@@ -248,6 +252,19 @@ final class StageSpringEngine {
         let focusChanged = (lastFocusEntryIndex != nil && lastFocusEntryIndex != focusEntryIdx)
         lastFocusEntryIndex = focusEntryIdx
 
+        if jump {
+            currentStepIntervalMs = nil
+            lastFocusChangeMs = nowMs
+        } else if focusChanged {
+            if let prevChange = lastFocusChangeMs, nowMs > prevChange {
+                currentStepIntervalMs = nowMs - prevChange
+            } else {
+                currentStepIntervalMs = nil
+            }
+            lastFocusChangeMs = nowMs
+        }
+        let motionSprings = LyricSpecs.resolveMotionSprings(motion: motion, stepIntervalMs: currentStepIntervalMs)
+
         // 待唱主唱行（供开唱前或间奏期间提前预显歌手胶囊）
         let upcomingMainLineIdx: Int? = {
             guard activeLineSet.isEmpty else { return nil }
@@ -262,9 +279,15 @@ final class StageSpringEngine {
         entryNodes.reserveCapacity(entries.count)
         for e in entries {
             if let existing = nodes[e.id] {
+                existing.y.setParams(motionSprings.position)
+                existing.scale.setParams(motionSprings.scale)
+                existing.pillExpand?.setParams(motionSprings.position)
                 entryNodes.append(existing)
             } else {
                 let created = ItemNode(entry: e)
+                created.y.setParams(motionSprings.position)
+                created.scale.setParams(motionSprings.scale)
+                created.pillExpand?.setParams(motionSprings.position)
                 nodes[e.id] = created
                 entryNodes.append(created)
             }
@@ -389,15 +412,16 @@ final class StageSpringEngine {
         var spotShift = 0.0
         var spotSpread = 0.0
         let spotScale = 1.10
-        if let sIdx = spotEntryIdx {
-            spotShift = (stageHeight * 0.5 - heights[sIdx] * 0.5 - (tops[sIdx] - scroll)) * spotLevel
+        if spotEntryIdx != nil {
+            spotShift = (0.5 - LyricSpecs.compactAlignPosition) * stageHeight * spotLevel
             spotSpread = 0.35 * Self.mainFontSizePx * spotLevel
         }
 
-        // 6. 推进每条目的独立位移弹簧与缩放弹簧（焦点变化时赋予 Apple Music 同款自上而下阶梯延迟）
+        // 6. 推进每条目的独立位移弹簧与缩放弹簧（仅对真实可视区条目施加阶梯波浪，前两行零延迟立即响应）
         let useStagger = (focusChanged || returnFromManual) && !jump && manualOffset == nil
         var delay = 0.0
-        var delayStep = Self.staggerBaseSec
+        var delayStep = motionSprings.staggerBaseSec
+        var staggerOrder = 0
 
         for (i, e) in entries.enumerated() {
             let node = entryNodes[i]
@@ -406,16 +430,21 @@ final class StageSpringEngine {
                 return i < sIdx ? -1.0 : 1.0
             }()
             let targetY = tops[i] - scroll + spotShift + spreadSign * spotSpread
-            let onScreen = (targetY + heights[i] > -Self.overscanPx) && (targetY < stageHeight + Self.overscanPx)
+            let inStaggerViewport = (targetY + heights[i] > 4 && targetY < stageHeight - 4)
+                || (node.y.position + heights[i] > 4 && node.y.position < stageHeight - 4)
 
             if jump {
                 node.y.jump(targetY)
-            } else if useStagger && onScreen {
-                node.y.setTarget(targetY, delay: delay)
-                delay += delayStep
-                delayStep /= Self.staggerDecay
+            } else if useStagger && inStaggerViewport {
+                let itemDelay = staggerOrder <= 1 ? 0.0 : delay
+                node.y.setTarget(targetY, delay: itemDelay)
+                if staggerOrder >= 1 {
+                    delay += delayStep
+                    delayStep /= Self.staggerDecay
+                }
+                staggerOrder += 1
             } else {
-                node.y.setTarget(targetY)
+                node.y.setTarget(targetY, delay: 0)
             }
             node.y.step(dt: dt)
             if !node.y.resting { anySpringMoving = true }
@@ -426,7 +455,7 @@ final class StageSpringEngine {
                     if item.line.isBackground {
                         return lineRenderActiveFlags[i] ? 1.0 : LyricSpecs.bgCollapsedScale
                     }
-                    return lineRenderActiveFlags[i] ? 1.0 : LyricSpecs.inactiveScale
+                    return lineRenderActiveFlags[i] ? 1.0 : motionSprings.inactiveScale
                 case .interlude, .footer:
                     return 1.0
                 }
@@ -481,14 +510,13 @@ final class StageSpringEngine {
                 continue
             }
             let visDelta = visualIndices[i] - focusVisual
-            let pillOffset = Self.pillSlotHeightPx * (node.pillExpand?.position ?? 0)
 
             visibleOut.append(
                 PlacedStageEntry(
                     id: e.id,
                     entryIndex: i,
                     entry: e,
-                    y: CGFloat(curY - pillOffset),
+                    y: CGFloat(curY),
                     scale: CGFloat(node.scale.position),
                     expand: expPos,
                     isActive: lineRenderActiveFlags[i],

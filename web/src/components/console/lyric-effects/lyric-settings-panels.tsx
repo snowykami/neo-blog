@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { canAddSpotlight, MAX_SPOTLIGHT_LINES, MAX_SPOTLIGHTS } from '@/lib/lyrics/annotation-edit'
-import { LYRIC_COLOR_NAMES, LYRIC_EFFECT_CATEGORIES, LYRIC_FONTS, LYRIC_INTRO_MAX, LYRIC_MOODS, LYRIC_SCENES, lyricEffectCategory } from '@/lib/lyrics/annotation-options'
+import { LYRIC_COLOR_NAMES, LYRIC_EFFECT_CATEGORIES, LYRIC_FONTS, LYRIC_INTRO_MAX, LYRIC_MOODS, LYRIC_MOTIONS, LYRIC_SCENES, lyricEffectCategory } from '@/lib/lyrics/annotation-options'
 import { LYRIC_COLORS, MOOD_GLOW } from '@/lib/lyrics/colors'
 import { SCENE_MAX_LINES } from '@/lib/lyrics/stage-effects'
 
@@ -65,6 +65,24 @@ export function SongSettingsPanel({ unique }: { unique: UniqueLine[] }) {
                 <SelectContent>
                   <SelectItem value={NONE}>{t('font_default')}</SelectItem>
                   {LYRIC_FONTS.map(font => <SelectItem key={font} value={font}>{optionT(`fonts.${font}`)}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={control}
+          name="motion"
+          render={({ field }) => (
+            <FormItem className="grid gap-2">
+              <FormLabel>{t('motion')}</FormLabel>
+              <Select value={toSelect(field.value)} onValueChange={value => field.onChange(fromSelect(value))}>
+                <FormControl>
+                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value={NONE}>{t('motion_default')}</SelectItem>
+                  {LYRIC_MOTIONS.map(motion => <SelectItem key={motion} value={motion}>{optionT(`motions.${motion}`)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </FormItem>

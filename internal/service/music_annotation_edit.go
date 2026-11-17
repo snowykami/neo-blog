@@ -73,7 +73,7 @@ func (s *MusicService) GetLyricAnnotationEditor(ctx context.Context, id int64) (
 		return nil, errs.Internal("failed_to_get_target", err)
 	}
 	data := parseLyricAnnotationData(record.Data)
-	result.Annotation = &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Spotlights: data.spotlightsFor(lines), Accent: data.Accent, Lines: data.Lines, Sprites: data.Sprites, Singers: data.Singers, Edited: record.EditedAt != nil}
+	result.Annotation = &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Motion: data.Motion, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Spotlights: data.spotlightsFor(lines), Accent: data.Accent, Lines: data.Lines, Sprites: data.Sprites, Singers: data.Singers, Edited: record.EditedAt != nil}
 	result.EditedAt = record.EditedAt
 	result.GeneratedAt = &record.CreatedAt
 	result.Model = record.Model
@@ -275,6 +275,10 @@ func sanitizeEditedLyricAnnotations(lines []string, req *dto.MusicLyricAnnotatio
 		return data, false
 	}
 	data.Font = req.Font
+	if req.Motion != "" && !lyricAnnotationMotions[req.Motion] {
+		return data, false
+	}
+	data.Motion = req.Motion
 	intro := strings.TrimSpace(req.Intro)
 	if utf8.RuneCountInString(intro) > lyricAnnotationMaxIntroRunes {
 		return data, false

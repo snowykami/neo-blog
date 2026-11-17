@@ -16,8 +16,8 @@ type lyricAnnotationLocale struct {
 	SpritePrompt               string
 	SpriteSubject, SpriteLyric string
 
-	// 用户消息的各部分用 XML 标签包住（Anthropic 的提示词建议：不同类型的输入分块标出，模型更不容易混淆）：歌曲信息的开始与结束标签、各字段与导演视觉基调建议
-	SongInfo, SongEnd, Title, Artists, Album, Aliases, VisualTheme string
+	// 用户消息的各部分用 XML 标签包住（Anthropic 的提示词建议：不同类型的输入分块标出，模型更不容易混淆）：歌曲信息的开始与结束标签、各字段、导演视觉基调建议与预处理行推进时速参考
+	SongInfo, SongEnd, Title, Artists, Album, Aliases, VisualTheme, LinePace string
 	// 热评的开始与结束标签；一条热评：序号、内容、点赞数
 	Comments, CommentsEnd, Comment string
 	// 网易云高潮片段在歌词行末的标记：片段开始、片段结束
@@ -46,7 +46,7 @@ var lyricAnnotationEN = lyricAnnotationLocale{
 	LinesPrompt:  fillLyricAnnotationPrompt(lyricAnnotationENHead + lyricAnnotationENLines),
 	SpritePrompt: fillLyricAnnotationPrompt(lyricAnnotationENSprite), SpriteSubject: "Image: ", SpriteLyric: "Lyric: ",
 
-	SongInfo: "<song>\n", SongEnd: "</song>\n", Title: "Title: ", Artists: "Artists: ", Album: "Album: ", Aliases: "Aliases / description: ", VisualTheme: "Director visual theme suggestion: ",
+	SongInfo: "<song>\n", SongEnd: "</song>\n", Title: "Title: ", Artists: "Artists: ", Album: "Album: ", Aliases: "Aliases / description: ", VisualTheme: "Director visual theme suggestion: ", LinePace: "Line progression pace: ",
 	Comments: "\n<listener_comments>\n", CommentsEnd: "</listener_comments>\n", Comment: "%d. %s (%d likes)\n",
 	ClimaxStart: "　〔climax starts〕", ClimaxEnd: "　〔climax ends〕",
 	Lyrics: "\n<lyrics>\n", LyricsEnd: "</lyrics>\n",
@@ -107,6 +107,8 @@ Task: plan the whole song. Phrases are annotated afterwards, chunk by chunk in p
 - outro_comment: the number of the comment shown during the outro, the one that best fits the song; omit it if none fits.
 - moments: 4-5, at emotional turns, chorus starts, the most moving line, the climax or ending (i = line index), spread out with several lines between so each one has room. Prefer comment (a comment number, each used once, other than the outro_comment); otherwise text, a narration of at most 40 Chinese characters in your own words, heartfelt and vivid.
 - font: one song-wide font for the whole song, optional (omit for clean default sans when no specialty font fits the whole song; avoid planning multiple fonts).
+- motion: one song-wide lyric line scroll physics preset matched to both the song's emotional energy and its <song> Line progression pace reference:
+{{motions}}
 - spotlights: indices i of the moments that sum up the song — its title line or deepest confession, sung for at least ~2 seconds (see 〔Ns〕); at most 3 different lines and 6 indices in all. While one is sung it moves alone to the center, enlarged, with a warm light behind it and the other lines dimmed. Only the listed indices are lit: when the line repeats, pick the repeats where it lands hardest (often the final chorus or the last time it is sung), not every one, because a spotlight that comes every chorus stops feeling special. Add a second or third line only when it is just as essential; give [] if no line clearly stands out.
 - accent: the song's theme color as #rrggbb, chosen freely from the song's feeling and imagery (not from the album cover). It tints the lyric glow and the breathing light behind the lyrics on a dark screen, so pick a color that glows well there.
 - singers (only when <lyrics> has 〔vocal: …〕 marks): {"v1":{"color":"sky"}} for each vocal id — pick distinct colors from the palette above that fit each voice and the song's direction.
@@ -117,7 +119,7 @@ scene:
 icons:
 {{icons}}
 
-Output: {"theme":"","direction":"","intro":"","outro_comment":1,"moments":[{"i":0,"comment":2},{"i":0,"text":""}],"font":"song","spotlights":[0],"accent":"#ffb37a","imagery":[{"text":"","effect":"glow","color":"rain"}],"sprites":[{"name":"doll","image":"plush toy","icon":"","motion":"fall","size":"m","spin":true,"color":"peach","fallback":"hearts"}],"lines":[{"i":0,"mood":"sad","chorus":true,"chorus_start":true,"scene":"rain","scene_color":"rain","scene_until":7}]}; list only lines with marks.`
+Output: {"theme":"","direction":"","intro":"","outro_comment":1,"moments":[{"i":0,"comment":2},{"i":0,"text":""}],"font":"song","motion":"flow","spotlights":[0],"accent":"#ffb37a","imagery":[{"text":"","effect":"glow","color":"rain"}],"sprites":[{"name":"doll","image":"plush toy","icon":"","motion":"fall","size":"m","spin":true,"color":"peach","fallback":"hearts"}],"lines":[{"i":0,"mood":"sad","chorus":true,"chorus_start":true,"scene":"rain","scene_color":"rain","scene_until":7}]}; list only lines with marks.`
 
 // lyricAnnotationENSprite 画自定义粒子图标的系统提示词（规划中没有合适的图标库图标时使用）
 const lyricAnnotationENSprite = `You design one tiny sprite for a particle effect in a music player: many copies of it drift across the screen behind the lyrics, each drawn 12-28 px tall and semi-transparent. Draw a simple, instantly recognizable flat silhouette of the image, like a bold emoji glyph: one solid main shape plus at most a few small details. At that size the outline carries the meaning and inner lines disappear, so give the silhouette its most distinctive features (a teddy bear's round ears, a kite's diamond and tail).
@@ -143,14 +145,17 @@ styles (combinable): bold declaration, strength | italic whisper, memory, quotat
 Before output, check: every 〔held〕 line in your range has its shake phrase; every text is a contiguous substring of its line.
 Output: {"lines":[{"i":0,"phrases":[{"text":"original fragment","effect":"swell","color":"gold","styles":["bold"]}]}]}; list only annotated lines in your range.`
 
-// fillLyricAnnotationPrompt 填入色板、粒子场景与字体：每项一行「名称: 适合的意象」
+// fillLyricAnnotationPrompt 填入色板、粒子场景、滚动律动预设与字体：每项一行「名称: 适合的意象」
 func fillLyricAnnotationPrompt(prompt string) string {
-	var colors, fonts, scenes []string
+	var colors, fonts, motions, scenes []string
 	for _, color := range lyricAnnotationPalette {
 		colors = append(colors, color.Key+": "+color.Hint)
 	}
 	for _, font := range lyricAnnotationFontList {
 		fonts = append(fonts, font.Key+": "+font.Hint)
+	}
+	for _, motion := range lyricAnnotationMotionList {
+		motions = append(motions, motion.Key+": "+motion.Hint)
 	}
 	for _, scene := range lyricAnnotationSceneList {
 		scenes = append(scenes, scene.Key+": "+scene.Hint)
@@ -159,6 +164,7 @@ func fillLyricAnnotationPrompt(prompt string) string {
 		"{{icons}}", lyricSpriteIconList(),
 		"{{colors}}", strings.Join(colors, "\n"),
 		"{{fonts}}", strings.Join(fonts, "\n"),
+		"{{motions}}", strings.Join(motions, "\n"),
 		"{{scenes}}", strings.Join(scenes, "\n"),
 	).Replace(prompt)
 }

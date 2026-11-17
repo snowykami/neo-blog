@@ -1,4 +1,4 @@
-import type { LyricAgent, LyricColor, LyricEffect, LyricEmphasis, LyricFont, LyricLine, LyricMood, LyricNote, LyricOutro, LyricSceneName, LyricSprite, LyricTextStyle, ResolvedLyrics } from './types'
+import type { LyricAgent, LyricColor, LyricEffect, LyricEmphasis, LyricFont, LyricLine, LyricMood, LyricMotion, LyricNote, LyricOutro, LyricSceneName, LyricSprite, LyricTextStyle, ResolvedLyrics } from './types'
 import { normalizeForMatch } from './strip-credits'
 
 /**
@@ -54,6 +54,7 @@ export interface LyricAnnotationSinger {
 
 export interface LyricAnnotations {
   font?: LyricFont
+  motion?: LyricMotion
   intro?: string
   outro?: LyricOutro
   moments?: LyricAnnotationMoment[]
@@ -274,6 +275,7 @@ export function applyEmphasis(lyrics: ResolvedLyrics, annotations?: LyricAnnotat
   return {
     ...lyrics,
     font: annotations?.font,
+    motion: annotations?.motion,
     intro: annotations?.intro,
     outro: annotations?.outro,
     notes: resolveNotes(lyrics.lines, annotations?.moments),

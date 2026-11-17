@@ -305,4 +305,76 @@ struct BridgeAndEngineTests {
         #expect(byId.map(\.id) == [2668056312])
         #expect(byId.first?.formattedDuration == "03:48")
     }
+
+    @Test("多歌手胶囊与聚光灯切句无反向掉帧（修复 pillOffset 双重扣除）及四档 motion 律动预设与快切阻尼保护")
+    @MainActor
+    func testNoDownwardDipOnSingerPillAndMotionPresets() throws {
+        // 1. 验证四档预设与快切阻尼收紧
+        let bouncyNormal = LyricSpecs.resolveMotionSprings(motion: "bouncy", stepIntervalMs: 1800)
+        let bouncyRapid = LyricSpecs.resolveMotionSprings(motion: "bouncy", stepIntervalMs: 200)
+        #expect(bouncyNormal.inactiveScale == 0.94)
+        #expect(bouncyRapid.position.stiffness >= bouncyNormal.position.stiffness)
+        #expect(bouncyRapid.position.damping > bouncyNormal.position.damping)
+
+        // 2. 验证带歌手胶囊 + 聚光灯的句子唱完切入下一句时，y 单调向上减小，不再先往下掉 18px
+        let l0 = try JSONDecoder().decode(LyricLinePayload.self, from: Data(#"{"start":0,"end":1000,"singer_name":"甲","words":[{"text":"首句","start":0,"end":1000}]}"#.utf8))
+        let l1 = try JSONDecoder().decode(LyricLinePayload.self, from: Data(#"{"start":1000,"end":2000,"singer_name":"乙","words":[{"text":"高潮点题","start":1000,"end":2000}]}"#.utf8))
+        let l2 = try JSONDecoder().decode(LyricLinePayload.self, from: Data(#"{"start":2050,"end":3200,"singer_name":"甲","words":[{"text":"下一句","start":2050,"end":3200}]}"#.utf8))
+        let lines = [l0, l1, l2]
+        let dots = [SingerColorDot(id: "v1", hex: "#ff6f91")]
+        let entries: [StageTimelineEntry] = [
+            .line(IndexedLyricLine(id: "m-0", index: 0, line: l0, singerDots: dots)),
+            .line(IndexedLyricLine(id: "m-1", index: 1, line: l1, singerDots: dots)),
+            .line(IndexedLyricLine(id: "m-2", index: 2, line: l2, singerDots: dots))
+        ]
+
+        let engine = StageSpringEngine()
+        var clock = Date(timeIntervalSinceReferenceDate: 2000.0)
+
+        // 先稳定停在第 1 句（聚光灯满强 + 胶囊展开）
+        var lastPlaced = engine.stepLayout(
+            entries: entries, lines: lines, stageHeight: 200,
+            showRomaji: false, showTranslation: false,
+            date: clock, nowMs: 1800,
+            tState: (active: [1], focus: 1, interlude: nil),
+            spot: (line: 1, level: 1.0),
+            motion: "bouncy"
+        )
+        for _ in 0..<45 {
+            clock = clock.addingTimeInterval(1.0 / 60.0)
+            lastPlaced = engine.stepLayout(
+                entries: entries, lines: lines, stageHeight: 200,
+                showRomaji: false, showTranslation: false,
+                date: clock, nowMs: 1900,
+                tState: (active: [1], focus: 1, interlude: nil),
+                spot: (line: 1, level: 1.0),
+                motion: "bouncy"
+            )
+        }
+        let startY = try #require(lastPlaced.first(where: { $0.entryIndex == 1 })?.y)
+
+        // 切入第 2 句，且第 1 句聚光灯处于 600ms 缓出窗口内：逐帧检查第 1 句绝不向下掉（curY <= startY）
+        var maxY = startY
+        var finalY = startY
+        for step in 1...25 {
+            clock = clock.addingTimeInterval(0.016)
+            let nowMs = 2050.0 + Double(step) * 16.0
+            let rel = max(0.0, 1.0 - (nowMs - 2000.0) / 600.0)
+            let spotLv = rel * rel * (3.0 - 2.0 * rel)
+            let placed = engine.stepLayout(
+                entries: entries, lines: lines, stageHeight: 200,
+                showRomaji: false, showTranslation: false,
+                date: clock, nowMs: nowMs,
+                tState: (active: [2], focus: 2, interlude: nil),
+                spot: spotLv > 0 ? (line: 1, level: spotLv) : nil,
+                motion: "bouncy"
+            )
+            if let row1 = placed.first(where: { $0.entryIndex == 1 }) {
+                if row1.y > maxY { maxY = row1.y }
+                finalY = row1.y
+            }
+        }
+        #expect(maxY <= startY + 0.05)
+        #expect(finalY < startY - 12.0)
+    }
 }

@@ -516,3 +516,68 @@ func TestSanitizeLyricAnnotationsFontUnity(t *testing.T) {
 		t.Fatalf("fonts = %q, want %q", gotFonts, wantFonts)
 	}
 }
+
+func TestLyricAnnotationMotionAndPace(t *testing.T) {
+	locale := lyricAnnotationText
+	for _, m := range lyricAnnotationMotionList {
+		if m.Hint == "" || !strings.Contains(locale.PlanPrompt, m.Key+": "+m.Hint) {
+			t.Fatalf("plan prompt missing motion %s", m.Key)
+		}
+	}
+
+	lines := []string{"一二三四五六", "七八九十十一", "十二三十四五", "十六七八九十", "二十一二三四", "二十五六七八"}
+	got, err := sanitizeLyricAnnotations(lines, nil, `{"motion":"bouncy","lines":[]}`)
+	if err != nil || got.Motion != "bouncy" {
+		t.Fatalf("motion = %q, err = %v", got.Motion, err)
+	}
+	gotInvalid, err := sanitizeLyricAnnotations(lines, nil, `{"motion":"unknown_preset","lines":[]}`)
+	if err != nil || gotInvalid.Motion != "" {
+		t.Fatalf("invalid motion should clear, got %q, err = %v", gotInvalid.Motion, err)
+	}
+
+	// 验证手动编辑校验：合法 motion 保留，非法 motion 拒绝
+	if edited, ok := sanitizeEditedLyricAnnotations(lines, &dto.MusicLyricAnnotationsEditReq{Motion: "crisp"}, nil); !ok || edited.Motion != "crisp" {
+		t.Fatalf("edited motion = %q, ok = %v", edited.Motion, ok)
+	}
+	if _, ok := sanitizeEditedLyricAnnotations(lines, &dto.MusicLyricAnnotationsEditReq{Motion: "bad"}, nil); ok {
+		t.Fatal("expected invalid edited motion to fail")
+	}
+
+	// 验证预处理句子推进时速计算与提示词注入（快歌 vs 慢歌）
+	fastInfo := lyricAnnotationInfo{
+		Title:  "FastDenpa",
+		Source: "ttml-custom",
+		Timed: []lyricTimedLine{
+			{Start: 1000, End: 2100, Text: "だんだん堕ちてく天国地獄"},
+			{Start: 2200, End: 3300, Text: "答えなんてどこにもないのに"},
+			{Start: 3400, End: 4500, Text: "クラクラしちゃうねもう一回"},
+			{Start: 4600, End: 5700, Text: "息もできないスピードで"},
+			{Start: 5800, End: 6900, Text: "きらめく星屑を追い越して"},
+			{Start: 7000, End: 8100, Text: "さあ最後のステップを踏もう"},
+		},
+	}
+	fastPace := lyricPaceSummaryOf(fastInfo)
+	if !fastPace.Valid || !strings.Contains(fastPace.RangeHint, "fast") {
+		t.Fatalf("expected fast pace summary, got %+v", fastPace)
+	}
+	prompt := buildLyricAnnotationPrompt(fastInfo, lines)
+	if !strings.Contains(prompt, "Line progression pace: median 1.20s/line") {
+		t.Fatalf("expected Line progression pace in prompt, got:\n%s", prompt)
+	}
+
+	slowInfo := lyricAnnotationInfo{
+		Title:  "SlowBallad",
+		Source: "ttml-custom",
+		Timed: []lyricTimedLine{
+			{Start: 1000, End: 5200, Text: "月光静静洒在窗台"},
+			{Start: 6000, End: 10200, Text: "风吹过旧年的海"},
+			{Start: 11200, End: 15500, Text: "慢慢等雪落下来"},
+			{Start: 16500, End: 20800, Text: "故事还没讲完"},
+			{Start: 21800, End: 26000, Text: "晚安远方的人"},
+		},
+	}
+	slowPace := lyricPaceSummaryOf(slowInfo)
+	if !slowPace.Valid || !strings.Contains(slowPace.RangeHint, "slow") {
+		t.Fatalf("expected slow pace summary, got %+v", slowPace)
+	}
+}

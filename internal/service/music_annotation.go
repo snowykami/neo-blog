@@ -185,6 +185,19 @@ var lyricAnnotationFontList = []lyricAnnotationFont{
 	{"script", "English script — romantic, elegant (Latin letters only)"},
 }
 
+// lyricAnnotationMotion 全曲歌词滚动律动预设：键值与适合的曲风/推进速度区间（英文，写进全曲规划提示词供模型挑选）
+type lyricAnnotationMotion struct {
+	Key, Hint string
+}
+
+// lyricAnnotationMotionList 全曲可选的滚动物理预设（与前端 web/src/lib/lyrics/config.ts 及 macOS StageSpringEngine 对齐）
+var lyricAnnotationMotionList = []lyricAnnotationMotion{
+	{"flow", "smooth elastic wave (default) — balanced, fluid cascade suited to most pop, ACG, J-Pop, R&B, and rock ballads"},
+	{"bouncy", "playful springy bounce — lively ~3% micro-overshoot cushion for cute, denpa, upbeat dance, idol, joyful youth tracks"},
+	{"crisp", "snappy magnetic — high initial velocity and tight stagger for fast rap, electronic, intense rock, cyberpunk, rapid-fire vocals"},
+	{"gentle", "soft slow breathing — unhurried, cushioned glide for slow piano/acoustic ballads, lullabies, classical/poetic, quiet sorrow"},
+}
+
 var (
 	lyricAnnotationFonts = func() map[string]bool {
 		fonts := make(map[string]bool, len(lyricAnnotationFontList))
@@ -192,6 +205,13 @@ var (
 			fonts[font.Key] = true
 		}
 		return fonts
+	}()
+	lyricAnnotationMotions = func() map[string]bool {
+		motions := make(map[string]bool, len(lyricAnnotationMotionList))
+		for _, m := range lyricAnnotationMotionList {
+			motions[m.Key] = true
+		}
+		return motions
 	}()
 	// 短语字形：粗体、斜体、下划线（下划线在演唱时逐字画出）；删除线已去掉（被否定、放弃的词改用 dissolve 消散），旧标注中的 strike 校验时丢弃
 	lyricAnnotationStyles = map[string]bool{"bold": true, "italic": true, "underline": true}
@@ -397,7 +417,7 @@ func (a *lyricAnnotationService) get(id int64, lines []string, info lyricAnnotat
 
 	if found {
 		data := parseLyricAnnotationData(record.Data)
-		result := &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Spotlights: data.spotlightsFor(lines), Accent: data.Accent, Lines: data.Lines, Sprites: data.Sprites, Singers: data.Singers, Edited: record.EditedAt != nil}
+		result := &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Motion: data.Motion, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Spotlights: data.spotlightsFor(lines), Accent: data.Accent, Lines: data.Lines, Sprites: data.Sprites, Singers: data.Singers, Edited: record.EditedAt != nil}
 		// 已过期：先返回旧结果，在后台重新生成（失败冷却期内不重试，继续使用旧结果）；管理员手动编辑过的不自动重新生成
 		// 全站 AI 预算已用完时不重新生成，继续使用旧结果
 		if !running && !coolingDown && record.EditedAt == nil && time.Since(record.CreatedAt) > ttl && checkSiteAIBudget(time.Now()) == nil {
@@ -477,6 +497,7 @@ func (a *lyricAnnotationService) loadPartial(key string, lines []string) *dto.Mu
 	return &dto.MusicLyricAnnotationsDto{
 		Status:     lyricAnnotationStatusPending,
 		Font:       data.Font,
+		Motion:     data.Motion,
 		Intro:      data.Intro,
 		Outro:      data.Outro,
 		Moments:    data.Moments,
@@ -743,6 +764,7 @@ func (a *lyricAnnotationService) regenerate(ctx context.Context, id int64, lines
 // lyricAnnotationData 保存到数据库的标注结果（旧版记录只有 lines 数组，读取时兼容）
 type lyricAnnotationData struct {
 	Font       string                              `json:"font,omitempty"`
+	Motion     string                              `json:"motion,omitempty"`
 	Intro      string                              `json:"intro,omitempty"`
 	Outro      *dto.MusicLyricAnnotationComment    `json:"outro,omitempty"`
 	Moments    []dto.MusicLyricAnnotationMoment    `json:"moments,omitempty"`
@@ -891,6 +913,7 @@ func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment,
 	// theme 与 direction 是 SOP 中先写下的分析，只用于引导模型，不保存
 	var parsed struct {
 		Font         string               `json:"font"`
+		Motion       string               `json:"motion"`
 		Spotlights   []int                `json:"spotlights"` // 聚光灯的行号（选定的那几次出现）
 		Accent       string               `json:"accent"`     // 主题色 #rrggbb
 		Sprites      []lyricSpriteRequest `json:"sprites"`
@@ -946,6 +969,10 @@ func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment,
 	font := ""
 	if lyricAnnotationFonts[parsed.Font] {
 		font = parsed.Font
+	}
+	motion := ""
+	if m := strings.ToLower(strings.TrimSpace(parsed.Motion)); lyricAnnotationMotions[m] {
+		motion = m
 	}
 	accentFont := ""
 	phraseFontCount := 0
@@ -1030,7 +1057,7 @@ func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment,
 			kept = append(kept, line)
 		}
 	}
-	data := lyricAnnotationData{Font: font, Intro: sanitizeLyricIntro(parsed.Intro), Lines: kept, Sprites: lyricUsedSprites(sprites, kept)}
+	data := lyricAnnotationData{Font: font, Motion: motion, Intro: sanitizeLyricIntro(parsed.Intro), Lines: kept, Sprites: lyricUsedSprites(sprites, kept)}
 	// outro_comment 为热评在提示词中的编号（从 1 开始），超出范围时不展示
 	usedComments := map[int]bool{}
 	if n := parsed.OutroComment; n >= 1 && n <= len(comments) {

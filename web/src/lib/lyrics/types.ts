@@ -130,6 +130,9 @@ export type LyricColor
 /** 歌词字体（来自歌词标注，与后端 lyricAnnotationFontList 一致），字体栈见 lyric-player.css */
 export type LyricFont = 'song' | 'kai' | 'xingkai' | 'fangsong' | 'round' | 'mono' | 'script'
 
+/** 全曲歌词行滚动律动预设（来自歌词标注，与后端 lyricAnnotationMotionList 一致），为空时默认走 flow */
+export type LyricMotion = 'flow' | 'bouncy' | 'crisp' | 'gentle'
+
 /** 短语字形：粗体、斜体、下划线（下划线在演唱时逐字画出） */
 export type LyricTextStyle = 'bold' | 'italic' | 'underline'
 
@@ -164,6 +167,8 @@ export interface ResolvedLyrics {
   lines: LyricLine[]
   // 全曲字体（来自歌词标注），为空时用站点默认字体
   font?: LyricFont
+  // 全曲歌词行滚动律动预设（来自歌词标注），为空时使用默认的丝滑波浪（flow）
+  motion?: LyricMotion
   // 前奏导语、尾奏热评与关键节点的「时刻」（来自歌词标注），见 moments.ts
   intro?: string
   outro?: LyricOutro

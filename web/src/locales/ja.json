@@ -2488,6 +2488,8 @@
       "song_settings": "曲全体の設定",
       "font": "曲全体のフォント",
       "font_default": "既定のフォント",
+      "motion": "スクロールの律動",
+      "motion_default": "既定（なめらか）",
       "intro": "イントロの一言",
       "intro_placeholder": "イントロ中に表示する一言（省略可）",
       "accent": "テーマカラー",
@@ -4919,6 +4921,12 @@
       "round": "丸ゴシック",
       "mono": "等幅",
       "script": "筆記体（英字）"
+    },
+    "motions": {
+      "flow": "なめらかウェーブ",
+      "bouncy": "弾むバウンス",
+      "crisp": "キレのあるスナップ",
+      "gentle": "ゆったり呼吸"
     },
     "scenes": {
       "petals": "花びら",

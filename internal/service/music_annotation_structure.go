@@ -1,9 +1,11 @@
 package service
 
 import (
+	"fmt"
 	"regexp"
 	"slices"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -297,4 +299,160 @@ func lyricCreditRange(texts []string, title string, artists []string) (head, tai
 		return 0, len(texts)
 	}
 	return head, tail
+}
+
+// lyricPaceSummary 预处理算出的全曲句子推进时速参考（供模型选择全曲滚动律动预设 motion）：
+// 统计非署名主唱行在非间奏连续演唱段内的句间推进间隔（中位数秒/行、折算行/分钟、快切占比与平均发音单元速率），
+// 让模型客观感知歌词在屏幕上滚动换行的真实物理快慢，不必仅凭歌词字数盲猜。
+type lyricPaceSummary struct {
+	Valid         bool
+	MedianStepSec float64
+	LinesPerMin   float64
+	RapidPct      int
+	UnitsPerSec   float64
+	RangeHint     string
+}
+
+func (p lyricPaceSummary) format() string {
+	if !p.Valid {
+		return ""
+	}
+	if p.UnitsPerSec > 0.1 {
+		return fmt.Sprintf("median %.2fs/line (~%.0f lines/min, %d%% rapid <1.5s steps, %.1f vocal units/s — %s)",
+			p.MedianStepSec, p.LinesPerMin, p.RapidPct, p.UnitsPerSec, p.RangeHint)
+	}
+	return fmt.Sprintf("median %.2fs/line (~%.0f lines/min, %d%% rapid <1.5s steps — %s)",
+		p.MedianStepSec, p.LinesPerMin, p.RapidPct, p.RangeHint)
+}
+
+func countLyricVocalUnits(text string) int {
+	units := 0
+	inLatinWord := false
+	for _, r := range text {
+		if unicode.IsSpace(r) || unicode.IsPunct(r) || unicode.IsSymbol(r) {
+			inLatinWord = false
+			continue
+		}
+		if r <= 0x024F || (r >= 0x0400 && r <= 0x04FF) {
+			if !inLatinWord {
+				units++
+				inLatinWord = true
+			}
+		} else {
+			inLatinWord = false
+			units++
+		}
+	}
+	return units
+}
+
+func lyricPaceSummaryOf(info lyricAnnotationInfo) lyricPaceSummary {
+	timed := info.Timed
+	if len(timed) < 5 {
+		return lyricPaceSummary{}
+	}
+	credit := make([]bool, len(timed))
+	if !strings.HasPrefix(info.Source, "ttml") {
+		texts := make([]string, len(timed))
+		for i, l := range timed {
+			texts[i] = l.Text
+		}
+		head, tail := lyricCreditRange(texts, info.Title, info.Artists)
+		for i := range timed {
+			credit[i] = i < head || i >= tail
+		}
+	}
+
+	type mainSpan struct {
+		start int64
+		end   int64
+		units int
+	}
+	var mains []mainSpan
+	for i, l := range timed {
+		if credit[i] || l.Start < 0 {
+			continue
+		}
+		u := countLyricVocalUnits(l.Text)
+		if u == 0 {
+			continue
+		}
+		mains = append(mains, mainSpan{start: l.Start, end: l.End, units: u})
+	}
+	if len(mains) < 5 {
+		return lyricPaceSummary{}
+	}
+	slices.SortStableFunc(mains, func(a, b mainSpan) int { return int(a.start - b.start) })
+
+	var stepsMs []int64
+	rapidCount := 0
+	var totalUnits int
+	var totalDurMs int64
+	for i, m := range mains {
+		if m.end > m.start {
+			dur := m.end - m.start
+			if dur >= 250 && dur <= 20000 {
+				totalUnits += m.units
+				totalDurMs += dur
+			}
+		}
+		if i == 0 {
+			continue
+		}
+		prev := mains[i-1]
+		step := m.start - prev.start
+		// 跳过几乎同时开唱的双声部并列句（< 180ms），避免把同步合唱误算成极速切句
+		if step < 180 {
+			continue
+		}
+		// 跳过间奏级大空隙
+		gap := step
+		if prev.end > prev.start {
+			gap = m.start - prev.end
+		}
+		if gap >= lyricInterludeMinGapMs || step > 14000 {
+			continue
+		}
+		stepsMs = append(stepsMs, step)
+		if step < 1500 {
+			rapidCount++
+		}
+	}
+	if len(stepsMs) < 4 {
+		return lyricPaceSummary{}
+	}
+	slices.Sort(stepsMs)
+	n := len(stepsMs)
+	var medianMs float64
+	if n%2 == 1 {
+		medianMs = float64(stepsMs[n/2])
+	} else {
+		medianMs = float64(stepsMs[n/2-1]+stepsMs[n/2]) / 2.0
+	}
+	medianSec := medianMs / 1000.0
+	if medianSec <= 0.1 {
+		return lyricPaceSummary{}
+	}
+	linesPerMin := 60.0 / medianSec
+	rapidPct := (rapidCount*100 + n/2) / n
+	var unitsPerSec float64
+	if totalDurMs >= 2000 {
+		unitsPerSec = float64(totalUnits) / (float64(totalDurMs) / 1000.0)
+	}
+
+	hint := "moderate cadence, suits flow, bouncy, or gentle depending on mood"
+	if medianSec <= 1.85 || rapidPct >= 45 || unitsPerSec >= 6.5 {
+		hint = "fast / dense line turnover, suits crisp or bouncy (avoid gentle)"
+	} else if medianSec >= 4.10 && rapidPct <= 15 && (unitsPerSec == 0 || unitsPerSec <= 3.6) {
+		hint = "slow / spacious phrasing, suits gentle or flow (avoid crisp/bouncy)"
+	}
+
+	return lyricPaceSummary{
+		Valid:         true,
+		MedianStepSec: medianSec,
+		LinesPerMin:   linesPerMin,
+		RapidPct:      rapidPct,
+		UnitsPerSec:   unitsPerSec,
+		RangeHint:     hint,
+	}
 }

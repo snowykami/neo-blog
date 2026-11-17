@@ -135,6 +135,7 @@ export interface MusicLyricAnnotations {
   status: 'ready' | 'pending'
   stale?: boolean
   font?: LyricAnnotations['font']
+  motion?: LyricAnnotations['motion']
   intro?: LyricAnnotations['intro']
   outro?: LyricAnnotations['outro']
   moments?: LyricAnnotations['moments']
@@ -362,9 +363,10 @@ export interface MusicLyricAnnotationEditor {
   orphaned?: boolean
 }
 
-// 手动编辑可改的部分：全曲字体、导语、主题色、聚光灯与各行（时刻与尾奏热评保持原样）
+// 手动编辑可改的部分：全曲字体、滚动律动预设、导语、主题色、聚光灯与各行（时刻与尾奏热评保持原样）
 export interface MusicLyricAnnotationsEdit {
   font?: LyricAnnotations['font']
+  motion?: LyricAnnotations['motion']
   intro?: string
   accent?: string
   spotlights: NonNullable<LyricAnnotations['spotlights']>

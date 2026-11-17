@@ -926,4 +926,56 @@ describe('振假名渲染与 HDR 跨行平滑退场', () => {
     expect(duetStrip.container.querySelectorAll('.lyric-singer').length).toBe(0)
     duetStrip.cleanup()
   })
+
+  it('带聚光灯与歌手胶囊的歌词行唱完切句时单调向上滚动，不出现先往下掉再上移；支持 motion 预设动态切换', () => {
+    const parseTranslateY = (el: HTMLElement) => {
+      const m = el.style.transform.match(/translate3d\(0,\s*([-\d.]+)px/)
+      return m ? Number(m[1]) : 0
+    }
+
+    const lyrics: ResolvedLyrics = {
+      source: 'ttml-custom',
+      wordTimed: true,
+      instrumental: false,
+      motion: 'bouncy',
+      spotlights: [1],
+      agents: {
+        v1: { id: 'v1', name: '甲', color: 'sky' },
+        v2: { id: 'v2', name: '乙', color: 'rose' },
+      },
+      lines: [
+        { words: [{ text: '首句铺垫', start: 0, end: 900 }], start: 0, end: 900, agent: 'v1', isDuet: false, isBackground: false },
+        { words: [{ text: '点题高潮句', start: 1000, end: 2000 }], start: 1000, end: 2000, agent: 'v2', isDuet: true, isBackground: false, align: 'right' },
+        { words: [{ text: '承接下一句', start: 2050, end: 3200 }], start: 2050, end: 3200, agent: 'v1', isDuet: false, isBackground: false },
+        { words: [{ text: '第四句收尾', start: 3300, end: 4200 }], start: 3300, end: 4200, agent: 'v1', isDuet: false, isBackground: false },
+      ],
+    }
+
+    const ctx = mountPlayer(lyrics)
+    ctx.player.setDisplay({ showTranslation: true, showRomanization: true, footerText: '', effects: true, hdr: false })
+    const lineEls = Array.from(ctx.container.querySelectorAll<HTMLElement>('.lyric-line'))
+
+    // 先稳定停在第 1 行（聚光灯 + 歌手胶囊全开）
+    ctx.step(1.8, 16)
+    for (let k = 0; k < 40; k++)
+      ctx.step(1.8 + k * 0.004, 16)
+    const yAtEndOfSpotLine = parseTranslateY(lineEls[1])
+
+    // 跨过 2.05s 进入第 2 行：采样接下来 400ms 的每一帧，第 1 行的 y 绝不能反向增大（不能往下掉）
+    let maxYAfterFinish = yAtEndOfSpotLine
+    for (let f = 1; f <= 25; f++) {
+      ctx.step(2.05 + f * 0.016, 16)
+      const curY = parseTranslateY(lineEls[1])
+      if (curY > maxYAfterFinish)
+        maxYAfterFinish = curY
+    }
+    expect(maxYAfterFinish).toBeLessThanOrEqual(yAtEndOfSpotLine + 0.05)
+    expect(parseTranslateY(lineEls[1])).toBeLessThan(yAtEndOfSpotLine - 10)
+
+    // 在线热切 motion 预设不重建 DOM 节点
+    const prevNode = lineEls[1]
+    ctx.player.setLyrics({ ...lyrics, motion: 'gentle' })
+    expect(ctx.container.querySelectorAll('.lyric-line')[1]).toBe(prevNode)
+    ctx.cleanup()
+  })
 })

@@ -2,16 +2,88 @@ import Foundation
 
 // MARK: - 1:1 对应 web/src/lib/lyrics/config.ts 的物理与视觉常量
 
+enum LyricMotionPreset: String, Sendable, CaseIterable {
+    case flow
+    case bouncy
+    case crisp
+    case gentle
+
+    var stiffness: Double {
+        switch self {
+        case .flow: return 168
+        case .bouncy: return 185
+        case .crisp: return 225
+        case .gentle: return 118
+        }
+    }
+
+    var dampingRatio: Double {
+        switch self {
+        case .flow: return 0.78
+        case .bouncy: return 0.66
+        case .crisp: return 0.86
+        case .gentle: return 0.88
+        }
+    }
+
+    var staggerBaseSec: Double {
+        switch self {
+        case .flow: return 0.042
+        case .bouncy: return 0.044
+        case .crisp: return 0.026
+        case .gentle: return 0.052
+        }
+    }
+
+    var inactiveScale: Double {
+        switch self {
+        case .flow: return 0.97
+        case .bouncy: return 0.94
+        case .crisp: return 0.965
+        case .gentle: return 0.975
+        }
+    }
+}
+
+struct ResolvedMotionSprings: Equatable, Sendable {
+    let position: SpringParams
+    let scale: SpringParams
+    let staggerBaseSec: Double
+    let inactiveScale: Double
+}
+
 enum LyricSpecs {
     static let alignPosition: Double = 0.35
     static let compactAlignPosition: Double = 0.40
     static let compactBlurFactor: Double = 0.50
 
-    static let positionSpring = SpringParams(mass: 1, stiffness: 100, damping: 18)
-    static let scaleSpring = SpringParams(mass: 1, stiffness: 100, damping: 20)
+    /// 1:1 对齐 web/src/lib/lyrics/config.ts resolveMotionSprings：
+    /// 连续快句推进间隔 < 420ms 时自动收紧阻尼比至 ≥ 0.84 并提升刚度下限，防止 Q 弹/舒缓档在密集快嘴段乱晃
+    static func resolveMotionSprings(motion: String? = nil, stepIntervalMs: Double? = nil) -> ResolvedMotionSprings {
+        let preset = motion.flatMap(LyricMotionPreset.init(rawValue:)) ?? .flow
+        var k = preset.stiffness
+        var zeta = preset.dampingRatio
+        if let stepMs = stepIntervalMs, stepMs > 0, stepMs < 420 {
+            let t = 1.0 - max(0.0, stepMs - 160.0) / 260.0
+            k = max(k, k + (205.0 - k) * t)
+            zeta = max(zeta, zeta + (0.84 - zeta) * t)
+        }
+        let scaleZeta = min(0.92, zeta + 0.05)
+        return ResolvedMotionSprings(
+            position: SpringParams(mass: 1, stiffness: k, damping: 2.0 * zeta * k.squareRoot()),
+            scale: SpringParams(mass: 1, stiffness: k, damping: 2.0 * scaleZeta * k.squareRoot()),
+            staggerBaseSec: preset.staggerBaseSec,
+            inactiveScale: preset.inactiveScale
+        )
+    }
+
+    private static let defaultMotion = resolveMotionSprings(motion: "flow")
+
+    static let positionSpring = defaultMotion.position
+    static let scaleSpring = defaultMotion.scale
     static let bgExpandSpring = SpringParams(mass: 1, stiffness: 170, damping: 26)
 
-    static let inactiveScale: Double = 0.97
+    static let inactiveScale: Double = defaultMotion.inactiveScale
     static let bgCollapsedScale: Double = 0.88
     static let inactiveAlpha: Double = 0.35
     static let inactiveAlphaLineTimed: Double = 0.25
@@ -100,7 +172,7 @@ struct CubicBezier {
 
 // MARK: - 1:1 对应 web/src/lib/lyrics/spring.ts（1/120s 半隐式欧拉阻尼弹簧）
 
-struct SpringParams: Equatable {
+struct SpringParams: Equatable, Sendable {
     let mass: Double
     let stiffness: Double
     let damping: Double
@@ -111,7 +183,7 @@ final class DampedSpring {
     private var velocity: Double = 0
     private(set) var target: Double
     private var delay: Double = 0
-    private let params: SpringParams
+    private var params: SpringParams
 
     private static let subStep: Double = 1.0 / 120.0
     private static let restDistance: Double = 0.01
@@ -123,9 +195,22 @@ final class DampedSpring {
         self.params = params
     }
 
+    func setParams(_ newParams: SpringParams) {
+        if params != newParams {
+            params = newParams
+        }
+    }
+
     func setTarget(_ newTarget: Double, delay newDelay: Double? = nil) {
+        let delta = newTarget - position
+        if let newDelay {
+            if newDelay > 0 && abs(velocity) > 8.0 && delta * velocity > 0 {
+                delay = min(newDelay * 0.2, 0.014)
+            } else {
+                delay = newDelay
+            }
+        }
         target = newTarget
-        if let newDelay { delay = newDelay }
     }
 
     func jump(_ newTarget: Double) {

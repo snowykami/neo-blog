@@ -527,6 +527,7 @@ struct LyricsBundlePayload: Codable, Equatable {
     let source: String
     let sourceName: String?
     let font: String?
+    let motion: String?
     let wordSynced: Bool
     let instrumental: Bool
     let spotlights: [Int]
@@ -538,7 +539,7 @@ struct LyricsBundlePayload: Codable, Equatable {
     let lines: [LyricLinePayload]
 
     enum CodingKeys: String, CodingKey {
-        case source, font, instrumental, spotlights, sprites, intro, outro, notes, interludes, lines
+        case source, font, motion, instrumental, spotlights, sprites, intro, outro, notes, interludes, lines
         case sourceName = "source_name"
         case wordSynced = "word_synced"
     }
@@ -548,6 +549,7 @@ struct LyricsBundlePayload: Codable, Equatable {
         source = try c.decodeIfPresent(String.self, forKey: .source) ?? "none"
         sourceName = try c.decodeIfPresent(String.self, forKey: .sourceName)
         font = try c.decodeIfPresent(String.self, forKey: .font)
+        motion = try c.decodeIfPresent(String.self, forKey: .motion)
         wordSynced = try c.decodeIfPresent(Bool.self, forKey: .wordSynced) ?? false
         instrumental = try c.decodeIfPresent(Bool.self, forKey: .instrumental) ?? false
         spotlights = try c.decodeIfPresent([Int].self, forKey: .spotlights) ?? []
@@ -563,6 +565,7 @@ struct LyricsBundlePayload: Codable, Equatable {
         source: String,
         sourceName: String? = nil,
         font: String?,
+        motion: String? = nil,
         wordSynced: Bool,
         instrumental: Bool,
         spotlights: [Int],
@@ -576,6 +579,7 @@ struct LyricsBundlePayload: Codable, Equatable {
         self.source = source
         self.sourceName = sourceName
         self.font = font
+        self.motion = motion
         self.wordSynced = wordSynced
         self.instrumental = instrumental
         self.spotlights = spotlights

@@ -101,6 +101,8 @@ type MusicLyricAnnotationsDto struct {
 	Stale  bool   `json:"stale,omitempty"`
 	// 全曲字体（字体表中的名称，见 service.lyricAnnotationFonts），为空时用站点默认字体
 	Font string `json:"font,omitempty"`
+	// 全曲歌词行滚动律动预设（见 service.lyricAnnotationMotions：flow / bouncy / crisp / gentle），为空时默认走 flow
+	Motion string `json:"motion,omitempty"`
 	// 前奏时显示的一句导语（模型写给听众），可为空
 	Intro string `json:"intro,omitempty"`
 	// 尾奏时显示的一条网易云热评（模型从热评中挑出最贴合歌曲的一条），可为空
@@ -296,9 +298,10 @@ type MusicLyricOffsetReq struct {
 	OffsetMs int    `json:"offset_ms"`
 }
 
-// MusicLyricAnnotationsEditReq 管理员手动编辑的歌词标注：只含可编辑的部分（全曲字体、导语、主题色、聚光灯与各行），时刻与尾奏热评保持原样
+// MusicLyricAnnotationsEditReq 管理员手动编辑的歌词标注：只含可编辑的部分（全曲字体、滚动律动预设、导语、主题色、聚光灯与各行），时刻与尾奏热评保持原样
 type MusicLyricAnnotationsEditReq struct {
 	Font       string                          `json:"font"`
+	Motion     string                          `json:"motion"`
 	Intro      string                          `json:"intro"`
 	Accent     string                          `json:"accent"`
 	Spotlights []MusicLyricAnnotationSpotlight `json:"spotlights"`

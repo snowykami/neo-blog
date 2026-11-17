@@ -1,3 +1,6 @@
+import type { SpringParams } from './spring'
+import type { LyricMotion } from './types'
+
 /**
  * 播放器页歌词引擎的可调参数（见 docs/music-player-spec.md 6.3）：集中定义为常量，不提供设置界面
  */
@@ -8,17 +11,63 @@ export const LYRIC_ALIGN_POSITION = 0.35
 // 手动滚动后，停手多久回到自动对齐（毫秒）；期间冻结焦点，不跟随播放进度
 export const LYRIC_USER_SCROLL_HOLD_MS = 3000
 
-// 位移与缩放弹簧（重量 / 刚度 / 阻尼）：阻尼 18 接近临界阻尼，换行顺滑不回弹晃动
-export const LYRIC_POSITION_SPRING = { mass: 1, stiffness: 100, damping: 18 }
-export const LYRIC_SCALE_SPRING = { mass: 1, stiffness: 100, damping: 20 }
+export interface LyricMotionPresetConfig {
+  stiffness: number
+  dampingRatio: number
+  staggerBaseS: number
+  inactiveScale: number
+}
+
+// 四档全曲滚动律动预设（与后端 lyricAnnotationMotionList 及 macOS LyricMotionPreset 严格 1:1 对齐）
+export const LYRIC_MOTION_PRESETS: Record<LyricMotion, LyricMotionPresetConfig> = {
+  flow: { stiffness: 168, dampingRatio: 0.78, staggerBaseS: 0.042, inactiveScale: 0.97 },
+  bouncy: { stiffness: 185, dampingRatio: 0.66, staggerBaseS: 0.044, inactiveScale: 0.94 },
+  crisp: { stiffness: 225, dampingRatio: 0.86, staggerBaseS: 0.026, inactiveScale: 0.965 },
+  gentle: { stiffness: 118, dampingRatio: 0.88, staggerBaseS: 0.052, inactiveScale: 0.975 },
+}
+
+export function resolveLyricMotionPreset(motion?: LyricMotion | null): LyricMotionPresetConfig {
+  return (motion && LYRIC_MOTION_PRESETS[motion]) || LYRIC_MOTION_PRESETS.flow
+}
+
+/**
+ * 按全曲预设与当次切句时间间隔计算弹簧参数：
+ * 当连续两句推进间隔 < 420ms（快嘴连切）时，自动收紧阻尼比至 ≥ 0.84 并提高刚度下限，防止 bouncy / gentle 在密集快句段上下晃动糊字
+ */
+export function resolveMotionSprings(
+  motion?: LyricMotion | null,
+  stepIntervalMs?: number | null,
+): { position: SpringParams, scale: SpringParams, staggerBaseS: number, inactiveScale: number } {
+  const preset = resolveLyricMotionPreset(motion)
+  let k = preset.stiffness
+  let zeta = preset.dampingRatio
+  if (stepIntervalMs != null && stepIntervalMs > 0 && stepIntervalMs < 420) {
+    const t = 1 - Math.max(0, stepIntervalMs - 160) / 260
+    k = Math.max(k, k + (205 - k) * t)
+    zeta = Math.max(zeta, zeta + (0.84 - zeta) * t)
+  }
+  const scaleZeta = Math.min(0.92, zeta + 0.05)
+  return {
+    position: { mass: 1, stiffness: k, damping: 2 * zeta * Math.sqrt(k) },
+    scale: { mass: 1, stiffness: k, damping: 2 * scaleZeta * Math.sqrt(k) },
+    staggerBaseS: preset.staggerBaseS,
+    inactiveScale: preset.inactiveScale,
+  }
+}
+
+const DEFAULT_SPRINGS = resolveMotionSprings('flow')
+
+// 默认位移与缩放弹簧（flow 丝滑波浪档）；背景人声展开弹簧
+export const LYRIC_POSITION_SPRING = DEFAULT_SPRINGS.position
+export const LYRIC_SCALE_SPRING = DEFAULT_SPRINGS.scale
 export const LYRIC_BG_EXPAND_SPRING = { mass: 1, stiffness: 170, damping: 26 }
 
-// 阶梯入场：同一帧内多行位移逐行增加的延迟（秒），越靠后的行递减为上一级的 1/1.05
-export const LYRIC_STAGGER_BASE_S = 0.05
+// 阶梯入场：同一帧内可视区多行位移逐行增加的延迟（秒），越靠后的行递减为上一级的 1/1.05
+export const LYRIC_STAGGER_BASE_S = DEFAULT_SPRINGS.staggerBaseS
 export const LYRIC_STAGGER_DECAY = 1.05
 
-// 焦点行缩放为 1，其余行的缩放；背景人声收起缩放；鼠标/触控按压缩放
-export const LYRIC_INACTIVE_SCALE = 0.97
+// 焦点行缩放为 1，其余行的默认缩放；背景人声收起缩放；鼠标/触控按压缩放
+export const LYRIC_INACTIVE_SCALE = DEFAULT_SPRINGS.inactiveScale
 export const LYRIC_BG_COLLAPSED_SCALE = 0.88
 export const LYRIC_PRESS_SCALE = 0.96
 

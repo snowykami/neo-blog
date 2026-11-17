@@ -22,20 +22,17 @@ import {
   LYRIC_FOOTER_FOCUSED_ALPHA,
   LYRIC_INACTIVE_ALPHA,
   LYRIC_INACTIVE_ALPHA_LINE_TIMED,
-  LYRIC_INACTIVE_SCALE,
   LYRIC_INERTIA_DECAY_PER_S,
   LYRIC_MAX_FRAME_S,
   LYRIC_OVERSCAN_PX,
-  LYRIC_POSITION_SPRING,
   LYRIC_PRESS_SCALE,
-  LYRIC_SCALE_SPRING,
   LYRIC_SCROLL_INACTIVE_ALPHA,
   LYRIC_SCROLL_INACTIVE_ALPHA_LINE_TIMED,
   LYRIC_SEEK_THRESHOLD_MS,
-  LYRIC_STAGGER_BASE_S,
   LYRIC_STAGGER_DECAY,
   LYRIC_USER_SCROLL_HOLD_MS,
   LYRIC_WORD_FLOAT_EM,
+  resolveMotionSprings,
 } from './config'
 import { swellCurve } from './easing'
 import { interludeDots } from './interlude'
@@ -195,6 +192,8 @@ interface ItemView {
   hdrExitStart: number | null
   hdrExitFromSpot: boolean
   hdrExiting: boolean
+  // 普通词上浮退场：脱离激活态后在 WORD_LIFT_EXIT_MS 内平滑回落，避免行刚唱完时字瞬间向下跳回基线
+  liftExitStart: number | null
   mainOpacity: string
   // 多声部胶囊与色条的外层紧贴容器（包裹胶囊、竖条与正文），按需展开上方空间；竖条聚光灯下淡出，胶囊按 1/s 反向缩放
   vocal: HTMLElement | null
@@ -768,6 +767,8 @@ export class LyricPlayer {
   // 上一次重绘逐字效果的时间（见 LYRIC_DETAIL_FRAME_MS）
   private lastDetail = Number.NEGATIVE_INFINITY
   private lastTimeMs: number | null = null
+  private lastFocusChangeTimeMs: number | null = null
+  private currentStepIntervalMs: number | null = null
   // 最近一次跳转（拖动进度、打开页面、换歌）的落点：消散特效在它之前就该消散的字直接显示
   private seekAt = Number.NEGATIVE_INFINITY
   // 这一帧的节拍模型（见 LyricPlayerOptions.getRhythm）
@@ -870,6 +871,8 @@ export class LyricPlayer {
     this.hoveredView = -1
     this.pressedView = -1
     this.lastTimeMs = null
+    this.lastFocusChangeTimeMs = null
+    this.currentStepIntervalMs = null
     this.build()
   }
 
@@ -917,6 +920,10 @@ export class LyricPlayer {
   private patchSecondaryLyrics(next: ResolvedLyrics) {
     const prev = this.lyrics
     this.lyrics = next
+    if (prev.motion !== next.motion) {
+      this.syncMotionSprings()
+      this.wake()
+    }
     const doc = this.container.ownerDocument
     let changed = false
 
@@ -1095,6 +1102,18 @@ export class LyricPlayer {
     this.rafId = requestAnimationFrame(this.frame)
   }
 
+  private syncMotionSprings() {
+    const springs = resolveMotionSprings(this.lyrics.motion, this.currentStepIntervalMs)
+    for (const view of this.views) {
+      view.y.setParams(springs.position)
+      view.scale.setParams(springs.scale)
+      view.pillExpand?.setParams(springs.position)
+      if (view.item.kind === 'interlude')
+        view.expand?.setParams(springs.scale)
+    }
+    return springs
+  }
+
   // ---------- 构建 ----------
 
   private build() {
@@ -1104,14 +1123,15 @@ export class LyricPlayer {
     const soloAgents = agents ? Object.values(agents).filter(agent => !agent.isGroup) : []
     const soloCount = soloAgents.length
     const bgOwners = getBackgroundOwnerMap(this.lyrics.lines)
+    const initSprings = resolveMotionSprings(this.lyrics.motion)
     this.views = this.items.map((item, itemIndex) => {
       const view: ItemView = {
         item,
         el: doc.createElement(item.kind === 'line' && !this.options.strip ? 'button' : 'div'),
         main: null,
         height: 0,
-        y: new Spring(0, LYRIC_POSITION_SPRING),
-        scale: new Spring(LYRIC_INACTIVE_SCALE, LYRIC_SCALE_SPRING),
+        y: new Spring(0, initSprings.position),
+        scale: new Spring(initSprings.inactiveScale, initSprings.scale),
         words: [],
         emphasis: [],
         extras: [],
@@ -1133,6 +1153,7 @@ export class LyricPlayer {
         hdrExitStart: null,
         hdrExitFromSpot: false,
         hdrExiting: false,
+        liftExitStart: null,
         mainOpacity: '',
         vocal: null,
         edge: null,
@@ -1227,7 +1248,7 @@ export class LyricPlayer {
             if (pill) {
               vocal.append(pill)
               view.singerPill = pill
-              view.pillExpand = new Spring(0, LYRIC_POSITION_SPRING)
+              view.pillExpand = new Spring(0, initSprings.position)
             }
           }
           vocal.append(edge, main)
@@ -1265,7 +1286,7 @@ export class LyricPlayer {
             el.classList.add('lyric-interlude--center')
         }
         el.setAttribute('aria-hidden', 'true')
-        view.expand = new Spring(0, LYRIC_SCALE_SPRING)
+        view.expand = new Spring(0, initSprings.scale)
         for (let i = 0; i < 3; i++) {
           const dot = doc.createElement('span')
           view.dots.push(dot)
@@ -1502,6 +1523,19 @@ export class LyricPlayer {
       this.state.focus = this.stripFocus(this.state.focus)
     this.activeLines = new Set(this.state.active)
     const focusChanged = this.state.focus !== previousFocus
+    if (focusChanged) {
+      if (!this.teleport && this.lastFocusChangeTimeMs != null && timeMs > this.lastFocusChangeTimeMs)
+        this.currentStepIntervalMs = timeMs - this.lastFocusChangeTimeMs
+      else
+        this.currentStepIntervalMs = null
+      this.lastFocusChangeTimeMs = timeMs
+      this.syncMotionSprings()
+    }
+    else if (this.teleport) {
+      this.currentStepIntervalMs = null
+      this.lastFocusChangeTimeMs = timeMs
+      this.syncMotionSprings()
+    }
     // 单行条只把此刻显示的一行交给读屏（它是导航栏链接的文字）
     if (this.options.strip && (focusChanged || this.teleport)) {
       this.views.forEach((view, i) => {
@@ -1619,7 +1653,7 @@ export class LyricPlayer {
     return { heights, tops, total }
   }
 
-  /** 更新各行的 HDR 跨行退场计时，返回是否有行仍处于退场窗口内 */
+  /** 更新各行的 HDR 跨行退场与普通词上浮平滑退场计时，返回是否有行仍处于退场窗口内 */
   private updateHdrExits(now: number, teleported: boolean): boolean {
     let any = false
     for (let i = 0; i < this.views.length; i++) {
@@ -1627,6 +1661,15 @@ export class LyricPlayer {
       if (view.item.kind !== 'line')
         continue
       const active = this.isLineRenderActive(i)
+      if (teleported || this.reducedMotion || active) {
+        view.liftExitStart = null
+      }
+      else if (view.active && view.liftExitStart == null) {
+        view.liftExitStart = now
+      }
+      else if (view.liftExitStart != null && now - view.liftExitStart >= 220) {
+        view.liftExitStart = null
+      }
       if (!this.display.hdr || teleported || this.reducedMotion || active) {
         view.hdrExitStart = null
       }
@@ -1637,7 +1680,7 @@ export class LyricPlayer {
       else if (view.hdrExitStart != null && now - view.hdrExitStart >= HDR_EXIT_MS) {
         view.hdrExitStart = null
       }
-      if (view.hdrExitStart != null)
+      if (view.hdrExitStart != null || view.liftExitStart != null)
         any = true
     }
     return any
@@ -1751,14 +1794,15 @@ export class LyricPlayer {
     const scroll = this.updateManual(dt, now, autoScroll, total) ?? autoScroll
     const dragging = this.manual?.touching ?? false
 
-    // 聚光灯：整体平移使点题句移到垂直中央，其余行再向两侧让开
+    // 聚光灯：整体平移使点题句移到垂直中央，其余行再向两侧让开；
+    // 采用相对视口对齐比例的固定偏移 (0.5 - alignPosition) * H * spot，避免焦点切到下一句瞬间因 scroll 跳变反向把全舞台往下拽
     const spot = this.spot
     const spotView = spot > 0 ? this.spotView : -1
     let spotShift = 0
     let spotSpread = 0
     let spotScale = 1
     if (spotView >= 0) {
-      spotShift = (this.containerHeight / 2 - heights[spotView] / 2 - (tops[spotView] - scroll)) * spot
+      spotShift = (0.5 - this.alignPosition) * this.containerHeight * spot
       spotSpread = (this.options.compact ? SPOTLIGHT_SPREAD_COMPACT_EM : SPOTLIGHT_SPREAD_EM) * this.fontSize * spot
       this.spotScale ??= spotlightFit(this.views[spotView].el, this.options.compact ? SPOTLIGHT_SCALE_COMPACT : SPOTLIGHT_SCALE)
       spotScale = this.spotScale
@@ -1770,9 +1814,11 @@ export class LyricPlayer {
     this.stripSlots = slots
     const center = (tops[focus] ?? 0) - scroll
 
-    // 阶梯入场：焦点因播放推进而变化时，从视口内第一个条目开始逐个增加延迟
+    // 阶梯入场：仅对真实可视区内的条目计阶梯（不含 300px 离屏缓冲区），且前两行零延迟立即响应，避免出局句与焦点句慢半拍
+    const motionSprings = resolveMotionSprings(this.lyrics.motion, this.currentStepIntervalMs)
     let delay = 0
-    let step = LYRIC_STAGGER_BASE_S
+    let step = motionSprings.staggerBaseS
+    let staggerOrder = 0
     const stagger = focusChanged && !jump && !this.manual
 
     for (let i = 0; i < this.views.length; i++) {
@@ -1792,19 +1838,25 @@ export class LyricPlayer {
           view.el.classList.toggle('lyric-line--half', half)
         }
       }
-      // 单行条按容器本身判断：移出的上一行不排队，新行立即移入
-      const overscan = this.options.strip ? 0 : LYRIC_OVERSCAN_PX
-      const onScreen = target + heights[i] > -overscan && target < this.containerHeight + overscan
+      // 单行条按容器本身判断：移出的上一行不排队，新行立即移入；多行舞台只对真实可视区条目施加波浪阶梯
+      const inStaggerViewport = !strip && (
+        (target + heights[i] > 4 && target < this.containerHeight - 4)
+        || (view.y.position + heights[i] > 4 && view.y.position < this.containerHeight - 4)
+      )
       if (jump || dragging) {
         view.y.jump(target)
       }
-      else if (stagger && onScreen) {
-        view.y.setTarget(target, delay)
-        delay += step
-        step /= LYRIC_STAGGER_DECAY
+      else if (stagger && inStaggerViewport) {
+        const itemDelay = staggerOrder <= 1 ? 0 : delay
+        view.y.setTarget(target, itemDelay)
+        if (staggerOrder >= 1) {
+          delay += step
+          step /= LYRIC_STAGGER_DECAY
+        }
+        staggerOrder++
       }
       else {
-        view.y.setTarget(target)
+        view.y.setTarget(target, 0)
       }
       view.y.step(dt)
 
@@ -1813,7 +1865,7 @@ export class LyricPlayer {
       const baseScale = bgLine
         ? (this.isBgExpanded(i) ? 1 : LYRIC_BG_COLLAPSED_SCALE)
         : view.item.kind === 'line' && !highlighted
-          ? LYRIC_INACTIVE_SCALE
+          ? motionSprings.inactiveScale
           : 1
       // 分层时上下两层的主唱句缩小（背景和声本身字号更小，不再缩放）
       const tiered = slot != null && view.owner < 0
@@ -1963,6 +2015,8 @@ export class LyricPlayer {
         const active = this.isLineRenderActive(i)
         const hdrExiting = view.hdrExitStart != null
         const hdrExitWeight = hdrExiting ? (1 - Math.min(1, Math.max(0, (now - view.hdrExitStart!) / HDR_EXIT_MS))) ** 2 : 0
+        const liftExiting = view.liftExitStart != null
+        const liftExitWeight = liftExiting ? (1 - Math.min(1, Math.max(0, (now - view.liftExitStart!) / 220))) ** 2 : 0
         const offset = visualIndex[i] - focusVisual
         // 聚光灯亮起时其余不在唱的行变淡、变虚；同时在唱的行与鼠标悬停行保持清晰
         const { alpha, blur } = lineAppearance({
@@ -2010,7 +2064,7 @@ export class LyricPlayer {
             view.singerPill.style.transform = nextSingerTransform
           }
         }
-        const lineNeedsDetail = detail || active !== view.active || hdrExiting || view.hdrExiting
+        const lineNeedsDetail = detail || active !== view.active || hdrExiting || view.hdrExiting || liftExiting
         if (!lineNeedsDetail)
           continue
         // 与下面的逐字样式在同一帧切换（HDR 高光的字色由类名决定，见 lyric-player.css）
@@ -2039,7 +2093,7 @@ export class LyricPlayer {
           view.el.classList.toggle('lyric-line--spot', spotlit)
         }
         const hdrExit = hdrExiting ? { weight: hdrExitWeight, targetAlpha: alpha, dimAlpha: wordDimAlpha, lineGain: linePeakGain } : null
-        this.paintWords(view, active, timeMs + LYRIC_ANIMATION_HEADSTART_MS, feather, wordDimAlpha, hdrExit)
+        this.paintWords(view, active, timeMs + LYRIC_ANIMATION_HEADSTART_MS, feather, wordDimAlpha, hdrExit, liftExitWeight)
         if (view.emphasis.length > 0) {
           if (this.display.effects && !this.reducedMotion)
             this.paintEmphasis(view, active, timeMs, hdrExit, debrisReads)
@@ -2131,6 +2185,7 @@ export class LyricPlayer {
     feather: number,
     dimAlpha: number,
     hdrExit: { weight: number, targetAlpha: number, dimAlpha: number, lineGain: number } | null = null,
+    liftExitWeight = 0,
   ) {
     const bg = view.item.kind === 'line' && Boolean(this.lyrics.lines[view.item.line]?.isBackground)
     const floatPx = LYRIC_WORD_FLOAT_EM * this.fontSize * (bg ? 2 : 1)
@@ -2168,6 +2223,14 @@ export class LyricPlayer {
         opacity = nextAlpha < 0.9995 ? nextAlpha.toFixed(3) : ''
         if (!this.reducedMotion && progress > 0 && word.lifts) {
           const dy = -floatPx * easeOut(progress) * hdrExit.weight
+          if (Math.abs(dy) >= 0.02)
+            transform = `translateY(${dy.toFixed(2)}px)`
+        }
+      }
+      else if (liftExitWeight > 0 && !word.split && !this.reducedMotion && word.lifts && (!word.emphasized || !effectsOn)) {
+        const progress = getWordProgress(word.word.start, word.word.end, timeMs)
+        if (progress > 0) {
+          const dy = -floatPx * easeOut(progress) * liftExitWeight
           if (Math.abs(dy) >= 0.02)
             transform = `translateY(${dy.toFixed(2)}px)`
         }

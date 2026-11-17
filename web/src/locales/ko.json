@@ -2488,6 +2488,8 @@
       "song_settings": "곡 전체 설정",
       "font": "곡 전체 글꼴",
       "font_default": "기본 글꼴",
+      "motion": "스크롤 리듬감",
+      "motion_default": "기본(부드러운 물결)",
       "intro": "전주 소개 문구",
       "intro_placeholder": "전주 동안 표시되는 문구(선택)",
       "accent": "테마 색상",
@@ -4919,6 +4921,12 @@
       "round": "둥근체",
       "mono": "고정폭",
       "script": "필기체(영문)"
+    },
+    "motions": {
+      "flow": "부드러운 물결",
+      "bouncy": "통통 튀는 탄성",
+      "crisp": "절도 있는 스냅",
+      "gentle": "잔잔한 호흡"
     },
     "scenes": {
       "petals": "꽃잎",

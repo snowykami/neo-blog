@@ -2488,6 +2488,8 @@
       "song_settings": "Song settings",
       "font": "Song font",
       "font_default": "Default font",
+      "motion": "Scroll motion",
+      "motion_default": "Default (Flow)",
       "intro": "Intro line",
       "intro_placeholder": "Shown during the intro; optional",
       "accent": "Theme color",
@@ -4919,6 +4921,12 @@
       "round": "Rounded",
       "mono": "Monospace",
       "script": "Script"
+    },
+    "motions": {
+      "flow": "Smooth Flow",
+      "bouncy": "Springy Bounce",
+      "crisp": "Snappy Magnetic",
+      "gentle": "Gentle Breath"
     },
     "scenes": {
       "petals": "Petals",

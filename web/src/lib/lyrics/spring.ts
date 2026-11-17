@@ -25,11 +25,24 @@ export class Spring {
     this.target = initial
   }
 
-  /** 设定目标；传入 delay 时 delay 秒后才开始向目标移动，不传则保留尚未结束的延迟 */
+  /** 动态更新弹簧物理参数（切换全曲律动预设或快切阻尼保护时平滑衔接，不改变当前位移与速度） */
+  setParams(params: SpringParams) {
+    this.params = params
+  }
+
+  /**
+   * 设定目标；传入 delay 时延迟启动，不传则保留尚未结束的延迟。
+   * 当弹簧已朝同一方向高速运动中（如连续快句切换）时，不硬刹停半空速度，大幅收短附加延迟以保持动量连贯
+   */
   setTarget(target: number, delay?: number) {
+    const delta = target - this.position
+    if (delay !== undefined) {
+      if (delay > 0 && Math.abs(this.velocity) > 8 && delta * this.velocity > 0)
+        this.delay = Math.min(delay * 0.2, 0.014)
+      else
+        this.delay = delay
+    }
     this.target = target
-    if (delay !== undefined)
-      this.delay = delay
   }
 
   /** 瞬移到位，不经过弹簧（跳转、重建、减少动态效果时） */

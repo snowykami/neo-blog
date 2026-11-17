@@ -300,7 +300,8 @@ private struct CompactStageLyricsView: View {
                         date: timeline.date,
                         nowMs: nowMs,
                         tState: tState,
-                        spot: spot
+                        spot: spot,
+                        motion: store.lyrics.motion
                     )
 
                     ZStack(alignment: .bottom) {

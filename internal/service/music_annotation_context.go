@@ -498,6 +498,11 @@ func writeLyricAnnotationSong(b *strings.Builder, info lyricAnnotationInfo, albu
 	if album && info.VisualTheme != "" {
 		b.WriteString(text.VisualTheme + info.VisualTheme + "\n")
 	}
+	if album {
+		if pace := lyricPaceSummaryOf(info).format(); pace != "" {
+			b.WriteString(text.LinePace + pace + "\n")
+		}
+	}
 	b.WriteString(text.SongEnd)
 }
 

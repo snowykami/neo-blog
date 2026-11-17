@@ -2488,6 +2488,8 @@
       "song_settings": "全曲设置",
       "font": "全曲字体",
       "font_default": "默认字体",
+      "motion": "滚动律动",
+      "motion_default": "默认（丝滑波浪）",
       "intro": "前奏导语",
       "intro_placeholder": "前奏时显示的一句话，可留空",
       "accent": "主题色",
@@ -4919,6 +4921,12 @@
       "round": "圆体",
       "mono": "等宽",
       "script": "英文花体"
+    },
+    "motions": {
+      "flow": "丝滑波浪",
+      "bouncy": "轻盈 Q 弹",
+      "crisp": "干脆磁吸",
+      "gentle": "舒缓呼吸"
     },
     "scenes": {
       "petals": "花瓣",

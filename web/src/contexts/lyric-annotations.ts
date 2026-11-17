@@ -29,6 +29,7 @@ type LyricAnnotationResponse = NonNullable<Awaited<ReturnType<typeof fetchLyricA
 function hasPartialAnnotations(result: LyricAnnotationResponse): boolean {
   return Boolean(
     result.font
+    || result.motion
     || result.intro
     || result.outro
     || result.accent
@@ -42,6 +43,7 @@ function hasPartialAnnotations(result: LyricAnnotationResponse): boolean {
 function toSiteAnnotations(result: LyricAnnotationResponse): SiteLyricAnnotations {
   return {
     font: result.font,
+    motion: result.motion,
     intro: result.intro,
     outro: result.outro,
     moments: result.moments,
