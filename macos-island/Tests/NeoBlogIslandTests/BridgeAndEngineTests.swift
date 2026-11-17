@@ -538,4 +538,50 @@ struct BridgeAndEngineTests {
         #expect(macA.isExpanded == true)
         #expect(macB.shouldDisplayIsland == false)
     }
+
+    @Test("点击全屏按钮唤醒浏览器并切回播放 Tab：Chromium / Arc / Safari AppleScript 方言生成与 focus_token 握手")
+    @MainActor
+    func testBrowserTabActivatorScriptGenerationAndFocusHandshake() throws {
+        let chromeTokenScript = BrowserTabActivator.buildAppleScript(
+            bundleId: "com.google.Chrome",
+            dialect: .chromium,
+            focusToken: "nbf_1234abcd",
+            origin: nil
+        )
+        #expect(chromeTokenScript.contains(#"tell application id "com.google.Chrome""#))
+        #expect(chromeTokenScript.contains(#"title of t contains "nbf_1234abcd""#))
+        #expect(chromeTokenScript.contains("set active tab index of w to tIdx"))
+
+        let arcTokenScript = BrowserTabActivator.buildAppleScript(
+            bundleId: "company.thebrowser.Browser",
+            dialect: .arc,
+            focusToken: "nbf_1234abcd",
+            origin: nil
+        )
+        #expect(arcTokenScript.contains("tell t to select"))
+
+        let safariFallbackScript = BrowserTabActivator.buildAppleScript(
+            bundleId: "com.apple.Safari",
+            dialect: .safari,
+            focusToken: nil,
+            origin: "https://blog.example.com"
+        )
+        #expect(safariFallbackScript.contains("set current tab of w to t"))
+        #expect(safariFallbackScript.contains(#"(u starts with "https://blog.example.com") and (u contains "/music")"#))
+
+        let store = IslandStore(startNetworkServices: false)
+        var capturedCmd: OutgoingCommand?
+        store.onInterceptCommandForTest = { cmd in
+            capturedCmd = cmd
+        }
+        let clientId = UUID()
+        let mediaJSON = Data(#"{"type":"media","origin":"https://blog.example.com","user_agent":"Mozilla/5.0 Chrome/136.0.0.0","track":{"id":1,"name":"Test","artists":["A"],"album":"B","duration_ms":180000}}"#.utf8)
+        store.ingestTestPayload(mediaJSON, clientId: clientId, origin: "https://blog.example.com")
+        store.isExpanded = true
+        store.openBlogPlayerPage()
+
+        #expect(store.isExpanded == false)
+        #expect(capturedCmd?.action == "open_player_page")
+        #expect(capturedCmd?.focusToken?.hasPrefix("nbf_") == true)
+    }
 }

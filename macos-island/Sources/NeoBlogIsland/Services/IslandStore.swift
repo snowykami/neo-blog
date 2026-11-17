@@ -18,6 +18,7 @@ final class IslandStore {
         let clientId: UUID
         var origin: String
         var tabId: String
+        var userAgent: String = ""
         var hasEverPlayed: Bool = false
         var track: IslandTrack?
         var accentHex: String?
@@ -54,6 +55,7 @@ final class IslandStore {
     }
 
     @ObservationIgnored private let logger = Logger(subsystem: "org.liteyuki.NeoBlogIsland", category: "IslandStore")
+    @ObservationIgnored private let networkServicesEnabled: Bool
     @ObservationIgnored let bridgeServer = LocalBridgeServer()
     let peerService: PeerContinuityService
     let debrisEngine = DebrisEngine()
@@ -62,6 +64,7 @@ final class IslandStore {
     let expandedStageParticles = StageParticlesEngine(scale: 0.7, maxParticles: 80)
     @ObservationIgnored private var tabSessions: [UUID: TabSession] = [:]
     @ObservationIgnored private var snapshotHealTask: Task<Void, Never>?
+    @ObservationIgnored private var pendingTabFocus: (token: String, origin: String, userAgent: String, timeoutTask: Task<Void, Never>)? = nil
     @ObservationIgnored private var portPollTimer: Timer?
 
     private(set) var activeClientId: UUID?
@@ -193,6 +196,7 @@ final class IslandStore {
     }
 
     init(startNetworkServices: Bool = true, peerService: PeerContinuityService? = nil) {
+        self.networkServicesEnabled = startNetworkServices
         self.peerService = peerService ?? PeerContinuityService()
         setupPeerCallbacks()
         if startNetworkServices {
@@ -575,11 +579,45 @@ final class IslandStore {
     }
 
     func openBlogPlayerPage() {
+        releaseKeyFocus(restorePreviousApp: false)
         withAnimation(.spring(duration: 0.34, bounce: 0.2)) {
             isExpanded = false
             showPlaylistOverlay = false
         }
-        sendCommand(OutgoingCommand(action: "open_player_page"))
+        if isDisplayingRemotePeerSession && peerService.isConnected {
+            peerService.sendRemoteCommand(OutgoingCommand(action: "open_player_page"))
+            return
+        }
+        openLocalBrowserPlayerTab()
+    }
+
+    private func openLocalBrowserPlayerTab() {
+        let targetId = tabSessions.keys.first { $0 != Self.remotePeerVirtualClientId && $0 == activeClientId }
+            ?? tabSessions.keys.first { $0 != Self.remotePeerVirtualClientId }
+        let session = targetId.flatMap { tabSessions[$0] }
+        let origin = session?.origin ?? connectedOrigins.first ?? ""
+        let userAgent = session?.userAgent ?? ""
+        let token = "nbf_\(UUID().uuidString.prefix(8).lowercased())"
+
+        onInterceptCommandForTest?(OutgoingCommand(action: "open_player_page", focusToken: token))
+
+        pendingTabFocus?.timeoutTask.cancel()
+        let timeoutTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(90))
+            guard !Task.isCancelled, let self, let pending = self.pendingTabFocus, pending.token == token else {
+                return
+            }
+            self.pendingTabFocus = nil
+            if self.networkServicesEnabled {
+                BrowserTabActivator.activatePlayingTab(
+                    origin: pending.origin,
+                    focusToken: pending.token,
+                    userAgent: pending.userAgent
+                )
+            }
+        }
+        pendingTabFocus = (token: token, origin: origin, userAgent: userAgent, timeoutTask: timeoutTask)
+        bridgeServer.sendCommand(OutgoingCommand(action: "open_player_page", focusToken: token), to: targetId)
     }
 
     func hideCurrentTrack() {
@@ -636,6 +674,8 @@ final class IslandStore {
         let type: String
         let tab_id: String?
         let origin: String?
+        let user_agent: String?
+        let focus_token: String?
     }
 
     private func decodeJSON<T: Decodable>(_ type: T.Type, from data: Data, label: String) -> T? {
@@ -708,6 +748,10 @@ final class IslandStore {
 
         peerService.onReceiveRemoteCommand = { [weak self] cmd in
             guard let self else { return }
+            if cmd.action == "open_player_page" {
+                self.openLocalBrowserPlayerTab()
+                return
+            }
             let localClient = self.tabSessions.keys.first { $0 != Self.remotePeerVirtualClientId && $0 == self.activeClientId }
                 ?? self.tabSessions.keys.first { $0 != Self.remotePeerVirtualClientId }
             self.onInterceptCommandForTest?(cmd)
@@ -800,9 +844,25 @@ final class IslandStore {
         if !fromPeer {
             if let origin = probe.origin, !origin.isEmpty { session.origin = origin }
             if let tabId = probe.tab_id, !tabId.isEmpty { session.tabId = tabId }
+            if let ua = probe.user_agent, !ua.isEmpty { session.userAgent = ua }
         }
 
         switch probe.type {
+        case "focus_ready":
+            tabSessions[clientId] = session
+            if let token = probe.focus_token, !token.isEmpty,
+               let pending = pendingTabFocus, pending.token == token {
+                pending.timeoutTask.cancel()
+                pendingTabFocus = nil
+                if networkServicesEnabled {
+                    BrowserTabActivator.activatePlayingTab(
+                        origin: session.origin.isEmpty ? pending.origin : session.origin,
+                        focusToken: token,
+                        userAgent: session.userAgent.isEmpty ? pending.userAgent : session.userAgent
+                    )
+                }
+            }
+
         case "media":
             guard let msg = decodeJSON(WebMediaMessage.self, from: data, label: "media") else { return }
             if session.track?.id != msg.track?.id {

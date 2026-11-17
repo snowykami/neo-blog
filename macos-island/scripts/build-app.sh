@@ -30,7 +30,7 @@ for arg in "$@"; do
     esac
 done
 
-APP_VERSION="${APP_VERSION:-0.1.0}"
+APP_VERSION="${APP_VERSION:-0.2.0}"
 BUILD_NUMBER="${BUILD_NUMBER:-1}"
 CODESIGN_IDENTITY="${CODESIGN_IDENTITY:--}"
 
@@ -95,6 +95,8 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
     <true/>
     <key>NSLocalNetworkUsageDescription</key>
     <string>用于通过苹果无线直连（AWDL / Bonjour）发现并连接附近运行灵动岛的另一台 Mac，实现跨屏拖拽传岛与歌词同步控制。</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>用于在点击灵动岛全屏按钮时，自动将浏览器拉回主界面并切换到正在播放音乐的标签页。</string>
     <key>NSBonjourServices</key>
     <array>
         <string>_neoblog._tcp</string>

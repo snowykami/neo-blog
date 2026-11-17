@@ -911,6 +911,7 @@ struct OutgoingCommand: Codable {
     var lang: String? = nil
     var preferNative: Bool? = nil
     var hasDualSources: Bool? = nil
+    var focusToken: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case action, index, volume, lang
@@ -918,6 +919,7 @@ struct OutgoingCommand: Codable {
         case playMode = "play_mode"
         case preferNative = "prefer_native"
         case hasDualSources = "has_dual_sources"
+        case focusToken = "focus_token"
     }
 }
 

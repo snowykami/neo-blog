@@ -26,7 +26,7 @@ import {
   useDesktopIslandPrefs,
   useDesktopIslandRuntime,
 } from '@/hooks/use-desktop-island-pref'
-import { useRouter } from '@/i18n/navigation'
+import { usePathname, useRouter } from '@/i18n/navigation'
 import { LYRIC_COLORS, MOOD_GLOW, resolveAgentHex } from '@/lib/lyrics/colors'
 import { getBackgroundOwnerMap, getLyricLineAlign, getLyricLineVocalStart } from '@/lib/lyrics/line-utils'
 import { lyricGlowAt } from '@/lib/lyrics/lyric-glow'
@@ -285,6 +285,65 @@ interface IncomingIslandCommand {
   lang?: string
   prefer_native?: boolean
   has_dual_sources?: boolean
+  focus_token?: string
+}
+
+let cleanupFocusStamp: (() => void) | null = null
+
+/**
+ * 为当前正在播放音乐的标签页临时打上一次性聚焦标记，供 macOS 原生端 Apple Events 在多窗口/多标签页中 100% 唯一命中该 Tab：
+ * - 通过 MutationObserver 跨越 Next.js 切往 /music 期间的异步 <title> 重写；
+ * - 窗口切回前台获得焦点后立即无痕擦除标记（最长保留 10s，留足首次 macOS 系统授权弹窗点击时间）。
+ */
+function stampDocumentTitleForFocus(token: string) {
+  if (typeof document === 'undefined' || typeof window === 'undefined' || !token)
+    return
+  cleanupFocusStamp?.()
+  const marker = ` [${token}]`
+  const applyStamp = () => {
+    if (!document.title.includes(marker))
+      document.title = `${document.title}${marker}`
+  }
+  const stripStamp = () => {
+    if (document.title.includes(marker))
+      document.title = document.title.split(marker).join('')
+  }
+  applyStamp()
+
+  let applying = false
+  const observer = new MutationObserver(() => {
+    if (applying)
+      return
+    if (!document.title.includes(marker)) {
+      applying = true
+      applyStamp()
+      applying = false
+    }
+  })
+  if (document.head)
+    observer.observe(document.head, { childList: true, subtree: true, characterData: true })
+
+  let timer = 0
+  const listenerCtrl = new AbortController()
+  const teardown = () => {
+    window.clearTimeout(timer)
+    listenerCtrl.abort()
+    observer.disconnect()
+    stripStamp()
+    if (cleanupFocusStamp === teardown)
+      cleanupFocusStamp = null
+  }
+  const onActivated = () => {
+    window.setTimeout(teardown, 150)
+  }
+  const onVisibility = () => {
+    if (document.visibilityState === 'visible' && document.hasFocus())
+      onActivated()
+  }
+  window.addEventListener('focus', onActivated, { once: true, signal: listenerCtrl.signal })
+  document.addEventListener('visibilitychange', onVisibility, { signal: listenerCtrl.signal })
+  timer = window.setTimeout(teardown, 10000)
+  cleanupFocusStamp = teardown
 }
 
 /**
@@ -301,6 +360,7 @@ export function DesktopIslandBridge() {
   const prefs = useDesktopIslandPrefs()
   const { reconnectEpoch } = useDesktopIslandRuntime()
   const router = useRouter()
+  const pathname = usePathname()
   const locale = useLocale()
 
   const {
@@ -522,6 +582,7 @@ export function DesktopIslandBridge() {
     actions,
     refreshLyrics,
     router,
+    pathname,
     showTranslation,
     showRomaji,
     showLyricEffects,
@@ -535,6 +596,7 @@ export function DesktopIslandBridge() {
     actions,
     refreshLyrics,
     router,
+    pathname,
     showTranslation,
     showRomaji,
     showLyricEffects,
@@ -626,10 +688,23 @@ export function DesktopIslandBridge() {
       case 'refresh_lyrics':
         ctx.refreshLyrics()
         break
-      case 'open_player_page':
-        ctx.router.push('/music')
+      case 'open_player_page': {
+        const token = typeof cmd.focus_token === 'string' ? cmd.focus_token : ''
+        if (token)
+          stampDocumentTitleForFocus(token)
+        if (ctx.pathname !== '/music')
+          ctx.router.push('/music')
+        if (token) {
+          sendJSON({
+            type: 'focus_ready',
+            tab_id: tabIdRef.current,
+            focus_token: token,
+            user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+          })
+        }
         window.focus()
         break
+      }
       case 'sync_snapshot':
         setWsOpenEpoch(n => (n > 0 ? n + 1 : 1))
         break
@@ -760,6 +835,7 @@ export function DesktopIslandBridge() {
     sendJSON({
       type: 'media',
       tab_id: tabIdRef.current,
+      user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
       track: formattedTrack,
       accent_hex: accent ?? null,
       chorus,

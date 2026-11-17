@@ -51,7 +51,7 @@ jobs:
             RELEASE_TITLE="NeoBlogIsland v${APP_VERSION}"
           else
             RELEASE_TAG="island-nightly"
-            APP_VERSION="0.1.0-nightly.${SHORT_SHA}"
+            APP_VERSION="0.2.0-nightly.${SHORT_SHA}"
             IS_NIGHTLY="true"
             RELEASE_TITLE="NeoBlogIsland Nightly (${BUILD_DATE} · ${SHORT_SHA})"
           fi
@@ -100,21 +100,21 @@ jobs:
           git push origin "refs/tags/${RELEASE_TAG}" --force
 
           NOTES_FILE="$(mktemp)"
-          cat > "${NOTES_FILE}" <<EOF
-          ### NeoBlogIsland Nightly 自动构建
-
-          - **版本标识**：\`${APP_VERSION}\`（Build \`#${GITHUB_RUN_NUMBER}\`）
-          - **对应提交**：\`${SHORT_SHA}\` (${GITHUB_SHA})
-          - **系统要求**：macOS 15.0 (Sequoia) 及以上（Universal Binary：原生支持 Apple Silicon M1~M4 与 Intel）
-
-          #### 安装与首次启动说明
-          1. 下载下方 **\`NeoBlogIsland-universal.dmg\`**，双击打开并将 \`NeoBlogIsland.app\` 拖入 \`Applications\`（应用程序）。
-          2. 因采用零成本 Ad-hoc 签名，首次启动若提示「未验证开发者」或「已损坏」，请在终端执行一次：
-             \`\`\`bash
-             xattr -cr /Applications/NeoBlogIsland.app
-             open /Applications/NeoBlogIsland.app
-             \`\`\`
-          EOF
+          {
+            echo "### NeoBlogIsland Nightly 自动构建"
+            echo ""
+            echo "- **版本标识**：\`${APP_VERSION}\`（Build \`#${GITHUB_RUN_NUMBER}\`）"
+            echo "- **对应提交**：\`${SHORT_SHA}\` (${GITHUB_SHA})"
+            echo "- **系统要求**：macOS 15.0 (Sequoia) 及以上（Universal Binary：原生支持 Apple Silicon M1~M4 与 Intel）"
+            echo ""
+            echo "#### 安装与首次启动说明"
+            echo "1. 下载下方 **\`NeoBlogIsland-universal.dmg\`**，双击打开并将 \`NeoBlogIsland.app\` 拖入 \`Applications\`（应用程序）。"
+            echo "2. 因采用零成本 Ad-hoc 签名，首次启动若提示「未验证开发者」或「已损坏」，请在终端执行一次："
+            echo '   ```bash'
+            echo "   xattr -cr /Applications/NeoBlogIsland.app"
+            echo "   open /Applications/NeoBlogIsland.app"
+            echo '   ```'
+          } > "${NOTES_FILE}"
 
           if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
             gh release edit "${RELEASE_TAG}" \
@@ -147,15 +147,15 @@ jobs:
           APP_VERSION: ${{ steps.meta.outputs.app_version }}
         run: |
           NOTES_FILE="$(mktemp)"
-          cat > "${NOTES_FILE}" <<EOF
-          ### NeoBlogIsland v${APP_VERSION}
-
-          - **系统要求**：macOS 15.0 (Sequoia) 及以上（Universal Binary：原生支持 Apple Silicon M1~M4 与 Intel）
-          - **安装方式**：下载 \`NeoBlogIsland-universal.dmg\` 拖入「应用程序」即可；若首次打开受 Gatekeeper 拦截，可执行：
-            \`\`\`bash
-            xattr -cr /Applications/NeoBlogIsland.app && open /Applications/NeoBlogIsland.app
-            \`\`\`
-          EOF
+          {
+            echo "### NeoBlogIsland v${APP_VERSION}"
+            echo ""
+            echo "- **系统要求**：macOS 15.0 (Sequoia) 及以上（Universal Binary：原生支持 Apple Silicon M1~M4 与 Intel）"
+            echo "- **安装方式**：下载 \`NeoBlogIsland-universal.dmg\` 拖入「应用程序」即可；若首次打开受 Gatekeeper 拦截，可执行："
+            echo '  ```bash'
+            echo "  xattr -cr /Applications/NeoBlogIsland.app && open /Applications/NeoBlogIsland.app"
+            echo '  ```'
+          } > "${NOTES_FILE}"
 
           if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
             gh release upload "${RELEASE_TAG}" \
