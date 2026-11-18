@@ -1,4 +1,6 @@
+import AppKit
 import Foundation
+@preconcurrency import MediaPlayer
 import SwiftUI
 import Testing
 @testable import NeoBlogIsland
@@ -1538,5 +1540,262 @@ struct BridgeAndEngineTests {
         store.nativeAudio.simulateFailureForTesting()
         #expect(store.isPlaying == false)
         #expect(store.nativeAudio.isPlaying == false)
+    }
+
+    @Test("NowPlaying MPMediaItemArtwork 在后台非主线程队列回调时不触发 Swift 6 @MainActor 隔离断言崩溃")
+    @MainActor
+    func nowPlayingArtworkRequestHandlerSurvivesBackgroundQueueInvocation() async throws {
+        let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: 32,
+            pixelsHigh: 32,
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0
+        )!
+        let srcImage = NSImage(size: CGSize(width: 32, height: 32))
+        srcImage.addRepresentation(rep)
+        let tiffData = try #require(srcImage.tiffRepresentation)
+        let artwork = NativeAudioEngine.makeMediaArtwork(boundsSize: srcImage.size, tiffData: tiffData)
+
+        // 模拟 macOS MediaRemote 在后台 XPC 队列同步拉取封面位图（此前会因隐式 @MainActor 隔离直接 EXC_BREAKPOINT 崩溃）
+        let renderedWidth: CGFloat = await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                precondition(!Thread.isMainThread)
+                let rendered = artwork.image(at: CGSize(width: 120, height: 120))
+                continuation.resume(returning: rendered?.size.width ?? 0)
+            }
+        }
+        #expect(renderedWidth > 0)
+    }
+
+    @Test("浏览器关闭瞬间 <audio> 抢先派发 pause 不会阻断内置续播，但用户主动暂停后关页不会误续播")
+    @MainActor
+    func browserUnloadTeardownPauseRaceAndIntentionalPauseDistinction() async throws {
+        // 1) 页面卸载抢跑：播放至 42s 时浏览器先发一帧 is_playing=false（甚至卸载归零 position_ms=0），15ms 后 WS 断开 -> 正常接续且保留 42s 进度
+        let store1 = IslandStore(startNetworkServices: false)
+        store1.disconnectTakeoverDelayMs = 0
+        let tab1 = UUID()
+        store1.ingestTestPayload(Data("""
+        {
+          "type": "media",
+          "origin": "https://59.110.27.154",
+          "track": { "id": 301, "name": "Unload Song", "artists": ["Artist"], "duration_ms": 240000 },
+          "lyrics": { "source": "ncm-lrc", "word_synced": false, "instrumental": false, "lines": [{"start": 0, "end": 60000, "words": [{"text": "Hello", "start": 0, "end": 60000}]}] }
+        }
+        """.utf8), clientId: tab1, origin: "https://59.110.27.154")
+        store1.ingestTestPayload(Data("""
+        {
+          "type": "state",
+          "origin": "https://59.110.27.154",
+          "visible": true,
+          "has_played": true,
+          "show_playing": true,
+          "is_playing": true,
+          "track_id": 301,
+          "duration_ms": 240000,
+          "position_ms": 42000,
+          "anchor_ms": \(Date().timeIntervalSince1970 * 1000.0)
+        }
+        """.utf8), clientId: tab1, origin: "https://59.110.27.154")
+
+        // 模拟稳态播放/后台节流标签页已过去 850ms 未发心跳，随后关闭页面触发 <audio> 抢跑 pause（甚至卸载归零 position_ms=0）并在 15ms 后断开 WS
+        try await Task.sleep(for: .milliseconds(850))
+        store1.ingestTestPayload(Data("""
+        {
+          "type": "state",
+          "origin": "https://59.110.27.154",
+          "visible": true,
+          "has_played": true,
+          "show_playing": true,
+          "is_playing": false,
+          "audio_playing": false,
+          "track_id": 301,
+          "duration_ms": 240000,
+          "position_ms": 0,
+          "anchor_ms": \(Date().timeIntervalSince1970 * 1000.0)
+        }
+        """.utf8), clientId: tab1, origin: "https://59.110.27.154")
+        try await Task.sleep(for: .milliseconds(15))
+
+        store1.simulateClientDisconnectForTesting(tab1)
+        #expect(store1.isAutonomousMode == true)
+        #expect(store1.nativeAudio.isActive == true)
+        #expect(store1.currentPositionMs() >= 42800)
+
+        // 2) 用户通过灵动岛主动点击暂停后立即关闭浏览器 -> 尊重用户暂停意图，不触发内置续播
+        let store2 = IslandStore(startNetworkServices: false)
+        store2.disconnectTakeoverDelayMs = 0
+        let tab2 = UUID()
+        store2.ingestTestPayload(Data("""
+        {
+          "type": "media",
+          "origin": "https://59.110.27.154",
+          "track": { "id": 302, "name": "Paused By Island", "artists": ["Artist"], "duration_ms": 240000 },
+          "lyrics": { "source": "ncm-lrc", "word_synced": false, "instrumental": false, "lines": [] }
+        }
+        """.utf8), clientId: tab2, origin: "https://59.110.27.154")
+        store2.ingestTestPayload(Data("""
+        {
+          "type": "state",
+          "origin": "https://59.110.27.154",
+          "visible": true,
+          "has_played": true,
+          "show_playing": true,
+          "is_playing": true,
+          "track_id": 302,
+          "duration_ms": 240000,
+          "position_ms": 18000,
+          "anchor_ms": \(Date().timeIntervalSince1970 * 1000.0)
+        }
+        """.utf8), clientId: tab2, origin: "https://59.110.27.154")
+
+        store2.pause()
+        store2.ingestTestPayload(Data("""
+        {
+          "type": "state",
+          "origin": "https://59.110.27.154",
+          "visible": true,
+          "has_played": true,
+          "show_playing": false,
+          "is_playing": false,
+          "track_id": 302,
+          "duration_ms": 240000,
+          "position_ms": 18020,
+          "anchor_ms": \(Date().timeIntervalSince1970 * 1000.0)
+        }
+        """.utf8), clientId: tab2, origin: "https://59.110.27.154")
+        store2.simulateClientDisconnectForTesting(tab2)
+        #expect(store2.isAutonomousMode == false)
+        #expect(store2.nativeAudio.isActive == false)
+
+        // 3) 用户在网页端暂停超过 0.7s 后再关标签页 -> 正常收起，不误续播
+        let store3 = IslandStore(startNetworkServices: false)
+        store3.disconnectTakeoverDelayMs = 0
+        let tab3 = UUID()
+        store3.ingestTestPayload(Data("""
+        {
+          "type": "media",
+          "origin": "https://59.110.27.154",
+          "track": { "id": 303, "name": "Paused On Web", "artists": ["Artist"], "duration_ms": 240000 },
+          "lyrics": { "source": "ncm-lrc", "word_synced": false, "instrumental": false, "lines": [] }
+        }
+        """.utf8), clientId: tab3, origin: "https://59.110.27.154")
+        store3.ingestTestPayload(Data("""
+        {
+          "type": "state",
+          "origin": "https://59.110.27.154",
+          "visible": true,
+          "has_played": true,
+          "show_playing": true,
+          "is_playing": true,
+          "track_id": 303,
+          "duration_ms": 240000,
+          "position_ms": 25000,
+          "anchor_ms": \(Date().timeIntervalSince1970 * 1000.0)
+        }
+        """.utf8), clientId: tab3, origin: "https://59.110.27.154")
+        store3.ingestTestPayload(Data("""
+        {
+          "type": "state",
+          "origin": "https://59.110.27.154",
+          "visible": true,
+          "has_played": true,
+          "show_playing": false,
+          "is_playing": false,
+          "track_id": 303,
+          "duration_ms": 240000,
+          "position_ms": 25010,
+          "anchor_ms": \(Date().timeIntervalSince1970 * 1000.0)
+        }
+        """.utf8), clientId: tab3, origin: "https://59.110.27.154")
+        try await Task.sleep(for: .milliseconds(720))
+        store3.simulateClientDisconnectForTesting(tab3)
+        #expect(store3.isAutonomousMode == false)
+    }
+
+    @Test("跨 Mac 连接旧版灵动岛时断联续播自动召回原主机发声与显示，防止落入无声黑洞")
+    @MainActor
+    func legacyPeerWithoutAutonomousCapabilityRecallsToSourceHost() async throws {
+        let suiteA = "test.peer.legacyA.\(UUID().uuidString)"
+        let suiteB = "test.peer.legacyB.\(UUID().uuidString)"
+        let defA = UserDefaults(suiteName: suiteA)!
+        let defB = UserDefaults(suiteName: suiteB)!
+        defer {
+            defA.removePersistentDomain(forName: suiteA)
+            defB.removePersistentDomain(forName: suiteB)
+        }
+
+        let peerA = PeerContinuityService(overridePeerId: "mac-source-new", overrideDeviceName: "Mac A", isolatedDefaults: defA)
+        let peerB = PeerContinuityService(overridePeerId: "mac-peer-old", overrideDeviceName: "Mac B", isolatedDefaults: defB)
+        let storeA = IslandStore(startNetworkServices: false, peerService: peerA)
+        let storeB = IslandStore(startNetworkServices: false, peerService: peerB)
+        storeA.disconnectTakeoverDelayMs = 0
+        defer {
+            peerA.stop()
+            peerB.stop()
+        }
+
+        peerB.startLoopbackForTesting()
+        for _ in 0..<25 where peerB.directListeningPort == 0 {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        peerA.connectLoopbackForTesting(port: peerB.directListeningPort, requestPairingIfUntrusted: true)
+        for _ in 0..<25 where peerB.pendingPairRequest == nil {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        peerB.respondToPairRequest(accept: true)
+        for _ in 0..<25 where !peerA.isConnected || !peerB.isConnected {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        // 默认新版本握手成功时双方均协商出 supportsAutonomousContinuity == true
+        #expect(peerA.peerSupportsAutonomousContinuity == true)
+        #expect(peerB.peerSupportsAutonomousContinuity == true)
+
+        // 模拟对端 Mac B 运行旧版本（不支持内置续播），且浏览器在线阶段胶囊已被甩屏到 Mac B
+        peerA.setPeerSupportsAutonomousContinuityForTesting(false)
+        let localTab = UUID()
+        storeA.ingestTestPayload(Data("""
+        {
+          "type": "media",
+          "origin": "https://59.110.27.154",
+          "track": { "id": 401, "name": "Cross Mac Song", "artists": ["Artist"], "duration_ms": 200000 },
+          "lyrics": { "source": "ncm-lrc", "word_synced": false, "instrumental": false, "lines": [] }
+        }
+        """.utf8), clientId: localTab, origin: "https://59.110.27.154")
+        storeA.ingestTestPayload(Data("""
+        {
+          "type": "state",
+          "origin": "https://59.110.27.154",
+          "visible": true,
+          "has_played": true,
+          "show_playing": true,
+          "is_playing": true,
+          "track_id": 401,
+          "duration_ms": 200000,
+          "position_ms": 30000,
+          "anchor_ms": \(Date().timeIntervalSince1970 * 1000.0)
+        }
+        """.utf8), clientId: localTab, origin: "https://59.110.27.154")
+
+        storeA.handoffToConnectedPeer()
+        #expect(storeA.isIslandHandedOffToPeer == true)
+
+        // 关闭 Mac A 上的浏览器：因 Mac B 不支持 autonomous_sync，Mac A 自动召回显示权并由本机发声续播
+        storeA.simulateClientDisconnectForTesting(localTab)
+        for _ in 0..<20 where storeB.activeOwnerPeerId != peerA.localPeerId {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(storeA.isAutonomousMode == true)
+        #expect(storeA.isLocalAutonomousAudioOwner == true)
+        #expect(storeA.nativeAudio.isActive == true)
+        #expect(storeA.isIslandHandedOffToPeer == false)
+        #expect(storeA.shouldDisplayIsland == true)
+        #expect(storeA.canPortalThrowToPeer == false)
+        #expect(storeB.isIslandHandedOffToPeer == true)
     }
 }

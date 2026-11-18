@@ -89,6 +89,7 @@ struct PeerWirePacket: Codable, Sendable {
     var activeOwnerPeerId: String? = nil
     var autonomousSession: AutonomousSessionPayload? = nil
     var autonomousStatePatch: AutonomousStatePatchPayload? = nil
+    var supportsAutonomousContinuity: Bool? = nil
 }
 
 /// 基于 Apple Network.framework (`includePeerToPeer = true` / AWDL `awdl0` + Bonjour `_neoblog._tcp`) 的跨 Mac 点对点直连服务：
@@ -112,6 +113,7 @@ final class PeerContinuityService {
         var remoteDeviceName: String?
         var remoteServiceName: String?
         var isAuthenticated: Bool = false
+        var remoteSupportsAutonomousContinuity: Bool = false
 
         init(id: UUID, connection: NWConnection, isOutbound: Bool, remoteServiceName: String? = nil) {
             self.id = id
@@ -141,12 +143,17 @@ final class PeerContinuityService {
     private(set) var discoveredPeers: [DiscoveredPeerMac] = []
     private(set) var connectedPeerId: String? = nil
     private(set) var connectedPeerName: String? = nil
+    private(set) var peerSupportsAutonomousContinuity: Bool = false
     private(set) var oneWayLatencyMs: Double = 4.0
     private(set) var pendingPairRequest: PendingPairRequest? = nil
     private(set) var isAwaitingRemoteApproval: Bool = false
     private(set) var directListeningPort: UInt16 = 0
 
     var isConnected: Bool { connectedPeerId != nil }
+
+    func setPeerSupportsAutonomousContinuityForTesting(_ supported: Bool) {
+        peerSupportsAutonomousContinuity = supported
+    }
 
     @ObservationIgnored var onPeerAuthenticated: ((String, String) -> Void)?
     @ObservationIgnored var onPeerDisconnected: ((String) -> Void)?
@@ -247,6 +254,7 @@ final class PeerContinuityService {
         connections.removeAll()
         connectedPeerId = nil
         connectedPeerName = nil
+        peerSupportsAutonomousContinuity = false
         pendingPairRequest = nil
         isAwaitingRemoteApproval = false
     }
@@ -381,6 +389,7 @@ final class PeerContinuityService {
         connections.removeAll()
         connectedPeerId = nil
         connectedPeerName = nil
+        peerSupportsAutonomousContinuity = false
         isAwaitingRemoteApproval = false
         if let oldId {
             onPeerDisconnected?(oldId)
@@ -417,7 +426,8 @@ final class PeerContinuityService {
                     peerId: localPeerId,
                     deviceName: localDeviceName,
                     pairToken: sharedToken,
-                    accepted: true
+                    accepted: true,
+                    supportsAutonomousContinuity: true
                 ),
                 on: box
             )
@@ -514,7 +524,8 @@ final class PeerContinuityService {
                     kind: .hello,
                     peerId: localPeerId,
                     deviceName: localDeviceName,
-                    pairToken: token
+                    pairToken: token,
+                    supportsAutonomousContinuity: true
                 ),
                 on: box
             )
@@ -523,7 +534,8 @@ final class PeerContinuityService {
                 PeerWirePacket(
                     kind: .pairRequest,
                     peerId: localPeerId,
-                    deviceName: localDeviceName
+                    deviceName: localDeviceName,
+                    supportsAutonomousContinuity: true
                 ),
                 on: box
             )
@@ -607,10 +619,12 @@ final class PeerContinuityService {
             isAwaitingRemoteApproval = false
         }
         if let rId = removed.remotePeerId, connectedPeerId == rId {
-            let stillHasOther = connections.values.contains { $0.isAuthenticated && $0.remotePeerId == rId }
-            if !stillHasOther {
+            if let remaining = connections.values.first(where: { $0.isAuthenticated && $0.remotePeerId == rId }) {
+                peerSupportsAutonomousContinuity = remaining.remoteSupportsAutonomousContinuity
+            } else {
                 connectedPeerId = nil
                 connectedPeerName = nil
+                peerSupportsAutonomousContinuity = false
                 onPeerDisconnected?(rId)
             }
         }
@@ -635,6 +649,7 @@ final class PeerContinuityService {
         let changed = (connectedPeerId != peerId)
         connectedPeerId = peerId
         connectedPeerName = deviceName
+        peerSupportsAutonomousContinuity = box.remoteSupportsAutonomousContinuity
         if changed {
             logger.info("已与跨屏 Mac 建立 AWDL 直连: \(deviceName, privacy: .public)")
             onPeerAuthenticated?(peerId, deviceName)
@@ -651,6 +666,7 @@ final class PeerContinuityService {
                 closeConnection(box.id)
                 return
             }
+            box.remoteSupportsAutonomousContinuity = (packet.supportsAutonomousContinuity == true)
             let devName = packet.deviceName ?? "Mac"
             if let expectedToken = trustedTokens[peerId],
                let provided = packet.pairToken,
@@ -664,7 +680,8 @@ final class PeerContinuityService {
                             kind: .hello,
                             peerId: localPeerId,
                             deviceName: localDeviceName,
-                            pairToken: expectedToken
+                            pairToken: expectedToken,
+                            supportsAutonomousContinuity: true
                         ),
                         on: box
                     )
@@ -676,7 +693,8 @@ final class PeerContinuityService {
                     PeerWirePacket(
                         kind: .pairRequest,
                         peerId: localPeerId,
-                        deviceName: localDeviceName
+                        deviceName: localDeviceName,
+                        supportsAutonomousContinuity: true
                     ),
                     on: box
                 )
@@ -693,6 +711,7 @@ final class PeerContinuityService {
                 closeConnection(box.id)
                 return
             }
+            box.remoteSupportsAutonomousContinuity = (packet.supportsAutonomousContinuity == true)
             let devName = packet.deviceName ?? "附近的 Mac"
             box.remotePeerId = peerId
             box.remoteDeviceName = devName
@@ -706,6 +725,7 @@ final class PeerContinuityService {
                 closeConnection(box.id)
                 return
             }
+            box.remoteSupportsAutonomousContinuity = (packet.supportsAutonomousContinuity == true)
             let devName = packet.deviceName ?? "Mac"
             saveTrust(peerId: peerId, deviceName: devName, token: token)
             promoteAuthenticatedConnection(box, peerId: peerId, deviceName: devName)

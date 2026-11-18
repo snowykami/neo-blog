@@ -40,6 +40,10 @@ final class IslandStore {
         var nextTrackIdHint: Int?
         var prevTrackIdHint: Int?
         var optimisticTrackUntil: (id: Int, until: Date)?
+        var lastActivelyPlayingAt: Date? = nil
+        var lastPausedFromPlayingAt: Date? = nil
+        var lastPlayingTrackId: Int? = nil
+        var lastPlayingPositionMs: Double = 0
 
         mutating func storePreloaded(_ bundle: PreloadedTrackBundle) {
             let id = bundle.track.id
@@ -96,6 +100,7 @@ final class IslandStore {
     @ObservationIgnored private var lastAutonomousStatePatchSentAt: Date = .distantPast
     @ObservationIgnored private var consecutiveAutonomousFailures: Int = 0
     @ObservationIgnored private var autonomousTrackStartAnchorMs: Double = 0
+    @ObservationIgnored private var lastIslandPauseCommandAt: Date = .distantPast
     @ObservationIgnored private var offeredAdoptionClientIds: Set<UUID> = []
     @ObservationIgnored var disconnectTakeoverDelayMs: Int = 280
     @ObservationIgnored private var autonomousSessionStorage: AutonomousSessionPayload? = nil
@@ -221,7 +226,11 @@ final class IslandStore {
     }
 
     var canPortalThrowToPeer: Bool {
-        peerService.isConnected && track != nil
+        guard peerService.isConnected, track != nil else { return false }
+        if isAutonomousMode && !peerService.peerSupportsAutonomousContinuity {
+            return false
+        }
+        return true
     }
 
     var isIslandHandedOffToPeer: Bool {
@@ -229,6 +238,9 @@ final class IslandStore {
             return false
         }
         if isAutonomousMode {
+            if !peerService.peerSupportsAutonomousContinuity {
+                return autonomousSourceHostPeerId != peerService.localPeerId
+            }
             let effectiveOwner = activeOwnerPeerId ?? autonomousSourceHostPeerId
             return effectiveOwner != peerService.localPeerId
         }
@@ -502,6 +514,9 @@ final class IslandStore {
     func commitPortalThrow(_ payload: PeerPortalPayload) {
         lastSentPortalPreview = nil
         portalDragTargetEdge = nil
+        if isAutonomousMode && !peerService.peerSupportsAutonomousContinuity {
+            return
+        }
         guard let remoteId = peerService.connectedPeerId else { return }
         withAnimation(.spring(duration: 0.34, bounce: 0.18)) {
             isExpanded = false
@@ -548,8 +563,16 @@ final class IslandStore {
     }
 
     func play() { sendCommand(OutgoingCommand(action: "play")) }
-    func pause() { sendCommand(OutgoingCommand(action: "pause")) }
-    func togglePlay() { sendCommand(OutgoingCommand(action: "toggle")) }
+    func pause() {
+        lastIslandPauseCommandAt = Date()
+        sendCommand(OutgoingCommand(action: "pause"))
+    }
+    func togglePlay() {
+        if isPlaying {
+            lastIslandPauseCommandAt = Date()
+        }
+        sendCommand(OutgoingCommand(action: "toggle"))
+    }
 
     func nextTrack() {
         optimisticallySwitchToAdjacent(direction: 1)
@@ -967,6 +990,9 @@ final class IslandStore {
 
         peerService.onReceiveRemoteCommand = { [weak self] cmd in
             guard let self else { return }
+            if cmd.action == "pause" || (cmd.action == "toggle" && self.isPlaying) {
+                self.lastIslandPauseCommandAt = Date()
+            }
             if cmd.action == "open_player_page" {
                 self.openLocalBrowserPlayerTab()
                 return
@@ -1118,6 +1144,7 @@ final class IslandStore {
             guard let msg = decodeJSON(WebMediaMessage.self, from: data, label: "media") else { return }
             if session.track?.id != msg.track?.id {
                 session.rhythm = .fallback
+                session.lastPausedFromPlayingAt = nil
             }
             session.track = msg.track
             session.accentHex = msg.accentHex
@@ -1199,6 +1226,27 @@ final class IslandStore {
             }
             if msg.isPlaying || msg.hasPlayed || msg.showPlaying {
                 session.hasEverPlayed = true
+            }
+            if !fromPeer {
+                let now = Date()
+                if msg.isPlaying {
+                    let transitMs = max(0, now.timeIntervalSince1970 * 1000.0 - msg.anchorMs)
+                    session.lastActivelyPlayingAt = now
+                    session.lastPausedFromPlayingAt = nil
+                    session.lastPlayingTrackId = msg.trackId ?? session.track?.id
+                    session.lastPlayingPositionMs = msg.positionMs + min(transitMs, 200)
+                } else if session.state?.isPlaying == true {
+                    // 仅在 true -> false 下降沿记录一次暂停跳变时刻与暂停前推算进度（防止 +350ms pauseSettled 二次帧刷新该时间戳）
+                    if let lastPlayAt = session.lastActivelyPlayingAt {
+                        let deltaMs = max(0, now.timeIntervalSince(lastPlayAt) * 1000.0)
+                        session.lastPlayingPositionMs = max(msg.positionMs, session.lastPlayingPositionMs + deltaMs)
+                    } else {
+                        session.lastPlayingPositionMs = max(msg.positionMs, session.lastPlayingPositionMs)
+                    }
+                    session.lastPausedFromPlayingAt = now
+                } else if msg.trackId != session.lastPlayingTrackId {
+                    session.lastPausedFromPlayingAt = nil
+                }
             }
             session.state = msg
             session.lastStateRawJSON = data
@@ -1554,15 +1602,47 @@ final class IslandStore {
             $0.clientId != Self.remotePeerVirtualClientId && $0.state?.isPlaying == true
         }
 
+        let wasExplicitlyPlaying = (removed?.state?.isPlaying == true)
+        let teardownPauseRescuedPositionMs: Double? = {
+            guard !wasExplicitlyPlaying,
+                  let removed,
+                  let curTrack = removed.track,
+                  let pausedAt = removed.lastPausedFromPlayingAt,
+                  removed.lastPlayingTrackId == curTrack.id else {
+                return nil
+            }
+            let elapsedSincePause = Date().timeIntervalSince(pausedAt)
+            // 浏览器关闭标签页/刷新/退出进程时，Chromium/WebKit 常在 WebSocket 断开前数毫秒先触发 <audio> 'pause'；
+            // 无论稳态播放距上一次 2.5s 心跳（或后台节流）已过去多久，只要 true->false 暂停跳变距 WS 断连 ≤ 0.65s，
+            // 且并非用户刚通过灵动岛或系统媒体键发起暂停，即识别为页面卸载抢跑暂停并按暂停前推算进度无缝接管。
+            guard elapsedSincePause >= 0,
+                  elapsedSincePause <= 0.65,
+                  Date().timeIntervalSince(lastIslandPauseCommandAt) > 1.2 else {
+                return nil
+            }
+            let extrapolated = removed.lastPlayingPositionMs + elapsedSincePause * 1000.0
+            let statePos = removed.state?.positionMs ?? 0
+            let candidatePos = max(statePos, extrapolated)
+            let durMs = max(removed.state?.durationMs ?? 0, curTrack.durationMs)
+            if durMs > 1000 && candidatePos >= durMs - 350 {
+                return nil
+            }
+            return durMs > 0 ? min(durMs, candidatePos) : candidatePos
+        }()
+
         if clientId == activeClientId,
            !hasOtherLocalPlayingBrowser,
            !isAutonomousMode,
            let removed,
-           removed.state?.isPlaying == true,
+           (wasExplicitlyPlaying || teardownPauseRescuedPositionMs != nil),
            let curTrack = removed.track,
            !removed.origin.isEmpty,
            hiddenTrackId != curTrack.id {
-            enterAutonomousTakeover(from: removed, track: curTrack)
+            enterAutonomousTakeover(
+                from: removed,
+                track: curTrack,
+                overridePositionMs: teardownPauseRescuedPositionMs
+            )
             return
         }
 
@@ -1593,14 +1673,22 @@ final class IslandStore {
             return sourceHostPeerId
         }
         if peerService.isConnected {
+            // 若对端 Mac 运行的是尚未支持内置续播的旧版本，保留原源主机发声与显示，防止掉入无声黑洞
+            guard peerService.peerSupportsAutonomousContinuity else {
+                return sourceHostPeerId
+            }
             // 单岛跨屏流转：声随岛走（谁当前显示灵动岛，谁在本地驱动音频播放）
             return activeOwnerPeerId ?? sourceHostPeerId
         }
         return peerService.localPeerId
     }
 
-    private func enterAutonomousTakeover(from session: TabSession, track curTrack: IslandTrack) {
-        let posMs = currentPositionMs()
+    private func enterAutonomousTakeover(
+        from session: TabSession,
+        track curTrack: IslandTrack,
+        overridePositionMs: Double? = nil
+    ) {
+        let posMs = overridePositionMs ?? currentPositionMs()
         let decodedRhythm: RhythmDataPayload? = session.lastRhythmRawJSON.flatMap {
             try? JSONDecoder().decode(WebRhythmMessage.self, from: $0).rhythm
         }
@@ -1654,7 +1742,15 @@ final class IslandStore {
 
     private func activateAutonomousSessionAfterGrace() {
         guard var auto = autonomousSessionStorage else { return }
-        let desiredOwner = computeDesiredAudioOwnerPeerId(sourceHostPeerId: auto.sourceHostPeerId)
+        if peerService.isConnected
+            && !peerService.peerSupportsAutonomousContinuity
+            && displayOwnership == .singleActiveMac
+            && activeOwnerPeerId != peerService.localPeerId {
+            activeOwnerPeerId = peerService.localPeerId
+            peerService.sendOwnershipUpdate(mode: .singleActiveMac, activeOwnerPeerId: peerService.localPeerId)
+            onLayoutTriggerChanged?()
+        }
+        let desiredOwner = computeDesiredAudioOwnerPeerId(sourceHostPeerId: auto.sourceHostPeerId, origin: auto.origin)
         auto.audioOwnerPeerId = desiredOwner
         auto.livePositionMs = currentPositionMs()
         setAutonomousSession(auto)
@@ -1889,7 +1985,7 @@ final class IslandStore {
     private func broadcastAutonomousFullSyncToPeer() {
         autonomousStatePatchThrottleTask?.cancel()
         autonomousStatePatchThrottleTask = nil
-        guard peerService.isConnected, var auto = autonomousSessionStorage else { return }
+        guard peerService.isConnected, peerService.peerSupportsAutonomousContinuity, var auto = autonomousSessionStorage else { return }
         auto.livePositionMs = currentPositionMs()
         auto.isPlaying = isPlaying
         auto.playMode = playMode
@@ -1903,7 +1999,7 @@ final class IslandStore {
     }
 
     private func broadcastAutonomousStatePatchToPeer(throttled: Bool) {
-        guard peerService.isConnected, autonomousSessionStorage != nil else { return }
+        guard peerService.isConnected, peerService.peerSupportsAutonomousContinuity, autonomousSessionStorage != nil else { return }
         if throttled {
             let elapsed = Date().timeIntervalSince(lastAutonomousStatePatchSentAt)
             if elapsed < 0.065 {
@@ -1925,7 +2021,7 @@ final class IslandStore {
     }
 
     private func sendAutonomousStatePatchNow() {
-        guard peerService.isConnected, var auto = autonomousSessionStorage else { return }
+        guard peerService.isConnected, peerService.peerSupportsAutonomousContinuity, var auto = autonomousSessionStorage else { return }
         let pos = currentPositionMs()
         auto.livePositionMs = pos
         auto.isPlaying = isPlaying
@@ -2546,7 +2642,7 @@ final class IslandStore {
         nativeAudio.stop()
         setAutonomousSession(nil)
 
-        if notifyPeer && peerService.isConnected {
+        if notifyPeer && peerService.isConnected && peerService.peerSupportsAutonomousContinuity {
             peerService.sendAutonomousStop()
         }
 

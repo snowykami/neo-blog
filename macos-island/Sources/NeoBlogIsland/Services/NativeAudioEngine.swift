@@ -494,43 +494,33 @@ final class NativeAudioEngine {
         guard commandTargets.isEmpty else { return }
         let center = MPRemoteCommandCenter.shared()
 
-        let playTarget = center.playCommand.addTarget { [weak self] _ in
-            Task { @MainActor in self?.onRemotePlay?() }
-            return .success
+        let playTarget = Self.addRemoteActionTarget(to: center.playCommand) { [weak self] in
+            self?.onRemotePlay?()
         }
         center.playCommand.isEnabled = true
 
-        let pauseTarget = center.pauseCommand.addTarget { [weak self] _ in
-            Task { @MainActor in self?.onRemotePause?() }
-            return .success
+        let pauseTarget = Self.addRemoteActionTarget(to: center.pauseCommand) { [weak self] in
+            self?.onRemotePause?()
         }
         center.pauseCommand.isEnabled = true
 
-        let toggleTarget = center.togglePlayPauseCommand.addTarget { [weak self] _ in
-            Task { @MainActor in self?.onRemoteToggle?() }
-            return .success
+        let toggleTarget = Self.addRemoteActionTarget(to: center.togglePlayPauseCommand) { [weak self] in
+            self?.onRemoteToggle?()
         }
         center.togglePlayPauseCommand.isEnabled = true
 
-        let nextTarget = center.nextTrackCommand.addTarget { [weak self] _ in
-            Task { @MainActor in self?.onRemoteNext?() }
-            return .success
+        let nextTarget = Self.addRemoteActionTarget(to: center.nextTrackCommand) { [weak self] in
+            self?.onRemoteNext?()
         }
         center.nextTrackCommand.isEnabled = true
 
-        let prevTarget = center.previousTrackCommand.addTarget { [weak self] _ in
-            Task { @MainActor in self?.onRemotePrev?() }
-            return .success
+        let prevTarget = Self.addRemoteActionTarget(to: center.previousTrackCommand) { [weak self] in
+            self?.onRemotePrev?()
         }
         center.previousTrackCommand.isEnabled = true
 
-        let seekTarget = center.changePlaybackPositionCommand.addTarget { [weak self] event in
-            guard let posEvent = event as? MPChangePlaybackPositionCommandEvent else {
-                return .commandFailed
-            }
-            let targetMs = posEvent.positionTime * 1000.0
-            Task { @MainActor in self?.onRemoteSeek?(targetMs) }
-            return .success
+        let seekTarget = Self.addRemoteSeekTarget(to: center.changePlaybackPositionCommand) { [weak self] targetMs in
+            self?.onRemoteSeek?(targetMs)
         }
         center.changePlaybackPositionCommand.isEnabled = true
 
@@ -569,8 +559,9 @@ final class NativeAudioEngine {
         if durationMs > 0 {
             info[MPMediaItemPropertyPlaybackDuration] = durationMs / 1000.0
         }
-        if let nsImage = IslandArtworkCache.shared.image(for: track.albumPic) {
-            info[MPMediaItemPropertyArtwork] = Self.makeMediaArtwork(from: nsImage)
+        if let nsImage = IslandArtworkCache.shared.image(for: track.albumPic),
+           let artwork = Self.prepareMediaArtwork(from: nsImage) {
+            info[MPMediaItemPropertyArtwork] = artwork
         } else if let picURL = track.albumPic, !picURL.isEmpty {
             artworkLoadTask?.cancel()
             artworkLoadTask = Task { @MainActor [weak self] in
@@ -580,10 +571,11 @@ final class NativeAudioEngine {
                       self.loadGeneration == generation,
                       self.isActive,
                       self.activeTrackId == track.id,
-                      var currentInfo = MPNowPlayingInfoCenter.default().nowPlayingInfo else {
+                      var currentInfo = MPNowPlayingInfoCenter.default().nowPlayingInfo,
+                      let artwork = Self.prepareMediaArtwork(from: loaded) else {
                     return
                 }
-                currentInfo[MPMediaItemPropertyArtwork] = Self.makeMediaArtwork(from: loaded)
+                currentInfo[MPMediaItemPropertyArtwork] = artwork
                 MPNowPlayingInfoCenter.default().nowPlayingInfo = currentInfo
             }
         }
@@ -599,17 +591,61 @@ final class NativeAudioEngine {
             info[MPMediaItemPropertyPlaybackDuration] = resolvedDurationMs / 1000.0
         }
         if info[MPMediaItemPropertyArtwork] == nil,
-           let nsImage = IslandArtworkCache.shared.image(for: activeAlbumPic) {
-            info[MPMediaItemPropertyArtwork] = Self.makeMediaArtwork(from: nsImage)
+           let nsImage = IslandArtworkCache.shared.image(for: activeAlbumPic),
+           let artwork = Self.prepareMediaArtwork(from: nsImage) {
+            info[MPMediaItemPropertyArtwork] = artwork
         }
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
         MPNowPlayingInfoCenter.default().playbackState = isPlaying ? .playing : .paused
     }
 
-    private static func makeMediaArtwork(from nsImage: NSImage) -> MPMediaItemArtwork {
-        let size = nsImage.size
-        return MPMediaItemArtwork(boundsSize: size.width > 0 ? size : CGSize(width: 240, height: 240)) { _ in
-            nsImage
+    private static func prepareMediaArtwork(from nsImage: NSImage) -> MPMediaItemArtwork? {
+        guard let tiffData = nsImage.tiffRepresentation else { return nil }
+        return makeMediaArtwork(boundsSize: nsImage.size, tiffData: tiffData)
+    }
+
+    /// 必须在 nonisolated 上下文中构造 ObjC 回调闭包：
+    /// MediaPlayer 框架的 `MPMediaItemArtwork` 与 `MPRemoteCommand` 闭包签名未标注 `@Sendable`，
+    /// 若在 `@MainActor` 方法内直接创建闭包，Swift 6 会在闭包入口注入 `_swift_task_checkIsolatedSwift` 断言，
+    /// 当 macOS MediaRemote 在后台 XPC 队列拉取封面或派发媒体键时会立即触发 `EXC_BREAKPOINT` 崩溃。
+    nonisolated static func makeMediaArtwork(boundsSize: CGSize, tiffData: Data) -> MPMediaItemArtwork {
+        let validSize = (boundsSize.width > 0 && boundsSize.height > 0)
+            ? boundsSize
+            : CGSize(width: 240, height: 240)
+        return MPMediaItemArtwork(boundsSize: validSize) { requestedSize in
+            if let image = NSImage(data: tiffData) {
+                return image
+            }
+            let fallbackSize = (requestedSize.width > 0 && requestedSize.height > 0) ? requestedSize : validSize
+            return NSImage(size: fallbackSize)
+        }
+    }
+
+    nonisolated static func addRemoteActionTarget(
+        to command: MPRemoteCommand,
+        action: @escaping @Sendable @MainActor () -> Void
+    ) -> Any {
+        command.addTarget { _ in
+            Task { @MainActor in
+                action()
+            }
+            return .success
+        }
+    }
+
+    nonisolated static func addRemoteSeekTarget(
+        to command: MPChangePlaybackPositionCommand,
+        action: @escaping @Sendable @MainActor (Double) -> Void
+    ) -> Any {
+        command.addTarget { event in
+            guard let posEvent = event as? MPChangePlaybackPositionCommandEvent else {
+                return .commandFailed
+            }
+            let targetMs = posEvent.positionTime * 1000.0
+            Task { @MainActor in
+                action(targetMs)
+            }
+            return .success
         }
     }
 }

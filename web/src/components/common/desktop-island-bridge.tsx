@@ -643,6 +643,8 @@ export function DesktopIslandBridge() {
   const currentIndexRefForAdopt = useRef<number | null>(currentIndex)
   currentIndexRefForAdopt.current = currentIndex
   const wsRef = useRef<WebSocket | null>(null)
+  const pageHiddenUnloadRef = useRef(false)
+  const unloadGuardUntilRef = useRef(0)
   const [wsOpenEpoch, setWsOpenEpoch] = useState(0)
 
   const sendJSON = useCallback((payload: Record<string, unknown>) => {
@@ -1014,7 +1016,10 @@ export function DesktopIslandBridge() {
     let initialTimer = 0
 
     const connect = () => {
-      if (disposed)
+      if (disposed || pageHiddenUnloadRef.current)
+        return
+      const existing = wsRef.current
+      if (existing && (existing.readyState === WebSocket.CONNECTING || existing.readyState === WebSocket.OPEN))
         return
       window.clearTimeout(retryTimer)
       setDesktopIslandRuntimeStatus('connecting')
@@ -1032,7 +1037,7 @@ export function DesktopIslandBridge() {
       wsRef.current = socket
 
       socket.onopen = () => {
-        if (disposed) {
+        if (disposed || pageHiddenUnloadRef.current) {
           socket.close()
           return
         }
@@ -1059,7 +1064,7 @@ export function DesktopIslandBridge() {
       socket.onclose = () => {
         if (wsRef.current === socket)
           wsRef.current = null
-        if (disposed)
+        if (disposed || pageHiddenUnloadRef.current)
           return
         setDesktopIslandRuntimeStatus('disconnected')
         // 若本机未连上桌面灵动岛（用户未安装/未打开客户端），仅做最多 2 次轻量探测即停止轮询，杜绝后台刷屏与干扰
@@ -1082,24 +1087,62 @@ export function DesktopIslandBridge() {
     const initialDelay = manualTrigger ? 0 : (hasPlayed ? 160 : 320)
     initialTimer = window.setTimeout(connect, initialDelay)
 
-    const onPageHide = () => {
-      wsRef.current?.close()
+    // 捕获阶段提前拦截页面卸载：关闭标签页/刷新/退出浏览器时，防止 <audio> 销毁瞬间的 'pause' 事件抢先在 WS 关闭前发出 is_playing:false
+    const onBeforeUnload = () => {
+      unloadGuardUntilRef.current = performance.now() + 1200
     }
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible' && (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED)) {
+    const clearAbortedBeforeUnload = () => {
+      if (!pageHiddenUnloadRef.current && unloadGuardUntilRef.current > 0)
+        unloadGuardUntilRef.current = 0
+    }
+    const onPageHide = () => {
+      pageHiddenUnloadRef.current = true
+      unloadGuardUntilRef.current = performance.now() + 5000
+      window.clearTimeout(initialTimer)
+      window.clearTimeout(retryTimer)
+      const active = wsRef.current
+      wsRef.current = null
+      active?.close()
+    }
+    const onPageShow = () => {
+      pageHiddenUnloadRef.current = false
+      unloadGuardUntilRef.current = 0
+      if (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED) {
         retryAttempt = 0
         window.clearTimeout(initialTimer)
-        initialTimer = window.setTimeout(connect, 120)
+        window.clearTimeout(retryTimer)
+        initialTimer = window.setTimeout(connect, 80)
       }
     }
-    window.addEventListener('pagehide', onPageHide)
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        clearAbortedBeforeUnload()
+        if (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED) {
+          retryAttempt = 0
+          window.clearTimeout(initialTimer)
+          window.clearTimeout(retryTimer)
+          initialTimer = window.setTimeout(connect, 120)
+        }
+      }
+    }
+    window.addEventListener('beforeunload', onBeforeUnload, true)
+    window.addEventListener('pagehide', onPageHide, true)
+    window.addEventListener('pageshow', onPageShow, true)
+    window.addEventListener('focus', clearAbortedBeforeUnload)
+    window.addEventListener('pointerdown', clearAbortedBeforeUnload, true)
     document.addEventListener('visibilitychange', onVisibility)
 
     return () => {
       disposed = true
+      pageHiddenUnloadRef.current = false
+      unloadGuardUntilRef.current = 0
       window.clearTimeout(initialTimer)
       window.clearTimeout(retryTimer)
-      window.removeEventListener('pagehide', onPageHide)
+      window.removeEventListener('beforeunload', onBeforeUnload, true)
+      window.removeEventListener('pagehide', onPageHide, true)
+      window.removeEventListener('pageshow', onPageShow, true)
+      window.removeEventListener('focus', clearAbortedBeforeUnload)
+      window.removeEventListener('pointerdown', clearAbortedBeforeUnload, true)
       document.removeEventListener('visibilitychange', onVisibility)
       const active = wsRef.current
       wsRef.current = null
@@ -1447,8 +1490,14 @@ export function DesktopIslandBridge() {
 
   const sendStateRef = useRef<() => void>(() => {})
   sendStateRef.current = () => {
-    if (adoptingStateRef.current || performance.now() < passiveAdoptRequestHoldUntilRef.current)
+    if (
+      pageHiddenUnloadRef.current
+      || performance.now() < unloadGuardUntilRef.current
+      || adoptingStateRef.current
+      || performance.now() < passiveAdoptRequestHoldUntilRef.current
+    ) {
       return
+    }
     sendJSON(buildStatePayload(prefs))
   }
 
