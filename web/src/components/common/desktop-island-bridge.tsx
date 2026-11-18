@@ -9,6 +9,7 @@ import type { LyricAgent, ResolvedLyrics } from '@/lib/lyrics/types'
 import type { MusicTrack } from '@/models/music'
 import { useLocale } from 'next-intl'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { fetchPlaylistTrack } from '@/api/music'
 import { useCoverAccent, useSongAccent } from '@/components/music-page/use-cover-accent'
 import {
   useMusicActions,
@@ -44,6 +45,49 @@ import { formatMusicCoverUrl } from '@/utils/common/image'
 const PEEK_MS = 1500
 const PAUSE_SETTLE_MS = 350
 const CLOCK_SYNC_HEARTBEAT_MS = 2500
+const DESKTOP_ISLAND_PAIRED_KEY = 'neo-blog:desktop-island-paired'
+
+function consumeIslandHandoffFlag(): boolean {
+  if (typeof window === 'undefined')
+    return false
+  try {
+    const url = new URL(window.location.href)
+    if (url.searchParams.get('island_handoff') !== '1')
+      return false
+    url.searchParams.delete('island_handoff')
+    const nextSearch = url.searchParams.toString()
+    const cleanHref = `${url.pathname}${nextSearch ? `?${nextSearch}` : ''}${url.hash}`
+    window.history.replaceState(window.history.state, '', cleanHref)
+    return true
+  }
+  catch {
+    return false
+  }
+}
+
+function readDesktopIslandPairedFlag(): boolean {
+  if (typeof window === 'undefined')
+    return false
+  try {
+    return window.localStorage.getItem(DESKTOP_ISLAND_PAIRED_KEY) === '1'
+  }
+  catch {
+    return false
+  }
+}
+
+function writeDesktopIslandPairedFlag(paired: boolean) {
+  if (typeof window === 'undefined')
+    return
+  try {
+    if (paired)
+      window.localStorage.setItem(DESKTOP_ISLAND_PAIRED_KEY, '1')
+    else
+      window.localStorage.removeItem(DESKTOP_ISLAND_PAIRED_KEY)
+  }
+  catch {
+  }
+}
 
 const noopSubscribe = () => () => {}
 const falseSnapshot = () => false
@@ -283,6 +327,18 @@ interface IncomingIslandCommand {
   index?: number
   play_mode?: PlayMode
   volume?: number
+  muted?: boolean
+  track_id?: number
+  is_playing?: boolean
+  force?: boolean
+  hdr?: boolean
+  preferences?: {
+    show_translation?: boolean
+    show_romaji?: boolean
+    show_lyric_effects?: boolean
+    show_lyric_moments?: boolean
+    translation_selections?: Array<{ lang: string, prefer_native?: boolean }>
+  }
   lang?: string
   prefer_native?: boolean
   has_dual_sources?: boolean
@@ -349,7 +405,8 @@ function stampDocumentTitleForFocus(token: string) {
 
 /**
  * 网页播放器 ↔ 本地 macOS 系统灵动岛桥接组件：
- * - 音频仍在浏览器 <audio> 中播放，macOS 灵动岛只负责显示与反向遥控；
+ * - 浏览器在线时由网页 `<audio>` 驱动发声，macOS 灵动岛负责原生显示、跨 Mac AWDL 流转与反向遥控；
+ * - 浏览器关闭断联后由 macOS 灵动岛无缝接续内置音频播放（跨屏单岛流转「声随岛走」、双屏同显「原源主机播放」），浏览器重连起播时原子交回发声权；
  * - 完整推送逐字时间轴、多声部对齐与歌手色条、7 套字体标识、全部 9 种 AI 强调特效参数、消散/破碎跳转锚点及音频真实节拍脉冲列。
  *
  * 【双端同步维护约定】
@@ -401,9 +458,31 @@ export function DesktopIslandBridge() {
   const actions = useMusicActions()
   const clock = useMusicClockStore()
 
-  // 与 music-island.tsx 一致：本页播放过才在暂停后保留
+  // 与 music-island.tsx 一致：本页播放过才在暂停后保留（反向接管缓冲/Autoplay 探测期间暂缓置位，避免拦截失败残留）
   const [hasPlayed, setHasPlayed] = useState(false)
-  if (isPlaying && !hasPlayed)
+  const [pendingPassiveAdoptEpoch, setPendingPassiveAdoptEpoch] = useState(0)
+
+  const [handoffRequested] = useState(() => consumeIslandHandoffFlag())
+  const handoffRequestedRef = useRef(handoffRequested)
+  const adoptingStateRef = useRef<{ trackId: number, targetSec: number, pausedAdopt: boolean } | null>(null)
+  const adoptedPosFallbackSecRef = useRef<{ trackId: number, sec: number } | null>(null)
+  const pendingAdoptedNotifyRef = useRef(false)
+  const pendingPassiveAdoptRef = useRef(false)
+  const passiveAdoptRequestHoldUntilRef = useRef<number>(0)
+  const passiveGestureTimerRef = useRef<number>(0)
+  const isPlayingRefForAdopt = useRef(isPlaying)
+  isPlayingRefForAdopt.current = isPlaying
+  const syncedPreferencesPendingRef = useRef<{
+    trackId: number
+    preferences: NonNullable<IncomingIslandCommand['preferences']>
+  } | null>(null)
+  const adoptAttemptSeqRef = useRef(0)
+
+  const isAdoptHoldActive = () => Boolean(
+    adoptingStateRef.current || performance.now() < passiveAdoptRequestHoldUntilRef.current,
+  )
+
+  if (isPlaying && !hasPlayed && !isAdoptHoldActive())
     setHasPlayed(true)
 
   const [pauseSettled, setPauseSettled] = useState(false)
@@ -561,6 +640,8 @@ export function DesktopIslandBridge() {
   if (!tabIdRef.current)
     tabIdRef.current = createTabId()
 
+  const currentIndexRefForAdopt = useRef<number | null>(currentIndex)
+  currentIndexRefForAdopt.current = currentIndex
   const wsRef = useRef<WebSocket | null>(null)
   const [wsOpenEpoch, setWsOpenEpoch] = useState(0)
 
@@ -593,6 +674,7 @@ export function DesktopIslandBridge() {
     desktopHdr: prefs.hdr,
     activeTranslationSelections,
     playlist,
+    isMuted,
   })
   commandContextRef.current = {
     actions,
@@ -607,6 +689,7 @@ export function DesktopIslandBridge() {
     desktopHdr: prefs.hdr,
     activeTranslationSelections,
     playlist,
+    isMuted,
   }
 
   const handleIncomingCommand = useCallback((cmd: IncomingIslandCommand) => {
@@ -710,21 +793,211 @@ export function DesktopIslandBridge() {
       case 'sync_snapshot':
         setWsOpenEpoch(n => (n > 0 ? n + 1 : 1))
         break
+      case 'adopt_native_session': {
+        const targetTrackId = typeof cmd.track_id === 'number' && Number.isInteger(cmd.track_id) ? cmd.track_id : null
+        if (targetTrackId == null)
+          break
+
+        const shouldPlay = cmd.is_playing !== false
+        const explicitHandoff = Boolean(cmd.force) || handoffRequestedRef.current
+        const userAct = typeof navigator !== 'undefined'
+          ? (navigator as Navigator & { userActivation?: { isActive?: boolean, hasBeenActive?: boolean } }).userActivation
+          : undefined
+        const hasUserActivation = Boolean(userAct?.isActive || userAct?.hasBeenActive)
+
+        // 被动新开普通页面且无用户手势（或内置续播处于暂停态且非主动唤起）时，不提前改写网页歌单与进度，标记待交互进入 /music 时按需重拉最新状态
+        if ((!shouldPlay && !explicitHandoff) || (shouldPlay && !explicitHandoff && !hasUserActivation)) {
+          pendingPassiveAdoptRef.current = true
+          setPendingPassiveAdoptEpoch(n => n + 1)
+          break
+        }
+        passiveAdoptRequestHoldUntilRef.current = 0
+        handoffRequestedRef.current = false
+        pendingPassiveAdoptRef.current = false
+
+        const applyLyricBucketPreferences = (prefsToApply: NonNullable<IncomingIslandCommand['preferences']>) => {
+          const latestCtx = commandContextRef.current
+          if (typeof prefsToApply.show_translation === 'boolean')
+            latestCtx.actions.setShowTranslation(prefsToApply.show_translation)
+          if (typeof prefsToApply.show_romaji === 'boolean')
+            latestCtx.actions.setShowRomaji(prefsToApply.show_romaji)
+          if (typeof prefsToApply.show_lyric_effects === 'boolean')
+            latestCtx.actions.setShowLyricEffects(prefsToApply.show_lyric_effects)
+          if (typeof prefsToApply.show_lyric_moments === 'boolean')
+            latestCtx.actions.setShowLyricMoments(prefsToApply.show_lyric_moments)
+          if (Array.isArray(prefsToApply.translation_selections)) {
+            latestCtx.actions.setTranslationSelections(
+              prefsToApply.translation_selections
+                .filter(item => typeof item?.lang === 'string' && item.lang.length > 0)
+                .map(item => ({ lang: item.lang as LyricTargetLang, preferNative: Boolean(item.prefer_native) })),
+            )
+          }
+        }
+
+        const applySyncedPreferences = () => {
+          const latestCtx = commandContextRef.current
+          if (cmd.play_mode === 'repeat-all' || cmd.play_mode === 'repeat-one' || cmd.play_mode === 'shuffle')
+            latestCtx.actions.setPlayMode(cmd.play_mode)
+          if (typeof cmd.volume === 'number' && Number.isFinite(cmd.volume))
+            latestCtx.actions.setVolume(Math.max(0, Math.min(1, cmd.volume)))
+          if (typeof cmd.muted === 'boolean' && cmd.muted !== latestCtx.isMuted)
+            latestCtx.actions.toggleMuted()
+          if (typeof cmd.hdr === 'boolean' && cmd.hdr !== latestCtx.desktopHdr) {
+            updateDesktopIslandPrefs({ hdr: cmd.hdr })
+            latestCtx.actions.setHdr(cmd.hdr)
+          }
+          if (cmd.preferences) {
+            syncedPreferencesPendingRef.current = { trackId: targetTrackId, preferences: cmd.preferences }
+            applyLyricBucketPreferences(cmd.preferences)
+          }
+        }
+
+        const basePosMs = typeof cmd.position_ms === 'number' && Number.isFinite(cmd.position_ms)
+          ? Math.max(0, cmd.position_ms)
+          : 0
+        const adoptStartAt = performance.now()
+        const attemptSeq = ++adoptAttemptSeqRef.current
+
+        void (async () => {
+          let list = commandContextRef.current.playlist
+          let idx = list.findIndex(item => item.id === targetTrackId)
+          if (idx < 0) {
+            await commandContextRef.current.actions.ensurePlaylist()
+            if (adoptAttemptSeqRef.current !== attemptSeq)
+              return
+            list = commandContextRef.current.playlist
+            idx = list.findIndex(item => item.id === targetTrackId)
+          }
+
+          let singleTrack: MusicTrack | null = null
+          if (idx < 0) {
+            singleTrack = await fetchPlaylistTrack([targetTrackId]).catch(() => null)
+            if (adoptAttemptSeqRef.current !== attemptSeq)
+              return
+          }
+
+          const latestActions = commandContextRef.current.actions
+          const latestList = commandContextRef.current.playlist
+          const latestIdx = latestList.findIndex(item => item.id === targetTrackId)
+          if (latestIdx < 0 && !singleTrack)
+            return
+
+          applySyncedPreferences()
+
+          const elapsedSec = shouldPlay ? Math.max(0, (performance.now() - adoptStartAt) / 1000) : 0
+          const targetSec = basePosMs / 1000 + elapsedSec
+          seekAtRef.current = targetSec * 1000
+          adoptedPosFallbackSecRef.current = { trackId: targetTrackId, sec: targetSec }
+
+          if (!shouldPlay) {
+            adoptingStateRef.current = { trackId: targetTrackId, targetSec, pausedAdopt: true }
+            if (latestIdx >= 0)
+              latestActions.replacePlaylist(latestList, latestIdx, targetSec)
+            else if (singleTrack)
+              latestActions.replacePlaylist([singleTrack], 0, targetSec)
+            setHasPlayed(true)
+            return
+          }
+
+          // 起播缓冲期间挂起网页端中间态广播，严防 HTML5 'play' 事件在缓冲/鉴权或 Autoplay 拒绝前误杀灵动岛内置播放
+          adoptingStateRef.current = { trackId: targetTrackId, targetSec, pausedAdopt: false }
+          const prevPlaylistSnapshot = latestList
+          const prevIdxSnapshot = currentIndexRefForAdopt.current
+
+          const audio = latestActions.getAudio()
+          let settled = false
+          let safariCheckTimer = 0
+          let cleanupTimer = 0
+
+          const teardownListeners = () => {
+            window.clearTimeout(safariCheckTimer)
+            window.clearTimeout(cleanupTimer)
+            audio?.removeEventListener('playing', onAudioPlaying)
+            audio?.removeEventListener('pause', onAutoplayRejectedOrPaused)
+            audio?.removeEventListener('error', onAutoplayRejectedOrPaused)
+          }
+
+          function onAudioPlaying() {
+            if (settled || adoptAttemptSeqRef.current !== attemptSeq)
+              return
+            settled = true
+            teardownListeners()
+            if (audio && audio.readyState >= 1 && Math.abs(audio.currentTime - targetSec) > 1.8) {
+              try {
+                audio.currentTime = Math.max(0, Math.min(targetSec, audio.duration || targetSec))
+              }
+              catch {}
+            }
+            adoptingStateRef.current = null
+            adoptedPosFallbackSecRef.current = null
+            pendingAdoptedNotifyRef.current = true
+            setHasPlayed(true)
+            setWsOpenEpoch(n => (n > 0 ? n + 1 : 1))
+          }
+
+          function onAutoplayRejectedOrPaused() {
+            if (settled || adoptAttemptSeqRef.current !== attemptSeq)
+              return
+            // 若尚未真正进入 playing 即收到 pause/error 或 Safari 静默保持 paused（Autoplay Policy 拦截），
+            // 释放挂起锁并登记首次点击重拉最新进度；若本页此前已播过其他曲目则恢复先前索引，否则保持 hasPlayed=false 不惊动灵动岛
+            if (!audio || (audio.readyState < 3 && audio.paused)) {
+              settled = true
+              teardownListeners()
+              adoptingStateRef.current = null
+              adoptedPosFallbackSecRef.current = null
+              syncedPreferencesPendingRef.current = null
+              pendingPassiveAdoptRef.current = true
+              setPendingPassiveAdoptEpoch(n => n + 1)
+              if (prevIdxSnapshot != null && prevIdxSnapshot >= 0 && prevPlaylistSnapshot[prevIdxSnapshot])
+                latestActions.replacePlaylist(prevPlaylistSnapshot, prevIdxSnapshot)
+            }
+          }
+
+          if (audio) {
+            audio.addEventListener('playing', onAudioPlaying)
+            audio.addEventListener('pause', onAutoplayRejectedOrPaused)
+            audio.addEventListener('error', onAutoplayRejectedOrPaused)
+            // 兼容 macOS Safari 无手势拒绝 play() 时不派发 pause/error 事件、仅维持 audio.paused=true 的静默拦截（慢网正常缓冲时 audio.paused 为 false，不受影响）
+            safariCheckTimer = window.setTimeout(() => {
+              if (!settled && audio.paused)
+                onAutoplayRejectedOrPaused()
+            }, 260)
+            cleanupTimer = window.setTimeout(() => {
+              if (settled)
+                return
+              settled = true
+              teardownListeners()
+              adoptingStateRef.current = null
+              adoptedPosFallbackSecRef.current = null
+              syncedPreferencesPendingRef.current = null
+              pendingPassiveAdoptRef.current = true
+              setPendingPassiveAdoptEpoch(n => n + 1)
+            }, 4500)
+          }
+
+          if (latestIdx >= 0)
+            latestActions.playTrack(latestIdx, targetSec)
+          else if (singleTrack)
+            latestActions.playSong(singleTrack, targetSec)
+        })()
+        break
+      }
     }
-  }, [])
+  }, [sendJSON])
 
   // 建立并维护本地 ws://127.0.0.1:<port>/ws 长连接：
-  // 1. 仅在本页首次开始播放音乐（hasPlayed）或用户在设置页手动点击重连（reconnectEpoch > 0）后才激活，进站绝不提前请求 localhost；
+  // 1. 仅在本页首次开始播放音乐（hasPlayed）、设置页手动重连（reconnectEpoch > 0）、从灵动岛唤起接续（?island_handoff=1）或本机曾配对连上过客户端时激活；普通未安装访客进站绝不提前请求 localhost；
   // 2. 非 macOS 设备除非手动触发重连，否则保持静默待命；
-  // 3. 首次连接通过异步延迟脱离 <audio>.play() 关键路径，绝不阻塞音乐起播；未安装本地客户端时最多轻量重试 2 次即静默休眠。
+  // 3. 首次连接通过异步延迟脱离 <audio>.play() 关键路径，绝不阻塞音乐起播；未安装本地客户端时最多轻量重试 2 次即静默休眠并清除历史标记。
   useEffect(() => {
     if (!prefs.enabled) {
       setDesktopIslandRuntimeStatus('disabled')
       return
     }
 
-    const manualTrigger = reconnectEpoch > 0
-    if (!hasPlayed && !manualTrigger) {
+    const manualTrigger = reconnectEpoch > 0 || handoffRequested
+    const pairedWithIsland = readDesktopIslandPairedFlag()
+    if (!hasPlayed && !manualTrigger && !pairedWithIsland) {
       setDesktopIslandRuntimeStatus('standby')
       return
     }
@@ -765,6 +1038,7 @@ export function DesktopIslandBridge() {
         }
         everConnected = true
         retryAttempt = 0
+        writeDesktopIslandPairedFlag(true)
         setDesktopIslandRuntimeStatus('connected')
         setWsOpenEpoch(n => n + 1)
       }
@@ -788,9 +1062,12 @@ export function DesktopIslandBridge() {
         if (disposed)
           return
         setDesktopIslandRuntimeStatus('disconnected')
-        // 若本机从未连上过桌面灵动岛（用户未安装/未打开客户端），仅做最多 2 次轻量探测即停止轮询，杜绝后台刷屏与干扰
-        if (!everConnected && retryAttempt >= 2)
+        // 若本机未连上桌面灵动岛（用户未安装/未打开客户端），仅做最多 2 次轻量探测即停止轮询，杜绝后台刷屏与干扰
+        if (!everConnected && retryAttempt >= 2) {
+          if (!hasPlayed && !manualTrigger)
+            writeDesktopIslandPairedFlag(false)
           return
+        }
         const delay = everConnected
           ? Math.min(8000, 1000 * 2 ** Math.min(3, retryAttempt))
           : (retryAttempt === 0 ? 2000 : 5000)
@@ -802,7 +1079,8 @@ export function DesktopIslandBridge() {
     }
 
     // 让出首帧音频缓冲与 UI 渲染，异步发起本地回环握手，100% 不阻塞音乐起播
-    initialTimer = window.setTimeout(connect, manualTrigger ? 0 : 160)
+    const initialDelay = manualTrigger ? 0 : (hasPlayed ? 160 : 320)
+    initialTimer = window.setTimeout(connect, initialDelay)
 
     const onPageHide = () => {
       wsRef.current?.close()
@@ -828,11 +1106,118 @@ export function DesktopIslandBridge() {
       active?.close()
       setDesktopIslandRuntimeStatus(prefs.enabled ? 'standby' : 'disabled')
     }
-  }, [handleIncomingCommand, hasPlayed, prefs.enabled, prefs.port, reconnectEpoch])
+  }, [handoffRequested, handleIncomingCommand, hasPlayed, prefs.enabled, prefs.port, reconnectEpoch])
+
+  // 暂停态反向接管（!shouldPlay）：待 React 提交新曲目与 hasPlayed 后，置位通知标记并递增 wsOpenEpoch，确保先按序推齐 media/playlist/state 再发 native_session_adopted
+  useEffect(() => {
+    const pending = adoptingStateRef.current
+    if (!pending || !pending.pausedAdopt)
+      return
+    if (!wsOpenEpoch || !hasPlayed || formattedTrack?.id !== pending.trackId)
+      return
+    adoptingStateRef.current = null
+    pendingAdoptedNotifyRef.current = true
+    setWsOpenEpoch(n => (n > 0 ? n + 1 : 1))
+  }, [formattedTrack?.id, hasPlayed, wsOpenEpoch])
+
+  // 目标曲目歌词就绪确定语种分桶后，补写一次接管同步过来的译/音开关与双语选择，防止切歌完成前落入默认桶被覆盖
+  useEffect(() => {
+    const pendingPref = syncedPreferencesPendingRef.current
+    if (!pendingPref || currentTrack?.id !== pendingPref.trackId || lyricStatus === 'loading')
+      return
+    syncedPreferencesPendingRef.current = null
+    const p = pendingPref.preferences
+    if (typeof p.show_translation === 'boolean')
+      actions.setShowTranslation(p.show_translation)
+    if (typeof p.show_romaji === 'boolean')
+      actions.setShowRomaji(p.show_romaji)
+    if (Array.isArray(p.translation_selections)) {
+      actions.setTranslationSelections(
+        p.translation_selections
+          .filter(item => typeof item?.lang === 'string' && item.lang.length > 0)
+          .map(item => ({ lang: item.lang as LyricTargetLang, preferNative: Boolean(item.prefer_native) })),
+      )
+    }
+  }, [actions, currentTrack?.id, lyricStatus])
+
+  useEffect(() => {
+    return () => {
+      window.clearTimeout(passiveGestureTimerRef.current)
+    }
+  }, [])
+
+  // 若首次被动打开同源页或无手势打开 /music?island_handoff=1 时因未交互跳过接管，待用户首次交互进入 /music（且网页自身尚未播歌）时主动拉取最新续播进度
+  useEffect(() => {
+    if (!wsOpenEpoch || hasPlayed || isPlaying)
+      return
+    if (pathname === '/music' && pendingPassiveAdoptRef.current) {
+      const userAct = typeof navigator !== 'undefined'
+        ? (navigator as Navigator & { userActivation?: { isActive?: boolean, hasBeenActive?: boolean } }).userActivation
+        : undefined
+      if (userAct?.isActive || userAct?.hasBeenActive) {
+        pendingPassiveAdoptRef.current = false
+        passiveAdoptRequestHoldUntilRef.current = performance.now() + 600
+        sendJSON({
+          type: 'request_native_session',
+          tab_id: tabIdRef.current,
+          force: true,
+        })
+        return
+      }
+
+      let indexBeforeGesture = currentIndexRefForAdopt.current
+
+      const onGestureStartCapture = () => {
+        if (!pendingPassiveAdoptRef.current)
+          return
+        indexBeforeGesture = currentIndexRefForAdopt.current
+        passiveAdoptRequestHoldUntilRef.current = performance.now() + 600
+      }
+
+      const onFirstGestureCommit = () => {
+        if (!pendingPassiveAdoptRef.current)
+          return
+        pendingPassiveAdoptRef.current = false
+        window.removeEventListener('pointerdown', onGestureStartCapture, true)
+        window.removeEventListener('keydown', onGestureStartCapture, true)
+        window.removeEventListener('click', onFirstGestureCommit)
+        window.removeEventListener('keydown', onFirstGestureCommit)
+
+        // 让出当前事件批处理（用组件级 ref 持有定时器，避免点击主播放键令 isPlaying 翻真时被当前 effect cleanup 误清）：
+        // 若用户第一下点击就是在歌单中点选了另一首特定歌曲起播，则放行用户点歌；否则拉取灵动岛最新续播进度接力
+        window.clearTimeout(passiveGestureTimerRef.current)
+        passiveGestureTimerRef.current = window.setTimeout(() => {
+          if (currentIndexRefForAdopt.current !== indexBeforeGesture && isPlayingRefForAdopt.current) {
+            passiveAdoptRequestHoldUntilRef.current = 0
+            setHasPlayed(true)
+            setWsOpenEpoch(n => (n > 0 ? n + 1 : 1))
+            return
+          }
+          passiveAdoptRequestHoldUntilRef.current = performance.now() + 600
+          sendJSON({
+            type: 'request_native_session',
+            tab_id: tabIdRef.current,
+            force: true,
+          })
+        }, 0)
+      }
+
+      window.addEventListener('pointerdown', onGestureStartCapture, true)
+      window.addEventListener('keydown', onGestureStartCapture, true)
+      window.addEventListener('click', onFirstGestureCommit)
+      window.addEventListener('keydown', onFirstGestureCommit)
+      return () => {
+        window.removeEventListener('pointerdown', onGestureStartCapture, true)
+        window.removeEventListener('keydown', onGestureStartCapture, true)
+        window.removeEventListener('click', onFirstGestureCommit)
+        window.removeEventListener('keydown', onFirstGestureCommit)
+      }
+    }
+  }, [hasPlayed, isPlaying, pathname, pendingPassiveAdoptEpoch, sendJSON, wsOpenEpoch])
 
   // 1. 推送曲目与完整歌词结构
   useEffect(() => {
-    if (!wsOpenEpoch)
+    if (!wsOpenEpoch || isAdoptHoldActive())
       return
     sendJSON({
       type: 'media',
@@ -847,7 +1232,7 @@ export function DesktopIslandBridge() {
 
   // 2. 推送真实音频节拍脉冲列（供桌面灵动岛同步驱动律动条、背景呼吸染色与全部节拍卷积特效）
   useEffect(() => {
-    if (!wsOpenEpoch)
+    if (!wsOpenEpoch || isAdoptHoldActive())
       return
     sendJSON({
       type: 'rhythm',
@@ -859,7 +1244,7 @@ export function DesktopIslandBridge() {
 
   // 3. 推送歌单列表
   useEffect(() => {
-    if (!wsOpenEpoch)
+    if (!wsOpenEpoch || isAdoptHoldActive())
       return
     sendJSON({
       type: 'playlist',
@@ -890,7 +1275,7 @@ export function DesktopIslandBridge() {
   const lastPreloadSigRef = useRef<string>('')
 
   useEffect(() => {
-    if (!wsOpenEpoch || !isPlaying)
+    if (!wsOpenEpoch || !isPlaying || isAdoptHoldActive())
       return
     const buildItem = (
       track: MusicTrack | null,
@@ -962,17 +1347,24 @@ export function DesktopIslandBridge() {
     extraPositionMs?: number,
   ) => {
     const audio = actions.getAudio()
+    const audioPlayingConfirmed = Boolean(audio && !audio.paused && !audio.ended && audio.readyState >= 2)
+    if (audioPlayingConfirmed && adoptedPosFallbackSecRef.current)
+      adoptedPosFallbackSecRef.current = null
     const audioDurationSec = audio && Number.isFinite(audio.duration) && audio.duration > 0
       ? audio.duration
       : playbackDurationSec
     const resolvedDurationMs = (typeof audioDurationSec === 'number' && Number.isFinite(audioDurationSec) && audioDurationSec > 0)
       ? Math.round(audioDurationSec * 1000)
       : (currentTrack?.duration ?? 0)
-    const rawPosSec = audio && Number.isFinite(audio.currentTime)
+    const fallbackEntry = adoptedPosFallbackSecRef.current
+    const fallbackAdopted = (fallbackEntry && currentTrack?.id != null && fallbackEntry.trackId === currentTrack.id)
+      ? fallbackEntry.sec
+      : null
+    const rawPosSec = (audio && audio.readyState >= 1 && Number.isFinite(audio.currentTime) && (audio.currentTime > 0 || fallbackAdopted == null))
       ? audio.currentTime
-      : clock.getSnapshot()
+      : (fallbackAdopted ?? clock.getSnapshot())
     const posMs = extraPositionMs ?? (rawPosSec * 1000)
-    const visible = Boolean(formattedTrack) && (showPlaying || (hasPlayed && currentPrefs.keepWhenPaused))
+    const visible = Boolean(formattedTrack) && (showPlaying || (hasPlayed && (currentPrefs.keepWhenPaused || fallbackAdopted != null)))
     const inlineTitle = formattedTrack?.inline_title ?? ''
     const peekText = (peekTrackId != null && currentTrack?.id === peekTrackId) ? inlineTitle : null
     const pausedText = !showPlaying && hasPlayed ? (pausedLine ?? inlineTitle) : null
@@ -984,6 +1376,7 @@ export function DesktopIslandBridge() {
       has_played: hasPlayed,
       show_playing: showPlaying,
       is_playing: isPlaying,
+      audio_playing: audioPlayingConfirmed,
       pending_step: pendingStep ?? null,
       track_id: currentTrack?.id ?? null,
       lyric_status: lyricStatus,
@@ -1054,6 +1447,8 @@ export function DesktopIslandBridge() {
 
   const sendStateRef = useRef<() => void>(() => {})
   sendStateRef.current = () => {
+    if (adoptingStateRef.current || performance.now() < passiveAdoptRequestHoldUntilRef.current)
+      return
     sendJSON(buildStatePayload(prefs))
   }
 
@@ -1061,7 +1456,14 @@ export function DesktopIslandBridge() {
     if (!wsOpenEpoch)
       return
     sendStateRef.current()
-  }, [buildStatePayload, prefs, wsOpenEpoch])
+    if (pendingAdoptedNotifyRef.current && !adoptingStateRef.current) {
+      pendingAdoptedNotifyRef.current = false
+      sendJSON({
+        type: 'native_session_adopted',
+        tab_id: tabIdRef.current,
+      })
+    }
+  }, [buildStatePayload, prefs, sendJSON, wsOpenEpoch])
 
   useEffect(() => {
     if (!wsOpenEpoch)

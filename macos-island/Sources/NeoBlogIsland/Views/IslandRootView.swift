@@ -185,7 +185,7 @@ private struct IslandSurfaceView: View {
             Button("下一首") {
                 store.nextTrack()
             }
-            if store.peerService.isConnected {
+            if store.peerService.isConnected, store.track != nil {
                 let peerLabel = store.peerService.connectedPeerName ?? "另一台 Mac"
                 Divider()
                 Button("投送到 \(peerLabel)") {
@@ -210,7 +210,7 @@ private struct IslandSurfaceView: View {
             Button("在博客打开完整播放器页 (/music)") {
                 store.openBlogPlayerPage()
             }
-            Button("隐藏本首曲目") {
+            Button(store.isAutonomousMode ? "停止内置续播" : "隐藏本首曲目") {
                 store.hideCurrentTrack()
             }
             Divider()

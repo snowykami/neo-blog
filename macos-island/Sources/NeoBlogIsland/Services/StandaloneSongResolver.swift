@@ -1,0 +1,2200 @@
+import Foundation
+
+/// 脱离浏览器独立运行时的后端公开音乐数据拉取与歌词/节拍组装器：
+/// - 并发请求 `/api/v1/music/song/:id` 下的公开只读接口（歌词缓存、AI 强调标注、多语言译文、音译、歌手分轨、副歌与节拍脉冲）；
+/// - 原生解析 TTML（含振假名 ruby、逐字音译、对唱与 x-bg 背景和声）、YRC、QRC/KRC 与 LRC，叠加 AI 9 种强调特效、聚光灯与 4 八度节拍脉冲列。
+enum StandaloneSongResolver {
+    struct ResolvedBundle: Sendable {
+        let track: IslandTrack
+        let accentHex: String?
+        let chorus: [TimeIntervalRange]
+        let lyrics: LyricsBundlePayload
+        let rhythmData: RhythmDataPayload?
+        let availableTranslationLangs: [AvailableTranslationLangItem]?
+        let translationsGenerating: Bool
+        let pronunciationsGenerating: Bool
+    }
+
+    private struct APIEnvelope<T: Decodable>: Decodable {
+        let data: T?
+    }
+
+    private struct BackendTrackDTO: Decodable {
+        let id: Int
+        let name: String
+        let artists: [String]?
+        let album: String?
+        let album_pic: String?
+        let aliases: [String]?
+        let duration: Double?
+    }
+
+    private struct BackendChorusDTO: Decodable {
+        let start: Double
+        let end: Double
+    }
+
+    private struct BackendLyricPartDTO: Decodable {
+        let lyric: String?
+    }
+
+    private struct BackendNCMLyricDTO: Decodable {
+        let lrc: BackendLyricPartDTO?
+        let tlyric: BackendLyricPartDTO?
+        let romalrc: BackendLyricPartDTO?
+        let yrc: BackendLyricPartDTO?
+        let ytlrc: BackendLyricPartDTO?
+        let yromalrc: BackendLyricPartDTO?
+    }
+
+    private struct BackendTTMLDTO: Decodable {
+        let source: String?
+        let name: String?
+        let ttml: String?
+    }
+
+    private struct BackendQQLyricDTO: Decodable {
+        let format: String?
+        let lyric: String?
+        let translation: String?
+        let romanization: String?
+        let ttml: String?
+    }
+
+    private struct BackendLyricCacheDTO: Decodable {
+        let kind: String?
+        let ncm: BackendNCMLyricDTO?
+        let ttml: BackendTTMLDTO?
+        let qq: BackendQQLyricDTO?
+        let kugou: BackendQQLyricDTO?
+    }
+
+    private struct BackendLyricSettingsDTO: Decodable {
+        let offsets: [String: Double]?
+        let pin: String?
+    }
+
+    private struct BackendAnnotationPhraseDTO: Decodable {
+        let text: String
+        let effect: String
+        let color: String?
+        let font: String?
+        let styles: [String]?
+    }
+
+    private struct BackendAnnotationLineDTO: Decodable {
+        let text: String
+        let mood: String?
+        let chorus: Bool?
+        let chorus_start: Bool?
+        let scene: String?
+        let scene_color: String?
+        let scene_lines: Int?
+        let phrases: [BackendAnnotationPhraseDTO]?
+    }
+
+    private struct BackendAnnotationSpotlightDTO: Decodable {
+        let text: String
+        let occurrence: Int
+    }
+
+    private struct BackendAnnotationMomentDTO: Decodable {
+        let text: String
+        let occurrence: Int
+        let content: String
+        let source: String
+        let liked: Int?
+    }
+
+    private struct BackendAnnotationCommentDTO: Decodable {
+        let content: String
+        let liked: Int?
+    }
+
+    private struct BackendSpritePathDTO: Decodable {
+        let d: String
+        let paint: String
+    }
+
+    private struct BackendSpriteDTO: Decodable {
+        let name: String
+        let paths: [BackendSpritePathDTO]?
+        let motion: String?
+        let size: String?
+        let spin: Bool?
+        let color: String?
+    }
+
+    private struct BackendAnnotationsDTO: Decodable {
+        let status: String?
+        let font: String?
+        let motion: String?
+        let intro: String?
+        let outro: BackendAnnotationCommentDTO?
+        let moments: [BackendAnnotationMomentDTO]?
+        let spotlights: [BackendAnnotationSpotlightDTO]?
+        let accent: String?
+        let lines: [BackendAnnotationLineDTO]?
+        let sprites: [BackendSpriteDTO]?
+        let singers: [BackendSingerItemDTO]?
+        let source: String?
+    }
+
+    private struct BackendTranslationLineDTO: Decodable {
+        let text: String
+        let occurrence: Int
+        let bg: Bool?
+        let translation: String
+    }
+
+    private struct BackendTranslationsDTO: Decodable {
+        let status: String?
+        let source: String?
+        let target_lang: String?
+        let native: Bool?
+        let same_language: Bool?
+        let lines: [BackendTranslationLineDTO]?
+    }
+
+    private struct BackendTranslationLangStatusDTO: Decodable {
+        let lang: String
+        let has_ai: Bool?
+        let has_native: Bool?
+        let generating: Bool?
+        let same_language: Bool?
+    }
+
+    private struct BackendTranslationLanguagesDTO: Decodable {
+        let status: String?
+        let languages: [BackendTranslationLangStatusDTO]?
+    }
+
+    private struct BackendPronunciationLineDTO: Decodable {
+        let text: String
+        let occurrence: Int
+        let bg: Bool?
+        let pronunciation: String
+    }
+
+    private struct BackendPronunciationsDTO: Decodable {
+        let status: String?
+        let source: String?
+        let lines: [BackendPronunciationLineDTO]?
+    }
+
+    private struct BackendSingerItemDTO: Decodable {
+        let id: String
+        let name: String?
+        let role: String?
+        let color: String?
+        let align: String?
+        let members: [String]?
+    }
+
+    private struct BackendSingerLineDTO: Decodable {
+        let text: String
+        let occurrence: Int
+        let bg: Bool?
+        let agent: String
+    }
+
+    private struct BackendSingersDTO: Decodable {
+        let status: String?
+        let source: String?
+        let singers: [BackendSingerItemDTO]?
+        let translated_names: [String: String]?
+        let lines: [BackendSingerLineDTO]?
+    }
+
+    private struct BackendRhythmBeatDTO: Decodable {
+        let t: Double
+        let loud: Double
+        let strength: Double
+    }
+
+    private struct BackendRhythmAnalysisDTO: Decodable {
+        let duration_ms: Double
+        let period_ms: Double
+        let base_period_ms: Double
+        let confidence: Double
+        let loud_low: Double
+        let loud_high: Double
+        let beats: [BackendRhythmBeatDTO]?
+    }
+
+    private struct BackendSongRhythmDTO: Decodable {
+        let status: String?
+        let analysis: BackendRhythmAnalysisDTO?
+    }
+
+    private static let moodHexMap: [String: String] = [
+        "calm": "#74c0fc",
+        "bright": "#ffd54f",
+        "sad": "#9bb7d4",
+        "intense": "#ff6a3d"
+    ]
+
+    // MARK: - 公开歌单与单曲全量捆绑拉取
+
+    static func fetchPlaylist(origin: String) async -> [PlaylistTrackItem]? {
+        let base = cleanOrigin(origin)
+        guard !base.isEmpty, let url = URL(string: "\(base)/api/v1/music/playlist") else { return nil }
+        guard let list: [BackendTrackDTO] = await getData(url: url, timeout: 15) else { return nil }
+        return list.enumerated().map { idx, item in
+            let artists = (item.artists ?? []).joined(separator: " / ")
+            let aliases = (item.aliases ?? []).filter { !$0.isEmpty && $0.caseInsensitiveCompare(item.name) != .orderedSame }
+            let extra = aliases.isEmpty ? nil : aliases.joined(separator: " / ")
+            return PlaylistTrackItem(
+                index: idx,
+                id: item.id,
+                name: item.name,
+                aliases: item.aliases ?? [],
+                titleExtra: extra,
+                artists: artists,
+                album: item.album ?? "",
+                albumPic: resolveCoverURL(raw: item.album_pic, origin: base),
+                durationMs: item.duration ?? 0
+            )
+        }
+    }
+
+    static func makeIslandTrack(from item: PlaylistTrackItem) -> IslandTrack {
+        let artistList = item.artists
+            .components(separatedBy: " / ")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return IslandTrack(
+            id: item.id,
+            name: item.name,
+            titleExtra: item.titleExtra,
+            artists: artistList,
+            displayArtists: artistList,
+            album: item.album,
+            albumPic: item.albumPic,
+            durationMs: item.durationMs
+        )
+    }
+
+    /// 1:1 对齐 web/src/lib/lyrics/lyric-language.ts toggleLyricTranslationSelection
+    static func toggleTranslationSelection(
+        current: [TranslationSelectionItem],
+        lang: String,
+        preferNative: Bool,
+        hasDualSources: Bool
+    ) -> [TranslationSelectionItem] {
+        if hasDualSources {
+            if let idx = current.firstIndex(where: { $0.lang == lang && $0.preferNative == preferNative }) {
+                var next = current
+                next.remove(at: idx)
+                return next
+            }
+            let nextItem = TranslationSelectionItem(lang: lang, preferNative: preferNative)
+            if current.count >= 2 {
+                return [current[current.count - 1], nextItem]
+            }
+            return current + [nextItem]
+        }
+        if current.contains(where: { $0.lang == lang }) {
+            return current.filter { $0.lang != lang }
+        }
+        let nextItem = TranslationSelectionItem(lang: lang, preferNative: false)
+        if current.count >= 2 {
+            return [current[current.count - 1], nextItem]
+        }
+        return current + [nextItem]
+    }
+
+    static func resolveTrackBundle(
+        origin: String,
+        track: IslandTrack,
+        preferences: IslandLyricPreferences,
+        refresh: Bool = false,
+        passivePreload: Bool = false
+    ) async -> ResolvedBundle {
+        let base = cleanOrigin(origin)
+        let id = track.id
+        let effectiveSelections = preferences.translationSelections.isEmpty
+            ? [TranslationSelectionItem(lang: "zh", preferNative: false)]
+            : Array(preferences.translationSelections.prefix(2))
+        let primarySlot = effectiveSelections[0]
+        let secondarySlot = effectiveSelections.count > 1 ? effectiveSelections[1] : nil
+        let refreshQuery = refresh ? "?refresh=1" : ""
+
+        async let settingsFetch: BackendLyricSettingsDTO? = getData(url: URL(string: "\(base)/api/v1/music/song/\(id)/lyric/settings"), reload: refresh)
+        async let chorusFetch: [BackendChorusDTO]? = getData(url: URL(string: "\(base)/api/v1/music/song/\(id)/chorus"), reload: refresh)
+        async let annotationsFetch: BackendAnnotationsDTO? = passivePreload
+            ? nil
+            : await getData(url: URL(string: "\(base)/api/v1/music/song/\(id)/lyric/annotations"), reload: refresh)
+        async let rhythmFetch: BackendSongRhythmDTO? = passivePreload
+            ? nil
+            : await getData(url: URL(string: "\(base)/api/v1/music/song/\(id)/rhythm"), reload: refresh)
+
+        let cache: BackendLyricCacheDTO?
+        var ncmFallback: BackendNCMLyricDTO?
+        if refresh {
+            // 手动重新获取歌词时跳过缓存，并发向后端请求各源刷新（与 web/src/api/music.ts refresh=1 行为对齐）
+            async let freshTTML: BackendTTMLDTO? = getData(url: URL(string: "\(base)/api/v1/music/song/\(id)/lyric/ttml\(refreshQuery)"), reload: true)
+            async let freshQQ: BackendQQLyricDTO? = getData(url: URL(string: "\(base)/api/v1/music/song/\(id)/lyric/qq\(refreshQuery)"), reload: true)
+            async let freshKG: BackendQQLyricDTO? = getData(url: URL(string: "\(base)/api/v1/music/song/\(id)/lyric/kugou\(refreshQuery)"), reload: true)
+            async let freshNCM: BackendNCMLyricDTO? = getData(url: URL(string: "\(base)/api/v1/music/song/\(id)/lyric\(refreshQuery)"), reload: true)
+            let (t, q, k, n) = await (freshTTML, freshQQ, freshKG, freshNCM)
+            cache = BackendLyricCacheDTO(kind: nil, ncm: n, ttml: t, qq: q, kugou: k)
+            ncmFallback = n
+        } else {
+            let fetchedCache: BackendLyricCacheDTO? = await getData(url: URL(string: "\(base)/api/v1/music/song/\(id)/lyric/cache"))
+            if let fetchedCache {
+                cache = fetchedCache
+                ncmFallback = fetchedCache.ncm
+                if ncmFallback == nil {
+                    ncmFallback = await getData(url: URL(string: "\(base)/api/v1/music/song/\(id)/lyric"))
+                }
+            } else {
+                // 冷缓存曲目（尚未建立或超过 30 天缓存期）：并发探测 TTML / QQ / 酷狗 / 网易云全部词源，避免退化丢失逐字歌词
+                async let coldTTML: BackendTTMLDTO? = getData(url: URL(string: "\(base)/api/v1/music/song/\(id)/lyric/ttml"))
+                async let coldQQ: BackendQQLyricDTO? = getData(url: URL(string: "\(base)/api/v1/music/song/\(id)/lyric/qq"))
+                async let coldKG: BackendQQLyricDTO? = getData(url: URL(string: "\(base)/api/v1/music/song/\(id)/lyric/kugou"))
+                async let coldNCM: BackendNCMLyricDTO? = getData(url: URL(string: "\(base)/api/v1/music/song/\(id)/lyric"))
+                let (t, q, k, n) = await (coldTTML, coldQQ, coldKG, coldNCM)
+                cache = BackendLyricCacheDTO(kind: nil, ncm: n, ttml: t, qq: q, kugou: k)
+                ncmFallback = n
+            }
+        }
+
+        let settings = await settingsFetch
+        let annotations = await annotationsFetch
+        let rawChorus = await chorusFetch ?? []
+        let rawRhythm = await rhythmFetch
+
+        let parsed = buildBaseLyrics(cache: cache, ncmFallback: ncmFallback, settings: settings)
+        let hasVocalLines = !parsed.lines.isEmpty && !parsed.instrumental
+        let sourceParam = parsed.source.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? parsed.source
+
+        let needPrimaryAI = !passivePreload
+            && hasVocalLines
+            && preferences.showTranslation
+            && !(primarySlot.preferNative && hasNativeTranslation(in: parsed.lines, for: primarySlot.lang))
+        let needSecondaryAI: Bool = {
+            guard !passivePreload, hasVocalLines, preferences.showTranslation, let sec = secondarySlot else {
+                return false
+            }
+            if sec.preferNative && hasNativeTranslation(in: parsed.lines, for: sec.lang) {
+                return false
+            }
+            if sec.lang == primarySlot.lang && needPrimaryAI {
+                return false
+            }
+            return true
+        }()
+        let needPronunciations = !passivePreload && hasVocalLines && preferences.showRomaji
+        let needSingers = !passivePreload && hasVocalLines
+        let needLangs = !passivePreload && hasVocalLines
+
+        async let primaryTransFetch: BackendTranslationsDTO? = needPrimaryAI
+            ? await getData(
+                url: URL(string: "\(base)/api/v1/music/song/\(id)/lyric/translations?lang=\(primarySlot.lang)&source=\(sourceParam)"),
+                reload: refresh
+            )
+            : nil
+        async let secondaryTransFetch: BackendTranslationsDTO? = {
+            guard needSecondaryAI, let sec = secondarySlot else { return nil }
+            return await getData(
+                url: URL(string: "\(base)/api/v1/music/song/\(id)/lyric/translations?lang=\(sec.lang)&source=\(sourceParam)"),
+                reload: refresh
+            )
+        }()
+        async let pronunciationsFetch: BackendPronunciationsDTO? = needPronunciations
+            ? await getData(
+                url: URL(string: "\(base)/api/v1/music/song/\(id)/lyric/pronunciations?source=\(sourceParam)"),
+                reload: refresh
+            )
+            : nil
+        async let singersFetch: BackendSingersDTO? = needSingers
+            ? await getData(
+                url: URL(string: "\(base)/api/v1/music/song/\(id)/lyric/singers?lang=\(primarySlot.lang)&source=\(sourceParam)"),
+                reload: refresh
+            )
+            : nil
+        async let langsFetch: BackendTranslationLanguagesDTO? = needLangs
+            ? await getData(
+                url: URL(string: "\(base)/api/v1/music/song/\(id)/lyric/translations/available?source=\(sourceParam)"),
+                reload: refresh
+            )
+            : nil
+
+        let primaryTrans = await primaryTransFetch
+        let secondaryTransRaw = await secondaryTransFetch
+        let secondaryTrans = (secondarySlot?.lang == primarySlot.lang && needPrimaryAI) ? primaryTrans : secondaryTransRaw
+        let pronunciations = await pronunciationsFetch
+        let singers = await singersFetch
+        let langsResp = await langsFetch
+
+        let enriched = applyOverlays(
+            base: parsed,
+            annotations: annotations,
+            primarySlot: primarySlot,
+            primaryTranslations: primaryTrans,
+            secondarySlot: secondarySlot,
+            secondaryTranslations: secondaryTrans,
+            pronunciations: pronunciations,
+            singers: singers
+        )
+        let chorusRanges = rawChorus.compactMap { c -> TimeIntervalRange? in
+            guard c.end > c.start else { return nil }
+            return TimeIntervalRange(start: c.start, end: c.end)
+        }
+        let rhythmPayload = rawRhythm?.analysis.flatMap { buildRhythmPayload(from: $0) }
+        let accent = (annotations?.accent?.hasPrefix("#") == true) ? annotations?.accent : nil
+        let availableLangs: [AvailableTranslationLangItem]? = langsResp?.languages?
+            .filter {
+                !($0.same_language ?? false)
+                    && (($0.has_ai ?? false) || ($0.has_native ?? false) || ($0.generating ?? false))
+            }
+            .map { item in
+                let existingLabel = preferences.availableTranslationLangs.first(where: { $0.lang == item.lang })?.label
+                let label = existingLabel ?? Locale.current.localizedString(forLanguageCode: item.lang) ?? item.lang
+                return AvailableTranslationLangItem(
+                    lang: item.lang,
+                    label: label,
+                    hasAi: item.has_ai ?? false,
+                    hasNative: item.has_native ?? false,
+                    generating: item.generating ?? false
+                )
+            }
+        let transPending = (primaryTrans?.status == "pending")
+            || (secondaryTrans?.status == "pending")
+            || (availableLangs?.contains(where: { $0.generating && ($0.lang == primarySlot.lang || $0.lang == secondarySlot?.lang) }) == true)
+        let romaPending = pronunciations?.status == "pending"
+
+        return ResolvedBundle(
+            track: track,
+            accentHex: accent,
+            chorus: chorusRanges,
+            lyrics: enriched,
+            rhythmData: rhythmPayload,
+            availableTranslationLangs: availableLangs,
+            translationsGenerating: transPending,
+            pronunciationsGenerating: romaPending
+        )
+    }
+
+    static func parseTTMLForTesting(
+        xml: String,
+        annotationsJSON: Data? = nil,
+        primarySlot: TranslationSelectionItem = TranslationSelectionItem(lang: "zh", preferNative: false),
+        primaryTranslationsJSON: Data? = nil,
+        secondarySlot: TranslationSelectionItem? = nil,
+        secondaryTranslationsJSON: Data? = nil
+    ) -> LyricsBundlePayload {
+        let base = parseTTML(xml: xml, source: "ttml-amll", sourceName: nil)
+        let annotations = annotationsJSON.flatMap { try? JSONDecoder().decode(BackendAnnotationsDTO.self, from: $0) }
+        let primaryTrans = primaryTranslationsJSON.flatMap { try? JSONDecoder().decode(BackendTranslationsDTO.self, from: $0) }
+        let secondaryTrans = secondaryTranslationsJSON.flatMap { try? JSONDecoder().decode(BackendTranslationsDTO.self, from: $0) }
+        return applyOverlays(
+            base: base,
+            annotations: annotations,
+            primarySlot: primarySlot,
+            primaryTranslations: primaryTrans,
+            secondarySlot: secondarySlot,
+            secondaryTranslations: secondaryTrans,
+            pronunciations: nil,
+            singers: nil
+        )
+    }
+
+    static func buildBaseLyricsForTesting(
+        cacheJSON: Data?,
+        ncmJSON: Data? = nil,
+        pin: String? = nil
+    ) -> LyricsBundlePayload {
+        let cache = cacheJSON.flatMap { try? JSONDecoder().decode(BackendLyricCacheDTO.self, from: $0) }
+        let ncm = ncmJSON.flatMap { try? JSONDecoder().decode(BackendNCMLyricDTO.self, from: $0) } ?? cache?.ncm
+        let settings = pin.map { BackendLyricSettingsDTO(offsets: nil, pin: $0) }
+        let base = buildBaseLyrics(cache: cache, ncmFallback: ncm, settings: settings)
+        return applyOverlays(
+            base: base,
+            annotations: nil,
+            primarySlot: TranslationSelectionItem(lang: "zh", preferNative: false),
+            primaryTranslations: nil,
+            secondarySlot: nil,
+            secondaryTranslations: nil,
+            pronunciations: nil,
+            singers: nil
+        )
+    }
+
+    static func resolveCoverURLForTesting(raw: String?, origin: String) -> String? {
+        resolveCoverURL(raw: raw, origin: cleanOrigin(origin))
+    }
+
+    // MARK: - 基础歌词源选择与解析（TTML / YRC / QRC / LRC）
+
+    private struct MutableLine {
+        var start: Double
+        var end: Double
+        var isDuet: Bool = false
+        var isBackground: Bool = false
+        var align: String = "left"
+        var owner: Int = -1
+        var paragraphStart: Bool = false
+        var backgroundPosition: String? = nil
+        var chorusStart: Bool = false
+        var agentId: String? = nil
+        var edgeColors: [String]? = nil
+        var singerName: String? = nil
+        var singerDotOnly: Bool = false
+        var translation: String? = nil
+        var translationsByLang: [String: String] = [:]
+        var secondaryTranslation: String? = nil
+        var romanization: String? = nil
+        var romanizationWords: [LyricRomanWordPayload] = []
+        var moodHex: String? = nil
+        var scene: String? = nil
+        var sceneColorHex: String? = nil
+        var sceneLines: Int? = nil
+        var words: [LyricWordPayload]
+        var emphasis: [LyricEmphasisPayload] = []
+
+        var plainText: String {
+            words.map(\.text).joined().trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+    }
+
+    private struct BaseParsedLyrics {
+        var source: String
+        var sourceName: String?
+        var wordSynced: Bool
+        var instrumental: Bool
+        var lines: [MutableLine]
+        var ttmlAgents: [String: (name: String?, isGroup: Bool, members: [String])] = [:]
+    }
+
+    private static func buildBaseLyrics(
+        cache: BackendLyricCacheDTO?,
+        ncmFallback: BackendNCMLyricDTO?,
+        settings: BackendLyricSettingsDTO?
+    ) -> BaseParsedLyrics {
+        let preferred = settings?.pin?.isEmpty == false ? settings!.pin! : (cache?.kind ?? "")
+        var candidateOrder: [String] = []
+        for k in [preferred, "ttml", "qq", "kugou", "ncm"] where !k.isEmpty && !candidateOrder.contains(k) {
+            candidateOrder.append(k)
+        }
+
+        for kind in candidateOrder {
+            switch kind {
+            case "ttml":
+                if let ttml = cache?.ttml, let xml = ttml.ttml, !xml.isEmpty {
+                    let src = ttml.source == "custom" ? "ttml-custom" : "ttml-amll"
+                    let parsed = parseTTML(xml: xml, source: src, sourceName: ttml.name)
+                    if !parsed.lines.isEmpty {
+                        return applyOffset(parsed, offsets: settings?.offsets)
+                    }
+                }
+            case "qq":
+                if let qq = cache?.qq {
+                    if let xml = qq.ttml, !xml.isEmpty {
+                        let parsed = parseTTML(xml: xml, source: "ttml-amll", sourceName: nil)
+                        if !parsed.lines.isEmpty {
+                            return applyOffset(parsed, offsets: settings?.offsets)
+                        }
+                    }
+                    if let text = qq.lyric, !text.isEmpty {
+                        let isQrc = qq.format == "qrc"
+                        let src = isQrc ? "qq-qrc" : "qq-lrc"
+                        let parsed = parseQRCOrLRC(
+                            lyric: text,
+                            isWordTimed: isQrc,
+                            translation: qq.translation,
+                            romanization: qq.romanization,
+                            source: src
+                        )
+                        if !parsed.lines.isEmpty {
+                            return applyOffset(parsed, offsets: settings?.offsets)
+                        }
+                    }
+                }
+            case "kugou":
+                if let kg = cache?.kugou, let text = kg.lyric, !text.isEmpty {
+                    let isQrc = kg.format == "qrc"
+                    let src = isQrc ? "kugou-krc" : "kugou-lrc"
+                    let parsed = parseQRCOrLRC(
+                        lyric: text,
+                        isWordTimed: isQrc,
+                        translation: kg.translation,
+                        romanization: kg.romanization,
+                        source: src
+                    )
+                    if !parsed.lines.isEmpty {
+                        return applyOffset(parsed, offsets: settings?.offsets)
+                    }
+                }
+            case "ncm":
+                if let ncm = ncmFallback {
+                    if let yrc = ncm.yrc?.lyric, !yrc.isEmpty {
+                        let parsed = parseYRC(
+                            yrc: yrc,
+                            tlyric: ncm.ytlrc?.lyric ?? ncm.tlyric?.lyric,
+                            romalrc: ncm.yromalrc?.lyric ?? ncm.romalrc?.lyric
+                        )
+                        if !parsed.lines.isEmpty {
+                            return applyOffset(parsed, offsets: settings?.offsets)
+                        }
+                    }
+                    if let lrc = ncm.lrc?.lyric, !lrc.isEmpty {
+                        if lrc.contains("纯音乐，请欣赏") || lrc.contains("純音樂，請欣賞") {
+                            return BaseParsedLyrics(source: "ncm-lrc", sourceName: nil, wordSynced: false, instrumental: true, lines: [])
+                        }
+                        let parsed = parseQRCOrLRC(
+                            lyric: lrc,
+                            isWordTimed: false,
+                            translation: ncm.tlyric?.lyric,
+                            romanization: ncm.romalrc?.lyric,
+                            source: "ncm-lrc"
+                        )
+                        if !parsed.lines.isEmpty {
+                            return applyOffset(parsed, offsets: settings?.offsets)
+                        }
+                    }
+                }
+            default:
+                break
+            }
+        }
+
+        return BaseParsedLyrics(source: "none", sourceName: nil, wordSynced: false, instrumental: false, lines: [])
+    }
+
+    private static func applyOffset(_ input: BaseParsedLyrics, offsets: [String: Double]?) -> BaseParsedLyrics {
+        guard let delta = offsets?[input.source], abs(delta) >= 1 else { return input }
+        var out = input
+        out.lines = input.lines.map { line in
+            var copy = line
+            copy.start = max(0, line.start + delta)
+            copy.end = max(copy.start, line.end + delta)
+            copy.words = line.words.map { w in
+                let ws = max(0, w.start + delta)
+                let we = max(ws, w.end + delta)
+                let rubies = w.ruby?.map { r in
+                    let rs = max(0, r.start + delta)
+                    return LyricRubyPayload(text: r.text, start: rs, end: max(rs, r.end + delta))
+                }
+                return LyricWordPayload(text: w.text, start: ws, end: we, ruby: rubies)
+            }
+            return copy
+        }
+        return out
+    }
+
+    // MARK: - YRC / QRC / LRC 解析
+
+    private static func parseYRC(yrc: String, tlyric: String?, romalrc: String?) -> BaseParsedLyrics {
+        let transMap = parseLRCMap(tlyric)
+        let romaMap = parseLRCMap(romalrc)
+        var lines: [MutableLine] = []
+        let headerRegex = try? NSRegularExpression(pattern: #"^\[(\d+),(\d+)\](.*)$"#)
+        let wordRegex = try? NSRegularExpression(pattern: #"\((\d+),(\d+),\d+\)([^\(]*)"#)
+
+        for raw in yrc.components(separatedBy: .newlines) {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmed.hasPrefix("["), !trimmed.hasPrefix("[ch:") else { continue }
+            guard let hMatch = headerRegex?.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)),
+                  let sRange = Range(hMatch.range(at: 1), in: trimmed),
+                  let dRange = Range(hMatch.range(at: 2), in: trimmed),
+                  let bodyRange = Range(hMatch.range(at: 3), in: trimmed),
+                  let lineStart = Double(trimmed[sRange]),
+                  let lineDur = Double(trimmed[dRange]) else {
+                continue
+            }
+            let body = String(trimmed[bodyRange])
+            let matches = wordRegex?.matches(in: body, range: NSRange(body.startIndex..., in: body)) ?? []
+            var words: [LyricWordPayload] = []
+            for m in matches {
+                guard let wsR = Range(m.range(at: 1), in: body),
+                      let wdR = Range(m.range(at: 2), in: body),
+                      let txR = Range(m.range(at: 3), in: body),
+                      let ws = Double(body[wsR]),
+                      let wd = Double(body[wdR]) else { continue }
+                let text = String(body[txR])
+                if !text.isEmpty {
+                    words.append(LyricWordPayload(text: text, start: ws, end: ws + max(0, wd)))
+                }
+            }
+            let plain = words.map(\.text).joined().trimmingCharacters(in: .whitespacesAndNewlines)
+            if plain.isEmpty || isMetadataCreditLine(plain) { continue }
+            let end = max(lineStart + lineDur, words.last?.end ?? lineStart)
+            lines.append(
+                MutableLine(
+                    start: lineStart,
+                    end: end,
+                    translation: lookupNearestLRC(in: transMap, around: lineStart),
+                    romanization: lookupNearestLRC(in: romaMap, around: lineStart),
+                    words: words
+                )
+            )
+        }
+        return BaseParsedLyrics(source: "ncm-yrc", sourceName: nil, wordSynced: true, instrumental: false, lines: lines)
+    }
+
+    private static func parseQRCOrLRC(
+        lyric: String,
+        isWordTimed: Bool,
+        translation: String?,
+        romanization: String?,
+        source: String
+    ) -> BaseParsedLyrics {
+        let transMap = parseLRCMap(translation)
+        let romaMap = parseLRCMap(romanization)
+
+        if isWordTimed {
+            var lines: [MutableLine] = []
+            let headerRegex = try? NSRegularExpression(pattern: #"^\[(\d+),(\d+)\](.*)$"#)
+            let qrcWordRegex = try? NSRegularExpression(pattern: #"([^\(\)]*)\((\d+),(\d+)\)"#)
+            for raw in lyric.components(separatedBy: .newlines) {
+                let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard let hMatch = headerRegex?.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)),
+                      let sRange = Range(hMatch.range(at: 1), in: trimmed),
+                      let dRange = Range(hMatch.range(at: 2), in: trimmed),
+                      let bodyRange = Range(hMatch.range(at: 3), in: trimmed),
+                      let lineStart = Double(trimmed[sRange]),
+                      let lineDur = Double(trimmed[dRange]) else { continue }
+                let body = String(trimmed[bodyRange])
+                let matches = qrcWordRegex?.matches(in: body, range: NSRange(body.startIndex..., in: body)) ?? []
+                var words: [LyricWordPayload] = []
+                for m in matches {
+                    guard let txR = Range(m.range(at: 1), in: body),
+                          let wsR = Range(m.range(at: 2), in: body),
+                          let wdR = Range(m.range(at: 3), in: body),
+                          let ws = Double(body[wsR]),
+                          let wd = Double(body[wdR]) else { continue }
+                    let text = String(body[txR])
+                    if !text.isEmpty {
+                        words.append(LyricWordPayload(text: text, start: ws, end: ws + max(0, wd)))
+                    }
+                }
+                let plain = words.map(\.text).joined().trimmingCharacters(in: .whitespacesAndNewlines)
+                if plain.isEmpty || isMetadataCreditLine(plain) { continue }
+                lines.append(
+                    MutableLine(
+                        start: lineStart,
+                        end: max(lineStart + lineDur, words.last?.end ?? lineStart),
+                        translation: lookupNearestLRC(in: transMap, around: lineStart),
+                        romanization: lookupNearestLRC(in: romaMap, around: lineStart),
+                        words: words
+                    )
+                )
+            }
+            return BaseParsedLyrics(source: source, sourceName: nil, wordSynced: true, instrumental: false, lines: lines)
+        }
+
+        let rawItems = parseLRCEntries(lyric)
+        var lines: [MutableLine] = []
+        for (idx, item) in rawItems.enumerated() {
+            if item.text.isEmpty || isMetadataCreditLine(item.text) { continue }
+            let nextStart = idx + 1 < rawItems.count ? rawItems[idx + 1].timeMs : (item.timeMs + 4000)
+            let end = max(item.timeMs + 600, min(nextStart, item.timeMs + 8000))
+            lines.append(
+                MutableLine(
+                    start: item.timeMs,
+                    end: end,
+                    translation: lookupNearestLRC(in: transMap, around: item.timeMs),
+                    romanization: lookupNearestLRC(in: romaMap, around: item.timeMs),
+                    words: [LyricWordPayload(text: item.text, start: item.timeMs, end: end)]
+                )
+            )
+        }
+        return BaseParsedLyrics(source: source, sourceName: nil, wordSynced: false, instrumental: false, lines: lines)
+    }
+
+    private static func parseLRCEntries(_ raw: String?) -> [(timeMs: Double, text: String)] {
+        guard let raw, !raw.isEmpty else { return [] }
+        guard let tagRegex = try? NSRegularExpression(pattern: #"\[(\d{1,3}):(\d{1,2})(?:\.(\d{1,3}))?\]"#) else {
+            return []
+        }
+        var out: [(Double, String)] = []
+        for line in raw.components(separatedBy: .newlines) {
+            let matches = tagRegex.matches(in: line, range: NSRange(line.startIndex..., in: line))
+            guard !matches.isEmpty, let lastMatch = matches.last,
+                  let textStart = Range(lastMatch.range, in: line)?.upperBound else { continue }
+            let content = String(line[textStart...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            for m in matches {
+                guard let minR = Range(m.range(at: 1), in: line),
+                      let secR = Range(m.range(at: 2), in: line),
+                      let mins = Double(line[minR]),
+                      let secs = Double(line[secR]) else { continue }
+                var msFrac = 0.0
+                if m.range(at: 3).location != NSNotFound, let fR = Range(m.range(at: 3), in: line) {
+                    let fStr = String(line[fR])
+                    let val = Double(fStr) ?? 0
+                    msFrac = fStr.count == 1 ? val * 100 : (fStr.count == 2 ? val * 10 : val)
+                }
+                out.append((mins * 60_000 + secs * 1000 + msFrac, content))
+            }
+        }
+        out.sort { $0.0 < $1.0 }
+        return out
+    }
+
+    private static func parseLRCMap(_ raw: String?) -> [(timeMs: Double, text: String)] {
+        parseLRCEntries(raw).filter { !$0.text.isEmpty && $0.text != "//" }
+    }
+
+    private static func lookupNearestLRC(in list: [(timeMs: Double, text: String)], around targetMs: Double) -> String? {
+        guard !list.isEmpty else { return nil }
+        var best: (dist: Double, text: String)? = nil
+        for item in list {
+            let d = abs(item.timeMs - targetMs)
+            if d <= 650, best == nil || d < best!.dist {
+                best = (d, item.text)
+            }
+        }
+        return best?.text
+    }
+
+    private static func isMetadataCreditLine(_ text: String) -> Bool {
+        let prefixes = ["作词", "作曲", "编曲", "制作人", "混音", "母带", "录音", "监制", "出品", "词：", "曲："]
+        return prefixes.contains { text.hasPrefix($0) && (text.contains(":") || text.contains("：")) }
+    }
+
+    // MARK: - TTML XML 解析器（支持多歌手 agent、振假名 ruby 与 x-bg 背景和声）
+
+    private static func parseTTML(xml: String, source: String, sourceName: String?) -> BaseParsedLyrics {
+        guard let data = xml.data(using: .utf8) else {
+            return BaseParsedLyrics(source: source, sourceName: sourceName, wordSynced: false, instrumental: false, lines: [])
+        }
+        let sax = TTMLSAXHandler()
+        let parser = XMLParser(data: data)
+        parser.shouldProcessNamespaces = false
+        parser.delegate = sax
+        _ = parser.parse()
+
+        let wordSynced = sax.lines.contains { $0.words.count > 1 || ($0.words.first.map { $0.end > $0.start } ?? false) }
+        // 对齐 web/src/lib/lyrics/parse-ttml.ts L500-510：独唱曲目虽常声明单个 ttm:agent="v1"，不应启用多声部色条与胶囊
+        var parsedLines = sax.lines
+        var parsedAgents = sax.agents
+        let usedAgents = Set(parsedLines.filter { !$0.isBackground }.compactMap(\.agentId))
+        let usedSolos = usedAgents.filter { !(parsedAgents[$0]?.isGroup ?? ($0 == "v1000")) }
+        let hasGroup = usedAgents.contains { parsedAgents[$0]?.isGroup ?? ($0 == "v1000") }
+        let hasImplicitPrimary = parsedLines.contains { !$0.isBackground && $0.agentId == nil }
+        let declaredSoloOrder = parsedAgents.keys.filter { !(parsedAgents[$0]?.isGroup ?? ($0 == "v1000")) }.sorted()
+        let singleSoloIsSecondary = usedSolos.count == 1
+            && ((declaredSoloOrder.firstIndex(of: usedSolos.first!) ?? 0) > 0)
+        if usedSolos.count <= 1 && !hasGroup && !(hasImplicitPrimary && singleSoloIsSecondary) {
+            for i in parsedLines.indices {
+                parsedLines[i].agentId = nil
+            }
+            parsedAgents.removeAll()
+        }
+
+        return BaseParsedLyrics(
+            source: source,
+            sourceName: sourceName,
+            wordSynced: wordSynced,
+            instrumental: false,
+            lines: parsedLines,
+            ttmlAgents: parsedAgents
+        )
+    }
+
+    private final class TTMLSAXHandler: NSObject, XMLParserDelegate {
+        var agents: [String: (name: String?, isGroup: Bool, members: [String])] = [:]
+        var lines: [MutableLine] = []
+
+        private var currentAgentId: String?
+        private var currentAgentType: String?
+        private var capturingAgentName = false
+        private var agentNameBuf = ""
+
+        private var nextDivStartsParagraph = false
+        private var inP = false
+        private var pStart: Double = 0
+        private var pEnd: Double = 0
+        private var pAgent: String?
+        private var pParagraphStart = false
+
+        private struct SpanEntry {
+            let role: String
+            let rubyRole: String
+            let lang: String?
+            let pushedWordFrame: Bool
+            let pushedRubyContainer: Bool
+            let pushedRubyPiece: Bool
+            let isRubyBasePiece: Bool
+        }
+
+        private struct TimedPiece {
+            var text: String = ""
+            let start: Double?
+            let end: Double?
+        }
+
+        private struct RubyContainerFrame {
+            let containerStart: Double?
+            let containerEnd: Double?
+            var basePieces: [TimedPiece] = []
+            var rubyPieces: [TimedPiece] = []
+            var directBaseText: String = ""
+        }
+
+        private struct WordSpanFrame {
+            let start: Double
+            let end: Double
+            var text: String = ""
+            var rubies: [LyricRubyPayload] = []
+        }
+
+        private var mainWords: [LyricWordPayload] = []
+        private var mainPendingSpace = false
+        private var mainTransBuf = ""
+        private var mainTransByLang: [String: String] = [:]
+        private var mainRomaBuf = ""
+
+        private var inBgSpan = false
+        private var bgStart: Double = 0
+        private var bgEnd: Double = 0
+        private var bgAgent: String? = nil
+        private var bgWords: [LyricWordPayload] = []
+        private var bgPendingSpace = false
+        private var bgTransBuf = ""
+        private var bgTransByLang: [String: String] = [:]
+        private var bgRomaBuf = ""
+
+        private var spanStack: [SpanEntry] = []
+        private var wordFrameStack: [WordSpanFrame] = []
+        private var rubyContainerStack: [RubyContainerFrame] = []
+        private var activePieceStack: [TimedPiece] = []
+        private var inRt = false
+        private var rtText = ""
+
+        private var activeTransSpanIndex: Int? {
+            spanStack.lastIndex(where: { $0.role == "x-translation" })
+        }
+
+        private var isInsideRomanSpan: Bool {
+            spanStack.contains(where: { $0.role == "x-roman" })
+        }
+
+        private var isInsideRubyDelimiter: Bool {
+            spanStack.contains(where: { $0.rubyRole == "delimiter" })
+        }
+
+        private var isInsideRubyTextZone: Bool {
+            spanStack.contains(where: { $0.rubyRole == "textContainer" || $0.rubyRole == "text" })
+        }
+
+        private func flushPendingSpace(forBg: Bool) {
+            if forBg {
+                guard bgPendingSpace else { return }
+                bgPendingSpace = false
+                if !bgWords.isEmpty {
+                    let last = bgWords[bgWords.count - 1]
+                    bgWords[bgWords.count - 1] = LyricWordPayload(
+                        text: last.text + " ",
+                        start: last.start,
+                        end: last.end,
+                        ruby: last.ruby
+                    )
+                }
+            } else {
+                guard mainPendingSpace else { return }
+                mainPendingSpace = false
+                if !mainWords.isEmpty {
+                    let last = mainWords[mainWords.count - 1]
+                    mainWords[mainWords.count - 1] = LyricWordPayload(
+                        text: last.text + " ",
+                        start: last.start,
+                        end: last.end,
+                        ruby: last.ruby
+                    )
+                }
+            }
+        }
+
+        private func appendUntimedText(_ raw: String) {
+            let cleaned = raw.replacingOccurrences(of: "\r", with: "").replacingOccurrences(of: "\n", with: "")
+            guard !cleaned.isEmpty else { return }
+            flushPendingSpace(forBg: inBgSpan)
+            if inBgSpan {
+                if !bgWords.isEmpty {
+                    let last = bgWords[bgWords.count - 1]
+                    bgWords[bgWords.count - 1] = LyricWordPayload(
+                        text: last.text + cleaned,
+                        start: last.start,
+                        end: last.end,
+                        ruby: last.ruby
+                    )
+                } else {
+                    let stripped = Self.stripOuterParensIfBg(cleaned, isBg: true)
+                    if !stripped.isEmpty {
+                        bgWords.append(LyricWordPayload(text: stripped, start: bgStart, end: bgEnd))
+                    }
+                }
+            } else {
+                if !mainWords.isEmpty {
+                    let last = mainWords[mainWords.count - 1]
+                    mainWords[mainWords.count - 1] = LyricWordPayload(
+                        text: last.text + cleaned,
+                        start: last.start,
+                        end: last.end,
+                        ruby: last.ruby
+                    )
+                } else {
+                    mainWords.append(LyricWordPayload(text: cleaned, start: pStart, end: pEnd))
+                }
+            }
+        }
+
+        private func flushWordFrame(_ frame: WordSpanFrame) {
+            guard !frame.text.isEmpty else { return }
+            let we = max(frame.start, frame.end)
+            let cleanText = Self.stripOuterParensIfBg(frame.text, isBg: inBgSpan && bgWords.isEmpty)
+            guard !cleanText.isEmpty else { return }
+            flushPendingSpace(forBg: inBgSpan)
+            let word = LyricWordPayload(
+                text: cleanText,
+                start: frame.start,
+                end: we,
+                ruby: frame.rubies.isEmpty ? nil : frame.rubies
+            )
+            if inBgSpan {
+                bgWords.append(word)
+            } else {
+                mainWords.append(word)
+            }
+        }
+
+        /// 1:1 对齐 web/src/lib/lyrics/ttml-ruby.ts parseTtmlRubyContainer（支持 container / base / text 任一层级标时间及多行缩进格式）
+        private func flushRubyContainer(_ container: RubyContainerFrame) {
+            let cleanedDirect = container.directBaseText
+                .replacingOccurrences(of: "[\r\n]+", with: "", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let baseText = !container.basePieces.isEmpty
+                ? container.basePieces.map(\.text).joined()
+                : cleanedDirect
+            guard !baseText.isEmpty else { return }
+
+            var rubyPieces = container.rubyPieces.filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            if !rubyPieces.isEmpty {
+                let lastIdx = rubyPieces.count - 1
+                rubyPieces[lastIdx].text = rubyPieces[lastIdx].text.replacingOccurrences(
+                    of: "\\s+$",
+                    with: "",
+                    options: .regularExpression
+                )
+                rubyPieces = rubyPieces.filter { !$0.text.isEmpty }
+            }
+
+            let baseStarts = container.basePieces.compactMap(\.start)
+            let baseEnds = container.basePieces.compactMap { $0.end ?? $0.start }
+            let rubyStarts = rubyPieces.compactMap(\.start)
+            let rubyEnds = rubyPieces.compactMap { $0.end ?? $0.start }
+
+            let startOpt = baseStarts.min() ?? container.containerStart ?? rubyStarts.min()
+            let endOpt = baseEnds.max() ?? container.containerEnd ?? rubyEnds.max()
+
+            guard let wordStart = startOpt, let rawEnd = endOpt else {
+                appendUntimedText(baseText)
+                return
+            }
+            let wordEnd = max(wordStart, rawEnd)
+
+            var rubies: [LyricRubyPayload] = []
+            if !rubyPieces.isEmpty {
+                let allTimed = rubyPieces.allSatisfy { $0.start != nil }
+                    && (wordStart <= 0 || rubyPieces.contains { ($0.start ?? 0) > 0 || ($0.end ?? 0) > 0 })
+                if allTimed {
+                    for piece in rubyPieces where !piece.text.isEmpty {
+                        let s = min(max(piece.start!, wordStart), wordEnd)
+                        let e = min(max(piece.end ?? s, s), wordEnd)
+                        rubies.append(LyricRubyPayload(text: piece.text, start: s, end: e))
+                    }
+                } else {
+                    let expanded: [String]
+                    if rubyPieces.count == 1 && rubyPieces[0].text.rangeOfCharacter(from: .whitespacesAndNewlines) == nil {
+                        expanded = rubyPieces[0].text.map(String.init).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+                    } else {
+                        expanded = rubyPieces.map(\.text).filter { !$0.isEmpty }
+                    }
+                    if !expanded.isEmpty {
+                        let step = (wordEnd - wordStart) / Double(expanded.count)
+                        for (idx, ch) in expanded.enumerated() {
+                            let s = wordStart + Double(idx) * step
+                            let e = idx == expanded.count - 1 ? wordEnd : (wordStart + Double(idx + 1) * step)
+                            rubies.append(LyricRubyPayload(text: ch, start: s, end: max(s, e)))
+                        }
+                    }
+                }
+            }
+
+            let cleanText = Self.stripOuterParensIfBg(baseText, isBg: inBgSpan && bgWords.isEmpty)
+            guard !cleanText.isEmpty else { return }
+            flushPendingSpace(forBg: inBgSpan)
+            let word = LyricWordPayload(
+                text: cleanText,
+                start: wordStart,
+                end: wordEnd,
+                ruby: rubies.isEmpty ? nil : rubies
+            )
+            if inBgSpan {
+                bgWords.append(word)
+            } else {
+                mainWords.append(word)
+            }
+        }
+
+        func parser(
+            _ parser: XMLParser,
+            didStartElement elementName: String,
+            namespaceURI: String?,
+            qualifiedName qName: String?,
+            attributes attributeDict: [String: String] = [:]
+        ) {
+            let local = elementName.components(separatedBy: ":").last ?? elementName
+            switch local {
+            case "agent":
+                currentAgentId = attributeDict["xml:id"] ?? attributeDict["id"]
+                currentAgentType = attributeDict["type"]
+                agentNameBuf = ""
+
+            case "name" where currentAgentId != nil:
+                capturingAgentName = true
+                agentNameBuf = ""
+
+            case "div":
+                if !lines.isEmpty {
+                    nextDivStartsParagraph = true
+                }
+
+            case "p":
+                inP = true
+                pStart = Self.parseTTMLTime(attributeDict["begin"]) ?? 0
+                pEnd = Self.parseTTMLTime(attributeDict["end"]) ?? pStart
+                pAgent = attributeDict["ttm:agent"] ?? attributeDict["agent"]
+                pParagraphStart = nextDivStartsParagraph
+                nextDivStartsParagraph = false
+                mainWords = []
+                mainPendingSpace = false
+                mainTransBuf = ""
+                mainTransByLang = [:]
+                mainRomaBuf = ""
+                bgAgent = nil
+                bgWords = []
+                bgPendingSpace = false
+                bgTransBuf = ""
+                bgTransByLang = [:]
+                bgRomaBuf = ""
+                spanStack = []
+                wordFrameStack = []
+                rubyContainerStack = []
+                activePieceStack = []
+
+            case "span" where inP:
+                let role = attributeDict["ttm:role"] ?? attributeDict["role"] ?? ""
+                let rubyRole = attributeDict["tts:ruby"] ?? attributeDict["ruby"] ?? ""
+                let rawLang = attributeDict["xml:lang"] ?? attributeDict["lang"]
+                let normLang = Self.normalizeLangTag(rawLang)
+                let spanStart = Self.parseTTMLTime(attributeDict["begin"])
+                let spanEnd = Self.parseTTMLTime(attributeDict["end"])
+
+                var pushedWord = false
+                var pushedRubyContainer = false
+                var pushedRubyPiece = false
+                var isBasePiece = false
+
+                if role == "x-bg" {
+                    inBgSpan = true
+                    bgStart = spanStart ?? pStart
+                    bgEnd = spanEnd ?? pEnd
+                    if let explicitBgAgent = attributeDict["ttm:agent"] ?? attributeDict["agent"], !explicitBgAgent.isEmpty {
+                        bgAgent = explicitBgAgent
+                    }
+                } else if activeTransSpanIndex == nil && !isInsideRomanSpan && role != "x-translation" && role != "x-roman" {
+                    if !rubyContainerStack.isEmpty {
+                        if rubyRole == "text" || (isInsideRubyTextZone && rubyRole != "delimiter" && rubyRole != "textContainer") {
+                            let inheritedStart = spanStart ?? activePieceStack.last?.start
+                            let inheritedEnd = spanEnd ?? activePieceStack.last?.end
+                            activePieceStack.append(TimedPiece(start: inheritedStart, end: inheritedEnd))
+                            pushedRubyPiece = true
+                            isBasePiece = false
+                        } else if rubyRole == "base" || (!isInsideRubyTextZone && rubyRole != "delimiter" && rubyRole != "textContainer") {
+                            let inheritedStart = spanStart ?? activePieceStack.last?.start
+                            let inheritedEnd = spanEnd ?? activePieceStack.last?.end
+                            activePieceStack.append(TimedPiece(start: inheritedStart, end: inheritedEnd))
+                            pushedRubyPiece = true
+                            isBasePiece = true
+                        }
+                    } else if rubyRole == "container" {
+                        if var parent = wordFrameStack.popLast() {
+                            if !parent.text.isEmpty || !parent.rubies.isEmpty {
+                                flushWordFrame(parent)
+                                parent.text = ""
+                                parent.rubies = []
+                            }
+                            wordFrameStack.append(parent)
+                        }
+                        rubyContainerStack.append(RubyContainerFrame(containerStart: spanStart, containerEnd: spanEnd))
+                        pushedRubyContainer = true
+                    } else if rubyRole != "delimiter" && rubyRole != "text" && rubyRole != "textContainer",
+                              let s = spanStart {
+                        // 若外层词 span 已有前置文本，在进入带独立时间戳的子 span（如嵌套 x-ruby）前先落盘前置片段，保留外层帧供后续文本继续继承时间
+                        if var parent = wordFrameStack.popLast() {
+                            if !parent.text.isEmpty || !parent.rubies.isEmpty {
+                                flushWordFrame(parent)
+                                parent.text = ""
+                                parent.rubies = []
+                            }
+                            wordFrameStack.append(parent)
+                        }
+                        let e = spanEnd ?? s
+                        wordFrameStack.append(WordSpanFrame(start: s, end: e))
+                        pushedWord = true
+                    }
+                }
+                spanStack.append(
+                    SpanEntry(
+                        role: role,
+                        rubyRole: rubyRole,
+                        lang: normLang,
+                        pushedWordFrame: pushedWord,
+                        pushedRubyContainer: pushedRubyContainer,
+                        pushedRubyPiece: pushedRubyPiece,
+                        isRubyBasePiece: isBasePiece
+                    )
+                )
+
+            case "rt" where inP:
+                inRt = true
+                rtText = ""
+
+            default:
+                break
+            }
+        }
+
+        func parser(_ parser: XMLParser, foundCharacters string: String) {
+            if capturingAgentName {
+                agentNameBuf += string
+                return
+            }
+            guard inP else { return }
+            if let transIdx = activeTransSpanIndex {
+                let lang = spanStack[transIdx].lang
+                if inBgSpan {
+                    if let lang {
+                        bgTransByLang[lang, default: ""] += string
+                        if bgTransBuf.isEmpty { bgTransBuf += string }
+                    } else {
+                        bgTransBuf += string
+                    }
+                } else {
+                    if let lang {
+                        mainTransByLang[lang, default: ""] += string
+                        if mainTransBuf.isEmpty { mainTransBuf += string }
+                    } else {
+                        mainTransBuf += string
+                    }
+                }
+            } else if isInsideRomanSpan {
+                if inBgSpan { bgRomaBuf += string } else { mainRomaBuf += string }
+            } else if isInsideRubyDelimiter {
+                return
+            } else if inRt {
+                rtText += string
+            } else if !rubyContainerStack.isEmpty {
+                let noNewlines = string.replacingOccurrences(of: "\r", with: "").replacingOccurrences(of: "\n", with: "")
+                if !activePieceStack.isEmpty {
+                    let topIdx = activePieceStack.count - 1
+                    if noNewlines.trimmingCharacters(in: .whitespaces).isEmpty {
+                        if isInsideRubyTextZone,
+                           noNewlines.contains(" "),
+                           !activePieceStack[topIdx].text.isEmpty,
+                           !activePieceStack[topIdx].text.hasSuffix(" ") {
+                            activePieceStack[topIdx].text += " "
+                        }
+                    } else {
+                        activePieceStack[topIdx].text += noNewlines
+                    }
+                } else if !isInsideRubyTextZone {
+                    if !noNewlines.trimmingCharacters(in: .whitespaces).isEmpty {
+                        rubyContainerStack[rubyContainerStack.count - 1].directBaseText += noNewlines
+                    }
+                }
+            } else if !wordFrameStack.isEmpty {
+                wordFrameStack[wordFrameStack.count - 1].text += string
+            } else {
+                // 相邻词 span 之间的同行显式空格（不含换行缩进）记入 pendingSpace，后续若紧跟正文词则作为词间空格挂到上一词末尾
+                if string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    let isInlineWordSpace = !string.contains("\n") && !string.contains("\r") && !string.isEmpty
+                    if isInlineWordSpace {
+                        if inBgSpan {
+                            bgPendingSpace = !bgWords.isEmpty
+                        } else {
+                            mainPendingSpace = !mainWords.isEmpty
+                        }
+                    }
+                } else {
+                    appendUntimedText(string)
+                }
+            }
+        }
+
+        func parser(
+            _ parser: XMLParser,
+            didEndElement elementName: String,
+            namespaceURI: String?,
+            qualifiedName qName: String?
+        ) {
+            let local = elementName.components(separatedBy: ":").last ?? elementName
+            switch local {
+            case "name" where capturingAgentName:
+                capturingAgentName = false
+
+            case "agent":
+                if let aid = currentAgentId {
+                    let trimmed = agentNameBuf.trimmingCharacters(in: .whitespacesAndNewlines)
+                    agents[aid] = (
+                        name: trimmed.isEmpty ? nil : trimmed,
+                        isGroup: currentAgentType == "group" || aid == "v1000",
+                        members: []
+                    )
+                }
+                currentAgentId = nil
+                currentAgentType = nil
+
+            case "rt" where inP:
+                inRt = false
+                let trimmed = rtText.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty, let top = wordFrameStack.last {
+                    wordFrameStack[wordFrameStack.count - 1].rubies.append(
+                        LyricRubyPayload(text: trimmed, start: top.start, end: max(top.start, top.end))
+                    )
+                }
+
+            case "span" where inP:
+                guard let popped = spanStack.popLast() else { break }
+                if popped.role == "x-bg" {
+                    inBgSpan = spanStack.contains(where: { $0.role == "x-bg" })
+                    bgPendingSpace = false
+                } else if popped.pushedRubyPiece, var piece = activePieceStack.popLast() {
+                    let trimmed = piece.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmed.isEmpty, !rubyContainerStack.isEmpty {
+                        if popped.isRubyBasePiece {
+                            piece.text = trimmed
+                            rubyContainerStack[rubyContainerStack.count - 1].basePieces.append(piece)
+                        } else {
+                            piece.text = piece.text.hasSuffix(" ") ? "\(trimmed) " : trimmed
+                            rubyContainerStack[rubyContainerStack.count - 1].rubyPieces.append(piece)
+                        }
+                    }
+                } else if popped.pushedRubyContainer, let container = rubyContainerStack.popLast() {
+                    flushRubyContainer(container)
+                } else if popped.pushedWordFrame, let finished = wordFrameStack.popLast() {
+                    flushWordFrame(finished)
+                }
+
+            case "p" where inP:
+                inP = false
+                while let leftover = wordFrameStack.popLast() {
+                    flushWordFrame(leftover)
+                }
+
+                // 整段 <p> 仅有 <span ttm:role="x-bg"> 而无主唱正文时，按 parse-ttml.ts 规则提升为主行而非作为孤儿副行
+                var effectiveMainWords = mainWords
+                var effectiveBgWords = bgWords
+                var effectiveMainAgent = pAgent
+                var effectiveMainTransBuf = mainTransBuf
+                var effectiveMainTransByLang = mainTransByLang
+                var effectiveMainRomaBuf = mainRomaBuf
+
+                if effectiveMainWords.isEmpty && !effectiveBgWords.isEmpty {
+                    effectiveMainWords = Self.trimWrappingParens(effectiveBgWords)
+                    effectiveBgWords = []
+                    effectiveMainAgent = bgAgent ?? pAgent
+                    if effectiveMainTransBuf.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        effectiveMainTransBuf = bgTransBuf
+                    }
+                    for (k, v) in bgTransByLang {
+                        effectiveMainTransByLang[k] = v
+                    }
+                    if effectiveMainRomaBuf.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        effectiveMainRomaBuf = bgRomaBuf
+                    }
+                }
+
+                var builtMain: MutableLine? = nil
+                if !effectiveMainWords.isEmpty {
+                    let end = max(pEnd, effectiveMainWords.last?.end ?? pStart)
+                    let start = effectiveMainWords.first?.start ?? pStart
+                    let cleanedLangMap = effectiveMainTransByLang.reduce(into: [String: String]()) { acc, kv in
+                        let v = kv.value.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !v.isEmpty { acc[kv.key] = v }
+                    }
+                    let transRaw = effectiveMainTransBuf.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let trans = !transRaw.isEmpty ? transRaw : cleanedLangMap["zh"] ?? cleanedLangMap.values.first
+                    let roma = effectiveMainRomaBuf.trimmingCharacters(in: .whitespacesAndNewlines)
+                    builtMain = MutableLine(
+                        start: start,
+                        end: end,
+                        paragraphStart: pParagraphStart,
+                        agentId: effectiveMainAgent,
+                        translation: trans?.isEmpty == false ? trans : nil,
+                        translationsByLang: cleanedLangMap,
+                        romanization: roma.isEmpty ? nil : roma,
+                        words: effectiveMainWords
+                    )
+                }
+
+                var builtBg: MutableLine? = nil
+                if !effectiveBgWords.isEmpty {
+                    let cleanedBg = Self.trimWrappingParens(effectiveBgWords)
+                    if !cleanedBg.isEmpty {
+                        let bStart = cleanedBg.first?.start ?? bgStart
+                        let bEnd = max(bgEnd, cleanedBg.last?.end ?? bStart)
+                        let cleanedBgLangMap = bgTransByLang.reduce(into: [String: String]()) { acc, kv in
+                            let v = kv.value.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if !v.isEmpty { acc[kv.key] = v }
+                        }
+                        let bTransRaw = bgTransBuf.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let bTrans = !bTransRaw.isEmpty ? bTransRaw : cleanedBgLangMap["zh"] ?? cleanedBgLangMap.values.first
+                        let bRoma = bgRomaBuf.trimmingCharacters(in: .whitespacesAndNewlines)
+                        builtBg = MutableLine(
+                            start: bStart,
+                            end: bEnd,
+                            isBackground: true,
+                            align: builtMain?.align ?? "left",
+                            agentId: bgAgent ?? effectiveMainAgent,
+                            translation: bTrans?.isEmpty == false ? bTrans : nil,
+                            translationsByLang: cleanedBgLangMap,
+                            romanization: bRoma.isEmpty ? nil : bRoma,
+                            words: cleanedBg
+                        )
+                    }
+                }
+
+                if let mainLine = builtMain, var bgLine = builtBg {
+                    let mainFirstStart = mainLine.words.first?.start ?? mainLine.start
+                    if bgLine.start < mainFirstStart {
+                        bgLine.backgroundPosition = "above"
+                        bgLine.owner = lines.count + 1
+                        lines.append(bgLine)
+                        lines.append(mainLine)
+                    } else {
+                        bgLine.backgroundPosition = "below"
+                        bgLine.owner = lines.count
+                        lines.append(mainLine)
+                        lines.append(bgLine)
+                    }
+                } else if let mainLine = builtMain {
+                    lines.append(mainLine)
+                }
+
+            default:
+                break
+            }
+        }
+
+        private static func stripOuterParensIfBg(_ s: String, isBg: Bool) -> String {
+            guard isBg else { return s }
+            if s.hasPrefix("(") || s.hasPrefix("（") {
+                return String(s.dropFirst())
+            }
+            return s
+        }
+
+        private static func trimWrappingParens(_ words: [LyricWordPayload]) -> [LyricWordPayload] {
+            guard var copy = Optional(words), !copy.isEmpty else { return [] }
+            let lastIdx = copy.count - 1
+            let lastText = copy[lastIdx].text
+            if lastText.hasSuffix(")") || lastText.hasSuffix("）") {
+                let stripped = String(lastText.dropLast())
+                if stripped.isEmpty {
+                    copy.removeLast()
+                } else {
+                    copy[lastIdx] = LyricWordPayload(
+                        text: stripped,
+                        start: copy[lastIdx].start,
+                        end: copy[lastIdx].end,
+                        ruby: copy[lastIdx].ruby
+                    )
+                }
+            }
+            return copy
+        }
+
+        private static func parseTTMLTime(_ raw: String?) -> Double? {
+            guard let s = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty else { return nil }
+            if s.hasSuffix("ms"), let v = Double(s.dropLast(2)) { return v }
+            if s.hasSuffix("s"), let v = Double(s.dropLast(1)) { return v * 1000.0 }
+            let parts = s.split(separator: ":")
+            if parts.count == 3,
+               let h = Double(parts[0]), let m = Double(parts[1]), let sec = Double(parts[2]) {
+                return (h * 3600.0 + m * 60.0 + sec) * 1000.0
+            }
+            if parts.count == 2,
+               let m = Double(parts[0]), let sec = Double(parts[1]) {
+                return (m * 60.0 + sec) * 1000.0
+            }
+            return Double(s).map { $0 * 1000.0 }
+        }
+
+        private static func normalizeLangTag(_ raw: String?) -> String? {
+            guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(), !raw.isEmpty else {
+                return nil
+            }
+            if raw.hasPrefix("zh-hant") || raw == "zh-tw" || raw == "zh-mo" { return "zh-tw" }
+            if raw == "zh-hk" { return "zh-hk" }
+            if raw.hasPrefix("zh") { return "zh" }
+            if let primary = raw.split(separator: "-").first, !primary.isEmpty {
+                return String(primary)
+            }
+            return raw
+        }
+    }
+
+    // MARK: - 叠加 AI 强调标注、多语言翻译、音译、歌手分轨与间奏生成
+
+    private static func applyOverlays(
+        base: BaseParsedLyrics,
+        annotations: BackendAnnotationsDTO?,
+        primarySlot: TranslationSelectionItem,
+        primaryTranslations: BackendTranslationsDTO?,
+        secondarySlot: TranslationSelectionItem?,
+        secondaryTranslations: BackendTranslationsDTO?,
+        pronunciations: BackendPronunciationsDTO?,
+        singers: BackendSingersDTO?
+    ) -> LyricsBundlePayload {
+        if base.lines.isEmpty {
+            return LyricsBundlePayload(
+                source: base.source,
+                sourceName: base.sourceName,
+                font: annotations?.font,
+                motion: annotations?.motion,
+                wordSynced: base.wordSynced,
+                instrumental: base.instrumental,
+                spotlights: [],
+                interludes: [],
+                lines: []
+            )
+        }
+
+        var lines = base.lines
+
+        // 1. 歌手分轨与颜色条（TTML 原生 agent + 后端 singers 标注）
+        let defaultPalette = ["sky", "rose", "mint", "amber", "lavender", "coral"]
+        var agentMeta: [String: (name: String?, hex: String, align: String, isGroup: Bool, members: [String])] = [:]
+        var soloOrder: [String] = []
+
+        for (idx, kv) in base.ttmlAgents.sorted(by: { $0.key < $1.key }).enumerated() {
+            let colorName = defaultPalette[idx % defaultPalette.count]
+            let isGroup = kv.value.isGroup
+            if !isGroup { soloOrder.append(kv.key) }
+            let align = isGroup ? "center" : (soloOrder.count % 2 == 0 ? "right" : "left")
+            agentMeta[kv.key] = (
+                name: kv.value.name,
+                hex: LyricColorPalette.resolveHex(colorName),
+                align: align,
+                isGroup: isGroup,
+                members: kv.value.members
+            )
+        }
+
+        // 先合并 annotations.singers（仅在 TTML 已存在多声部 ttm:agent 时补充声部名与配色，对齐 emphasis.ts），再由独立 /lyric/singers 覆盖精调
+        if !base.ttmlAgents.isEmpty,
+           let ann = annotations,
+           ann.source == nil || ann.source?.isEmpty == true || ann.source == base.source,
+           let annSingers = ann.singers {
+            for (idx, item) in annSingers.enumerated() {
+                guard agentMeta[item.id] != nil else { continue }
+                let isGroup = item.role == "group" || item.id == "v1000"
+                if !isGroup && !soloOrder.contains(item.id) {
+                    soloOrder.append(item.id)
+                }
+                let displayName = (item.name?.isEmpty == false ? item.name : nil) ?? agentMeta[item.id]?.name
+                let hex = item.color.map(LyricColorPalette.resolveHex)
+                    ?? agentMeta[item.id]?.hex
+                    ?? LyricColorPalette.resolveHex(defaultPalette[idx % defaultPalette.count])
+                let align = item.align
+                    ?? agentMeta[item.id]?.align
+                    ?? (isGroup ? "center" : (soloOrder.firstIndex(of: item.id).map { $0 % 2 == 1 ? "right" : "left" } ?? "left"))
+                agentMeta[item.id] = (
+                    name: displayName,
+                    hex: hex,
+                    align: align,
+                    isGroup: isGroup,
+                    members: item.members ?? agentMeta[item.id]?.members ?? []
+                )
+            }
+        }
+
+        if let sData = singers,
+           sData.status == "ready" || sData.status == nil,
+           sData.source == nil || sData.source?.isEmpty == true || sData.source == base.source,
+           let sItems = sData.singers {
+            for (idx, item) in sItems.enumerated() {
+                let isGroup = item.role == "group" || item.id == "v1000"
+                if !isGroup && !soloOrder.contains(item.id) {
+                    soloOrder.append(item.id)
+                }
+                let translated = sData.translated_names?[item.id]
+                let displayName = (translated?.isEmpty == false ? translated : item.name) ?? agentMeta[item.id]?.name
+                let hex = item.color.map(LyricColorPalette.resolveHex) ?? agentMeta[item.id]?.hex ?? LyricColorPalette.resolveHex(defaultPalette[idx % defaultPalette.count])
+                let align = item.align ?? agentMeta[item.id]?.align ?? (isGroup ? "center" : (idx % 2 == 1 ? "right" : "left"))
+                agentMeta[item.id] = (
+                    name: displayName,
+                    hex: hex,
+                    align: align,
+                    isGroup: isGroup,
+                    members: item.members ?? []
+                )
+            }
+            if let sLines = sData.lines {
+                var mainOcc: [String: Int] = [:]
+                var bgOcc: [String: Int] = [:]
+                for i in lines.indices {
+                    let norm = normalizeMatchText(lines[i].plainText)
+                    let occ: Int
+                    if lines[i].isBackground {
+                        occ = bgOcc[norm, default: 0]
+                        bgOcc[norm] = occ + 1
+                    } else {
+                        occ = mainOcc[norm, default: 0]
+                        mainOcc[norm] = occ + 1
+                    }
+                    if let matched = sLines.first(where: {
+                        ($0.bg ?? false) == lines[i].isBackground && $0.occurrence == occ && normalizeMatchText($0.text) == norm
+                    }) {
+                        lines[i].agentId = matched.agent
+                    }
+                }
+            }
+        }
+
+        let soloCount = soloOrder.count
+        for i in lines.indices {
+            if let aid = lines[i].agentId, let meta = agentMeta[aid] {
+                if !lines[i].isBackground {
+                    lines[i].align = meta.align
+                    lines[i].isDuet = (meta.align == "right")
+                }
+                if meta.isGroup {
+                    let memberHexes = meta.members.compactMap { agentMeta[$0]?.hex }
+                    if memberHexes.count >= 2 {
+                        lines[i].edgeColors = Array(memberHexes.prefix(6))
+                    } else {
+                        let c1 = soloOrder.first.flatMap { agentMeta[$0]?.hex } ?? meta.hex
+                        let c2 = soloOrder.dropFirst().first.flatMap { agentMeta[$0]?.hex } ?? meta.hex
+                        lines[i].edgeColors = [c1, c2]
+                    }
+                    if !lines[i].isBackground {
+                        lines[i].singerName = meta.name ?? "合唱"
+                    }
+                } else {
+                    lines[i].edgeColors = [meta.hex]
+                    if !lines[i].isBackground {
+                        if let name = meta.name, !name.isEmpty {
+                            lines[i].singerName = name
+                        } else if soloCount > 2 {
+                            lines[i].singerDotOnly = true
+                        }
+                    }
+                }
+            } else if lines[i].isBackground, lines[i].owner >= 0, lines.indices.contains(lines[i].owner) {
+                lines[i].align = lines[lines[i].owner].align
+            }
+        }
+
+        // 2. 双轨多语言翻译与 preferNative 原生/AI 偏好合成（1:1 对齐 web/src/lib/lyrics/lyric-language.ts applyDualLanguageTranslations）
+        let sameLangComparison: Bool = {
+            guard let sec = secondarySlot else { return false }
+            return sec.lang == primarySlot.lang && primarySlot.preferNative != sec.preferNative
+        }()
+
+        let primaryTexts = resolveSlotTranslations(
+            lines: lines,
+            baseSource: base.source,
+            slot: primarySlot,
+            dto: primaryTranslations,
+            sameLangComparison: sameLangComparison
+        )
+        let secondaryTexts: [String?]? = secondarySlot.map { sec in
+            resolveSlotTranslations(
+                lines: lines,
+                baseSource: base.source,
+                slot: sec,
+                dto: secondaryTranslations,
+                sameLangComparison: sameLangComparison
+            )
+        }
+
+        for i in lines.indices {
+            lines[i].translation = primaryTexts[i]
+            if let secTexts = secondaryTexts {
+                let p = primaryTexts[i]?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let s = secTexts[i]?.trimmingCharacters(in: .whitespacesAndNewlines)
+                lines[i].secondaryTranslation = (s != nil && !s!.isEmpty && s != p) ? s : nil
+            } else {
+                lines[i].secondaryTranslation = nil
+            }
+        }
+
+        if let prData = pronunciations,
+           prData.status == "ready" || prData.status == nil,
+           prData.source == nil || prData.source?.isEmpty == true || prData.source == base.source,
+           let prLines = prData.lines, !prLines.isEmpty {
+            var mainOcc: [String: Int] = [:]
+            var bgOcc: [String: Int] = [:]
+            for i in lines.indices {
+                let norm = normalizeMatchText(lines[i].plainText)
+                let occ = lines[i].isBackground ? bgOcc[norm, default: 0] : mainOcc[norm, default: 0]
+                if lines[i].isBackground { bgOcc[norm] = occ + 1 } else { mainOcc[norm] = occ + 1 }
+                if lines[i].romanization == nil,
+                   let hit = prLines.first(where: {
+                       ($0.bg ?? false) == lines[i].isBackground && $0.occurrence == occ && normalizeMatchText($0.text) == norm
+                   }), !hit.pronunciation.isEmpty {
+                    lines[i].romanization = hit.pronunciation
+                }
+            }
+        }
+
+        // 3. AI 强调标注、粒子场景、聚光灯与「时刻」叠加
+        var spotlights: [Int] = []
+        var notes: [LyricNotePayload] = []
+        var sprites: [String: LyricSpritePayload] = [:]
+
+        if let ann = annotations, ann.source == nil || ann.source?.isEmpty == true || ann.source == base.source {
+            for sp in ann.sprites ?? [] {
+                let paths = (sp.paths ?? []).map { LyricSpritePathPayload(d: $0.d, paint: $0.paint) }
+                sprites[sp.name] = LyricSpritePayload(
+                    name: sp.name,
+                    paths: paths,
+                    motion: sp.motion ?? "fall",
+                    size: sp.size ?? "m",
+                    spin: sp.spin ?? false,
+                    colorHex: sp.color.map(LyricColorPalette.resolveHex) ?? "#ffffff"
+                )
+            }
+
+            let annLinesByNorm: [String: BackendAnnotationLineDTO] = Dictionary(
+                (ann.lines ?? []).map { (normalizeMatchText($0.text), $0) },
+                uniquingKeysWith: { first, _ in first }
+            )
+
+            var mainOccurrences: [String: [Int]] = [:]
+            for i in lines.indices where !lines[i].isBackground {
+                let norm = normalizeMatchText(lines[i].plainText)
+                mainOccurrences[norm, default: []].append(i)
+
+                if let aLine = annLinesByNorm[norm] {
+                    lines[i].moodHex = aLine.mood.flatMap { moodHexMap[$0] }
+                    lines[i].chorusStart = aLine.chorus_start ?? false
+                    lines[i].scene = aLine.scene
+                    lines[i].sceneColorHex = aLine.scene_color.map(LyricColorPalette.resolveHex)
+                    lines[i].sceneLines = aLine.scene_lines
+                    if base.wordSynced, let phrases = aLine.phrases, !phrases.isEmpty {
+                        lines[i].emphasis = matchEmphasisPhrases(phrases: phrases, words: lines[i].words)
+                    }
+                }
+            }
+
+            for sp in ann.spotlights ?? [] {
+                let norm = normalizeMatchText(sp.text)
+                if let list = mainOccurrences[norm], !list.isEmpty {
+                    let idx = list[min(max(0, sp.occurrence), list.count - 1)]
+                    spotlights.append(idx)
+                }
+            }
+            spotlights = Array(Set(spotlights)).sorted()
+
+            for m in ann.moments ?? [] {
+                let norm = normalizeMatchText(m.text)
+                if let list = mainOccurrences[norm], !list.isEmpty {
+                    let targetLine = lines[list[min(max(0, m.occurrence), list.count - 1)]]
+                    notes.append(
+                        LyricNotePayload(
+                            start: targetLine.start,
+                            content: m.content,
+                            source: m.source,
+                            liked: m.liked
+                        )
+                    )
+                }
+            }
+            notes.sort { $0.start < $1.start }
+        }
+
+        // 4. 生成 ≥ 7000ms 的前奏与间奏三圆点区间（对齐 timeline.ts INTERLUDE_MIN_MS = 7000）
+        let interludes = buildInterludes(for: lines)
+
+        let finalLines = lines.map { l in
+            LyricLinePayload(
+                start: l.start,
+                end: l.end,
+                isDuet: l.isDuet,
+                isBackground: l.isBackground,
+                align: l.align,
+                owner: l.owner,
+                paragraphStart: l.paragraphStart,
+                backgroundPosition: l.backgroundPosition,
+                chorusStart: l.chorusStart,
+                edgeColors: l.edgeColors,
+                singerName: l.singerName,
+                singerDotOnly: l.singerDotOnly,
+                translation: l.translation,
+                secondaryTranslation: l.secondaryTranslation,
+                romanization: l.romanization,
+                romanizationWords: l.romanizationWords,
+                moodHex: l.moodHex,
+                scene: l.scene,
+                sceneColorHex: l.sceneColorHex,
+                sceneLines: l.sceneLines,
+                words: l.words,
+                emphasis: l.emphasis
+            )
+        }
+
+        let outro = annotations?.outro.map { LyricOutroPayload(content: $0.content, liked: $0.liked ?? 0) }
+        return LyricsBundlePayload(
+            source: base.source,
+            sourceName: base.sourceName,
+            font: annotations?.font,
+            motion: annotations?.motion,
+            wordSynced: base.wordSynced,
+            instrumental: base.instrumental,
+            spotlights: spotlights,
+            sprites: sprites,
+            intro: annotations?.intro,
+            outro: outro,
+            notes: notes,
+            interludes: interludes,
+            lines: finalLines
+        )
+    }
+
+    private static func matchEmphasisPhrases(
+        phrases: [BackendAnnotationPhraseDTO],
+        words: [LyricWordPayload]
+    ) -> [LyricEmphasisPayload] {
+        guard !words.isEmpty else { return [] }
+        var out: [LyricEmphasisPayload] = []
+        var searchFrom = 0
+
+        for phrase in phrases {
+            let target = normalizeMatchText(phrase.text)
+            guard !target.isEmpty else { continue }
+            var matchedRange: Range<Int>? = nil
+
+            for startIdx in searchFrom..<words.count {
+                var acc = ""
+                for endIdx in startIdx..<words.count {
+                    acc += normalizeMatchText(words[endIdx].text)
+                    if acc == target {
+                        matchedRange = startIdx..<(endIdx + 1)
+                        break
+                    }
+                    if acc.count >= target.count && !target.hasPrefix(acc) {
+                        break
+                    }
+                }
+                if matchedRange != nil { break }
+            }
+
+            if let range = matchedRange {
+                searchFrom = range.upperBound
+                let wStart = words[range.lowerBound].start
+                let wEnd = max(wStart, words[range.upperBound - 1].end)
+                let dur = wEnd - wStart
+                let charCount = max(1, (range.map { words[$0].text.count }).reduce(0, +))
+                let msPerChar = dur / Double(charCount)
+                let factor: Double = msPerChar < 90 ? 0 : min(1.0, max(0.45, (msPerChar - 80.0) / 240.0))
+                let holdRange: TimeIntervalRange? = (phrase.effect == "shake" && dur >= 950)
+                    ? TimeIntervalRange(start: wStart, end: wEnd)
+                    : nil
+
+                out.append(
+                    LyricEmphasisPayload(
+                        from: range.lowerBound,
+                        to: range.upperBound,
+                        start: wStart,
+                        end: wEnd,
+                        factor: factor,
+                        effect: phrase.effect,
+                        colorHex: phrase.color.map(LyricColorPalette.resolveHex),
+                        font: phrase.font,
+                        styles: phrase.styles ?? [],
+                        hold: holdRange
+                    )
+                )
+            }
+        }
+        return out
+    }
+
+    private static func buildInterludes(for lines: [MutableLine]) -> [TimeIntervalRange] {
+        let mainLines = lines.filter { !$0.isBackground }
+        guard !mainLines.isEmpty else { return [] }
+        var out: [TimeIntervalRange] = []
+        let minInterludeMs = 7000.0
+
+        if mainLines[0].start >= minInterludeMs {
+            out.append(TimeIntervalRange(start: 0, end: mainLines[0].start))
+        }
+        var maxEndSoFar = mainLines[0].end
+        for i in 1..<mainLines.count {
+            let nextStart = mainLines[i].start
+            if nextStart - maxEndSoFar >= minInterludeMs {
+                out.append(TimeIntervalRange(start: maxEndSoFar, end: nextStart))
+            }
+            maxEndSoFar = max(maxEndSoFar, mainLines[i].end)
+        }
+        return out
+    }
+
+    // MARK: - 1:1 对应 web/src/lib/lyrics/rhythm/model.ts（由分析拍点构建 4 八度脉冲列）
+
+    private static func buildRhythmPayload(from analysis: BackendRhythmAnalysisDTO) -> RhythmDataPayload? {
+        let beats = analysis.beats ?? []
+        guard analysis.confidence >= 0.22, !beats.isEmpty, analysis.period_ms > 80 else {
+            return nil
+        }
+
+        let T = analysis.period_ms
+        let accentMin = 0.35
+        let synthA = accentMin * 0.8
+        let loudSpan = max(1e-6, analysis.loud_high - analysis.loud_low)
+
+        struct PulseNode {
+            let t: Double
+            let a: Double
+            let strength: Double
+        }
+
+        let source: [PulseNode] = beats.map { b in
+            let normLoud = min(1.0, max(0.0, (b.loud - analysis.loud_low) / loudSpan))
+            let a = accentMin + (1.0 - accentMin) * normLoud
+            return PulseNode(t: b.t, a: a, strength: b.strength)
+        }
+
+        var filled: [PulseNode] = []
+        var head: [PulseNode] = []
+        var ht = source[0].t - T
+        while ht > 50 {
+            head.append(PulseNode(t: ht, a: synthA, strength: 0))
+            ht -= T
+        }
+        filled.append(contentsOf: head.reversed())
+
+        for i in 0..<source.count {
+            filled.append(source[i])
+            guard i + 1 < source.count else { break }
+            let gap = source[i + 1].t - source[i].t
+            if gap > 1.5 * T {
+                let m = max(2, Int(round(gap / T)))
+                for j in 1..<m {
+                    filled.append(PulseNode(t: source[i].t + gap * Double(j) / Double(m), a: synthA, strength: 0))
+                }
+            }
+        }
+        if let lastT = source.last?.t {
+            var tt = lastT + T
+            while tt < analysis.duration_ms - 50 {
+                filled.append(PulseNode(t: tt, a: synthA, strength: 0))
+                tt += T
+            }
+        }
+
+        var levelMap: [Int: [PulseNode]] = [0: filled]
+        for k in 1...4 {
+            let prev = levelMap[k - 1] ?? []
+            var even = 0.0
+            var odd = 0.0
+            for (idx, p) in prev.enumerated() {
+                if idx % 2 == 1 { odd += p.strength } else { even += p.strength }
+            }
+            let keep = odd > even ? 1 : 0
+            levelMap[k] = prev.enumerated().compactMap { $0.offset % 2 == keep ? $0.element : nil }
+        }
+        for k in stride(from: -1, through: -4, by: -1) {
+            let prev = levelMap[k + 1] ?? []
+            var nextOut: [PulseNode] = []
+            for i in 0..<prev.count {
+                nextOut.append(prev[i])
+                if i + 1 < prev.count {
+                    nextOut.append(PulseNode(t: (prev[i].t + prev[i + 1].t) * 0.5, a: prev[i].a * 0.85, strength: 0))
+                }
+            }
+            levelMap[k] = nextOut
+        }
+
+        var basePeriod = analysis.base_period_ms > 80 ? analysis.base_period_ms : T
+        while basePeriod < 380 { basePeriod *= 2.0 }
+        while basePeriod > 1100 { basePeriod *= 0.5 }
+        let baseK = Int(round(log2(basePeriod / T)))
+
+        func compact(octave: Int) -> [[Double]] {
+            let clamped = min(4, max(-4, baseK + octave))
+            return (levelMap[clamped] ?? []).map { p in
+                [(p.t * 10.0).rounded() / 10.0, (p.a * 1000.0).rounded() / 1000.0]
+            }
+        }
+
+        return RhythmDataPayload(
+            reliable: true,
+            basePeriodMs: basePeriod,
+            trains: [
+                "-1": compact(octave: -1),
+                "0": compact(octave: 0),
+                "1": compact(octave: 1),
+                "2": compact(octave: 2)
+            ]
+        )
+    }
+
+    // MARK: - 单轨/双轨翻译槽位解析与网络辅助
+
+    private static func hasNativeTranslation(in lines: [MutableLine], for lang: String) -> Bool {
+        if lines.contains(where: { ($0.translationsByLang[lang]?.isEmpty == false) }) {
+            return true
+        }
+        // 无显式 xml:lang 标注的词源原生翻译（NCM tlyric / QQ / 酷狗 / 无 lang 的 TTML x-translation）默认对应简体中文 zh
+        if lang == "zh" {
+            return lines.contains(where: { $0.translationsByLang.isEmpty && ($0.translation?.isEmpty == false) })
+        }
+        return false
+    }
+
+    private static func nativeSlotTranslations(in lines: [MutableLine], for lang: String) -> [String?] {
+        let hasKeyed = lines.contains(where: { $0.translationsByLang[lang]?.isEmpty == false })
+        if hasKeyed {
+            return lines.map { $0.translationsByLang[lang] }
+        }
+        if lang == "zh" {
+            return lines.map { $0.translation }
+        }
+        return Array(repeating: nil, count: lines.count)
+    }
+
+    private static func resolveSlotTranslations(
+        lines: [MutableLine],
+        baseSource: String,
+        slot: TranslationSelectionItem,
+        dto: BackendTranslationsDTO?,
+        sameLangComparison: Bool
+    ) -> [String?] {
+        let nativeAvail = hasNativeTranslation(in: lines, for: slot.lang)
+        if slot.preferNative && nativeAvail {
+            return nativeSlotTranslations(in: lines, for: slot.lang)
+        }
+
+        let aiOnlyMode = sameLangComparison && !slot.preferNative
+        let validAI: [BackendTranslationLineDTO]? = {
+            guard let dto,
+                  !(dto.native ?? false),
+                  dto.source == nil || dto.source?.isEmpty == true || dto.source == baseSource,
+                  dto.target_lang == nil || dto.target_lang?.isEmpty == true || dto.target_lang == slot.lang,
+                  let trLines = dto.lines,
+                  trLines.contains(where: { !$0.translation.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else {
+                return nil
+            }
+            return trLines
+        }()
+
+        guard let trLines = validAI else {
+            // 若后端在 native=true 时直接通过 dto.lines 返回了原生译文，兜底按匹配填入；否则回退词源内置译文
+            if !aiOnlyMode, let dto, dto.native == true, let dtoNativeLines = dto.lines, !dtoNativeLines.isEmpty {
+                return matchTranslationDTO(lines: lines, dtoLines: dtoNativeLines, fallback: nativeSlotTranslations(in: lines, for: slot.lang))
+            }
+            return aiOnlyMode ? Array(repeating: nil, count: lines.count) : nativeSlotTranslations(in: lines, for: slot.lang)
+        }
+
+        let fallback = aiOnlyMode ? Array(repeating: nil, count: lines.count) : nativeSlotTranslations(in: lines, for: slot.lang)
+        return matchTranslationDTO(lines: lines, dtoLines: trLines, fallback: fallback)
+    }
+
+    private static func matchTranslationDTO(
+        lines: [MutableLine],
+        dtoLines: [BackendTranslationLineDTO],
+        fallback: [String?]
+    ) -> [String?] {
+        var lookup: [String: String] = [:]
+        for item in dtoLines {
+            let trimmed = item.translation.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            let key = "\(item.bg ?? false):\(item.occurrence):\(normalizeMatchText(item.text))"
+            lookup[key] = trimmed
+        }
+        var mainOcc: [String: Int] = [:]
+        var bgOcc: [String: Int] = [:]
+        return lines.indices.map { i in
+            let norm = normalizeMatchText(lines[i].plainText)
+            let bg = lines[i].isBackground
+            let occ = bg ? bgOcc[norm, default: 0] : mainOcc[norm, default: 0]
+            if bg { bgOcc[norm] = occ + 1 } else { mainOcc[norm] = occ + 1 }
+            return lookup["\(bg):\(occ):\(norm)"] ?? fallback[i]
+        }
+    }
+
+    private static func getData<T: Decodable>(url: URL?, timeout: TimeInterval = 8.0, reload: Bool = false) async -> T? {
+        guard let url else { return nil }
+        let policy: URLRequest.CachePolicy = reload ? .reloadIgnoringLocalCacheData : .returnCacheDataElseLoad
+        var req = URLRequest(url: url, cachePolicy: policy, timeoutInterval: timeout)
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse,
+              (200..<300).contains(http.statusCode) else {
+            return nil
+        }
+        return (try? JSONDecoder().decode(APIEnvelope<T>.self, from: data))?.data
+    }
+
+    private static func cleanOrigin(_ raw: String) -> String {
+        raw.trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
+    }
+
+    private static func isLocalOrPrivateHost(_ host: String) -> Bool {
+        let h = host.lowercased()
+        if h == "localhost" || h == "127.0.0.1" || h == "::1" || h == "[::1]" || h.hasSuffix(".local") || !h.contains(".") {
+            return true
+        }
+        let octets = h.split(separator: ".").compactMap { Int($0) }
+        if octets.count == 4 {
+            if octets[0] == 10 || octets[0] == 127 { return true }
+            if octets[0] == 192 && octets[1] == 168 { return true }
+            if octets[0] == 172 && (16...31).contains(octets[1]) { return true }
+            if octets[0] == 169 && octets[1] == 254 { return true }
+            // 纯 IPv4 地址（无 TLS 证书的内网对象存储或自建 IP 站点）保留原始 http:// 协议，不强转 https://
+            return true
+        }
+        return false
+    }
+
+    private static func resolveCoverURL(raw: String?, origin: String) -> String? {
+        guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
+        if raw.contains("music.126.net") {
+            let httpsRaw = raw.hasPrefix("http://")
+                ? "https://" + raw.dropFirst("http://".count)
+                : raw
+            let base = httpsRaw.split(separator: "?", maxSplits: 1).first.map(String.init) ?? httpsRaw
+            return "\(base)?imageView=1&thumbnail=240y240&type=webp"
+        }
+        if raw.hasPrefix("http://") {
+            if let parsed = URL(string: raw), let host = parsed.host, !isLocalOrPrivateHost(host) {
+                return "https://" + raw.dropFirst("http://".count)
+            }
+            return raw
+        }
+        if raw.hasPrefix("https://") {
+            return raw
+        }
+        if raw.hasPrefix("/") {
+            return "\(origin)\(raw)"
+        }
+        return raw
+    }
+
+    private static func normalizeMatchText(_ text: String) -> String {
+        text.precomposedStringWithCompatibilityMapping
+            .lowercased()
+            .unicodeScalars
+            .filter { !CharacterSet.whitespacesAndNewlines.contains($0) && !CharacterSet.punctuationCharacters.contains($0) }
+            .map(String.init)
+            .joined()
+    }
+}

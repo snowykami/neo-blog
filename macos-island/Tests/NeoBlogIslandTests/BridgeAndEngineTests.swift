@@ -862,4 +862,603 @@ struct BridgeAndEngineTests {
         lintProc.waitUntilExit()
         #expect(lintProc.terminationStatus == 0)
     }
+
+    @MainActor
+    @Test("内置音频续播与跨 Mac 声随岛走 / 双屏同显原主机发声仲裁及浏览器重连回收")
+    func autonomousTakeoverMultiMacHandoffAndBrowserAdoption() async throws {
+        let defaultsNameA = "NeoBlogIslandTest.PeerAutoA.\(UUID().uuidString)"
+        let defaultsNameB = "NeoBlogIslandTest.PeerAutoB.\(UUID().uuidString)"
+        let defaultsA = UserDefaults(suiteName: defaultsNameA)!
+        let defaultsB = UserDefaults(suiteName: defaultsNameB)!
+        defer {
+            defaultsA.removePersistentDomain(forName: defaultsNameA)
+            defaultsB.removePersistentDomain(forName: defaultsNameB)
+        }
+
+        let peerA = PeerContinuityService(
+            overridePeerId: "mac-host-a",
+            overrideDeviceName: "Host MacBook Pro",
+            isolatedDefaults: defaultsA
+        )
+        let peerB = PeerContinuityService(
+            overridePeerId: "mac-peer-b",
+            overrideDeviceName: "Desk Mac mini",
+            isolatedDefaults: defaultsB
+        )
+        let storeA = IslandStore(startNetworkServices: false, peerService: peerA)
+        let storeB = IslandStore(startNetworkServices: false, peerService: peerB)
+        defer {
+            peerA.stop()
+            peerB.stop()
+        }
+
+        // 1. 先验证「暂停态关浏览器」绝不自动起播内置音频
+        let pausedBrowserId = UUID()
+        storeA.ingestTestPayload(Data("""
+        {
+          "type": "media",
+          "origin": "https://blog.example.com",
+          "track": { "id": 77, "name": "Paused Song", "artists": ["Artist"], "duration_ms": 180000 },
+          "lyrics": { "source": "ncm-lrc", "word_synced": false, "instrumental": false, "lines": [] }
+        }
+        """.utf8), clientId: pausedBrowserId, origin: "https://blog.example.com")
+        storeA.ingestTestPayload(Data("""
+        {
+          "type": "state",
+          "origin": "https://blog.example.com",
+          "visible": true,
+          "has_played": true,
+          "show_playing": false,
+          "is_playing": false,
+          "track_id": 77,
+          "duration_ms": 180000,
+          "position_ms": 12000,
+          "anchor_ms": \(Date().timeIntervalSince1970 * 1000.0)
+        }
+        """.utf8), clientId: pausedBrowserId, origin: "https://blog.example.com")
+        storeA.simulateClientDisconnectForTesting(pausedBrowserId)
+        #expect(storeA.isAutonomousMode == false)
+        #expect(storeA.nativeAudio.isActive == false)
+
+        // 2. 建立两台 Mac 的本地回环 TCP/AWDL 模拟直连并完成配对
+        peerB.startLoopbackForTesting()
+        for _ in 0..<40 where peerB.directListeningPort == 0 {
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        #expect(peerB.directListeningPort > 0)
+        peerA.connectLoopbackForTesting(port: peerB.directListeningPort, requestPairingIfUntrusted: true)
+        for _ in 0..<40 where peerB.pendingPairRequest == nil {
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        peerB.respondToPairRequest(accept: true)
+        for _ in 0..<40 where (!peerA.isConnected || !peerB.isConnected) {
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        #expect(peerA.isConnected && peerB.isConnected)
+
+        // 3. 主机 A 上的浏览器开始播放曲目 888，随后关闭浏览器标签页 -> 主机 A 无缝接续内置播放
+        let browserClientA = UUID()
+        storeA.ingestTestPayload(Data("""
+        {
+          "type": "media",
+          "origin": "https://blog.example.com",
+          "accent_hex": "#38bdf8",
+          "chorus": [{"start": 30000, "end": 60000}],
+          "track": { "id": 888, "name": "Starry Night", "artists": ["Chisato"], "duration_ms": 240000 },
+          "lyrics": {
+            "source": "ttml-amll",
+            "word_synced": true,
+            "instrumental": false,
+            "lines": [
+              {
+                "start": 0,
+                "end": 60000,
+                "words": [{"text": "Hello ", "start": 0, "end": 20000}, {"text": "World", "start": 20000, "end": 60000}]
+              }
+            ]
+          }
+        }
+        """.utf8), clientId: browserClientA, origin: "https://blog.example.com")
+        storeA.ingestTestPayload(Data("""
+        {
+          "type": "state",
+          "origin": "https://blog.example.com",
+          "visible": true,
+          "has_played": true,
+          "show_playing": true,
+          "is_playing": true,
+          "track_id": 888,
+          "duration_ms": 240000,
+          "position_ms": 42500,
+          "anchor_ms": \(Date().timeIntervalSince1970 * 1000.0)
+        }
+        """.utf8), clientId: browserClientA, origin: "https://blog.example.com")
+
+        // 浏览器断联！验证主机 A 进入内置续播，且对端 B 在默认单岛模式下保持隐藏与静音
+        storeA.simulateClientDisconnectForTesting(browserClientA)
+        for _ in 0..<40 where storeB.autonomousSession == nil {
+            try await Task.sleep(for: .milliseconds(25))
+        }
+
+        #expect(storeA.isAutonomousMode == true)
+        #expect(storeA.shouldDisplayIsland == true)
+        #expect(storeA.nativeAudio.isActive == true)
+        #expect(storeA.nativeAudio.isPlaying == true)
+        #expect(storeA.nativeAudio.activeTrackId == 888)
+        #expect(abs(storeA.nativeAudio.lastObservedPositionMs - 42500) < 600)
+
+        #expect(storeB.isAutonomousMode == true)
+        #expect(storeB.shouldDisplayIsland == false)
+        #expect(storeB.nativeAudio.isActive == false)
+
+        // 4. 单岛跨屏流转（非双屏同显）：把灵动岛从 Mac A 甩到 Mac B ->「声随岛走」！Mac A 立即停声，Mac B 接力出声！
+        storeA.handoffToConnectedPeer()
+        for _ in 0..<40 where !storeB.nativeAudio.isActive {
+            try await Task.sleep(for: .milliseconds(25))
+        }
+
+        #expect(storeA.shouldDisplayIsland == false)
+        #expect(storeA.nativeAudio.isActive == false)
+        #expect(storeB.shouldDisplayIsland == true)
+        #expect(storeB.nativeAudio.isActive == true)
+        #expect(storeB.nativeAudio.isPlaying == true)
+        #expect(storeB.autonomousSession?.audioOwnerPeerId == "mac-peer-b")
+
+        // 5. 开启「多屏幕同显」（mirrorBothMacs）：两台 Mac 同时显示灵动岛，但声音回到原源主机 Mac A 播放！
+        storeB.toggleMirrorBothMacs()
+        for _ in 0..<40 where !storeA.nativeAudio.isActive {
+            try await Task.sleep(for: .milliseconds(25))
+        }
+
+        #expect(storeA.displayOwnership == .mirrorBothMacs)
+        #expect(storeB.displayOwnership == .mirrorBothMacs)
+        #expect(storeA.shouldDisplayIsland == true)
+        #expect(storeB.shouldDisplayIsland == true)
+        #expect(storeA.nativeAudio.isActive == true)
+        #expect(storeA.nativeAudio.isPlaying == true)
+        #expect(storeB.nativeAudio.isActive == false)
+        #expect(storeA.autonomousSession?.audioOwnerPeerId == "mac-host-a")
+
+        // 6. 在从属同显机 Mac B 上拖动进度条 Seek 到 95_000ms -> 远程遥控原主机 Mac A 同步跳转
+        storeB.seek(toMs: 95000)
+        for _ in 0..<40 where abs(storeA.nativeAudio.lastObservedPositionMs - 95000) > 500 {
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        #expect(abs(storeA.nativeAudio.lastObservedPositionMs - 95000) < 500)
+
+        // 7. 浏览器重新打开同源页面：先收到 adopt_native_session 指令（此时浏览器未发声，灵动岛绝不断声）；
+        // 随后浏览器确认起播，双端立即停掉内置音频并交回浏览器驱动
+        var interceptedCommands: [OutgoingCommand] = []
+        storeA.onInterceptCommandForTest = { cmd in
+            interceptedCommands.append(cmd)
+        }
+        let reconnectedBrowserId = UUID()
+        storeA.ingestTestPayload(Data("""
+        {
+          "type": "state",
+          "origin": "https://blog.example.com",
+          "visible": false,
+          "has_played": false,
+          "show_playing": false,
+          "is_playing": false,
+          "track_id": null,
+          "duration_ms": 0,
+          "position_ms": 0,
+          "anchor_ms": \(Date().timeIntervalSince1970 * 1000.0)
+        }
+        """.utf8), clientId: reconnectedBrowserId, origin: "https://blog.example.com")
+
+        let adoptCmd = interceptedCommands.first(where: { $0.action == "adopt_native_session" })
+        #expect(adoptCmd != nil)
+        #expect(adoptCmd?.trackId == 888)
+        #expect(adoptCmd?.isPlaying == true)
+        // 浏览器尚未起播前（如受自动播放策略拦截），原生续播保持不断音
+        #expect(storeA.nativeAudio.isActive == true)
+
+        // 浏览器尚未真正出声（仅触发前置 'play' 意图但 audio_playing=false，或受自动播放策略拦截）时，原生续播绝不提前停声
+        storeA.ingestTestPayload(Data("""
+        {
+          "type": "state",
+          "origin": "https://blog.example.com",
+          "visible": true,
+          "has_played": true,
+          "show_playing": true,
+          "is_playing": true,
+          "audio_playing": false,
+          "track_id": 888,
+          "duration_ms": 240000,
+          "position_ms": 0,
+          "anchor_ms": \(Date().timeIntervalSince1970 * 1000.0)
+        }
+        """.utf8), clientId: reconnectedBrowserId, origin: "https://blog.example.com")
+        #expect(storeA.isAutonomousMode == true)
+        #expect(storeA.nativeAudio.isActive == true)
+
+        // 验证 localhost 回环源在单岛跨屏流转时固定由原主机保留音频拉流
+        #expect(storeA.computeDesiredAudioOwnerPeerId(sourceHostPeerId: "mac-host-a", origin: "http://localhost:3000") == "mac-host-a")
+
+        // 浏览器实际起播后推送 native_session_adopted
+        storeA.ingestTestPayload(Data("""
+        {
+          "type": "native_session_adopted",
+          "origin": "https://blog.example.com",
+          "tab_id": "reconnected-tab"
+        }
+        """.utf8), clientId: reconnectedBrowserId, origin: "https://blog.example.com")
+        for _ in 0..<40 where storeB.isAutonomousMode {
+            try await Task.sleep(for: .milliseconds(25))
+        }
+
+        #expect(storeA.isAutonomousMode == false)
+        #expect(storeA.nativeAudio.isActive == false)
+        #expect(storeB.isAutonomousMode == false)
+        #expect(storeB.nativeAudio.isActive == false)
+    }
+
+    @Test("独立歌词解析器：原生解析 TTML 逐字振假名、背景和声与 AI 强调特效叠加")
+    func standaloneTTMLAndAnnotationsResolver() {
+        let sampleTTML = """
+        <tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata">
+          <head>
+            <metadata>
+              <ttm:agent xml:id="v1" type="person"/>
+              <ttm:agent xml:id="v2" type="person"/>
+            </metadata>
+          </head>
+          <body>
+            <div>
+              <p begin="00:01.000" end="00:04.000" ttm:agent="v1">
+                <span begin="00:01.000" end="00:02.200" ttm:role="x-ruby"><ruby>花火<rt>はなび</rt></ruby></span>
+                <span begin="00:02.200" end="00:04.000">が咲く</span>
+                <span ttm:role="x-bg" begin="00:02.500" end="00:04.200">
+                  <span begin="00:02.500" end="00:04.200">(きらり)</span>
+                </span>
+                <span ttm:role="x-translation">烟火绽放</span>
+              </p>
+              <p begin="00:04.500" end="00:07.000" ttm:agent="v2">
+                <span begin="00:04.500" end="00:05.500">Hello</span> <span begin="00:05.500" end="00:07.000">world</span>
+              </p>
+            </div>
+          </body>
+        </tt>
+        """
+        let sampleAnnotations = Data("""
+        {
+          "status": "ready",
+          "font": "serif",
+          "intro": "夏夜的序曲",
+          "singers": [
+            { "id": "v1", "name": "千束", "color": "coral" },
+            { "id": "v2", "name": "泷奈", "color": "sky" }
+          ],
+          "lines": [
+            {
+              "text": "花火が咲く",
+              "occurrence": 0,
+              "mood": "bright",
+              "phrases": [
+                { "text": "花火", "effect": "shimmer", "color": "amber" }
+              ]
+            }
+          ]
+        }
+        """.utf8)
+        let aiTransJSON = Data("""
+        {
+          "status": "ready",
+          "source": "ttml-amll",
+          "target_lang": "zh",
+          "lines": [
+            { "text": "花火が咲く", "occurrence": 0, "bg": false, "translation": "AI：绚烂烟花盛开" }
+          ]
+        }
+        """.utf8)
+
+        // 1) preferNative=true 时保留词源原生翻译；双轨对比（AI + 原生）同时填入 translation 与 secondaryTranslation；英文相邻 span 词间空格保留
+        let dualBundle = StandaloneSongResolver.parseTTMLForTesting(
+            xml: sampleTTML,
+            annotationsJSON: sampleAnnotations,
+            primarySlot: TranslationSelectionItem(lang: "zh", preferNative: false),
+            primaryTranslationsJSON: aiTransJSON,
+            secondarySlot: TranslationSelectionItem(lang: "zh", preferNative: true),
+            secondaryTranslationsJSON: aiTransJSON
+        )
+        #expect(dualBundle.wordSynced == true)
+        #expect(dualBundle.font == "serif")
+        #expect(dualBundle.intro == "夏夜的序曲")
+        #expect(dualBundle.lines.count == 3)
+        #expect(dualBundle.lines[2].plainText == "Hello world")
+        #expect(dualBundle.lines[2].singerName == "泷奈")
+
+        // 1.5) 独唱曲目虽标有单个 ttm:agent="v1"，不开启多声部色条与胶囊；且原生支持 W3C TTML2 tts:ruby="container" 振假名而不污染正文
+        let soloTTML2 = """
+        <tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata" xmlns:tts="http://www.w3.org/ns/ttml#styling">
+          <head><metadata><ttm:agent xml:id="v1" type="person"/></metadata></head>
+          <body><div>
+            <p begin="00:01.000" end="00:03.500" ttm:agent="v1">
+              <span tts:ruby="container"><span tts:ruby="base">明日</span><span tts:ruby="textContainer"><span tts:ruby="text" begin="00:01.000" end="00:01.600">あ</span><span tts:ruby="text" begin="00:01.600" end="00:02.200">した</span></span></span><span begin="00:02.200" end="00:03.500">へ</span>
+            </p>
+          </div></body>
+        </tt>
+        """
+        let soloBundle = StandaloneSongResolver.parseTTMLForTesting(xml: soloTTML2)
+        #expect(soloBundle.lines.count == 1)
+        #expect(soloBundle.lines[0].plainText == "明日へ")
+        #expect(soloBundle.lines[0].edgeColors == nil)
+        #expect(soloBundle.lines[0].singerName == nil)
+        #expect(soloBundle.lines[0].words[0].text == "明日")
+        #expect(soloBundle.lines[0].words[0].ruby?.map(\.text) == ["あ", "した"])
+
+        let mainLine = dualBundle.lines[0]
+        #expect(mainLine.isBackground == false)
+        #expect(mainLine.plainText == "花火が咲く")
+        #expect(mainLine.singerName == "千束")
+        #expect(mainLine.translation == "AI：绚烂烟花盛开")
+        #expect(mainLine.secondaryTranslation == "烟火绽放")
+        #expect(mainLine.words.first?.ruby?.isEmpty == false)
+        #expect(mainLine.emphasis.first?.effect == "shimmer")
+
+        let nativePreferredBundle = StandaloneSongResolver.parseTTMLForTesting(
+            xml: sampleTTML,
+            annotationsJSON: sampleAnnotations,
+            primarySlot: TranslationSelectionItem(lang: "zh", preferNative: true),
+            primaryTranslationsJSON: aiTransJSON
+        )
+        #expect(nativePreferredBundle.lines[0].translation == "烟火绽放")
+        #expect(nativePreferredBundle.lines[0].secondaryTranslation == nil)
+
+        let bgLine = dualBundle.lines[1]
+        #expect(bgLine.isBackground == true)
+        #expect(bgLine.owner == 0)
+        #expect(bgLine.plainText == "きらり")
+
+        // 2) 嵌套 <span> 词栈：外层带时间戳 span 包裹内层 x-ruby 子 span 时，外层前后文本不丢时间戳
+        let nestedTTML = """
+        <tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata">
+          <body><div>
+            <p begin="00:01.000" end="00:05.000">
+              <span begin="00:01.000" end="00:04.000">夜<span begin="00:01.800" end="00:02.800" ttm:role="x-ruby"><ruby>空<rt>ぞら</rt></ruby></span>へ</span>
+            </p>
+          </div></body>
+        </tt>
+        """
+        let nestedBundle = StandaloneSongResolver.parseTTMLForTesting(xml: nestedTTML)
+        #expect(nestedBundle.lines.count == 1)
+        #expect(nestedBundle.lines[0].plainText == "夜空へ")
+        #expect(nestedBundle.lines[0].words.count == 3)
+        #expect(nestedBundle.lines[0].words[0].text == "夜")
+        #expect(nestedBundle.lines[0].words[1].text == "空")
+        #expect(nestedBundle.lines[0].words[1].ruby?.first?.text == "ぞら")
+        #expect(nestedBundle.lines[0].words[2].text == "へ")
+        #expect(nestedBundle.lines[0].words[2].start == 1000 && nestedBundle.lines[0].words[2].end == 4000)
+
+        // 3) 含斜杠艺名 K/DA、AC/DC 不被拆碎；pin=ttml 无数据时有序回退至 qq-qrc；内网/localhost HTTP 封面不被强升 https
+        let kdaItem = PlaylistTrackItem(
+            index: 0,
+            id: 901,
+            name: "POP/STARS",
+            aliases: [],
+            titleExtra: nil,
+            artists: "K/DA / Madison Beer / (G)I-DLE",
+            album: "POP/STARS",
+            albumPic: nil,
+            durationMs: 191000
+        )
+        let kdaTrack = StandaloneSongResolver.makeIslandTrack(from: kdaItem)
+        #expect(kdaTrack.artists == ["K/DA", "Madison Beer", "(G)I-DLE"])
+
+        let pinFallbackCache = Data("""
+        {
+          "kind": "ncm",
+          "qq": {
+            "format": "qrc",
+            "lyric": "[1000,2000]Hello(1000,800) World(1800,1200)"
+          }
+        }
+        """.utf8)
+        let fallbackLyrics = StandaloneSongResolver.buildBaseLyricsForTesting(cacheJSON: pinFallbackCache, pin: "ttml")
+        #expect(fallbackLyrics.source == "qq-qrc")
+        #expect(fallbackLyrics.lines.first?.plainText == "Hello World")
+
+        #expect(StandaloneSongResolver.resolveCoverURLForTesting(raw: "http://localhost:3000/a.jpg", origin: "http://localhost:3000") == "http://localhost:3000/a.jpg")
+        #expect(StandaloneSongResolver.resolveCoverURLForTesting(raw: "http://192.168.1.20:9000/b.jpg", origin: "http://192.168.1.20:9000") == "http://192.168.1.20:9000/b.jpg")
+        #expect(StandaloneSongResolver.resolveCoverURLForTesting(raw: "http://p1.music.126.net/xyz.jpg", origin: "https://blog.example.com") == "https://p1.music.126.net/xyz.jpg?imageView=1&thumbnail=240y240&type=webp")
+
+        // 多行缩进 .ttml2 tts:ruby="container" + 独立 x-bg 回声行提升 + 前置背景人声 above 排序 + spotlights 越界钳位与 notes 时间升序
+        let multiLineTtml2 = """
+        <tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata" xmlns:tts="http://www.w3.org/ns/ttml#styling">
+          <body>
+            <div>
+              <p begin="00:01.000" end="00:03.000">
+                <span tts:ruby="container">
+                  <span tts:ruby="base">
+                    <span begin="00:01.000" end="00:01.500">運</span>
+                    <span begin="00:01.500" end="00:02.000">命</span>
+                  </span>
+                  <span tts:ruby="textContainer">
+                    <span tts:ruby="text" begin="00:01.000" end="00:01.500">さだ</span>
+                    <span tts:ruby="text" begin="00:01.500" end="00:02.000">め</span>
+                  </span>
+                </span>
+                <span ttm:role="x-bg" begin="00:00.600" end="00:00.950">(<span begin="00:00.600" end="00:00.950">Yeah</span>)</span>
+              </p>
+              <p begin="00:04.000" end="00:05.500">
+                <span ttm:role="x-bg" begin="00:04.000" end="00:05.500">(<span begin="00:04.000" end="00:05.500">Echo only</span>)</span>
+              </p>
+            </div>
+          </body>
+        </tt>
+        """
+        let clampAndSortAnnotations = Data("""
+        {
+          "spotlights": [{ "text": "運命", "occurrence": 99 }],
+          "moments": [
+            { "text": "Echo only", "occurrence": 5, "content": "Later note", "source": "ai" },
+            { "text": "運命", "occurrence": 0, "content": "Earlier note", "source": "comment", "liked": 42 }
+          ]
+        }
+        """.utf8)
+        let parsedTtml2 = StandaloneSongResolver.parseTTMLForTesting(xml: multiLineTtml2, annotationsJSON: clampAndSortAnnotations)
+        #expect(parsedTtml2.lines.count == 3)
+        // 第 0 行应为前置背景人声（above，owner 指向第 1 行主行）
+        #expect(parsedTtml2.lines[0].isBackground == true)
+        #expect(parsedTtml2.lines[0].backgroundPosition == "above")
+        #expect(parsedTtml2.lines[0].owner == 1)
+        #expect(parsedTtml2.lines[0].plainText == "Yeah")
+        // 第 1 行主唱词不含换行缩进，且保留分片 ruby 精确起止时间
+        #expect(parsedTtml2.lines[1].isBackground == false)
+        #expect(parsedTtml2.lines[1].plainText == "運命")
+        #expect(parsedTtml2.lines[1].words.first?.ruby == [
+            LyricRubyPayload(text: "さだ", start: 1000, end: 1500),
+            LyricRubyPayload(text: "め", start: 1500, end: 2000)
+        ])
+        // 第 2 行独立 x-bg 自动提升为主行（isBackground=false, owner=-1）
+        #expect(parsedTtml2.lines[2].isBackground == false)
+        #expect(parsedTtml2.lines[2].owner == -1)
+        #expect(parsedTtml2.lines[2].plainText == "Echo only")
+        // spotlights 越界钳位至 [1]，notes 按 start 升序排列
+        #expect(parsedTtml2.spotlights == [1])
+        #expect(parsedTtml2.notes.map(\.content) == ["Earlier note", "Later note"])
+    }
+
+    @MainActor
+    @Test("断联宽限期防抖与音频流失败熔断：宽限期内闪断重连零抢播，连续加载失败自动切歌与熔断暂停")
+    func gracePeriodDebounceAndAudioFailureCircuitBreaker() async throws {
+        let peer = PeerContinuityService(
+            overridePeerId: "mac-solo",
+            overrideDeviceName: "Solo Mac",
+            isolatedDefaults: UserDefaults(suiteName: "NeoBlogIslandTest.Grace.\(UUID().uuidString)")!
+        )
+        let store = IslandStore(startNetworkServices: false, peerService: peer)
+        store.disconnectTakeoverDelayMs = 80
+
+        let client1 = UUID()
+        store.ingestTestPayload(Data("""
+        {
+          "type": "media",
+          "origin": "https://blog.example.com",
+          "track": { "id": 101, "name": "Song A", "artists": ["Artist"], "duration_ms": 180000 },
+          "lyrics": { "source": "ncm-lrc", "word_synced": false, "instrumental": false, "lines": [{"start": 0, "end": 60000, "words": [{"text": "Line A", "start": 0, "end": 60000}]}] }
+        }
+        """.utf8), clientId: client1, origin: "https://blog.example.com")
+        store.ingestTestPayload(Data("""
+        {
+          "type": "playlist",
+          "origin": "https://blog.example.com",
+          "complete": true,
+          "current_index": 0,
+          "tracks": [
+            { "index": 0, "id": 101, "name": "Song A", "artists": "Artist", "album": "Album", "duration_ms": 180000 },
+            { "index": 1, "id": 102, "name": "Song B", "artists": "Artist", "album": "Album", "duration_ms": 200000 }
+          ]
+        }
+        """.utf8), clientId: client1, origin: "https://blog.example.com")
+        store.ingestTestPayload(Data("""
+        {
+          "type": "state",
+          "origin": "https://blog.example.com",
+          "visible": true,
+          "has_played": true,
+          "show_playing": true,
+          "is_playing": true,
+          "track_id": 101,
+          "duration_ms": 180000,
+          "position_ms": 15000,
+          "anchor_ms": \(Date().timeIntervalSince1970 * 1000.0)
+        }
+        """.utf8), clientId: client1, origin: "https://blog.example.com")
+
+        // 1) 模拟浏览器网络闪断：80ms 宽限期内灵动岛保持显示但尚未启动 AVPlayer；25ms 时浏览器重连发声，立即取消内置接管
+        store.simulateClientDisconnectForTesting(client1)
+        #expect(store.isAutonomousMode == true)
+        #expect(store.shouldDisplayIsland == true)
+        #expect(store.nativeAudio.isActive == false)
+
+        try await Task.sleep(for: .milliseconds(25))
+        let client2 = UUID()
+        store.ingestTestPayload(Data("""
+        {
+          "type": "media",
+          "origin": "https://blog.example.com",
+          "track": { "id": 101, "name": "Song A", "artists": ["Artist"], "duration_ms": 180000 },
+          "lyrics": { "source": "ncm-lrc", "word_synced": false, "instrumental": false, "lines": [{"start": 0, "end": 60000, "words": [{"text": "Line A", "start": 0, "end": 60000}]}] }
+        }
+        """.utf8), clientId: client2, origin: "https://blog.example.com")
+        store.ingestTestPayload(Data("""
+        {
+          "type": "playlist",
+          "origin": "https://blog.example.com",
+          "complete": true,
+          "current_index": 0,
+          "tracks": [
+            { "index": 0, "id": 101, "name": "Song A", "artists": "Artist", "album": "Album", "duration_ms": 180000 },
+            { "index": 1, "id": 102, "name": "Song B", "artists": "Artist", "album": "Album", "duration_ms": 200000 }
+          ]
+        }
+        """.utf8), clientId: client2, origin: "https://blog.example.com")
+        store.ingestTestPayload(Data("""
+        {
+          "type": "state",
+          "origin": "https://blog.example.com",
+          "visible": true,
+          "has_played": true,
+          "show_playing": true,
+          "is_playing": true,
+          "track_id": 101,
+          "duration_ms": 180000,
+          "position_ms": 15200,
+          "anchor_ms": \(Date().timeIntervalSince1970 * 1000.0)
+        }
+        """.utf8), clientId: client2, origin: "https://blog.example.com")
+
+        #expect(store.isAutonomousMode == false)
+        try await Task.sleep(for: .milliseconds(90))
+        #expect(store.nativeAudio.isActive == false)
+
+        // 2) 再次真关闭浏览器并等待超过 80ms 宽限期 -> 启动内置续播
+        store.simulateClientDisconnectForTesting(client2)
+        for _ in 0..<20 where !store.nativeAudio.isActive {
+            try await Task.sleep(for: .milliseconds(15))
+        }
+        #expect(store.nativeAudio.isActive == true)
+        #expect(store.nativeAudio.activeTrackId == 101)
+
+        // 3) 内置续播态下切换多语言翻译槽位指令生效，且非同源本地标签页不会被 openPlayerPage 误发 adopt_native_session
+        var interceptedCommands: [OutgoingCommand] = []
+        store.onInterceptCommandForTest = { cmd in
+            interceptedCommands.append(cmd)
+        }
+        let unrelatedDevTab = UUID()
+        store.ingestTestPayload(Data("""
+        {
+          "type": "state",
+          "origin": "http://localhost:3000",
+          "visible": false,
+          "has_played": false,
+          "show_playing": false,
+          "is_playing": false,
+          "audio_playing": false,
+          "track_id": null,
+          "duration_ms": 0,
+          "position_ms": 0,
+          "anchor_ms": \(Date().timeIntervalSince1970 * 1000.0)
+        }
+        """.utf8), clientId: unrelatedDevTab, origin: "http://localhost:3000")
+        store.openBlogPlayerPage()
+        #expect(!interceptedCommands.contains(where: { $0.action == "adopt_native_session" }))
+
+        store.toggleTranslationLang(lang: "en", preferNative: false, hasDualSources: false)
+        #expect(store.preferences.translationSelections.map(\.lang) == ["en"])
+        store.resetTranslationLangs()
+        #expect(store.preferences.translationSelections.isEmpty)
+
+        // 4) 模拟曲目 101 音频 403/断流失败 -> 自动跳到下一首 102；102 再次失败达到熔断上限 -> 自动暂停防无声空跑歌词
+        store.nativeAudio.simulateFailureForTesting()
+        #expect(store.track?.id == 102)
+        #expect(store.isPlaying == true)
+
+        store.nativeAudio.simulateFailureForTesting()
+        #expect(store.isPlaying == false)
+        #expect(store.nativeAudio.isPlaying == false)
+    }
 }

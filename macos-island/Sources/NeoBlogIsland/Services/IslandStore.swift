@@ -4,7 +4,7 @@ import Observation
 import os
 import SwiftUI
 
-/// 灵动岛显示与遥控状态中心（纯显示端，声音在浏览器播放，遵循 swiftui-expert-skill 使用 @Observable 实现属性级细粒度视图失效）
+/// 灵动岛显示、跨机接力与内置续播状态中心（浏览器在线时由网页端发声，浏览器断联时无缝接续内置原生音频播放；遵循 swiftui-expert-skill 使用 @Observable 实现属性级细粒度视图失效）
 ///
 /// 【双端同步维护约定】
 /// 新增或修改任何音乐灵动岛特性时，必须与网页端 `web/src/components/layout/topbar-island/music-island.tsx`、
@@ -13,6 +13,7 @@ import SwiftUI
 @MainActor
 final class IslandStore {
     static let remotePeerVirtualClientId = UUID(uuidString: "00000000-0000-0000-8000-00000000BEEF")!
+    static let autonomousVirtualClientId = UUID(uuidString: "00000000-0000-0000-8000-00000000A070")!
 
     struct TabSession {
         let clientId: UUID
@@ -76,6 +77,7 @@ final class IslandStore {
     @ObservationIgnored let bridgeServer = LocalBridgeServer()
     let peerService: PeerContinuityService
     let updater: AppUpdateService
+    let nativeAudio: NativeAudioEngine
     let debrisEngine = DebrisEngine()
     let stageSpringEngine = StageSpringEngine()
     let compactStageParticles = StageParticlesEngine(scale: 0.7, maxParticles: 20)
@@ -84,6 +86,30 @@ final class IslandStore {
     @ObservationIgnored private var snapshotHealTask: Task<Void, Never>?
     @ObservationIgnored private var pendingTabFocus: (token: String, origin: String, userAgent: String, timeoutTask: Task<Void, Never>)? = nil
     @ObservationIgnored private var portPollTimer: Timer?
+    @ObservationIgnored private var disconnectTakeoverTask: Task<Void, Never>?
+    @ObservationIgnored private var autonomousResolveTask: Task<Void, Never>?
+    @ObservationIgnored private var autonomousPrewarmTask: Task<Void, Never>?
+    @ObservationIgnored private var autonomousPeekTask: Task<Void, Never>?
+    @ObservationIgnored private var autonomousPauseSettleTask: Task<Void, Never>?
+    @ObservationIgnored private var autonomousMirrorGlowTask: Task<Void, Never>?
+    @ObservationIgnored private var autonomousStatePatchThrottleTask: Task<Void, Never>?
+    @ObservationIgnored private var lastAutonomousStatePatchSentAt: Date = .distantPast
+    @ObservationIgnored private var consecutiveAutonomousFailures: Int = 0
+    @ObservationIgnored private var autonomousTrackStartAnchorMs: Double = 0
+    @ObservationIgnored private var offeredAdoptionClientIds: Set<UUID> = []
+    @ObservationIgnored var disconnectTakeoverDelayMs: Int = 280
+    @ObservationIgnored private var autonomousSessionStorage: AutonomousSessionPayload? = nil
+
+    private(set) var isAutonomousMode: Bool = false
+    private(set) var autonomousOrigin: String = ""
+    private(set) var autonomousSourceHostPeerId: String = ""
+    private(set) var autonomousAudioOwnerPeerId: String = ""
+    private(set) var isAutonomousBuffering: Bool = false
+
+    /// 供测试与诊断读取当前内置续播快照（不触发 @Observable 高频字段订阅）
+    var autonomousSession: AutonomousSessionPayload? {
+        autonomousSessionStorage
+    }
 
     private(set) var activeClientId: UUID?
     private(set) var connectedOrigins: [String] = []
@@ -174,8 +200,24 @@ final class IslandStore {
         UserDefaults.standard.set(isPositionLocked, forKey: "NeoBlogIsland.positionLocked")
     }
 
+    var isLocalAutonomousAudioOwner: Bool {
+        guard isAutonomousMode else { return false }
+        return autonomousAudioOwnerPeerId == peerService.localPeerId
+    }
+
+    var autonomousAudioOwnerLabel: String {
+        guard isAutonomousMode else { return "" }
+        if autonomousAudioOwnerPeerId == peerService.localPeerId {
+            return "本机"
+        }
+        return peerService.connectedPeerName ?? "跨屏 Mac"
+    }
+
     var isDisplayingRemotePeerSession: Bool {
-        activeClientId == Self.remotePeerVirtualClientId
+        if isAutonomousMode {
+            return autonomousSourceHostPeerId != peerService.localPeerId
+        }
+        return activeClientId == Self.remotePeerVirtualClientId
     }
 
     var canPortalThrowToPeer: Bool {
@@ -185,6 +227,10 @@ final class IslandStore {
     var isIslandHandedOffToPeer: Bool {
         guard peerService.isConnected, displayOwnership == .singleActiveMac else {
             return false
+        }
+        if isAutonomousMode {
+            let effectiveOwner = activeOwnerPeerId ?? autonomousSourceHostPeerId
+            return effectiveOwner != peerService.localPeerId
         }
         if let owner = activeOwnerPeerId {
             return owner != peerService.localPeerId
@@ -217,6 +263,9 @@ final class IslandStore {
         self.networkServicesEnabled = startNetworkServices
         self.peerService = peerService ?? PeerContinuityService()
         self.updater = AppUpdateService(startBackgroundCheck: startNetworkServices)
+        self.nativeAudio = NativeAudioEngine(simulationMode: !startNetworkServices)
+        self.disconnectTakeoverDelayMs = startNetworkServices ? 280 : 0
+        setupNativeAudioCallbacks()
         setupPeerCallbacks()
         if startNetworkServices {
             setupBridge()
@@ -234,7 +283,8 @@ final class IslandStore {
     // MARK: - 时钟与时间轴状态（严格毫秒单位，1:1 对齐 timeline.ts getTimelineState & strip-slots.ts）
 
     func currentPositionMs(at date: Date = Date()) -> Double {
-        let raw = isPlaying
+        let clockAdvancing = isPlaying && (!isAutonomousMode || !isAutonomousBuffering)
+        let raw = clockAdvancing
             ? anchorPositionMs + date.timeIntervalSince(anchorLocalDate) * 1000.0
             : anchorPositionMs
         if effectiveDurationMs > 0 {
@@ -414,10 +464,18 @@ final class IslandStore {
         return (items, nil)
     }
 
-    // MARK: - 反向控制指令
+    // MARK: - 反向控制指令与内置续播路由
 
     func sendCommand(_ command: OutgoingCommand) {
         onInterceptCommandForTest?(command)
+        if isAutonomousMode {
+            if isLocalAutonomousAudioOwner || !peerService.isConnected {
+                executeAutonomousCommand(command)
+            } else {
+                peerService.sendRemoteCommand(command)
+            }
+            return
+        }
         if activeClientId == Self.remotePeerVirtualClientId {
             peerService.sendRemoteCommand(command)
         } else {
@@ -452,6 +510,7 @@ final class IslandStore {
             activeOwnerPeerId = remoteId
         }
         peerService.sendPortalThrow(payload)
+        reconcileAutonomousOwnershipTransition()
         onLayoutTriggerChanged?()
     }
 
@@ -471,6 +530,7 @@ final class IslandStore {
             incomingPortalPreview = nil
         }
         peerService.sendOwnershipUpdate(mode: .singleActiveMac, activeOwnerPeerId: peerService.localPeerId)
+        reconcileAutonomousOwnershipTransition()
         onLayoutTriggerChanged?()
     }
 
@@ -483,6 +543,7 @@ final class IslandStore {
             incomingPortalPreview = nil
         }
         peerService.sendOwnershipUpdate(mode: nextMode, activeOwnerPeerId: nextOwner)
+        reconcileAutonomousOwnershipTransition()
         onLayoutTriggerChanged?()
     }
 
@@ -661,6 +722,20 @@ final class IslandStore {
             isExpanded = false
             showPlaylistOverlay = false
         }
+        if let auto = autonomousSessionStorage {
+            let hasLocalBrowser = tabSessions.values.contains {
+                $0.clientId != Self.remotePeerVirtualClientId && Self.isSameOrigin($0.origin, auto.origin)
+            }
+            let isLoopback = Self.isLoopbackOrigin(auto.origin)
+            // 双屏同显或原源为回环地址且当前在对端 Mac 时，交由原源主机唤醒浏览器接管
+            if !hasLocalBrowser && auto.sourceHostPeerId != peerService.localPeerId && peerService.isConnected
+                && (displayOwnership == .mirrorBothMacs || isLoopback) {
+                peerService.sendRemoteCommand(OutgoingCommand(action: "open_player_page"))
+                return
+            }
+            openLocalBrowserPlayerTab()
+            return
+        }
         if isDisplayingRemotePeerSession && peerService.isConnected {
             peerService.sendRemoteCommand(OutgoingCommand(action: "open_player_page"))
             return
@@ -669,14 +744,40 @@ final class IslandStore {
     }
 
     private func openLocalBrowserPlayerTab() {
-        let targetId = tabSessions.keys.first { $0 != Self.remotePeerVirtualClientId && $0 == activeClientId }
-            ?? tabSessions.keys.first { $0 != Self.remotePeerVirtualClientId }
+        let targetId: UUID?
+        if let auto = autonomousSessionStorage {
+            // 内置续播态仅向同源本地浏览器标签页发起反向接管，避免误劫持本机打开的其他站点（如 localhost 开发站）
+            targetId = tabSessions.values.first {
+                $0.clientId != Self.remotePeerVirtualClientId
+                    && $0.clientId == activeClientId
+                    && Self.isSameOrigin($0.origin, auto.origin)
+            }?.clientId
+                ?? tabSessions.values.first {
+                    $0.clientId != Self.remotePeerVirtualClientId
+                        && Self.isSameOrigin($0.origin, auto.origin)
+                }?.clientId
+        } else {
+            targetId = tabSessions.keys.first { $0 != Self.remotePeerVirtualClientId && $0 == activeClientId }
+                ?? tabSessions.keys.first { $0 != Self.remotePeerVirtualClientId }
+        }
         let session = targetId.flatMap { tabSessions[$0] }
-        let origin = session?.origin ?? connectedOrigins.first ?? ""
+        let origin = session?.origin ?? autonomousSessionStorage?.origin ?? connectedOrigins.first ?? ""
         let userAgent = session?.userAgent ?? ""
         let token = "nbf_\(UUID().uuidString.prefix(8).lowercased())"
 
         onInterceptCommandForTest?(OutgoingCommand(action: "open_player_page", focusToken: token))
+
+        if targetId == nil, let auto = autonomousSessionStorage, !auto.origin.isEmpty {
+            let base = auto.origin.hasSuffix("/") ? String(auto.origin.dropLast()) : auto.origin
+            if networkServicesEnabled, let url = URL(string: "\(base)/music?island_handoff=1") {
+                NSWorkspace.shared.open(url)
+            }
+            return
+        }
+
+        if let targetId, isAutonomousMode {
+            sendAdoptCommandToBrowserClient(targetId, force: true)
+        }
 
         pendingTabFocus?.timeoutTask.cancel()
         let timeoutTask = Task { @MainActor [weak self] in
@@ -698,6 +799,10 @@ final class IslandStore {
     }
 
     func hideCurrentTrack() {
+        if isAutonomousMode {
+            stopAutonomousPlayback(notifyPeer: true)
+            return
+        }
         guard let id = track?.id else { return }
         withAnimation(.spring(duration: 0.34, bounce: 0.2)) {
             isExpanded = false
@@ -722,11 +827,7 @@ final class IslandStore {
         }
 
         bridgeServer.onClientDisconnected = { [weak self] clientId, _ in
-            guard let self else { return }
-            self.tabSessions.removeValue(forKey: clientId)
-            if self.activeClientId == clientId {
-                self.electNextActiveTab()
-            }
+            self?.handleLocalClientDisconnected(clientId)
         }
 
         bridgeServer.onRawJSONMessage = { [weak self] clientId, meta, data in
@@ -753,6 +854,7 @@ final class IslandStore {
         let origin: String?
         let user_agent: String?
         let focus_token: String?
+        let force: Bool?
     }
 
     private func decodeJSON<T: Decodable>(_ type: T.Type, from data: Data, label: String) -> T? {
@@ -767,7 +869,18 @@ final class IslandStore {
     private func setupPeerCallbacks() {
         peerService.onPeerAuthenticated = { [weak self] _, _ in
             guard let self else { return }
-            self.pushFullSnapshotToConnectedPeer()
+            if let auto = self.autonomousSessionStorage {
+                // 仅由当前唯一持有发声权的权威端在重连时广播所有权与续播快照，杜绝双主脑裂互相覆盖
+                if auto.audioOwnerPeerId == self.peerService.localPeerId {
+                    if self.displayOwnership == .singleActiveMac && self.activeOwnerPeerId == nil {
+                        self.activeOwnerPeerId = self.peerService.localPeerId
+                    }
+                    self.peerService.sendOwnershipUpdate(mode: self.displayOwnership, activeOwnerPeerId: self.activeOwnerPeerId)
+                    self.broadcastAutonomousFullSyncToPeer()
+                }
+            } else {
+                self.pushFullSnapshotToConnectedPeer()
+            }
         }
 
         peerService.onPeerDisconnected = { [weak self] _ in
@@ -775,10 +888,26 @@ final class IslandStore {
             self.incomingPortalPreview = nil
             self.portalDragTargetEdge = nil
             self.lastSentPortalPreview = nil
+            let removedMirrorSession = self.tabSessions.removeValue(forKey: Self.remotePeerVirtualClientId) != nil
             self.displayOwnership = .singleActiveMac
+
+            if let auto = self.autonomousSessionStorage {
+                if auto.audioOwnerPeerId == self.peerService.localPeerId {
+                    // 本机原本就是发声端（例如单岛已流转到本机，或同显时的原源主机），保留本机 activeOwner 标记并无缝继续播放
+                    self.activeOwnerPeerId = self.peerService.localPeerId
+                    self.ensureLocalAutonomousAudioMatchesState()
+                    self.refreshAutonomousMirrorGlowWatcher()
+                } else {
+                    // 对端才是发声端（无论是双屏同显从属端，还是单岛「声随岛走」已投送给对端）：本机彻底退出续播态，避免弹窗或重连脑裂
+                    self.activeOwnerPeerId = nil
+                    self.exitAutonomousPlayback(adoptedByLocalClient: nil, notifyPeer: false)
+                }
+                self.onLayoutTriggerChanged?()
+                return
+            }
+
             self.activeOwnerPeerId = nil
-            if self.tabSessions.removeValue(forKey: Self.remotePeerVirtualClientId) != nil,
-               self.activeClientId == Self.remotePeerVirtualClientId {
+            if removedMirrorSession, self.activeClientId == Self.remotePeerVirtualClientId {
                 self.electNextActiveTab()
             }
             self.onLayoutTriggerChanged?()
@@ -786,6 +915,16 @@ final class IslandStore {
 
         peerService.onReceiveFullSnapshot = { [weak self] snap in
             guard let self else { return }
+            if self.isAutonomousMode {
+                let decodedState = snap.stateRawJSON.flatMap {
+                    self.decodeJSON(WebStateMessage.self, from: $0, label: "peer-snapshot-state")
+                }
+                let peerBrowserPlaying = snap.isPlaying
+                    && (decodedState == nil || (decodedState!.isPlaying && (decodedState!.audioPlaying ?? true)))
+                // 对端浏览器未实际出声（如新开空标签页、暂停态页面握手）时，严禁打断本机正在运行的内置续播
+                guard peerBrowserPlaying else { return }
+                self.exitAutonomousPlayback(adoptedByLocalClient: nil, notifyPeer: false)
+            }
             let peerOrigin = "peer://\(self.peerService.connectedPeerName ?? "Mac")"
             let meta = LocalBridgeServer.ClientMeta(
                 id: Self.remotePeerVirtualClientId,
@@ -832,6 +971,11 @@ final class IslandStore {
                 self.openLocalBrowserPlayerTab()
                 return
             }
+            if self.isAutonomousMode {
+                self.onInterceptCommandForTest?(cmd)
+                self.executeAutonomousCommand(cmd)
+                return
+            }
             let localClient = self.tabSessions.keys.first { $0 != Self.remotePeerVirtualClientId && $0 == self.activeClientId }
                 ?? self.tabSessions.keys.first { $0 != Self.remotePeerVirtualClientId }
             self.onInterceptCommandForTest?(cmd)
@@ -863,6 +1007,7 @@ final class IslandStore {
                 self.startupBannerText = nil
                 self.hiddenTrackId = nil
             }
+            self.reconcileAutonomousOwnershipTransition()
             self.onReceivePortalArrival?(portal)
         }
 
@@ -877,7 +1022,20 @@ final class IslandStore {
                     self.showPlaylistOverlay = false
                 }
             }
+            self.reconcileAutonomousOwnershipTransition()
             self.onLayoutTriggerChanged?()
+        }
+
+        peerService.onReceiveAutonomousSync = { [weak self] payload in
+            self?.applyIncomingAutonomousSync(payload)
+        }
+
+        peerService.onReceiveAutonomousStatePatch = { [weak self] patch in
+            self?.applyIncomingAutonomousStatePatch(patch)
+        }
+
+        peerService.onReceiveAutonomousStop = { [weak self] in
+            self?.exitAutonomousPlayback(adoptedByLocalClient: nil, notifyPeer: false)
         }
     }
 
@@ -929,6 +1087,18 @@ final class IslandStore {
         }
 
         switch probe.type {
+        case "native_session_adopted":
+            tabSessions[clientId] = session
+            if !fromPeer && isAutonomousMode {
+                exitAutonomousPlayback(adoptedByLocalClient: clientId, notifyPeer: true)
+            }
+
+        case "request_native_session":
+            tabSessions[clientId] = session
+            if !fromPeer, let auto = autonomousSessionStorage {
+                maybeOfferAutonomousAdoption(to: clientId, origin: session.origin, auto: auto, force: probe.force ?? false)
+            }
+
         case "focus_ready":
             tabSessions[clientId] = session
             if let token = probe.focus_token, !token.isEmpty,
@@ -1038,6 +1208,24 @@ final class IslandStore {
                 startupBannerText = nil
             }
 
+            if !fromPeer, let auto = autonomousSessionStorage {
+                let browserAudioOutputConfirmed = msg.isPlaying && (msg.audioPlaying ?? true)
+                if browserAudioOutputConfirmed {
+                    // 浏览器 <audio> 已完成缓冲并实际出声（非前置 'play' 意图），原子停掉原生播放器并交回浏览器接管
+                    exitAutonomousPlayback(adoptedByLocalClient: clientId, notifyPeer: true)
+                } else {
+                    maybeOfferAutonomousAdoption(to: clientId, origin: session.origin, auto: auto, force: false)
+                    return
+                }
+            } else if fromPeer && isAutonomousMode {
+                let peerAudioOutputConfirmed = msg.isPlaying && (msg.audioPlaying ?? true)
+                if peerAudioOutputConfirmed {
+                    exitAutonomousPlayback(adoptedByLocalClient: nil, notifyPeer: false)
+                } else {
+                    return
+                }
+            }
+
             let prevActive = activeClientId
             if shouldPromoteClient(clientId, incomingState: msg) {
                 activeClientId = clientId
@@ -1060,6 +1248,9 @@ final class IslandStore {
     }
 
     private func shouldPromoteClient(_ candidateId: UUID, incomingState msg: WebStateMessage) -> Bool {
+        if isAutonomousMode {
+            return msg.isPlaying && candidateId != Self.remotePeerVirtualClientId
+        }
         guard let curId = activeClientId else { return true }
         if curId == candidateId { return true }
         if msg.isPlaying { return true }
@@ -1275,5 +1466,1102 @@ final class IslandStore {
             self.logger.notice("检测到曲目 \(expectedTrackId) 元数据未就绪，主动请求重推全量快照")
             self.sendCommand(OutgoingCommand(action: "sync_snapshot"))
         }
+    }
+
+    // MARK: - 浏览器断联内置续播 & 跨 Mac 声随岛走 / 双屏同显原主机发声仲裁
+
+    private func setAutonomousSession(_ next: AutonomousSessionPayload?) {
+        autonomousSessionStorage = next
+        let nextActive = (next != nil)
+        let nextOrigin = next?.origin ?? ""
+        let nextSource = next?.sourceHostPeerId ?? ""
+        let nextAudioOwner = next?.audioOwnerPeerId ?? ""
+
+        if isAutonomousMode != nextActive { isAutonomousMode = nextActive }
+        if autonomousOrigin != nextOrigin { autonomousOrigin = nextOrigin }
+        if autonomousSourceHostPeerId != nextSource { autonomousSourceHostPeerId = nextSource }
+        if autonomousAudioOwnerPeerId != nextAudioOwner { autonomousAudioOwnerPeerId = nextAudioOwner }
+        if !nextActive && isAutonomousBuffering { isAutonomousBuffering = false }
+    }
+
+    private func setupNativeAudioCallbacks() {
+        nativeAudio.onPositionUpdate = { [weak self] posMs, durMs in
+            guard let self, self.isAutonomousMode, self.isLocalAutonomousAudioOwner else { return }
+            // 仅在硬件时钟与墙钟推算偏差 > 85ms 时修正锚点，且直接写入 @ObservationIgnored 存储，确保稳态播放期间 @Observable 视图树 0Hz 无效重绘
+            let predicted = self.currentPositionMs()
+            if abs(posMs - predicted) > 85 {
+                self.anchorPositionMs = posMs
+                self.anchorLocalDate = Date()
+            }
+            if let durMs, durMs > 0, abs(durMs - self.effectiveDurationMs) > 120 {
+                self.effectiveDurationMs = durMs
+            }
+            // 与前端 MIN_VALID_PLAY_MS 一致：新曲稳定播放满 1.5s 后才清零连续失败熔断计数，防止截断流/残损头死循环切歌
+            if self.consecutiveAutonomousFailures > 0 && (posMs - self.autonomousTrackStartAnchorMs) >= 1500 {
+                self.consecutiveAutonomousFailures = 0
+            }
+            self.autonomousSessionStorage?.livePositionMs = posMs
+            self.updateAutonomousGlow(at: posMs)
+        }
+
+        nativeAudio.onPlaybackStarted = { [weak self] posMs in
+            guard let self, self.isAutonomousMode, self.isLocalAutonomousAudioOwner else { return }
+            self.autonomousTrackStartAnchorMs = posMs
+            self.isAutonomousBuffering = false
+            self.anchorPositionMs = posMs
+            self.anchorLocalDate = Date()
+            self.autonomousSessionStorage?.livePositionMs = posMs
+            self.broadcastAutonomousStatePatchToPeer(throttled: false)
+        }
+
+        nativeAudio.onPlaybackFailed = { [weak self] failedTrackId in
+            guard let self, let auto = self.autonomousSessionStorage, self.isLocalAutonomousAudioOwner else { return }
+            guard auto.track.id == failedTrackId else { return }
+            self.isAutonomousBuffering = false
+            self.consecutiveAutonomousFailures += 1
+            let maxSkips = min(3, max(0, auto.playlist.count - 1))
+            if auto.playlist.count > 1 && self.consecutiveAutonomousFailures <= maxSkips {
+                self.logger.warning("曲目 \(failedTrackId) 流加载失败（连续第 \(self.consecutiveAutonomousFailures) 次），自动跳过至下一首")
+                self.stepAutonomousTrack(direction: 1, resetFailureCounter: false)
+            } else {
+                self.logger.error("内置音频流连续加载失败，自动暂停续播以防无声空跑歌词")
+                self.executeAutonomousCommand(OutgoingCommand(action: "pause"))
+            }
+        }
+
+        nativeAudio.onTrackEnded = { [weak self] in
+            self?.handleAutonomousTrackEnded()
+        }
+
+        nativeAudio.onRemotePlay = { [weak self] in self?.play() }
+        nativeAudio.onRemotePause = { [weak self] in self?.pause() }
+        nativeAudio.onRemoteToggle = { [weak self] in self?.togglePlay() }
+        nativeAudio.onRemoteNext = { [weak self] in self?.nextTrack() }
+        nativeAudio.onRemotePrev = { [weak self] in self?.prevTrack() }
+        nativeAudio.onRemoteSeek = { [weak self] ms in self?.seek(toMs: ms) }
+    }
+
+    /// 供单元测试模拟本地浏览器 WebSocket 断开
+    func simulateClientDisconnectForTesting(_ clientId: UUID) {
+        handleLocalClientDisconnected(clientId)
+    }
+
+    private func handleLocalClientDisconnected(_ clientId: UUID) {
+        offeredAdoptionClientIds.remove(clientId)
+        let removed = tabSessions.removeValue(forKey: clientId)
+
+        let hasOtherLocalPlayingBrowser = tabSessions.values.contains {
+            $0.clientId != Self.remotePeerVirtualClientId && $0.state?.isPlaying == true
+        }
+
+        if clientId == activeClientId,
+           !hasOtherLocalPlayingBrowser,
+           !isAutonomousMode,
+           let removed,
+           removed.state?.isPlaying == true,
+           let curTrack = removed.track,
+           !removed.origin.isEmpty,
+           hiddenTrackId != curTrack.id {
+            enterAutonomousTakeover(from: removed, track: curTrack)
+            return
+        }
+
+        if activeClientId == clientId && !isAutonomousMode {
+            electNextActiveTab()
+        }
+    }
+
+    nonisolated static func isSameOrigin(_ a: String, _ b: String) -> Bool {
+        let normA = a.trimmingCharacters(in: CharacterSet(charactersIn: "/ ")).lowercased()
+        let normB = b.trimmingCharacters(in: CharacterSet(charactersIn: "/ ")).lowercased()
+        return !normA.isEmpty && normA == normB
+    }
+
+    nonisolated static func isLoopbackOrigin(_ raw: String) -> Bool {
+        guard let url = URL(string: raw.trimmingCharacters(in: .whitespacesAndNewlines)),
+              let host = url.host?.lowercased() else {
+            let lower = raw.lowercased()
+            return lower.contains("://localhost") || lower.contains("://127.0.0.1") || lower.contains("://[::1]")
+        }
+        return host == "localhost" || host == "127.0.0.1" || host == "::1" || host == "[::1]"
+    }
+
+    func computeDesiredAudioOwnerPeerId(sourceHostPeerId: String, origin: String? = nil) -> String {
+        let effectiveOrigin = origin ?? autonomousOrigin
+        if displayOwnership == .mirrorBothMacs || Self.isLoopbackOrigin(effectiveOrigin) {
+            // 双屏同显或本地回环源（对端 Mac 无法访问源机的 127.0.0.1）：固定由原源主机播放
+            return sourceHostPeerId
+        }
+        if peerService.isConnected {
+            // 单岛跨屏流转：声随岛走（谁当前显示灵动岛，谁在本地驱动音频播放）
+            return activeOwnerPeerId ?? sourceHostPeerId
+        }
+        return peerService.localPeerId
+    }
+
+    private func enterAutonomousTakeover(from session: TabSession, track curTrack: IslandTrack) {
+        let posMs = currentPositionMs()
+        let decodedRhythm: RhythmDataPayload? = session.lastRhythmRawJSON.flatMap {
+            try? JSONDecoder().decode(WebRhythmMessage.self, from: $0).rhythm
+        }
+        let sourceHost = peerService.localPeerId
+        let desiredAudioOwner = computeDesiredAudioOwnerPeerId(sourceHostPeerId: sourceHost, origin: session.origin)
+
+        let payload = AutonomousSessionPayload(
+            origin: session.origin,
+            sourceHostPeerId: sourceHost,
+            audioOwnerPeerId: desiredAudioOwner,
+            track: curTrack,
+            accentHex: session.accentHex,
+            chorus: session.chorus,
+            lyrics: session.lyrics,
+            rhythm: decodedRhythm,
+            playlist: session.playlist,
+            playlistComplete: session.playlistComplete,
+            currentIndex: session.currentIndex,
+            preloadedBundles: Array(session.preloadedBundles.values),
+            livePositionMs: posMs,
+            isPlaying: true,
+            playMode: playMode,
+            volume: volume,
+            isMuted: isMuted,
+            preferences: preferences,
+            config: config
+        )
+
+        snapshotHealTask?.cancel()
+        consecutiveAutonomousFailures = 0
+        setAutonomousSession(payload)
+        activeClientId = Self.autonomousVirtualClientId
+        webVisible = true
+        isPlaying = true
+        showPlaying = true
+        anchorPositionMs = posMs
+        anchorLocalDate = Date()
+
+        disconnectTakeoverTask?.cancel()
+        let delayMs = disconnectTakeoverDelayMs
+        if delayMs <= 0 {
+            activateAutonomousSessionAfterGrace()
+        } else {
+            disconnectTakeoverTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(delayMs))
+                guard !Task.isCancelled, let self, self.isAutonomousMode else { return }
+                self.activateAutonomousSessionAfterGrace()
+            }
+        }
+    }
+
+    private func activateAutonomousSessionAfterGrace() {
+        guard var auto = autonomousSessionStorage else { return }
+        let desiredOwner = computeDesiredAudioOwnerPeerId(sourceHostPeerId: auto.sourceHostPeerId)
+        auto.audioOwnerPeerId = desiredOwner
+        auto.livePositionMs = currentPositionMs()
+        setAutonomousSession(auto)
+
+        logger.info("浏览器已断联，进入灵动岛内置续播: track=\(auto.track.id), audioOwner=\(desiredOwner, privacy: .public)")
+        ensureLocalAutonomousAudioMatchesState()
+        broadcastAutonomousFullSyncToPeer()
+
+        if desiredOwner == peerService.localPeerId {
+            // 若断联恰逢切歌瞬间、浏览器尚未推完当前曲目歌词或节拍，主动兜底补拉缺失部分（已有逐字歌词则保留不覆盖）
+            let missingLyrics = auto.lyrics.lines.isEmpty && !auto.lyrics.instrumental
+            if missingLyrics || auto.rhythm == nil {
+                resolveCurrentAutonomousTrack(refresh: false, preserveExistingLyrics: !missingLyrics)
+            } else {
+                scheduleAutonomousPrewarm()
+            }
+        }
+        refreshAutonomousMirrorGlowWatcher()
+    }
+
+    private func reconcileAutonomousOwnershipTransition() {
+        guard var auto = autonomousSessionStorage else { return }
+        let prevOwner = auto.audioOwnerPeerId
+        let desiredOwner = computeDesiredAudioOwnerPeerId(sourceHostPeerId: auto.sourceHostPeerId, origin: auto.origin)
+
+        if prevOwner == peerService.localPeerId && desiredOwner != peerService.localPeerId {
+            // 本机原本持有音频输出，现交棒给对端 Mac：精确采样当前硬件毫秒位置后立即停声并推送给对端接续
+            let handoffPos = currentPositionMs()
+            nativeAudio.stop()
+            isAutonomousBuffering = false
+            auto.audioOwnerPeerId = desiredOwner
+            auto.livePositionMs = handoffPos
+            anchorPositionMs = handoffPos
+            anchorLocalDate = Date()
+            setAutonomousSession(auto)
+            broadcastAutonomousStatePatchToPeer(throttled: false)
+        } else if desiredOwner == peerService.localPeerId {
+            if prevOwner == peerService.localPeerId || !peerService.isConnected {
+                auto.audioOwnerPeerId = peerService.localPeerId
+                auto.livePositionMs = currentPositionMs()
+                setAutonomousSession(auto)
+                ensureLocalAutonomousAudioMatchesState()
+                broadcastAutonomousStatePatchToPeer(throttled: false)
+                let missingLyrics = auto.lyrics.lines.isEmpty && !auto.lyrics.instrumental
+                if missingLyrics || auto.rhythm == nil {
+                    resolveCurrentAutonomousTrack(refresh: false, preserveExistingLyrics: !missingLyrics)
+                } else {
+                    scheduleAutonomousPrewarm()
+                }
+            }
+            // 若 prevOwner 是已连接的对端 Mac，对端收到 ownershipUpdate / portalThrow 后会精确采样停声并发送状态包交棒给本机
+        }
+        refreshAutonomousMirrorGlowWatcher()
+    }
+
+    private func applyIncomingAutonomousSync(_ incoming: AutonomousSessionPayload) {
+        disconnectTakeoverTask?.cancel()
+        snapshotHealTask?.cancel()
+        // 清理浏览器在线阶段残留的跨屏镜像虚拟会话，防止后续停止续播或断联时复活幽灵镜像态
+        tabSessions.removeValue(forKey: Self.remotePeerVirtualClientId)
+
+        var synced = incoming
+        synced.preloadedBundles = autonomousSessionStorage?.preloadedBundles ?? []
+        let prevTrackId = track?.id
+        let isNewTrack = prevTrackId != synced.track.id
+
+        track = synced.track
+        effectiveDurationMs = synced.track.durationMs
+        accentHex = synced.accentHex
+        chorusRanges = synced.chorus
+        updateLyrics(synced.lyrics, trackId: synced.track.id)
+        rhythm = synced.rhythm?.toEngineContext() ?? .fallback
+        playlist = synced.playlist
+        playlistComplete = synced.playlistComplete
+        currentIndex = synced.currentIndex
+        playMode = synced.playMode
+        volume = synced.volume
+        isMuted = synced.isMuted
+        preferences = synced.preferences
+        lyricStatus = synced.lyrics.lines.isEmpty && !synced.lyrics.instrumental ? "loading" : "ready"
+
+        let formChanged = (config.formMode != synced.config.formMode)
+        config = synced.config
+        if formChanged {
+            onLayoutTriggerChanged?()
+        }
+
+        if isNewTrack {
+            hiddenTrackId = nil
+            seekAtMs = -.infinity
+            debrisEngine.reset()
+            stageSpringEngine.reset()
+            compactStageParticles.reset()
+            expandedStageParticles.reset()
+            if networkServicesEnabled {
+                IslandArtworkCache.shared.preload(urlStrings: [synced.track.albumPic])
+            }
+            triggerAutonomousTrackPeekIfNeeded(for: synced.track)
+        }
+
+        let maxDur = effectiveDurationMs > 0 ? effectiveDurationMs : .infinity
+        let rawPos = synced.isPlaying
+            ? (synced.livePositionMs + peerService.oneWayLatencyMs)
+            : synced.livePositionMs
+        let clampedPos = max(0, min(maxDur, rawPos))
+        anchorPositionMs = clampedPos
+        anchorLocalDate = Date()
+        synced.livePositionMs = clampedPos
+        setAutonomousSession(synced)
+
+        activeClientId = Self.autonomousVirtualClientId
+        startupBannerText = nil
+        webVisible = true
+        applyAutonomousPlayStateUI(playing: synced.isPlaying)
+        updateAutonomousGlow(at: clampedPos)
+
+        ensureLocalAutonomousAudioMatchesState()
+        if synced.audioOwnerPeerId == peerService.localPeerId {
+            let missingLyrics = synced.lyrics.lines.isEmpty && !synced.lyrics.instrumental
+            if missingLyrics || synced.rhythm == nil {
+                resolveCurrentAutonomousTrack(refresh: false, preserveExistingLyrics: !missingLyrics)
+            } else {
+                scheduleAutonomousPrewarm()
+            }
+        }
+        refreshAutonomousMirrorGlowWatcher()
+        onLayoutTriggerChanged?()
+    }
+
+    private func applyIncomingAutonomousStatePatch(_ patch: AutonomousStatePatchPayload) {
+        guard var auto = autonomousSessionStorage, auto.track.id == patch.trackId else {
+            return
+        }
+        disconnectTakeoverTask?.cancel()
+
+        auto.sourceHostPeerId = patch.sourceHostPeerId
+        auto.audioOwnerPeerId = patch.audioOwnerPeerId
+        auto.isPlaying = patch.isPlaying
+        auto.playMode = patch.playMode
+        auto.volume = patch.volume
+        auto.isMuted = patch.isMuted
+        auto.preferences = patch.preferences
+
+        let formChanged = (config.formMode != patch.config.formMode)
+        auto.config = patch.config
+        config = patch.config
+        if formChanged {
+            onLayoutTriggerChanged?()
+        }
+
+        playMode = patch.playMode
+        volume = patch.volume
+        isMuted = patch.isMuted
+        preferences = patch.preferences
+
+        let isNewLocalOwner = patch.audioOwnerPeerId == peerService.localPeerId
+        if !isNewLocalOwner {
+            isAutonomousBuffering = patch.isBuffering
+        }
+
+        let maxDur = effectiveDurationMs > 0 ? effectiveDurationMs : .infinity
+        let rawPos = (patch.isPlaying && !patch.isBuffering)
+            ? (patch.livePositionMs + peerService.oneWayLatencyMs)
+            : patch.livePositionMs
+        let clampedPos = max(0, min(maxDur, rawPos))
+        anchorPositionMs = clampedPos
+        anchorLocalDate = Date()
+        auto.livePositionMs = clampedPos
+        setAutonomousSession(auto)
+
+        applyAutonomousPlayStateUI(playing: patch.isPlaying)
+        updateAutonomousGlow(at: clampedPos)
+        ensureLocalAutonomousAudioMatchesState()
+
+        if isNewLocalOwner {
+            let missingLyrics = auto.lyrics.lines.isEmpty && !auto.lyrics.instrumental
+            if missingLyrics || auto.rhythm == nil {
+                resolveCurrentAutonomousTrack(refresh: false, preserveExistingLyrics: !missingLyrics)
+            } else {
+                scheduleAutonomousPrewarm()
+            }
+        }
+        refreshAutonomousMirrorGlowWatcher()
+        onLayoutTriggerChanged?()
+    }
+
+    private func ensureLocalAutonomousAudioMatchesState() {
+        guard let auto = autonomousSessionStorage else {
+            nativeAudio.stop()
+            isAutonomousBuffering = false
+            return
+        }
+        guard auto.audioOwnerPeerId == peerService.localPeerId else {
+            nativeAudio.stop()
+            isAutonomousBuffering = false
+            return
+        }
+
+        nativeAudio.setVolume(volume, isMuted: isMuted)
+        let posMs = currentPositionMs()
+
+        if !nativeAudio.isActive || nativeAudio.activeTrackId != auto.track.id {
+            if auto.isPlaying {
+                isAutonomousBuffering = networkServicesEnabled
+                nativeAudio.startPlayback(
+                    origin: auto.origin,
+                    track: auto.track,
+                    startPositionMs: posMs,
+                    autoPlay: true,
+                    volume: volume,
+                    isMuted: isMuted
+                )
+                isAutonomousBuffering = nativeAudio.isBuffering
+            } else {
+                isAutonomousBuffering = false
+            }
+        } else {
+            let drift = abs(nativeAudio.lastObservedPositionMs - posMs)
+            if drift > 450 {
+                nativeAudio.seek(toMs: posMs)
+            }
+            if auto.isPlaying && !nativeAudio.isPlaying {
+                nativeAudio.play()
+                isAutonomousBuffering = nativeAudio.isBuffering
+            } else if !auto.isPlaying && nativeAudio.isPlaying {
+                nativeAudio.pause()
+                isAutonomousBuffering = false
+            }
+        }
+    }
+
+    private func broadcastAutonomousFullSyncToPeer() {
+        autonomousStatePatchThrottleTask?.cancel()
+        autonomousStatePatchThrottleTask = nil
+        guard peerService.isConnected, var auto = autonomousSessionStorage else { return }
+        auto.livePositionMs = currentPositionMs()
+        auto.isPlaying = isPlaying
+        auto.playMode = playMode
+        auto.volume = volume
+        auto.isMuted = isMuted
+        auto.preferences = preferences
+        auto.config = config
+        setAutonomousSession(auto)
+        lastAutonomousStatePatchSentAt = Date()
+        peerService.sendAutonomousSync(auto)
+    }
+
+    private func broadcastAutonomousStatePatchToPeer(throttled: Bool) {
+        guard peerService.isConnected, autonomousSessionStorage != nil else { return }
+        if throttled {
+            let elapsed = Date().timeIntervalSince(lastAutonomousStatePatchSentAt)
+            if elapsed < 0.065 {
+                if autonomousStatePatchThrottleTask == nil {
+                    let waitMs = max(16, Int((0.065 - elapsed) * 1000.0))
+                    autonomousStatePatchThrottleTask = Task { @MainActor [weak self] in
+                        try? await Task.sleep(for: .milliseconds(waitMs))
+                        guard !Task.isCancelled, let self else { return }
+                        self.autonomousStatePatchThrottleTask = nil
+                        self.sendAutonomousStatePatchNow()
+                    }
+                }
+                return
+            }
+        }
+        autonomousStatePatchThrottleTask?.cancel()
+        autonomousStatePatchThrottleTask = nil
+        sendAutonomousStatePatchNow()
+    }
+
+    private func sendAutonomousStatePatchNow() {
+        guard peerService.isConnected, var auto = autonomousSessionStorage else { return }
+        let pos = currentPositionMs()
+        auto.livePositionMs = pos
+        auto.isPlaying = isPlaying
+        auto.playMode = playMode
+        auto.volume = volume
+        auto.isMuted = isMuted
+        auto.preferences = preferences
+        auto.config = config
+        setAutonomousSession(auto)
+        lastAutonomousStatePatchSentAt = Date()
+
+        let patch = AutonomousStatePatchPayload(
+            trackId: auto.track.id,
+            sourceHostPeerId: auto.sourceHostPeerId,
+            audioOwnerPeerId: auto.audioOwnerPeerId,
+            livePositionMs: pos,
+            isPlaying: isPlaying,
+            isBuffering: isAutonomousBuffering,
+            playMode: playMode,
+            volume: volume,
+            isMuted: isMuted,
+            preferences: preferences,
+            config: config
+        )
+        peerService.sendAutonomousStatePatch(patch)
+    }
+
+    private func executeAutonomousCommand(_ cmd: OutgoingCommand) {
+        guard var auto = autonomousSessionStorage else { return }
+        if !peerService.isConnected && auto.audioOwnerPeerId != peerService.localPeerId {
+            auto.audioOwnerPeerId = peerService.localPeerId
+            setAutonomousSession(auto)
+        }
+
+        switch cmd.action {
+        case "play":
+            guard !isPlaying else { return }
+            consecutiveAutonomousFailures = 0
+            let pos = currentPositionMs()
+            anchorPositionMs = pos
+            anchorLocalDate = Date()
+            auto.isPlaying = true
+            auto.livePositionMs = pos
+            setAutonomousSession(auto)
+            applyAutonomousPlayStateUI(playing: true)
+            ensureLocalAutonomousAudioMatchesState()
+            broadcastAutonomousStatePatchToPeer(throttled: false)
+
+        case "pause":
+            guard isPlaying else { return }
+            let pos = currentPositionMs()
+            anchorPositionMs = pos
+            anchorLocalDate = Date()
+            isAutonomousBuffering = false
+            auto.isPlaying = false
+            auto.livePositionMs = pos
+            setAutonomousSession(auto)
+            if nativeAudio.isActive {
+                nativeAudio.pause()
+            }
+            applyAutonomousPlayStateUI(playing: false)
+            broadcastAutonomousStatePatchToPeer(throttled: false)
+
+        case "toggle":
+            if isPlaying {
+                executeAutonomousCommand(OutgoingCommand(action: "pause"))
+            } else {
+                executeAutonomousCommand(OutgoingCommand(action: "play"))
+            }
+
+        case "seek":
+            if let targetMs = cmd.positionMs, targetMs.isFinite {
+                let maxDur = effectiveDurationMs > 0 ? effectiveDurationMs : .infinity
+                let clamped = max(0, min(maxDur, targetMs))
+                seekAtMs = clamped
+                anchorPositionMs = clamped
+                anchorLocalDate = Date()
+                auto.livePositionMs = clamped
+                setAutonomousSession(auto)
+                if nativeAudio.isActive {
+                    nativeAudio.seek(toMs: clamped)
+                }
+                updateAutonomousGlow(at: clamped)
+                broadcastAutonomousStatePatchToPeer(throttled: false)
+            }
+
+        case "next":
+            stepAutonomousTrack(direction: 1, resetFailureCounter: true)
+
+        case "prev":
+            if currentPositionMs() > 3500 {
+                executeAutonomousCommand(OutgoingCommand(action: "seek", positionMs: 0))
+            } else {
+                stepAutonomousTrack(direction: -1, resetFailureCounter: true)
+            }
+
+        case "play_track":
+            if let idx = cmd.index {
+                consecutiveAutonomousFailures = 0
+                switchToAutonomousPlaylistIndex(idx)
+            }
+
+        case "set_mode":
+            if let mode = cmd.playMode {
+                playMode = mode
+                auto.playMode = mode
+                setAutonomousSession(auto)
+                broadcastAutonomousStatePatchToPeer(throttled: false)
+            }
+
+        case "set_volume":
+            if let vol = cmd.volume, vol.isFinite {
+                let clamped = max(0, min(1, vol))
+                volume = clamped
+                if isMuted && clamped > 0.001 {
+                    isMuted = false
+                }
+                auto.volume = volume
+                auto.isMuted = isMuted
+                setAutonomousSession(auto)
+                nativeAudio.setVolume(volume, isMuted: isMuted)
+                broadcastAutonomousStatePatchToPeer(throttled: true)
+            }
+
+        case "toggle_muted":
+            isMuted.toggle()
+            auto.isMuted = isMuted
+            setAutonomousSession(auto)
+            nativeAudio.setVolume(volume, isMuted: isMuted)
+            broadcastAutonomousStatePatchToPeer(throttled: false)
+
+        case "toggle_translation":
+            preferences.showTranslation.toggle()
+            auto.preferences = preferences
+            setAutonomousSession(auto)
+            broadcastAutonomousStatePatchToPeer(throttled: false)
+            if preferences.showTranslation {
+                resolveCurrentAutonomousTrack(refresh: false, preserveExistingLyrics: false)
+            }
+
+        case "toggle_romaji":
+            preferences.showRomaji.toggle()
+            auto.preferences = preferences
+            setAutonomousSession(auto)
+            broadcastAutonomousStatePatchToPeer(throttled: false)
+            if preferences.showRomaji {
+                resolveCurrentAutonomousTrack(refresh: false, preserveExistingLyrics: false)
+            }
+
+        case "toggle_effects":
+            preferences.showLyricEffects.toggle()
+            auto.preferences = preferences
+            setAutonomousSession(auto)
+            broadcastAutonomousStatePatchToPeer(throttled: false)
+
+        case "toggle_moments":
+            preferences.showLyricMoments.toggle()
+            auto.preferences = preferences
+            setAutonomousSession(auto)
+            broadcastAutonomousStatePatchToPeer(throttled: false)
+
+        case "toggle_hdr":
+            config.hdr.toggle()
+            auto.config = config
+            setAutonomousSession(auto)
+            broadcastAutonomousStatePatchToPeer(throttled: false)
+
+        case "reset_translation_langs":
+            preferences.translationSelections = []
+            preferences.showTranslation = true
+            auto.preferences = preferences
+            setAutonomousSession(auto)
+            broadcastAutonomousStatePatchToPeer(throttled: false)
+            resolveCurrentAutonomousTrack(refresh: false, preserveExistingLyrics: false)
+
+        case "toggle_translation_lang":
+            if let lang = cmd.lang, !lang.isEmpty {
+                preferences.translationSelections = StandaloneSongResolver.toggleTranslationSelection(
+                    current: preferences.translationSelections,
+                    lang: lang,
+                    preferNative: cmd.preferNative ?? false,
+                    hasDualSources: cmd.hasDualSources ?? false
+                )
+                preferences.showTranslation = true
+                auto.preferences = preferences
+                setAutonomousSession(auto)
+                broadcastAutonomousStatePatchToPeer(throttled: false)
+                resolveCurrentAutonomousTrack(refresh: false, preserveExistingLyrics: false)
+            }
+
+        case "refresh_lyrics":
+            lyricStatus = "loading"
+            resolveCurrentAutonomousTrack(refresh: true, preserveExistingLyrics: false)
+
+        case "ensure_playlist":
+            scheduleAutonomousPrewarm(forcePlaylist: true)
+
+        default:
+            break
+        }
+    }
+
+    private func handleAutonomousTrackEnded() {
+        guard let auto = autonomousSessionStorage, auto.audioOwnerPeerId == peerService.localPeerId else { return }
+        if playMode == .repeatOne || auto.playlist.count <= 1 {
+            anchorPositionMs = 0
+            anchorLocalDate = Date()
+            seekAtMs = 0
+            nativeAudio.seek(toMs: 0)
+            nativeAudio.play()
+            broadcastAutonomousStatePatchToPeer(throttled: false)
+            return
+        }
+        stepAutonomousTrack(direction: 1, resetFailureCounter: true)
+    }
+
+    private func stepAutonomousTrack(direction: Int, resetFailureCounter: Bool) {
+        if resetFailureCounter {
+            consecutiveAutonomousFailures = 0
+        }
+        guard let auto = autonomousSessionStorage, !auto.playlist.isEmpty else {
+            executeAutonomousCommand(OutgoingCommand(action: "seek", positionMs: 0))
+            return
+        }
+        let count = auto.playlist.count
+        let curPosInArray = auto.playlist.firstIndex(where: { $0.id == auto.track.id }) ?? 0
+        let nextPosInArray: Int
+        if playMode == .shuffle && count > 1 {
+            var pick = Int.random(in: 0..<count)
+            if pick == curPosInArray {
+                pick = (curPosInArray + 1) % count
+            }
+            nextPosInArray = pick
+        } else {
+            nextPosInArray = (curPosInArray + direction + count) % count
+        }
+        let item = auto.playlist[nextPosInArray]
+        switchToAutonomousTrackItem(item)
+    }
+
+    private func switchToAutonomousPlaylistIndex(_ targetIndex: Int) {
+        guard let auto = autonomousSessionStorage else { return }
+        if let matched = auto.playlist.first(where: { $0.index == targetIndex }) {
+            switchToAutonomousTrackItem(matched)
+        } else if auto.playlist.indices.contains(targetIndex) {
+            switchToAutonomousTrackItem(auto.playlist[targetIndex])
+        }
+    }
+
+    private func switchToAutonomousTrackItem(_ item: PlaylistTrackItem) {
+        guard var auto = autonomousSessionStorage else { return }
+        autonomousResolveTask?.cancel()
+
+        let cachedPreload = auto.preloadedBundles.first(where: { $0.track.id == item.id })
+        let nextTrack = cachedPreload?.track ?? StandaloneSongResolver.makeIslandTrack(from: item)
+
+        auto.track = nextTrack
+        auto.accentHex = cachedPreload?.accentHex
+        auto.chorus = cachedPreload?.chorus ?? []
+        auto.lyrics = cachedPreload?.lyrics ?? .empty
+        auto.rhythm = nil
+        auto.currentIndex = item.index
+        auto.livePositionMs = 0
+        auto.isPlaying = true
+        setAutonomousSession(auto)
+
+        track = nextTrack
+        effectiveDurationMs = nextTrack.durationMs
+        accentHex = auto.accentHex
+        chorusRanges = auto.chorus
+        updateLyrics(auto.lyrics, trackId: nextTrack.id)
+        rhythm = .fallback
+        currentIndex = item.index
+        lyricStatus = cachedPreload?.lyrics != nil ? "ready" : "loading"
+        seekAtMs = -.infinity
+        anchorPositionMs = 0
+        anchorLocalDate = Date()
+        hiddenTrackId = nil
+        debrisEngine.reset()
+        stageSpringEngine.reset()
+        compactStageParticles.reset()
+        expandedStageParticles.reset()
+        if networkServicesEnabled {
+            IslandArtworkCache.shared.preload(urlStrings: [nextTrack.albumPic])
+        }
+
+        let hasPreloadedLyrics = cachedPreload?.lyrics != nil
+            && (!(cachedPreload?.lyrics?.lines.isEmpty ?? true) || cachedPreload?.lyrics?.instrumental == true)
+        preferences.availableTranslationLangs = []
+        preferences.translationsGenerating = false
+        preferences.pronunciationsGenerating = false
+        if hasPreloadedLyrics, let preLyrics = cachedPreload?.lyrics {
+            syncCapabilityFlagsFromLyrics(preLyrics, availableLangs: nil)
+        } else {
+            preferences.canToggleTranslation = false
+            preferences.canToggleRomaji = false
+        }
+        auto.preferences = preferences
+        setAutonomousSession(auto)
+
+        applyAutonomousPlayStateUI(playing: true)
+        triggerAutonomousTrackPeekIfNeeded(for: nextTrack)
+        updateAutonomousGlow(at: 0)
+
+        ensureLocalAutonomousAudioMatchesState()
+        broadcastAutonomousFullSyncToPeer()
+
+        // 预热包仅含无副作用的基础歌词作 0ms 瞬显占位，必须继续以完整模式覆盖合并 AI 译文、音译、强调特效与歌手分轨
+        resolveCurrentAutonomousTrack(refresh: false, preserveExistingLyrics: false)
+    }
+
+    private func syncCapabilityFlagsFromLyrics(
+        _ bundle: LyricsBundlePayload,
+        availableLangs: [AvailableTranslationLangItem]?,
+        translationsGenerating: Bool = false,
+        pronunciationsGenerating: Bool = false
+    ) {
+        if let availableLangs {
+            preferences.availableTranslationLangs = availableLangs
+        }
+        let hasVocalLines = !bundle.instrumental && !bundle.lines.isEmpty
+        preferences.canToggleTranslation = hasVocalLines
+        preferences.canToggleRomaji = hasVocalLines
+        preferences.translationsGenerating = translationsGenerating
+        preferences.pronunciationsGenerating = pronunciationsGenerating
+    }
+
+    private func resolveCurrentAutonomousTrack(
+        refresh: Bool,
+        preserveExistingLyrics: Bool,
+        pollAttempt: Int = 0
+    ) {
+        guard networkServicesEnabled, let auto = autonomousSessionStorage else { return }
+        let origin = auto.origin
+        let curTrack = auto.track
+        let curPrefs = preferences
+
+        autonomousResolveTask?.cancel()
+        autonomousResolveTask = Task { @MainActor [weak self] in
+            let resolved = await StandaloneSongResolver.resolveTrackBundle(
+                origin: origin,
+                track: curTrack,
+                preferences: curPrefs,
+                refresh: refresh,
+                passivePreload: false
+            )
+            guard !Task.isCancelled,
+                  let self,
+                  var currentAuto = self.autonomousSessionStorage,
+                  currentAuto.track.id == curTrack.id else {
+                return
+            }
+            currentAuto.track = resolved.track
+            if let resolvedHex = resolved.accentHex {
+                currentAuto.accentHex = resolvedHex
+                self.accentHex = resolvedHex
+            }
+            if !resolved.chorus.isEmpty || currentAuto.chorus.isEmpty {
+                currentAuto.chorus = resolved.chorus
+                self.chorusRanges = resolved.chorus
+            }
+            let existingHasLyrics = !currentAuto.lyrics.lines.isEmpty || currentAuto.lyrics.instrumental
+            if !preserveExistingLyrics || !existingHasLyrics || refresh {
+                if !resolved.lyrics.lines.isEmpty || resolved.lyrics.instrumental || !existingHasLyrics || refresh {
+                    currentAuto.lyrics = resolved.lyrics
+                    self.updateLyrics(resolved.lyrics, trackId: resolved.track.id)
+                }
+            }
+            if let rData = resolved.rhythmData {
+                currentAuto.rhythm = rData
+                self.rhythm = rData.toEngineContext()
+            }
+            self.syncCapabilityFlagsFromLyrics(
+                currentAuto.lyrics,
+                availableLangs: resolved.availableTranslationLangs ?? [],
+                translationsGenerating: resolved.translationsGenerating,
+                pronunciationsGenerating: resolved.pronunciationsGenerating
+            )
+            currentAuto.preferences = self.preferences
+            self.setAutonomousSession(currentAuto)
+
+            self.track = resolved.track
+            if resolved.track.durationMs > 0 && self.effectiveDurationMs <= 0 {
+                self.effectiveDurationMs = resolved.track.durationMs
+            }
+            self.lyricStatus = currentAuto.lyrics.lines.isEmpty && !currentAuto.lyrics.instrumental ? "none" : "ready"
+            self.updateAutonomousGlow(at: self.currentPositionMs())
+            self.refreshAutonomousMirrorGlowWatcher()
+            self.broadcastAutonomousFullSyncToPeer()
+            if pollAttempt == 0 {
+                self.scheduleAutonomousPrewarm()
+            }
+            // 若当前曲目的按需 AI 翻译或音译仍在后台生成（pending），最多轻量轮询 6 次直至落盘刷新
+            if (resolved.translationsGenerating || resolved.pronunciationsGenerating) && pollAttempt < 6 {
+                try? await Task.sleep(for: .milliseconds(2500))
+                guard !Task.isCancelled,
+                      self.autonomousSessionStorage?.track.id == curTrack.id else {
+                    return
+                }
+                self.resolveCurrentAutonomousTrack(
+                    refresh: false,
+                    preserveExistingLyrics: false,
+                    pollAttempt: pollAttempt + 1
+                )
+            }
+        }
+    }
+
+    private func scheduleAutonomousPrewarm(forcePlaylist: Bool = false) {
+        guard networkServicesEnabled, let auto = autonomousSessionStorage, auto.audioOwnerPeerId == peerService.localPeerId else {
+            return
+        }
+        let origin = auto.origin
+        let needPlaylist = forcePlaylist || !auto.playlistComplete || auto.playlist.isEmpty
+        let curTrackId = auto.track.id
+        let curPrefs = preferences
+
+        autonomousPrewarmTask?.cancel()
+        autonomousPrewarmTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            if needPlaylist, let fullList = await StandaloneSongResolver.fetchPlaylist(origin: origin), !Task.isCancelled {
+                if var latest = self.autonomousSessionStorage {
+                    latest.playlist = fullList
+                    latest.playlistComplete = true
+                    if let matched = fullList.first(where: { $0.id == latest.track.id }) {
+                        latest.currentIndex = matched.index
+                        self.currentIndex = matched.index
+                    }
+                    self.setAutonomousSession(latest)
+                    self.playlist = fullList
+                    self.playlistComplete = true
+                    self.broadcastAutonomousFullSyncToPeer()
+                }
+            }
+
+            guard !Task.isCancelled, let latest = self.autonomousSessionStorage, latest.track.id == curTrackId, latest.playlist.count > 1 else {
+                return
+            }
+            let list = latest.playlist
+            guard let idx = list.firstIndex(where: { $0.id == curTrackId }) else { return }
+            let nextItem = list[(idx + 1) % list.count]
+            let prevItem = list[(idx - 1 + list.count) % list.count]
+
+            for candidate in [nextItem, prevItem] where candidate.id != curTrackId {
+                if Task.isCancelled { return }
+                if self.autonomousSessionStorage?.preloadedBundles.contains(where: { $0.track.id == candidate.id }) == true {
+                    continue
+                }
+                let candidateTrack = StandaloneSongResolver.makeIslandTrack(from: candidate)
+                let resolved = await StandaloneSongResolver.resolveTrackBundle(
+                    origin: origin,
+                    track: candidateTrack,
+                    preferences: curPrefs,
+                    passivePreload: true
+                )
+                guard !Task.isCancelled, var targetAuto = self.autonomousSessionStorage else { return }
+                let preload = PreloadedTrackBundle(
+                    track: resolved.track,
+                    accentHex: resolved.accentHex,
+                    chorus: resolved.chorus,
+                    lyrics: resolved.lyrics
+                )
+                targetAuto.preloadedBundles.removeAll { $0.track.id == candidate.id }
+                targetAuto.preloadedBundles.append(preload)
+                if targetAuto.preloadedBundles.count > 8 {
+                    targetAuto.preloadedBundles.removeFirst()
+                }
+                self.setAutonomousSession(targetAuto)
+            }
+        }
+    }
+
+    private func applyAutonomousPlayStateUI(playing: Bool) {
+        autonomousPauseSettleTask?.cancel()
+        if playing {
+            withAnimation(.spring(duration: 0.36, bounce: 0.22)) {
+                isPlaying = true
+                showPlaying = true
+            }
+            pausedText = nil
+            refreshAutonomousMirrorGlowWatcher()
+        } else {
+            let pos = currentPositionMs()
+            let focusIdx = timelineState(at: pos).focus
+            let focusLineText = focusIdx.flatMap { lyrics.lines.indices.contains($0) ? lyrics.lines[$0].plainText : nil }
+            let cleanFocus = focusLineText?.trimmingCharacters(in: .whitespacesAndNewlines)
+            pausedText = (cleanFocus?.isEmpty == false) ? cleanFocus : track?.inlineTitle
+            withAnimation(.spring(duration: 0.36, bounce: 0.22)) {
+                isPlaying = false
+            }
+            refreshAutonomousMirrorGlowWatcher()
+            autonomousPauseSettleTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(350))
+                guard !Task.isCancelled, let self, self.isAutonomousMode, !self.isPlaying else { return }
+                withAnimation(.spring(duration: 0.36, bounce: 0.22)) {
+                    self.showPlaying = false
+                }
+            }
+        }
+    }
+
+    private func triggerAutonomousTrackPeekIfNeeded(for nextTrack: IslandTrack) {
+        autonomousPeekTask?.cancel()
+        guard !nextTrack.inlineTitle.isEmpty else {
+            peekText = nil
+            return
+        }
+        peekText = nextTrack.inlineTitle
+        autonomousPeekTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(1500))
+            guard !Task.isCancelled, let self else { return }
+            withAnimation(.easeOut(duration: 0.24)) {
+                self.peekText = nil
+            }
+        }
+    }
+
+    private func updateAutonomousGlow(at ms: Double) {
+        guard config.chorusGlow else {
+            if glow != nil { glow = nil }
+            return
+        }
+        let inChorus = chorusRanges.contains { ms >= $0.start && ms <= $0.end }
+        if inChorus {
+            let hex = accentHex ?? "#2dd4bf"
+            if glow?.color != hex {
+                glow = IslandGlowPayload(color: hex, strong: true)
+            }
+        } else if glow != nil {
+            glow = nil
+        }
+    }
+
+    private func refreshAutonomousMirrorGlowWatcher() {
+        let needsWatcher = isAutonomousMode
+            && !isLocalAutonomousAudioOwner
+            && isPlaying
+            && config.chorusGlow
+            && !chorusRanges.isEmpty
+        if !needsWatcher {
+            autonomousMirrorGlowTask?.cancel()
+            autonomousMirrorGlowTask = nil
+            if !config.chorusGlow && glow != nil {
+                glow = nil
+            }
+            return
+        }
+        guard autonomousMirrorGlowTask == nil else { return }
+        autonomousMirrorGlowTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(350))
+                guard !Task.isCancelled, let self else { return }
+                guard self.isAutonomousMode && !self.isLocalAutonomousAudioOwner && self.isPlaying else {
+                    self.autonomousMirrorGlowTask = nil
+                    return
+                }
+                self.updateAutonomousGlow(at: self.currentPositionMs())
+            }
+        }
+    }
+
+    private func maybeOfferAutonomousAdoption(to clientId: UUID, origin: String, auto: AutonomousSessionPayload, force: Bool) {
+        if !force && offeredAdoptionClientIds.contains(clientId) {
+            return
+        }
+        // 仅在当前本机正持有灵动岛显示与发声权时才向本机新开浏览器提供反向接管，严禁已甩屏隐藏的原主机抢回对端播放权
+        guard auto.audioOwnerPeerId == peerService.localPeerId && !isIslandHandedOffToPeer else {
+            return
+        }
+        guard Self.isSameOrigin(origin, auto.origin) else { return }
+        sendAdoptCommandToBrowserClient(clientId, force: force)
+    }
+
+    private func sendAdoptCommandToBrowserClient(_ clientId: UUID, force: Bool) {
+        guard let auto = autonomousSessionStorage else { return }
+        if !force && offeredAdoptionClientIds.contains(clientId) {
+            return
+        }
+        offeredAdoptionClientIds.insert(clientId)
+        let cmd = OutgoingCommand(
+            action: "adopt_native_session",
+            positionMs: currentPositionMs(),
+            playMode: playMode,
+            volume: volume,
+            trackId: auto.track.id,
+            isPlaying: isPlaying,
+            muted: isMuted,
+            force: force,
+            hdr: config.hdr,
+            preferences: preferences
+        )
+        onInterceptCommandForTest?(cmd)
+        bridgeServer.sendCommand(cmd, to: clientId)
+    }
+
+    func stopAutonomousPlayback(notifyPeer: Bool = true) {
+        exitAutonomousPlayback(adoptedByLocalClient: nil, notifyPeer: notifyPeer)
+    }
+
+    private func exitAutonomousPlayback(adoptedByLocalClient clientId: UUID?, notifyPeer: Bool) {
+        disconnectTakeoverTask?.cancel()
+        disconnectTakeoverTask = nil
+        autonomousResolveTask?.cancel()
+        autonomousResolveTask = nil
+        autonomousPrewarmTask?.cancel()
+        autonomousPrewarmTask = nil
+        autonomousPeekTask?.cancel()
+        autonomousPeekTask = nil
+        autonomousPauseSettleTask?.cancel()
+        autonomousPauseSettleTask = nil
+        autonomousMirrorGlowTask?.cancel()
+        autonomousMirrorGlowTask = nil
+        autonomousStatePatchThrottleTask?.cancel()
+        autonomousStatePatchThrottleTask = nil
+        consecutiveAutonomousFailures = 0
+        offeredAdoptionClientIds.removeAll()
+
+        nativeAudio.stop()
+        setAutonomousSession(nil)
+
+        if notifyPeer && peerService.isConnected {
+            peerService.sendAutonomousStop()
+        }
+
+        if let clientId, let session = tabSessions[clientId] {
+            activeClientId = clientId
+            applyActiveSession(session, updateClock: true)
+            if peerService.isConnected {
+                pushFullSnapshotToConnectedPeer()
+            }
+        } else {
+            if tabSessions[Self.remotePeerVirtualClientId]?.state?.isPlaying != true {
+                tabSessions.removeValue(forKey: Self.remotePeerVirtualClientId)
+            }
+            electNextActiveTab()
+        }
+        onLayoutTriggerChanged?()
     }
 }

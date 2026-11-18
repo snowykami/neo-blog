@@ -69,6 +69,9 @@ struct PeerWirePacket: Codable, Sendable {
         case portalCancel = "portal_cancel"
         case portalThrow = "portal_throw"
         case ownershipUpdate = "ownership_update"
+        case autonomousSync = "autonomous_sync"
+        case autonomousStatePatch = "autonomous_state_patch"
+        case autonomousStop = "autonomous_stop"
     }
 
     let kind: Kind
@@ -84,6 +87,8 @@ struct PeerWirePacket: Codable, Sendable {
     var portal: PeerPortalPayload? = nil
     var ownership: PeerDisplayOwnership? = nil
     var activeOwnerPeerId: String? = nil
+    var autonomousSession: AutonomousSessionPayload? = nil
+    var autonomousStatePatch: AutonomousStatePatchPayload? = nil
 }
 
 /// 基于 Apple Network.framework (`includePeerToPeer = true` / AWDL `awdl0` + Bonjour `_neoblog._tcp`) 的跨 Mac 点对点直连服务：
@@ -151,6 +156,9 @@ final class PeerContinuityService {
     @ObservationIgnored var onReceivePortalPreview: ((PeerPortalPayload?) -> Void)?
     @ObservationIgnored var onReceivePortalThrow: ((PeerPortalPayload) -> Void)?
     @ObservationIgnored var onReceiveOwnershipUpdate: ((PeerDisplayOwnership, String?) -> Void)?
+    @ObservationIgnored var onReceiveAutonomousSync: ((AutonomousSessionPayload) -> Void)?
+    @ObservationIgnored var onReceiveAutonomousStatePatch: ((AutonomousStatePatchPayload) -> Void)?
+    @ObservationIgnored var onReceiveAutonomousStop: (() -> Void)?
 
     init(
         overridePeerId: String? = nil,
@@ -740,6 +748,18 @@ final class PeerContinuityService {
         case .ownershipUpdate:
             guard box.isAuthenticated, let mode = packet.ownership else { return }
             onReceiveOwnershipUpdate?(mode, packet.activeOwnerPeerId)
+
+        case .autonomousSync:
+            guard box.isAuthenticated, let session = packet.autonomousSession else { return }
+            onReceiveAutonomousSync?(session)
+
+        case .autonomousStatePatch:
+            guard box.isAuthenticated, let patch = packet.autonomousStatePatch else { return }
+            onReceiveAutonomousStatePatch?(patch)
+
+        case .autonomousStop:
+            guard box.isAuthenticated else { return }
+            onReceiveAutonomousStop?()
         }
     }
 
@@ -788,5 +808,27 @@ final class PeerContinuityService {
                 activeOwnerPeerId: activeOwnerPeerId
             )
         )
+    }
+
+    func sendAutonomousSync(_ session: AutonomousSessionPayload) {
+        sendToActivePeer(
+            PeerWirePacket(
+                kind: .autonomousSync,
+                autonomousSession: session.withoutPreloads()
+            )
+        )
+    }
+
+    func sendAutonomousStatePatch(_ patch: AutonomousStatePatchPayload) {
+        sendToActivePeer(
+            PeerWirePacket(
+                kind: .autonomousStatePatch,
+                autonomousStatePatch: patch
+            )
+        )
+    }
+
+    func sendAutonomousStop() {
+        sendToActivePeer(PeerWirePacket(kind: .autonomousStop))
     }
 }

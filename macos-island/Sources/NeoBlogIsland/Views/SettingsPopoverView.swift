@@ -11,7 +11,11 @@ struct SettingsPopoverView: View {
             HStack(spacing: 10) {
                 Image(systemName: "waveform.circle.fill")
                     .font(.system(size: 22))
-                    .foregroundStyle(store.connectedOrigins.isEmpty ? .secondary : store.accentColor)
+                    .foregroundStyle(
+                        (!store.connectedOrigins.isEmpty || store.isAutonomousMode)
+                            ? store.accentColor
+                            : .secondary
+                    )
 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
@@ -25,9 +29,13 @@ struct SettingsPopoverView: View {
                             .padding(.vertical, 1.5)
                             .background(Color.primary.opacity(0.07), in: Capsule())
                     }
-                    Text("纯显示与遥控端 · 监听 127.0.0.1:\(store.boundPort)")
-                        .font(.system(size: 11).monospacedDigit())
-                        .foregroundStyle(.secondary)
+                    Text(
+                        store.isAutonomousMode
+                            ? "内置音频续播中 · 监听 127.0.0.1:\(store.boundPort)"
+                            : "显示遥控与断联续播 · 监听 127.0.0.1:\(store.boundPort)"
+                    )
+                    .font(.system(size: 11).monospacedDigit())
+                    .foregroundStyle(.secondary)
                 }
                 Spacer()
             }
@@ -35,39 +43,67 @@ struct SettingsPopoverView: View {
             Divider()
 
             VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Circle()
-                        .fill(
-                            !store.connectedOrigins.isEmpty ? Color.green
-                            : (store.isDisplayingRemotePeerSession ? Color.cyan : Color.orange)
-                        )
-                        .frame(width: 7, height: 7)
-                    Text(
-                        !store.connectedOrigins.isEmpty ? "已连接本机博客页面"
-                        : (store.isDisplayingRemotePeerSession ? "正在镜像跨屏 Mac 音乐流" : "等待博客页面连接…")
-                    )
-                    .font(.system(size: 12, weight: .semibold))
-                }
+                if store.isAutonomousMode {
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(Color.mint)
+                            .frame(width: 7, height: 7)
+                        Text("灵动岛内置独立续播中（发声：\(store.autonomousAudioOwnerLabel)）")
+                            .font(.system(size: 12, weight: .semibold))
+                            .lineLimit(1)
+                    }
 
-                if store.connectedOrigins.isEmpty && !store.isDisplayingRemotePeerSession {
-                    Text("在任一台 Mac 打开博客页面并播放音乐即可自动连接（也可在「后台 › 个人设置 › 个性化」自定义外观）。")
-                        .font(.system(size: 11.5))
+                    Text(store.autonomousOrigin)
+                        .font(.system(size: 11.5).monospaced())
                         .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .lineLimit(1)
+
+                    HStack(spacing: 8) {
+                        Button("交回浏览器播放") {
+                            store.openBlogPlayerPage()
+                        }
+                        .controlSize(.small)
+
+                        Button("停止续播") {
+                            store.stopAutonomousPlayback()
+                        }
+                        .controlSize(.small)
+                    }
                 } else {
-                    ForEach(store.connectedOrigins, id: \.self) { origin in
-                        HStack(spacing: 6) {
-                            Text(origin)
-                                .font(.system(size: 11.5).monospaced())
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                            Spacer()
-                            Button("打开个性化设置") {
-                                if let url = URL(string: "\(origin)/console/user-preference") {
-                                    NSWorkspace.shared.open(url)
+                    HStack {
+                        Circle()
+                            .fill(
+                                !store.connectedOrigins.isEmpty ? Color.green
+                                : (store.isDisplayingRemotePeerSession ? Color.cyan : Color.orange)
+                            )
+                            .frame(width: 7, height: 7)
+                        Text(
+                            !store.connectedOrigins.isEmpty ? "已连接本机博客页面"
+                            : (store.isDisplayingRemotePeerSession ? "正在镜像跨屏 Mac 音乐流" : "等待博客页面连接…")
+                        )
+                        .font(.system(size: 12, weight: .semibold))
+                    }
+
+                    if store.connectedOrigins.isEmpty && !store.isDisplayingRemotePeerSession {
+                        Text("在任一台 Mac 打开博客页面并播放音乐即可自动连接；浏览器关闭后会自动无缝切换至灵动岛内置续播。")
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        ForEach(store.connectedOrigins, id: \.self) { origin in
+                            HStack(spacing: 6) {
+                                Text(origin)
+                                    .font(.system(size: 11.5).monospaced())
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                                Spacer()
+                                Button("打开个性化设置") {
+                                    if let url = URL(string: "\(origin)/console/user-preference") {
+                                        NSWorkspace.shared.open(url)
+                                    }
                                 }
+                                .controlSize(.mini)
                             }
-                            .controlSize(.mini)
                         }
                     }
                 }

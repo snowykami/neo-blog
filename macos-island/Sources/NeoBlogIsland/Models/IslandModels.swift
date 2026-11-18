@@ -4,7 +4,7 @@ import SwiftUI
 
 // MARK: - 播放模式与顶部形态
 
-enum PlayMode: String, Codable, CaseIterable {
+enum PlayMode: String, Codable, CaseIterable, Sendable {
     case repeatAll = "repeat-all"
     case repeatOne = "repeat-one"
     case shuffle = "shuffle"
@@ -32,7 +32,7 @@ enum PlayMode: String, Codable, CaseIterable {
     }
 }
 
-enum IslandFormMode: String, Codable, CaseIterable {
+enum IslandFormMode: String, Codable, CaseIterable, Sendable {
     case auto = "auto"
     case notchMerged = "notch"
     case floatingCapsule = "capsule"
@@ -48,7 +48,7 @@ enum IslandFormMode: String, Codable, CaseIterable {
 
 // MARK: - 网页端 → macOS 灵动岛协议模型
 
-struct IslandTrack: Codable, Equatable, Identifiable {
+struct IslandTrack: Codable, Equatable, Identifiable, Sendable {
     let id: Int
     let name: String
     let titleExtra: String?
@@ -68,6 +68,29 @@ struct IslandTrack: Codable, Equatable, Identifiable {
         case albumPic = "album_pic"
         case durationMs = "duration_ms"
         case legacyDuration = "duration"
+    }
+
+    init(
+        id: Int,
+        name: String,
+        titleExtra: String? = nil,
+        artists: [String] = [],
+        displayArtists: [String]? = nil,
+        inlineTitle: String? = nil,
+        album: String = "",
+        albumPic: String? = nil,
+        durationMs: Double = 0
+    ) {
+        self.id = id
+        self.name = name
+        self.titleExtra = titleExtra
+        self.artists = artists
+        self.displayArtists = displayArtists
+        let resolvedArtists = (displayArtists?.isEmpty == false ? displayArtists! : artists).joined(separator: " / ")
+        self.inlineTitle = inlineTitle ?? ([name, resolvedArtists].filter { !$0.isEmpty }.joined(separator: " - "))
+        self.album = album
+        self.albumPic = albumPic
+        self.durationMs = durationMs
     }
 
     init(from decoder: Decoder) throws {
@@ -103,7 +126,7 @@ struct IslandTrack: Codable, Equatable, Identifiable {
     }
 }
 
-struct PlaylistTrackItem: Codable, Equatable, Identifiable {
+struct PlaylistTrackItem: Codable, Equatable, Identifiable, Sendable {
     let index: Int
     let id: Int
     let name: String
@@ -308,25 +331,25 @@ enum PlaylistSearchFilter {
     }
 }
 
-struct TimeIntervalRange: Codable, Equatable {
+struct TimeIntervalRange: Codable, Equatable, Sendable {
     let start: Double
     let end: Double
 }
 
-struct LyricRubyPayload: Codable, Equatable {
+struct LyricRubyPayload: Codable, Equatable, Sendable {
     let text: String
     let start: Double
     let end: Double
 }
 
-struct LyricRomanWordPayload: Codable, Equatable {
+struct LyricRomanWordPayload: Codable, Equatable, Sendable {
     let text: String
     let start: Double
     let end: Double
     let word: Int
 }
 
-struct LyricWordPayload: Codable, Equatable {
+struct LyricWordPayload: Codable, Equatable, Sendable {
     let text: String
     let start: Double
     let end: Double
@@ -340,12 +363,12 @@ struct LyricWordPayload: Codable, Equatable {
     }
 }
 
-struct LyricSpritePathPayload: Codable, Equatable {
+struct LyricSpritePathPayload: Codable, Equatable, Sendable {
     let d: String
     let paint: String
 }
 
-struct LyricSpritePayload: Codable, Equatable {
+struct LyricSpritePayload: Codable, Equatable, Sendable {
     let name: String
     let paths: [LyricSpritePathPayload]
     let motion: String
@@ -356,6 +379,22 @@ struct LyricSpritePayload: Codable, Equatable {
     enum CodingKeys: String, CodingKey {
         case name, paths, motion, size, spin
         case colorHex = "color_hex"
+    }
+
+    init(
+        name: String,
+        paths: [LyricSpritePathPayload],
+        motion: String = "fall",
+        size: String = "m",
+        spin: Bool = false,
+        colorHex: String = "#ffffff"
+    ) {
+        self.name = name
+        self.paths = paths
+        self.motion = motion
+        self.size = size
+        self.spin = spin
+        self.colorHex = colorHex
     }
 
     init(from decoder: Decoder) throws {
@@ -369,7 +408,7 @@ struct LyricSpritePayload: Codable, Equatable {
     }
 }
 
-struct LyricEmphasisPayload: Codable, Equatable {
+struct LyricEmphasisPayload: Codable, Equatable, Sendable {
     let from: Int
     let to: Int
     let start: Double
@@ -384,6 +423,30 @@ struct LyricEmphasisPayload: Codable, Equatable {
     enum CodingKeys: String, CodingKey {
         case from, to, start, end, factor, effect, font, styles, hold
         case colorHex = "color_hex"
+    }
+
+    init(
+        from: Int,
+        to: Int,
+        start: Double,
+        end: Double,
+        factor: Double,
+        effect: String,
+        colorHex: String? = nil,
+        font: String? = nil,
+        styles: [String] = [],
+        hold: TimeIntervalRange? = nil
+    ) {
+        self.from = from
+        self.to = to
+        self.start = start
+        self.end = end
+        self.factor = factor
+        self.effect = effect
+        self.colorHex = colorHex
+        self.font = font
+        self.styles = styles
+        self.hold = hold
     }
 
     init(from decoder: Decoder) throws {
@@ -401,12 +464,12 @@ struct LyricEmphasisPayload: Codable, Equatable {
     }
 }
 
-struct SingerColorDot: Identifiable, Equatable {
+struct SingerColorDot: Identifiable, Equatable, Sendable {
     let id: String
     let hex: String
 }
 
-struct LyricLinePayload: Codable, Equatable {
+struct LyricLinePayload: Codable, Equatable, Sendable {
     let start: Double
     let end: Double
     let isDuet: Bool
@@ -449,6 +512,56 @@ struct LyricLinePayload: Codable, Equatable {
         case moodHex = "mood_hex"
         case sceneColorHex = "scene_color_hex"
         case sceneLines = "scene_lines"
+    }
+
+    init(
+        start: Double,
+        end: Double,
+        isDuet: Bool = false,
+        isBackground: Bool = false,
+        align: String? = nil,
+        owner: Int = -1,
+        paragraphStart: Bool = false,
+        backgroundPosition: String? = nil,
+        chorusStart: Bool = false,
+        edgeColors: [String]? = nil,
+        singerName: String? = nil,
+        singerDotOnly: Bool = false,
+        translation: String? = nil,
+        secondaryTranslation: String? = nil,
+        romanization: String? = nil,
+        romanizationWords: [LyricRomanWordPayload] = [],
+        moodHex: String? = nil,
+        scene: String? = nil,
+        sceneColorHex: String? = nil,
+        sceneLines: Int? = nil,
+        words: [LyricWordPayload],
+        emphasis: [LyricEmphasisPayload] = []
+    ) {
+        self.start = start
+        self.end = end
+        self.isDuet = isDuet
+        self.isBackground = isBackground
+        self.align = align ?? (isDuet ? "right" : "left")
+        self.owner = owner
+        self.paragraphStart = paragraphStart
+        self.backgroundPosition = backgroundPosition
+        self.chorusStart = chorusStart
+        self.edgeColors = edgeColors
+        self.singerName = singerName
+        self.singerDotOnly = singerDotOnly
+        self.translation = translation
+        self.secondaryTranslation = secondaryTranslation
+        self.romanization = romanization
+        self.romanizationWords = romanizationWords
+        self.moodHex = moodHex
+        self.scene = scene
+        self.sceneColorHex = sceneColorHex
+        self.sceneLines = sceneLines
+        self.words = words
+        self.emphasis = emphasis
+        self.plainText = words.map(\.text).joined()
+        self.hasFurigana = words.contains { ($0.ruby?.isEmpty == false) }
     }
 
     init(from decoder: Decoder) throws {
@@ -511,19 +624,19 @@ enum StageTimelineEntry: Identifiable, Equatable {
     }
 }
 
-struct LyricNotePayload: Codable, Equatable {
+struct LyricNotePayload: Codable, Equatable, Sendable {
     let start: Double
     let content: String
     let source: String
     let liked: Int?
 }
 
-struct LyricOutroPayload: Codable, Equatable {
+struct LyricOutroPayload: Codable, Equatable, Sendable {
     let content: String
     let liked: Int
 }
 
-struct LyricsBundlePayload: Codable, Equatable {
+struct LyricsBundlePayload: Codable, Equatable, Sendable {
     let source: String
     let sourceName: String?
     let font: String?
@@ -626,12 +739,12 @@ struct LyricsBundlePayload: Codable, Equatable {
     )
 }
 
-struct IslandGlowPayload: Codable, Equatable {
+struct IslandGlowPayload: Codable, Equatable, Sendable {
     let color: String
     let strong: Bool
 }
 
-struct TranslationSelectionItem: Codable, Equatable {
+struct TranslationSelectionItem: Codable, Equatable, Sendable {
     let lang: String
     let preferNative: Bool
 
@@ -641,7 +754,7 @@ struct TranslationSelectionItem: Codable, Equatable {
     }
 }
 
-struct AvailableTranslationLangItem: Codable, Equatable, Identifiable {
+struct AvailableTranslationLangItem: Codable, Equatable, Identifiable, Sendable {
     var id: String { lang }
     let lang: String
     let label: String
@@ -656,7 +769,7 @@ struct AvailableTranslationLangItem: Codable, Equatable, Identifiable {
     }
 }
 
-struct IslandLyricPreferences: Codable, Equatable {
+struct IslandLyricPreferences: Codable, Equatable, Sendable {
     var showTranslation: Bool
     var canToggleTranslation: Bool
     var translationsGenerating: Bool
@@ -722,7 +835,7 @@ struct IslandLyricPreferences: Codable, Equatable {
     static let `default` = IslandLyricPreferences()
 }
 
-struct IslandDisplayConfig: Codable, Equatable {
+struct IslandDisplayConfig: Codable, Equatable, Sendable {
     var formMode: IslandFormMode
     var expandable: Bool
     var beatBars: Bool
@@ -765,7 +878,7 @@ struct IslandDisplayConfig: Codable, Equatable {
 
 // MARK: - WebSocket 入站与出站帧
 
-struct PreloadedTrackBundle: Codable, Equatable {
+struct PreloadedTrackBundle: Codable, Equatable, Sendable {
     let track: IslandTrack
     let accentHex: String?
     let chorus: [TimeIntervalRange]?
@@ -774,6 +887,18 @@ struct PreloadedTrackBundle: Codable, Equatable {
     enum CodingKeys: String, CodingKey {
         case track, chorus, lyrics
         case accentHex = "accent_hex"
+    }
+
+    init(
+        track: IslandTrack,
+        accentHex: String? = nil,
+        chorus: [TimeIntervalRange]? = nil,
+        lyrics: LyricsBundlePayload? = nil
+    ) {
+        self.track = track
+        self.accentHex = accentHex
+        self.chorus = chorus
+        self.lyrics = lyrics
     }
 }
 
@@ -807,7 +932,7 @@ struct WebMediaMessage: Codable {
     }
 }
 
-struct RhythmDataPayload: Codable {
+struct RhythmDataPayload: Codable, Equatable, Sendable {
     let reliable: Bool
     let basePeriodMs: Double
     let trains: [String: [[Double]]]
@@ -815,6 +940,12 @@ struct RhythmDataPayload: Codable {
     enum CodingKeys: String, CodingKey {
         case reliable, trains
         case basePeriodMs = "base_period_ms"
+    }
+
+    init(reliable: Bool, basePeriodMs: Double, trains: [String: [[Double]]]) {
+        self.reliable = reliable
+        self.basePeriodMs = basePeriodMs
+        self.trains = trains
     }
 
     func toEngineContext() -> RhythmEngineContext {
@@ -866,6 +997,7 @@ struct WebStateMessage: Codable {
     let hasPlayed: Bool
     let showPlaying: Bool
     let isPlaying: Bool
+    let audioPlaying: Bool?
     let pendingStep: Int?
     let trackId: Int?
     let lyricStatus: String
@@ -889,6 +1021,7 @@ struct WebStateMessage: Codable {
         case hasPlayed = "has_played"
         case showPlaying = "show_playing"
         case isPlaying = "is_playing"
+        case audioPlaying = "audio_playing"
         case pendingStep = "pending_step"
         case trackId = "track_id"
         case lyricStatus = "lyric_status"
@@ -910,6 +1043,7 @@ struct WebStateMessage: Codable {
         hasPlayed = try c.decodeIfPresent(Bool.self, forKey: .hasPlayed) ?? false
         showPlaying = try c.decode(Bool.self, forKey: .showPlaying)
         isPlaying = try c.decode(Bool.self, forKey: .isPlaying)
+        audioPlaying = try c.decodeIfPresent(Bool.self, forKey: .audioPlaying)
         pendingStep = try c.decodeIfPresent(Int.self, forKey: .pendingStep)
         trackId = try c.decodeIfPresent(Int.self, forKey: .trackId)
         lyricStatus = try c.decodeIfPresent(String.self, forKey: .lyricStatus) ?? "ready"
@@ -929,7 +1063,80 @@ struct WebStateMessage: Codable {
     }
 }
 
-struct OutgoingCommand: Codable {
+/// 浏览器断联后的灵动岛内置独立续播会话快照（支持单机、跨屏流转「声随岛走」与双机同显「原源主机播放」）
+struct AutonomousSessionPayload: Codable, Equatable, Sendable {
+    var origin: String
+    /// 最初运行浏览器的源主机 peerId（双机同显模式下固定由该主机播放音频）
+    var sourceHostPeerId: String
+    /// 当前实际由哪台 Mac 的内置播放器负责输出声音
+    var audioOwnerPeerId: String
+    var track: IslandTrack
+    var accentHex: String?
+    var chorus: [TimeIntervalRange]
+    var lyrics: LyricsBundlePayload
+    var rhythm: RhythmDataPayload?
+    var playlist: [PlaylistTrackItem]
+    var playlistComplete: Bool
+    var currentIndex: Int?
+    var preloadedBundles: [PreloadedTrackBundle]
+    var livePositionMs: Double
+    var isPlaying: Bool
+    var playMode: PlayMode
+    var volume: Double
+    var isMuted: Bool
+    var preferences: IslandLyricPreferences
+    var config: IslandDisplayConfig
+
+    enum CodingKeys: String, CodingKey {
+        case origin, track, chorus, lyrics, rhythm, playlist, volume, preferences, config
+        case sourceHostPeerId = "source_host_peer_id"
+        case audioOwnerPeerId = "audio_owner_peer_id"
+        case accentHex = "accent_hex"
+        case playlistComplete = "playlist_complete"
+        case currentIndex = "current_index"
+        case preloadedBundles = "preloaded_bundles"
+        case livePositionMs = "live_position_ms"
+        case isPlaying = "is_playing"
+        case playMode = "play_mode"
+        case isMuted = "is_muted"
+    }
+
+    /// 跨机网络传输前剥离重型预热缓存（对端成为发声端时会按需本地预热），将单包体积降低 80%+
+    func withoutPreloads() -> AutonomousSessionPayload {
+        var copy = self
+        copy.preloadedBundles = []
+        return copy
+    }
+}
+
+/// 内置续播态下的高频轻量跨机状态增量包（仅数百字节，用于进度跳转、播放/暂停、音量、模式、偏好与发声权交棒）
+struct AutonomousStatePatchPayload: Codable, Equatable, Sendable {
+    var trackId: Int
+    var sourceHostPeerId: String
+    var audioOwnerPeerId: String
+    var livePositionMs: Double
+    var isPlaying: Bool
+    var isBuffering: Bool
+    var playMode: PlayMode
+    var volume: Double
+    var isMuted: Bool
+    var preferences: IslandLyricPreferences
+    var config: IslandDisplayConfig
+
+    enum CodingKeys: String, CodingKey {
+        case volume, preferences, config
+        case trackId = "track_id"
+        case sourceHostPeerId = "source_host_peer_id"
+        case audioOwnerPeerId = "audio_owner_peer_id"
+        case livePositionMs = "live_position_ms"
+        case isPlaying = "is_playing"
+        case isBuffering = "is_buffering"
+        case playMode = "play_mode"
+        case isMuted = "is_muted"
+    }
+}
+
+struct OutgoingCommand: Codable, Equatable, Sendable {
     let action: String
     var positionMs: Double? = nil
     var index: Int? = nil
@@ -939,14 +1146,22 @@ struct OutgoingCommand: Codable {
     var preferNative: Bool? = nil
     var hasDualSources: Bool? = nil
     var focusToken: String? = nil
+    var trackId: Int? = nil
+    var isPlaying: Bool? = nil
+    var muted: Bool? = nil
+    var force: Bool? = nil
+    var hdr: Bool? = nil
+    var preferences: IslandLyricPreferences? = nil
 
     enum CodingKeys: String, CodingKey {
-        case action, index, volume, lang
+        case action, index, volume, lang, muted, force, hdr, preferences
         case positionMs = "position_ms"
         case playMode = "play_mode"
         case preferNative = "prefer_native"
         case hasDualSources = "has_dual_sources"
         case focusToken = "focus_token"
+        case trackId = "track_id"
+        case isPlaying = "is_playing"
     }
 }
 
