@@ -981,199 +981,251 @@ final class IslandStore {
             }
 
         case "media":
-            guard let msg = decodeJSON(WebMediaMessage.self, from: data, label: "media") else { return }
-            if session.track?.id != msg.track?.id {
-                session.rhythm = .fallback
-                session.lastPausedFromPlayingAt = nil
-            }
-            session.track = msg.track
-            session.accentHex = msg.accentHex
-            session.chorus = msg.chorus ?? []
-            session.lyrics = msg.lyrics ?? .empty
-            session.lastMediaRawJSON = data
-            if networkServicesEnabled, let pic = msg.track?.albumPic {
-                IslandArtworkCache.shared.preload(urlStrings: [pic])
-            }
-            webSessions[clientId] = session
-            if activeClientId == nil && !isAutonomousMode {
-                activeClientId = clientId
-            }
-            if !fromPeer
-                && !isAutonomousMode
-                && activeClientId == clientId
-                && session.hasActivePlayerSession,
-               let curTrack = msg.track {
-                let matchedPos = (session.state?.trackId == curTrack.id) ? session.state?.positionMs : 0
-                library.updateTrackSnapshot(
-                    origin: session.origin,
-                    track: curTrack,
-                    accentHex: session.accentHex,
-                    chorus: session.chorus,
-                    lyrics: session.lyrics,
-                    rhythm: nil,
-                    positionMs: matchedPos
-                )
-            }
-            if activeClientId == clientId {
-                snapshotHealTask?.cancel()
-                applyActiveSession(session, updateClock: false)
-                if !fromPeer && peerService.isConnected {
-                    peerService.sendBridgeFrame(data, livePositionMs: nil)
-                }
-            }
+            handleMediaFrame(data: data, clientId: clientId, session: &session, fromPeer: fromPeer)
 
         case "rhythm":
-            guard let msg = decodeJSON(WebRhythmMessage.self, from: data, label: "rhythm") else { return }
-            if msg.trackId == nil || msg.trackId == session.track?.id {
-                session.rhythm = msg.rhythm.toEngineContext()
-                session.lastRhythmRawJSON = data
-                if !fromPeer
-                    && !isAutonomousMode
-                    && activeClientId == clientId
-                    && session.hasActivePlayerSession,
-                   let curTrack = session.track {
-                    let matchedPos = (session.state?.trackId == curTrack.id) ? session.state?.positionMs : 0
+            handleRhythmFrame(data: data, clientId: clientId, session: &session, fromPeer: fromPeer)
+
+        case "playlist":
+            handlePlaylistFrame(data: data, clientId: clientId, session: &session, fromPeer: fromPeer)
+
+        case "preload":
+            handlePreloadFrame(data: data, clientId: clientId, session: &session, fromPeer: fromPeer)
+
+        case "state":
+            handleStateFrame(
+                data: data,
+                clientId: clientId,
+                session: &session,
+                fromPeer: fromPeer,
+                peerLivePosMs: peerLivePosMs
+            )
+
+        default:
+            break
+        }
+    }
+
+    private func handleMediaFrame(
+        data: Data,
+        clientId: UUID,
+        session: inout WebBridgeSessionManager.TabSession,
+        fromPeer: Bool
+    ) {
+        guard let msg = decodeJSON(WebMediaMessage.self, from: data, label: "media") else { return }
+        if session.track?.id != msg.track?.id {
+            session.rhythm = .fallback
+            session.lastPausedFromPlayingAt = nil
+        }
+        session.track = msg.track
+        session.accentHex = msg.accentHex
+        session.chorus = msg.chorus ?? []
+        session.lyrics = msg.lyrics ?? .empty
+        session.lastMediaRawJSON = data
+        if networkServicesEnabled, let pic = msg.track?.albumPic {
+            IslandArtworkCache.shared.preload(urlStrings: [pic])
+        }
+        webSessions[clientId] = session
+        if activeClientId == nil && !isAutonomousMode {
+            activeClientId = clientId
+        }
+        if !fromPeer && !isAutonomousMode && activeClientId == clientId && session.hasActivePlayerSession,
+           let curTrack = msg.track {
+            let matchedPos = (session.state?.trackId == curTrack.id) ? session.state?.positionMs : 0
+            library.updateTrackSnapshot(
+                origin: session.origin,
+                track: curTrack,
+                accentHex: session.accentHex,
+                chorus: session.chorus,
+                lyrics: session.lyrics,
+                rhythm: nil,
+                positionMs: matchedPos
+            )
+        }
+        if activeClientId == clientId {
+            snapshotHealTask?.cancel()
+            applyActiveSession(session, updateClock: false)
+            if !fromPeer && peerService.isConnected {
+                peerService.sendBridgeFrame(data, livePositionMs: nil)
+            }
+        }
+    }
+
+    private func handleRhythmFrame(
+        data: Data,
+        clientId: UUID,
+        session: inout WebBridgeSessionManager.TabSession,
+        fromPeer: Bool
+    ) {
+        guard let msg = decodeJSON(WebRhythmMessage.self, from: data, label: "rhythm") else { return }
+        guard msg.trackId == nil || msg.trackId == session.track?.id else { return }
+        session.rhythm = msg.rhythm.toEngineContext()
+        session.lastRhythmRawJSON = data
+        if !fromPeer && !isAutonomousMode && activeClientId == clientId && session.hasActivePlayerSession,
+           let curTrack = session.track {
+            let matchedPos = (session.state?.trackId == curTrack.id) ? session.state?.positionMs : 0
+            library.updateTrackSnapshot(
+                origin: session.origin,
+                track: curTrack,
+                accentHex: session.accentHex,
+                chorus: session.chorus,
+                lyrics: session.lyrics,
+                rhythm: msg.rhythm,
+                positionMs: matchedPos
+            )
+        }
+        webSessions[clientId] = session
+        if activeClientId == clientId {
+            rhythm = session.rhythm
+            if !fromPeer && peerService.isConnected {
+                peerService.sendBridgeFrame(data, livePositionMs: nil)
+            }
+        }
+    }
+
+    private func handlePlaylistFrame(
+        data: Data,
+        clientId: UUID,
+        session: inout WebBridgeSessionManager.TabSession,
+        fromPeer: Bool
+    ) {
+        guard let msg = decodeJSON(WebPlaylistMessage.self, from: data, label: "playlist") else { return }
+        session.playlist = msg.tracks
+        session.playlistComplete = msg.complete
+        session.currentIndex = msg.currentIndex
+        session.lastPlaylistRawJSON = data
+        if !fromPeer && (!isAutonomousMode || library.playlist.isEmpty) {
+            library.updatePlaylistFromSession(origin: session.origin, tracks: msg.tracks, complete: msg.complete)
+        }
+        webSessions[clientId] = session
+        if activeClientId == clientId {
+            playlist = session.playlist
+            playlistComplete = session.playlistComplete
+            currentIndex = session.currentIndex
+            if !fromPeer && peerService.isConnected {
+                peerService.sendBridgeFrame(data, livePositionMs: nil)
+            }
+        }
+    }
+
+    private func handlePreloadFrame(
+        data: Data,
+        clientId: UUID,
+        session: inout WebBridgeSessionManager.TabSession,
+        fromPeer: Bool
+    ) {
+        guard let msg = decodeJSON(WebPreloadMessage.self, from: data, label: "preload") else { return }
+        session.nextTrackIdHint = msg.nextTrackId
+        session.prevTrackIdHint = msg.prevTrackId
+        session.lastPreloadRawJSON = data
+        for item in msg.items {
+            session.storePreloaded(item)
+        }
+        webSessions[clientId] = session
+        if networkServicesEnabled {
+            IslandArtworkCache.shared.preload(urlStrings: msg.items.map(\.track.albumPic))
+        }
+        if activeClientId == clientId && !fromPeer && peerService.isConnected {
+            peerService.sendBridgeFrame(data, livePositionMs: nil)
+        }
+    }
+
+    private func handleStateFrame(
+        data: Data,
+        clientId: UUID,
+        session: inout WebBridgeSessionManager.TabSession,
+        fromPeer: Bool,
+        peerLivePosMs: Double?
+    ) {
+        guard let msg = decodeJSON(WebStateMessage.self, from: data, label: "state") else { return }
+        if let opt = session.optimisticTrackUntil {
+            if msg.trackId == opt.id {
+                session.optimisticTrackUntil = nil
+            } else if Date() < opt.until {
+                return
+            } else {
+                session.optimisticTrackUntil = nil
+            }
+        }
+        let wasActivePlayer = session.hasActivePlayerSession
+        session.recordIncomingState(msg, fromPeer: fromPeer)
+        session.lastStateRawJSON = data
+        webSessions[clientId] = session
+
+        if msg.visible && !fromPeer {
+            startupBannerText = nil
+        }
+
+        if !fromPeer, let auto = autonomousSessionStorage {
+            let browserAudioOutputConfirmed = msg.isPlaying && (msg.audioPlaying ?? true)
+            if browserAudioOutputConfirmed {
+                exitAutonomousPlayback(adoptedByLocalClient: clientId, notifyPeer: true)
+            } else {
+                maybeOfferAutonomousAdoption(to: clientId, origin: session.origin, auto: auto, force: false)
+                return
+            }
+        } else if fromPeer && isAutonomousMode {
+            let peerAudioOutputConfirmed = msg.isPlaying && (msg.audioPlaying ?? true)
+            if peerAudioOutputConfirmed {
+                exitAutonomousPlayback(adoptedByLocalClient: nil, notifyPeer: false)
+            } else {
+                return
+            }
+        }
+
+        let prevActive = activeClientId
+        if webSessions.shouldPromoteClient(
+            clientId,
+            incomingState: msg,
+            activeClientId: activeClientId,
+            isAutonomousMode: isAutonomousMode
+        ) {
+            activeClientId = clientId
+        }
+
+        guard activeClientId == clientId else { return }
+        applyActiveSession(session, updateClock: true, peerLivePosMs: peerLivePosMs)
+
+        if !fromPeer && !isAutonomousMode && session.hasActivePlayerSession {
+            library.savePlayerSettings(
+                playMode: msg.playMode,
+                volume: msg.volume,
+                isMuted: msg.muted,
+                preferences: msg.preferences,
+                config: msg.config
+            )
+            if let curTrack = session.track {
+                let needsFullSync = !wasActivePlayer
+                    || prevActive != clientId
+                    || !library.hasCachedSnapshot(forTrackId: curTrack.id)
+                if needsFullSync {
+                    let decodedRhythm: RhythmDataPayload? = session.lastRhythmRawJSON.flatMap {
+                        try? JSONDecoder().decode(WebRhythmMessage.self, from: $0).rhythm
+                    }
+                    let matchedPos = (msg.trackId == curTrack.id) ? msg.positionMs : 0
                     library.updateTrackSnapshot(
                         origin: session.origin,
                         track: curTrack,
                         accentHex: session.accentHex,
                         chorus: session.chorus,
                         lyrics: session.lyrics,
-                        rhythm: msg.rhythm,
+                        rhythm: decodedRhythm,
                         positionMs: matchedPos
                     )
+                } else if let tid = msg.trackId {
+                    library.recordProgressOnly(trackId: tid, positionMs: msg.positionMs, immediate: !msg.isPlaying)
                 }
-                webSessions[clientId] = session
-                if activeClientId == clientId {
-                    rhythm = session.rhythm
-                    if !fromPeer && peerService.isConnected {
-                        peerService.sendBridgeFrame(data, livePositionMs: nil)
-                    }
-                }
+            } else if let tid = msg.trackId {
+                library.recordProgressOnly(trackId: tid, positionMs: msg.positionMs, immediate: !msg.isPlaying)
             }
+        }
 
-        case "playlist":
-            guard let msg = decodeJSON(WebPlaylistMessage.self, from: data, label: "playlist") else { return }
-            session.playlist = msg.tracks
-            session.playlistComplete = msg.complete
-            session.currentIndex = msg.currentIndex
-            session.lastPlaylistRawJSON = data
-            if !fromPeer && (!isAutonomousMode || library.playlist.isEmpty) {
-                library.updatePlaylistFromSession(origin: session.origin, tracks: msg.tracks, complete: msg.complete)
+        if !fromPeer && peerService.isConnected {
+            if prevActive != clientId {
+                pushFullSnapshotToConnectedPeer()
+            } else {
+                peerService.sendBridgeFrame(data, livePositionMs: currentPositionMs())
             }
-            webSessions[clientId] = session
-            if activeClientId == clientId {
-                playlist = session.playlist
-                playlistComplete = session.playlistComplete
-                currentIndex = session.currentIndex
-                if !fromPeer && peerService.isConnected {
-                    peerService.sendBridgeFrame(data, livePositionMs: nil)
-                }
-            }
-
-        case "preload":
-            guard let msg = decodeJSON(WebPreloadMessage.self, from: data, label: "preload") else { return }
-            session.nextTrackIdHint = msg.nextTrackId
-            session.prevTrackIdHint = msg.prevTrackId
-            session.lastPreloadRawJSON = data
-            for item in msg.items {
-                session.storePreloaded(item)
-            }
-            webSessions[clientId] = session
-            if networkServicesEnabled {
-                IslandArtworkCache.shared.preload(urlStrings: msg.items.map(\.track.albumPic))
-            }
-            if activeClientId == clientId && !fromPeer && peerService.isConnected {
-                peerService.sendBridgeFrame(data, livePositionMs: nil)
-            }
-
-        case "state":
-            guard let msg = decodeJSON(WebStateMessage.self, from: data, label: "state") else { return }
-            if let opt = session.optimisticTrackUntil {
-                if msg.trackId == opt.id {
-                    session.optimisticTrackUntil = nil
-                } else if Date() < opt.until {
-                    return
-                } else {
-                    session.optimisticTrackUntil = nil
-                }
-            }
-            let wasActivePlayer = session.hasActivePlayerSession
-            session.recordIncomingState(msg, fromPeer: fromPeer)
-            session.lastStateRawJSON = data
-            webSessions[clientId] = session
-
-            if msg.visible && !fromPeer {
-                startupBannerText = nil
-            }
-
-            if !fromPeer, let auto = autonomousSessionStorage {
-                let browserAudioOutputConfirmed = msg.isPlaying && (msg.audioPlaying ?? true)
-                if browserAudioOutputConfirmed {
-                    exitAutonomousPlayback(adoptedByLocalClient: clientId, notifyPeer: true)
-                } else {
-                    maybeOfferAutonomousAdoption(to: clientId, origin: session.origin, auto: auto, force: false)
-                    return
-                }
-            } else if fromPeer && isAutonomousMode {
-                let peerAudioOutputConfirmed = msg.isPlaying && (msg.audioPlaying ?? true)
-                if peerAudioOutputConfirmed {
-                    exitAutonomousPlayback(adoptedByLocalClient: nil, notifyPeer: false)
-                } else {
-                    return
-                }
-            }
-
-            let prevActive = activeClientId
-            if webSessions.shouldPromoteClient(
-                clientId,
-                incomingState: msg,
-                activeClientId: activeClientId,
-                isAutonomousMode: isAutonomousMode
-            ) {
-                activeClientId = clientId
-            }
-
-            if activeClientId == clientId {
-                applyActiveSession(session, updateClock: true, peerLivePosMs: peerLivePosMs)
-                if !fromPeer && !isAutonomousMode && session.hasActivePlayerSession {
-                    library.savePlayerSettings(
-                        playMode: msg.playMode,
-                        volume: msg.volume,
-                        isMuted: msg.muted,
-                        preferences: msg.preferences,
-                        config: msg.config
-                    )
-                    if let curTrack = session.track,
-                       (!wasActivePlayer || prevActive != clientId || library.lastTrackSnapshot?.track.id != curTrack.id) {
-                        let decodedRhythm: RhythmDataPayload? = session.lastRhythmRawJSON.flatMap {
-                            try? JSONDecoder().decode(WebRhythmMessage.self, from: $0).rhythm
-                        }
-                        let matchedPos = (msg.trackId == curTrack.id) ? msg.positionMs : 0
-                        library.updateTrackSnapshot(
-                            origin: session.origin,
-                            track: curTrack,
-                            accentHex: session.accentHex,
-                            chorus: session.chorus,
-                            lyrics: session.lyrics,
-                            rhythm: decodedRhythm,
-                            positionMs: matchedPos
-                        )
-                    } else if let tid = msg.trackId {
-                        library.recordProgressOnly(trackId: tid, positionMs: msg.positionMs, immediate: !msg.isPlaying)
-                    }
-                }
-                if !fromPeer && peerService.isConnected {
-                    if prevActive != clientId {
-                        pushFullSnapshotToConnectedPeer()
-                    } else {
-                        peerService.sendBridgeFrame(data, livePositionMs: currentPositionMs())
-                    }
-                }
-            }
-
-        default:
-            break
         }
     }
 

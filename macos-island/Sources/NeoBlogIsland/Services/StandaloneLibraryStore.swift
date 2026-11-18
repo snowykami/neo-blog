@@ -85,6 +85,11 @@ final class StandaloneLibraryStore {
         !boundOrigin.isEmpty
     }
 
+    func hasCachedSnapshot(forTrackId trackId: Int) -> Bool {
+        guard let snap = lastTrackSnapshot else { return false }
+        return snap.track.id == trackId
+    }
+
     /// 冷启动「继续播放」优先命中的曲目（优先恢复上次听到的曲目，否则取歌单首曲或上次缓存单曲）
     var resumablePlaylistItem: PlaylistTrackItem? {
         if let lastId = lastPlayedTrackId ?? lastTrackSnapshot?.track.id,
