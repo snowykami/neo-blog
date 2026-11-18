@@ -928,6 +928,7 @@ export function parseTtml(text: string, source: Extract<LyricSource, 'ttml-custo
   if (doc.getElementsByTagName('parsererror').length > 0 || (doc.documentElement.localName ?? '').split(':').pop() !== 'tt')
     return null
 
+  const rootLang = attr(doc.documentElement, 'lang')?.trim() || undefined
   const starryExt = readStarryExtensions(doc)
   const agentResolver = buildAgentResolver(doc, starryExt)
   const translations = readKeyedTexts(doc, 'translations')
@@ -1064,5 +1065,5 @@ export function parseTtml(text: string, source: Extract<LyricSource, 'ttml-custo
   const wordTimed = lines.some(line => line.words.length > 1 || line.words.some(word => word.end > word.start && (word.start !== line.start || word.end !== line.end)))
   const processedLines = preprocessLyricLines(lines)
   const agents = agentResolver.finalize(processedLines)
-  return { source, wordTimed, instrumental: false, lines: processedLines, ...(agents ? { agents } : {}) }
+  return { source, ...(rootLang ? { lang: rootLang } : {}), wordTimed, instrumental: false, lines: processedLines, ...(agents ? { agents } : {}) }
 }
