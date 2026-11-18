@@ -48,9 +48,10 @@ var (
 )
 
 const lyricDirectorSystemPrompt = `You are a master music director and literary lyric analyst.
-Analyze the song's genre, emotional vibe, narrative perspective, hidden cultural idioms/metonyms/slang, and whether the original lyrics require a reference translation to decode opaque content across the full lyrics.
+Analyze the song's primary sung language, genre, emotional vibe, narrative perspective, hidden cultural idioms/metonyms/slang, and whether the original lyrics require a reference translation to decode opaque content across the full lyrics.
 Output strictly a single valid JSON object matching the following schema:
 {
+  "song_lang": "lowercase standard BCP-47 tag of the primary sung language/variety (e.g., 'zh-cn', 'zh-tw', 'yue', 'nan', 'wuu', 'hak', 'lzh', 'ja', 'en', 'ko', 'fr', 'de', 'es', 'pt', 'it', 'ru', 'la', 'ar', 'th', 'vi', 'id', 'ms', 'hi', 'tr', 'nl', 'pl', 'sv', 'uk', 'el', 'he', 'art', 'mul')",
   "genre": "A specific, accurate genre tag. You are NOT restricted to standard categories—freely synthesize compound or niche genres as appropriate (e.g., 'classical_poetry', 'anime_denpa', 'cyberpunk_synthwave', 'traditional_opera_fusion', 'lofi_chill_rnb', 'emo_rap', 'gothic_rock', 'kpop_dance')",
   "mood": "dominant emotion in 2-3 expressive adjectives (e.g., bittersweet nostalgia, manic euphoria, desolate solitude)",
   "needs_reference_translation": false,
@@ -67,6 +68,10 @@ Output strictly a single valid JSON object matching the following schema:
   "translation_directive": "concise overall directive on rhythm, tone, lyrical voice, and rhyme preference",
   "visual_theme": "suggested visual color palette and dynamic particle effects (e.g., neon violet raindrops on wet asphalt, floating amber lotus petals)"
 }
+Rules for "song_lang":
+- Output a lowercase standard BCP-47 / ISO 639 tag for the primary sung language.
+- Distinguish Sinitic varieties accurately using song/artist origin and vocabulary: Mainland/Singapore/Malaysia Mandarin -> 'zh-cn', Taiwan Mandarin -> 'zh-tw', Cantonese -> 'yue', Hokkien/Taiwanese Minnan -> 'nan', Wu/Shanghainese -> 'wuu', Hakka -> 'hak', Classical/Literary Chinese -> 'lzh'.
+- Use 'art' for constructed/fictional/invented languages (e.g., Hymmnos, Chaos language, Kajiurago) or cipher/Morse lyrics; use 'mul' ONLY when two or more languages share major verse/chorus weight (do NOT use 'mul' just for occasional short English loanwords or hooks inside a Japanese/Korean/Chinese pop song).
 Rules for "needs_reference_translation":
 - Default to false for all normal natural-language lyrics (Japanese, English, Korean, Classical/Modern Chinese, French, German, Russian, multilingual lyrics, idioms, allusions, or slang) where a translator can directly understand and translate the original text independently without anchoring on a built-in translation.
 - Set true ONLY when the lyrics contain opaque, abstract, or encoded content whose semantic meaning cannot be reliably deciphered from the raw surface text alone without consulting an official/upstream reference translation — such as constructed/fictional/invented languages (conlangs like LaVI-Bavellabion, Hymmnos, Chaos language, lore-specific Kajiurago), Morse code (... --- ..., .- / -...), binary/hex/numeric ciphers, or cryptic symbol lyrics.`
@@ -77,6 +82,7 @@ type lyricCulturalNote struct {
 }
 
 type lyricDirectorAnalysis struct {
+	SongLang                  string              `json:"song_lang,omitempty"`
 	Genre                     string              `json:"genre"`
 	Mood                      string              `json:"mood"`
 	NeedsReferenceTranslation bool                `json:"needs_reference_translation,omitempty"`
@@ -90,7 +96,7 @@ func (d *lyricDirectorAnalysis) isEmpty() bool {
 	if d == nil {
 		return true
 	}
-	return d.Genre == "" && d.Mood == "" && len(d.CulturalNotes) == 0 && len(d.CustomStyleSkills) == 0 && d.TranslationDirective == "" && d.VisualTheme == ""
+	return d.SongLang == "" && d.Genre == "" && d.Mood == "" && len(d.CulturalNotes) == 0 && len(d.CustomStyleSkills) == 0 && d.TranslationDirective == "" && d.VisualTheme == ""
 }
 
 func (d *lyricDirectorAnalysis) formatCulturalNotes() string {
@@ -222,6 +228,7 @@ func parseLyricDirectorAnalysis(raw string) (lyricDirectorAnalysis, error) {
 	if err := json.Unmarshal([]byte(obj), &parsed); err != nil {
 		return lyricDirectorAnalysis{}, err
 	}
+	parsed.SongLang = normalizeStandardSongLangTag(trimFieldRunes(parsed.SongLang, 32))
 	parsed.Genre = trimFieldRunes(parsed.Genre, 120)
 	parsed.Mood = trimFieldRunes(parsed.Mood, 160)
 	parsed.TranslationDirective = trimFieldRunes(parsed.TranslationDirective, lyricDirectorMaxFieldRunes)
@@ -363,6 +370,7 @@ func (a *lyricDirectorService) analyzeSong(cfg tools.AIConfig, track *dto.MusicT
 			lastParseErr = parseErr
 			continue
 		}
+		parsed.SongLang = validateSongLangWithTexts(parsed.SongLang, lines)
 		return &parsed, nil
 	}
 	if lastCallErr != nil {
@@ -474,6 +482,39 @@ func lookupLyricDirectorVisualTheme(songID int64, lines []string) string {
 		return ""
 	}
 	return parsed.VisualTheme
+}
+
+// lookupLyricDirectorSongLang 只读查询 Stage 1 导演分析缓存中的标准歌曲语言标签（不触发 AI 调用）。
+func lookupLyricDirectorSongLang(songID int64, lines []string) string {
+	if songID <= 0 {
+		return ""
+	}
+	ttl := lyricDirectorCacheTTL()
+	hash := computeLyricDirectorHash(lines)
+	if hash != "" {
+		stateKey := strconv.FormatInt(songID, 10) + ":" + hash
+		if cached, ok := lyricDirectors.loadCached(songID, hash, stateKey, ttl); ok {
+			if lang := validateSongLangWithTexts(cached.SongLang, lines); lang != "" {
+				return lang
+			}
+		}
+	}
+	db := repo.GetDB()
+	if db == nil {
+		return ""
+	}
+	var record model.LyricDirector
+	err := db.Where("song_id = ? AND created_at >= ?", songID, time.Now().Add(-ttl)).
+		Order("created_at DESC").
+		First(&record).Error
+	if err != nil {
+		return ""
+	}
+	var parsed lyricDirectorAnalysis
+	if json.Unmarshal([]byte(record.Data), &parsed) != nil {
+		return ""
+	}
+	return validateSongLangWithTexts(parsed.SongLang, lines)
 }
 
 // CleanupLyricDirectors 删除超过两倍 TTL 的过期歌词导演分析缓存。

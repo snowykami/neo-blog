@@ -67,7 +67,177 @@ var (
 	}
 
 	lyricSectionTagRe = regexp.MustCompile(`^(?:\[[^\]]{1,32}\]|【[^】]{1,32}】)$`)
+	songLangPrimaryRe = regexp.MustCompile(`^[a-z]{2,3}$`)
 )
+
+// normalizeStandardSongLangTag 将歌曲语言标签规范化为标准小写 BCP-47 / ISO 639 格式（如 zh-cn、zh-tw、zh-hk、yue、nan、lzh、ja、en、ko、fr、la、art、mul）
+func normalizeStandardSongLangTag(raw string) string {
+	tag := strings.ToLower(strings.TrimSpace(strings.ReplaceAll(raw, "_", "-")))
+	if tag == "" || strings.Contains(tag, "-latn") {
+		return ""
+	}
+	switch {
+	case tag == "other" || tag == "und" || tag == "zxx" || tag == "unknown" || tag == "none":
+		return ""
+	case tag == "mul" || tag == "multilingual" || tag == "mixed":
+		return "mul"
+	case tag == "art" || tag == "qya" || tag == "sjn" || tag == "tlh" || tag == "conlang" || tag == "x-conlang":
+		return "art"
+	case tag == "yue" || tag == "zh-yue" || strings.HasPrefix(tag, "yue-") || strings.HasPrefix(tag, "zh-yue-"):
+		return "yue"
+	case tag == "nan" || tag == "zh-nan" || tag == "zh-min" || tag == "zh-min-nan" || strings.HasPrefix(tag, "nan-") || strings.HasPrefix(tag, "zh-nan-") || strings.HasPrefix(tag, "zh-min-") || tag == "hokkien" || tag == "taiwanese":
+		return "nan"
+	case tag == "wuu" || tag == "zh-wuu" || strings.HasPrefix(tag, "wuu-") || strings.HasPrefix(tag, "zh-wuu-"):
+		return "wuu"
+	case tag == "hak" || tag == "zh-hak" || tag == "zh-hakka" || strings.HasPrefix(tag, "hak-") || strings.HasPrefix(tag, "zh-hak-"):
+		return "hak"
+	case tag == "lzh" || tag == "zh-lzh" || tag == "zh-classical" || strings.HasPrefix(tag, "lzh-") || strings.HasPrefix(tag, "zh-lzh-"):
+		return "lzh"
+	case tag == "zh-hk" || tag == "zh-mo" || strings.HasPrefix(tag, "zh-hk-") || strings.HasPrefix(tag, "zh-mo-") || tag == "zh-hant-hk" || tag == "zh-hant-mo" || (strings.HasPrefix(tag, "zh-") && (strings.HasSuffix(tag, "-hk") || strings.HasSuffix(tag, "-mo"))):
+		return "zh-hk"
+	case tag == "zh-tw" || strings.HasPrefix(tag, "zh-tw-") || tag == "zh-hant" || strings.HasPrefix(tag, "zh-hant-") || tag == "cmn-hant" || (strings.HasPrefix(tag, "zh-") && (strings.Contains(tag, "-hant") || strings.HasSuffix(tag, "-tw"))):
+		return "zh-tw"
+	case tag == "zh" || tag == "zh-cn" || tag == "zh-sg" || tag == "zh-my" || strings.HasPrefix(tag, "zh-cn-") || tag == "zh-hans" || strings.HasPrefix(tag, "zh-hans-") || tag == "cmn" || tag == "cmn-hans":
+		return "zh-cn"
+	case strings.HasPrefix(tag, "zh-"):
+		return "zh-cn"
+	}
+
+	head, _, _ := strings.Cut(tag, "-")
+	switch head {
+	case "jp":
+		return "ja"
+	case "kr":
+		return "ko"
+	case "iw":
+		return "he"
+	case "in":
+		return "id"
+	case "ji":
+		return "yi"
+	case "fil":
+		return "tl"
+	case "nb", "nn":
+		return "no"
+	}
+	if songLangPrimaryRe.MatchString(head) {
+		return head
+	}
+	return ""
+}
+
+// validateSongLangWithTexts 对 AI 产出的标准歌曲语种做文字脚本交叉校验，拦截明显幻觉并保留小语种、方言、架空语与多语种标签
+func validateSongLangWithTexts(rawTag string, texts []string) string {
+	norm := normalizeStandardSongLangTag(rawTag)
+	if norm == "" {
+		return ""
+	}
+	if len(texts) == 0 {
+		return norm
+	}
+	stats, _ := countLyricScripts(texts)
+	total := stats.han + stats.kana + stats.hang + stats.latin + stats.other
+	if total == 0 {
+		for _, text := range texts {
+			if isMorseLikeLine(text) && norm == "art" {
+				return "art"
+			}
+		}
+		return ""
+	}
+	if norm == "mul" || norm == "art" {
+		return norm
+	}
+
+	cjk := stats.han + stats.kana + stats.hang
+	switch norm {
+	case "zh-cn", "zh-tw", "zh-hk", "yue", "wuu", "hak", "lzh":
+		if stats.han == 0 {
+			return ""
+		}
+		if (stats.kana >= 4 && stats.kana*5 >= stats.han) || (stats.hang >= 4 && stats.hang*5 >= stats.han) {
+			return ""
+		}
+		return norm
+	case "nan":
+		// 闽南语既可能用汉字书写，也可能用白话字 / 台罗全拉丁字母书写
+		if stats.han == 0 && stats.latin == 0 {
+			return ""
+		}
+		if (stats.kana >= 4 && stats.kana*5 >= stats.han) || (stats.hang >= 4 && stats.hang*5 >= stats.han) {
+			return ""
+		}
+		return norm
+	case "ja":
+		if stats.kana > 0 || (stats.han > 0 && stats.han <= 6 && stats.hang == 0 && stats.latin == 0 && stats.simp == 0) {
+			return "ja"
+		}
+		return ""
+	case "ko":
+		if stats.hang > 0 {
+			return "ko"
+		}
+		return ""
+	default:
+		if stats.latin+stats.other == 0 {
+			return ""
+		}
+		if cjk > (stats.latin+stats.other)*2 {
+			return ""
+		}
+		return norm
+	}
+}
+
+// heuristicSongDisplayLang 在 AI 尚未产出精确语种时，基于歌词文本做保守的标准语种回退（无法可靠区分的拉丁/西里尔语种返回空）
+func heuristicSongDisplayLang(vocalTexts []string, rawOrigLang string) string {
+	switch rawOrigLang {
+	case "zh":
+		if songHasClassicalChinese(vocalTexts) {
+			return "lzh"
+		}
+		return "zh-cn"
+	case "zh-tw":
+		if songHasClassicalChinese(vocalTexts) {
+			return "lzh"
+		}
+		return "zh-tw"
+	case "zh-hk", "en", "ja", "ko":
+		return rawOrigLang
+	case "other", "":
+		var thai, greek, hebrew, morse int
+		for _, line := range vocalTexts {
+			if isMorseLikeLine(line) {
+				morse++
+				continue
+			}
+			for _, r := range line {
+				switch {
+				case unicode.In(r, unicode.Thai):
+					thai++
+				case unicode.In(r, unicode.Greek):
+					greek++
+				case unicode.In(r, unicode.Hebrew):
+					hebrew++
+				}
+			}
+		}
+		switch {
+		case thai >= 4:
+			return "th"
+		case greek >= 4:
+			return "el"
+		case hebrew >= 4:
+			return "he"
+		case morse >= 2 && len(vocalTexts) <= morse*2:
+			return "art"
+		default:
+			return ""
+		}
+	default:
+		return normalizeStandardSongLangTag(rawOrigLang)
+	}
+}
 
 func runeSetFromString(s string) map[rune]bool {
 	set := make(map[rune]bool, utf8.RuneCountInString(s))

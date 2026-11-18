@@ -282,10 +282,19 @@ func (s *MusicService) GetLyricTranslationLanguages(ctx context.Context, id int6
 	orderedLangs := []string{"zh", "zh-tw", "zh-hk", "en", "ja", "ko"}
 	statuses := make([]dto.MusicLyricTranslationLangStatusDto, 0, len(orderedLangs))
 	origLang := ""
+	var vocalTexts []string
 	for _, lang := range orderedLangs {
 		inp := s.buildTranslationInputFromExtracted(ctx, track, resolvedSource, extracted, snapshot, lang)
 		if origLang == "" {
 			origLang = inp.OrigLang
+		}
+		if vocalTexts == nil {
+			vocalTexts = make([]string, 0, len(inp.Tasks))
+			for _, task := range inp.Tasks {
+				if !task.Hint {
+					vocalTexts = append(vocalTexts, task.VocalText)
+				}
+			}
 		}
 		running, _ := lyricTranslations.jobState(translationStateKey(inp))
 		statuses = append(statuses, dto.MusicLyricTranslationLangStatusDto{
@@ -296,12 +305,91 @@ func (s *MusicService) GetLyricTranslationLanguages(ctx context.Context, id int6
 			SameLanguage: inp.SameLanguage,
 		})
 	}
+	songLang := resolveSongDisplayLang(track.ID, resolvedSource, vocalTexts, origLang)
 	return &dto.MusicLyricTranslationLanguagesDto{
 		Status:    lyricTranslationStatusReady,
 		Source:    resolvedSource,
 		OrigLang:  origLang,
+		SongLang:  songLang,
 		Languages: statuses,
 	}, nil
+}
+
+// resolveSongDisplayLang 只读汇总歌曲的标准展示语种（BCP-47 小写）：优先复用 AI 导演分析、AI 歌词标注与 AI 读音结果，最后回退到启发式识别
+func resolveSongDisplayLang(songID int64, source string, vocalTexts []string, rawOrigLang string) string {
+	if lang := lookupLyricDirectorSongLang(songID, vocalTexts); lang != "" {
+		return lang
+	}
+	if lang := lookupLyricAnnotationSongLang(songID, source, vocalTexts); lang != "" {
+		return lang
+	}
+	if lang := lookupLyricPronunciationSongLang(songID, source, vocalTexts); lang != "" {
+		return lang
+	}
+	return heuristicSongDisplayLang(vocalTexts, rawOrigLang)
+}
+
+func lookupLyricAnnotationSongLang(songID int64, source string, vocalTexts []string) string {
+	if songID <= 0 {
+		return ""
+	}
+	db := repo.GetDB()
+	if db == nil {
+		return ""
+	}
+	var records []model.LyricAnnotation
+	if err := db.Select("source, data, created_at").Where("song_id = ?", songID).Order("created_at DESC").Limit(4).Find(&records).Error; err != nil {
+		return ""
+	}
+	for pass := 0; pass < 2; pass++ {
+		for _, rec := range records {
+			if (pass == 0) != (source != "" && rec.Source == source) {
+				continue
+			}
+			parsed := parseLyricAnnotationData(rec.Data)
+			if lang := validateSongLangWithTexts(parsed.SongLang, vocalTexts); lang != "" {
+				return lang
+			}
+		}
+	}
+	return ""
+}
+
+func lookupLyricPronunciationSongLang(songID int64, source string, vocalTexts []string) string {
+	if songID <= 0 {
+		return ""
+	}
+	db := repo.GetDB()
+	if db == nil {
+		return ""
+	}
+	var rec model.LyricPronunciation
+	query := db.Select("lang").Where("song_id = ? AND lang <> '' AND lang <> 'other'", songID)
+	if source != "" {
+		if err := query.Where("source = ?", source).Order("updated_at DESC").First(&rec).Error; err != nil {
+			_ = db.Select("lang").Where("song_id = ? AND lang <> '' AND lang <> 'other'", songID).Order("updated_at DESC").First(&rec).Error
+		}
+	} else {
+		_ = query.Order("updated_at DESC").First(&rec).Error
+	}
+	switch strings.ToLower(strings.TrimSpace(rec.Lang)) {
+	case "zh-hk":
+		return validateSongLangWithTexts("yue", vocalTexts)
+	case "zh-tw":
+		if songHasClassicalChinese(vocalTexts) {
+			return validateSongLangWithTexts("lzh", vocalTexts)
+		}
+		return validateSongLangWithTexts("zh-tw", vocalTexts)
+	case "zh":
+		if songHasClassicalChinese(vocalTexts) {
+			return validateSongLangWithTexts("lzh", vocalTexts)
+		}
+		return validateSongLangWithTexts("zh-cn", vocalTexts)
+	case "ja", "ko", "en":
+		return validateSongLangWithTexts(rec.Lang, vocalTexts)
+	default:
+		return ""
+	}
 }
 
 func (s *MusicService) prepareTranslationAccess(ctx context.Context, id int64, source, lang string) (string, *dto.MusicTrackDto, *errs.ServiceError) {

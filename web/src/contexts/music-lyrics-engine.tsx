@@ -8,14 +8,16 @@ import type { LyricTrackInfo } from '@/lib/lyrics/strip-credits'
 import type { LyricTargetLang } from '@/lib/lyrics/target-lang'
 import type { LyricLang } from '@/lib/lyrics/types'
 import { useLocale } from 'next-intl'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useSiteInfo } from '@/contexts/site-info-context'
+import { normalizeDisplayLangTag } from '@/lib/language-label'
 import { applyLyricSingers, canResolveLyricSingers } from '@/lib/lyrics/apply-singers'
 import { applyEmphasis } from '@/lib/lyrics/emphasis'
 import {
   applyDualLanguageTranslations,
   canAdminAiTranslateLyrics,
   canAiTranslateLyrics,
+  detectClientSongDisplayLang,
   detectSongTranslationBucket,
   hasNativeTargetTranslation,
   toLyricTargetLang,
@@ -476,6 +478,52 @@ export function MusicLyricsEngine({
   const annotationsGenerating = useLyricAnnotationsGenerating(showLyricEffects && rawLyrics.wordTimed && isSiteVersion ? trackId : null)
   const annotated = showLyricEffects && rawLyrics.wordTimed && ((annotations?.lines.length ?? 0) > 0 || (annotations?.singers?.length ?? 0) > 0)
 
+  const matchedPronunciationLang = (storedPronunciations?.source === lyricSource ? storedPronunciations?.lang : '')?.trim().toLowerCase() ?? ''
+  const refreshedSongLangKeyRef = useRef('')
+  useEffect(() => {
+    if (validTrackId == null || lyricSource == null)
+      return
+    const nextAiHint = annotations?.songLang || (matchedPronunciationLang && matchedPronunciationLang !== 'other' ? matchedPronunciationLang : '')
+    if (!nextAiHint || rawLangCapabilities?.source !== lyricSource || rawLangCapabilities.songLang)
+      return
+    const refreshKey = `${validTrackId}:${lyricSource}:${nextAiHint}`
+    if (refreshedSongLangKeyRef.current === refreshKey)
+      return
+    refreshedSongLangKeyRef.current = refreshKey
+    requestLyricTranslationLanguages(validTrackId, lyricSource, true)
+  }, [annotations?.songLang, lyricSource, matchedPronunciationLang, rawLangCapabilities?.songLang, rawLangCapabilities?.source, validTrackId])
+
+  const songLang = useMemo<string | null>(() => {
+    const rankOf = (code: string): number => {
+      if (!code)
+        return 0
+      if (code === 'zh-cn' || code === 'en' || code === 'ja' || code === 'ko')
+        return 1
+      if (code === 'zh-tw' || code === 'zh-hk')
+        return 2
+      return 3
+    }
+    const fromCapabilities = rawLangCapabilities?.source === lyricSource
+      ? normalizeDisplayLangTag(rawLangCapabilities.songLang)
+      : ''
+    const fromAnnotations = normalizeDisplayLangTag(annotations?.songLang)
+    const fromPronunciations = matchedPronunciationLang === 'zh-hk'
+      ? 'yue'
+      : (matchedPronunciationLang && matchedPronunciationLang !== 'other' ? normalizeDisplayLangTag(matchedPronunciationLang) : '')
+    const fromClient = normalizeDisplayLangTag(detectClientSongDisplayLang(rawLyrics))
+
+    let best = ''
+    let bestRank = 0
+    for (const candidate of [fromCapabilities, fromAnnotations, fromPronunciations, fromClient]) {
+      const r = rankOf(candidate)
+      if (r > bestRank) {
+        best = candidate
+        bestRank = r
+      }
+    }
+    return best || null
+  }, [annotations?.songLang, lyricSource, matchedPronunciationLang, rawLangCapabilities, rawLyrics])
+
   const state = useMemo<MusicLyricsState>(() => ({
     trackId: validTrackId,
     lyrics,
@@ -491,6 +539,7 @@ export function MusicLyricsEngine({
     translationsGenerating,
     canAiTranslate,
     effectiveTranslationLang,
+    songLang,
     availableTranslationLangs,
     aiRomanized,
     pronunciationsGenerating,
@@ -516,6 +565,7 @@ export function MusicLyricsEngine({
     pronunciationBucket,
     pronunciationsGenerating,
     siteKind,
+    songLang,
     status,
     translationBucket,
     translationsGenerating,

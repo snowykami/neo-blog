@@ -142,6 +142,21 @@ extension IslandStore {
         let initialChorus = matchesCachedSnap ? (cachedSnap?.chorus ?? []) : []
         let initialAccent = matchesCachedSnap ? cachedSnap?.accentHex : nil
         let initialRhythm = matchesCachedSnap ? cachedSnap?.rhythm : nil
+        let initialSongLangLabel: String? = {
+            if matchesCachedSnap {
+                if let snapLabel = cachedSnap?.songLangLabel, !snapLabel.isEmpty {
+                    return snapLabel
+                }
+                return StandaloneSongResolver.detectLocalLyricsSongLangLabel(initialLyrics) ?? preferences.songLangLabel
+            }
+            return nil
+        }()
+        preferences.songLangLabel = initialSongLangLabel
+        if !matchesCachedSnap {
+            preferences.availableTranslationLangs = []
+            preferences.translationsGenerating = false
+            preferences.pronunciationsGenerating = false
+        }
 
         let sourceHost = peerService.localPeerId
         if activeOwnerPeerId == nil && peerService.isConnected && displayOwnership == .singleActiveMac {
@@ -193,7 +208,12 @@ extension IslandStore {
         currentIndex = resolvedIndex
         let hasInitialLyrics = !initialLyrics.lines.isEmpty || initialLyrics.instrumental
         lyricStatus = hasInitialLyrics ? "ready" : (networkServicesEnabled ? "loading" : "ready")
-        syncCapabilityFlagsFromLyrics(initialLyrics, availableLangs: preferences.availableTranslationLangs)
+        syncCapabilityFlagsFromLyrics(
+            initialLyrics,
+            songLangLabel: initialSongLangLabel,
+            overwriteSongLang: true,
+            availableLangs: preferences.availableTranslationLangs
+        )
         seekAtMs = -.infinity
         anchorPositionMs = startPosMs
         anchorLocalDate = Date()
@@ -985,6 +1005,7 @@ extension IslandStore {
             chorus: auto.chorus,
             lyrics: auto.lyrics,
             rhythm: auto.rhythm,
+            songLangLabel: preferences.songLangLabel,
             positionMs: currentPositionMs(),
             immediateFlush: immediate
         )
@@ -1073,11 +1094,17 @@ extension IslandStore {
 
         let hasPreloadedLyrics = cachedPreload?.lyrics != nil
             && (!(cachedPreload?.lyrics?.lines.isEmpty ?? true) || cachedPreload?.lyrics?.instrumental == true)
+        preferences.songLangLabel = nil
         preferences.availableTranslationLangs = []
         preferences.translationsGenerating = false
         preferences.pronunciationsGenerating = false
         if hasPreloadedLyrics, let preLyrics = cachedPreload?.lyrics {
-            syncCapabilityFlagsFromLyrics(preLyrics, availableLangs: nil)
+            syncCapabilityFlagsFromLyrics(
+                preLyrics,
+                songLangLabel: StandaloneSongResolver.detectLocalLyricsSongLangLabel(preLyrics),
+                overwriteSongLang: true,
+                availableLangs: nil
+            )
         } else {
             preferences.canToggleTranslation = false
             preferences.canToggleRomaji = false
@@ -1124,8 +1151,12 @@ extension IslandStore {
         rhythm = fallback.rhythm?.toEngineContext() ?? .fallback
         currentIndex = auto.currentIndex
         lyricStatus = (!fallback.lyrics.lines.isEmpty || fallback.lyrics.instrumental) ? "ready" : "none"
+        let restoredSongLangLabel = fallback.songLangLabel
+            ?? StandaloneSongResolver.detectLocalLyricsSongLangLabel(upgradedFallbackLyrics)
         syncCapabilityFlagsFromLyrics(
             fallback.lyrics,
+            songLangLabel: restoredSongLangLabel,
+            overwriteSongLang: true,
             availableLangs: library.savedSettings.preferences.availableTranslationLangs
         )
         auto.preferences = preferences
@@ -1141,6 +1172,7 @@ extension IslandStore {
             chorus: fallback.chorus,
             lyrics: fallback.lyrics,
             rhythm: fallback.rhythm,
+            songLangLabel: restoredSongLangLabel,
             positionMs: resumePos,
             immediateFlush: true
         )
@@ -1151,10 +1183,18 @@ extension IslandStore {
 
     private func syncCapabilityFlagsFromLyrics(
         _ bundle: LyricsBundlePayload,
+        songLangLabel: String? = nil,
+        overwriteSongLang: Bool = false,
         availableLangs: [AvailableTranslationLangItem]?,
         translationsGenerating: Bool = false,
         pronunciationsGenerating: Bool = false
     ) {
+        let cleanedSongLang = songLangLabel?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if overwriteSongLang {
+            preferences.songLangLabel = (cleanedSongLang?.isEmpty == false) ? cleanedSongLang : nil
+        } else if let cleanedSongLang, !cleanedSongLang.isEmpty {
+            preferences.songLangLabel = cleanedSongLang
+        }
         if let availableLangs {
             preferences.availableTranslationLangs = availableLangs
         }
@@ -1224,6 +1264,8 @@ extension IslandStore {
             }
             self.syncCapabilityFlagsFromLyrics(
                 currentAuto.lyrics,
+                songLangLabel: resolved.songLangLabel,
+                overwriteSongLang: !isOfflinePartialHit,
                 availableLangs: resolved.availableTranslationLangs,
                 translationsGenerating: resolved.translationsGenerating,
                 pronunciationsGenerating: resolved.pronunciationsGenerating

@@ -675,3 +675,107 @@ func TestDirectorNeedsReferenceTranslationForAbstractAndMorseLyrics(t *testing.T
 		t.Fatalf("normal cross-language en translation should keep zh ref: %s", capturedStage2Users[2])
 	}
 }
+
+func TestSongDisplayLangResolutionAndValidation(t *testing.T) {
+	if got := normalizeStandardSongLangTag("ZH_CN"); got != "zh-cn" {
+		t.Fatalf("normalizeStandardSongLangTag(ZH_CN) = %q, want zh-cn", got)
+	}
+	if got := normalizeStandardSongLangTag("zh-Hant-TW"); got != "zh-tw" {
+		t.Fatalf("normalizeStandardSongLangTag(zh-Hant-TW) = %q, want zh-tw", got)
+	}
+	if got := normalizeStandardSongLangTag("zh-yue"); got != "yue" {
+		t.Fatalf("normalizeStandardSongLangTag(zh-yue) = %q, want yue", got)
+	}
+	if got := normalizeStandardSongLangTag("zh-nan"); got != "nan" {
+		t.Fatalf("normalizeStandardSongLangTag(zh-nan) = %q, want nan", got)
+	}
+	if got := normalizeStandardSongLangTag("zh-hak"); got != "hak" {
+		t.Fatalf("normalizeStandardSongLangTag(zh-hak) = %q, want hak", got)
+	}
+	if got := normalizeStandardSongLangTag("zh-lzh"); got != "lzh" {
+		t.Fatalf("normalizeStandardSongLangTag(zh-lzh) = %q, want lzh", got)
+	}
+	if got := normalizeStandardSongLangTag("zh-cmn-TW"); got != "zh-tw" {
+		t.Fatalf("normalizeStandardSongLangTag(zh-cmn-TW) = %q, want zh-tw", got)
+	}
+	if got := normalizeStandardSongLangTag("fr-FR"); got != "fr" {
+		t.Fatalf("normalizeStandardSongLangTag(fr-FR) = %q, want fr", got)
+	}
+
+	// 文字脚本交叉校验：法语拉丁歌词保留 fr，但若对纯汉字幻觉返回 fr 或对长篇繁体汉字幻觉返回 ja 则拦截
+	if got := validateSongLangWithTexts("fr", []string{"La vie en rose", "Sous le ciel de Paris"}); got != "fr" {
+		t.Fatalf("validateSongLangWithTexts(fr, french) = %q, want fr", got)
+	}
+	if got := validateSongLangWithTexts("fr", []string{"海阔天空", "原谅我这一生不羁放纵爱自由"}); got != "" {
+		t.Fatalf("validateSongLangWithTexts(fr, chinese) = %q, want empty", got)
+	}
+	if got := validateSongLangWithTexts("ja", []string{"原諒我這一生不羈放縱愛自由", "也會怕有一天會跌倒"}); got != "" {
+		t.Fatalf("validateSongLangWithTexts(ja, pure traditional chinese) = %q, want empty", got)
+	}
+	if got := validateSongLangWithTexts("zh-cn", []string{"夜明けの空が染まるまで", "君の名前を呼んでいる"}); got != "" {
+		t.Fatalf("validateSongLangWithTexts(zh-cn, japanese with kana) = %q, want empty", got)
+	}
+	if got := heuristicSongDisplayLang([]string{"君不見黃河之水天上來", "奔流到海不復回"}, "zh-tw"); got != "lzh" {
+		t.Fatalf("heuristicSongDisplayLang(traditional classical chinese) = %q, want lzh", got)
+	}
+
+	track := dto.MusicTrackDto{
+		ID:      605,
+		Name:    "La Vie en Rose",
+		Artists: []string{"Édith Piaf"},
+	}
+	setupMusicTranslationEnv(t, []dto.MusicTrackDto{track})
+	stubLyricSources(t, map[string]lyricSourceResult{
+		"ncm": {
+			data: &dto.MusicLyricDto{
+				Lrc: lyricPart("[00:01.00]Quand il me prend dans ses bras\n[00:05.00]Il me parle tout bas\n"),
+			},
+			outcome: lyricOutcomeHit,
+		},
+	})
+
+	s := NewMusicService()
+	ctx := context.Background()
+
+	// 1. AI 尚未运行时：法语属于拉丁语系但非英语（orig_lang="other"），song_lang 保守留空，不胡乱猜为 en
+	beforeAI, svcerr := s.GetLyricTranslationLanguages(ctx, 605, "ncm-lrc")
+	if svcerr != nil || beforeAI.OrigLang != "other" || beforeAI.SongLang != "" {
+		t.Fatalf("before AI = %+v, err=%v", beforeAI, svcerr)
+	}
+
+	// 2. 歌词特效标注（Annotation）先完成并写入 song_lang="fr" 时，直接复用
+	if err := repo.GetDB().Create(&model.LyricAnnotation{
+		SongID:    605,
+		LyricHash: "ann-hash",
+		Source:    "ncm-lrc",
+		Data:      `{"song_lang":"fr","lines":[]}`,
+		CreatedAt: time.Now(),
+	}).Error; err != nil {
+		t.Fatalf("seed annotation failed: %v", err)
+	}
+	fromAnn, svcerr := s.GetLyricTranslationLanguages(ctx, 605, "ncm-lrc")
+	if svcerr != nil || fromAnn.SongLang != "fr" {
+		t.Fatalf("from annotation = %+v, err=%v", fromAnn, svcerr)
+	}
+
+	// 3. Stage 1 导演分析产出更精确标签（如 la 拉丁语圣咏）时优先采用导演分析
+	_, _, wait := stubLyricDirectorAndTranslation(
+		t,
+		func(_, _ string) (string, error) {
+			return `{"song_lang":"la","genre":"choral_hymn","mood":"solemn","translation_directive":"keep liturgical poise","visual_theme":"stained glass amber"}`, nil
+		},
+		func(_, _ string) (string, error) {
+			return `{"lines":[{"i":1,"t":"当他将我拥入怀中"},{"i":2,"t":"他对我低语"}]}`, nil
+		},
+	)
+	res, svcerr := s.GetLyricTranslations(ctx, 605, "ncm-lrc", "zh")
+	if svcerr != nil || res.Status != lyricTranslationStatusPending {
+		t.Fatalf("trigger zh translation = %+v, err=%v", res, svcerr)
+	}
+	wait()
+
+	fromDirector, svcerr := s.GetLyricTranslationLanguages(ctx, 605, "ncm-lrc")
+	if svcerr != nil || fromDirector.SongLang != "la" {
+		t.Fatalf("from director = %+v, err=%v", fromDirector, svcerr)
+	}
+}

@@ -1195,14 +1195,16 @@ private struct ExpandedControlCenterPopover: View {
                         .buttonStyle(.plain)
 
                         Spacer(minLength: 4)
-
-                        Text("可勾选两项上下对比")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(Color.white.opacity(0.45))
-                            .lineLimit(1)
                     }
                     .padding(.horizontal, 2)
-                    .padding(.bottom, 2)
+
+                    let songLangLabel = store.preferences.songLangLabel?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                    Text(songLangLabel.isEmpty ? "可选 2 种语言翻译" : "歌曲语言：\(songLangLabel)，可选 2 种语言翻译")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(Color.white.opacity(0.48))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 6)
+                        .padding(.bottom, 2)
 
                     ScrollView(.vertical, showsIndicators: true) {
                         VStack(alignment: .leading, spacing: 2) {

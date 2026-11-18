@@ -134,6 +134,7 @@ export async function fetchKugouLyric(id: number, signal?: AbortSignal, refresh?
 export interface MusicLyricAnnotations {
   status: 'ready' | 'pending'
   stale?: boolean
+  songLang?: LyricAnnotations['songLang']
   font?: LyricAnnotations['font']
   motion?: LyricAnnotations['motion']
   intro?: LyricAnnotations['intro']
@@ -216,6 +217,7 @@ export interface MusicLyricTranslationLanguages {
   status: 'ready' | 'pending'
   source?: LyricSource | ''
   origLang?: string
+  songLang?: string
   languages: MusicLyricTranslationLangStatus[]
 }
 

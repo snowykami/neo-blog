@@ -33,7 +33,7 @@ import {
   VolumeXIcon,
 } from 'lucide-react'
 import { AnimatePresence, LazyMotion, m } from 'motion/react'
-import { useLocale, useTranslations } from 'next-intl'
+import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { TbHdr } from 'react-icons/tb'
 import { toast } from 'sonner'
@@ -54,8 +54,9 @@ import {
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { useSongChorus } from '@/contexts/song-chorus'
 import { useHdrDisplay } from '@/hooks/use-hdr-highlight'
+import { useLanguageLabel } from '@/lib/language-label'
 import { getLyricLineText } from '@/lib/lyrics/line-utils'
-import { canAdminAiTranslateLyrics, toggleLyricTranslationSelection } from '@/lib/lyrics/lyric-language'
+import { canAdminAiTranslateLyrics, detectClientSongDisplayLang, toggleLyricTranslationSelection } from '@/lib/lyrics/lyric-language'
 import { getMotionFeatures } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import { formatDurationMMSS } from '@/utils/common/datetime'
@@ -190,6 +191,7 @@ export interface TranslationLanguageMenuProps {
   translationLang?: LyricTargetLang | null
   preferNativeTranslation?: boolean
   translationSelections?: LyricTranslationSelection[]
+  songLang?: string | null
   availableTranslationLangs?: MusicLyricTranslationLangStatus[]
   setTranslationLang?: (lang: LyricTargetLang | null, preferNative?: boolean) => void
   setTranslationSelections?: (selections: LyricTranslationSelection[]) => void
@@ -211,22 +213,6 @@ interface MoreControlsMenuProps {
   hdrDisplay: boolean
   currentTrack: ReturnType<typeof useMusicPlayback>['currentTrack']
   lyrics: ReturnType<typeof useMusicLyrics>['lyrics']
-}
-
-const TRANSLATION_LANG_INTL_CODES: Record<string, string> = {
-  'zh': 'zh-Hans',
-  'zh-tw': 'zh-Hant',
-  'zh-hk': 'zh-HK',
-}
-
-function formatTranslationLangLabel(lang: string, locale: string): string {
-  try {
-    const code = TRANSLATION_LANG_INTL_CODES[lang] ?? lang
-    return new Intl.DisplayNames([locale], { type: 'language' }).of(code) ?? lang
-  }
-  catch {
-    return lang
-  }
 }
 
 function formatBackgroundLyricText(text: string): string {
@@ -312,6 +298,7 @@ export function TranslationLanguageMenu({
   translationLang,
   preferNativeTranslation = false,
   translationSelections,
+  songLang,
   availableTranslationLangs,
   setTranslationLang,
   setTranslationSelections,
@@ -321,7 +308,7 @@ export function TranslationLanguageMenu({
   lyrics,
 }: TranslationLanguageMenuProps) {
   const playerT = useTranslations('MusicPlayer')
-  const locale = useLocale()
+  const formatLangLabel = useLanguageLabel()
   const [open, setOpen] = useState(false)
   const [triggeringLang, setTriggeringLang] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -406,6 +393,14 @@ export function TranslationLanguageMenu({
     && (availableItems.length > 0 || (adminActionable && untranslatedAdminItems.length > 0))
   const isMenuVisible = open && canOpenMenu
 
+  const resolvedSongLangLabel = useMemo(() => {
+    const code = songLang !== undefined ? songLang : detectClientSongDisplayLang(lyrics)
+    return code ? formatLangLabel(code) : ''
+  }, [formatLangLabel, lyrics, songLang])
+  const translationHeaderHint = resolvedSongLangLabel
+    ? playerT('translation_song_lang_hint', { lang: resolvedSongLangLabel })
+    : playerT('translation_compare_hint')
+
   const handleToggleOption = useCallback((target: LyricTranslationSelection, hasDualSources: boolean) => {
     const next = toggleLyricTranslationSelection(activeSelections, target, { hasDualSources })
     applySelections(next)
@@ -433,7 +428,7 @@ export function TranslationLanguageMenu({
     try {
       const res = await refreshTranslations(currentTrack.id, lyricSource, lang)
       if (res === 'started') {
-        toast.success(playerT('translation_generate_started', { lang: formatTranslationLangLabel(lang, locale) }))
+        toast.success(playerT('translation_generate_started', { lang: formatLangLabel(lang) }))
         requestLyricTranslationLanguages(currentTrack.id, lyricSource, true)
       }
       else {
@@ -446,7 +441,7 @@ export function TranslationLanguageMenu({
     finally {
       setTriggeringLang(null)
     }
-  }, [activeSelections, adminActionable, applySelections, currentTrack?.id, locale, lyricSource, playerT, setShowTranslation, triggeringLang])
+  }, [activeSelections, adminActionable, applySelections, currentTrack?.id, formatLangLabel, lyricSource, playerT, setShowTranslation, triggeringLang])
 
   return (
     // 控制栏在播放器页和悬浮球里处于顶栏 <LazyMotion> 外部，需要自备特征包驱动 <m.div>
@@ -478,8 +473,8 @@ export function TranslationLanguageMenu({
                   : '-right-28 origin-bottom-right sm:right-auto sm:left-1/2 sm:-translate-x-1/2 sm:origin-bottom',
               )}
             >
-              <div className="px-2.5 py-1 text-[11px] font-medium text-white/50">
-                {playerT('translation_compare_hint')}
+              <div className="px-2.5 py-1 text-[11px] leading-snug font-medium text-white/50">
+                {translationHeaderHint}
               </div>
               <button
                 type="button"
@@ -525,7 +520,7 @@ export function TranslationLanguageMenu({
                           )}
                         >
                           <TranslationSelectionIndicator index={aiIndex} total={activeSelections.length} />
-                          <span className="min-w-0 flex-1 truncate">{formatTranslationLangLabel(item.lang, locale)}</span>
+                          <span className="min-w-0 flex-1 truncate">{formatLangLabel(item.lang)}</span>
                           {item.generating
                             ? <Loader2Icon aria-hidden className="size-3 shrink-0 animate-spin text-white/80" />
                             : (
@@ -564,7 +559,7 @@ export function TranslationLanguageMenu({
                           )}
                         >
                           <TranslationSelectionIndicator index={nativeIndex} total={activeSelections.length} />
-                          <span className="min-w-0 flex-1 truncate">{formatTranslationLangLabel(item.lang, locale)}</span>
+                          <span className="min-w-0 flex-1 truncate">{formatLangLabel(item.lang)}</span>
                           <span className="shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-white/70">
                             {playerT('translation_badge_native')}
                           </span>
@@ -597,7 +592,7 @@ export function TranslationLanguageMenu({
                         )}
                       >
                         <TranslationSelectionIndicator index={selectedIndex} total={activeSelections.length} />
-                        <span className="min-w-0 flex-1 truncate">{formatTranslationLangLabel(item.lang, locale)}</span>
+                        <span className="min-w-0 flex-1 truncate">{formatLangLabel(item.lang)}</span>
                         {item.generating
                           ? <Loader2Icon aria-hidden className="size-3 shrink-0 animate-spin text-white/80" />
                           : item.hasAi
@@ -656,7 +651,7 @@ export function TranslationLanguageMenu({
                         className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-left text-xs text-white/75 transition hover:bg-white/10 hover:text-white disabled:opacity-50"
                       >
                         <span className="size-3.5 shrink-0" aria-hidden />
-                        <span className="min-w-0 flex-1 truncate">{formatTranslationLangLabel(item.lang, locale)}</span>
+                        <span className="min-w-0 flex-1 truncate">{formatLangLabel(item.lang)}</span>
                         {triggeringLang === item.lang
                           ? <Loader2Icon aria-hidden className="size-3 shrink-0 animate-spin" />
                           : <SparklesIcon aria-hidden className="size-3 shrink-0 text-white/60" />}
@@ -880,7 +875,7 @@ export function MoreControlsMenu({
 export function MiniPlayerMoreMenu() {
   const t = useTranslations('MusicPage')
   const playerT = useTranslations('MusicPlayer')
-  const locale = useLocale()
+  const formatLangLabel = useLanguageLabel()
   const { user } = useAuth()
   const { siteInfo } = useSiteInfo()
   const admin = user ? checkIsAdmin({ user }) : false
@@ -889,6 +884,7 @@ export function MiniPlayerMoreMenu() {
   const {
     canToggleTranslation,
     lyricTranslationsGenerating,
+    songLang,
     availableTranslationLangs,
     canToggleRomaji,
     lyricPronunciationsGenerating,
@@ -958,8 +954,16 @@ export function MiniPlayerMoreMenu() {
   const currentLangSummary = useMemo(() => {
     if (activeSelections.length === 0)
       return playerT('translation_lang_follow_site')
-    return activeSelections.map(s => formatTranslationLangLabel(s.lang, locale)).join(' + ')
-  }, [activeSelections, locale, playerT])
+    return activeSelections.map(s => formatLangLabel(s.lang)).join(' + ')
+  }, [activeSelections, formatLangLabel, playerT])
+
+  const resolvedSongLangLabel = useMemo(() => {
+    const code = songLang !== undefined ? songLang : detectClientSongDisplayLang(lyrics)
+    return code ? formatLangLabel(code) : ''
+  }, [formatLangLabel, lyrics, songLang])
+  const translationHeaderHint = resolvedSongLangLabel
+    ? playerT('translation_song_lang_hint', { lang: resolvedSongLangLabel })
+    : playerT('translation_compare_hint')
 
   const handleToggleOption = useCallback((target: LyricTranslationSelection, hasDualSources: boolean) => {
     const next = toggleLyricTranslationSelection(activeSelections, target, { hasDualSources })
@@ -987,7 +991,7 @@ export function MiniPlayerMoreMenu() {
     try {
       const res = await refreshTranslations(currentTrack.id, lyricSource, lang)
       if (res === 'started') {
-        toast.success(playerT('translation_generate_started', { lang: formatTranslationLangLabel(lang, locale) }))
+        toast.success(playerT('translation_generate_started', { lang: formatLangLabel(lang) }))
         requestLyricTranslationLanguages(currentTrack.id, lyricSource, true)
       }
       else {
@@ -1000,7 +1004,7 @@ export function MiniPlayerMoreMenu() {
     finally {
       setTriggeringLang(null)
     }
-  }, [activeSelections, adminActionable, applySelections, currentTrack?.id, locale, lyricSource, playerT, setShowTranslation, triggeringLang])
+  }, [activeSelections, adminActionable, applySelections, currentTrack?.id, formatLangLabel, lyricSource, playerT, setShowTranslation, triggeringLang])
 
   const handleCopy = useCallback(async () => {
     const fullText = buildFormattedLyricsClipboardText({
@@ -1168,7 +1172,7 @@ export function MiniPlayerMoreMenu() {
             )
           : (
               <div className="grid gap-1">
-                <div className="flex items-center justify-between gap-2 px-1 pb-1">
+                <div className="flex items-center px-1 pb-0.5">
                   <button
                     type="button"
                     onClick={() => setPanelPage('main')}
@@ -1177,9 +1181,9 @@ export function MiniPlayerMoreMenu() {
                     <ChevronLeftIcon aria-hidden className="size-3.5" />
                     <span>{t('back')}</span>
                   </button>
-                  <span className="truncate text-[10px] text-white/45">
-                    {playerT('translation_compare_hint')}
-                  </span>
+                </div>
+                <div className="px-2.5 pb-0.5 text-[11px] leading-snug font-medium text-white/50">
+                  {translationHeaderHint}
                 </div>
 
                 <div className="max-h-56 overflow-y-auto overscroll-contain">
@@ -1223,7 +1227,7 @@ export function MiniPlayerMoreMenu() {
                               )}
                             >
                               <TranslationSelectionIndicator index={aiIndex} total={activeSelections.length} />
-                              <span className="min-w-0 flex-1 truncate">{formatTranslationLangLabel(item.lang, locale)}</span>
+                              <span className="min-w-0 flex-1 truncate">{formatLangLabel(item.lang)}</span>
                               {item.generating
                                 ? <Loader2Icon aria-hidden className="size-3 shrink-0 animate-spin text-white/80" />
                                 : <span className="shrink-0 rounded bg-white/15 px-1.5 py-0.5 text-[10px] font-medium text-white/90">{playerT('translation_badge_ai')}</span>}
@@ -1255,7 +1259,7 @@ export function MiniPlayerMoreMenu() {
                               )}
                             >
                               <TranslationSelectionIndicator index={nativeIndex} total={activeSelections.length} />
-                              <span className="min-w-0 flex-1 truncate">{formatTranslationLangLabel(item.lang, locale)}</span>
+                              <span className="min-w-0 flex-1 truncate">{formatLangLabel(item.lang)}</span>
                               <span className="shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-white/70">{playerT('translation_badge_native')}</span>
                             </button>
                           </div>
@@ -1283,7 +1287,7 @@ export function MiniPlayerMoreMenu() {
                             )}
                           >
                             <TranslationSelectionIndicator index={selectedIndex} total={activeSelections.length} />
-                            <span className="min-w-0 flex-1 truncate">{formatTranslationLangLabel(item.lang, locale)}</span>
+                            <span className="min-w-0 flex-1 truncate">{formatLangLabel(item.lang)}</span>
                             {item.generating
                               ? <Loader2Icon aria-hidden className="size-3 shrink-0 animate-spin text-white/80" />
                               : item.hasAi
@@ -1334,7 +1338,7 @@ export function MiniPlayerMoreMenu() {
                             className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-left text-xs text-white/75 transition hover:bg-white/10 hover:text-white disabled:opacity-50"
                           >
                             <span className="size-3.5 shrink-0" aria-hidden />
-                            <span className="min-w-0 flex-1 truncate">{formatTranslationLangLabel(item.lang, locale)}</span>
+                            <span className="min-w-0 flex-1 truncate">{formatLangLabel(item.lang)}</span>
                             {triggeringLang === item.lang
                               ? <Loader2Icon aria-hidden className="size-3 shrink-0 animate-spin" />
                               : <SparklesIcon aria-hidden className="size-3 shrink-0 text-white/60" />}
@@ -1415,6 +1419,7 @@ export function MusicPageControls({ onOpenPlaylist, playlistSlot, compact = fals
   const {
     canToggleTranslation,
     lyricTranslationsGenerating,
+    songLang,
     availableTranslationLangs,
     canToggleRomaji,
     lyricPronunciationsGenerating,
@@ -1474,6 +1479,7 @@ export function MusicPageControls({ onOpenPlaylist, playlistSlot, compact = fals
               translationLang={translationLang}
               preferNativeTranslation={preferNativeTranslation}
               translationSelections={translationSelections}
+              songLang={songLang}
               availableTranslationLangs={availableTranslationLangs}
               setTranslationLang={setTranslationLang}
               setTranslationSelections={setTranslationSelections}

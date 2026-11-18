@@ -53,6 +53,7 @@ export interface LyricAnnotationSinger {
 }
 
 export interface LyricAnnotations {
+  songLang?: string
   font?: LyricFont
   motion?: LyricMotion
   intro?: string

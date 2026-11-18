@@ -1248,9 +1248,13 @@ final class IslandStore {
                         chorus: session.chorus,
                         lyrics: session.lyrics,
                         rhythm: decodedRhythm,
+                        songLangLabel: (msg.trackId == curTrack.id) ? msg.preferences.songLangLabel : nil,
                         positionMs: matchedPos
                     )
                 } else if let tid = msg.trackId {
+                    if tid == curTrack.id {
+                        library.updateTrackSongLangLabel(trackId: tid, songLangLabel: msg.preferences.songLangLabel)
+                    }
                     library.recordProgressOnly(trackId: tid, positionMs: msg.positionMs, immediate: !msg.isPlaying)
                 }
             } else if let tid = msg.trackId {

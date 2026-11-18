@@ -99,6 +99,8 @@ type MusicKugouLyricDto struct {
 type MusicLyricAnnotationsDto struct {
 	Status string `json:"status"`
 	Stale  bool   `json:"stale,omitempty"`
+	// 歌曲主要演唱语言的标准 BCP-47 小写标签（如 zh-cn / zh-tw / yue / nan / lzh / ja / en / ko / fr / la / art / mul），由 AI 全曲规划识别
+	SongLang string `json:"song_lang,omitempty"`
 	// 全曲字体（字体表中的名称，见 service.lyricAnnotationFonts），为空时用站点默认字体
 	Font string `json:"font,omitempty"`
 	// 全曲歌词行滚动律动预设（见 service.lyricAnnotationMotions：flow / bouncy / crisp / gentle），为空时默认走 flow
@@ -456,6 +458,7 @@ type MusicLyricTranslationLanguagesDto struct {
 	Status    string                               `json:"status"`
 	Source    string                               `json:"source,omitempty"`
 	OrigLang  string                               `json:"orig_lang,omitempty"`
+	SongLang  string                               `json:"song_lang,omitempty"`
 	Languages []MusicLyricTranslationLangStatusDto `json:"languages"`
 }
 

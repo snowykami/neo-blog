@@ -20,6 +20,7 @@ export interface MusicLyricsState {
   translationsGenerating: boolean
   canAiTranslate: boolean
   effectiveTranslationLang: LyricTargetLang
+  songLang: string | null
   availableTranslationLangs: MusicLyricTranslationLangStatus[]
   aiRomanized: boolean
   pronunciationsGenerating: boolean
@@ -44,6 +45,7 @@ export const EMPTY_MUSIC_LYRICS_STATE: MusicLyricsState = {
   translationsGenerating: false,
   canAiTranslate: false,
   effectiveTranslationLang: 'en',
+  songLang: null,
   availableTranslationLangs: [],
   aiRomanized: false,
   pronunciationsGenerating: false,

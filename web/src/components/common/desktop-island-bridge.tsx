@@ -7,7 +7,6 @@ import type { RhythmModel } from '@/lib/lyrics/rhythm/model'
 import type { LyricTargetLang } from '@/lib/lyrics/target-lang'
 import type { LyricAgent, ResolvedLyrics } from '@/lib/lyrics/types'
 import type { MusicTrack } from '@/models/music'
-import { useLocale } from 'next-intl'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { fetchPlaylistTrack } from '@/api/music'
 import { useCoverAccent, useSongAccent } from '@/components/music-page/use-cover-accent'
@@ -29,10 +28,11 @@ import {
   useDesktopIslandRuntime,
 } from '@/hooks/use-desktop-island-pref'
 import { usePathname, useRouter } from '@/i18n/navigation'
+import { useLanguageLabel } from '@/lib/language-label'
 import { LYRIC_COLORS, MOOD_GLOW, resolveAgentHex } from '@/lib/lyrics/colors'
 import { getBackgroundOwnerMap, getLyricLineAlign, getLyricLineVocalStart } from '@/lib/lyrics/line-utils'
 import { lyricGlowAt } from '@/lib/lyrics/lyric-glow'
-import { toggleLyricTranslationSelection } from '@/lib/lyrics/lyric-language'
+import { detectClientSongDisplayLang, toggleLyricTranslationSelection } from '@/lib/lyrics/lyric-language'
 import { trainOf } from '@/lib/lyrics/rhythm/model'
 import { basePeriodOf, getRhythmParams } from '@/lib/lyrics/rhythm/params'
 import { rhythmModelFor, subscribeRhythm } from '@/lib/lyrics/rhythm/source'
@@ -126,22 +126,6 @@ function toAbsoluteCoverUrl(raw?: string, size = 240): string | null {
     }
   }
   return formatted
-}
-
-const TRANSLATION_LANG_INTL_CODES: Record<string, string> = {
-  'zh': 'zh-Hans',
-  'zh-tw': 'zh-Hant',
-  'zh-hk': 'zh-HK',
-}
-
-function formatTranslationLangLabel(lang: string, locale: string): string {
-  try {
-    const code = TRANSLATION_LANG_INTL_CODES[lang] ?? lang
-    return new Intl.DisplayNames([locale], { type: 'language' }).of(code) ?? lang
-  }
-  catch {
-    return lang
-  }
 }
 
 /** 1:1 对齐 lyric-player.ts resolveGroupColors：仅在曲目存在歌手标注表（agents）且当前行标有 agent 时返回色条颜色数组 */
@@ -419,7 +403,6 @@ export function DesktopIslandBridge() {
   const { reconnectEpoch } = useDesktopIslandRuntime()
   const router = useRouter()
   const pathname = usePathname()
-  const locale = useLocale()
 
   const {
     playlist,
@@ -440,6 +423,7 @@ export function DesktopIslandBridge() {
     refreshLyrics,
     canToggleTranslation,
     lyricTranslationsGenerating,
+    songLang,
     availableTranslationLangs,
     canToggleRomaji,
     lyricPronunciationsGenerating,
@@ -501,23 +485,30 @@ export function DesktopIslandBridge() {
   const chorus = useSongChorus(currentTrack?.id ?? null)
   const meta = useCachedSongMetaTranslation(currentTrack?.id ?? null)
 
+  const formatLangLabel = useLanguageLabel()
+
   const activeTranslationSelections = useMemo<LyricTranslationSelection[]>(() => {
     if (translationSelections !== undefined)
       return translationSelections
     return translationLang ? [{ lang: translationLang, preferNative: Boolean(preferNativeTranslation) }] : []
   }, [preferNativeTranslation, translationLang, translationSelections])
 
+  const songLangLabel = useMemo(() => {
+    const code = songLang !== undefined ? songLang : detectClientSongDisplayLang(lyrics)
+    return code ? formatLangLabel(code) : ''
+  }, [formatLangLabel, lyrics, songLang])
+
   const availableLangItems = useMemo(() => {
     return (availableTranslationLangs ?? [])
       .filter(item => item.hasAi || item.hasNative || item.generating)
       .map(item => ({
         lang: item.lang,
-        label: formatTranslationLangLabel(item.lang, locale),
+        label: formatLangLabel(item.lang),
         has_ai: Boolean(item.hasAi),
         has_native: Boolean(item.hasNative),
         generating: Boolean(item.generating),
       }))
-  }, [availableTranslationLangs, locale])
+  }, [availableTranslationLangs, formatLangLabel])
 
   // 订阅当前曲目的音频节拍模型（分析完成后自动推送给桌面灵动岛）
   const trackId = currentTrack?.id ?? null
@@ -1442,6 +1433,7 @@ export function DesktopIslandBridge() {
           lang: s.lang,
           prefer_native: Boolean(s.preferNative),
         })),
+        song_lang_label: songLangLabel || null,
         available_translation_langs: availableLangItems,
         show_romaji: showRomaji,
         can_toggle_romaji: canToggleRomaji,
@@ -1485,6 +1477,7 @@ export function DesktopIslandBridge() {
     showPlaying,
     showRomaji,
     showTranslation,
+    songLangLabel,
     volume,
   ])
 

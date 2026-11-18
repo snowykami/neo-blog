@@ -12,6 +12,7 @@ export const SCOPES = {
     'Captcha',
     'Common',
     'ErrorPage',
+    'Language',
     'Login',
     'MusicPage',
     'MusicPlayer',

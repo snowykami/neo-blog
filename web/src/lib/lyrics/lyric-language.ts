@@ -1101,3 +1101,35 @@ export function applyLanguageTranslations(
 ): ResolvedLyrics {
   return applyDualLanguageTranslations(lyrics, { lang: targetLang, preferNative, ai }, null)
 }
+
+/**
+ * 在后端 AI 语种尚未就绪时，从前端已解析歌词做保守的标准语种回退（返回 zh-cn / zh-tw / zh-hk / lzh / en / ja / ko / null）。
+ * 无法可靠区分的小语种返回 null，等待后端 AI 分析补全。
+ */
+export function detectClientSongDisplayLang(lyrics: ResolvedLyrics | null | undefined): string | null {
+  if (!lyrics || lyrics.source === 'none' || lyrics.instrumental || lyrics.lines.length === 0)
+    return null
+  const vocalTexts: string[] = []
+  for (const line of lyrics.lines) {
+    const raw = getLyricLineText(line).trim()
+    if (!raw || SECTION_TAG_RE.test(raw) || INSTRUMENTAL_RE.test(raw) || isCreditText(raw))
+      continue
+    vocalTexts.push(raw)
+  }
+  if (vocalTexts.length === 0)
+    return null
+  const detected = detectLyricTextLang(vocalTexts, lyrics.lang)
+  switch (detected) {
+    case 'zh':
+      return songHasClassicalChinese(vocalTexts) ? 'lzh' : 'zh-cn'
+    case 'zh-tw':
+      return songHasClassicalChinese(vocalTexts) ? 'lzh' : 'zh-tw'
+    case 'zh-hk':
+    case 'en':
+    case 'ja':
+    case 'ko':
+      return detected
+    default:
+      return null
+  }
+}

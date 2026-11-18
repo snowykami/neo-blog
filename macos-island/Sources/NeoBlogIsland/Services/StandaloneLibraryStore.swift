@@ -31,6 +31,7 @@ final class StandaloneLibraryStore {
         var chorus: [TimeIntervalRange]
         var lyrics: LyricsBundlePayload
         var rhythm: RhythmDataPayload?
+        var songLangLabel: String? = nil
         var positionMs: Double
     }
 
@@ -312,6 +313,7 @@ final class StandaloneLibraryStore {
         chorus: [TimeIntervalRange],
         lyrics: LyricsBundlePayload,
         rhythm: RhythmDataPayload?,
+        songLangLabel: String? = nil,
         positionMs: Double?,
         immediateFlush: Bool = false
     ) {
@@ -339,6 +341,10 @@ final class StandaloneLibraryStore {
         var mergedRhythm = rhythm
         var mergedAccent = accentHex
         var mergedChorus = chorus
+        var mergedSongLangLabel = songLangLabel?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if mergedSongLangLabel?.isEmpty == true {
+            mergedSongLangLabel = nil
+        }
         if let existing = lastTrackSnapshot, existing.track.id == track.id {
             if mergedLyrics.lines.isEmpty && !mergedLyrics.instrumental {
                 mergedLyrics = existing.lyrics
@@ -352,6 +358,9 @@ final class StandaloneLibraryStore {
             if mergedChorus.isEmpty {
                 mergedChorus = existing.chorus
             }
+            if mergedSongLangLabel == nil {
+                mergedSongLangLabel = existing.songLangLabel
+            }
         }
 
         lastTrackSnapshot = CachedTrackSnapshot(
@@ -360,6 +369,7 @@ final class StandaloneLibraryStore {
             chorus: mergedChorus,
             lyrics: mergedLyrics,
             rhythm: mergedRhythm,
+            songLangLabel: mergedSongLangLabel,
             positionMs: resolvedPos
         )
 
@@ -370,6 +380,16 @@ final class StandaloneLibraryStore {
             defaults.set(resolvedPos, forKey: Self.lastPositionMsKey)
             scheduleDiskFlush(immediate: immediateFlush || prevTrackId != track.id)
         }
+    }
+
+    func updateTrackSongLangLabel(trackId: Int, songLangLabel: String?) {
+        guard var snap = lastTrackSnapshot, snap.track.id == trackId else { return }
+        let cleaned = songLangLabel?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = (cleaned?.isEmpty == false) ? cleaned : nil
+        guard let normalized, snap.songLangLabel != normalized else { return }
+        snap.songLangLabel = normalized
+        lastTrackSnapshot = snap
+        scheduleDiskFlush(immediate: false)
     }
 
     func recordProgressOnly(trackId: Int, positionMs: Double, immediate: Bool = false) {

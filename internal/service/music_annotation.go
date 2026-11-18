@@ -417,7 +417,7 @@ func (a *lyricAnnotationService) get(id int64, lines []string, info lyricAnnotat
 
 	if found {
 		data := parseLyricAnnotationData(record.Data)
-		result := &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, Font: data.Font, Motion: data.Motion, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Spotlights: data.spotlightsFor(lines), Accent: data.Accent, Lines: data.Lines, Sprites: data.Sprites, Singers: data.Singers, Edited: record.EditedAt != nil}
+		result := &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, SongLang: data.SongLang, Font: data.Font, Motion: data.Motion, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Spotlights: data.spotlightsFor(lines), Accent: data.Accent, Lines: data.Lines, Sprites: data.Sprites, Singers: data.Singers, Edited: record.EditedAt != nil}
 		// 已过期：先返回旧结果，在后台重新生成（失败冷却期内不重试，继续使用旧结果）；管理员手动编辑过的不自动重新生成
 		// 全站 AI 预算已用完时不重新生成，继续使用旧结果
 		if !running && !coolingDown && record.EditedAt == nil && time.Since(record.CreatedAt) > ttl && checkSiteAIBudget(time.Now()) == nil {
@@ -496,6 +496,7 @@ func (a *lyricAnnotationService) loadPartial(key string, lines []string) *dto.Mu
 	}
 	return &dto.MusicLyricAnnotationsDto{
 		Status:     lyricAnnotationStatusPending,
+		SongLang:   data.SongLang,
 		Font:       data.Font,
 		Motion:     data.Motion,
 		Intro:      data.Intro,
@@ -763,6 +764,7 @@ func (a *lyricAnnotationService) regenerate(ctx context.Context, id int64, lines
 // 情绪、特效、颜色与场景只能取允许的值（旧版颜色名映射到新色板，未知颜色与场景丢弃，场景全曲最多 4 处），每行最多 2 个短语，全曲短语总数有上限；同一文本的行合并为一条（前端按文本匹配）
 // lyricAnnotationData 保存到数据库的标注结果（旧版记录只有 lines 数组，读取时兼容）
 type lyricAnnotationData struct {
+	SongLang   string                              `json:"song_lang,omitempty"`
 	Font       string                              `json:"font,omitempty"`
 	Motion     string                              `json:"motion,omitempty"`
 	Intro      string                              `json:"intro,omitempty"`
@@ -912,6 +914,7 @@ func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment,
 	}
 	// theme 与 direction 是 SOP 中先写下的分析，只用于引导模型，不保存
 	var parsed struct {
+		SongLang     string               `json:"song_lang"`
 		Font         string               `json:"font"`
 		Motion       string               `json:"motion"`
 		Spotlights   []int                `json:"spotlights"` // 聚光灯的行号（选定的那几次出现）
@@ -1057,7 +1060,8 @@ func sanitizeLyricAnnotations(lines []string, comments []lyricAnnotationComment,
 			kept = append(kept, line)
 		}
 	}
-	data := lyricAnnotationData{Font: font, Motion: motion, Intro: sanitizeLyricIntro(parsed.Intro), Lines: kept, Sprites: lyricUsedSprites(sprites, kept)}
+	songLang := validateSongLangWithTexts(parsed.SongLang, lines)
+	data := lyricAnnotationData{SongLang: songLang, Font: font, Motion: motion, Intro: sanitizeLyricIntro(parsed.Intro), Lines: kept, Sprites: lyricUsedSprites(sprites, kept)}
 	// outro_comment 为热评在提示词中的编号（从 1 开始），超出范围时不展示
 	usedComments := map[int]bool{}
 	if n := parsed.OutroComment; n >= 1 && n <= len(comments) {

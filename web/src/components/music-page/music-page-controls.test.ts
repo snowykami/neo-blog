@@ -6,6 +6,7 @@ import * as React from 'react'
 import { flushSync } from 'react-dom'
 import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import enMessages from '@/locales/en.json'
 import zhMessages from '@/locales/zh.json'
 import { MoreControlsMenu, TranslationLanguageMenu } from './music-page-controls'
 
@@ -542,12 +543,14 @@ describe('moreControlsMenu 二阶弹簧控制菜单', () => {
       const menu = container.querySelector('[role="menu"][aria-label="翻译语言"]')
       expect(menu).not.toBeNull()
       const menuText = menu?.textContent ?? ''
-      const koLabel = new Intl.DisplayNames(['zh'], { type: 'language' }).of('ko') ?? 'ko'
-      const jaLabel = new Intl.DisplayNames(['zh'], { type: 'language' }).of('ja') ?? 'ja'
+      const koLabel = zhMessages.Language.ko
+      const jaLabel = zhMessages.Language.ja
+      expect(menuText).toContain(`歌曲语言：${jaLabel}，可选 2 种语言翻译`)
       expect(menuText).toContain('AI 覆盖')
       expect(menuText).toContain('生成新翻译')
       expect(menuText).toContain(koLabel)
-      expect(menuText).not.toContain(jaLabel)
+      const hasJaOptionButton = Array.from(menu!.querySelectorAll('button')).some(btn => btn.textContent?.includes(jaLabel))
+      expect(hasJaOptionButton).toBe(false)
       expect(menu!.querySelector('button[aria-label="重新生成 AI 翻译"]')).not.toBeNull()
 
       const overrideBtn = Array.from(menu!.querySelectorAll('button')).find(btn => btn.textContent === 'AI 覆盖')
@@ -643,11 +646,11 @@ describe('moreControlsMenu 二阶弹簧控制菜单', () => {
 
       const menu = container.querySelector('[role="menu"][aria-label="翻译语言"]')
       expect(menu).not.toBeNull()
-      expect(menu?.textContent).toContain('可同时勾选 2 项按序上下对比')
+      expect(menu?.textContent).toContain('歌曲语言：日语，可选 2 种语言翻译')
       // 不应重复出现「AI 覆盖」按钮（已经有 AI 了，转为可直接切 AI 与内置）
       expect(menu?.textContent).not.toContain('AI 覆盖')
 
-      const zhLabel = new Intl.DisplayNames(['zh'], { type: 'language' }).of('zh-Hans') ?? 'zh'
+      const zhLabel = zhMessages.Language['zh-cn']
       const getButtons = () => {
         const currentMenu = container.querySelector('[role="menu"][aria-label="翻译语言"]')!
         const buttons = Array.from(currentMenu.querySelectorAll('button'))
@@ -725,5 +728,80 @@ describe('moreControlsMenu 二阶弹簧控制菜单', () => {
     })
 
     expect(copied).toBe('琵琶行 - 白居易\n\n君の名は\nAI 中文：你的名字是\n内置中文：你的名字')
+  })
+
+  it('翻译菜单按界面语言本地化展示 AI 识别的标准歌曲语种（如 zh-cn / fr / yue）并在语种未知时优雅回退', () => {
+    // @ts-expect-error happy-dom 的 WAAPI cancel() 会抛未捕获异常
+    delete Element.prototype.animate
+    const statuses: MusicLyricTranslationLangStatus[] = [
+      { lang: 'zh', hasAi: true, hasNative: false, generating: false, sameLanguage: false },
+      { lang: 'en', hasAi: true, hasNative: false, generating: false, sameLanguage: false },
+    ]
+    const foreignLyrics = makeLyrics([
+      {
+        start: 1000,
+        end: 3000,
+        words: [{ text: 'Quand il me prend dans ses bras', start: 1000, end: 3000 }],
+        isDuet: false,
+        isBackground: false,
+      },
+    ])
+
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const renderMenu = (locale: 'zh' | 'en', songLang?: string | null) => {
+      flushSync(() => {
+        root.render(
+          React.createElement(NextIntlClientProvider, {
+            locale,
+            messages: locale === 'zh' ? zhMessages : enMessages,
+            children: React.createElement(TranslationLanguageMenu, {
+              setShowTranslation: vi.fn(),
+              translationSelections: [],
+              songLang,
+              availableTranslationLangs: statuses,
+              setTranslationSelections: vi.fn(),
+              isAdmin: false,
+              musicAiEnabled: true,
+              currentTrack: sampleTrack,
+              lyrics: foreignLyrics,
+            }),
+          }),
+        )
+      })
+    }
+
+    try {
+      // 1. AI 尚未识别拉丁外语时回退展示「可选 2 种语言翻译」
+      renderMenu('zh', null)
+      flushSync(() => {
+        ;(container.querySelector('button[aria-label="翻译语言"]') as HTMLButtonElement).click()
+      })
+      expect(container.querySelector('[role="menu"]')?.textContent).toContain('可选 2 种语言翻译')
+      expect(container.querySelector('[role="menu"]')?.textContent).not.toContain('歌曲语言：')
+
+      // 2. AI 返回标准语种 fr / zh-cn 时，中文与英文界面各自按 Language 词表本地化渲染
+      renderMenu('zh', 'fr')
+      expect(container.querySelector('[role="menu"]')?.textContent).toContain('歌曲语言：法语，可选 2 种语言翻译')
+
+      renderMenu('zh', 'zh-cn')
+      expect(container.querySelector('[role="menu"]')?.textContent).toContain('歌曲语言：简体中文，可选 2 种语言翻译')
+
+      renderMenu('en', 'zh-cn')
+      expect(container.querySelector('[role="menu"]')?.textContent).toContain('Song language: Simplified Chinese, up to 2 translations')
+
+      renderMenu('en', 'yue')
+      expect(container.querySelector('[role="menu"]')?.textContent).toContain('Song language: Cantonese, up to 2 translations')
+
+      // 3. 若出现非语言三字母噪音代码（如 pop）则安全丢弃并回退到无语种前缀文案
+      renderMenu('zh', 'pop')
+      expect(container.querySelector('[role="menu"]')?.textContent).toContain('可选 2 种语言翻译')
+      expect(container.querySelector('[role="menu"]')?.textContent).not.toContain('pop')
+    }
+    finally {
+      flushSync(() => root.unmount())
+      container.remove()
+    }
   })
 })

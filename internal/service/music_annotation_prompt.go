@@ -98,7 +98,7 @@ font: pick at most one song-wide font that fits the whole song's voice (or keep 
 
 const lyricAnnotationENPlan = `
 Task: plan the whole song. Phrases are annotated afterwards, chunk by chunk in parallel, following this plan — so this step outputs only the plan fields below. In order:
-1. theme: one or two sentences — what the song is about, to whom, and how the feeling moves.
+1. theme: one or two sentences — what the song is about, to whom, and how the feeling moves; plus song_lang: lowercase standard BCP-47 tag of the primary sung language/variety (e.g., 'zh-cn', 'zh-tw', 'yue' for Cantonese, 'nan' for Hokkien/Minnan, 'wuu', 'hak', 'lzh' for Classical Chinese, 'ja', 'en', 'ko', 'fr', 'de', 'es', 'pt', 'it', 'ru', 'la', 'ar', 'th', 'vi', 'id', 'art' for constructed/fictional language, 'mul' if two or more languages share major weight).
 2. direction: the visual tone — 2-4 main colors, main effects, the single song font (or default sans), images suited to particle scenes. Every chunk follows it, which keeps the parallel parts looking like one art-directed show.
 3. chorus: using your knowledge of the song, the 〔repeat〕 marks (a run of several repeated lines is usually a chorus) and the 〔climax〕 marks, set chorus_start on the first line of each chorus and chorus on chorus lines; the same lyrics elsewhere usually form the other choruses, and an instrumental break often comes just before one. A chorus start is an outburst, a good place to start or switch a scene.
 4. imagery: the song's recurring or title images (original words), each with one effect and color (color optional). Every chunk uses them as given, so an image looks the same each time it returns.
@@ -119,7 +119,7 @@ scene:
 icons:
 {{icons}}
 
-Output: {"theme":"","direction":"","intro":"","outro_comment":1,"moments":[{"i":0,"comment":2},{"i":0,"text":""}],"font":"song","motion":"flow","spotlights":[0],"accent":"#ffb37a","imagery":[{"text":"","effect":"glow","color":"rain"}],"sprites":[{"name":"doll","image":"plush toy","icon":"","motion":"fall","size":"m","spin":true,"color":"peach","fallback":"hearts"}],"lines":[{"i":0,"mood":"sad","chorus":true,"chorus_start":true,"scene":"rain","scene_color":"rain","scene_until":7}]}; list only lines with marks.`
+Output: {"song_lang":"ja","theme":"","direction":"","intro":"","outro_comment":1,"moments":[{"i":0,"comment":2},{"i":0,"text":""}],"font":"song","motion":"flow","spotlights":[0],"accent":"#ffb37a","imagery":[{"text":"","effect":"glow","color":"rain"}],"sprites":[{"name":"doll","image":"plush toy","icon":"","motion":"fall","size":"m","spin":true,"color":"peach","fallback":"hearts"}],"lines":[{"i":0,"mood":"sad","chorus":true,"chorus_start":true,"scene":"rain","scene_color":"rain","scene_until":7}]}; list only lines with marks.`
 
 // lyricAnnotationENSprite 画自定义粒子图标的系统提示词（规划中没有合适的图标库图标时使用）
 const lyricAnnotationENSprite = `You design one tiny sprite for a particle effect in a music player: many copies of it drift across the screen behind the lyrics, each drawn 12-28 px tall and semi-transparent. Draw a simple, instantly recognizable flat silhouette of the image, like a bold emoji glyph: one solid main shape plus at most a few small details. At that size the outline carries the meaning and inner lines disappear, so give the silhouette its most distinctive features (a teddy bear's round ears, a kite's diamond and tail).

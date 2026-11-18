@@ -10,6 +10,7 @@ enum StandaloneSongResolver {
         let chorus: [TimeIntervalRange]
         let lyrics: LyricsBundlePayload
         let rhythmData: RhythmDataPayload?
+        let songLangLabel: String?
         let availableTranslationLangs: [AvailableTranslationLangItem]?
         let translationsGenerating: Bool
         let pronunciationsGenerating: Bool
@@ -127,6 +128,7 @@ enum StandaloneSongResolver {
 
     private struct BackendAnnotationsDTO: Decodable {
         let status: String?
+        let song_lang: String?
         let font: String?
         let motion: String?
         let intro: String?
@@ -166,6 +168,8 @@ enum StandaloneSongResolver {
 
     private struct BackendTranslationLanguagesDTO: Decodable {
         let status: String?
+        let orig_lang: String?
+        let song_lang: String?
         let languages: [BackendTranslationLangStatusDTO]?
     }
 
@@ -545,7 +549,7 @@ enum StandaloneSongResolver {
             }
             .map { item in
                 let existingLabel = preferences.availableTranslationLangs.first(where: { $0.lang == item.lang })?.label
-                let label = existingLabel ?? Locale.current.localizedString(forLanguageCode: item.lang) ?? item.lang
+                let label = existingLabel ?? formatChineseLanguageLabel(item.lang) ?? item.lang
                 return AvailableTranslationLangItem(
                     lang: item.lang,
                     label: label,
@@ -554,6 +558,13 @@ enum StandaloneSongResolver {
                     generating: item.generating ?? false
                 )
             }
+        let resolvedSongLangCode = resolveBestSongLangCode(
+            langsResp: langsResp,
+            annotations: annotations,
+            pronunciations: pronunciations,
+            lyrics: enriched
+        )
+        let songLangLabel = formatChineseLanguageLabel(resolvedSongLangCode)
         let transPending = (primaryTrans?.status == "pending")
             || (secondaryTrans?.status == "pending")
             || (availableLangs?.contains(where: { $0.generating && ($0.lang == primarySlot.lang || $0.lang == secondarySlot?.lang) }) == true)
@@ -565,10 +576,160 @@ enum StandaloneSongResolver {
             chorus: chorusRanges,
             lyrics: enriched,
             rhythmData: rhythmPayload,
+            songLangLabel: songLangLabel,
             availableTranslationLangs: availableLangs,
             translationsGenerating: transPending,
             pronunciationsGenerating: romaPending
         )
+    }
+
+    private static let chineseLanguageNames: [String: String] = [
+        "zh-cn": "简体中文",
+        "zh-tw": "繁体中文",
+        "zh-hk": "中文（香港）",
+        "yue": "粤语",
+        "nan": "闽南语",
+        "wuu": "吴语",
+        "hak": "客家话",
+        "lzh": "文言文",
+        "en": "英语",
+        "ja": "日语",
+        "ko": "韩语",
+        "fr": "法语",
+        "de": "德语",
+        "es": "西班牙语",
+        "pt": "葡萄牙语",
+        "it": "意大利语",
+        "ru": "俄语",
+        "la": "拉丁语",
+        "th": "泰语",
+        "vi": "越南语",
+        "id": "印尼语",
+        "ms": "马来语",
+        "tl": "菲律宾语",
+        "hi": "印地语",
+        "sa": "梵语",
+        "ar": "阿拉伯语",
+        "fa": "波斯语",
+        "he": "希伯来语",
+        "tr": "土耳其语",
+        "el": "希腊语",
+        "nl": "荷兰语",
+        "pl": "波兰语",
+        "uk": "乌克兰语",
+        "cs": "捷克语",
+        "hu": "匈牙利语",
+        "ro": "罗马尼亚语",
+        "sv": "瑞典语",
+        "no": "挪威语",
+        "da": "丹麦语",
+        "fi": "芬兰语",
+        "is": "冰岛语",
+        "ga": "爱尔兰语",
+        "cy": "威尔士语",
+        "ca": "加泰罗尼亚语",
+        "eo": "世界语",
+        "mn": "蒙古语",
+        "bo": "藏语",
+        "ug": "维吾尔语",
+        "art": "架空语",
+        "mul": "多语种"
+    ]
+
+    static func normalizeDisplayLangCode(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+        let tag = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().replacingOccurrences(of: "_", with: "-")
+        if tag.isEmpty || tag.contains("-latn") { return nil }
+        if ["other", "und", "zxx", "unknown", "none"].contains(tag) { return nil }
+        if ["mul", "multilingual", "mixed"].contains(tag) { return "mul" }
+        if ["art", "qya", "sjn", "tlh", "conlang", "x-conlang"].contains(tag) { return "art" }
+        if tag == "yue" || tag == "zh-yue" || tag.hasPrefix("yue-") || tag.hasPrefix("zh-yue-") { return "yue" }
+        if tag == "nan" || tag == "zh-nan" || tag == "zh-min" || tag == "zh-min-nan" || tag.hasPrefix("nan-") || tag.hasPrefix("zh-nan-") || tag.hasPrefix("zh-min-") || tag == "hokkien" || tag == "taiwanese" { return "nan" }
+        if tag == "wuu" || tag == "zh-wuu" || tag.hasPrefix("wuu-") || tag.hasPrefix("zh-wuu-") { return "wuu" }
+        if tag == "hak" || tag == "zh-hak" || tag == "zh-hakka" || tag.hasPrefix("hak-") || tag.hasPrefix("zh-hak-") { return "hak" }
+        if tag == "lzh" || tag == "zh-lzh" || tag == "zh-classical" || tag.hasPrefix("lzh-") || tag.hasPrefix("zh-lzh-") { return "lzh" }
+        if tag == "zh-hk" || tag == "zh-mo" || tag.hasPrefix("zh-hk-") || tag.hasPrefix("zh-mo-") || tag == "zh-hant-hk" || tag == "zh-hant-mo" || (tag.hasPrefix("zh-") && (tag.hasSuffix("-hk") || tag.hasSuffix("-mo"))) { return "zh-hk" }
+        if tag == "zh-tw" || tag.hasPrefix("zh-tw-") || tag == "zh-hant" || tag.hasPrefix("zh-hant-") || tag == "cmn-hant" || (tag.hasPrefix("zh-") && (tag.contains("-hant") || tag.hasSuffix("-tw"))) { return "zh-tw" }
+        if tag == "zh" || tag == "zh-cn" || tag == "zh-sg" || tag == "zh-my" || tag.hasPrefix("zh-cn-") || tag == "zh-hans" || tag.hasPrefix("zh-hans-") || tag == "cmn" || tag == "cmn-hans" || tag.hasPrefix("zh-") { return "zh-cn" }
+
+        let head = String(tag.split(separator: "-", maxSplits: 1).first ?? "")
+        switch head {
+        case "jp": return "ja"
+        case "kr": return "ko"
+        case "iw": return "he"
+        case "in": return "id"
+        case "ji": return "yi"
+        case "fil": return "tl"
+        case "nb", "nn": return "no"
+        default:
+            return (2...3).contains(head.count) && head.allSatisfy({ $0.isASCII && $0.isLetter }) ? head : nil
+        }
+    }
+
+    static func formatChineseLanguageLabel(_ raw: String?) -> String? {
+        guard let code = normalizeDisplayLangCode(raw) else { return nil }
+        if let mapped = chineseLanguageNames[code] {
+            return mapped
+        }
+        guard let localized = Locale(identifier: "zh-Hans").localizedString(forLanguageCode: code),
+              localized.lowercased() != code.lowercased() else {
+            return nil
+        }
+        return localized
+    }
+
+    static func detectLocalLyricsSongLangCode(_ lyrics: LyricsBundlePayload) -> String? {
+        guard !lyrics.instrumental && !lyrics.lines.isEmpty else { return nil }
+        let plainTexts = lyrics.lines.map(\.plainText).filter { !$0.isEmpty }
+        guard !plainTexts.isEmpty else { return nil }
+        let nativeRomaji = lyrics.lines.compactMap { $0.romanization?.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        let pronLang = RomanizationAligner.detectSongPronunciationLang(
+            texts: plainTexts,
+            nativeRomanizations: nativeRomaji,
+            aiSongLang: nil
+        )
+        switch pronLang {
+        case "zh": return "zh-cn"
+        case "zh-tw": return "zh-tw"
+        case "zh-hk": return "yue"
+        case "ja", "ko", "en": return pronLang
+        default: return nil
+        }
+    }
+
+    static func detectLocalLyricsSongLangLabel(_ lyrics: LyricsBundlePayload) -> String? {
+        formatChineseLanguageLabel(detectLocalLyricsSongLangCode(lyrics))
+    }
+
+    private static func resolveBestSongLangCode(
+        langsResp: BackendTranslationLanguagesDTO?,
+        annotations: BackendAnnotationsDTO?,
+        pronunciations: BackendPronunciationsDTO?,
+        lyrics: LyricsBundlePayload
+    ) -> String? {
+        func rank(_ code: String?) -> Int {
+            guard let code, !code.isEmpty else { return 0 }
+            if ["zh-cn", "en", "ja", "ko"].contains(code) { return 1 }
+            if ["zh-tw", "zh-hk"].contains(code) { return 2 }
+            return 3
+        }
+        let c1 = normalizeDisplayLangCode(langsResp?.song_lang)
+        let c2 = normalizeDisplayLangCode(annotations?.song_lang)
+        let rawPron = pronunciations?.lang?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let c3: String? = (rawPron == "zh-hk") ? "yue" : normalizeDisplayLangCode(rawPron)
+        let c4 = normalizeDisplayLangCode(langsResp?.orig_lang)
+        let c5 = detectLocalLyricsSongLangCode(lyrics)
+
+        var best: String?
+        var bestRank = 0
+        for candidate in [c1, c2, c3, c4, c5] {
+            let r = rank(candidate)
+            if r > bestRank {
+                best = candidate
+                bestRank = r
+            }
+        }
+        return best
     }
 
     static func parseTTMLForTesting(

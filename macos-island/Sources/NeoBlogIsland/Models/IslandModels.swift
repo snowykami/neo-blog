@@ -774,6 +774,7 @@ struct IslandLyricPreferences: Codable, Equatable, Sendable {
     var canToggleTranslation: Bool
     var translationsGenerating: Bool
     var translationSelections: [TranslationSelectionItem]
+    var songLangLabel: String?
     var availableTranslationLangs: [AvailableTranslationLangItem]
     var showRomaji: Bool
     var canToggleRomaji: Bool
@@ -786,6 +787,7 @@ struct IslandLyricPreferences: Codable, Equatable, Sendable {
         case canToggleTranslation = "can_toggle_translation"
         case translationsGenerating = "translations_generating"
         case translationSelections = "translation_selections"
+        case songLangLabel = "song_lang_label"
         case availableTranslationLangs = "available_translation_langs"
         case showRomaji = "show_romaji"
         case canToggleRomaji = "can_toggle_romaji"
@@ -799,6 +801,7 @@ struct IslandLyricPreferences: Codable, Equatable, Sendable {
         canToggleTranslation: Bool = true,
         translationsGenerating: Bool = false,
         translationSelections: [TranslationSelectionItem] = [],
+        songLangLabel: String? = nil,
         availableTranslationLangs: [AvailableTranslationLangItem] = [],
         showRomaji: Bool = false,
         canToggleRomaji: Bool = true,
@@ -810,6 +813,7 @@ struct IslandLyricPreferences: Codable, Equatable, Sendable {
         self.canToggleTranslation = canToggleTranslation
         self.translationsGenerating = translationsGenerating
         self.translationSelections = translationSelections
+        self.songLangLabel = songLangLabel
         self.availableTranslationLangs = availableTranslationLangs
         self.showRomaji = showRomaji
         self.canToggleRomaji = canToggleRomaji
@@ -824,6 +828,7 @@ struct IslandLyricPreferences: Codable, Equatable, Sendable {
         canToggleTranslation = try c.decodeIfPresent(Bool.self, forKey: .canToggleTranslation) ?? true
         translationsGenerating = try c.decodeIfPresent(Bool.self, forKey: .translationsGenerating) ?? false
         translationSelections = try c.decodeIfPresent([TranslationSelectionItem].self, forKey: .translationSelections) ?? []
+        songLangLabel = try c.decodeIfPresent(String.self, forKey: .songLangLabel)
         availableTranslationLangs = try c.decodeIfPresent([AvailableTranslationLangItem].self, forKey: .availableTranslationLangs) ?? []
         showRomaji = try c.decodeIfPresent(Bool.self, forKey: .showRomaji) ?? false
         canToggleRomaji = try c.decodeIfPresent(Bool.self, forKey: .canToggleRomaji) ?? true

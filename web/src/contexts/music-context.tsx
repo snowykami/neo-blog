@@ -144,6 +144,7 @@ export interface MusicLyricsValue {
   lyricAiTranslated: boolean
   lyricTranslationsGenerating: boolean
   effectiveTranslationLang: LyricTargetLang
+  songLang: string | null
   availableTranslationLangs: MusicLyricTranslationLangStatus[]
   hasRomajiLyric: boolean
   canToggleRomaji: boolean
@@ -1332,6 +1333,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [adjacentTracks, currentTrack, ensurePlaylist, lyricStatus, lyricsPending])
 
   const sameTrackState = lyricsState.trackId === currentTrackId
+  const songLang = sameTrackState ? lyricsState.songLang : null
   const activePronunciationBucket: PronunciationLangBucket | null = sameTrackState ? lyricsState.pronunciationBucket : null
   const activeTranslationBucket: TranslationSongBucket | null = sameTrackState ? lyricsState.translationBucket : null
   const targetLangRef = useRef(targetLang)
@@ -1891,6 +1893,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     lyricAiTranslated,
     lyricTranslationsGenerating,
     effectiveTranslationLang,
+    songLang,
     availableTranslationLangs,
     hasRomajiLyric,
     canToggleRomaji,
@@ -1914,6 +1917,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     lyricAiTranslated,
     lyricTranslationsGenerating,
     effectiveTranslationLang,
+    songLang,
     availableTranslationLangs,
     hasRomajiLyric,
     canToggleRomaji,

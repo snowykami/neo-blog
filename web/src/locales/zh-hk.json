@@ -434,5 +434,10 @@
     "verify_disabled": "網站關閉了電郵驗證，無法透過電郵找回密碼。請聯絡管理員。",
     "email_required": "請輸入電郵",
     "email_invalid": "電郵格式不正確"
+  },
+  "Language": {
+    "it": "意大利語",
+    "cy": "威爾士語",
+    "ca": "加泰羅尼亞語"
   }
 }
