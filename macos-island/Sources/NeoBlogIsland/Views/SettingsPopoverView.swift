@@ -1,10 +1,20 @@
 import AppKit
 import SwiftUI
 
-/// 菜单栏轻量状态小窗：灵动岛的所有外观与行为开关均统一在博客「个人设置 › 个性化」中配置
+/// 菜单栏状态与独立播放控制小窗：有博客播放时展示伴随状态，无博客播放时可直连博客歌单作为独立播放器使用
 struct SettingsPopoverView: View {
     let store: IslandStore
     let hasPhysicalNotch: Bool
+
+    private var headerSubtitle: String {
+        if store.isAutonomousMode {
+            return "独立播放器运行中 · 监听 127.0.0.1:\(store.boundPort)"
+        }
+        if store.isBrowserCompanionMode && store.isPlaying {
+            return "伴随博客页面展示中 · 监听 127.0.0.1:\(store.boundPort)"
+        }
+        return "独立播放器与博客伴侣 · 监听 127.0.0.1:\(store.boundPort)"
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -12,7 +22,7 @@ struct SettingsPopoverView: View {
                 Image(systemName: "waveform.circle.fill")
                     .font(.system(size: 22))
                     .foregroundStyle(
-                        (!store.connectedOrigins.isEmpty || store.isAutonomousMode)
+                        (!store.connectedOrigins.isEmpty || store.isAutonomousMode || store.library.hasBoundOrigin)
                             ? store.accentColor
                             : .secondary
                     )
@@ -29,85 +39,16 @@ struct SettingsPopoverView: View {
                             .padding(.vertical, 1.5)
                             .background(Color.primary.opacity(0.07), in: Capsule())
                     }
-                    Text(
-                        store.isAutonomousMode
-                            ? "内置音频续播中 · 监听 127.0.0.1:\(store.boundPort)"
-                            : "显示遥控与断联续播 · 监听 127.0.0.1:\(store.boundPort)"
-                    )
-                    .font(.system(size: 11).monospacedDigit())
-                    .foregroundStyle(.secondary)
+                    Text(headerSubtitle)
+                        .font(.system(size: 11).monospacedDigit())
+                        .foregroundStyle(.secondary)
                 }
                 Spacer()
             }
 
             Divider()
 
-            VStack(alignment: .leading, spacing: 6) {
-                if store.isAutonomousMode {
-                    HStack(spacing: 6) {
-                        Circle()
-                            .fill(Color.mint)
-                            .frame(width: 7, height: 7)
-                        Text("灵动岛内置独立续播中（发声：\(store.autonomousAudioOwnerLabel)）")
-                            .font(.system(size: 12, weight: .semibold))
-                            .lineLimit(1)
-                    }
-
-                    Text(store.autonomousOrigin)
-                        .font(.system(size: 11.5).monospaced())
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-
-                    HStack(spacing: 8) {
-                        Button("交回浏览器播放") {
-                            store.openBlogPlayerPage()
-                        }
-                        .controlSize(.small)
-
-                        Button("停止续播") {
-                            store.stopAutonomousPlayback()
-                        }
-                        .controlSize(.small)
-                    }
-                } else {
-                    HStack {
-                        Circle()
-                            .fill(
-                                !store.connectedOrigins.isEmpty ? Color.green
-                                : (store.isDisplayingRemotePeerSession ? Color.cyan : Color.orange)
-                            )
-                            .frame(width: 7, height: 7)
-                        Text(
-                            !store.connectedOrigins.isEmpty ? "已连接本机博客页面"
-                            : (store.isDisplayingRemotePeerSession ? "正在镜像跨屏 Mac 音乐流" : "等待博客页面连接…")
-                        )
-                        .font(.system(size: 12, weight: .semibold))
-                    }
-
-                    if store.connectedOrigins.isEmpty && !store.isDisplayingRemotePeerSession {
-                        Text("在任一台 Mac 打开博客页面并播放音乐即可自动连接；浏览器关闭后会自动无缝切换至灵动岛内置续播。")
-                            .font(.system(size: 11.5))
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    } else {
-                        ForEach(store.connectedOrigins, id: \.self) { origin in
-                            HStack(spacing: 6) {
-                                Text(origin)
-                                    .font(.system(size: 11.5).monospaced())
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                                Spacer()
-                                Button("打开个性化设置") {
-                                    if let url = URL(string: "\(origin)/console/user-preference") {
-                                        NSWorkspace.shared.open(url)
-                                    }
-                                }
-                                .controlSize(.mini)
-                            }
-                        }
-                    }
-                }
-            }
+            PlaybackModePopoverSection(store: store)
 
             Divider()
 
@@ -152,8 +93,237 @@ struct SettingsPopoverView: View {
             }
         }
         .padding(14)
-        .frame(width: 326)
+        .frame(width: 332)
         .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private struct PlaybackModePopoverSection: View {
+    let store: IslandStore
+    @State private var isEditingOrigin: Bool = false
+    @State private var originDraft: String = ""
+    @FocusState private var originFieldFocused: Bool
+
+    private var playModeLabel: String {
+        switch store.library.savedSettings.playMode {
+        case .repeatAll: return "列表循环"
+        case .repeatOne: return "单曲循环"
+        case .shuffle: return "随机播放"
+        }
+    }
+
+    private var primaryPlayButtonTitle: String {
+        if let title = store.library.resumableTrackTitle, !title.isEmpty {
+            return "继续播放"
+        }
+        return "开始播放"
+    }
+
+    var body: some View {
+        let lib = store.library
+        VStack(alignment: .leading, spacing: 7) {
+            if store.isAutonomousMode {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(Color.mint)
+                        .frame(width: 7, height: 7)
+                    Text("灵动岛独立播放中（发声：\(store.autonomousAudioOwnerLabel)）")
+                        .font(.system(size: 12, weight: .semibold))
+                        .lineLimit(1)
+                }
+
+                if let curTrack = store.track {
+                    Text(curTrack.inlineTitle)
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(.primary.opacity(0.88))
+                        .lineLimit(1)
+                }
+
+                Text(store.autonomousOrigin)
+                    .font(.system(size: 11).monospaced())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+
+                HStack(spacing: 6) {
+                    Button(store.isPlaying ? "暂停" : "继续播放") {
+                        store.togglePlay()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+
+                    if store.config.expandable {
+                        Button("展开歌单") {
+                            if store.isIslandHandedOffToPeer {
+                                store.recallIslandToThisMac()
+                            }
+                            withAnimation(.spring(duration: 0.36, bounce: 0.22)) {
+                                store.isExpanded = true
+                                store.showPlaylistOverlay = true
+                            }
+                        }
+                        .controlSize(.small)
+                    }
+
+                    Button("交回浏览器") {
+                        store.openBlogPlayerPage()
+                    }
+                    .controlSize(.small)
+
+                    Button("收起") {
+                        store.stopAutonomousPlayback()
+                    }
+                    .controlSize(.small)
+                }
+            } else if store.isBrowserCompanionMode && store.isPlaying {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(!store.connectedOrigins.isEmpty ? Color.green : Color.cyan)
+                        .frame(width: 7, height: 7)
+                    Text(!store.connectedOrigins.isEmpty ? "正在伴随展示本机博客播放" : "正在伴随展示跨屏 Mac 播放")
+                        .font(.system(size: 12, weight: .semibold))
+                        .lineLimit(1)
+                }
+
+                if let curTrack = store.track {
+                    Text(curTrack.inlineTitle)
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(.primary.opacity(0.88))
+                        .lineLimit(1)
+                }
+
+                ForEach(store.connectedOrigins, id: \.self) { origin in
+                    HStack(spacing: 6) {
+                        Text(origin)
+                            .font(.system(size: 11).monospaced())
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        Spacer()
+                        Button("打开个性化设置") {
+                            if let url = URL(string: "\(origin)/console/user-preference") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                        .controlSize(.mini)
+                    }
+                }
+            } else {
+                // 无博客正在播放：呈现独立播放器控制卡（若有空闲网页连接也一并提示）
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(!store.connectedOrigins.isEmpty ? Color.green : (lib.hasBoundOrigin ? Color.mint : Color.orange))
+                        .frame(width: 7, height: 7)
+                    Text(!store.connectedOrigins.isEmpty ? "已连接空闲博客页 · 独立播放器就绪" : "独立播放器（直连博客歌单）")
+                        .font(.system(size: 12, weight: .semibold))
+                        .lineLimit(1)
+                    Spacer()
+                    if lib.isSyncingPlaylist {
+                        ProgressView()
+                            .controlSize(.mini)
+                    }
+                }
+
+                if !lib.hasBoundOrigin || isEditingOrigin {
+                    TextField("博客地址（如 https://blog.example.com）", text: $originDraft)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 11.5).monospaced())
+                        .focused($originFieldFocused)
+                        .onAppear {
+                            originFieldFocused = true
+                        }
+                        .onSubmit {
+                            if store.bindBlogOrigin(originDraft, autoStartPlayback: false) {
+                                isEditingOrigin = false
+                            }
+                        }
+
+                    HStack(spacing: 6) {
+                        Button("连接并播放") {
+                            if store.bindBlogOrigin(originDraft, autoStartPlayback: true) {
+                                isEditingOrigin = false
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .disabled(originDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                        Button("仅保存站点") {
+                            if store.bindBlogOrigin(originDraft, autoStartPlayback: false) {
+                                isEditingOrigin = false
+                            }
+                        }
+                        .controlSize(.small)
+                        .disabled(originDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                        if lib.hasBoundOrigin {
+                            Button("取消") {
+                                isEditingOrigin = false
+                            }
+                            .controlSize(.small)
+                        }
+                    }
+                } else {
+                    HStack(spacing: 6) {
+                        Text(lib.boundOrigin)
+                            .font(.system(size: 11).monospaced())
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Spacer(minLength: 4)
+                        Button("刷新歌单") {
+                            store.refreshStandalonePlaylist()
+                        }
+                        .controlSize(.mini)
+                        .disabled(lib.isSyncingPlaylist)
+
+                        Button("切换站点") {
+                            originDraft = lib.boundOrigin
+                            isEditingOrigin = true
+                            originFieldFocused = true
+                        }
+                        .controlSize(.mini)
+                    }
+
+                    let trackCountText = lib.playlist.isEmpty
+                        ? (lib.lastTrackSnapshot != nil ? "已缓存上次曲目" : (lib.isSyncingPlaylist ? "正在同步歌单…" : "暂无缓存歌单"))
+                        : "共 \(lib.playlist.count) 首"
+                    let resumeHint = lib.resumableTrackTitle.map { " · 上次：《\($0)》" } ?? ""
+                    Text("\(trackCountText) · \(playModeLabel)\(resumeHint)")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+
+                    HStack(spacing: 6) {
+                        Button(primaryPlayButtonTitle) {
+                            store.startStandalonePlayback(autoPlay: true)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+
+                        if !lib.playlist.isEmpty && store.config.expandable {
+                            Button("展开歌单选歌") {
+                                store.startStandalonePlayback(autoPlay: false, openPlaylistPanel: true)
+                            }
+                            .controlSize(.small)
+                        }
+
+                        Button("个性化设置") {
+                            if let url = URL(string: "\(lib.boundOrigin)/console/user-preference") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                        .controlSize(.small)
+                    }
+                }
+
+                if let warning = lib.syncWarning, !warning.isEmpty {
+                    Text(warning)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
     }
 }
 

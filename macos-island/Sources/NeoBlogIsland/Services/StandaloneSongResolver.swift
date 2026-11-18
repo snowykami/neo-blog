@@ -234,13 +234,103 @@ enum StandaloneSongResolver {
         "intense": "#ff6a3d"
     ]
 
+    enum PlaylistSyncOutcome: Sendable, Equatable {
+        case notModified
+        case updated(tracks: [PlaylistTrackItem], version: String?)
+        case failed(String)
+    }
+
     // MARK: - 公开歌单与单曲全量捆绑拉取
 
+    /// 规范化用户输入的博客地址（支持裸域名/IP 自动补协议、自动剥离多余路径与查询串）
+    static func normalizeBlogOrigin(_ raw: String) -> String? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !trimmed.lowercased().hasPrefix("peer://") else { return nil }
+
+        let withScheme: String
+        if trimmed.lowercased().hasPrefix("http://") || trimmed.lowercased().hasPrefix("https://") {
+            withScheme = trimmed
+        } else {
+            let lower = trimmed.lowercased()
+            let defaultHTTP = lower.hasPrefix("localhost")
+                || lower.hasPrefix("127.0.0.1")
+                || lower.hasPrefix("[::1]")
+            withScheme = (defaultHTTP ? "http://" : "https://") + trimmed
+        }
+
+        guard let comps = URLComponents(string: withScheme),
+              let scheme = comps.scheme?.lowercased(),
+              (scheme == "http" || scheme == "https"),
+              let host = comps.host,
+              !host.isEmpty else {
+            return nil
+        }
+
+        var normalized = URLComponents()
+        normalized.scheme = scheme
+        normalized.host = host
+        normalized.port = comps.port
+        return normalized.url?.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    }
+
+    /// 结合后端 `/api/v1/music/playlist/version` 指纹与 `X-Playlist-Version` 响应头增量同步歌单
+    static func syncPlaylist(
+        origin: String,
+        cachedVersion: String?,
+        force: Bool = false
+    ) async -> PlaylistSyncOutcome {
+        guard let base = normalizeBlogOrigin(origin) else {
+            return .failed("博客站点地址格式无效")
+        }
+
+        if !force,
+           let cachedVer = cachedVersion?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !cachedVer.isEmpty,
+           let verURL = URL(string: "\(base)/api/v1/music/playlist/version"),
+           let remoteVer: String = await getData(url: verURL, timeout: 4.5, reload: true) {
+            let trimmedRemote = remoteVer.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedRemote.isEmpty && trimmedRemote == cachedVer {
+                return .notModified
+            }
+        }
+
+        guard let playlistURL = URL(string: "\(base)/api/v1/music/playlist") else {
+            return .failed("无法构造歌单请求地址")
+        }
+        var req = URLRequest(url: playlistURL, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 15.0)
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        do {
+            let (data, resp) = try await URLSession.shared.data(for: req)
+            guard let http = resp as? HTTPURLResponse else {
+                return .failed("歌单接口响应无效")
+            }
+            guard (200..<300).contains(http.statusCode) else {
+                return .failed("博客返回 HTTP \(http.statusCode)")
+            }
+            guard let env = try? JSONDecoder().decode(APIEnvelope<[BackendTrackDTO]>.self, from: data),
+                  let list = env.data else {
+                return .failed("解析歌单数据失败")
+            }
+            let versionHeader = http.value(forHTTPHeaderField: "X-Playlist-Version")?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let tracks = mapBackendTracks(list, baseOrigin: base)
+            return .updated(tracks: tracks, version: (versionHeader?.isEmpty == false) ? versionHeader : nil)
+        } catch {
+            return .failed("无法连接博客：\(error.localizedDescription)")
+        }
+    }
+
     static func fetchPlaylist(origin: String) async -> [PlaylistTrackItem]? {
-        let base = cleanOrigin(origin)
-        guard !base.isEmpty, let url = URL(string: "\(base)/api/v1/music/playlist") else { return nil }
-        guard let list: [BackendTrackDTO] = await getData(url: url, timeout: 15) else { return nil }
-        return list.enumerated().map { idx, item in
+        switch await syncPlaylist(origin: origin, cachedVersion: nil, force: true) {
+        case .updated(let tracks, _):
+            return tracks
+        case .notModified, .failed:
+            return nil
+        }
+    }
+
+    private static func mapBackendTracks(_ list: [BackendTrackDTO], baseOrigin: String) -> [PlaylistTrackItem] {
+        list.enumerated().map { idx, item in
             let artists = (item.artists ?? []).joined(separator: " / ")
             let aliases = (item.aliases ?? []).filter { !$0.isEmpty && $0.caseInsensitiveCompare(item.name) != .orderedSame }
             let extra = aliases.isEmpty ? nil : aliases.joined(separator: " / ")
@@ -252,7 +342,7 @@ enum StandaloneSongResolver {
                 titleExtra: extra,
                 artists: artists,
                 album: item.album ?? "",
-                albumPic: resolveCoverURL(raw: item.album_pic, origin: base),
+                albumPic: resolveCoverURL(raw: item.album_pic, origin: baseOrigin),
                 durationMs: item.duration ?? 0
             )
         }

@@ -866,7 +866,7 @@ struct IslandDisplayConfig: Codable, Equatable, Sendable {
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        formMode = try c.decodeIfPresent(IslandFormMode.self, forKey: .formMode) ?? .floatingCapsule
+        formMode = (try? c.decodeIfPresent(IslandFormMode.self, forKey: .formMode)) ?? .floatingCapsule
         expandable = try c.decodeIfPresent(Bool.self, forKey: .expandable) ?? true
         beatBars = try c.decodeIfPresent(Bool.self, forKey: .beatBars) ?? true
         chorusGlow = try c.decodeIfPresent(Bool.self, forKey: .chorusGlow) ?? true
@@ -1052,7 +1052,7 @@ struct WebStateMessage: Codable {
         positionMs = try c.decode(Double.self, forKey: .positionMs)
         seekAtMs = try c.decodeIfPresent(Double.self, forKey: .seekAtMs)
         anchorMs = try c.decode(Double.self, forKey: .anchorMs)
-        playMode = try c.decodeIfPresent(PlayMode.self, forKey: .playMode) ?? .repeatAll
+        playMode = (try? c.decodeIfPresent(PlayMode.self, forKey: .playMode)) ?? .repeatAll
         volume = try c.decodeIfPresent(Double.self, forKey: .volume) ?? 1.0
         muted = try c.decodeIfPresent(Bool.self, forKey: .muted) ?? false
         peekText = try c.decodeIfPresent(String.self, forKey: .peekText)
@@ -1086,6 +1086,8 @@ struct AutonomousSessionPayload: Codable, Equatable, Sendable {
     var isMuted: Bool
     var preferences: IslandLyricPreferences
     var config: IslandDisplayConfig
+    var displayOwnership: PeerDisplayOwnership? = nil
+    var activeOwnerPeerId: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case origin, track, chorus, lyrics, rhythm, playlist, volume, preferences, config
@@ -1099,6 +1101,8 @@ struct AutonomousSessionPayload: Codable, Equatable, Sendable {
         case isPlaying = "is_playing"
         case playMode = "play_mode"
         case isMuted = "is_muted"
+        case displayOwnership = "display_ownership"
+        case activeOwnerPeerId = "active_owner_peer_id"
     }
 
     /// 跨机网络传输前剥离重型预热缓存（对端成为发声端时会按需本地预热），将单包体积降低 80%+

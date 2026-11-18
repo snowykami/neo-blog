@@ -1798,4 +1798,193 @@ struct BridgeAndEngineTests {
         #expect(storeA.canPortalThrowToPeer == false)
         #expect(storeB.isIslandHandedOffToPeer == true)
     }
+
+    @Test("独立播放器与上次连接缓存回退：冷启动无网络时沿用上次播放模式/音量/歌单/歌词起播，博客开播时自动让渡伴随")
+    @MainActor
+    func standalonePlayerColdLaunchOfflineFallbackAndCompanionYield() async throws {
+        let suite = "NeoBlogIslandTest.StandalonePersist.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("neoblog-lib-\(UUID().uuidString)", isDirectory: true)
+        let cacheURL = tempDir.appendingPathComponent("library-cache.json", isDirectory: false)
+        defer {
+            defaults.removePersistentDomain(forName: suite)
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        // 1) 第一次运行：浏览器在线播放并推送歌单、歌词、播放模式(shuffle)、音量(0.62)、悬浮形态与英文翻译偏好
+        let lib1 = StandaloneLibraryStore(defaults: defaults, cacheFileURL: cacheURL, networkEnabled: false)
+        let store1 = IslandStore(startNetworkServices: false, libraryStore: lib1)
+        let browserTab1 = UUID()
+
+        store1.ingestTestPayload(Data("""
+        {
+          "type": "playlist",
+          "origin": "https://59.110.27.154",
+          "complete": true,
+          "current_index": 0,
+          "tracks": [
+            { "index": 0, "id": 501, "name": "Cached Song 1", "artists": "Chisato", "album": "Lycoris", "duration_ms": 210000 },
+            { "index": 1, "id": 502, "name": "Cached Song 2", "artists": "Takina", "album": "Lycoris", "duration_ms": 195000 }
+          ]
+        }
+        """.utf8), clientId: browserTab1, origin: "https://59.110.27.154")
+        store1.ingestTestPayload(Data("""
+        {
+          "type": "media",
+          "origin": "https://59.110.27.154",
+          "accent_hex": "#f472b6",
+          "chorus": [{"start": 60000, "end": 90000}],
+          "track": { "id": 501, "name": "Cached Song 1", "artists": ["Chisato"], "duration_ms": 210000 },
+          "lyrics": {
+            "source": "ttml-amll",
+            "word_synced": true,
+            "instrumental": false,
+            "lines": [{"start": 0, "end": 120000, "words": [{"text": "Offline Cached Line", "start": 0, "end": 120000}]}]
+          }
+        }
+        """.utf8), clientId: browserTab1, origin: "https://59.110.27.154")
+        store1.ingestTestPayload(Data("""
+        {
+          "type": "state",
+          "origin": "https://59.110.27.154",
+          "visible": true,
+          "has_played": true,
+          "show_playing": false,
+          "is_playing": false,
+          "play_mode": "shuffle",
+          "volume": 0.62,
+          "muted": false,
+          "track_id": 501,
+          "duration_ms": 210000,
+          "position_ms": 68000,
+          "anchor_ms": \(Date().timeIntervalSince1970 * 1000.0),
+          "preferences": {
+            "show_translation": true,
+            "can_toggle_translation": true,
+            "translation_selections": [{ "lang": "en", "prefer_native": false }],
+            "show_romaji": false,
+            "can_toggle_romaji": true,
+            "show_lyric_effects": true,
+            "show_lyric_moments": false
+          },
+          "config": {
+            "form_mode": "notch",
+            "expandable": true,
+            "beat_bars": true,
+            "chorus_glow": true,
+            "hdr": false
+          }
+        }
+        """.utf8), clientId: browserTab1, origin: "https://59.110.27.154")
+        await lib1.flushNowForTesting()
+
+        // 2) 第二次冷启动（模拟没有打开任何浏览器，且博客网络暂不可达）：直接从上次连接持久化恢复全部偏好与歌单起播
+        #expect(StandaloneSongResolver.normalizeBlogOrigin("59.110.27.154/music?x=1") == "https://59.110.27.154")
+        #expect(StandaloneSongResolver.normalizeBlogOrigin("localhost:3000/posts") == "http://localhost:3000")
+
+        let lib2 = StandaloneLibraryStore(defaults: defaults, cacheFileURL: cacheURL, networkEnabled: false)
+        let store2 = IslandStore(startNetworkServices: false, libraryStore: lib2)
+        #expect(lib2.boundOrigin == "https://59.110.27.154")
+        #expect(lib2.playlist.count == 2)
+        #expect(store2.playMode == .shuffle)
+        #expect(abs(store2.volume - 0.62) < 0.001)
+        #expect(store2.config.formMode == .notchMerged)
+        #expect(store2.config.hdr == false)
+        #expect(store2.preferences.showRomaji == false)
+        #expect(store2.preferences.showLyricMoments == false)
+        #expect(store2.preferences.translationSelections.map(\.lang) == ["en"])
+
+        store2.startStandalonePlayback(autoPlay: true)
+        #expect(store2.isAutonomousMode == true)
+        #expect(store2.nativeAudio.isActive == true)
+        #expect(store2.track?.id == 501)
+        #expect(store2.lyrics.lines.first?.plainText == "Offline Cached Line")
+        #expect(abs(store2.currentPositionMs() - 68000) < 600)
+        #expect(store2.glow?.color == "#f472b6")
+        #expect(store2.shouldDisplayIsland == true)
+
+        // 3) 独立播放期间用户新开一个空闲文章阅读标签页（含残留旧歌 media 与默认 repeat-all state）：既不打断独立播放，也不污染持久化偏好与缓存快照
+        var intercepted: [OutgoingCommand] = []
+        store2.onInterceptCommandForTest = { cmd in intercepted.append(cmd) }
+        let articleTab = UUID()
+        store2.ingestTestPayload(Data("""
+        {
+          "type": "media",
+          "origin": "https://59.110.27.154",
+          "track": { "id": 999, "name": "Stale Idle Song", "artists": ["Other"], "duration_ms": 180000 },
+          "lyrics": { "source": "ncm-lrc", "word_synced": false, "instrumental": false, "lines": [] }
+        }
+        """.utf8), clientId: articleTab, origin: "https://59.110.27.154")
+        store2.ingestTestPayload(Data("""
+        {
+          "type": "state",
+          "origin": "https://59.110.27.154",
+          "visible": false,
+          "has_played": false,
+          "show_playing": false,
+          "is_playing": false,
+          "audio_playing": false,
+          "play_mode": "repeat-all",
+          "volume": 1.0,
+          "track_id": 999,
+          "duration_ms": 180000,
+          "position_ms": 0,
+          "anchor_ms": \(Date().timeIntervalSince1970 * 1000.0)
+        }
+        """.utf8), clientId: articleTab, origin: "https://59.110.27.154")
+        #expect(store2.isAutonomousMode == true)
+        #expect(store2.nativeAudio.isActive == true)
+        #expect(lib2.savedSettings.playMode == .shuffle)
+        #expect(abs(lib2.savedSettings.volume - 0.62) < 0.001)
+        #expect(lib2.lastTrackSnapshot?.track.id == 501)
+        #expect(!intercepted.contains(where: { $0.action == "adopt_native_session" }))
+
+        // 3.5) 模拟整站离线拉流连续失败：自动跳曲至熔断上限后自动回退恢复上次缓存曲目 #501（保留歌词与 68s 进度），且暂停态 Seek 可触发 @Observable 刷新
+        store2.nativeAudio.simulateFailureForTesting()
+        store2.nativeAudio.simulateFailureForTesting()
+        #expect(store2.isPlaying == false)
+        #expect(store2.track?.id == 501)
+        #expect(store2.lyrics.lines.first?.plainText == "Offline Cached Line")
+        #expect(lib2.lastTrackSnapshot?.track.id == 501)
+        #expect(lib2.lastPlayedPositionMs >= 68000)
+
+        final class FlagBox: @unchecked Sendable { var didInvalidate = false }
+        let flag = FlagBox()
+        _ = withObservationTracking {
+            store2.currentPositionMs()
+        } onChange: {
+            flag.didInvalidate = true
+        }
+        store2.seek(toMs: 112000)
+        #expect(flag.didInvalidate == true)
+        #expect(abs(store2.currentPositionMs() - 112000) < 10)
+
+        // 4) 当用户在网页端点击播放曲目 502 出声时 -> 灵动岛立即停掉内置音频并自动切为浏览器伴随展示模式
+        store2.ingestTestPayload(Data("""
+        {
+          "type": "media",
+          "origin": "https://59.110.27.154",
+          "track": { "id": 502, "name": "Cached Song 2", "artists": ["Takina"], "duration_ms": 195000 },
+          "lyrics": { "source": "ncm-lrc", "word_synced": false, "instrumental": false, "lines": [] }
+        }
+        """.utf8), clientId: articleTab, origin: "https://59.110.27.154")
+        store2.ingestTestPayload(Data("""
+        {
+          "type": "state",
+          "origin": "https://59.110.27.154",
+          "visible": true,
+          "has_played": true,
+          "show_playing": true,
+          "is_playing": true,
+          "audio_playing": true,
+          "track_id": 502,
+          "duration_ms": 195000,
+          "position_ms": 1200,
+          "anchor_ms": \(Date().timeIntervalSince1970 * 1000.0)
+        }
+        """.utf8), clientId: articleTab, origin: "https://59.110.27.154")
+        #expect(store2.isAutonomousMode == false)
+        #expect(store2.nativeAudio.isActive == false)
+        #expect(store2.track?.id == 502)
+    }
 }

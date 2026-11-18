@@ -210,7 +210,7 @@ private struct IslandSurfaceView: View {
             Button("在博客打开完整播放器页 (/music)") {
                 store.openBlogPlayerPage()
             }
-            Button(store.isAutonomousMode ? "停止内置续播" : "隐藏本首曲目") {
+            Button(store.isAutonomousMode ? "退出独立播放并收起" : "隐藏本首曲目") {
                 store.hideCurrentTrack()
             }
             Divider()
