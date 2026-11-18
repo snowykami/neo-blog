@@ -152,7 +152,13 @@ export function SettingsForm({ advanced }: { advanced: React.ReactNode }) {
   if (!schema) {
     return (
       <div className="grid gap-4" aria-busy="true" aria-label={t('loading')}>
-        <Skeleton className="h-10 w-full max-w-xl rounded-xl" />
+        <div className="flex h-10 items-center gap-4 border-b border-foreground/10 px-2">
+          <Skeleton className="h-4 w-12" />
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-4 w-16" />
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-4 w-10" />
+        </div>
         <Card>
           <CardHeader>
             <Skeleton className="h-5 w-36" />
@@ -176,10 +182,10 @@ export function SettingsForm({ advanced }: { advanced: React.ReactNode }) {
     <FormProvider {...form}>
       <StandaloneKeysContext value={standaloneKeys}>
         <Tabs value={tab} onValueChange={selectTab} className="gap-4">
-          {/* 页内分组采用胶囊分段轨道，与顶栏路由级底线 Tab 区分视觉层级 */}
-          <TabsList variant="default" className="h-auto w-full flex-wrap justify-start gap-1 rounded-xl p-1 sm:w-fit">
+          {/* 与后台其它页面顶部 ConsoleTabs 保持统一的底边横线风格，窄屏横向滚动 */}
+          <TabsList variant="underline" className="w-full justify-start">
             {tabs.map(({ key, title }) => (
-              <TabsTrigger key={key} value={key} className="h-8 flex-none rounded-lg px-3">
+              <TabsTrigger key={key} value={key} className="flex-none px-3">
                 {tr(title)}
                 {key !== 'advanced' && <TabDirtyDot tabKey={key} tabOf={tabOf} label={t('unsaved_changes')} />}
               </TabsTrigger>
