@@ -416,6 +416,7 @@ extension IslandStore {
         showPlaying = true
         anchorPositionMs = posMs
         anchorLocalDate = Date()
+        updateAutonomousGlow(at: posMs)
 
         persistCurrentStandaloneSnapshotToLibrary(immediate: true)
         fallbackSnapshotBeforeFailure = library.lastTrackSnapshot
@@ -992,6 +993,7 @@ extension IslandStore {
             anchorPositionMs = 0
             anchorLocalDate = Date()
             seekAtMs = 0
+            updateAutonomousGlow(at: 0)
             nativeAudio.seek(toMs: 0)
             nativeAudio.play()
             broadcastAutonomousStatePatchToPeer(throttled: false)
@@ -1321,6 +1323,7 @@ extension IslandStore {
                 showPlaying = true
             }
             pausedText = nil
+            updateAutonomousGlow(at: currentPositionMs())
             refreshAutonomousMirrorGlowWatcher()
         } else {
             let pos = currentPositionMs()
@@ -1331,6 +1334,7 @@ extension IslandStore {
             withAnimation(.spring(duration: 0.36, bounce: 0.22)) {
                 isPlaying = false
             }
+            updateAutonomousGlow(at: pos)
             refreshAutonomousMirrorGlowWatcher()
             autonomousPauseSettleTask = Task { @MainActor [weak self] in
                 try? await Task.sleep(for: .milliseconds(350))
@@ -1361,8 +1365,9 @@ extension IslandStore {
     func updateAutonomousGlow(at ms: Double) {
         let nextGlow = StageTimelineEngine.chorusGlow(
             at: ms,
+            lyrics: lyrics,
             chorusRanges: chorusRanges,
-            enabled: config.chorusGlow,
+            enabled: config.chorusGlow && isPlaying,
             accentHex: accentHex
         )
         if glow != nextGlow {
@@ -1375,7 +1380,7 @@ extension IslandStore {
         if !needsTimer {
             autonomousMirrorGlowTask?.cancel()
             autonomousMirrorGlowTask = nil
-            if !config.chorusGlow && glow != nil {
+            if (!config.chorusGlow || !isPlaying) && glow != nil {
                 glow = nil
             }
             return
@@ -1383,7 +1388,7 @@ extension IslandStore {
         guard autonomousMirrorGlowTask == nil else { return }
         autonomousMirrorGlowTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .milliseconds(350))
+                try? await Task.sleep(for: .milliseconds(250))
                 guard !Task.isCancelled, let self else { return }
                 guard self.isAutonomousMode && !self.isLocalAutonomousAudioOwner && self.isPlaying else {
                     self.autonomousMirrorGlowTask = nil

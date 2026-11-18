@@ -77,7 +77,7 @@ private struct IslandSurfaceView: View {
     let onInteractiveFrameChanged: (CGRect) -> Void
 
     var body: some View {
-        let activeGlow = (store.config.chorusGlow && store.showPlaying) ? store.glow : nil
+        let activeGlow = (store.config.chorusGlow && store.showPlaying && store.isPlaying) ? store.glow : nil
         let isPortalArmed = store.portalDragTargetEdge != nil || store.incomingPortalPreview != nil
         let portalCyan = Color(red: 0.36, green: 0.82, blue: 1.0)
         let glowColor = isPortalArmed ? portalCyan : Color(cssColor: activeGlow?.color ?? store.accentHex)
@@ -138,21 +138,21 @@ private struct IslandSurfaceView: View {
         .overlay {
             shape
                 .stroke(
-                    (activeGlow != nil || isPortalArmed) ? glowColor.opacity(0.95) : Color.white.opacity(0.11),
-                    lineWidth: (activeGlow != nil || isPortalArmed) ? 1.6 : 0.9
+                    (activeGlow != nil || isPortalArmed) ? glowColor.opacity(0.92) : Color.white.opacity(0.11),
+                    lineWidth: (activeGlow != nil || isPortalArmed) ? 1.35 : 0.9
                 )
                 .allowsHitTesting(false)
         }
         .fixedSize()
         .shadow(
             color: (activeGlow != nil || isPortalArmed)
-                ? glowColor.opacity(isStrongGlow ? 0.72 : 0.54)
+                ? glowColor.opacity(isStrongGlow ? 0.58 : 0.44)
                 : Color.black.opacity(store.isExpanded ? 0.50 : 0.28),
             radius: (activeGlow != nil || isPortalArmed)
-                ? (isStrongGlow ? 22 : 15)
+                ? (isStrongGlow ? 12 : 7.5)
                 : (store.isExpanded ? 24 : 10),
             x: 0,
-            y: (activeGlow != nil || isPortalArmed) ? 2 : (store.isExpanded ? 12 : 4)
+            y: (activeGlow != nil || isPortalArmed) ? 0 : (store.isExpanded ? 12 : 4)
         )
         .opacity(store.incomingPortalPreview != nil ? 0.72 : 1.0)
         .offset(x: previewOffsetX)

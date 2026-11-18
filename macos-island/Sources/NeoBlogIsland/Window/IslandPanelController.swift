@@ -24,8 +24,8 @@ private struct PersistedCapsulePlacement: Codable, Equatable {
 /// 管理屏幕顶部的 NSPanel 定位、多屏幕/状态栏磁吸自由拖拽、分辨率切换重排，以及出血透明区 100% 鼠标穿透
 @MainActor
 final class IslandPanelController {
-    static let topCanvasBleed: CGFloat = 28
-    static let bottomCanvasBleed: CGFloat = 32
+    static let topCanvasBleed: CGFloat = 64
+    static let bottomCanvasBleed: CGFloat = 84
     private static let placementStorageKey = "NeoBlogIsland.capsulePlacement.v1"
     private static let dragThresholdPt: CGFloat = 4.0
 
@@ -42,8 +42,8 @@ final class IslandPanelController {
     private var isDraggingActive: Bool = false
     private var pendingPortalThrow: PeerPortalPayload? = nil
 
-    /// 固定画布尺寸：宽度容纳展开态（360pt）+ 两侧副歌辉光出血区，高度 580pt 留足展开面板与内嵌歌单队列、弹簧回弹及 26pt 辉光阴影空间
-    private let canvasSize = CGSize(width: 520, height: 580)
+    /// 固定画布尺寸：宽度容纳展开态（360pt）+ 两侧出血区，高度 680pt 留足展开面板及顶 64pt / 底 84pt 高斯阴影衰减余量，杜绝面板边缘硬切辉光
+    private let canvasSize = CGSize(width: 520, height: 680)
     /// 灵动岛当前实际可交互区域（SwiftUI 顶部向下坐标系，相对于 canvasSize）
     private var interactiveTopLeftRect: CGRect = .zero
     /// 面板目标屏幕帧（动画进行中也以目标落点计算鼠标穿透，避免 0.22s 飞行途中与动画收尾后命中框停留在旧坐标）

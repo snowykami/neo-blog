@@ -1901,6 +1901,7 @@ struct BridgeAndEngineTests {
         #expect(store2.lyrics.lines.first?.plainText == "Offline Cached Line")
         #expect(abs(store2.currentPositionMs() - 68000) < 600)
         #expect(store2.glow?.color == "#f472b6")
+        #expect(store2.glow?.strong == false)
         #expect(store2.shouldDisplayIsland == true)
 
         // 3) 独立播放期间用户新开一个空闲文章阅读标签页（含残留旧歌 media 与默认 repeat-all state）：既不打断独立播放，也不污染持久化偏好与缓存快照
@@ -1986,5 +1987,64 @@ struct BridgeAndEngineTests {
         #expect(store2.isAutonomousMode == false)
         #expect(store2.nativeAudio.isActive == false)
         #expect(store2.track?.id == 502)
+    }
+
+    @Test("副歌辉光分级与 Web lyricGlowAt 严格对齐：常规句柔和档，聚光灯/强调短语（含 1000ms 最短停留）升为强档")
+    func chorusGlowNormalVsStrongTierAlignment() throws {
+        let bundle = try JSONDecoder().decode(LyricsBundlePayload.self, from: Data("""
+        {
+          "source": "ttml",
+          "word_synced": true,
+          "instrumental": false,
+          "spotlights": [1],
+          "lines": [
+            {
+              "start": 60000,
+              "end": 65000,
+              "mood_hex": "#cfe8ff",
+              "words": [{ "start": 60000, "end": 65000, "text": "Normal chorus" }],
+              "emphasis": [
+                {
+                  "from": 0,
+                  "to": 0,
+                  "start": 62000,
+                  "end": 62150,
+                  "factor": 0.8,
+                  "effect": "bloom",
+                  "color_hex": "#fbbf24"
+                }
+              ]
+            },
+            {
+              "start": 65000,
+              "end": 70000,
+              "words": [{ "start": 65000, "end": 70000, "text": "Spotlight chorus" }]
+            }
+          ]
+        }
+        """.utf8))
+        let chorus = [TimeIntervalRange(start: 60000, end: 72000)]
+
+        // 常规副歌句（未进强调短语）：使用行情绪色 #cfe8ff 且 strong == false
+        let normal = StageTimelineEngine.chorusGlow(at: 61000, lyrics: bundle, chorusRanges: chorus, enabled: true, accentHex: "#f472b6")
+        #expect(normal == IslandGlowPayload(color: "#cfe8ff", strong: false))
+
+        // 短促强调短语（原长 150ms，按 LyricSpecs.emphasisMinMs 延长至 1000ms 停留期 [62000, 63000)）：在 62850ms 仍保持强调色 #fbbf24 与 strong == true，63050ms 回落常规档
+        let emph = StageTimelineEngine.chorusGlow(at: 62850, lyrics: bundle, chorusRanges: chorus, enabled: true, accentHex: "#f472b6")
+        #expect(emph == IslandGlowPayload(color: "#fbbf24", strong: true))
+        let afterEmph = StageTimelineEngine.chorusGlow(at: 63050, lyrics: bundle, chorusRanges: chorus, enabled: true, accentHex: "#f472b6")
+        #expect(afterEmph == IslandGlowPayload(color: "#cfe8ff", strong: false))
+
+        // 聚光灯点题句（spotlights 含 index 1）：无行色时回落封面主色且 strong == true
+        let spot = StageTimelineEngine.chorusGlow(at: 66000, lyrics: bundle, chorusRanges: chorus, enabled: true, accentHex: "#f472b6")
+        #expect(spot == IslandGlowPayload(color: "#f472b6", strong: true))
+
+        // 副歌区间内间奏空白（[70000, 72000)）：柔和档封面主色
+        let gap = StageTimelineEngine.chorusGlow(at: 71000, lyrics: bundle, chorusRanges: chorus, enabled: true, accentHex: "#f472b6")
+        #expect(gap == IslandGlowPayload(color: "#f472b6", strong: false))
+
+        // 区间右开边界 72000ms：已出副歌，返回 nil
+        let out = StageTimelineEngine.chorusGlow(at: 72000, lyrics: bundle, chorusRanges: chorus, enabled: true, accentHex: "#f472b6")
+        #expect(out == nil)
     }
 }

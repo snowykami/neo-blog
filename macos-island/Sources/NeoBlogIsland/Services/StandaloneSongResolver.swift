@@ -227,11 +227,12 @@ enum StandaloneSongResolver {
         let analysis: BackendRhythmAnalysisDTO?
     }
 
+    /// 1:1 对齐 web/src/lib/lyrics/colors.ts 中的 MOOD_GLOW 柔和色温表
     private static let moodHexMap: [String: String] = [
-        "calm": "#74c0fc",
-        "bright": "#ffd54f",
-        "sad": "#9bb7d4",
-        "intense": "#ff6a3d"
+        "calm": "#cfe8ff",
+        "bright": "#ffe6a8",
+        "sad": "#d6ceff",
+        "intense": "#ffc0b3"
     ]
 
     enum PlaylistSyncOutcome: Sendable, Equatable {

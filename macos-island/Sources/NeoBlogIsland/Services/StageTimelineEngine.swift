@@ -290,15 +290,37 @@ enum StageTimelineEngine {
         return fullText.isEmpty ? nil : fullText
     }
 
+    /// 1:1 对齐 web/src/lib/lyrics/lyric-glow.ts + desktop-island-bridge.tsx：
+    /// 副歌区间内默认使用柔和常亮辉光（strong=false），仅在聚光灯句或当前正唱到带强度的强调短语时升为强档（strong=true）
     static func chorusGlow(
         at ms: Double,
+        lyrics: LyricsBundlePayload,
         chorusRanges: [TimeIntervalRange],
         enabled: Bool,
         accentHex: String?
     ) -> IslandGlowPayload? {
         guard enabled else { return nil }
-        let inChorus = chorusRanges.contains { ms >= $0.start && ms <= $0.end }
+        let inChorus = chorusRanges.contains { ms >= $0.start && ms < $0.end }
         guard inChorus else { return nil }
-        return IslandGlowPayload(color: accentHex ?? "#2dd4bf", strong: true)
+
+        let fallbackColor = accentHex ?? "#60a5fa"
+        guard let lineIdx = lyrics.lines.firstIndex(where: { !$0.isBackground && ms >= $0.start && ms < $0.end }) else {
+            return IslandGlowPayload(color: fallbackColor, strong: false)
+        }
+        let line = lyrics.lines[lineIdx]
+        var resolvedColor: String? = nil
+        var strong = lyrics.spotlights.contains(lineIdx)
+        for group in line.emphasis {
+            let effectiveEnd = group.start + max(LyricSpecs.emphasisMinMs, group.end - group.start)
+            guard ms >= group.start && ms < effectiveEnd else { continue }
+            if group.factor > 0 {
+                strong = true
+            }
+            if resolvedColor == nil, let hex = group.colorHex, !hex.isEmpty {
+                resolvedColor = hex
+            }
+        }
+        let finalColor = resolvedColor ?? line.moodHex ?? fallbackColor
+        return IslandGlowPayload(color: finalColor, strong: strong)
     }
 }
