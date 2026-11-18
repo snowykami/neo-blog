@@ -173,12 +173,15 @@ enum StandaloneSongResolver {
         let text: String
         let occurrence: Int
         let bg: Bool?
+        let lang: String?
         let pronunciation: String
+        let tokens: [String]?
     }
 
     private struct BackendPronunciationsDTO: Decodable {
         let status: String?
         let source: String?
+        let lang: String?
         let lines: [BackendPronunciationLineDTO]?
     }
 
@@ -574,12 +577,14 @@ enum StandaloneSongResolver {
         primarySlot: TranslationSelectionItem = TranslationSelectionItem(lang: "zh", preferNative: false),
         primaryTranslationsJSON: Data? = nil,
         secondarySlot: TranslationSelectionItem? = nil,
-        secondaryTranslationsJSON: Data? = nil
+        secondaryTranslationsJSON: Data? = nil,
+        pronunciationsJSON: Data? = nil
     ) -> LyricsBundlePayload {
-        let base = parseTTML(xml: xml, source: "ttml-amll", sourceName: nil)
+        let base = enrichNativeRomanizationWords(parseTTML(xml: xml, source: "ttml-amll", sourceName: nil))
         let annotations = annotationsJSON.flatMap { try? JSONDecoder().decode(BackendAnnotationsDTO.self, from: $0) }
         let primaryTrans = primaryTranslationsJSON.flatMap { try? JSONDecoder().decode(BackendTranslationsDTO.self, from: $0) }
         let secondaryTrans = secondaryTranslationsJSON.flatMap { try? JSONDecoder().decode(BackendTranslationsDTO.self, from: $0) }
+        let pronunciations = pronunciationsJSON.flatMap { try? JSONDecoder().decode(BackendPronunciationsDTO.self, from: $0) }
         return applyOverlays(
             base: base,
             annotations: annotations,
@@ -587,7 +592,7 @@ enum StandaloneSongResolver {
             primaryTranslations: primaryTrans,
             secondarySlot: secondarySlot,
             secondaryTranslations: secondaryTrans,
-            pronunciations: nil,
+            pronunciations: pronunciations,
             singers: nil
         )
     }
@@ -595,12 +600,15 @@ enum StandaloneSongResolver {
     static func buildBaseLyricsForTesting(
         cacheJSON: Data?,
         ncmJSON: Data? = nil,
-        pin: String? = nil
+        pin: String? = nil,
+        offsets: [String: Double]? = nil,
+        pronunciationsJSON: Data? = nil
     ) -> LyricsBundlePayload {
         let cache = cacheJSON.flatMap { try? JSONDecoder().decode(BackendLyricCacheDTO.self, from: $0) }
         let ncm = ncmJSON.flatMap { try? JSONDecoder().decode(BackendNCMLyricDTO.self, from: $0) } ?? cache?.ncm
-        let settings = pin.map { BackendLyricSettingsDTO(offsets: nil, pin: $0) }
+        let settings = (pin != nil || offsets != nil) ? BackendLyricSettingsDTO(offsets: offsets, pin: pin) : nil
         let base = buildBaseLyrics(cache: cache, ncmFallback: ncm, settings: settings)
+        let pronunciations = pronunciationsJSON.flatMap { try? JSONDecoder().decode(BackendPronunciationsDTO.self, from: $0) }
         return applyOverlays(
             base: base,
             annotations: nil,
@@ -608,7 +616,7 @@ enum StandaloneSongResolver {
             primaryTranslations: nil,
             secondarySlot: nil,
             secondaryTranslations: nil,
-            pronunciations: nil,
+            pronunciations: pronunciations,
             singers: nil
         )
     }
@@ -677,7 +685,7 @@ enum StandaloneSongResolver {
                     let src = ttml.source == "custom" ? "ttml-custom" : "ttml-amll"
                     let parsed = parseTTML(xml: xml, source: src, sourceName: ttml.name)
                     if !parsed.lines.isEmpty {
-                        return applyOffset(parsed, offsets: settings?.offsets)
+                        return applyOffset(enrichNativeRomanizationWords(parsed), offsets: settings?.offsets)
                     }
                 }
             case "qq":
@@ -685,7 +693,7 @@ enum StandaloneSongResolver {
                     if let xml = qq.ttml, !xml.isEmpty {
                         let parsed = parseTTML(xml: xml, source: "ttml-amll", sourceName: nil)
                         if !parsed.lines.isEmpty {
-                            return applyOffset(parsed, offsets: settings?.offsets)
+                            return applyOffset(enrichNativeRomanizationWords(parsed), offsets: settings?.offsets)
                         }
                     }
                     if let text = qq.lyric, !text.isEmpty {
@@ -699,7 +707,7 @@ enum StandaloneSongResolver {
                             source: src
                         )
                         if !parsed.lines.isEmpty {
-                            return applyOffset(parsed, offsets: settings?.offsets)
+                            return applyOffset(enrichNativeRomanizationWords(parsed), offsets: settings?.offsets)
                         }
                     }
                 }
@@ -715,7 +723,7 @@ enum StandaloneSongResolver {
                         source: src
                     )
                     if !parsed.lines.isEmpty {
-                        return applyOffset(parsed, offsets: settings?.offsets)
+                        return applyOffset(enrichNativeRomanizationWords(parsed), offsets: settings?.offsets)
                     }
                 }
             case "ncm":
@@ -727,7 +735,7 @@ enum StandaloneSongResolver {
                             romalrc: ncm.yromalrc?.lyric ?? ncm.romalrc?.lyric
                         )
                         if !parsed.lines.isEmpty {
-                            return applyOffset(parsed, offsets: settings?.offsets)
+                            return applyOffset(enrichNativeRomanizationWords(parsed), offsets: settings?.offsets)
                         }
                     }
                     if let lrc = ncm.lrc?.lyric, !lrc.isEmpty {
@@ -742,7 +750,7 @@ enum StandaloneSongResolver {
                             source: "ncm-lrc"
                         )
                         if !parsed.lines.isEmpty {
-                            return applyOffset(parsed, offsets: settings?.offsets)
+                            return applyOffset(enrichNativeRomanizationWords(parsed), offsets: settings?.offsets)
                         }
                     }
                 }
@@ -752,6 +760,21 @@ enum StandaloneSongResolver {
         }
 
         return BaseParsedLyrics(source: "none", sourceName: nil, wordSynced: false, instrumental: false, lines: [])
+    }
+
+    /// 对齐 web/src/contexts/song-lyrics.ts `withRomanizationWords`：对逐字歌词中尚无分段时间戳音译的行做假名锚点/汉字单字对齐
+    private static func enrichNativeRomanizationWords(_ input: BaseParsedLyrics) -> BaseParsedLyrics {
+        guard input.wordSynced else { return input }
+        var out = input
+        for i in out.lines.indices where out.lines[i].romanizationWords.isEmpty {
+            guard let roma = out.lines[i].romanization,
+                  !roma.isEmpty,
+                  let aligned = RomanizationAligner.alignRomanization(roma, words: out.lines[i].words) else {
+                continue
+            }
+            out.lines[i].romanizationWords = RomanizationAligner.sanitizeForPayload(aligned)
+        }
+        return out
     }
 
     private static func applyOffset(_ input: BaseParsedLyrics, offsets: [String: Double]?) -> BaseParsedLyrics {
@@ -770,6 +793,10 @@ enum StandaloneSongResolver {
                 }
                 return LyricWordPayload(text: w.text, start: ws, end: we, ruby: rubies)
             }
+            copy.romanizationWords = line.romanizationWords.map { rw in
+                let rs = max(0, rw.start + delta)
+                return LyricRomanWordPayload(text: rw.text, start: rs, end: max(rs, rw.end + delta), word: rw.word)
+            }
             return copy
         }
         return out
@@ -777,12 +804,136 @@ enum StandaloneSongResolver {
 
     // MARK: - YRC / QRC / LRC 解析
 
+    private enum ExtraLyricParseMode {
+        case ncm
+        case qrcOrLrc
+    }
+
+    private struct ExtraLyricEntry {
+        let timeMs: Double
+        let text: String
+        let items: [RomanizationAligner.TimedSpan]?
+    }
+
+    private static func stripBracketMarks(_ s: String) -> String {
+        s.replacingOccurrences(of: "〖", with: "").replacingOccurrences(of: "〗", with: "")
+    }
+
+    /// 1:1 对齐 parse-platform.ts：同时支持 `[start,dur]`（YRC / QRC）与 `[mm:ss.xx]`（LRC）附加翻译/音译轨，并保留 QRC 逐音节时间片
+    private static func parseExtraEntries(
+        _ raw: String?,
+        mode: ExtraLyricParseMode,
+        keepTimedItems: Bool
+    ) -> [ExtraLyricEntry] {
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return []
+        }
+        let hasMillisecondBracketLine = trimmed.range(of: #"(?m)^\[\d+,\d+\]"#, options: .regularExpression) != nil
+        if hasMillisecondBracketLine {
+            let headerRegex = try? NSRegularExpression(pattern: #"^\[(\d+),(\d+)\](.*)$"#)
+            var out: [ExtraLyricEntry] = []
+            if mode == .ncm {
+                let wordRegex = try? NSRegularExpression(pattern: #"\((\d+),(\d+),\d+\)([\s\S]*?)(?=\(\d+,\d+,\d+\)|$)"#)
+                for line in trimmed.components(separatedBy: .newlines) {
+                    let t = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !t.hasPrefix("{"),
+                          let hMatch = headerRegex?.firstMatch(in: t, range: NSRange(t.startIndex..., in: t)),
+                          let sRange = Range(hMatch.range(at: 1), in: t),
+                          let bodyRange = Range(hMatch.range(at: 3), in: t),
+                          let lineStart = Double(t[sRange]) else { continue }
+                    let body = String(t[bodyRange])
+                    let matches = wordRegex?.matches(in: body, range: NSRange(body.startIndex..., in: body)) ?? []
+                    var joined = ""
+                    for m in matches {
+                        if let txR = Range(m.range(at: 3), in: body) {
+                            joined += stripBracketMarks(String(body[txR]))
+                        }
+                    }
+                    let clean = joined.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !clean.isEmpty {
+                        out.append(ExtraLyricEntry(timeMs: lineStart, text: clean, items: nil))
+                    }
+                }
+            } else {
+                let qrcWordRegex = try? NSRegularExpression(pattern: #"([\s\S]*?)\((\d+),(\d+)\)"#)
+                for line in trimmed.components(separatedBy: .newlines) {
+                    let t = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard let hMatch = headerRegex?.firstMatch(in: t, range: NSRange(t.startIndex..., in: t)),
+                          let sRange = Range(hMatch.range(at: 1), in: t),
+                          let bodyRange = Range(hMatch.range(at: 3), in: t),
+                          let lineStart = Double(t[sRange]) else { continue }
+                    let body = String(t[bodyRange])
+                    let matches = qrcWordRegex?.matches(in: body, range: NSRange(body.startIndex..., in: body)) ?? []
+                    var items: [RomanizationAligner.TimedSpan] = []
+                    var joined = ""
+                    for m in matches {
+                        guard let txR = Range(m.range(at: 1), in: body),
+                              let wsR = Range(m.range(at: 2), in: body),
+                              let wdR = Range(m.range(at: 3), in: body),
+                              let ws = Double(body[wsR]),
+                              let wd = Double(body[wdR]) else { continue }
+                        let rawPiece = stripBracketMarks(String(body[txR]))
+                        if !rawPiece.isEmpty {
+                            joined += rawPiece
+                            items.append(RomanizationAligner.TimedSpan(text: rawPiece, start: ws, end: ws + max(0, wd)))
+                        }
+                    }
+                    let clean = joined.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !clean.isEmpty else { continue }
+                    let validTimed = keepTimedItems && items.contains(where: { $0.end > $0.start })
+                    out.append(ExtraLyricEntry(timeMs: lineStart, text: clean, items: validTimed ? items : nil))
+                }
+            }
+            return out.sorted { $0.timeMs < $1.timeMs }
+        }
+
+        return parseLRCEntries(trimmed).compactMap { entry in
+            let clean = stripBracketMarks(entry.text).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !clean.isEmpty else { return nil }
+            return ExtraLyricEntry(timeMs: entry.timeMs, text: clean, items: nil)
+        }
+    }
+
+    /// 1:1 对齐 parse-platform.ts `alignPlatformExtras`：1000ms 内按时间偏差最小优先一对一配对
+    private static func alignExtraEntries(
+        baseStarts: [Double],
+        extras: [ExtraLyricEntry]
+    ) -> [Int: ExtraLyricEntry] {
+        guard !baseStarts.isEmpty, !extras.isEmpty else { return [:] }
+        var pairs: [(offset: Double, base: Int, extra: Int)] = []
+        for (eIdx, extraItem) in extras.enumerated() {
+            for (bIdx, bStart) in baseStarts.enumerated() {
+                let offset = abs(bStart - extraItem.timeMs)
+                if offset <= 1000.0 {
+                    pairs.append((offset, bIdx, eIdx))
+                }
+            }
+        }
+        pairs.sort {
+            if $0.offset != $1.offset { return $0.offset < $1.offset }
+            if $0.base != $1.base { return $0.base < $1.base }
+            return $0.extra < $1.extra
+        }
+        var usedBase = Set<Int>()
+        var usedExtra = Set<Int>()
+        var result: [Int: ExtraLyricEntry] = [:]
+        for p in pairs {
+            if usedBase.contains(p.base) || usedExtra.contains(p.extra) {
+                continue
+            }
+            usedBase.insert(p.base)
+            usedExtra.insert(p.extra)
+            result[p.base] = extras[p.extra]
+        }
+        return result
+    }
+
     private static func parseYRC(yrc: String, tlyric: String?, romalrc: String?) -> BaseParsedLyrics {
-        let transMap = parseLRCMap(tlyric)
-        let romaMap = parseLRCMap(romalrc)
+        let transExtras = parseExtraEntries(tlyric, mode: .ncm, keepTimedItems: false).filter { $0.text != "//" }
+        let romaExtras = parseExtraEntries(romalrc, mode: .ncm, keepTimedItems: false)
         var lines: [MutableLine] = []
         let headerRegex = try? NSRegularExpression(pattern: #"^\[(\d+),(\d+)\](.*)$"#)
-        let wordRegex = try? NSRegularExpression(pattern: #"\((\d+),(\d+),\d+\)([^\(]*)"#)
+        let wordRegex = try? NSRegularExpression(pattern: #"\((\d+),(\d+),\d+\)([\s\S]*?)(?=\(\d+,\d+,\d+\)|$)"#)
 
         for raw in yrc.components(separatedBy: .newlines) {
             let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -816,11 +967,21 @@ enum StandaloneSongResolver {
                 MutableLine(
                     start: lineStart,
                     end: end,
-                    translation: lookupNearestLRC(in: transMap, around: lineStart),
-                    romanization: lookupNearestLRC(in: romaMap, around: lineStart),
                     words: words
                 )
             )
+        }
+
+        let starts = lines.map(\.start)
+        let alignedTrans = alignExtraEntries(baseStarts: starts, extras: transExtras)
+        let alignedRoma = alignExtraEntries(baseStarts: starts, extras: romaExtras)
+        for i in lines.indices {
+            if let tr = alignedTrans[i]?.text, tr != lines[i].plainText {
+                lines[i].translation = tr
+            }
+            if let rm = alignedRoma[i]?.text {
+                lines[i].romanization = rm
+            }
         }
         return BaseParsedLyrics(source: "ncm-yrc", sourceName: nil, wordSynced: true, instrumental: false, lines: lines)
     }
@@ -832,13 +993,16 @@ enum StandaloneSongResolver {
         romanization: String?,
         source: String
     ) -> BaseParsedLyrics {
-        let transMap = parseLRCMap(translation)
-        let romaMap = parseLRCMap(romanization)
+        let isNcm = source.hasPrefix("ncm")
+        let transExtras = parseExtraEntries(translation, mode: isNcm ? .ncm : .qrcOrLrc, keepTimedItems: false)
+            .filter { $0.text != "//" }
+        let romaExtras = parseExtraEntries(romanization, mode: isNcm ? .ncm : .qrcOrLrc, keepTimedItems: !isNcm && isWordTimed)
+            .filter { isNcm || !RomanizationAligner.containsCJK($0.text) }
 
         if isWordTimed {
             var lines: [MutableLine] = []
             let headerRegex = try? NSRegularExpression(pattern: #"^\[(\d+),(\d+)\](.*)$"#)
-            let qrcWordRegex = try? NSRegularExpression(pattern: #"([^\(\)]*)\((\d+),(\d+)\)"#)
+            let qrcWordRegex = try? NSRegularExpression(pattern: #"([\s\S]*?)\((\d+),(\d+)\)"#)
             for raw in lyric.components(separatedBy: .newlines) {
                 let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard let hMatch = headerRegex?.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)),
@@ -867,11 +1031,24 @@ enum StandaloneSongResolver {
                     MutableLine(
                         start: lineStart,
                         end: max(lineStart + lineDur, words.last?.end ?? lineStart),
-                        translation: lookupNearestLRC(in: transMap, around: lineStart),
-                        romanization: lookupNearestLRC(in: romaMap, around: lineStart),
                         words: words
                     )
                 )
+            }
+            let starts = lines.map(\.start)
+            let alignedTrans = alignExtraEntries(baseStarts: starts, extras: transExtras)
+            let alignedRoma = alignExtraEntries(baseStarts: starts, extras: romaExtras)
+            for i in lines.indices {
+                if let tr = alignedTrans[i]?.text, tr != lines[i].plainText {
+                    lines[i].translation = tr
+                }
+                if let rm = alignedRoma[i] {
+                    lines[i].romanization = rm.text
+                    if !isNcm, let items = rm.items,
+                       let timedWords = RomanizationAligner.romanWordsFromTimed(items, words: lines[i].words) {
+                        lines[i].romanizationWords = RomanizationAligner.sanitizeForPayload(timedWords)
+                    }
+                }
             }
             return BaseParsedLyrics(source: source, sourceName: nil, wordSynced: true, instrumental: false, lines: lines)
         }
@@ -886,11 +1063,20 @@ enum StandaloneSongResolver {
                 MutableLine(
                     start: item.timeMs,
                     end: end,
-                    translation: lookupNearestLRC(in: transMap, around: item.timeMs),
-                    romanization: lookupNearestLRC(in: romaMap, around: item.timeMs),
                     words: [LyricWordPayload(text: item.text, start: item.timeMs, end: end)]
                 )
             )
+        }
+        let starts = lines.map(\.start)
+        let alignedTrans = alignExtraEntries(baseStarts: starts, extras: transExtras)
+        let alignedRoma = alignExtraEntries(baseStarts: starts, extras: romaExtras)
+        for i in lines.indices {
+            if let tr = alignedTrans[i]?.text, tr != lines[i].plainText {
+                lines[i].translation = tr
+            }
+            if let rm = alignedRoma[i]?.text {
+                lines[i].romanization = rm
+            }
         }
         return BaseParsedLyrics(source: source, sourceName: nil, wordSynced: false, instrumental: false, lines: lines)
     }
@@ -922,22 +1108,6 @@ enum StandaloneSongResolver {
         }
         out.sort { $0.0 < $1.0 }
         return out
-    }
-
-    private static func parseLRCMap(_ raw: String?) -> [(timeMs: Double, text: String)] {
-        parseLRCEntries(raw).filter { !$0.text.isEmpty && $0.text != "//" }
-    }
-
-    private static func lookupNearestLRC(in list: [(timeMs: Double, text: String)], around targetMs: Double) -> String? {
-        guard !list.isEmpty else { return nil }
-        var best: (dist: Double, text: String)? = nil
-        for item in list {
-            let d = abs(item.timeMs - targetMs)
-            if d <= 650, best == nil || d < best!.dist {
-                best = (d, item.text)
-            }
-        }
-        return best?.text
     }
 
     private static func isMetadataCreditLine(_ text: String) -> Bool {
@@ -996,10 +1166,34 @@ enum StandaloneSongResolver {
 
         private var nextDivStartsParagraph = false
         private var inP = false
+        private var pKey: String? = nil
         private var pStart: Double = 0
         private var pEnd: Double = 0
         private var pAgent: String?
         private var pParagraphStart = false
+
+        private struct KeyedRomanEntry {
+            let isLatnPreferred: Bool
+            let mainText: String
+            let mainSpans: [RomanizationAligner.TimedSpan]
+            let bgText: String
+            let bgSpans: [RomanizationAligner.TimedSpan]
+        }
+
+        private var transliterationsByKey: [String: KeyedRomanEntry] = [:]
+        private var inTransliterationBlock = false
+        private var translitBlockIsLatn = false
+        private var currentTranslitKey: String? = nil
+        private var translitFullBuf = ""
+        private var translitMainBuf = ""
+        private var translitMainSpans: [RomanizationAligner.TimedSpan] = []
+        private var translitInBg = false
+        private var translitBgStart: Double? = nil
+        private var translitBgEnd: Double? = nil
+        private var translitBgBuf = ""
+        private var translitBgSpans: [RomanizationAligner.TimedSpan] = []
+        private var translitActiveSpan: (start: Double?, end: Double?, forBg: Bool, buf: String)? = nil
+        private var translitSpanDepth = 0
 
         private struct SpanEntry {
             let role: String
@@ -1009,6 +1203,7 @@ enum StandaloneSongResolver {
             let pushedRubyContainer: Bool
             let pushedRubyPiece: Bool
             let isRubyBasePiece: Bool
+            let pushedInlineRomaSpan: Bool
         }
 
         private struct TimedPiece {
@@ -1037,6 +1232,8 @@ enum StandaloneSongResolver {
         private var mainTransBuf = ""
         private var mainTransByLang: [String: String] = [:]
         private var mainRomaBuf = ""
+        private var mainRomaSpans: [RomanizationAligner.TimedSpan] = []
+        private var mainRomaCaptured = false
 
         private var inBgSpan = false
         private var bgStart: Double = 0
@@ -1047,6 +1244,9 @@ enum StandaloneSongResolver {
         private var bgTransBuf = ""
         private var bgTransByLang: [String: String] = [:]
         private var bgRomaBuf = ""
+        private var bgRomaSpans: [RomanizationAligner.TimedSpan] = []
+        private var bgRomaCaptured = false
+        private var activeInlineRomaSpan: (start: Double, end: Double, forBg: Bool, buf: String)? = nil
 
         private var spanStack: [SpanEntry] = []
         private var wordFrameStack: [WordSpanFrame] = []
@@ -1249,6 +1449,38 @@ enum StandaloneSongResolver {
                 capturingAgentName = true
                 agentNameBuf = ""
 
+            case "transliteration":
+                inTransliterationBlock = true
+                let rawLang = (attributeDict["xml:lang"] ?? attributeDict["lang"] ?? "").lowercased()
+                translitBlockIsLatn = rawLang.hasSuffix("-latn") || rawLang == "latn"
+
+            case "text" where inTransliterationBlock:
+                currentTranslitKey = attributeDict["for"]
+                translitFullBuf = ""
+                translitMainBuf = ""
+                translitMainSpans = []
+                translitInBg = false
+                translitBgStart = nil
+                translitBgEnd = nil
+                translitBgBuf = ""
+                translitBgSpans = []
+                translitActiveSpan = nil
+                translitSpanDepth = 0
+
+            case "span" where currentTranslitKey != nil && !inP:
+                let role = attributeDict["ttm:role"] ?? attributeDict["role"] ?? ""
+                let sStart = Self.parseTTMLTime(attributeDict["begin"])
+                let sEnd = Self.parseTTMLTime(attributeDict["end"])
+                translitSpanDepth += 1
+                if !translitInBg && translitSpanDepth == 1 && role == "x-bg" {
+                    translitInBg = true
+                    translitBgStart = sStart
+                    translitBgEnd = sEnd
+                } else if (!translitInBg && translitSpanDepth == 1 && role.isEmpty)
+                            || (translitInBg && translitSpanDepth == 2) {
+                    translitActiveSpan = (start: sStart, end: sEnd, forBg: translitInBg, buf: "")
+                }
+
             case "div":
                 if !lines.isEmpty {
                     nextDivStartsParagraph = true
@@ -1256,6 +1488,7 @@ enum StandaloneSongResolver {
 
             case "p":
                 inP = true
+                pKey = attributeDict["itunes:key"] ?? attributeDict["key"]
                 pStart = Self.parseTTMLTime(attributeDict["begin"]) ?? 0
                 pEnd = Self.parseTTMLTime(attributeDict["end"]) ?? pStart
                 pAgent = attributeDict["ttm:agent"] ?? attributeDict["agent"]
@@ -1266,12 +1499,17 @@ enum StandaloneSongResolver {
                 mainTransBuf = ""
                 mainTransByLang = [:]
                 mainRomaBuf = ""
+                mainRomaSpans = []
+                mainRomaCaptured = false
                 bgAgent = nil
                 bgWords = []
                 bgPendingSpace = false
                 bgTransBuf = ""
                 bgTransByLang = [:]
                 bgRomaBuf = ""
+                bgRomaSpans = []
+                bgRomaCaptured = false
+                activeInlineRomaSpan = nil
                 spanStack = []
                 wordFrameStack = []
                 rubyContainerStack = []
@@ -1289,6 +1527,7 @@ enum StandaloneSongResolver {
                 var pushedRubyContainer = false
                 var pushedRubyPiece = false
                 var isBasePiece = false
+                var pushedInlineRoma = false
 
                 if role == "x-bg" {
                     inBgSpan = true
@@ -1297,7 +1536,13 @@ enum StandaloneSongResolver {
                     if let explicitBgAgent = attributeDict["ttm:agent"] ?? attributeDict["agent"], !explicitBgAgent.isEmpty {
                         bgAgent = explicitBgAgent
                     }
-                } else if activeTransSpanIndex == nil && !isInsideRomanSpan && role != "x-translation" && role != "x-roman" {
+                } else if isInsideRomanSpan {
+                    let alreadyCaptured = inBgSpan ? bgRomaCaptured : mainRomaCaptured
+                    if !alreadyCaptured, activeInlineRomaSpan == nil, let s = spanStart, let e = spanEnd {
+                        activeInlineRomaSpan = (start: s, end: max(s, e), forBg: inBgSpan, buf: "")
+                        pushedInlineRoma = true
+                    }
+                } else if activeTransSpanIndex == nil && role != "x-translation" && role != "x-roman" {
                     if !rubyContainerStack.isEmpty {
                         if rubyRole == "text" || (isInsideRubyTextZone && rubyRole != "delimiter" && rubyRole != "textContainer") {
                             let inheritedStart = spanStart ?? activePieceStack.last?.start
@@ -1347,7 +1592,8 @@ enum StandaloneSongResolver {
                         pushedWordFrame: pushedWord,
                         pushedRubyContainer: pushedRubyContainer,
                         pushedRubyPiece: pushedRubyPiece,
-                        isRubyBasePiece: isBasePiece
+                        isRubyBasePiece: isBasePiece,
+                        pushedInlineRomaSpan: pushedInlineRoma
                     )
                 )
 
@@ -1363,6 +1609,18 @@ enum StandaloneSongResolver {
         func parser(_ parser: XMLParser, foundCharacters string: String) {
             if capturingAgentName {
                 agentNameBuf += string
+                return
+            }
+            if currentTranslitKey != nil && !inP {
+                translitFullBuf += string
+                if translitInBg {
+                    translitBgBuf += string
+                } else {
+                    translitMainBuf += string
+                }
+                if translitActiveSpan != nil {
+                    translitActiveSpan?.buf += string
+                }
                 return
             }
             guard inP else { return }
@@ -1384,7 +1642,13 @@ enum StandaloneSongResolver {
                     }
                 }
             } else if isInsideRomanSpan {
-                if inBgSpan { bgRomaBuf += string } else { mainRomaBuf += string }
+                let alreadyCaptured = inBgSpan ? bgRomaCaptured : mainRomaCaptured
+                if !alreadyCaptured {
+                    if inBgSpan { bgRomaBuf += string } else { mainRomaBuf += string }
+                    if activeInlineRomaSpan != nil {
+                        activeInlineRomaSpan?.buf += string
+                    }
+                }
             } else if isInsideRubyDelimiter {
                 return
             } else if inRt {
@@ -1450,6 +1714,60 @@ enum StandaloneSongResolver {
                 currentAgentId = nil
                 currentAgentType = nil
 
+            case "span" where currentTranslitKey != nil && !inP:
+                if let active = translitActiveSpan,
+                   (!translitInBg && translitSpanDepth == 1) || (translitInBg && translitSpanDepth == 2) {
+                    translitActiveSpan = nil
+                    let collapsed = Self.collapseWhitespace(active.buf)
+                    if let s = active.start, let e = active.end, !collapsed.isEmpty {
+                        let span = RomanizationAligner.TimedSpan(text: collapsed, start: s, end: max(s, e))
+                        if active.forBg {
+                            translitBgSpans.append(span)
+                        } else {
+                            translitMainSpans.append(span)
+                        }
+                    }
+                }
+                if translitInBg && translitSpanDepth == 1 {
+                    translitInBg = false
+                }
+                translitSpanDepth = max(0, translitSpanDepth - 1)
+
+            case "text" where inTransliterationBlock:
+                if let key = currentTranslitKey, !key.isEmpty {
+                    let full = Self.collapseWhitespace(translitFullBuf)
+                    let isValidLatin = !full.isEmpty
+                        && RomanizationAligner.containsLatinLetter(full)
+                        && !RomanizationAligner.containsCJK(full)
+                    let existing = transliterationsByKey[key]
+                    let canAccept = existing == nil || (translitBlockIsLatn && existing?.isLatnPreferred == false)
+                    if isValidLatin && canAccept {
+                        let mText = Self.collapseWhitespace(translitMainBuf)
+                        let bText = Self.collapseWhitespace(translitBgBuf)
+                        var bSpans = translitBgSpans
+                        if bSpans.isEmpty, !bText.isEmpty, let bs = translitBgStart, let be = translitBgEnd {
+                            bSpans = [RomanizationAligner.TimedSpan(text: bText, start: bs, end: max(bs, be))]
+                        }
+                        if !mText.isEmpty || !bText.isEmpty {
+                            transliterationsByKey[key] = KeyedRomanEntry(
+                                isLatnPreferred: translitBlockIsLatn,
+                                mainText: mText,
+                                mainSpans: translitMainSpans,
+                                bgText: bText,
+                                bgSpans: bSpans
+                            )
+                        }
+                    }
+                }
+                currentTranslitKey = nil
+                translitActiveSpan = nil
+                translitInBg = false
+                translitSpanDepth = 0
+
+            case "transliteration":
+                inTransliterationBlock = false
+                currentTranslitKey = nil
+
             case "rt" where inP:
                 inRt = false
                 let trimmed = rtText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1461,6 +1779,25 @@ enum StandaloneSongResolver {
 
             case "span" where inP:
                 guard let popped = spanStack.popLast() else { break }
+                if popped.pushedInlineRomaSpan, let active = activeInlineRomaSpan {
+                    activeInlineRomaSpan = nil
+                    let collapsed = Self.collapseWhitespace(active.buf)
+                    if !collapsed.isEmpty {
+                        let span = RomanizationAligner.TimedSpan(text: collapsed, start: active.start, end: active.end)
+                        if active.forBg {
+                            bgRomaSpans.append(span)
+                        } else {
+                            mainRomaSpans.append(span)
+                        }
+                    }
+                }
+                if popped.role == "x-roman" && !spanStack.contains(where: { $0.role == "x-roman" }) {
+                    if inBgSpan {
+                        if !Self.collapseWhitespace(bgRomaBuf).isEmpty { bgRomaCaptured = true }
+                    } else {
+                        if !Self.collapseWhitespace(mainRomaBuf).isEmpty { mainRomaCaptured = true }
+                    }
+                }
                 if popped.role == "x-bg" {
                     inBgSpan = spanStack.contains(where: { $0.role == "x-bg" })
                     bgPendingSpace = false
@@ -1487,6 +1824,18 @@ enum StandaloneSongResolver {
                     flushWordFrame(leftover)
                 }
 
+                if let key = pKey, let keyed = transliterationsByKey[key] {
+                    if Self.collapseWhitespace(mainRomaBuf).isEmpty && !keyed.mainText.isEmpty {
+                        mainRomaBuf = keyed.mainText
+                        mainRomaSpans = keyed.mainSpans
+                    }
+                    if Self.collapseWhitespace(bgRomaBuf).isEmpty && !keyed.bgText.isEmpty {
+                        bgRomaBuf = keyed.bgText
+                        bgRomaSpans = keyed.bgSpans
+                    }
+                }
+                pKey = nil
+
                 // 整段 <p> 仅有 <span ttm:role="x-bg"> 而无主唱正文时，按 parse-ttml.ts 规则提升为主行而非作为孤儿副行
                 var effectiveMainWords = mainWords
                 var effectiveBgWords = bgWords
@@ -1494,6 +1843,7 @@ enum StandaloneSongResolver {
                 var effectiveMainTransBuf = mainTransBuf
                 var effectiveMainTransByLang = mainTransByLang
                 var effectiveMainRomaBuf = mainRomaBuf
+                var effectiveMainRomaSpans = mainRomaSpans
 
                 if effectiveMainWords.isEmpty && !effectiveBgWords.isEmpty {
                     effectiveMainWords = Self.trimWrappingParens(effectiveBgWords)
@@ -1505,8 +1855,9 @@ enum StandaloneSongResolver {
                     for (k, v) in bgTransByLang {
                         effectiveMainTransByLang[k] = v
                     }
-                    if effectiveMainRomaBuf.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    if Self.collapseWhitespace(effectiveMainRomaBuf).isEmpty {
                         effectiveMainRomaBuf = bgRomaBuf
+                        effectiveMainRomaSpans = bgRomaSpans
                     }
                 }
 
@@ -1520,7 +1871,12 @@ enum StandaloneSongResolver {
                     }
                     let transRaw = effectiveMainTransBuf.trimmingCharacters(in: .whitespacesAndNewlines)
                     let trans = !transRaw.isEmpty ? transRaw : cleanedLangMap["zh"] ?? cleanedLangMap.values.first
-                    let roma = effectiveMainRomaBuf.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let roma = Self.collapseWhitespace(effectiveMainRomaBuf)
+                    let mainRomaWords = !effectiveMainRomaSpans.isEmpty
+                        ? RomanizationAligner.sanitizeForPayload(
+                            RomanizationAligner.romanWordsFromSpans(effectiveMainRomaSpans, words: effectiveMainWords) ?? []
+                        )
+                        : []
                     builtMain = MutableLine(
                         start: start,
                         end: end,
@@ -1529,6 +1885,7 @@ enum StandaloneSongResolver {
                         translation: trans?.isEmpty == false ? trans : nil,
                         translationsByLang: cleanedLangMap,
                         romanization: roma.isEmpty ? nil : roma,
+                        romanizationWords: mainRomaWords,
                         words: effectiveMainWords
                     )
                 }
@@ -1545,7 +1902,12 @@ enum StandaloneSongResolver {
                         }
                         let bTransRaw = bgTransBuf.trimmingCharacters(in: .whitespacesAndNewlines)
                         let bTrans = !bTransRaw.isEmpty ? bTransRaw : cleanedBgLangMap["zh"] ?? cleanedBgLangMap.values.first
-                        let bRoma = bgRomaBuf.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let bRoma = Self.collapseWhitespace(bgRomaBuf)
+                        let bgRomaWords = !bgRomaSpans.isEmpty
+                            ? RomanizationAligner.sanitizeForPayload(
+                                RomanizationAligner.romanWordsFromSpans(bgRomaSpans, words: cleanedBg) ?? []
+                            )
+                            : []
                         builtBg = MutableLine(
                             start: bStart,
                             end: bEnd,
@@ -1555,6 +1917,7 @@ enum StandaloneSongResolver {
                             translation: bTrans?.isEmpty == false ? bTrans : nil,
                             translationsByLang: cleanedBgLangMap,
                             romanization: bRoma.isEmpty ? nil : bRoma,
+                            romanizationWords: bgRomaWords,
                             words: cleanedBg
                         )
                     }
@@ -1580,6 +1943,12 @@ enum StandaloneSongResolver {
             default:
                 break
             }
+        }
+
+        private static func collapseWhitespace(_ s: String) -> String {
+            s.components(separatedBy: .whitespacesAndNewlines)
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
         }
 
         private static func stripOuterParensIfBg(_ s: String, isBg: Bool) -> String {
@@ -1826,22 +2195,67 @@ enum StandaloneSongResolver {
             }
         }
 
-        if let prData = pronunciations,
-           prData.status == "ready" || prData.status == nil,
-           prData.source == nil || prData.source?.isEmpty == true || prData.source == base.source,
-           let prLines = prData.lines, !prLines.isEmpty {
-            var mainOcc: [String: Int] = [:]
-            var bgOcc: [String: Int] = [:]
-            for i in lines.indices {
-                let norm = normalizeMatchText(lines[i].plainText)
-                let occ = lines[i].isBackground ? bgOcc[norm, default: 0] : mainOcc[norm, default: 0]
-                if lines[i].isBackground { bgOcc[norm] = occ + 1 } else { mainOcc[norm] = occ + 1 }
-                if lines[i].romanization == nil,
-                   let hit = prLines.first(where: {
-                       ($0.bg ?? false) == lines[i].isBackground && $0.occurrence == occ && normalizeMatchText($0.text) == norm
-                   }), !hit.pronunciation.isEmpty {
-                    lines[i].romanization = hit.pronunciation
+        // 2.5 逐行读音合并与同语言自动隐藏（1:1 对齐 web/src/lib/lyrics/lyric-pronunciation.ts applyPronunciationsAndFilter）
+        let prMatchesSource: Bool = {
+            guard let prData = pronunciations,
+                  prData.status == "ready" || prData.status == nil else {
+                return false
+            }
+            return prData.source == nil || prData.source?.isEmpty == true || prData.source == base.source
+        }()
+        let allPlainTexts = lines.map(\.plainText).filter { !$0.isEmpty }
+        let nativeRomajiTexts = lines.compactMap { $0.romanization?.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        let songLang = RomanizationAligner.detectSongPronunciationLang(
+            texts: allPlainTexts,
+            nativeRomanizations: nativeRomajiTexts,
+            aiSongLang: prMatchesSource ? pronunciations?.lang : nil
+        )
+        let prLines = prMatchesSource ? (pronunciations?.lines ?? []) : []
+        var mainPronOcc: [String: Int] = [:]
+        var bgPronOcc: [String: Int] = [:]
+        for i in lines.indices {
+            let lineText = lines[i].plainText
+            let norm = normalizeMatchText(lineText)
+            let occ = lines[i].isBackground ? bgPronOcc[norm, default: 0] : mainPronOcc[norm, default: 0]
+            if lines[i].isBackground { bgPronOcc[norm] = occ + 1 } else { mainPronOcc[norm] = occ + 1 }
+
+            let aiHit = prLines.first {
+                ($0.bg ?? false) == lines[i].isBackground && $0.occurrence == occ && normalizeMatchText($0.text) == norm
+            }
+
+            if let nativeRoman = lines[i].romanization?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !nativeRoman.isEmpty {
+                let lineLang = RomanizationAligner.detectLinePronunciationLang(
+                    text: lineText,
+                    pron: nativeRoman,
+                    songLang: aiHit?.lang ?? songLang
+                )
+                if RomanizationAligner.shouldHideSameLangPronunciation(lineLang: lineLang, targetLang: primarySlot.lang) {
+                    lines[i].romanization = nil
+                    lines[i].romanizationWords = []
                 }
+                continue
+            }
+
+            guard let hit = aiHit else { continue }
+            let trimmedPron = hit.pronunciation.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedPron.isEmpty else { continue }
+            let lineLang = RomanizationAligner.detectLinePronunciationLang(
+                text: lineText,
+                pron: trimmedPron,
+                songLang: hit.lang ?? songLang
+            )
+            if RomanizationAligner.shouldHideSameLangPronunciation(lineLang: lineLang, targetLang: primarySlot.lang) {
+                continue
+            }
+            lines[i].romanization = trimmedPron
+            if base.wordSynced && !lines[i].words.isEmpty,
+               let aligned = RomanizationAligner.buildRomanWordsFromAiTokens(
+                   words: lines[i].words,
+                   tokens: hit.tokens,
+                   fallbackPronunciation: trimmedPron
+               ) {
+                lines[i].romanizationWords = RomanizationAligner.sanitizeForPayload(aligned)
             }
         }
 

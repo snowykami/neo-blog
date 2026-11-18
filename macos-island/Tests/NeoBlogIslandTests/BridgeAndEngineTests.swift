@@ -2047,4 +2047,178 @@ struct BridgeAndEngineTests {
         let out = StageTimelineEngine.chorusGlow(at: 72000, lyrics: bundle, chorusRanges: chorus, enabled: true, accentHex: "#f472b6")
         #expect(out == nil)
     }
+
+    @Test("独立模式四通道逐字音译对齐：假名锚点/音拍均分、中文单字配对、QRC 原生时间片、TTML transliteration 与 AI tokens")
+    func standaloneWordByWordRomanizationFourPipelines() throws {
+        func makeSyllables(_ s: String) -> [LyricWordPayload] {
+            Array(s).enumerated().map { i, ch in
+                LyricWordPayload(text: String(ch), start: Double(i * 500), end: Double(i * 500 + 500))
+            }
+        }
+        func groupedRaw(_ text: String, _ roma: String) -> [String]? {
+            let words = makeSyllables(text)
+            guard let aligned = RomanizationAligner.alignRomanization(roma, words: words) else { return nil }
+            return words.indices.map { i in aligned.filter { $0.word == i }.map(\.text).joined() }
+        }
+
+        // 1) 启发式假名锚点 + 音拍均分（1:1 对齐 web/src/lib/lyrics/romanization.test.ts）
+        #expect(groupedRaw("初めてのルーブルは", "hajimete no ruuburu wa") == ["haji", "me", "te ", "no ", "ruu", "", "bu", "ru ", "wa"])
+        #expect(groupedRaw("きっと", "kitto") == ["kit", "", "to"])
+        #expect(groupedRaw("きゃく", "kyaku") == ["kya", "", "ku"])
+        #expect(groupedRaw("私だけ", "watashi dake") == ["watashi ", "da", "ke"])
+        #expect(groupedRaw("出会って", "deatte") == ["de", "at", "", "te"])
+        #expect(RomanizationAligner.alignRomanization("a ke", words: makeSyllables("出会け")) == nil)
+        #expect(RomanizationAligner.alignRomanization("sayonara", words: makeSyllables("初めての")) == nil)
+
+        // 多音拍汉字等比拆分时长（光 -> hi [500,750), ka [750,1000)）
+        let lightWords = makeSyllables("が光散ら")
+        let lightAligned = try #require(RomanizationAligner.alignRomanization("ga hi ka ri chi ra", words: lightWords))
+        let lightSanitized = RomanizationAligner.sanitizeForPayload(lightAligned).filter { $0.word == 1 }
+        #expect(lightSanitized == [
+            LyricRomanWordPayload(text: "hi", start: 500, end: 750, word: 1),
+            LyricRomanWordPayload(text: "ka", start: 750, end: 1000, word: 1)
+        ])
+
+        // 纯汉字拼音 1:1 配对 & 纯拉丁/韩文不误对齐
+        #expect(groupedRaw("故事的小黄花", "gù shì de xiǎo huáng huā") == ["gù ", "shì ", "de ", "xiǎo ", "huáng ", "huā"])
+        #expect(RomanizationAligner.alignRomanization("gushi de xiao huanghua", words: makeSyllables("故事的小黄花")) == nil)
+        #expect(RomanizationAligner.alignRomanization("sa rang", words: makeSyllables("사랑")) == nil)
+
+        // 台湾注音轻声点 `˙` 不被 rubyText 剥掉
+        #expect(RomanizationAligner.rubyText("  ˙ㄇㄣ！ ") == "˙ㄇㄣ")
+
+        // 2) QQ 音乐 QRC 原生带时间戳罗马音 + 偏移平移（含 `[start,dur]` 格式解析与 CJK 杂质过滤）
+        let qqCache = Data("""
+        {
+          "kind": "qq",
+          "qq": {
+            "format": "qrc",
+            "lyric": "[20699,603]初(20699,434)め(21133,169)",
+            "translation": "[00:20.70]初次",
+            "romanization": "[20699,603]ha (20699,19)ji (20718,415)me (21133,169)"
+          }
+        }
+        """.utf8)
+        let qqBundle = StandaloneSongResolver.buildBaseLyricsForTesting(
+            cacheJSON: qqCache,
+            pin: "qq",
+            offsets: ["qq-qrc": 100]
+        )
+        #expect(qqBundle.lines.count == 1)
+        #expect(qqBundle.lines[0].romanization == "ha ji me")
+        #expect(qqBundle.lines[0].romanizationWords == [
+            LyricRomanWordPayload(text: "ha", start: 20799, end: 20818, word: 0),
+            LyricRomanWordPayload(text: "ji", start: 20818, end: 21233, word: 0),
+            LyricRomanWordPayload(text: "me", start: 21233, end: 21402, word: 1)
+        ])
+
+        // 网易云 YRC + `[start,dur]` 格式 yromalrc（含字面量圆括号不被截断）+ 日文叠字符 `々` / `っ+拗音` / 宏长音 `ō` 跨词切分
+        #expect(groupedRaw("日々に", "hibi ni") == ["hi", "bi ", "ni"])
+        #expect(groupedRaw("めっちゃ", "metcha") == ["met", "", "cha", ""])
+        #expect(groupedRaw("思う", "omō") == ["omo", "u"])
+        #expect(groupedRaw("追う", "ō") == ["o", "u"])
+        #expect(groupedRaw("ストーリー", "sutōrī") == ["su", "tō", "", "rī", ""])
+
+        let ncmJSON = Data("""
+        {
+          "yrc": { "lyric": "[1000,1500](1000,600,0)君(1600,300,0)の(1900,300,0)名(2200,300,0)(yeah)" },
+          "yromalrc": { "lyric": "[1000,1500](1000,1500,0)kimi no na (yeah)" }
+        }
+        """.utf8)
+        let ncmBundle = StandaloneSongResolver.buildBaseLyricsForTesting(cacheJSON: nil, ncmJSON: ncmJSON, pin: "ncm")
+        #expect(ncmBundle.lines.first?.words.map(\.text) == ["君", "の", "名", "(yeah)"])
+        #expect(ncmBundle.lines.first?.romanization == "kimi no na (yeah)")
+        #expect(ncmBundle.lines.first?.romanizationWords == [
+            LyricRomanWordPayload(text: "kimi", start: 1000, end: 1600, word: 0),
+            LyricRomanWordPayload(text: "no", start: 1600, end: 1900, word: 1),
+            LyricRomanWordPayload(text: "na", start: 1900, end: 2200, word: 2),
+            LyricRomanWordPayload(text: "yeah", start: 2200, end: 2500, word: 3)
+        ])
+
+        // 3) TTML <head><transliterations>（优先选 ja-Latn、忽略假名组，并支持 x-bg 背景音译）
+        let ttml = """
+        <tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata" xmlns:itunes="http://music.apple.com/lyric-ttml-internal">
+        <head><metadata><iTunesMetadata xmlns="http://music.apple.com/lyric-ttml-internal"><transliterations>
+          <transliteration xml:lang="ja"><text for="L1"><span begin="2.000" end="2.600">ひかり</span></text></transliteration>
+          <transliteration xml:lang="ja-Latn">
+            <text for="L1"><span begin="2.000" end="2.600">hi ka ri</span> <span begin="2.600" end="2.900">chi</span> <span ttm:role="x-bg"><span begin="1.200" end="1.800">(a ha)</span></span></text>
+          </transliteration>
+        </transliterations></iTunesMetadata></metadata></head>
+        <body><div>
+          <p begin="1.200" end="2.900" itunes:key="L1">
+            <span begin="2.000" end="2.600">光</span><span begin="2.600" end="2.900">散</span>
+            <span ttm:role="x-bg"><span begin="1.200" end="1.800">(あは)</span></span>
+          </p>
+        </div></body></tt>
+        """
+        let ttmlBundle = StandaloneSongResolver.parseTTMLForTesting(xml: ttml)
+        #expect(ttmlBundle.lines.count == 2)
+        let bgLine = ttmlBundle.lines[0]
+        let mainLine = ttmlBundle.lines[1]
+        #expect(bgLine.isBackground == true)
+        #expect(bgLine.romanization == "(a ha)")
+        #expect(bgLine.romanizationWords == [
+            LyricRomanWordPayload(text: "a", start: 1200, end: 1400, word: 0),
+            LyricRomanWordPayload(text: "ha", start: 1400, end: 1800, word: 0)
+        ])
+        #expect(mainLine.romanization == "hi ka ri chi")
+        #expect(mainLine.romanizationWords == [
+            LyricRomanWordPayload(text: "hi", start: 2000, end: 2200, word: 0),
+            LyricRomanWordPayload(text: "ka", start: 2200, end: 2400, word: 0),
+            LyricRomanWordPayload(text: "ri", start: 2400, end: 2600, word: 0),
+            LyricRomanWordPayload(text: "chi", start: 2600, end: 2900, word: 1)
+        ])
+
+        // 4) 后端 AI 歌词读音 `tokens` 数组 + 同语言自动隐藏（简中目标隐藏普通话/台式注音、保留粤语粤拼；港繁/英文目标显示注音）
+        let ttmlMixed = """
+        <tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata"><body><div>
+          <p begin="1.000" end="3.000"><span begin="1.000" end="2.000">朋友</span><span begin="2.000" end="2.100">、</span><span begin="2.100" end="3.000">再见！</span></p>
+          <p begin="3.500" end="5.000"><span begin="3.500" end="5.000">唔该你</span><span ttm:role="x-roman">m4 goi1 nei5</span><span ttm:role="x-roman">duplicate ignored</span></p>
+        </div></body></tt>
+        """
+        let aiPronJSON = Data("""
+        {
+          "status": "ready",
+          "source": "ttml-amll",
+          "lines": [
+            {
+              "text": "朋友、再见！",
+              "occurrence": 0,
+              "bg": false,
+              "lang": "zh-tw",
+              "pronunciation": "ㄆㄥˊ ㄧㄡˇ ˙ㄇㄣ",
+              "tokens": ["ㄆㄥˊ ㄧㄡˇ", "˙ㄇㄣ"]
+            }
+          ]
+        }
+        """.utf8)
+        // 简中目标：隐藏台式注音/普通话拼音，保留粤语粤拼且重复 x-roman 不粘连
+        let zhBundle = StandaloneSongResolver.parseTTMLForTesting(
+            xml: ttmlMixed,
+            primarySlot: TranslationSelectionItem(lang: "zh", preferNative: false),
+            pronunciationsJSON: aiPronJSON
+        )
+        #expect(zhBundle.lines[0].romanization == nil)
+        #expect(zhBundle.lines[0].romanizationWords.isEmpty)
+        #expect(zhBundle.lines[1].romanization == "m4 goi1 nei5")
+
+        // 港繁目标：隐藏粤语粤拼，保留普通话/台式注音并按 tokens 逐词对齐
+        let hkBundle = StandaloneSongResolver.parseTTMLForTesting(
+            xml: ttmlMixed,
+            primarySlot: TranslationSelectionItem(lang: "zh-hk", preferNative: false),
+            pronunciationsJSON: aiPronJSON
+        )
+        #expect(hkBundle.lines[0].romanization == "ㄆㄥˊ ㄧㄡˇ ˙ㄇㄣ")
+        #expect(hkBundle.lines[0].romanizationWords == [
+            LyricRomanWordPayload(text: "ㄆㄥˊ ㄧㄡˇ", start: 1000, end: 2000, word: 0),
+            LyricRomanWordPayload(text: "˙ㄇㄣ", start: 2100, end: 3000, word: 2)
+        ])
+        #expect(hkBundle.lines[1].romanization == nil)
+
+        // 粤语书面词行（无口语字与数字声调，但整曲 songLang == "zh-hk"）及外语 `lang: "other"` 不被误判隐藏
+        #expect(RomanizationAligner.detectLinePronunciationLang(text: "海闊天空", pron: "hoi fut tin hung", songLang: "zh-hk") == "zh-hk")
+        #expect(RomanizationAligner.shouldHideSameLangPronunciation(lineLang: "zh-hk", targetLang: "zh") == false)
+        #expect(RomanizationAligner.detectLinePronunciationLang(text: "in a la vie", pron: "ɑ̃ a la vi", songLang: "other") == "other")
+        #expect(RomanizationAligner.shouldHideSameLangPronunciation(lineLang: "other", targetLang: "en") == false)
+    }
 }

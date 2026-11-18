@@ -136,7 +136,9 @@ extension IslandStore {
             return max(0, rawResumePos)
         }()
 
-        let initialLyrics = matchesCachedSnap ? (cachedSnap?.lyrics ?? .empty) : .empty
+        let initialLyrics = matchesCachedSnap
+            ? RomanizationAligner.withRomanizationWords(cachedSnap?.lyrics ?? .empty)
+            : .empty
         let initialChorus = matchesCachedSnap ? (cachedSnap?.chorus ?? []) : []
         let initialAccent = matchesCachedSnap ? cachedSnap?.accentHex : nil
         let initialRhythm = matchesCachedSnap ? cachedSnap?.rhythm : nil
@@ -227,7 +229,7 @@ extension IslandStore {
         broadcastAutonomousFullSyncToPeer()
 
         if desiredOwner == peerService.localPeerId {
-            resolveCurrentAutonomousTrack(refresh: false, preserveExistingLyrics: hasInitialLyrics)
+            resolveCurrentAutonomousTrack(refresh: false, preserveExistingLyrics: false)
             if currentList.isEmpty {
                 scheduleAutonomousPrewarm(forcePlaylist: true)
             }
@@ -1102,10 +1104,11 @@ extension IslandStore {
         setAutonomousBuffering(false)
 
         let resumePos = max(0, fallback.positionMs)
+        let upgradedFallbackLyrics = RomanizationAligner.withRomanizationWords(fallback.lyrics)
         auto.track = fallback.track
         auto.accentHex = fallback.accentHex
         auto.chorus = fallback.chorus
-        auto.lyrics = fallback.lyrics
+        auto.lyrics = upgradedFallbackLyrics
         auto.rhythm = fallback.rhythm
         auto.currentIndex = auto.playlist.first(where: { $0.id == fallback.track.id })?.index
         auto.livePositionMs = resumePos
@@ -1116,7 +1119,7 @@ extension IslandStore {
         effectiveDurationMs = fallback.track.durationMs
         accentHex = fallback.accentHex
         chorusRanges = fallback.chorus
-        updateLyrics(fallback.lyrics, trackId: fallback.track.id)
+        updateLyrics(upgradedFallbackLyrics, trackId: fallback.track.id)
         rhythm = fallback.rhythm?.toEngineContext() ?? .fallback
         currentIndex = auto.currentIndex
         lyricStatus = (!fallback.lyrics.lines.isEmpty || fallback.lyrics.instrumental) ? "ready" : "none"
@@ -1196,7 +1199,19 @@ extension IslandStore {
                 self.chorusRanges = resolved.chorus
             }
             let existingHasLyrics = !currentAuto.lyrics.lines.isEmpty || currentAuto.lyrics.instrumental
-            if !preserveExistingLyrics || !existingHasLyrics || refresh {
+            let existingHasRichExtras = currentAuto.lyrics.lines.contains {
+                $0.translation != nil || $0.secondaryTranslation != nil || $0.romanization != nil
+            }
+            let resolvedHasRichExtras = resolved.lyrics.lines.contains {
+                $0.translation != nil || $0.secondaryTranslation != nil || $0.romanization != nil
+            }
+            let isOfflinePartialHit = existingHasLyrics
+                && !refresh
+                && resolved.availableTranslationLangs == nil
+                && !resolved.lyrics.instrumental
+                && existingHasRichExtras
+                && !resolvedHasRichExtras
+            if (!preserveExistingLyrics && !isOfflinePartialHit) || !existingHasLyrics || refresh {
                 if !resolved.lyrics.lines.isEmpty || resolved.lyrics.instrumental || !existingHasLyrics {
                     currentAuto.lyrics = resolved.lyrics
                     self.updateLyrics(resolved.lyrics, trackId: resolved.track.id)
