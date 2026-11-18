@@ -175,10 +175,12 @@ final class AppUpdateService {
 
     @ObservationIgnored private let logger = Logger(subsystem: "org.liteyuki.NeoBlogIsland", category: "AppUpdate")
     @ObservationIgnored private var activeTask: Task<Void, Never>?
+    @ObservationIgnored private var activeTaskID = UUID()
 
     let installed: InstalledAppVersion
     var selectedChannel: UpdateChannel
     private(set) var state: State = .idle
+    private(set) var isForceUpdating: Bool = false
 
     var hasAvailableUpdate: Bool {
         if case .available = state { return true }
@@ -207,7 +209,16 @@ final class AppUpdateService {
 
     func selectChannel(_ channel: UpdateChannel) {
         guard selectedChannel != channel else { return }
+        if isForceUpdating { return }
+        switch state {
+        case .downloading, .verifying, .restarting:
+            return
+        default:
+            break
+        }
         activeTask?.cancel()
+        activeTask = nil
+        activeTaskID = UUID()
         selectedChannel = channel
         checkForUpdates(silent: false)
     }
@@ -215,10 +226,16 @@ final class AppUpdateService {
     func cancelActiveDownload() {
         activeTask?.cancel()
         activeTask = nil
+        activeTaskID = UUID()
+        isForceUpdating = false
         state = .idle
     }
 
     func checkForUpdates(silent: Bool = false) {
+        if isForceUpdating { return }
+        if silent {
+            guard state == .idle, activeTask == nil else { return }
+        }
         switch state {
         case .downloading, .verifying, .restarting:
             return
@@ -227,6 +244,8 @@ final class AppUpdateService {
         }
 
         activeTask?.cancel()
+        let taskID = UUID()
+        activeTaskID = taskID
         if !silent {
             state = .checking
         }
@@ -235,13 +254,18 @@ final class AppUpdateService {
 
         activeTask = Task { @MainActor [weak self] in
             guard let self else { return }
+            defer {
+                if self.activeTaskID == taskID {
+                    self.activeTask = nil
+                }
+            }
             do {
                 let remote = try await Self.fetchLatestRelease(
                     repoSlug: currentInstalled.repoSlug,
                     channel: channel,
                     userAgentVersion: currentInstalled.version
                 )
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled, self.activeTaskID == taskID else { return }
 
                 let decision = Self.evaluateUpdate(
                     installed: currentInstalled,
@@ -256,7 +280,7 @@ final class AppUpdateService {
             } catch is CancellationError {
                 return
             } catch {
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled, self.activeTaskID == taskID else { return }
                 self.logger.error("检查更新失败: \(error.localizedDescription, privacy: .public)")
                 if !silent {
                     let releasesPage = URL(string: "https://github.com/\(currentInstalled.repoSlug)/releases")
@@ -266,6 +290,79 @@ final class AppUpdateService {
                     )
                 }
             }
+        }
+    }
+
+    /// 绕过 `api.github.com` 限流与本地版本号对比，直接拉取当前选中通道的最新安装包并校验重装
+    func forceUpdate() {
+        switch state {
+        case .downloading, .verifying, .restarting:
+            return
+        default:
+            break
+        }
+
+        let currentInstalled = installed
+        let channel = selectedChannel
+        let releasesPage = URL(string: "https://github.com/\(currentInstalled.repoSlug)/releases")
+
+        guard currentInstalled.bundleURL.pathExtension == "app" else {
+            state = .failed(
+                message: "当前以命令行调试方式运行（非 .app 应用包），请构建应用包后再执行自动替换更新。",
+                fallbackURL: releasesPage
+            )
+            return
+        }
+
+        if case .available(let existing, _) = state, existing.channel == channel {
+            downloadAndInstall(existing)
+            return
+        }
+
+        activeTask?.cancel()
+        let taskID = UUID()
+        activeTaskID = taskID
+        isForceUpdating = true
+        state = .checking
+
+        activeTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                if self.activeTaskID == taskID {
+                    self.activeTask = nil
+                }
+            }
+            let resolvedRelease: RemoteReleaseInfo
+            do {
+                resolvedRelease = try await Self.resolveReleaseForForceUpdate(
+                    installed: currentInstalled,
+                    channel: channel
+                )
+                try Task.checkCancellation()
+            } catch is CancellationError {
+                if self.activeTaskID == taskID {
+                    self.isForceUpdating = false
+                }
+                return
+            } catch {
+                guard self.activeTaskID == taskID else { return }
+                self.isForceUpdating = false
+                guard !Task.isCancelled else { return }
+                self.logger.error("准备强制更新失败: \(error.localizedDescription, privacy: .public)")
+                self.state = .failed(
+                    message: error.localizedDescription,
+                    fallbackURL: releasesPage
+                )
+                return
+            }
+
+            guard self.activeTaskID == taskID else { return }
+            self.isForceUpdating = false
+            await self.performDownloadAndInstall(
+                resolvedRelease,
+                currentInstalled: currentInstalled,
+                taskID: taskID
+            )
         }
     }
 
@@ -279,6 +376,31 @@ final class AppUpdateService {
         }
 
         activeTask?.cancel()
+        let taskID = UUID()
+        activeTaskID = taskID
+        isForceUpdating = false
+        let currentInstalled = installed
+        activeTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                if self.activeTaskID == taskID {
+                    self.activeTask = nil
+                }
+            }
+            await self.performDownloadAndInstall(
+                release,
+                currentInstalled: currentInstalled,
+                taskID: taskID
+            )
+        }
+    }
+
+    private func performDownloadAndInstall(
+        _ release: RemoteReleaseInfo,
+        currentInstalled: InstalledAppVersion,
+        taskID: UUID
+    ) async {
+        guard activeTaskID == taskID else { return }
         state = .downloading(
             release: release,
             progress: 0,
@@ -286,67 +408,77 @@ final class AppUpdateService {
             totalBytes: release.zipSizeBytes
         )
 
-        let currentInstalled = installed
-        activeTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-            let stagingDir = FileManager.default.temporaryDirectory
-                .appendingPathComponent("NeoBlogIslandUpdate-\(UUID().uuidString)", isDirectory: true)
-            do {
-                try FileManager.default.createDirectory(at: stagingDir, withIntermediateDirectories: true)
+        let stagingDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("NeoBlogIslandUpdate-\(UUID().uuidString)", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: stagingDir, withIntermediateDirectories: true)
 
-                var expectedSHA256: String? = nil
-                if let sumURL = release.checksumDownloadURL {
-                    expectedSHA256 = try? await Self.fetchExpectedZipSHA256(
-                        from: sumURL,
-                        zipAssetName: release.zipDownloadURL.lastPathComponent,
-                        userAgentVersion: currentInstalled.version
-                    )
-                }
-
-                let zipFileURL = stagingDir.appendingPathComponent("NeoBlogIsland-update.app.zip")
-                try await self.downloadFileWithProgress(
-                    from: release.zipDownloadURL,
-                    to: zipFileURL,
-                    release: release,
+            var expectedSHA256: String? = nil
+            if let sumURL = release.checksumDownloadURL {
+                expectedSHA256 = try await Self.fetchExpectedZipSHA256(
+                    from: sumURL,
+                    zipAssetName: release.zipDownloadURL.lastPathComponent,
                     userAgentVersion: currentInstalled.version
                 )
                 try Task.checkCancellation()
-
-                self.state = .verifying(release: release)
-                let stagedAppURL = try await Task.detached(priority: .userInitiated) {
-                    try Self.verifyAndUnpackArchive(
-                        zipFileURL: zipFileURL,
-                        stagingDir: stagingDir,
-                        expectedSHA256: expectedSHA256
-                    )
-                }.value
-                try Task.checkCancellation()
-
-                self.state = .restarting(release: release)
-                let targetAppURL = Self.resolveInstallTargetURL(currentBundleURL: currentInstalled.bundleURL)
-                let scriptURL = try Self.writeDetachedUpdaterScript(in: stagingDir)
-                try Self.launchDetachedUpdater(
-                    scriptURL: scriptURL,
-                    stagingDir: stagingDir,
-                    stagedAppURL: stagedAppURL,
-                    targetAppURL: targetAppURL,
-                    oldPID: ProcessInfo.processInfo.processIdentifier
-                )
-
-                // 给守护脚本预留进程附着窗口后立即平滑退出本进程，由守护脚本接管原子替换与重开
-                try? await Task.sleep(for: .milliseconds(120))
-                NSApplication.shared.terminate(nil)
-            } catch is CancellationError {
-                try? FileManager.default.removeItem(at: stagingDir)
-            } catch {
-                try? FileManager.default.removeItem(at: stagingDir)
-                guard !Task.isCancelled else { return }
-                self.logger.error("下载或安装更新失败: \(error.localizedDescription, privacy: .public)")
-                self.state = .failed(
-                    message: error.localizedDescription,
-                    fallbackURL: release.htmlURL ?? URL(string: "https://github.com/\(currentInstalled.repoSlug)/releases")
-                )
+                guard self.activeTaskID == taskID else {
+                    try? FileManager.default.removeItem(at: stagingDir)
+                    return
+                }
             }
+
+            let zipFileURL = stagingDir.appendingPathComponent("NeoBlogIsland-update.app.zip")
+            try await self.downloadFileWithProgress(
+                from: release.zipDownloadURL,
+                to: zipFileURL,
+                release: release,
+                userAgentVersion: currentInstalled.version,
+                taskID: taskID
+            )
+            try Task.checkCancellation()
+            guard self.activeTaskID == taskID else {
+                try? FileManager.default.removeItem(at: stagingDir)
+                return
+            }
+
+            self.state = .verifying(release: release)
+            let stagedAppURL = try await Task.detached(priority: .userInitiated) {
+                try Self.verifyAndUnpackArchive(
+                    zipFileURL: zipFileURL,
+                    stagingDir: stagingDir,
+                    expectedSHA256: expectedSHA256
+                )
+            }.value
+            try Task.checkCancellation()
+            guard self.activeTaskID == taskID else {
+                try? FileManager.default.removeItem(at: stagingDir)
+                return
+            }
+
+            self.state = .restarting(release: release)
+            let targetAppURL = Self.resolveInstallTargetURL(currentBundleURL: currentInstalled.bundleURL)
+            let scriptURL = try Self.writeDetachedUpdaterScript(in: stagingDir)
+            try Self.launchDetachedUpdater(
+                scriptURL: scriptURL,
+                stagingDir: stagingDir,
+                stagedAppURL: stagedAppURL,
+                targetAppURL: targetAppURL,
+                oldPID: ProcessInfo.processInfo.processIdentifier
+            )
+
+            // 给守护脚本预留进程附着窗口后立即平滑退出本进程，由守护脚本接管原子替换与重开
+            try? await Task.sleep(for: .milliseconds(120))
+            NSApplication.shared.terminate(nil)
+        } catch is CancellationError {
+            try? FileManager.default.removeItem(at: stagingDir)
+        } catch {
+            try? FileManager.default.removeItem(at: stagingDir)
+            guard !Task.isCancelled, self.activeTaskID == taskID else { return }
+            self.logger.error("下载或安装更新失败: \(error.localizedDescription, privacy: .public)")
+            self.state = .failed(
+                message: error.localizedDescription,
+                fallbackURL: release.htmlURL ?? URL(string: "https://github.com/\(currentInstalled.repoSlug)/releases")
+            )
         }
     }
 
@@ -356,7 +488,8 @@ final class AppUpdateService {
         from url: URL,
         to destination: URL,
         release: RemoteReleaseInfo,
-        userAgentVersion: String
+        userAgentVersion: String,
+        taskID: UUID
     ) async throws {
         var req = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 120)
         req.setValue("NeoBlogIsland/\(userAgentVersion)", forHTTPHeaderField: "User-Agent")
@@ -372,6 +505,14 @@ final class AppUpdateService {
         }
 
         let totalBytes = http.expectedContentLength > 0 ? http.expectedContentLength : release.zipSizeBytes
+        if totalBytes > 0 && release.zipSizeBytes <= 0 && self.activeTaskID == taskID {
+            self.state = .downloading(
+                release: release,
+                progress: 0,
+                downloadedBytes: 0,
+                totalBytes: totalBytes
+            )
+        }
         FileManager.default.createFile(atPath: destination.path, contents: nil)
         let handle = try FileHandle(forWritingTo: destination)
         defer { try? handle.close() }
@@ -385,6 +526,7 @@ final class AppUpdateService {
             buffer.append(byte)
             if buffer.count >= 65_536 {
                 try Task.checkCancellation()
+                guard self.activeTaskID == taskID else { throw CancellationError() }
                 try handle.write(contentsOf: buffer)
                 downloaded += Int64(buffer.count)
                 buffer.removeAll(keepingCapacity: true)
@@ -404,10 +546,12 @@ final class AppUpdateService {
 
         if !buffer.isEmpty {
             try Task.checkCancellation()
+            guard self.activeTaskID == taskID else { throw CancellationError() }
             try handle.write(contentsOf: buffer)
             downloaded += Int64(buffer.count)
         }
 
+        guard self.activeTaskID == taskID else { throw CancellationError() }
         self.state = .downloading(
             release: release,
             progress: 1.0,
@@ -505,7 +649,7 @@ final class AppUpdateService {
         }()
 
         let dateStr = zipAsset.updatedAt ?? dto.publishedAt
-        let publishedDate = dateStr.flatMap { ISO8601DateFormatter().date(from: $0) }
+        let publishedDate = parseISO8601Date(dateStr)
 
         return RemoteReleaseInfo(
             channel: .nightly,
@@ -522,7 +666,6 @@ final class AppUpdateService {
 
     nonisolated static func selectLatestStableRelease(from releases: [GitHubReleaseDTO]) -> RemoteReleaseInfo? {
         var candidates: [(semver: SemanticVersion, info: RemoteReleaseInfo)] = []
-        let iso = ISO8601DateFormatter()
 
         for dto in releases where !dto.draft && !dto.prerelease && dto.tagName.hasPrefix("island-v") {
             guard let zipAsset = dto.assets.first(where: { $0.name == "NeoBlogIsland-universal.app.zip" })
@@ -531,12 +674,12 @@ final class AppUpdateService {
                 continue
             }
             let cleanVer = String(dto.tagName.dropFirst("island-v".count))
-            guard let semver = SemanticVersion(cleanVer) else { continue }
+            guard !cleanVer.contains("-"), let semver = SemanticVersion(cleanVer) else { continue }
 
             let checksumURL = dto.assets
                 .first(where: { $0.name == "SHA256SUMS.txt" })
                 .flatMap { URL(string: $0.browserDownloadUrl) }
-            let pubDate = (zipAsset.updatedAt ?? dto.publishedAt).flatMap { iso.date(from: $0) }
+            let pubDate = parseISO8601Date(zipAsset.updatedAt ?? dto.publishedAt)
             let commit = dto.targetCommitish.flatMap { isHexCommit($0) ? $0.lowercased() : nil }
 
             candidates.append((
@@ -590,14 +733,375 @@ final class AppUpdateService {
         return String(text[range])
     }
 
+    private nonisolated static func parseISO8601Date(_ raw: String?) -> Date? {
+        guard let s = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty else {
+            return nil
+        }
+        let frac = ISO8601DateFormatter()
+        frac.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = frac.date(from: s) { return d }
+        let basic = ISO8601DateFormatter()
+        basic.formatOptions = [.withInternetDateTime]
+        return basic.date(from: s)
+    }
+
+    nonisolated static func isValidRepoSlug(_ slug: String) -> Bool {
+        let trimmed = slug.trimmingCharacters(in: .whitespacesAndNewlines)
+        let parts = trimmed.split(separator: "/", omittingEmptySubsequences: false)
+        guard parts.count == 2 else { return false }
+        let owner = String(parts[0])
+        let repo = String(parts[1])
+        guard !owner.isEmpty, !repo.isEmpty,
+              owner != ".", owner != "..",
+              repo != ".", repo != "..",
+              !repo.contains("..") else {
+            return false
+        }
+        guard let regex = try? NSRegularExpression(pattern: #"^[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9._-]{1,100}$"#) else {
+            return false
+        }
+        let range = NSRange(trimmed.startIndex..<trimmed.endIndex, in: trimmed)
+        return regex.firstMatch(in: trimmed, range: range) != nil
+    }
+
+    /// 构造不依赖 `api.github.com` 元数据的 Nightly 直连发布信息（固定 `island-nightly` 标签）
+    nonisolated static func directNightlyReleaseInfo(
+        repoSlug: String,
+        displayVersion: String = "Nightly 最新构建",
+        commitSHA: String? = nil,
+        publishedAt: Date? = nil
+    ) -> RemoteReleaseInfo? {
+        let slug = repoSlug.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isValidRepoSlug(slug),
+              let zipURL = URL(string: "https://github.com/\(slug)/releases/download/island-nightly/NeoBlogIsland-universal.app.zip"),
+              let sumURL = URL(string: "https://github.com/\(slug)/releases/download/island-nightly/SHA256SUMS.txt") else {
+            return nil
+        }
+        let htmlURL = URL(string: "https://github.com/\(slug)/releases/tag/island-nightly")
+        return RemoteReleaseInfo(
+            channel: .nightly,
+            tagName: "island-nightly",
+            displayVersion: displayVersion,
+            commitSHA: commitSHA,
+            publishedAt: publishedAt,
+            htmlURL: htmlURL,
+            zipDownloadURL: zipURL,
+            zipSizeBytes: 0,
+            checksumDownloadURL: sumURL
+        )
+    }
+
+    /// 构造不依赖 `api.github.com` 元数据的正式版直连发布信息（`island-vX.Y.Z` 标签）
+    nonisolated static func directStableReleaseInfo(
+        repoSlug: String,
+        tagName: String,
+        publishedAt: Date? = nil
+    ) -> RemoteReleaseInfo? {
+        let slug = repoSlug.trimmingCharacters(in: .whitespacesAndNewlines)
+        let tag = tagName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isValidRepoSlug(slug), tag.hasPrefix("island-v") else { return nil }
+        let cleanVer = String(tag.dropFirst("island-v".count))
+        guard !cleanVer.contains("-"), SemanticVersion(cleanVer) != nil,
+              let encodedTag = tag.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+              let zipURL = URL(string: "https://github.com/\(slug)/releases/download/\(encodedTag)/NeoBlogIsland-universal.app.zip"),
+              let sumURL = URL(string: "https://github.com/\(slug)/releases/download/\(encodedTag)/SHA256SUMS.txt") else {
+            return nil
+        }
+        let htmlURL = URL(string: "https://github.com/\(slug)/releases/tag/\(encodedTag)")
+        return RemoteReleaseInfo(
+            channel: .stable,
+            tagName: tag,
+            displayVersion: "v\(cleanVer)",
+            commitSHA: nil,
+            publishedAt: publishedAt,
+            htmlURL: htmlURL,
+            zipDownloadURL: zipURL,
+            zipSizeBytes: 0,
+            checksumDownloadURL: sumURL
+        )
+    }
+
+    private final class AtomFeedSAXHandler: NSObject, XMLParserDelegate {
+        struct Entry {
+            var id: String = ""
+            var title: String = ""
+            var updated: String = ""
+            var content: String = ""
+            var alternateHref: String = ""
+        }
+
+        private var inEntry = false
+        private var currentElement = ""
+        private var currentEntry = Entry()
+        private(set) var entries: [Entry] = []
+
+        func parser(
+            _ parser: XMLParser,
+            didStartElement elementName: String,
+            namespaceURI: String?,
+            qualifiedName qName: String?,
+            attributes attributeDict: [String: String] = [:]
+        ) {
+            let local = elementName.components(separatedBy: ":").last ?? elementName
+            if local == "entry" {
+                inEntry = true
+                currentEntry = Entry()
+                currentElement = ""
+                return
+            }
+            guard inEntry else { return }
+            currentElement = local
+            if local == "link" {
+                let rel = attributeDict["rel"] ?? "alternate"
+                if rel == "alternate", let href = attributeDict["href"], !href.isEmpty {
+                    currentEntry.alternateHref = href
+                }
+            }
+        }
+
+        func parser(_ parser: XMLParser, foundCharacters string: String) {
+            guard inEntry else { return }
+            switch currentElement {
+            case "id":
+                currentEntry.id += string
+            case "title":
+                currentEntry.title += string
+            case "updated":
+                currentEntry.updated += string
+            case "content":
+                currentEntry.content += string
+            default:
+                break
+            }
+        }
+
+        func parser(
+            _ parser: XMLParser,
+            didEndElement elementName: String,
+            namespaceURI: String?,
+            qualifiedName qName: String?
+        ) {
+            let local = elementName.components(separatedBy: ":").last ?? elementName
+            if local == "entry" && inEntry {
+                entries.append(currentEntry)
+                inEntry = false
+            }
+            currentElement = ""
+        }
+    }
+
+    private nonisolated static func extractNightlyMetadata(
+        body: String,
+        title: String
+    ) -> (displayVersion: String, commitSHA: String?) {
+        let extractedVer = firstRegexCapture(
+            pattern: #"版本标识(?:</strong>|\*\*)?[：:]\s*(?:<code>|`)([^<`]+)(?:</code>|`)"#,
+            in: body
+        )
+        // 优先匹配真实 GitHub Atom/Web HTML 自动渲染的 <a class="commit-link" href=".../commit/<40位SHA>">
+        let commitLinkSHA = firstRegexCapture(
+            pattern: #"对应提交[\s\S]{0,260}?/commit/([0-9a-fA-F]{7,40})"#,
+            in: body
+        )
+        let fullSHAInParens = firstRegexCapture(
+            pattern: #"对应提交(?:</strong>|\*\*)?[：:]\s*(?:<code>[^<]*</code>|`[^`]*`)?\s*\(([0-9a-fA-F]{7,40})\)"#,
+            in: body
+        )
+        let shortSHAInCode = firstRegexCapture(
+            pattern: #"对应提交(?:</strong>|\*\*)?[：:]\s*(?:<code>|`)([0-9a-fA-F]{7,40})(?:</code>|`)"#,
+            in: body
+        )
+        let titleSHA = firstRegexCapture(
+            pattern: #"·\s*([0-9a-fA-F]{7,40})\)"#,
+            in: title
+        )
+        let verTailSHA: String? = {
+            guard let ver = extractedVer, let r = ver.lowercased().range(of: "-nightly.") else {
+                return nil
+            }
+            let tail = String(ver[r.upperBound...]).lowercased()
+            return isHexCommit(tail) ? tail : nil
+        }()
+
+        let validSHAs = [commitLinkSHA, fullSHAInParens, shortSHAInCode, verTailSHA, titleSHA]
+            .compactMap { $0?.lowercased() }
+            .filter { isHexCommit($0) }
+        let resolvedSHA = validSHAs.first(where: { $0.count == 40 }) ?? validSHAs.first
+
+        let displayVer: String = {
+            if let v = extractedVer, !v.isEmpty { return v }
+            if let sha = resolvedSHA { return "Nightly · \(sha.prefix(7))" }
+            if !title.isEmpty { return title }
+            return "Nightly 最新构建"
+        }()
+
+        return (displayVer, resolvedSHA)
+    }
+
+    /// 解析固定标签页 `https://github.com/<repo>/releases/tag/island-nightly` HTML（应对 `gh release edit` 后跌出 `releases.atom` 首页的场景）
+    nonisolated static func parseNightlyReleaseTagHTML(
+        _ html: String,
+        repoSlug: String
+    ) -> RemoteReleaseInfo? {
+        let slug = repoSlug.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isValidRepoSlug(slug), !html.isEmpty else { return nil }
+        guard html.contains("island-nightly") else { return nil }
+
+        let pageTitle = firstRegexCapture(pattern: #"<title>([^<]+)</title>"#, in: html)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let meta = extractNightlyMetadata(body: html, title: pageTitle)
+        let dateStr = firstRegexCapture(
+            pattern: #"<relative-time[^>]*datetime="([^"]+)""#,
+            in: html
+        ) ?? firstRegexCapture(
+            pattern: #"<time[^>]*datetime="([^"]+)""#,
+            in: html
+        )
+        return directNightlyReleaseInfo(
+            repoSlug: slug,
+            displayVersion: meta.displayVersion,
+            commitSHA: meta.commitSHA,
+            publishedAt: parseISO8601Date(dateStr)
+        )
+    }
+
+    /// 解析 `https://github.com/<owner>/<repo>/releases.atom`（不走 `api.github.com` 限流配额），提取最新 Nightly 与正式版
+    nonisolated static func parseAtomFeedReleases(
+        _ xmlData: Data,
+        repoSlug: String
+    ) -> (nightly: RemoteReleaseInfo?, latestStable: RemoteReleaseInfo?) {
+        let slug = repoSlug.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isValidRepoSlug(slug), !xmlData.isEmpty else { return (nil, nil) }
+
+        let handler = AtomFeedSAXHandler()
+        let parser = XMLParser(data: xmlData)
+        parser.shouldProcessNamespaces = false
+        parser.shouldResolveExternalEntities = false
+        parser.delegate = handler
+        guard parser.parse() else { return (nil, nil) }
+
+        var nightlyResult: RemoteReleaseInfo? = nil
+        var stableCandidates: [(semver: SemanticVersion, info: RemoteReleaseInfo)] = []
+
+        for entry in handler.entries {
+            let tag: String? = {
+                let href = entry.alternateHref.trimmingCharacters(in: .whitespacesAndNewlines)
+                if let marker = href.range(of: "/releases/tag/") {
+                    let rawTag = String(href[marker.upperBound...])
+                        .split(whereSeparator: { $0 == "?" || $0 == "#" || $0 == "/" })
+                        .first
+                        .map(String.init)
+                    if let decoded = rawTag?.removingPercentEncoding, !decoded.isEmpty {
+                        return decoded
+                    }
+                }
+                let entryId = entry.id.trimmingCharacters(in: .whitespacesAndNewlines)
+                if let slash = entryId.lastIndex(of: "/") {
+                    let tail = String(entryId[entryId.index(after: slash)...])
+                    if !tail.isEmpty, tail != "releases" {
+                        return tail.removingPercentEncoding ?? tail
+                    }
+                }
+                return nil
+            }()
+
+            guard let tagName = tag else { continue }
+            let pubDate = parseISO8601Date(entry.updated)
+            let body = entry.content
+            let title = entry.title.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if tagName == "island-nightly" && nightlyResult == nil {
+                let meta = extractNightlyMetadata(body: body, title: title)
+                nightlyResult = directNightlyReleaseInfo(
+                    repoSlug: slug,
+                    displayVersion: meta.displayVersion,
+                    commitSHA: meta.commitSHA,
+                    publishedAt: pubDate
+                )
+            } else if tagName.hasPrefix("island-v") {
+                let cleanVer = String(tagName.dropFirst("island-v".count))
+                guard !cleanVer.contains("-"),
+                      let semver = SemanticVersion(cleanVer),
+                      let info = directStableReleaseInfo(repoSlug: slug, tagName: tagName, publishedAt: pubDate) else {
+                    continue
+                }
+                stableCandidates.append((semver: semver, info: info))
+            }
+        }
+
+        let bestStable = stableCandidates.max(by: { $0.semver < $1.semver })?.info
+        return (nightlyResult, bestStable)
+    }
+
+    /// 当 `releases.atom` 首页被大量后端版本挤出时，从 `https://github.com/<repo>/releases?q=NeoBlogIsland` 网页提取最高正式版标签
+    nonisolated static func extractLatestStableFromReleasesHTML(
+        _ html: String,
+        repoSlug: String
+    ) -> RemoteReleaseInfo? {
+        let slug = repoSlug.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isValidRepoSlug(slug), !html.isEmpty else { return nil }
+        let escapedSlug = NSRegularExpression.escapedPattern(for: slug)
+        let pattern = "/\(escapedSlug)/releases/tag/(island-v[0-9]+\\.[0-9]+(?:\\.[0-9]+)?)(?=[\"'?#\\s</>]|$)"
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+
+        let nsRange = NSRange(html.startIndex..<html.endIndex, in: html)
+        let matches = regex.matches(in: html, range: nsRange)
+        var candidates: [(semver: SemanticVersion, tag: String)] = []
+        var seen: Set<String> = []
+
+        for m in matches where m.numberOfRanges >= 2 {
+            guard let r = Range(m.range(at: 1), in: html) else { continue }
+            let tag = String(html[r])
+            guard seen.insert(tag).inserted else { continue }
+            let cleanVer = String(tag.dropFirst("island-v".count))
+            if !cleanVer.contains("-"), let semver = SemanticVersion(cleanVer) {
+                candidates.append((semver: semver, tag: tag))
+            }
+        }
+
+        guard let best = candidates.max(by: { $0.semver < $1.semver }) else { return nil }
+        return directStableReleaseInfo(repoSlug: slug, tagName: best.tag)
+    }
+
     private nonisolated static func fetchLatestRelease(
         repoSlug: String,
         channel: UpdateChannel,
         userAgentVersion: String
     ) async throws -> RemoteReleaseInfo {
+        do {
+            return try await fetchLatestReleaseViaGitHubAPI(
+                repoSlug: repoSlug,
+                channel: channel,
+                userAgentVersion: userAgentVersion
+            )
+        } catch {
+            if error is CancellationError || Task.isCancelled {
+                throw CancellationError()
+            }
+            // 当 GitHub REST API 触发未认证限流（403/429）或临时异常时，自动回退至 github.com Atom/Web 解析通道
+            if let fallback = try? await fetchLatestReleaseWithoutAPI(
+                repoSlug: repoSlug,
+                channel: channel,
+                userAgentVersion: userAgentVersion
+            ) {
+                return fallback
+            }
+            throw error
+        }
+    }
+
+    private nonisolated static func fetchLatestReleaseViaGitHubAPI(
+        repoSlug: String,
+        channel: UpdateChannel,
+        userAgentVersion: String
+    ) async throws -> RemoteReleaseInfo {
+        let slug = repoSlug.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isValidRepoSlug(slug) else {
+            throw NSError(domain: "AppUpdateService", code: -1, userInfo: [NSLocalizedDescriptionKey: "无效的仓库地址"])
+        }
         switch channel {
         case .nightly:
-            guard let url = URL(string: "https://api.github.com/repos/\(repoSlug)/releases/tags/island-nightly") else {
+            guard let url = URL(string: "https://api.github.com/repos/\(slug)/releases/tags/island-nightly") else {
                 throw NSError(domain: "AppUpdateService", code: -1, userInfo: [NSLocalizedDescriptionKey: "无效的仓库地址"])
             }
             let data = try await fetchGitHubAPI(url: url, userAgentVersion: userAgentVersion)
@@ -608,7 +1112,7 @@ final class AppUpdateService {
             return info
 
         case .stable:
-            guard let url = URL(string: "https://api.github.com/repos/\(repoSlug)/releases?per_page=20") else {
+            guard let url = URL(string: "https://api.github.com/repos/\(slug)/releases?per_page=30") else {
                 throw NSError(domain: "AppUpdateService", code: -1, userInfo: [NSLocalizedDescriptionKey: "无效的仓库地址"])
             }
             let data = try await fetchGitHubAPI(url: url, userAgentVersion: userAgentVersion)
@@ -617,6 +1121,150 @@ final class AppUpdateService {
                 throw NSError(domain: "AppUpdateService", code: -3, userInfo: [NSLocalizedDescriptionKey: "尚未发布正式版安装包"])
             }
             return info
+        }
+    }
+
+    private nonisolated static func fetchWebDocument(
+        url: URL,
+        accept: String,
+        userAgentVersion: String,
+        timeout: TimeInterval = 10
+    ) async throws -> Data {
+        var req = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: timeout)
+        req.setValue(accept, forHTTPHeaderField: "Accept")
+        req.setValue("NeoBlogIsland/\(userAgentVersion)", forHTTPHeaderField: "User-Agent")
+        req.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+            throw NSError(
+                domain: "AppUpdateService",
+                code: code,
+                userInfo: [NSLocalizedDescriptionKey: "获取 GitHub 发布列表失败（HTTP \(code)）"]
+            )
+        }
+        return data
+    }
+
+    private nonisolated static func fetchLatestReleaseWithoutAPI(
+        repoSlug: String,
+        channel: UpdateChannel,
+        userAgentVersion: String,
+        timeout: TimeInterval = 10
+    ) async throws -> RemoteReleaseInfo {
+        let slug = repoSlug.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isValidRepoSlug(slug),
+              let atomURL = URL(string: "https://github.com/\(slug)/releases.atom") else {
+            throw NSError(domain: "AppUpdateService", code: -1, userInfo: [NSLocalizedDescriptionKey: "无效的仓库地址"])
+        }
+
+        if let atomData = try? await fetchWebDocument(
+            url: atomURL,
+            accept: "application/atom+xml, application/xml;q=0.9, */*;q=0.8",
+            userAgentVersion: userAgentVersion,
+            timeout: timeout
+        ) {
+            let parsed = parseAtomFeedReleases(atomData, repoSlug: slug)
+            switch channel {
+            case .nightly:
+                if let nightly = parsed.nightly {
+                    return nightly
+                }
+            case .stable:
+                if let stable = parsed.latestStable {
+                    return stable
+                }
+            }
+        }
+        try Task.checkCancellation()
+
+        switch channel {
+        case .nightly:
+            // `gh release edit` 更新同一个 island-nightly 时不会刷新其在 releases.atom 中的初始发布时间排序；若已跌出首页，直接抓取固定标签页
+            guard let tagURL = URL(string: "https://github.com/\(slug)/releases/tag/island-nightly") else {
+                throw NSError(domain: "AppUpdateService", code: -1, userInfo: [NSLocalizedDescriptionKey: "无效的仓库地址"])
+            }
+            let htmlData = try await fetchWebDocument(
+                url: tagURL,
+                accept: "text/html,application/xhtml+xml",
+                userAgentVersion: userAgentVersion,
+                timeout: timeout
+            )
+            let html = String(data: htmlData, encoding: .utf8) ?? ""
+            guard let info = parseNightlyReleaseTagHTML(html, repoSlug: slug) else {
+                throw NSError(domain: "AppUpdateService", code: -2, userInfo: [NSLocalizedDescriptionKey: "未找到可用的 Nightly 发布版本"])
+            }
+            return info
+
+        case .stable:
+            // GitHub Releases 全文搜索按标题/正文词元索引（正式版标题固定含 NeoBlogIsland），可穿透任意数量后端 v* Release 命中 island-v*
+            guard let searchURL = URL(string: "https://github.com/\(slug)/releases?q=NeoBlogIsland") else {
+                throw NSError(domain: "AppUpdateService", code: -1, userInfo: [NSLocalizedDescriptionKey: "无效的仓库地址"])
+            }
+            let htmlData = try await fetchWebDocument(
+                url: searchURL,
+                accept: "text/html,application/xhtml+xml",
+                userAgentVersion: userAgentVersion,
+                timeout: timeout
+            )
+            let html = String(data: htmlData, encoding: .utf8) ?? ""
+            guard let info = extractLatestStableFromReleasesHTML(html, repoSlug: slug) else {
+                throw NSError(domain: "AppUpdateService", code: -3, userInfo: [NSLocalizedDescriptionKey: "尚未发布正式版安装包"])
+            }
+            return info
+        }
+    }
+
+    /// 强制更新专用解析：全程不访问 `api.github.com`；Nightly 在元数据不可达时直接直连固定下载链接
+    nonisolated static func resolveReleaseForForceUpdate(
+        installed: InstalledAppVersion,
+        channel: UpdateChannel
+    ) async throws -> RemoteReleaseInfo {
+        let slug = installed.repoSlug.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isValidRepoSlug(slug) else {
+            throw NSError(domain: "AppUpdateService", code: -1, userInfo: [NSLocalizedDescriptionKey: "无效的仓库地址"])
+        }
+
+        switch channel {
+        case .nightly:
+            if let viaWeb = try? await fetchLatestReleaseWithoutAPI(
+                repoSlug: slug,
+                channel: .nightly,
+                userAgentVersion: installed.version,
+                timeout: 6
+            ) {
+                return viaWeb
+            }
+            try Task.checkCancellation()
+            guard let direct = directNightlyReleaseInfo(repoSlug: slug) else {
+                throw NSError(domain: "AppUpdateService", code: -1, userInfo: [NSLocalizedDescriptionKey: "无效的仓库地址"])
+            }
+            return direct
+
+        case .stable:
+            do {
+                return try await fetchLatestReleaseWithoutAPI(
+                    repoSlug: slug,
+                    channel: .stable,
+                    userAgentVersion: installed.version,
+                    timeout: 10
+                )
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch let nsErr as NSError {
+                if Task.isCancelled {
+                    throw CancellationError()
+                }
+                // 仅当 GitHub Web 列表页本身发生网络/HTTP 异常（非正常返回后确认无正式版的 -3）且当前为已发版正式版时，才兜底重装同版本标签
+                if nsErr.code != -3,
+                   nsErr.code != -1,
+                   installed.channel == .stable,
+                   let fallbackSame = directStableReleaseInfo(repoSlug: slug, tagName: "island-v\(installed.version)") {
+                    return fallbackSame
+                }
+                throw nsErr
+            }
         }
     }
 
@@ -631,7 +1279,7 @@ final class AppUpdateService {
             throw NSError(domain: "AppUpdateService", code: -1, userInfo: [NSLocalizedDescriptionKey: "网络连接异常"])
         }
         if http.statusCode == 403 || http.statusCode == 429 {
-            throw NSError(domain: "AppUpdateService", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: "GitHub API 请求过于频繁，请稍后再试"])
+            throw NSError(domain: "AppUpdateService", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: "GitHub API 请求过于频繁，可直接点击「强制更新」绕过限流安装"])
         }
         guard (200..<300).contains(http.statusCode) else {
             throw NSError(domain: "AppUpdateService", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: "查询 GitHub 发布信息失败（HTTP \(http.statusCode)）"])
@@ -644,14 +1292,24 @@ final class AppUpdateService {
         zipAssetName: String,
         userAgentVersion: String
     ) async throws -> String? {
-        var req = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 12)
+        var req = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 15)
         req.setValue("NeoBlogIsland/\(userAgentVersion)", forHTTPHeaderField: "User-Agent")
+        req.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
         let (data, response) = try await URLSession.shared.data(for: req)
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
-              let text = String(data: data, encoding: .utf8) else {
+        guard let http = response as? HTTPURLResponse else {
+            throw NSError(domain: "AppUpdateService", code: -1, userInfo: [NSLocalizedDescriptionKey: "获取更新校验摘要时网络连接异常"])
+        }
+        if http.statusCode == 404 {
             return nil
         }
-        return parseSHA256Sums(text, assetName: zipAssetName)
+        guard (200..<300).contains(http.statusCode) else {
+            throw NSError(domain: "AppUpdateService", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: "获取更新校验文件失败（HTTP \(http.statusCode)）"])
+        }
+        guard let text = String(data: data, encoding: .utf8),
+              let hash = parseSHA256Sums(text, assetName: zipAssetName) else {
+            throw NSError(domain: "AppUpdateService", code: -14, userInfo: [NSLocalizedDescriptionKey: "更新校验文件 SHA256SUMS.txt 格式无效或缺少目标摘要"])
+        }
+        return hash
     }
 
     // MARK: - 归档校验、解压与独立进程退出后原子替换脚本
@@ -680,6 +1338,23 @@ final class AppUpdateService {
         try runTool("/usr/bin/ditto", arguments: ["-x", "-k", zipFileURL.path, unpackDir.path])
 
         let appURL = unpackDir.appendingPathComponent("NeoBlogIsland.app", isDirectory: true)
+        let resolvedUnpackPrefix = unpackDir.resolvingSymlinksInPath().path + "/"
+        let resolvedAppPath = appURL.resolvingSymlinksInPath().path
+        guard resolvedAppPath.hasPrefix(resolvedUnpackPrefix) else {
+            throw NSError(domain: "AppUpdateService", code: -13, userInfo: [NSLocalizedDescriptionKey: "解压后的应用包路径异常，已中止安装"])
+        }
+
+        let infoPlistURL = appURL.appendingPathComponent("Contents/Info.plist")
+        if let plistData = try? Data(contentsOf: infoPlistURL),
+           let plist = try? PropertyListSerialization.propertyList(from: plistData, format: nil) as? [String: Any],
+           let bundleId = plist["CFBundleIdentifier"] as? String {
+            guard bundleId == "me.sfkm.neoblog.island" else {
+                throw NSError(domain: "AppUpdateService", code: -15, userInfo: [NSLocalizedDescriptionKey: "更新包 Bundle ID 不匹配（\(bundleId)），已中止安装"])
+            }
+        } else {
+            throw NSError(domain: "AppUpdateService", code: -15, userInfo: [NSLocalizedDescriptionKey: "更新包缺少有效的 Info.plist，已中止安装"])
+        }
+
         let execURL = appURL.appendingPathComponent("Contents/MacOS/NeoBlogIsland")
         guard FileManager.default.isExecutableFile(atPath: execURL.path) else {
             throw NSError(domain: "AppUpdateService", code: -12, userInfo: [NSLocalizedDescriptionKey: "解压后的应用包缺少可执行文件"])
@@ -732,6 +1407,7 @@ final class AppUpdateService {
         """
         #!/bin/sh
         set -eu
+        trap 'rm -rf "$STAGING_DIR" 2>/dev/null || true' EXIT
 
         # 1. 等待当前灵动岛进程完全退出，释放二进制句柄与 LaunchServices 登记
         i=0
@@ -748,45 +1424,49 @@ final class AppUpdateService {
         PARENT_DIR="$(dirname "$TARGET_APP")"
         BACKUP_APP="${TARGET_APP}.bak.$$"
 
-        # 2. 原子备份并替换应用包（普通可写目录直接 mv；受保护目录自动唤起系统管理员授权框）
+        # 2. 原子备份并替换应用包（严格确保旧包已备份移走后才移入新包，防止目录嵌套污染；若普通权限遭遇 TCC 拦截则回退提权，取消授权时保留旧版重启）
+        REPLACED=0
         if [ -w "$PARENT_DIR" ] && { [ ! -e "$TARGET_APP" ] || [ -w "$TARGET_APP" ]; }; then
           rm -rf "$BACKUP_APP" 2>/dev/null || true
-          if [ -d "$TARGET_APP" ]; then
-            mv "$TARGET_APP" "$BACKUP_APP"
-          fi
-          if mv "$STAGED_APP" "$TARGET_APP"; then
-            rm -rf "$BACKUP_APP" 2>/dev/null || true
-          else
-            if [ -d "$BACKUP_APP" ]; then
+          if [ ! -e "$TARGET_APP" ] || mv "$TARGET_APP" "$BACKUP_APP" 2>/dev/null; then
+            if [ ! -e "$TARGET_APP" ] && mv "$STAGED_APP" "$TARGET_APP" 2>/dev/null; then
+              REPLACED=1
+              rm -rf "$BACKUP_APP" 2>/dev/null || true
+              /usr/bin/xattr -cr "$TARGET_APP" 2>/dev/null || true
+            elif [ -d "$BACKUP_APP" ] && [ ! -e "$TARGET_APP" ]; then
               mv "$BACKUP_APP" "$TARGET_APP" 2>/dev/null || true
             fi
-            exit 1
           fi
-          /usr/bin/xattr -cr "$TARGET_APP" 2>/dev/null || true
-        else
-          /usr/bin/osascript - "$STAGED_APP" "$TARGET_APP" "$BACKUP_APP" <<'APPLESCRIPT'
+        fi
+
+        if [ "$REPLACED" -eq 0 ] && [ -d "$STAGED_APP" ]; then
+          if ! /usr/bin/osascript - "$STAGED_APP" "$TARGET_APP" "$BACKUP_APP" <<'APPLESCRIPT'
           on run argv
             set stagedPath to quoted form of (item 1 of argv)
             set targetPath to quoted form of (item 2 of argv)
             set backupPath to quoted form of (item 3 of argv)
-            set cmd to "rm -rf " & backupPath & " && (if [ -d " & targetPath & " ]; then mv " & targetPath & " " & backupPath & "; fi) && if mv " & stagedPath & " " & targetPath & "; then rm -rf " & backupPath & " && /usr/bin/xattr -cr " & targetPath & "; else if [ -d " & backupPath & " ]; then mv " & backupPath & " " & targetPath & "; fi; exit 1; fi"
+            set cmd to "rm -rf " & backupPath & " && ([ ! -e " & targetPath & " ] || mv " & targetPath & " " & backupPath & ") && if [ ! -e " & targetPath & " ] && mv " & stagedPath & " " & targetPath & "; then rm -rf " & backupPath & " && /usr/bin/xattr -cr " & targetPath & "; else if [ -d " & backupPath & " ] && [ ! -e " & targetPath & " ]; then mv " & backupPath & " " & targetPath & "; fi; exit 1; fi"
             do shell script cmd with administrator privileges
           end run
         APPLESCRIPT
+          then
+            if [ -d "$BACKUP_APP" ] && [ ! -e "$TARGET_APP" ]; then
+              mv "$BACKUP_APP" "$TARGET_APP" 2>/dev/null || true
+            fi
+          fi
         fi
 
-        # 3. 刷新 LaunchServices 包缓存并启动新版灵动岛（若旧实例刚释放句柄则延迟重试一次）
-        LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
-        if [ -x "$LSREGISTER" ]; then
-          "$LSREGISTER" -f "$TARGET_APP" >/dev/null 2>&1 || true
+        # 3. 刷新 LaunchServices 包缓存并启动灵动岛（即使取消提权也恢复启动旧版，避免灵动岛消失）
+        if [ -d "$TARGET_APP" ]; then
+          LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+          if [ -x "$LSREGISTER" ]; then
+            "$LSREGISTER" -f "$TARGET_APP" >/dev/null 2>&1 || true
+          fi
+          if ! /usr/bin/open -a "$TARGET_APP" 2>/dev/null; then
+            sleep 0.5
+            /usr/bin/open -a "$TARGET_APP" 2>/dev/null || true
+          fi
         fi
-        if ! /usr/bin/open -a "$TARGET_APP" 2>/dev/null; then
-          sleep 0.5
-          /usr/bin/open -a "$TARGET_APP" 2>/dev/null || true
-        fi
-
-        # 4. 清理临时更新目录
-        rm -rf "$STAGING_DIR" 2>/dev/null || true
         """
     }
 

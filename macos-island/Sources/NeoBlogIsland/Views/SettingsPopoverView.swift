@@ -161,6 +161,7 @@ private struct AppUpdatePopoverSection: View {
     @Bindable var updater: AppUpdateService
 
     private var isBusyInstalling: Bool {
+        if updater.isForceUpdating { return true }
         switch updater.state {
         case .downloading, .verifying, .restarting:
             return true
@@ -197,21 +198,42 @@ private struct AppUpdatePopoverSection: View {
                         .font(.system(size: 11).monospacedDigit())
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
-                    Spacer()
+                        .truncationMode(.middle)
+                    Spacer(minLength: 4)
                     Button("检查更新") {
                         updater.checkForUpdates(silent: false)
                     }
                     .controlSize(.small)
+                    .fixedSize()
+
+                    Button("强制更新") {
+                        updater.forceUpdate()
+                    }
+                    .controlSize(.small)
+                    .fixedSize()
+                    .help("绕过 GitHub API 限流与本地版本号对比，直连下载并覆盖安装当前通道最新构建")
                 }
 
             case .checking:
                 HStack(spacing: 6) {
                     ProgressView()
                         .controlSize(.mini)
-                    Text("正在检查 GitHub \(updater.selectedChannel.label)最新构建…")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                    Spacer()
+                    Text(
+                        updater.isForceUpdating
+                            ? "正在直连 GitHub 获取 \(updater.selectedChannel.label)安装包…"
+                            : "正在检查 GitHub \(updater.selectedChannel.label)最新构建…"
+                    )
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    Spacer(minLength: 4)
+                    if updater.isForceUpdating {
+                        Button("取消") {
+                            updater.cancelActiveDownload()
+                        }
+                        .controlSize(.mini)
+                        .fixedSize()
+                    }
                 }
 
             case .upToDate(let versionLabel):
@@ -223,11 +245,20 @@ private struct AppUpdatePopoverSection: View {
                         .font(.system(size: 11).monospacedDigit())
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
-                    Spacer()
+                        .truncationMode(.middle)
+                    Spacer(minLength: 4)
                     Button("重新检查") {
                         updater.checkForUpdates(silent: false)
                     }
                     .controlSize(.mini)
+                    .fixedSize()
+
+                    Button("强制更新") {
+                        updater.forceUpdate()
+                    }
+                    .controlSize(.mini)
+                    .fixedSize()
+                    .help("忽略版本号相同限制，直连下载并重新安装当前通道最新构建")
                 }
 
             case .available(let release, let isChannelSwitch):
@@ -265,14 +296,26 @@ private struct AppUpdatePopoverSection: View {
 
             case .downloading(_, let progress, let downloaded, let total):
                 VStack(alignment: .leading, spacing: 5) {
-                    ProgressView(value: max(0, min(1, progress)))
-                        .controlSize(.small)
+                    if total > 0 {
+                        ProgressView(value: max(0, min(1, progress)))
+                            .controlSize(.small)
+                    } else {
+                        ProgressView()
+                            .progressViewStyle(.linear)
+                            .controlSize(.small)
+                    }
                     HStack(spacing: 6) {
-                        let pct = Int(round(progress * 100))
-                        let sizeDetail = total > 0
-                            ? "\(Self.formatByteCount(downloaded)) / \(Self.formatByteCount(total))"
-                            : Self.formatByteCount(downloaded)
-                        Text("正在下载更新包 \(pct)%（\(sizeDetail)）…")
+                        let statusText: String = {
+                            if total > 0 {
+                                let pct = Int(round(max(0, min(1, progress)) * 100))
+                                return "正在下载更新包 \(pct)%（\(Self.formatByteCount(downloaded)) / \(Self.formatByteCount(total))）…"
+                            }
+                            if downloaded > 0 {
+                                return "正在下载更新包（已下载 \(Self.formatByteCount(downloaded))）…"
+                            }
+                            return "正在准备下载更新包…"
+                        }()
+                        Text(statusText)
                             .font(.system(size: 10.5).monospacedDigit())
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
@@ -311,6 +354,13 @@ private struct AppUpdatePopoverSection: View {
                         .foregroundStyle(.orange)
                         .fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: 8) {
+                        Button("强制更新") {
+                            updater.forceUpdate()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.mini)
+                        .help("绕过 GitHub API 限流，直接从 GitHub Releases 下载并安装最新构建")
+
                         Button("重试") {
                             updater.checkForUpdates(silent: false)
                         }
@@ -329,6 +379,9 @@ private struct AppUpdatePopoverSection: View {
     }
 
     private static func formatByteCount(_ bytes: Int64) -> String {
+        if bytes <= 0 {
+            return "0 KB"
+        }
         let mb = Double(bytes) / (1024.0 * 1024.0)
         if mb >= 1.0 {
             return String(format: "%.1f MB", mb)

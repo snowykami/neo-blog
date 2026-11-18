@@ -861,6 +861,84 @@ struct BridgeAndEngineTests {
         try lintProc.run()
         lintProc.waitUntilExit()
         #expect(lintProc.terminationStatus == 0)
+
+        // 5. 绕过 GitHub API 限流：releases.atom XML 解析、搜索页 HTML 标签提取与直连强制更新回退
+        let atomXML = Data("""
+        <?xml version="1.0" encoding="UTF-8"?>
+        <feed xmlns="http://www.w3.org/2005/Atom">
+          <entry>
+            <id>tag:github.com,2008:Repository/1/v2.6.0</id>
+            <updated>2026-11-18T02:00:00Z</updated>
+            <link rel="alternate" type="text/html" href="https://github.com/snowykami/neo-blog/releases/tag/v2.6.0"/>
+            <title>Backend v2.6.0</title>
+            <content type="html">Backend release</content>
+          </entry>
+          <entry>
+            <id>tag:github.com,2008:Repository/1/island-nightly</id>
+            <updated>2026-11-18T03:15:00.450Z</updated>
+            <link rel="alternate" type="text/html" href="https://github.com/snowykami/neo-blog/releases/tag/island-nightly"/>
+            <title>NeoBlogIsland Nightly (2026-11-18 · 8f9e1a2)</title>
+            <content type="html">&lt;ul&gt;&lt;li&gt;&lt;strong&gt;版本标识&lt;/strong&gt;：&lt;code&gt;0.2.0-nightly.8f9e1a2&lt;/code&gt;&lt;/li&gt;&lt;li&gt;&lt;strong&gt;对应提交&lt;/strong&gt;：&lt;code&gt;8f9e1a2&lt;/code&gt; (&lt;a class="commit-link" href="https://github.com/snowykami/neo-blog/commit/8f9e1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b"&gt;&lt;tt&gt;8f9e1a2&lt;/tt&gt;&lt;/a&gt;)&lt;/li&gt;&lt;/ul&gt;</content>
+          </entry>
+          <entry>
+            <id>tag:github.com,2008:Repository/1/island-v0.3.0-beta.1</id>
+            <updated>2026-11-18T01:00:00Z</updated>
+            <link rel="alternate" type="text/html" href="https://github.com/snowykami/neo-blog/releases/tag/island-v0.3.0-beta.1"/>
+            <title>NeoBlogIsland v0.3.0-beta.1</title>
+            <content type="html">Beta</content>
+          </entry>
+          <entry>
+            <id>tag:github.com,2008:Repository/1/island-v0.2.1</id>
+            <updated>2026-11-17T20:00:00Z</updated>
+            <link rel="alternate" type="text/html" href="https://github.com/snowykami/neo-blog/releases/tag/island-v0.2.1"/>
+            <title>NeoBlogIsland v0.2.1</title>
+            <content type="html">Formal release</content>
+          </entry>
+        </feed>
+        """.utf8)
+
+        let atomParsed = AppUpdateService.parseAtomFeedReleases(atomXML, repoSlug: "snowykami/neo-blog")
+        #expect(atomParsed.nightly?.displayVersion == "0.2.0-nightly.8f9e1a2")
+        #expect(atomParsed.nightly?.commitSHA == "8f9e1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b")
+        #expect(atomParsed.nightly?.zipDownloadURL.absoluteString == "https://github.com/snowykami/neo-blog/releases/download/island-nightly/NeoBlogIsland-universal.app.zip")
+        #expect(atomParsed.nightly?.checksumDownloadURL?.absoluteString == "https://github.com/snowykami/neo-blog/releases/download/island-nightly/SHA256SUMS.txt")
+        #expect(atomParsed.latestStable?.tagName == "island-v0.2.1")
+        #expect(atomParsed.latestStable?.displayVersion == "v0.2.1")
+        #expect(atomParsed.latestStable?.zipDownloadURL.absoluteString == "https://github.com/snowykami/neo-blog/releases/download/island-v0.2.1/NeoBlogIsland-universal.app.zip")
+
+        // HTML 搜索回退：过滤预发布后缀（如 -beta.1），准确命中最高正式版标签
+        let searchHTML = """
+        <a href="/snowykami/neo-blog/releases/tag/island-v0.3.0-beta.1">Beta</a>
+        <a href="/snowykami/neo-blog/releases/tag/island-v0.2.0">v0.2.0</a>
+        <a href="/snowykami/neo-blog/releases/tag/island-v0.2.3?expanded=true">v0.2.3</a>
+        """
+        let htmlStable = AppUpdateService.extractLatestStableFromReleasesHTML(searchHTML, repoSlug: "snowykami/neo-blog")
+        #expect(htmlStable?.tagName == "island-v0.2.3")
+        #expect(htmlStable?.displayVersion == "v0.2.3")
+
+        // 直连构造、固定标签页 HTML 回退与非法 slug 拦截
+        let nightlyTagHTML = """
+        <html><head><title>Release NeoBlogIsland Nightly (2026-11-18 · 5c6d7e8) · snowykami/neo-blog</title></head>
+        <body>
+          <relative-time datetime="2026-11-18T06:00:00Z"></relative-time>
+          <div class="markdown-body">
+            <ul>
+              <li><strong>版本标识</strong>：<code>0.2.0-nightly.5c6d7e8</code></li>
+              <li><strong>对应提交</strong>：<code>5c6d7e8</code> (<a class="commit-link" href="https://github.com/snowykami/neo-blog/commit/5c6d7e8f90123456789abcdef0123456789abcde"><tt>5c6d7e8</tt></a>)</li>
+            </ul>
+          </div>
+          <a href="/snowykami/neo-blog/releases/tag/island-nightly">island-nightly</a>
+        </body></html>
+        """
+        let htmlNightly = AppUpdateService.parseNightlyReleaseTagHTML(nightlyTagHTML, repoSlug: "snowykami/neo-blog")
+        #expect(htmlNightly?.displayVersion == "0.2.0-nightly.5c6d7e8")
+        #expect(htmlNightly?.commitSHA == "5c6d7e8f90123456789abcdef0123456789abcde")
+
+        #expect(AppUpdateService.directNightlyReleaseInfo(repoSlug: "../evil") == nil)
+        #expect(AppUpdateService.directNightlyReleaseInfo(repoSlug: "owner/..") == nil)
+        #expect(AppUpdateService.directStableReleaseInfo(repoSlug: "snowykami/neo-blog", tagName: "island-v0.3.0-rc1") == nil)
+        let directNightly = AppUpdateService.directNightlyReleaseInfo(repoSlug: "snowykami/neo-blog")
+        #expect(directNightly?.zipDownloadURL.absoluteString == "https://github.com/snowykami/neo-blog/releases/download/island-nightly/NeoBlogIsland-universal.app.zip")
     }
 
     @MainActor
