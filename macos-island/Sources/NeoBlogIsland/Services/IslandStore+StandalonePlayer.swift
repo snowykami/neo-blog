@@ -173,6 +173,7 @@ extension IslandStore {
 
         disconnectTakeoverTask?.cancel()
         snapshotHealTask?.cancel()
+        ownershipBeforeUnexpectedPeerDrop = nil
         standaloneInitiatedFromBrowserDisconnect = false
         fallbackSnapshotBeforeFailure = cachedSnap
         consecutiveAutonomousFailures = 0
@@ -1505,6 +1506,7 @@ extension IslandStore {
             if webSessions[Self.remotePeerVirtualClientId]?.state?.isPlaying != true {
                 webSessions.removeSession(Self.remotePeerVirtualClientId)
             }
+            ownershipBeforeUnexpectedPeerDrop = nil
             electNextActiveTab()
         }
         onLayoutTriggerChanged?()

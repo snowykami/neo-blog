@@ -66,6 +66,20 @@ final class IslandStore {
     @ObservationIgnored var autonomousSessionStorage: AutonomousSessionPayload? = nil
     /// 区分「浏览器断联自动续播」与「用户主动开启独立播放器」（主动独立播放时新开普通文章页不被动抢回音频）
     @ObservationIgnored var standaloneInitiatedFromBrowserDisconnect: Bool = false
+    /// 意外 AWDL 闪断前的双机同显状态（仅在本机作为播放源持有者且非手动断开时记录，重连成功后无缝恢复同显）
+    @ObservationIgnored var ownershipBeforeUnexpectedPeerDrop: PeerDisplayOwnership? = nil
+
+    private var isLocalPlaybackSourceOwner: Bool {
+        if let auto = autonomousSessionStorage {
+            return auto.audioOwnerPeerId == peerService.localPeerId
+        }
+        guard let activeId = activeClientId,
+              activeId != Self.remotePeerVirtualClientId,
+              let session = webSessions[activeId] else {
+            return false
+        }
+        return session.hasActivePlayerSession && track != nil
+    }
 
     private(set) var isAutonomousMode: Bool = false
     private(set) var autonomousOrigin: String = ""
@@ -542,6 +556,7 @@ final class IslandStore {
     }
 
     func commitPortalThrow(_ payload: PeerPortalPayload) {
+        ownershipBeforeUnexpectedPeerDrop = nil
         lastSentPortalPreview = nil
         portalDragTargetEdge = nil
         if isAutonomousMode && !peerService.peerSupportsAutonomousContinuity {
@@ -560,6 +575,7 @@ final class IslandStore {
     }
 
     func handoffToConnectedPeer() {
+        ownershipBeforeUnexpectedPeerDrop = nil
         let payload = PeerPortalPayload(
             fromEdge: .right,
             offsetFromTopPt: isDockedInMenuBar ? 14 : 28,
@@ -569,6 +585,7 @@ final class IslandStore {
     }
 
     func recallIslandToThisMac() {
+        ownershipBeforeUnexpectedPeerDrop = nil
         withAnimation(.spring(duration: 0.34, bounce: 0.22)) {
             displayOwnership = .singleActiveMac
             activeOwnerPeerId = peerService.localPeerId
@@ -580,6 +597,7 @@ final class IslandStore {
     }
 
     func toggleMirrorBothMacs() {
+        ownershipBeforeUnexpectedPeerDrop = nil
         let nextMode: PeerDisplayOwnership = (displayOwnership == .mirrorBothMacs) ? .singleActiveMac : .mirrorBothMacs
         let nextOwner = (nextMode == .singleActiveMac) ? peerService.localPeerId : nil
         withAnimation(.spring(duration: 0.34, bounce: 0.22)) {
@@ -709,9 +727,15 @@ final class IslandStore {
     private func setupPeerCallbacks() {
         peerService.onPeerAuthenticated = { [weak self] _, _ in
             guard let self else { return }
+            let restoreMirror = (self.ownershipBeforeUnexpectedPeerDrop == .mirrorBothMacs)
+            self.ownershipBeforeUnexpectedPeerDrop = nil
+
             if let auto = self.autonomousSessionStorage {
                 guard auto.audioOwnerPeerId == self.peerService.localPeerId else { return }
-                if self.displayOwnership == .singleActiveMac && self.activeOwnerPeerId == nil {
+                if restoreMirror {
+                    self.displayOwnership = .mirrorBothMacs
+                    self.activeOwnerPeerId = nil
+                } else if self.displayOwnership == .singleActiveMac && self.activeOwnerPeerId == nil {
                     self.activeOwnerPeerId = self.peerService.localPeerId
                 }
                 if self.peerService.peerSupportsAutonomousContinuity {
@@ -720,13 +744,27 @@ final class IslandStore {
                 } else {
                     self.peerService.sendOwnershipUpdate(mode: self.displayOwnership, activeOwnerPeerId: self.activeOwnerPeerId)
                 }
+                self.onLayoutTriggerChanged?()
             } else {
+                let hasLocalBrowserSession = self.isLocalPlaybackSourceOwner
+                if restoreMirror && hasLocalBrowserSession {
+                    self.displayOwnership = .mirrorBothMacs
+                    self.activeOwnerPeerId = nil
+                }
+                if self.displayOwnership == .mirrorBothMacs && hasLocalBrowserSession {
+                    self.peerService.sendOwnershipUpdate(mode: .mirrorBothMacs, activeOwnerPeerId: nil)
+                }
                 self.pushFullSnapshotToConnectedPeer()
             }
         }
 
         peerService.onPeerDisconnected = { [weak self] _ in
             guard let self else { return }
+            if self.peerService.isAutoReconnectPausedByUser || !self.isLocalPlaybackSourceOwner {
+                self.ownershipBeforeUnexpectedPeerDrop = nil
+            } else if self.displayOwnership == .mirrorBothMacs {
+                self.ownershipBeforeUnexpectedPeerDrop = .mirrorBothMacs
+            }
             self.incomingPortalPreview = nil
             self.portalDragTargetEdge = nil
             self.lastSentPortalPreview = nil
@@ -1288,6 +1326,7 @@ final class IslandStore {
         } else {
             withAnimation(.spring(duration: 0.34, bounce: 0.2)) {
                 activeClientId = nil
+                ownershipBeforeUnexpectedPeerDrop = nil
                 webVisible = false
                 isPlaying = false
                 showPlaying = false

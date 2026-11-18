@@ -2221,4 +2221,159 @@ struct BridgeAndEngineTests {
         #expect(RomanizationAligner.detectLinePronunciationLang(text: "in a la vie", pron: "ɑ̃ a la vi", songLang: "other") == "other")
         #expect(RomanizationAligner.shouldHideSameLangPronunciation(lineLang: "other", targetLang: "en") == false)
     }
+
+    @Test("AWDL 自动重连状态机：意外闪断退避自愈与双机同显恢复、僵尸心跳摘除、并发互拨防撞、手动断开抑制与失效信任自清")
+    @MainActor
+    func awdlAutoReconnectHeartbeatDualDialAndManualPause() async throws {
+        let suiteA = "NeoBlogIslandTest.AWDLRecA.\(UUID().uuidString)"
+        let suiteB = "NeoBlogIslandTest.AWDLRecB.\(UUID().uuidString)"
+        let defA = try #require(UserDefaults(suiteName: suiteA))
+        let defB = try #require(UserDefaults(suiteName: suiteB))
+        defer {
+            defA.removePersistentDomain(forName: suiteA)
+            defB.removePersistentDomain(forName: suiteB)
+        }
+
+        // 故意让发起方 B 的 peerId 字典序大于 A（验证字典序较大方在单边可见时同样能主动发起自动重连，绝不死锁）
+        let peerA = PeerContinuityService(overridePeerId: "aaaa1111-0000", overrideDeviceName: "MacBook Pro", isolatedDefaults: defA)
+        let peerB = PeerContinuityService(overridePeerId: "zzzz9999-0000", overrideDeviceName: "Mac mini", isolatedDefaults: defB)
+        for p in [peerA, peerB] {
+            p.pingIntervalSec = 0.07
+            p.heartbeatTimeoutSec = 0.34
+            p.handshakeTimeoutSec = 0.45
+            p.waitingAbortTimeoutSec = 0.20
+            p.baseReconnectDelaySec = 0.05
+            p.maxReconnectDelaySec = 0.25
+            p.secondaryPeerDialLeadSec = 0.04
+        }
+
+        let storeA = IslandStore(startNetworkServices: false, peerService: peerA)
+        let storeB = IslandStore(startNetworkServices: false, peerService: peerB)
+        defer {
+            peerA.stop()
+            peerB.stop()
+        }
+
+        peerA.startLoopbackForTesting()
+        peerB.startLoopbackForTesting()
+        for _ in 0..<40 where (peerA.directListeningPort == 0 || peerB.directListeningPort == 0) {
+            try await Task.sleep(for: .milliseconds(15))
+        }
+        let portA = peerA.directListeningPort
+        let portB = peerB.directListeningPort
+        #expect(portA > 0 && portB > 0)
+
+        // 仅在 B 侧注册 A 的直连端点（模拟不对称发现：只有字典序较大的 B 看得到 A），验证首次配对 + 后续闪断自动重连
+        peerB.connectLoopbackForTesting(port: portA, expectedPeerId: peerA.localPeerId, requestPairingIfUntrusted: true)
+        for _ in 0..<40 where peerA.pendingPairRequest == nil {
+            try await Task.sleep(for: .milliseconds(15))
+        }
+        peerA.respondToPairRequest(accept: true)
+        for _ in 0..<40 where (!peerA.isConnected || !peerB.isConnected) {
+            try await Task.sleep(for: .milliseconds(15))
+        }
+        #expect(peerA.isConnected && peerB.isConnected)
+
+        // Mac A 正在播放并开启「双机同时显示」
+        let tabA = UUID()
+        storeA.ingestTestPayload(Data("""
+        {
+          "type": "media",
+          "origin": "https://blog.example.com",
+          "track": { "id": 701, "name": "AWDL Continuity Track", "artists": ["Chisato"], "duration_ms": 210000 },
+          "lyrics": { "source": "ncm-lrc", "word_synced": false, "instrumental": false, "lines": [] }
+        }
+        """.utf8), clientId: tabA, origin: "https://blog.example.com")
+        storeA.ingestTestPayload(Data("""
+        {
+          "type": "state",
+          "origin": "https://blog.example.com",
+          "visible": true,
+          "has_played": true,
+          "show_playing": true,
+          "is_playing": true,
+          "track_id": 701,
+          "duration_ms": 210000,
+          "position_ms": 25000,
+          "anchor_ms": \(Date().timeIntervalSince1970 * 1000.0)
+        }
+        """.utf8), clientId: tabA, origin: "https://blog.example.com")
+        storeA.toggleMirrorBothMacs()
+        for _ in 0..<40 where storeB.displayOwnership != .mirrorBothMacs {
+            try await Task.sleep(for: .milliseconds(15))
+        }
+        #expect(storeB.shouldDisplayIsland == true)
+
+        // 1) 模拟底层无线闪断：字典序较大的 B 依然自动重连成功，且双机同显与曲目快照自动无缝恢复
+        peerB.simulateTransportDropForTesting()
+        for _ in 0..<60 where (!peerA.isConnected || !peerB.isConnected || storeB.displayOwnership != .mirrorBothMacs) {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(peerA.isConnected && peerB.isConnected)
+        #expect(storeA.displayOwnership == .mirrorBothMacs)
+        #expect(storeB.displayOwnership == .mirrorBothMacs)
+        #expect(storeB.track?.id == 701)
+
+        // 2) 模拟僵尸连接（对端合盖静默黑洞不回 pong、无 TCP FIN）：双向心跳看门狗自动摘除死连接并在恢复后自动重连
+        peerA.simulateRadioBlackholeForTesting(true)
+        for _ in 0..<60 where peerB.isConnected {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(peerB.isConnected == false)
+        peerA.simulateRadioBlackholeForTesting(false)
+        for _ in 0..<60 where (!peerA.isConnected || !peerB.isConnected) {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(peerA.isConnected && peerB.isConnected)
+
+        // 3) 模拟双端同毫秒双向并发互拨撞车（临时拉高退避间隔至 5s，严格证明首次互拨原连接零双杀收敛、不依赖事后重连兜底）
+        peerA.registerLoopbackEndpointForTesting(peerId: peerB.localPeerId, port: portB)
+        peerA.baseReconnectDelaySec = 5.0
+        peerB.baseReconnectDelaySec = 5.0
+        peerA.simulateTransportDropForTesting()
+        peerB.simulateTransportDropForTesting()
+        peerA.connectLoopbackForTesting(port: portB, expectedPeerId: peerB.localPeerId, requestPairingIfUntrusted: false)
+        peerB.connectLoopbackForTesting(port: portA, expectedPeerId: peerA.localPeerId, requestPairingIfUntrusted: false)
+        for _ in 0..<40 where (!peerA.isConnected || !peerB.isConnected) {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(peerA.isConnected && peerB.isConnected)
+        peerA.baseReconnectDelaySec = 0.05
+        peerB.baseReconnectDelaySec = 0.05
+
+        // 4) 用户手动点击「断开」：发送 goodbye 使双端同步置 isAutoReconnectPausedByUser = true；
+        //    即使对端处于非暂停态后台拨入，也会收到带共享 token 鉴权的未认证 goodbye 并自动进入暂停态停止轮询；
+        //    点击「恢复自动重连」即使首轮连接失败，第二轮仍携带恢复意图成功唤醒对端
+        peerA.disconnectCurrentPeer(userInitiated: true)
+        for _ in 0..<30 where peerB.isConnected {
+            try await Task.sleep(for: .milliseconds(15))
+        }
+        #expect(peerA.isAutoReconnectPausedByUser == true)
+        #expect(peerB.isAutoReconnectPausedByUser == true)
+
+        peerB.triggerBackgroundReconnectForTesting()
+        for _ in 0..<40 where !peerB.isAutoReconnectPausedByUser {
+            try await Task.sleep(for: .milliseconds(15))
+        }
+        #expect(peerB.isAutoReconnectPausedByUser == true)
+        #expect(peerA.isConnected == false && peerB.isConnected == false)
+
+        peerA.dropNextInboundConnectionOnceForTesting = true
+        peerB.resumeAutoReconnect()
+        for _ in 0..<60 where (!peerA.isConnected || !peerB.isConnected) {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(peerA.isConnected && peerB.isConnected)
+        #expect(peerA.isAutoReconnectPausedByUser == false)
+        #expect(peerB.isAutoReconnectPausedByUser == false)
+
+        // 5) 对端执行「清除已信任的配对设备」后：后台静默重连收到拒绝响应，自动清理本地失效 token 停止无效重试
+        peerA.unpairAllPeers()
+        for _ in 0..<60 where !peerB.trustedTokens.isEmpty {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(peerB.trustedTokens.isEmpty)
+        #expect(peerB.isReconnecting == false)
+    }
 }

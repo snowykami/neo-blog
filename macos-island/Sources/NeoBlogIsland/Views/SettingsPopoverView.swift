@@ -640,27 +640,63 @@ private struct PeerContinuityPopoverSection: View {
                     Text("正在等待对方 Mac 点击「允许」确认配对…")
                         .font(.system(size: 11))
                         .foregroundStyle(.orange)
-                } else if peer.discoveredPeers.isEmpty {
-                    Text("正在通过蓝牙 + AWDL 搜索附近运行灵动岛的 Mac…（无需处于同一路由器局域网，保持 Wi-Fi 与蓝牙开启即可）")
+                } else if peer.isReconnecting {
+                    HStack(spacing: 6) {
+                        ProgressView()
+                            .controlSize(.mini)
+                        Text(
+                            peer.reconnectAttemptCount > 1
+                                ? "正在自动重连 \(peer.reconnectingPeerName ?? "已配对 Mac")（第 \(peer.reconnectAttemptCount) 次）…"
+                                : "正在自动重连 \(peer.reconnectingPeerName ?? "已配对 Mac")…"
+                        )
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                } else {
-                    ForEach(peer.discoveredPeers) { item in
-                        HStack(spacing: 6) {
-                            Text(item.displayName)
-                                .font(.system(size: 11.5))
-                                .lineLimit(1)
-                            if item.isTrusted {
-                                Text("已信任")
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        Spacer()
+                        Button("暂停") {
+                            peer.disconnectCurrentPeer(userInitiated: true)
+                        }
+                        .controlSize(.mini)
+                    }
+                } else if peer.isAutoReconnectPausedByUser && !peer.trustedTokens.isEmpty {
+                    HStack(spacing: 6) {
+                        Text("已手动断开（自动重连已暂停）")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        Spacer()
+                        Button("恢复自动重连") {
+                            peer.resumeAutoReconnect()
+                        }
+                        .controlSize(.mini)
+                    }
+                }
+
+                if !peer.isAwaitingRemoteApproval {
+                    if peer.discoveredPeers.isEmpty {
+                        if !peer.isReconnecting {
+                            Text("正在通过蓝牙 + AWDL 搜索附近运行灵动岛的 Mac…（无需处于同一路由器局域网，保持 Wi-Fi 与蓝牙开启即可）")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    } else {
+                        ForEach(peer.discoveredPeers) { item in
+                            HStack(spacing: 6) {
+                                Text(item.displayName)
+                                    .font(.system(size: 11.5))
+                                    .lineLimit(1)
+                                if item.isTrusted {
+                                    Text("已信任")
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Button(item.isTrusted ? "重连" : "配对连接") {
+                                    peer.connectToDiscoveredPeer(item)
+                                }
+                                .controlSize(.mini)
                             }
-                            Spacer()
-                            Button(item.isTrusted ? "重连" : "配对连接") {
-                                peer.connectToDiscoveredPeer(item)
-                            }
-                            .controlSize(.mini)
                         }
                     }
                 }
