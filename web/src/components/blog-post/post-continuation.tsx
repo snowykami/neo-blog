@@ -35,7 +35,7 @@ export async function PostContinuation({ neighbors }: { neighbors: PostNeighbors
           {prev && (
             <Link
               href={getPostUrl({ post: prev })}
-              className="group flex flex-col justify-between gap-2 rounded-2xl bg-card px-5 py-4 transition-colors hover:bg-accent/50"
+              className="surface-card group flex flex-col justify-between gap-2 rounded-2xl bg-card px-5 py-4 transition-colors hover:bg-accent/50"
             >
               <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
                 <ChevronLeft className="size-3.5 transition-transform group-hover:-translate-x-0.5" aria-hidden />
@@ -50,7 +50,7 @@ export async function PostContinuation({ neighbors }: { neighbors: PostNeighbors
             <Link
               href={getPostUrl({ post: next })}
               className={cn(
-                'group flex flex-col justify-between gap-2 rounded-2xl bg-card px-5 py-4 text-right transition-colors hover:bg-accent/50',
+                'surface-card group flex flex-col justify-between gap-2 rounded-2xl bg-card px-5 py-4 text-right transition-colors hover:bg-accent/50',
                 !prev && 'sm:col-start-2',
               )}
             >
@@ -67,7 +67,7 @@ export async function PostContinuation({ neighbors }: { neighbors: PostNeighbors
       )}
 
       {hasRelated && (
-        <section className="rounded-2xl bg-card px-6 py-6 md:px-9">
+        <section className="surface-card rounded-2xl bg-card px-5 py-6 sm:px-7 md:px-10 lg:px-14">
           <div className="mb-4 flex items-center gap-2">
             <Sparkles className="size-4 text-primary" aria-hidden />
             <h2 className="text-base font-semibold text-foreground/90">{t('related_posts')}</h2>

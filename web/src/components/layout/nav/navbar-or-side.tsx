@@ -171,8 +171,8 @@ export default function Navbar() {
   return (
     <nav
       className={cn(
-        'flex h-[var(--nav-h)] w-full items-center gap-2 rounded-b-2xl bg-card px-2 md:px-4',
-        scrolled && 'shadow-sm',
+        'flex h-[var(--nav-h)] w-full items-center gap-2 rounded-b-2xl bg-card px-2.5 md:px-4 transition-shadow duration-200',
+        scrolled ? 'surface-card-scrolled' : 'surface-card',
       )}
     >
       {/* 左侧：站名与灵动岛（按情境显示音乐、阅读进度、提示等），min-w-0 保证在 flex 收缩时文本能 truncate */}

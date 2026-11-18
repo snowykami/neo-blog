@@ -18,7 +18,7 @@ export function UserPageSkeleton() {
   const { siteInfo } = useSiteInfo()
   return (
     <SiteShell skeleton>
-      <div className="flex flex-col items-center gap-5 rounded-2xl bg-card p-6 md:flex-row md:gap-6 md:p-8" aria-busy="true">
+      <div className="surface-card flex flex-col items-center gap-5 rounded-2xl bg-card p-6 md:flex-row md:gap-6 md:p-8" aria-busy="true">
         <Skeleton className="size-28 shrink-0 rounded-full md:size-32" />
         <div className="grid w-full max-w-sm justify-items-center gap-3 md:justify-items-start">
           <div className="grid justify-items-center gap-1 md:justify-items-start">

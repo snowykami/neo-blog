@@ -63,7 +63,7 @@ export default async function PrivacyPage() {
   const values = { ...plain, b: (chunks: ReactNode) => <strong>{chunks}</strong> }
   return (
     <SiteShell className="max-w-[56rem]">
-      <article className="prose max-w-none rounded-2xl bg-card px-6 py-8 dark:prose-invert pangu-autospace md:px-9">
+      <article className="surface-card prose max-w-none rounded-2xl bg-card px-5 py-8 sm:px-7 dark:prose-invert pangu-autospace md:px-11">
         <h1>{routeT('privacy_policy')}</h1>
         <p className="text-sm text-muted-foreground">{t('updated', plain)}</p>
         <div className="not-prose grid gap-1 rounded-xl bg-muted/60 px-5 py-4">

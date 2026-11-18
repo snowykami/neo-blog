@@ -6,7 +6,7 @@ import type { SiteInfo } from '@/utils/common/siteinfo'
 import { useTranslations } from 'next-intl'
 import { parseAsString, useQueryState } from 'nuqs'
 import { createContext, memo, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { FormProvider, useForm, useFormContext, useWatch } from 'react-hook-form'
+import { FormProvider, useForm, useFormContext, useFormState, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 import { getConfigSchema, saveConfig } from '@/api/admin'
 import { getSiteInfo } from '@/api/misc'
@@ -14,6 +14,7 @@ import { defaultSidebarCards } from '@/components/blog-sidebar/sidebar-cards'
 import { ThemePackPreviewField } from '@/components/console/theme-pack-preview'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
@@ -114,9 +115,12 @@ export function SettingsForm({ advanced }: { advanced: React.ReactNode }) {
   const items = useMemo(() => schema?.sections.flatMap(section => section.items) ?? [], [schema])
   const standaloneKeys = useMemo(() => items.filter(item => item.standalone).map(item => item.key), [items])
   const tabOf = useCallback((key: string) => schema?.sections.find(section => section.items.some(item => item.key === key))?.tab, [schema])
+  // 通过子组件 useFormState 局部订阅同步最新 dirtyFields，不在 SettingsForm 顶层读取 form.formState，
+  // 从而保持 FormProvider Context 引用稳定、避免任意字段输入触发全表单重渲染
+  const dirtyFieldsRef = useRef<Record<string, unknown>>({})
 
   const onSubmit = async (values: ConfigValues) => {
-    const dirty = form.formState.dirtyFields as Record<string, unknown>
+    const dirty = dirtyFieldsRef.current
     const changes = items.filter(item => dirty[item.key] && !item.envValue && !item.envSet).map(item => ({ key: item.key, value: values[item.key] }))
     if (changes.length === 0) {
       toast.info(t('no_changes'))
@@ -145,23 +149,39 @@ export function SettingsForm({ advanced }: { advanced: React.ReactNode }) {
       selectTab(target)
   }
 
-  if (!schema)
-    return <p className="py-8 text-center text-muted-foreground">{t('loading')}</p>
+  if (!schema) {
+    return (
+      <div className="grid gap-4" aria-busy="true" aria-label={t('loading')}>
+        <Skeleton className="h-10 w-full max-w-xl rounded-xl" />
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-5 w-36" />
+            <Skeleton className="h-4 w-72 max-w-full" />
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-2">
+            {Array.from({ length: 4 }).map((_, idx) => (
+              <div key={idx} className="grid gap-2">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-9 w-full rounded-lg" />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
-  const dirtyFields = form.formState.dirtyFields as Record<string, unknown>
   const tabs = [...schema.tabs, { key: 'advanced', title: 'tab_advanced' }]
   return (
     <FormProvider {...form}>
       <StandaloneKeysContext value={standaloneKeys}>
         <Tabs value={tab} onValueChange={selectTab} className="gap-4">
-          {/* 窄屏时横向滚动 */}
-          <TabsList variant="underline" className="w-full justify-start">
+          {/* 页内分组采用胶囊分段轨道，与顶栏路由级底线 Tab 区分视觉层级 */}
+          <TabsList variant="default" className="h-auto w-full flex-wrap justify-start gap-1 rounded-xl p-1 sm:w-fit">
             {tabs.map(({ key, title }) => (
-              <TabsTrigger key={key} value={key} className="flex-none px-3">
+              <TabsTrigger key={key} value={key} className="h-8 flex-none rounded-lg px-3">
                 {tr(title)}
-                {Object.keys(dirtyFields).some(field => dirtyFields[field] && tabOf(field) === key) && (
-                  <span role="img" aria-label={t('unsaved_changes')} className="size-1.5 rounded-full bg-primary" />
-                )}
+                {key !== 'advanced' && <TabDirtyDot tabKey={key} tabOf={tabOf} label={t('unsaved_changes')} />}
               </TabsTrigger>
             ))}
           </TabsList>
@@ -181,21 +201,72 @@ export function SettingsForm({ advanced }: { advanced: React.ReactNode }) {
                 </TabsContent>
               )
             })}
-            {/* 保存栏：滚动时固定在底部 */}
-            <div className="sticky bottom-0 z-10 flex items-center justify-end gap-3 border-t bg-background/90 py-3 backdrop-blur">
-              {form.formState.isDirty && <span className="text-sm text-muted-foreground">{t('unsaved_changes')}</span>}
-              <Button type="button" variant="outline" disabled={!form.formState.isDirty || saving} onClick={() => form.reset()}>
-                {t('reset')}
-              </Button>
-              <Button type="submit" disabled={!form.formState.isDirty || saving}>
-                {saving ? t('saving') : operationT('save')}
-              </Button>
-            </div>
+            <FloatingSaveBar
+              saving={saving}
+              dirtyFieldsRef={dirtyFieldsRef}
+              onReset={() => form.reset()}
+            />
           </form>
           <TabsContent value="advanced">{advanced}</TabsContent>
         </Tabs>
       </StandaloneKeysContext>
     </FormProvider>
+  )
+}
+
+/** 局部订阅 dirtyFields，仅在该 Tab 脏状态切换时重渲染圆点 */
+function TabDirtyDot({
+  tabKey,
+  tabOf,
+  label,
+}: {
+  tabKey: string
+  tabOf: (key: string) => string | undefined
+  label: string
+}) {
+  const { control } = useFormContext<ConfigValues>()
+  const { dirtyFields } = useFormState({ control })
+  const dirty = dirtyFields as Record<string, unknown>
+  const hasDirty = Object.keys(dirty).some(field => dirty[field] && tabOf(field) === tabKey)
+  if (!hasDirty)
+    return null
+  return <span role="img" aria-label={label} className="size-1.5 rounded-full bg-primary" />
+}
+
+/** 浮动保存栏：局部订阅 isDirty / dirtyFields，仅在存在未保存更改或正在保存时浮起 */
+function FloatingSaveBar({
+  saving,
+  dirtyFieldsRef,
+  onReset,
+}: {
+  saving: boolean
+  dirtyFieldsRef: React.RefObject<Record<string, unknown>>
+  onReset: () => void
+}) {
+  const t = useTranslations('Console.global')
+  const operationT = useOperationT()
+  const { control } = useFormContext<ConfigValues>()
+  const { isDirty, dirtyFields } = useFormState({ control })
+  dirtyFieldsRef.current = dirtyFields as Record<string, unknown>
+
+  if (!isDirty && !saving)
+    return null
+
+  return (
+    <div className="sticky bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-20 mx-auto flex w-full max-w-lg items-center justify-between gap-3 rounded-full border border-primary/25 bg-card/90 px-4 py-2 shadow-lg backdrop-blur-md animate-in duration-200 fade-in slide-in-from-bottom-2">
+      <div className="flex min-w-0 items-center gap-2 text-xs sm:text-sm">
+        <span aria-hidden className="size-2 shrink-0 animate-pulse rounded-full bg-primary" />
+        <span className="truncate font-medium text-foreground">{t('unsaved_changes')}</span>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <Button type="button" size="sm" variant="outline" className="rounded-full" disabled={saving} onClick={onReset}>
+          {t('reset')}
+        </Button>
+        <Button type="submit" size="sm" className="rounded-full" disabled={saving}>
+          {saving ? t('saving') : operationT('save')}
+        </Button>
+      </div>
+    </div>
   )
 }
 

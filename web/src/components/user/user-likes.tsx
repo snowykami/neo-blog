@@ -20,7 +20,7 @@ import { getPageUrl, getPostUrl, getUserUrl } from '@/utils/common/route'
 import { isCommentEnabled } from '@/utils/common/siteinfo'
 
 const PAGE_SIZE = 10
-const CARD_CLASS = 'overflow-hidden rounded-2xl bg-card'
+const CARD_CLASS = 'surface-card overflow-hidden rounded-2xl bg-card'
 
 // 行与行之间的虚线，与文章、评论列表保持一致
 function RowDivider() {

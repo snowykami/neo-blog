@@ -18,7 +18,7 @@ export default function Loading() {
       sidebar={(
         <div className="flex h-full flex-col gap-4">
           <BlogSidebarAbout />
-          <div className="hidden rounded-2xl bg-card p-4 lg:sticky lg:top-[calc(var(--nav-h)+1rem)] lg:block">
+          <div className="surface-card hidden rounded-2xl bg-card p-4 lg:sticky lg:top-[calc(var(--nav-h)+1rem)] lg:block">
             <Skeleton className="h-6 w-24" />
             <Skeleton className="mt-3 h-4 w-full" />
             <Skeleton className="mt-2 h-4 w-4/5" />
@@ -27,7 +27,7 @@ export default function Loading() {
         </div>
       )}
     >
-      <div className="rounded-2xl bg-card px-6 pt-6 pb-8 md:px-9" aria-busy="true">
+      <div className="surface-card rounded-2xl bg-card px-5 pt-6 pb-8 sm:px-7 md:px-10 lg:px-14" aria-busy="true">
         <Skeleton className="mb-3 h-6 w-64 max-w-full" />
         <Skeleton className="mb-3 h-9 w-3/4 md:h-11" />
         <div className="mb-5 flex flex-wrap gap-4 border-b border-dashed border-foreground/10 pb-5">
@@ -45,7 +45,7 @@ export default function Loading() {
         </div>
       </div>
 
-      <div className="rounded-2xl bg-card px-6 py-6 md:px-9 md:py-8" aria-busy="true">
+      <div className="surface-card rounded-2xl bg-card px-5 py-6 sm:px-7 md:px-10 md:py-8 lg:px-14" aria-busy="true">
         <Skeleton className="mb-6 h-8 w-48" />
         <div className="space-y-6">
           {COMMENT_SKELETON_ITEMS.map((_, i) => (

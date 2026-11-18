@@ -24,7 +24,7 @@ import {
 import { Empty, EmptyDescription } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Separator } from '@/components/ui/separator'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { useAuth } from '@/contexts/auth-context'
 import { useConsoleQuery } from '@/hooks/use-console-query'
@@ -69,10 +69,27 @@ const PageItem = memo(({
   const stateT = useTranslations('State')
   const operationT = useOperationT()
   return (
-    <div className="flex w-full items-center gap-3 py-3">
+    <div className="flex w-full items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/40">
       <div className="min-w-0">
-        <div className="text-sm font-medium truncate">{page.title}</div>
-        <div className="mt-1 flex flex-wrap items-center gap-2">
+        {page.kind === 'link'
+          ? (
+              <button
+                type="button"
+                onClick={() => onRequestEditMeta(page)}
+                className="block w-fit max-w-full cursor-pointer truncate text-left text-sm font-medium transition-colors hover:text-primary"
+              >
+                {page.title || editorT('untitled_page')}
+              </button>
+            )
+          : (
+              <Link
+                href={getPageEditUrl(page)}
+                className="block w-fit max-w-full truncate text-sm font-medium transition-colors hover:text-primary"
+              >
+                {page.title || editorT('untitled_page')}
+              </Link>
+            )}
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <Badge variant="secondary">
             ID:
             {page.id}
@@ -170,6 +187,7 @@ export function PageManage() {
   )
   const pages = pagesQuery.data?.pages ?? EMPTY_PAGES
   const total = pagesQuery.data?.total ?? 0
+  const loading = (!user && !pagesQuery.data) || (pagesQuery.loading && !pagesQuery.data)
   const { refresh: loadPages, setData: setPageList } = pagesQuery
 
   // 搜索词变化时回到第一页
@@ -257,25 +275,45 @@ export function PageManage() {
         confirmVariant="destructive"
         onConfirm={handleDeleteOne}
       />
-      <Separator />
-      {/* 加载完成后列表为空：区分「没有页面」与「没有匹配搜索的页面」 */}
-      {pagesQuery.data && pages.length === 0 && (
-        <Empty className="py-10">
-          <EmptyDescription>{t(debouncedQueryInput ? 'empty_search' : 'empty')}</EmptyDescription>
-        </Empty>
-      )}
-      {pages.map(pageItem => (
-        <div key={pageItem.id}>
-          <PageItem
-            page={pageItem}
-            showAuthor={isAdminUser}
-            onPageChange={onPageChange}
-            onRequestEditMeta={openEditDialog}
-            onRequestDelete={setDeletingPage}
-          />
-          <Separator />
-        </div>
-      ))}
+      <div className="overflow-hidden rounded-xl border bg-card shadow-[0_1px_1px_-0.5px_rgba(0,0,0,0.035),0_3px_8px_-2px_rgba(0,0,0,0.035)] empty:hidden dark:shadow-none">
+        {loading && (
+          <div className="divide-y" aria-busy="true">
+            {Array.from({ length: 6 }).map((_, idx) => (
+              <div key={idx} className="flex items-center gap-3 px-4 py-3.5">
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Skeleton className="h-4 w-2/5 max-w-xs" />
+                  <div className="flex gap-2">
+                    <Skeleton className="h-4 w-14 rounded-md" />
+                    <Skeleton className="h-4 w-20 rounded-md" />
+                    <Skeleton className="h-4 w-16 rounded-md" />
+                  </div>
+                </div>
+                <Skeleton className="size-8 shrink-0 rounded-md" />
+              </div>
+            ))}
+          </div>
+        )}
+        {/* 加载完成后列表为空：区分「没有页面」与「没有匹配搜索的页面」 */}
+        {!loading && pagesQuery.data && pages.length === 0 && (
+          <Empty className="py-12">
+            <EmptyDescription>{t(debouncedQueryInput ? 'empty_search' : 'empty')}</EmptyDescription>
+          </Empty>
+        )}
+        {!loading && pages.length > 0 && (
+          <div className="divide-y">
+            {pages.map(pageItem => (
+              <PageItem
+                key={pageItem.id}
+                page={pageItem}
+                showAuthor={isAdminUser}
+                onPageChange={onPageChange}
+                onRequestEditMeta={openEditDialog}
+                onRequestDelete={setDeletingPage}
+              />
+            ))}
+          </div>
+        )}
+      </div>
       <div className="flex justify-center items-center py-4">
         {total > 0 && (
           <PaginationController page={page} onPageChange={setPage} total={total} pageSize={size} />

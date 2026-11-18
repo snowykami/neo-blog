@@ -81,7 +81,7 @@ async function ArchiveContent({ searchParams }: { searchParams: Promise<{ label?
 function ArchiveSkeleton() {
   return (
     <SiteShell skeleton sidebar={<BlogSidebarSkeleton />}>
-      <div className="grid gap-4 rounded-2xl bg-card px-4 py-6 md:px-8" aria-busy="true">
+      <div className="surface-card grid gap-4 rounded-2xl bg-card px-4 py-6 md:px-8" aria-busy="true">
         <Skeleton className="h-8 w-32" />
         <Skeleton className="h-5 w-full" />
         <Skeleton className="h-5 w-4/5" />

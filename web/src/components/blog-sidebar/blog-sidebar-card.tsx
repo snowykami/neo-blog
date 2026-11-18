@@ -3,6 +3,7 @@ import type { ComponentType } from 'react'
 import type { ContentViewProps } from '@/components/content-components/content-component-view'
 import type { Label } from '@/models/label'
 import type { Post } from '@/models/post'
+import type { SiteInfo } from '@/utils/common/siteinfo'
 import { ChevronDownIcon, ChevronUpIcon, Eye } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { Suspense, useEffect, useState } from 'react'
@@ -22,49 +23,64 @@ import { getLabelUrl, getPostUrl } from '@/utils/common/route'
 import { isLikeEnabled } from '@/utils/common/siteinfo'
 import { getFallbackAvatarFromUsername } from '@/utils/common/username'
 import { SidebarCard } from './sidebar-card'
+import { getSidebarCards } from './sidebar-cards'
+
+// 桌面侧栏与移动首屏名片条共享完全一致的头像地址与 sizes 档位：
+// 1. 同一套 sizes/quality 保证两处生成字节级相同的 /_next/image 地址，跨断点缩放或滑到底部时 100% 命中内存缓存；
+// 2. 不传 eager（使用默认 loading="lazy"），使 display:none（桌面端的 lg:hidden 横幅）与移动端屏外页底侧栏不会提前并发重复请求
+function resolveOwnerAvatar(siteInfo: SiteInfo) {
+  const { owner, aboutBackground } = siteInfo
+  const avatarSrc = owner?.avatar || (owner?.gravatarEmail ? getGravatarUrl({ email: owner.gravatarEmail, size: 160 }) : undefined)
+  const avatarSizes = aboutBackground ? '80px' : '64px'
+  const name = owner?.name || siteInfo.metadata.name
+  return { owner, aboutBackground, avatarSrc, avatarSizes, name }
+}
 
 // 关于我卡片（参考 Fuwari 的 Profile，MIT License, saicaca/fuwari）：
-// 无背景图时头像铺满卡片宽度；配置了背景图时背景图作为横幅，头像压在横幅下沿
+// 配置了背景图时背景图作为横幅，头像压在横幅下沿；无背景图时采用精致紧凑的横向名片排布，避免巨幅占位挤压侧栏高度
 export function BlogSidebarAbout() {
   const { siteInfo } = useSiteInfo()
   if (!siteInfo)
     return null
-  const { owner, aboutBackground } = siteInfo
-  // 优先使用站长头像，其次 Gravatar 邮箱（侧栏头像显示 80px，取 2x Retina 160px 即可，避免加载 512px 原图）；都没有时显示名称首字
-  const avatarSrc = owner?.avatar || (owner?.gravatarEmail ? getGravatarUrl({ email: owner.gravatarEmail, size: 160 }) : undefined)
-  const name = owner?.name || siteInfo.metadata.name
+  const { owner, aboutBackground, avatarSrc, avatarSizes, name } = resolveOwnerAvatar(siteInfo)
+  if (!aboutBackground) {
+    return (
+      <SidebarCard className="p-4">
+        <div className="flex items-start gap-3.5">
+          <ImageAvatar
+            src={avatarSrc}
+            alt={name}
+            fallback={getFallbackAvatarFromUsername(name)}
+            sizes={avatarSizes}
+            className="size-14 shrink-0 rounded-2xl"
+            fallbackClassName="bg-secondary text-xl font-bold text-secondary-foreground"
+          />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-base font-bold text-foreground/90">{name}</div>
+            <div aria-hidden className="my-1.5 h-1 w-5 rounded-full bg-primary" />
+            {owner?.motto && <p className="text-sm leading-snug text-foreground/75">{owner.motto}</p>}
+            {owner?.description && <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{owner.description}</p>}
+          </div>
+        </div>
+      </SidebarCard>
+    )
+  }
   return (
     <SidebarCard className="p-3">
-      {aboutBackground
-        ? (
-            <div className="mb-3">
-              <div className="relative aspect-[2/1] w-full overflow-hidden rounded-xl bg-muted">
-                {/* 桌面端侧栏在首屏内：无首屏封面时常作为 LCP 元素，设为 eager + fetchPriority="high" 尽早开始下载 */}
-                <SafeImage src={aboutBackground} alt="" fill sizes="280px" quality={60} loading="eager" fetchPriority="high" className="object-cover" />
-              </div>
-              <ImageAvatar
-                src={avatarSrc}
-                alt={name}
-                fallback={getFallbackAvatarFromUsername(name)}
-                sizes="80px"
-                eager
-                className="relative mx-auto -mt-10 size-20 ring-4 ring-card"
-                fallbackClassName="bg-secondary text-2xl font-bold text-secondary-foreground"
-              />
-            </div>
-          )
-        : (
-            <ImageAvatar
-              src={avatarSrc}
-              alt={name}
-              fallback={getFallbackAvatarFromUsername(name)}
-              // 没有横幅时头像铺满侧栏宽度，常是桌面端首页最大的图片
-              sizes="(max-width: 1024px) 192px, 280px"
-              eager
-              className="mx-auto mb-3 aspect-square size-auto w-full max-w-48 rounded-xl lg:max-w-none"
-              fallbackClassName="bg-secondary text-5xl font-bold text-secondary-foreground"
-            />
-          )}
+      <div className="mb-3">
+        <div className="relative aspect-[2/1] w-full overflow-hidden rounded-xl bg-muted">
+          {/* 桌面端侧栏在首屏内：无首屏封面时常作为 LCP 元素，设为 eager + fetchPriority="high" 尽早开始下载 */}
+          <SafeImage src={aboutBackground} alt="" fill sizes="280px" quality={60} loading="eager" fetchPriority="high" className="object-cover" />
+        </div>
+        <ImageAvatar
+          src={avatarSrc}
+          alt={name}
+          fallback={getFallbackAvatarFromUsername(name)}
+          sizes={avatarSizes}
+          className="relative mx-auto -mt-10 size-20 ring-4 ring-card"
+          fallbackClassName="bg-secondary text-2xl font-bold text-secondary-foreground"
+        />
+      </div>
       <div className="px-2 pb-1 text-center">
         <div className="mb-1 text-xl font-bold text-foreground/90">{name}</div>
         <div aria-hidden className="mx-auto mb-2 h-1 w-5 rounded-full bg-primary" />
@@ -72,6 +88,39 @@ export function BlogSidebarAbout() {
         {owner?.description && <p className="text-sm text-muted-foreground">{owner.description}</p>}
       </div>
     </SidebarCard>
+  )
+}
+
+/**
+ * 移动端首页首屏站长紧凑名片条（lg 以下展示）：
+ * 窄屏下右侧栏落到整页文章最底部，首屏放一条轻量名片让新访客立刻认识站点主人；后台关闭「关于」卡片时同步隐藏
+ */
+export function BlogMobileOwnerBanner() {
+  const { siteInfo } = useSiteInfo()
+  if (!siteInfo || !getSidebarCards(siteInfo).some(card => card.type === 'about'))
+    return null
+  const { owner, avatarSrc, avatarSizes, name } = resolveOwnerAvatar(siteInfo)
+  const subtitle = owner?.motto || owner?.description || siteInfo.metadata.description
+  if (!name)
+    return null
+  return (
+    <div className="surface-card flex items-center gap-3 rounded-2xl bg-card p-3.5 lg:hidden">
+      <ImageAvatar
+        src={avatarSrc}
+        alt={name}
+        fallback={getFallbackAvatarFromUsername(name)}
+        sizes={avatarSizes}
+        className="size-11 shrink-0 rounded-full"
+        fallbackClassName="bg-secondary text-sm font-bold text-secondary-foreground"
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="truncate text-sm font-bold text-foreground/90">{name}</span>
+          <span aria-hidden className="h-1 w-3.5 shrink-0 rounded-full bg-primary" />
+        </div>
+        {subtitle && <p className="mt-0.5 truncate text-xs text-muted-foreground">{subtitle}</p>}
+      </div>
+    </div>
   )
 }
 

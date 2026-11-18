@@ -7,11 +7,16 @@ import { Skeleton } from '@/components/ui/skeleton'
 export function BlogSidebarSkeleton() {
   return (
     <div className="grid gap-4">
-      <div className="rounded-2xl bg-card p-4">
-        <Skeleton className="aspect-square w-full rounded-xl" />
-        <Skeleton className="mx-auto mt-3 h-6 w-32" />
+      <div className="surface-card rounded-2xl bg-card p-4">
+        <div className="flex items-start gap-3.5">
+          <Skeleton className="size-14 shrink-0 rounded-2xl" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <Skeleton className="h-5 w-28" />
+            <Skeleton className="h-4 w-full" />
+          </div>
+        </div>
       </div>
-      <div className="rounded-2xl bg-card p-4">
+      <div className="surface-card rounded-2xl bg-card p-4">
         <Skeleton className="h-6 w-24" />
         <div className="mt-3 flex flex-wrap gap-2">
           <Skeleton className="h-8 w-16" />

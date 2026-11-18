@@ -8,6 +8,7 @@ import { parseAsInteger, parseAsStringLiteral, useQueryState } from 'nuqs'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { listPosts } from '@/api/post'
 import { PostList } from '@/components/blog-home/post-list'
+import { BlogMobileOwnerBanner } from '@/components/blog-sidebar/blog-sidebar-card'
 import { PaginationController } from '@/components/common/pagination'
 import { SectionTitle } from '@/components/layout/site-shell'
 import { Button } from '@/components/ui/button'
@@ -180,9 +181,10 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
 
   return (
     <>
+      {page === 1 && !filter && <BlogMobileOwnerBanner />}
       {/* 列表标题与排序 */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 md:px-2">
-        <SectionTitle as="h1" className="flex min-w-0 flex-wrap items-center gap-x-2 text-xl md:text-2xl">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-1.5 md:px-2">
+        <SectionTitle as="h1" className="flex min-w-0 flex-wrap items-center gap-x-2 text-lg md:text-xl">
           <span className="min-w-0">
             {filter
               ? t.rich(filter.key as 'filtered_by_label', {
@@ -194,7 +196,7 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
           </span>
           {/* 全部文章数：普通文章加置顶文章（置顶只在没有筛选时返回） */}
           {totalPosts + pinnedPosts.length > 0 && (
-            <span className="text-base font-medium text-muted-foreground tabular-nums">{totalPosts + pinnedPosts.length}</span>
+            <span className="text-sm font-medium text-muted-foreground tabular-nums">{totalPosts + pinnedPosts.length}</span>
           )}
           {filter && (
             <Button variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label={t('clear_filter')} title={t('clear_filter')} onClick={clearFilter}>
@@ -211,7 +213,7 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
               handleSortChange(parseHomeTab(value))
           }}
           disabled={loading}
-          className="gap-1 rounded-lg bg-card p-1"
+          className="surface-card gap-1 rounded-lg bg-card p-1"
         >
           <ToggleGroupItem
             value={OrderBy.CreatedAt}

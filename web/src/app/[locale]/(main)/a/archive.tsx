@@ -38,7 +38,7 @@ export function Archive({ groups, filter, sidebarData }: { groups: ArchiveGroup[
       )}
     >
       {/* 归档正文 */}
-      <div className="rounded-2xl bg-card px-4 py-6 md:px-8">
+      <div className="surface-card rounded-2xl bg-card px-4 py-6 md:px-8">
         {filterText && (
           <div className="mb-2 flex items-center gap-3 px-2 text-sm">
             <Badge variant="secondary">{filterText}</Badge>

@@ -1,7 +1,8 @@
 'use client'
 import type { ServerAuthSeed } from '@/api/user.server'
+import type { ConsoleBreadcrumbItem } from '@/components/console/site-header'
 import { useTranslations } from 'next-intl'
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import Forbidden from '@/components/common/forbidden'
 
 import { AppSidebar } from '@/components/console/app-sidebar'
@@ -17,8 +18,26 @@ import {
 import { AuthSeedProvider, useAuth } from '@/contexts/auth-context'
 import { usePublicContentRefresh } from '@/hooks/use-public-content-refresh'
 import { useToLogin } from '@/hooks/use-route'
+import { useOperationT } from '@/hooks/use-translations'
 import { usePathname, useRouter } from '@/i18n/navigation'
 import { consolePath, isConsolePreviewPath } from '@/utils/common/route'
+
+/** 富文本 / HTML / 歌词特效编辑器等需要铺满工作区全宽全高的子路由，不加常规管理页的 max-w 版心约束 */
+function isFullBleedConsolePath(pathname: string): boolean {
+  return pathname.startsWith('/console/posts/edit/')
+    || pathname.startsWith('/console/pages/edit/')
+    || pathname.startsWith('/console/pages/html/')
+    || pathname.startsWith('/console/lyric-effects/')
+}
+
+function safeDecodeSegment(raw: string): string {
+  try {
+    return decodeURIComponent(raw)
+  }
+  catch {
+    return raw
+  }
+}
 
 export function ConsoleShell({
   children,
@@ -40,15 +59,57 @@ function ConsoleShellInner({
   children: React.ReactNode
 }>) {
   const t = useTranslations('Console')
+  const routeT = useTranslations('Route')
+  const operationT = useOperationT()
   const { user, loading } = useAuth()
   const toLogin = useToLogin()
   const router = useRouter()
   // 后台改了前台可见的内容后清掉浏览器路由缓存，回到前台时看到的是新内容
   usePublicContentRefresh()
   const pathname = usePathname() ?? '/'
-  // 标题与当前菜单直接由路径推导，避免首帧闪现占位标题；标题使用菜单名，同一菜单的页面以 Tab 区分
+  const isPreview = isConsolePreviewPath(pathname)
+  // 后台界面在根元素标记 data-console，使挂载在 body 下的 Radix Portal 弹层也同步走后台中性色盘，无需全局 :has()
+  useLayoutEffect(() => {
+    if (isPreview)
+      return
+    document.documentElement.dataset.console = ''
+    return () => {
+      delete document.documentElement.dataset.console
+    }
+  }, [isPreview])
+
+  // 标题与当前菜单直接由路径推导，避免首帧闪现占位标题；子页面与多 Tab 模块自动推导层级面包屑
   const match = useMemo(() => matchSidebarItem(pathname), [pathname])
   const title = match ? t(match.menu.title) : ''
+  const menuTabs = useMemo(
+    () => (match ? (user ? permittedItems(match.menu, user) : match.menu.items) : []),
+    [match, user],
+  )
+  const breadcrumbs = useMemo<ConsoleBreadcrumbItem[] | undefined>(() => {
+    if (!match)
+      return undefined
+    const menuLabel = t(match.menu.title)
+    const itemLabel = t(match.item.tabTitle ?? match.item.title)
+    if (pathname !== match.item.url) {
+      const rest = pathname.slice(match.item.url.length + 1)
+      const isEditRoute = rest.startsWith('edit/') || rest.startsWith('html/') || match.item.url === consolePath.lyricEffect
+      const tail = rest.split('/').filter(Boolean).at(-1)
+      const leafLabel = isEditRoute ? operationT('edit') : (tail ? `#${safeDecodeSegment(tail)}` : itemLabel)
+      return [
+        { label: t(match.item.title), href: match.item.url },
+        { label: leafLabel },
+      ]
+    }
+    if (menuTabs.length > 1 && menuLabel !== itemLabel) {
+      const rootItem = menuTabs[0] ?? match.item
+      return [
+        { label: menuLabel, href: rootItem.url !== pathname ? rootItem.url : undefined },
+        { label: itemLabel },
+      ]
+    }
+    return undefined
+  }, [match, menuTabs, operationT, pathname, t])
+  const fullBleed = isFullBleedConsolePath(pathname)
   const [activeId, setActiveId] = useState<string | null>(match?.menu.id ?? null)
 
   useEffect(() => {
@@ -85,11 +146,10 @@ function ConsoleShellInner({
   }
   else if (match && pathname === match.item.url) {
     // 菜单下有多个可访问页面时显示 Tab；编辑页等子路由不显示
-    const tabs = permittedItems(match.menu, user)
-    if (tabs.length > 1) {
+    if (menuTabs.length > 1) {
       content = (
         <>
-          <ConsoleTabs items={tabs} activeId={match.item.id} />
+          <ConsoleTabs items={menuTabs} activeId={match.item.id} />
           {children}
         </>
       )
@@ -97,7 +157,7 @@ function ConsoleShellInner({
   }
 
   // 文章 / 页面预览按前台的样子渲染（页面自带前台外壳），不套后台的侧栏与顶栏；权限由后端接口判定
-  if (isConsolePreviewPath(pathname))
+  if (isPreview)
     return children
 
   return (
@@ -113,8 +173,8 @@ function ConsoleShellInner({
       <AppSidebar variant="inset" activeId={activeId} setActiveId={setActiveId} />
       {/* min-w-0：避免内容（如编辑器工具栏）的固有宽度撑破布局 */}
       <SidebarInset className="min-w-0">
-        <SiteHeader title={title} />
-        {/* flex 列：编辑器等需要填满内容区高度的页面使用 flex-1 */}
+        <SiteHeader title={title} breadcrumbs={breadcrumbs} breadcrumbLabel={routeT('console')} />
+        {/* flex 列：编辑器等需要填满内容区高度的页面使用 flex-1；常规管理页居中限制最大版心宽度，2K/4K 大屏视线不横跳 */}
         <div
           className="flex min-w-0 flex-1 flex-col"
           style={
@@ -124,7 +184,9 @@ function ConsoleShellInner({
             } as React.CSSProperties
           }
         >
-          {content}
+          {fullBleed
+            ? content
+            : <div className="mx-auto flex w-full max-w-[88rem] min-w-0 flex-1 flex-col lg:px-2">{content}</div>}
         </div>
       </SidebarInset>
     </SidebarProvider>

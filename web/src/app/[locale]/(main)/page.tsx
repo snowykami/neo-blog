@@ -10,6 +10,7 @@ import { getCachedSiteInfo } from '@/api/misc.server'
 import { listPosts } from '@/api/post'
 import { PostList } from '@/components/blog-home/post-list'
 import BlogSidebar from '@/components/blog-sidebar'
+import { getSidebarCards } from '@/components/blog-sidebar/sidebar-cards'
 import { getCachedSidebarData } from '@/components/blog-sidebar/sidebar-data'
 import { BlogSidebarSkeleton } from '@/components/blog-sidebar/sidebar-skeleton'
 import { SiteShell } from '@/components/layout/site-shell'
@@ -113,14 +114,24 @@ async function HomeSidebar() {
   return <BlogSidebar labelFromQuery initialData={await getCachedSidebarData()} />
 }
 
-// 文章列表到达前的占位：与列表加载态相同的文章行
-function HomePostsSkeleton() {
+// 文章列表到达前的占位：高度与真实首屏（移动端站长名片条 + 44px 标题排序栏 + 每页条数）严格对齐，避免流式替换产生 CLS
+function HomePostsSkeleton({ showOwnerBanner, postsPerPage }: { showOwnerBanner: boolean, postsPerPage?: number }) {
   return (
     <>
-      <div className="grid gap-1 px-4 md:px-2" aria-busy="true">
-        <Skeleton className="h-7 w-48 md:h-8" />
+      {showOwnerBanner && (
+        <div className="surface-card flex items-center gap-3 rounded-2xl bg-card p-3.5 lg:hidden" aria-hidden="true">
+          <Skeleton className="size-11 shrink-0 rounded-full" />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-3.5 w-48 max-w-full" />
+          </div>
+        </div>
+      )}
+      <div className="flex flex-wrap items-center justify-between gap-3 px-1.5 md:px-2" aria-busy="true">
+        <Skeleton className="h-7 w-40" />
+        <Skeleton className="h-11 w-36 rounded-lg" />
       </div>
-      <PostList posts={[]} isLoading />
+      <PostList posts={[]} isLoading skeletonCount={postsPerPage || 9} />
     </>
   )
 }
@@ -148,6 +159,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<Hom
       'query': 'required name=search_term_string',
     },
   }
+  const showOwnerBanner = Boolean(
+    (siteInfo.owner?.name || siteInfo.metadata.name)
+    && getSidebarCards(siteInfo).some(card => card.type === 'about'),
+  )
   return (
     <>
       <SiteShell
@@ -157,7 +172,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Hom
           </Suspense>
         )}
       >
-        <Suspense fallback={<HomePostsSkeleton />}>
+        <Suspense fallback={<HomePostsSkeleton showOwnerBanner={showOwnerBanner} postsPerPage={siteInfo.postsPerPage} />}>
           <HomePosts searchParams={searchParams} />
         </Suspense>
       </SiteShell>

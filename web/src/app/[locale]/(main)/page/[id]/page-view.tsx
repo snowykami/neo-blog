@@ -19,6 +19,7 @@ import { FullscreenChrome } from '@/components/layout/fullscreen-chrome'
 import { SiteShell } from '@/components/layout/site-shell'
 import { localizePath } from '@/i18n/routing'
 import { contentWebFonts, resolveContentTheme } from '@/lib/content-theme'
+import { cn } from '@/lib/utils'
 import { countWords } from '@/utils/common/post'
 import { renderContentHtml } from '@/utils/server/render-content'
 import '@/app/styles/prose.css'
@@ -100,14 +101,14 @@ export async function PageView({ page, isDraft = false }: { page: PageModel, isD
 
   return (
     <SiteShell sidebar={sidebar} stickySidebar={false}>
-      <div className="rounded-2xl bg-card px-6 pt-6 pb-8 md:px-9">
+      <div className={cn('surface-card rounded-2xl bg-card px-5 pt-6 pb-8 sm:px-7', wide ? 'md:px-9' : 'md:px-10 lg:px-14')}>
         {/* 封面 */}
         {page.cover && (
           <div className="relative mb-8 aspect-[2/1] w-full overflow-hidden rounded-xl bg-muted">
             <SafeImage src={page.cover} alt="" fill priority className="object-cover" sizes={wide ? '(max-width: 1200px) 100vw, 1200px' : '(max-width: 1024px) 100vw, 900px'} />
           </div>
         )}
-        <h1 className="relative mb-3 text-3xl font-bold text-foreground/90 md:text-[2.25rem] md:leading-[2.75rem] md:before:absolute md:before:top-[0.875rem] md:before:-left-[1.125rem] md:before:h-4 md:before:w-1 md:before:rounded-md md:before:bg-primary">
+        <h1 className="relative mb-3 text-2xl font-bold text-foreground/90 [text-wrap:balance] sm:text-3xl md:text-[2.125rem] md:leading-[2.65rem] md:before:absolute md:before:top-[0.825rem] md:before:-left-[1.25rem] md:before:h-4.5 md:before:w-1 md:before:rounded-md md:before:bg-primary">
           {page.title}
         </h1>
         {page.description && <p className="mb-5 text-foreground/75">{page.description}</p>}
@@ -115,7 +116,7 @@ export async function PageView({ page, isDraft = false }: { page: PageModel, isD
         {/* 先自动匹配再净化，与文章正文保持一致 */}
         <article
           id="page-content"
-          className="content-body prose max-w-none dark:prose-invert pangu-autospace"
+          className={cn('content-body prose max-w-none dark:prose-invert pangu-autospace', !wide && 'article-prose')}
           data-content-theme={theme}
           dangerouslySetInnerHTML={{ __html: html }}
         />

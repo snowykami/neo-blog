@@ -14,11 +14,13 @@ export function PostMetaDates({
   createdAt,
   updatedAt,
   showUpdated,
+  compact = false,
 }: {
   createdAt?: string
   updatedAt?: string
   /** 更新时间与发布时间不在同一天时额外显示更新时间（文章页） */
   showUpdated?: boolean
+  compact?: boolean
 }) {
   const t = useTranslations()
   const format = useFormatter()
@@ -27,12 +29,12 @@ export function PostMetaDates({
   return (
     <>
       {createdText && (
-        <PostMetaItem icon={CalendarDaysIcon} label={t('Copyright.post_at')}>
+        <PostMetaItem icon={CalendarDaysIcon} label={t('Copyright.post_at')} compact={compact}>
           <time dateTime={createdAt} className="tabular-nums">{createdText}</time>
         </PostMetaItem>
       )}
       {showUpdated && updatedText && updatedText !== createdText && (
-        <PostMetaItem icon={CalendarSyncIcon} label={t('Common.updated_at')}>
+        <PostMetaItem icon={CalendarSyncIcon} label={t('Common.updated_at')} compact={compact}>
           <time dateTime={updatedAt} className="tabular-nums" title={t('Common.updated_at')}>{updatedText}</time>
         </PostMetaItem>
       )}

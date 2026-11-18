@@ -31,22 +31,22 @@ export { PostMetaItem }
 const metaLinkClass = 'relative z-10 rounded-sm transition-colors after:absolute after:-inset-x-1 after:-inset-y-1 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 /** 头像 + 昵称的作者项（列表），整体链接到作者主页 */
-function PostAuthorAvatarItem({ user }: { user: Post['user'] }) {
+function PostAuthorAvatarItem({ user, compact = false }: { user: Post['user'], compact?: boolean }) {
   const t = useTranslations()
   const name = user?.nickname || user?.username || t('Common.unknown_author')
   const content = (
     <>
       {/* 头像仅作装饰，读屏只读「作者 + 昵称」，避免首字母兜底被重复朗读 */}
       {user && (
-        <span aria-hidden className="mr-2 shrink-0">
-          <UserAvatar user={user} size={56} alt="" className="size-7" />
+        <span aria-hidden className={cn('shrink-0', compact ? 'mr-1.5' : 'mr-2')}>
+          <UserAvatar user={user} size={compact ? 40 : 56} alt="" className={compact ? 'size-5' : 'size-7'} />
         </span>
       )}
       <span className="sr-only">{t('Copyright.author')}</span>
       <span className="block max-w-[16ch] truncate">{name}</span>
     </>
   )
-  const itemClass = 'flex min-w-0 items-center text-sm font-medium text-muted-foreground'
+  const itemClass = cn('flex min-w-0 items-center font-medium text-muted-foreground', compact ? 'text-xs' : 'text-sm')
 
   return user?.username
     ? <Link href={getUserUrl(user, 'posts')} className={cn(metaLinkClass, itemClass)}>{content}</Link>
@@ -58,6 +58,7 @@ export function PostMeta({
   showAuthor = false,
   authorAvatar = false,
   showUpdated = false,
+  compact = false,
   className,
 }: {
   post: Post
@@ -67,38 +68,40 @@ export function PostMeta({
   authorAvatar?: boolean
   /** 更新时间与发布时间不在同一天时额外显示更新时间（文章页） */
   showUpdated?: boolean
+  /** 列表紧凑样式 */
+  compact?: boolean
   className?: string
 }) {
   const t = useTranslations()
   const labels = post.labels ?? []
 
   return (
-    <div className={cn('flex flex-wrap items-center gap-x-4 gap-y-2', className)}>
-      {showAuthor && authorAvatar && <PostAuthorAvatarItem user={post.user} />}
+    <div className={cn('flex flex-wrap items-center', compact ? 'gap-x-3 gap-y-1.5' : 'gap-x-4 gap-y-2', className)}>
+      {showAuthor && authorAvatar && <PostAuthorAvatarItem user={post.user} compact={compact} />}
       {showAuthor && !authorAvatar && (
-        <PostMetaItem icon={PenLineIcon} label={t('Copyright.author')}>
+        <PostMetaItem icon={PenLineIcon} label={t('Copyright.author')} compact={compact}>
           <Link href={getUserUrl(post.user, 'posts')} className={cn(metaLinkClass, 'block max-w-[16ch] truncate')}>
             {post.user.nickname || post.user.username || t('Common.unknown_author')}
           </Link>
         </PostMetaItem>
       )}
       {/* 发布 / 更新日期按访客本机时区显示，交给客户端组件（服务端组件格式化出的文本水合后不会变） */}
-      <PostMetaDates createdAt={post.createdAt} updatedAt={post.updatedAt} showUpdated={showUpdated} />
-      <PostMetaItem icon={FolderIcon} label={t('Route.category')}>
+      <PostMetaDates createdAt={post.createdAt} updatedAt={post.updatedAt} showUpdated={showUpdated} compact={compact} />
+      <PostMetaItem icon={FolderIcon} label={t('Route.category')} compact={compact}>
         {post.category
           ? (
-              <Link href={getCategoryUrl(post.category)} className={metaLinkClass}>
+              <Link href={getCategoryUrl(post.category)} className={cn(metaLinkClass, 'block max-w-[16ch] truncate')}>
                 {post.category.name}
               </Link>
             )
-          : t('Common.uncategorized')}
+          : <span className="block max-w-[16ch] truncate">{t('Common.uncategorized')}</span>}
       </PostMetaItem>
       {labels.length > 0 && (
-        <PostMetaItem icon={HashIcon} label={t('Route.label')}>
+        <PostMetaItem icon={HashIcon} label={t('Route.label')} compact={compact}>
           {/* 多个标签用 / 分隔 */}
           {/* gap-y-2：手机上换行后上下两行标签的热区不重叠 */}
           <span className="flex flex-wrap items-center gap-y-2">
-            {labels.map((label, index) => (
+            {(compact ? labels.slice(0, 3) : labels).map((label, index) => (
               <Fragment key={label.id}>
                 {index > 0 && <span aria-hidden className="mx-1.5 text-foreground/30">/</span>}
                 {/* 标签页是带 ?label= 的首页：进入视口只预取首页的 App Shell（与其他首页链接共用一份，点击立刻出骨架）；
@@ -108,6 +111,12 @@ export function PostMeta({
                 </Link>
               </Fragment>
             ))}
+            {compact && labels.length > 3 && (
+              <span aria-hidden className="ml-1.5 text-foreground/45 tabular-nums">
+                +
+                {labels.length - 3}
+              </span>
+            )}
           </span>
         </PostMetaItem>
       )}

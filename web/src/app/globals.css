@@ -149,6 +149,19 @@
   --dur-fast: 150ms;
   --dur-enter: 300ms;
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* 前台卡片表面层次：1px 极淡中性内沿描边 + 多层柔光微阴影（不染彩色光晕） */
+  --surface-shadow:
+    0px 0px 0px 1px rgba(15, 23, 42, 0.05),
+    0px 1px 2px -0.5px rgba(15, 23, 42, 0.04),
+    0px 6px 16px -4px rgba(15, 23, 42, 0.045),
+    0px 16px 32px -12px rgba(15, 23, 42, 0.035);
+  /* 滚动悬浮态顶栏阴影：与 --surface-shadow 保持相同 4 层结构，保证 transition-shadow 平滑插值无闪烁 */
+  --surface-shadow-scrolled:
+    0px 0px 0px 1px rgba(15, 23, 42, 0.065),
+    0px 2px 4px -1px rgba(15, 23, 42, 0.05),
+    0px 10px 24px -6px rgba(15, 23, 42, 0.085),
+    0px 20px 36px -12px rgba(15, 23, 42, 0.05);
 }
 
 .dark,
@@ -177,6 +190,68 @@
   --chart-5: oklch(0.7 0.14 calc(var(--hue) - 60));
 
   --sidebar: oklch(0.2 0.015 var(--hue));
+
+  /* 深色前台卡片：1px 微弱内沿高光环 + 柔和暗部投影 */
+  --surface-shadow:
+    0px 0px 0px 1px rgba(255, 255, 255, 0.065),
+    0px 8px 24px -6px rgba(0, 0, 0, 0.38);
+  --surface-shadow-scrolled:
+    0px 0px 0px 1px rgba(255, 255, 255, 0.095),
+    0px 12px 28px -6px rgba(0, 0, 0, 0.52);
+}
+
+/* ---------------------------------------------------------------------------
+ * 后台控制台：中性专业底盘 + 品牌强调色
+ * 后台用于高频管理、数据图表与长时写作，表面与边框解耦前台的高彩度色相与节日背景装饰，
+ * 仅在主按钮、选中指示条与图表（--primary / --secondary / --ring / --chart-*）保留站点品牌色。
+ * SSR 首帧由 [data-slot='sidebar-wrapper'] 兜底，水合后 html[data-console] 同步覆盖 body 与所有 Radix Portal 弹层
+ * ------------------------------------------------------------------------- */
+html[data-console],
+[data-slot='sidebar-wrapper'] {
+  --background: oklch(0.965 0.002 260);
+  --foreground: oklch(0.2 0.006 260);
+  --card: oklch(1 0 0);
+  --card-foreground: var(--foreground);
+  --popover: oklch(1 0 0);
+  --popover-foreground: var(--foreground);
+  --muted: oklch(0.945 0.003 260);
+  --muted-foreground: oklch(0.48 0.008 260);
+  --accent: oklch(0.945 0.004 260);
+  --accent-foreground: oklch(0.2 0.006 260);
+  --border: oklch(0.905 0.003 260);
+  --input: oklch(0.885 0.004 260);
+  --sidebar: oklch(0.975 0.002 260);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-border: var(--border);
+}
+
+html.dark[data-console],
+.dark [data-slot='sidebar-wrapper'] {
+  --background: oklch(0.145 0.004 260);
+  --foreground: oklch(0.94 0.004 260);
+  --card: oklch(0.195 0.005 260);
+  --card-foreground: var(--foreground);
+  --popover: oklch(0.195 0.005 260);
+  --popover-foreground: var(--foreground);
+  --muted: oklch(0.24 0.005 260);
+  --muted-foreground: oklch(0.68 0.006 260);
+  --accent: oklch(0.255 0.006 260);
+  --accent-foreground: oklch(0.94 0.004 260);
+  --border: oklch(1 0 0 / 9%);
+  --input: oklch(1 0 0 / 13%);
+  --sidebar: oklch(0.165 0.004 260);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-border: var(--border);
+}
+
+html[data-console] body {
+  background-image: none !important;
+}
+
+/* 后台与沉浸式编辑器内同步屏蔽节日主题的灯笼、飘雪、礼花等固定层伪元素动效，避免遮挡顶栏与长时写作合成开销 */
+html[data-console] body::before,
+html[data-console] body::after {
+  display: none !important;
 }
 
 /* ---------------------------------------------------------------------------
@@ -211,6 +286,17 @@ html[data-theme] .bg-primary {
 /* 选中文字使用主色浅底 */
 ::selection {
   background-color: color-mix(in oklab, var(--primary) 25%, transparent);
+}
+
+/* 前台卡片表面微描边与分层柔光阴影：接入 Tailwind --tw-shadow 变量链以保留 focus-visible:ring-* 等环形描边 */
+@utility surface-card {
+  --tw-shadow: var(--surface-shadow);
+  box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+}
+
+@utility surface-card-scrolled {
+  --tw-shadow: var(--surface-shadow-scrolled);
+  box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
 }
 
 /* 隐藏滚动条但保留滚动能力（用于目录等局部滚动区域） */

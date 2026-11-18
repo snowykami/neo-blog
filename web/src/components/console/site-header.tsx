@@ -1,16 +1,68 @@
+import { Fragment } from 'react'
 import { SiGithub } from 'react-icons/si'
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { SidebarTrigger } from '@/components/ui/sidebar'
+import { Link } from '@/i18n/navigation'
 import { ConsoleMusicButton } from './console-music-button'
 
-export function SiteHeader({ title }: { title?: string }) {
+export interface ConsoleBreadcrumbItem {
+  label: string
+  href?: string
+}
+
+export function SiteHeader({
+  title,
+  breadcrumbs,
+  breadcrumbLabel,
+}: {
+  title?: string
+  breadcrumbs?: ConsoleBreadcrumbItem[]
+  breadcrumbLabel?: string
+}) {
   return (
-    <header className="flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
+    <header className="flex h-(--header-height) shrink-0 items-center gap-2 border-b bg-card/60 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
       <div className="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-4" />
-        <h1 className="text-base font-medium">{title}</h1>
+        {breadcrumbs && breadcrumbs.length > 1
+          ? (
+              <Breadcrumb aria-label={breadcrumbLabel} className="min-w-0">
+                <BreadcrumbList className="flex-nowrap">
+                  {breadcrumbs.map((crumb, idx) => {
+                    const isLast = idx === breadcrumbs.length - 1
+                    return (
+                      <Fragment key={`${crumb.label}-${idx}`}>
+                        {idx > 0 && <BreadcrumbSeparator />}
+                        <BreadcrumbItem className="min-w-0">
+                          {isLast
+                            ? (
+                                <h1 aria-current="page" className="truncate text-sm font-medium text-foreground">
+                                  {crumb.label}
+                                </h1>
+                              )
+                            : crumb.href
+                              ? (
+                                  <BreadcrumbLink asChild className="truncate">
+                                    <Link href={crumb.href}>{crumb.label}</Link>
+                                  </BreadcrumbLink>
+                                )
+                              : <span className="truncate">{crumb.label}</span>}
+                        </BreadcrumbItem>
+                      </Fragment>
+                    )
+                  })}
+                </BreadcrumbList>
+              </Breadcrumb>
+            )
+          : <h1 className="truncate text-base font-medium">{title}</h1>}
         <div className="ml-auto flex items-center gap-2">
           {/* 后台不显示音乐悬浮球，播放器入口放在这里 */}
           <ConsoleMusicButton />

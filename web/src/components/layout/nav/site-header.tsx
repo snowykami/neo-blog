@@ -108,7 +108,7 @@ function ImmersiveHeader() {
           if (!headerRef.current?.contains(event.relatedTarget as Node) && !insidePopper(event.relatedTarget))
             scheduleCollapse()
         }}
-        className="fixed inset-x-0 top-0 z-50 mx-auto w-full max-w-[var(--page-w)] px-0 md:px-4"
+        className="fixed inset-x-0 top-0 z-50 mx-auto w-full max-w-[var(--page-w)] px-3 md:px-4"
       >
         {/* 弹簧展开时会略微越过终点（向下回弹），卡片上方接一段同色延伸，回弹时盖住顶部露出的缝隙；收起时它在视口外 */}
         <div className="relative before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-6 before:bg-card">
@@ -148,7 +148,7 @@ export function SiteHeader({ immersive = false }: { immersive?: boolean }) {
     return <ImmersiveHeader />
   return (
     // 吸顶导航：与正文同宽，首屏入场动画为纯 CSS（见 styles/animation.css），不依赖水合
-    <header data-site-header="sticky" className="enter-fade-down sticky top-0 z-40 mx-auto w-full max-w-[var(--page-w)] px-0 md:px-4">
+    <header data-site-header="sticky" className="enter-fade-down sticky top-0 z-40 mx-auto w-full max-w-[var(--page-w)] px-3 md:px-4">
       <Navbar />
     </header>
   )

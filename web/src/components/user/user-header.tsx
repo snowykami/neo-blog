@@ -42,7 +42,7 @@ export function UserHeader({ user }: { user: User }) {
     : ''
 
   return (
-    <div className="overflow-hidden rounded-2xl bg-card">
+    <div className="surface-card overflow-hidden rounded-2xl bg-card">
       {/* 用户背景图 */}
       {user.backgroundUrl && (
         <div className="relative h-40 w-full md:h-56">

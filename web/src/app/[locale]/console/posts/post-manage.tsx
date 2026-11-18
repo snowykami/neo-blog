@@ -34,7 +34,7 @@ import {
 import { Empty, EmptyDescription } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Separator } from '@/components/ui/separator'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { useAuth } from '@/contexts/auth-context'
 import { useDevice } from '@/contexts/device-context'
@@ -43,6 +43,7 @@ import { useDebouncedState } from '@/hooks/use-debounce'
 import { useToPost } from '@/hooks/use-route'
 import { useCommonT, useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { Link } from '@/i18n/navigation'
+import { cn } from '@/lib/utils'
 import { OrderBy } from '@/models/common'
 import { PINNED_POSTS_LIMIT } from '@/models/post'
 import { isAdmin } from '@/utils/common/permission'
@@ -89,17 +90,17 @@ const PostItem = memo(({
   const pinUntilText = usePinUntilText()
   const previewOnly = Boolean(post.isPrivate || post.isDraft)
   return (
-    <div>
+    <div className={cn('px-4 transition-colors hover:bg-muted/40', selected && 'bg-primary/[0.04]')}>
       <div className="flex w-full items-center gap-3 py-3">
         <Checkbox
           checked={selected}
           onCheckedChange={checked => onToggleSelect(post.id, checked === true)}
-          aria-label={post.title}
+          aria-label={post.title || editorT('untitled_post')}
         />
         {/* left：占满剩余宽度且可收缩，长描述不会把右侧操作挤出 */}
         <div className="flex min-w-0 flex-1 justify-start items-center gap-4">
           {/* avatar */}
-          <div className="flex-shrink-0 w-16 h-9 rounded-md overflow-hidden">
+          <div className="flex-shrink-0 w-16 h-9 rounded-md overflow-hidden bg-muted">
             {/* 没有封面或封面失效时显示占位 */}
             <SafeImage
               src={post.cover}
@@ -111,7 +112,9 @@ const PostItem = memo(({
             />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-sm font-medium">{post.title}</div>
+            <Link href={getPostEditUrl(post)} className="block w-fit max-w-full truncate text-sm font-medium transition-colors hover:text-primary">
+              {post.title || editorT('untitled_post')}
+            </Link>
             <PostDescriptionLine post={post} />
             <div className="mt-1 flex flex-wrap items-center gap-3">
               {(() => {
@@ -509,73 +512,93 @@ export function PostManage() {
         confirmVariant="destructive"
         onConfirm={handleDeleteOne}
       />
-      {posts.length > 0 && (
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2 text-sm">
-          <label className="flex cursor-pointer items-center gap-2 select-none">
-            <Checkbox
-              checked={allSelected ? true : partiallySelected ? 'indeterminate' : false}
-              onCheckedChange={checked => toggleSelectAll(checked === true)}
-              aria-label={t('select_all')}
-            />
-            <span className="text-muted-foreground">
-              {activeSelectedIds.length > 0
-                ? t('selected_count', { count: activeSelectedIds.length })
-                : t('select_all')}
-            </span>
-          </label>
-          {activeSelectedIds.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2">
-              <Button size="sm" variant="outline" disabled={batchUpdating} onClick={() => void handleBatchVisibility(false)}>
-                {operationT('set_public')}
-              </Button>
-              <Button size="sm" variant="outline" disabled={batchUpdating} onClick={() => void handleBatchVisibility(true)}>
-                {operationT('set_private')}
-              </Button>
-              <ConfirmDialog
-                title={operationT('confirm_delete')}
-                description={t('batch_delete_description', { count: activeSelectedIds.length })}
-                confirmLabel={operationT('delete')}
-                errorText={operationT('delete_failed')}
-                confirmVariant="destructive"
-                onConfirm={handleBatchDelete}
-              >
-                <Button size="sm" variant="destructive" disabled={batchUpdating}>
-                  {operationT('delete')}
+      <div className="overflow-hidden rounded-xl border bg-card shadow-[0_1px_1px_-0.5px_rgba(0,0,0,0.035),0_3px_8px_-2px_rgba(0,0,0,0.035)] empty:hidden dark:shadow-none">
+        {posts.length > 0 && !loading && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-muted/35 px-4 py-2.5 text-sm">
+            <label className="flex cursor-pointer items-center gap-2.5 select-none">
+              <Checkbox
+                checked={allSelected ? true : partiallySelected ? 'indeterminate' : false}
+                onCheckedChange={checked => toggleSelectAll(checked === true)}
+                aria-label={t('select_all')}
+              />
+              <span className="text-xs font-medium text-muted-foreground">
+                {activeSelectedIds.length > 0
+                  ? t('selected_count', { count: activeSelectedIds.length })
+                  : t('select_all')}
+              </span>
+            </label>
+            {activeSelectedIds.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <Button size="sm" variant="outline" disabled={batchUpdating} onClick={() => void handleBatchVisibility(false)}>
+                  {operationT('set_public')}
                 </Button>
-              </ConfirmDialog>
-              <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
-                {operationT('cancel')}
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-      <Separator className="flex-1" />
-      {loading && (
-        <div className="py-10 text-center text-sm text-muted-foreground">{t('loading')}</div>
-      )}
-      {!loading && listPosts.data && posts.length === 0 && (
-        <Empty className="py-10">
-          <EmptyDescription>{t(debouncedQueryInput ? 'empty_search' : 'empty')}</EmptyDescription>
-        </Empty>
-      )}
-      {posts.map(post => (
-        <div key={post.id}>
-          <PostItem
-            post={post}
-            selected={selectedIds.has(post.id)}
-            isMobile={isMobile}
-            onToggleSelect={toggleSelectOne}
-            showAuthor={isAdminUser}
-            canConfigureAI={isAdminUser}
-            canPin={isAdminUser}
-            onPostUpdate={onPostUpdate}
-            onRequestEditMeta={openEditPostDialog}
-            onRequestDelete={setDeletingPost}
-          />
-          <Separator className="flex-1" />
-        </div>
-      ))}
+                <Button size="sm" variant="outline" disabled={batchUpdating} onClick={() => void handleBatchVisibility(true)}>
+                  {operationT('set_private')}
+                </Button>
+                <ConfirmDialog
+                  title={operationT('confirm_delete')}
+                  description={t('batch_delete_description', { count: activeSelectedIds.length })}
+                  confirmLabel={operationT('delete')}
+                  errorText={operationT('delete_failed')}
+                  confirmVariant="destructive"
+                  onConfirm={handleBatchDelete}
+                >
+                  <Button size="sm" variant="destructive" disabled={batchUpdating}>
+                    {operationT('delete')}
+                  </Button>
+                </ConfirmDialog>
+                <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
+                  {operationT('cancel')}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+        {loading && (
+          <div className="divide-y" aria-busy="true" aria-label={t('loading')}>
+            {Array.from({ length: 6 }).map((_, idx) => (
+              <div key={idx} className="flex items-center gap-3 px-4 py-3.5">
+                <Skeleton className="size-4 shrink-0 rounded-xs" />
+                <Skeleton className="h-9 w-16 shrink-0 rounded-md" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Skeleton className="h-4 w-2/5 max-w-xs" />
+                  <Skeleton className="h-3 w-3/5 max-w-md" />
+                  <div className="flex gap-2">
+                    <Skeleton className="h-4 w-14 rounded-md" />
+                    <Skeleton className="h-4 w-16 rounded-md" />
+                    <Skeleton className="h-4 w-20 rounded-md" />
+                  </div>
+                </div>
+                <Skeleton className="size-8 shrink-0 rounded-md" />
+              </div>
+            ))}
+          </div>
+        )}
+        {!loading && listPosts.data && posts.length === 0 && (
+          <Empty className="py-12">
+            <EmptyDescription>{t(debouncedQueryInput ? 'empty_search' : 'empty')}</EmptyDescription>
+          </Empty>
+        )}
+        {!loading && posts.length > 0 && (
+          <div className="divide-y">
+            {posts.map(post => (
+              <PostItem
+                key={post.id}
+                post={post}
+                selected={selectedIds.has(post.id)}
+                isMobile={isMobile}
+                onToggleSelect={toggleSelectOne}
+                showAuthor={isAdminUser}
+                canConfigureAI={isAdminUser}
+                canPin={isAdminUser}
+                onPostUpdate={onPostUpdate}
+                onRequestEditMeta={openEditPostDialog}
+                onRequestDelete={setDeletingPost}
+              />
+            ))}
+          </div>
+        )}
+      </div>
       {/* 只看置顶时最多 3 篇，不分页 */}
       <div className="flex justify-center items-center py-4" hidden={isAdminUser && onlyPinned}>
         {total > 0 && (

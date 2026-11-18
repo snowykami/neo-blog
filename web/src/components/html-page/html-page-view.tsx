@@ -20,7 +20,7 @@ export async function HtmlPageView({ page }: { page: PageModel }) {
     return (
       <SiteShell>
         <h1 className="sr-only">{page.title}</h1>
-        <Empty className="rounded-2xl bg-card">
+        <Empty className="surface-card rounded-2xl bg-card">
           <EmptyHeader>
             <EmptyMedia variant="icon"><CodeXmlIcon /></EmptyMedia>
             <EmptyTitle>{t('empty_title')}</EmptyTitle>
@@ -50,8 +50,8 @@ export async function HtmlPageView({ page }: { page: PageModel }) {
 
   return (
     <SiteShell>
-      <div className="rounded-2xl bg-card px-6 pt-6 pb-8 md:px-9">
-        <h1 className="relative mb-3 text-3xl font-bold text-foreground/90 md:text-[2.25rem] md:leading-[2.75rem] md:before:absolute md:before:top-[0.875rem] md:before:-left-[1.125rem] md:before:h-4 md:before:w-1 md:before:rounded-md md:before:bg-primary">
+      <div className="surface-card rounded-2xl bg-card px-5 pt-6 pb-8 sm:px-7 md:px-9">
+        <h1 className="relative mb-3 text-2xl font-bold text-foreground/90 [text-wrap:balance] sm:text-3xl md:text-[2.125rem] md:leading-[2.65rem] md:before:absolute md:before:top-[0.825rem] md:before:-left-[1.25rem] md:before:h-4.5 md:before:w-1 md:before:rounded-md md:before:bg-primary">
           {page.title}
         </h1>
         {page.description && <p className="mb-5 text-foreground/75">{page.description}</p>}

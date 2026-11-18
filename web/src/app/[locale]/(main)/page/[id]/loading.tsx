@@ -11,14 +11,14 @@ export default function Loading() {
       skeleton
       stickySidebar={false}
       sidebar={(
-        <div className="hidden rounded-2xl bg-card p-4 lg:block">
+        <div className="surface-card hidden rounded-2xl bg-card p-4 lg:block">
           <Skeleton className="h-6 w-24" />
           <Skeleton className="mt-3 h-4 w-full" />
           <Skeleton className="mt-2 h-4 w-4/5" />
         </div>
       )}
     >
-      <div className="rounded-2xl bg-card px-6 pt-6 pb-8 md:px-9" aria-busy="true">
+      <div className="surface-card rounded-2xl bg-card px-5 pt-6 pb-8 sm:px-7 md:px-10 lg:px-14" aria-busy="true">
         <Skeleton className="mb-5 h-9 w-3/4 md:h-11" />
         <div className="space-y-4">
           <Skeleton className="h-4 w-full" />

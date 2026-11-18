@@ -26,8 +26,8 @@ export function SiteShell({
     <div
       data-site-shell={skeleton ? 'skeleton' : 'page'}
       className={cn(
-        // 显式声明 minmax(0,1fr) 轨道：隐式 auto 轨道会被长代码行等不可折行内容撑宽
-        'mx-auto grid w-full max-w-[var(--page-w)] grid-cols-[minmax(0,1fr)] gap-4 px-0 py-6 md:px-4 md:py-8',
+        // 显式声明 minmax(0,1fr) 轨道：隐式 auto 轨道会被长代码行等不可折行内容撑宽；移动端留出 px-3 呼吸边距避免大圆角贴死屏幕边缘
+        'mx-auto grid w-full max-w-[var(--page-w)] grid-cols-[minmax(0,1fr)] gap-4 px-3 py-5 md:px-4 md:py-8',
         sidebar && 'lg:grid-cols-[minmax(0,1fr)_var(--sidebar-w)]',
         className,
       )}

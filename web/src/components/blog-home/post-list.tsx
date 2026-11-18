@@ -26,14 +26,14 @@ import { htmlToText } from '@/utils/common/string'
 
 // 行与行之间的虚线，左右缩进与内容对齐；移动端每篇是独立卡片，不需要分隔线
 function RowDivider() {
-  return <div aria-hidden className="mx-8 hidden border-t border-dashed border-foreground/10 md:block" />
+  return <div aria-hidden className="mx-7 hidden border-t border-dashed border-foreground/10 md:block" />
 }
 
 // 列表容器：桌面端整个列表是一张卡片；移动端拆成独立卡片，卡片之间露出页面底色，边界更清晰
-const LIST_CLASS = 'grid gap-3 md:block md:overflow-hidden md:rounded-2xl md:bg-card'
-const ITEM_CLASS = 'overflow-hidden rounded-2xl bg-card md:overflow-visible md:rounded-none md:bg-transparent'
+const LIST_CLASS = 'grid gap-3 md:block md:overflow-hidden md:rounded-2xl md:bg-card md:surface-card'
+const ITEM_CLASS = 'overflow-hidden rounded-2xl bg-card max-md:surface-card md:overflow-visible md:rounded-none md:bg-transparent'
 // 首页置顶文章：同样的卡片加一层淡淡的主题色底
-const PINNED_ITEM_CLASS = 'overflow-hidden rounded-2xl bg-[color-mix(in_oklch,var(--primary)_5%,var(--card))] md:overflow-visible md:rounded-none md:bg-primary/4'
+const PINNED_ITEM_CLASS = 'overflow-hidden rounded-2xl bg-[color-mix(in_oklch,var(--primary)_5%,var(--card))] max-md:surface-card md:overflow-visible md:rounded-none md:bg-primary/4'
 
 // 搜索结果里命中的关键词：淡主色底，文字颜色不变（标题悬停变主色时仍可读）
 function Highlighted({ text, terms }: { text: string, terms?: string[] }) {
@@ -68,13 +68,13 @@ export function PostListItem({ post, showAuthor = true, pinned = false, highligh
     <article className="group relative flex flex-col-reverse md:flex-col">
       <div
         className={cn(
-          'relative px-6 pt-6 pb-6 md:px-8 md:pt-7',
-          hasCover && 'md:w-[calc(72%-0.75rem)] md:pr-4',
+          'relative p-5 md:px-7 md:py-5',
+          hasCover && 'md:w-[calc(73%-0.75rem)] md:pr-4',
         )}
       >
         {/* 前台列表只有公开文章（私密文章只在后台可见），只需要置顶徽标 */}
         {pinned && (
-          <div className="mb-2 flex flex-wrap gap-2">
+          <div className="mb-1.5 flex flex-wrap gap-2">
             <Badge variant="secondary" className="rounded-md">
               <PinnedIcon />
               {t('Common.pinned')}
@@ -82,7 +82,7 @@ export function PostListItem({ post, showAuthor = true, pinned = false, highligh
           </div>
         )}
 
-        <h2 className="mb-3 text-2xl font-bold text-foreground/90 transition-colors duration-150 group-hover:text-primary md:text-3xl">
+        <h2 className="mb-2 text-lg leading-snug font-bold tracking-tight text-foreground/90 transition-colors duration-150 [text-wrap:balance] group-hover:text-primary md:text-[1.35rem]">
           <Link
             href={url}
             className="rounded-sm outline-none after:absolute after:inset-0 after:rounded-2xl focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset"
@@ -91,35 +91,36 @@ export function PostListItem({ post, showAuthor = true, pinned = false, highligh
           </Link>
         </h2>
 
-        <PostMeta post={post} showAuthor={showAuthor} authorAvatar className="mb-4" />
-
         {summary && (
-          // 最多 4 行，超出显示省略号；max-h 兜底：浏览器忽略 line-clamp 时也只露出 4 行
+          // 最多 2 行，建立「标题 → 紧凑摘要 → 轻元信息」三拍扫读节奏；max-h 兜底
           // 关闭 text-autospace：Safari 默认开启而 Chrome 不开启，保持一致，也避免其影响截断
-          <p className="mb-3.5 line-clamp-4 max-h-[4lh] text-foreground/75 [text-autospace:no-autospace]"><Highlighted text={summary} terms={effectiveHighlight} /></p>
+          <p className="mb-3 line-clamp-2 max-h-[2lh] text-sm leading-relaxed text-foreground/75 [text-autospace:no-autospace]"><Highlighted text={summary} terms={effectiveHighlight} /></p>
         )}
 
-        {/* 列表正文已被接口截断，字数 / 阅读时长只在文章页按完整正文展示 */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground tabular-nums">
-          {likeEnabled && (
-            <span className="flex items-center gap-1" title={t('Metrics.like_count')}>
-              <LikeIcon className="size-3.5" />
-              <span className="sr-only">{t('Metrics.like_count')}</span>
-              {post.likeCount || 0}
+        {/* 元信息与阅读指标同行两端排布，窄屏自动折行时指标仍保持靠右对齐 */}
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <PostMeta post={post} showAuthor={showAuthor} authorAvatar compact />
+          <div className="ml-auto flex flex-wrap items-center gap-x-3.5 gap-y-1 text-xs text-muted-foreground tabular-nums">
+            {likeEnabled && (
+              <span className="flex items-center gap-1" title={t('Metrics.like_count')}>
+                <LikeIcon className="size-3.5" />
+                <span className="sr-only">{t('Metrics.like_count')}</span>
+                {post.likeCount || 0}
+              </span>
+            )}
+            {commentEnabled && (
+              <span className="flex items-center gap-1" title={t('Metrics.comment_count')}>
+                <CommentIcon className="size-3.5" />
+                <span className="sr-only">{t('Metrics.comment_count')}</span>
+                {post.commentCount || 0}
+              </span>
+            )}
+            <span className="flex items-center gap-1" title={t('Metrics.view_count')}>
+              <ViewIcon className="size-3.5" />
+              <span className="sr-only">{t('Metrics.view_count')}</span>
+              {post.viewCount || 0}
             </span>
-          )}
-          {commentEnabled && (
-            <span className="flex items-center gap-1" title={t('Metrics.comment_count')}>
-              <CommentIcon className="size-3.5" />
-              <span className="sr-only">{t('Metrics.comment_count')}</span>
-              {post.commentCount || 0}
-            </span>
-          )}
-          <span className="flex items-center gap-1" title={t('Metrics.view_count')}>
-            <ViewIcon className="size-3.5" />
-            <span className="sr-only">{t('Metrics.view_count')}</span>
-            {post.viewCount || 0}
-          </span>
+          </div>
         </div>
       </div>
 
@@ -129,7 +130,7 @@ export function PostListItem({ post, showAuthor = true, pinned = false, highligh
           href={url}
           tabIndex={-1}
           aria-hidden
-          className="group/cover relative mx-4 mt-4 -mb-2 block h-[20vh] min-h-32 overflow-hidden rounded-xl transition-transform duration-150 active:scale-[.97] md:absolute md:inset-y-3 md:right-3 md:m-0 md:h-auto md:w-[28%]"
+          className="group/cover relative mx-3.5 mt-3.5 -mb-1.5 block h-[19vh] min-h-32 overflow-hidden rounded-xl transition-transform duration-150 active:scale-[.97] md:absolute md:inset-y-3.5 md:right-3.5 md:m-0 md:h-auto md:w-[26%]"
         >
           <SafeImage
             src={post.cover}
@@ -155,16 +156,18 @@ export function PostListItem({ post, showAuthor = true, pinned = false, highligh
 
 export function PostListItemSkeleton() {
   return (
-    <div className="px-6 py-6 md:px-8 md:pt-7">
-      <Skeleton className="mb-3 h-8 w-3/4 md:h-9" />
-      <div className="mb-4 flex flex-wrap gap-4">
-        <Skeleton className="h-7 w-28" />
-        <Skeleton className="h-7 w-24" />
-        <Skeleton className="h-7 w-32" />
+    <div className="p-5 md:px-7 md:py-5">
+      <Skeleton className="mb-2.5 h-6 w-3/4 md:h-7" />
+      <Skeleton className="mb-1.5 h-4 w-full" />
+      <Skeleton className="mb-3 h-4 w-2/3" />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-4 w-16" />
+        </div>
+        <Skeleton className="h-4 w-28" />
       </div>
-      <Skeleton className="mb-2 h-4 w-full" />
-      <Skeleton className="mb-3.5 h-4 w-2/3" />
-      <Skeleton className="h-4 w-40" />
     </div>
   )
 }
@@ -206,7 +209,7 @@ export function PostList({
   className?: string
 }) {
   const t = useTranslations('BlogHome')
-  const cardClass = cn('overflow-hidden rounded-2xl bg-card', className)
+  const cardClass = cn('surface-card overflow-hidden rounded-2xl bg-card', className)
 
   if (isLoading) {
     return (
@@ -264,7 +267,7 @@ export function PostList({
         </Fragment>
       ))}
       {pinnedPosts.length > 0 && posts.length > 0 && (
-        <div className="flex items-center gap-3 px-1 pt-1 text-xs text-muted-foreground after:flex-1 after:border-t after:border-dashed after:border-foreground/10 md:px-8 md:pt-3">
+        <div className="flex items-center gap-3 px-1 pt-1 text-xs text-muted-foreground after:flex-1 after:border-t after:border-dashed after:border-foreground/10 md:px-7 md:pt-3">
           {listLabel}
         </div>
       )}

@@ -74,7 +74,7 @@ async function PostArticle({ post, html, isDraft }: { post: Post, html: string, 
     commentCount: post.commentCount,
   }
   return (
-    <div className="rounded-2xl bg-card px-6 pt-6 pb-8 md:px-9">
+    <div className="surface-card rounded-2xl bg-card px-5 pt-6 pb-8 sm:px-7 md:px-10 lg:px-14">
       <PostLiveStats post={postInfo} words={countWords(content)} minutes={calculateReadingTime(content)} className="mb-3" />
 
       {/* 私密徽标只会出现在后台预览里：前台接口不返回私密文章 */}
@@ -96,7 +96,7 @@ async function PostArticle({ post, html, isDraft }: { post: Post, html: string, 
       )}
 
       {/* 标题：桌面端左侧主色短色条位于卡片内边距中 */}
-      <h1 className="relative mb-3 text-3xl font-bold text-foreground/90 md:text-[2.25rem] md:leading-[2.75rem] md:before:absolute md:before:top-[0.875rem] md:before:-left-[1.125rem] md:before:h-4 md:before:w-1 md:before:rounded-md md:before:bg-primary">
+      <h1 className="relative mb-3 text-2xl font-bold text-foreground/90 [text-wrap:balance] sm:text-3xl md:text-[2.125rem] md:leading-[2.65rem] md:before:absolute md:before:top-[0.825rem] md:before:-left-[1.25rem] md:before:h-4.5 md:before:w-1 md:before:rounded-md md:before:bg-primary">
         {post.title}
       </h1>
 
@@ -128,7 +128,7 @@ async function PostArticle({ post, html, isDraft }: { post: Post, html: string, 
       <ContentFontLinks fonts={contentWebFonts(theme, html)} />
       <article
         id="blog-content"
-        className="content-body prose max-w-none dark:prose-invert pangu-autospace"
+        className="content-body article-prose prose max-w-none dark:prose-invert pangu-autospace"
         data-content-theme={theme}
         dangerouslySetInnerHTML={{ __html: html }}
       />
@@ -212,7 +212,7 @@ export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?
         {!isDraft && neighbors && <PostContinuation neighbors={neighbors} />}
         {/* 评论区接近视口时才加载（见 DeferredCommentSection）；id 供顶栏迷你目录「去评论区」跳转 */}
         {commentEnabled && (
-          <div id="comments" className="scroll-mt-[calc(var(--nav-h)+1rem)] rounded-2xl bg-card px-6 py-6 md:px-9 md:py-8">
+          <div id="comments" className="surface-card scroll-mt-[calc(var(--nav-h)+1rem)] rounded-2xl bg-card px-5 py-6 sm:px-7 md:px-10 md:py-8 lg:px-14">
             <DeferredCommentSection
               targetType={TargetType.Post}
               ownerId={post.user.id}

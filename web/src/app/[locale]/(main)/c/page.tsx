@@ -30,7 +30,7 @@ export default async function CategoryPage() {
         {t('Public.categories')}
         {categories.length > 0 && <span className="ml-2 text-base font-medium text-muted-foreground tabular-nums">{categories.length}</span>}
       </SectionTitle>
-      <div className="rounded-2xl bg-card p-3 md:p-4">
+      <div className="surface-card rounded-2xl bg-card p-3 md:p-4">
         {categories.length === 0
           ? <p className="py-10 text-center text-muted-foreground">{t('Archive.empty')}</p>
           : (

@@ -44,7 +44,7 @@ export default async function LabelPage() {
         {t('Route.label')}
         {labels.length > 0 && <span className="ml-2 text-base font-medium text-muted-foreground tabular-nums">{labels.length}</span>}
       </SectionTitle>
-      <div className="rounded-2xl bg-card p-4 md:p-6">
+      <div className="surface-card rounded-2xl bg-card p-4 md:p-6">
         {labels.length === 0
           ? <p className="py-10 text-center text-muted-foreground">{t('Archive.empty')}</p>
           : (

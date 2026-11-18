@@ -36,7 +36,7 @@ export function RandomPost() {
   return (
     <SiteShell className="max-w-[48rem]">
       <div
-        className="flex min-h-[60vh] flex-col items-center justify-center gap-6 rounded-2xl bg-card px-6 py-10"
+        className="surface-card flex min-h-[60vh] flex-col items-center justify-center gap-6 rounded-2xl bg-card px-6 py-10"
         aria-busy="true"
         aria-live="polite"
       >
