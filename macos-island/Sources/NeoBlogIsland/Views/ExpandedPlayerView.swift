@@ -585,9 +585,17 @@ private struct LyricStageRow: View {
         let isSpotted = rowSpotLevel > 0
         let spotDimmed = globalSpot > 0 && !isSpotted && !isActive && dist > 0
 
-        // 1:1 对齐 lyric-player.ts lineAppearance + 0.35s 连续模糊阻尼过渡：焦点/激活/悬停/手动滚动行完全清晰（0px），脱离激活态后平滑渐虚
+        // 句尾若带 shatter / dissolve / glow 余韵，保持动态行视图至余韵结束，杜绝行刚结束时截断碎裂或呼吸尾迹
+        let hasActiveTailEffect: Bool = store.preferences.showLyricEffects
+            && nowMs >= line.end
+            && nowMs < line.end + 1250
+            && line.emphasis.contains { $0.effect == "shatter" || $0.effect == "dissolve" || $0.effect == "glow" }
+        let useSweepRenderer = isActive || activeBlend > 0.004 || hasActiveTailEffect
+        let inactiveDimScale = store.config.hdr ? 0.6 : 1.0
+
+        // 1:1 对齐 lyric-player.ts lineAppearance + 连续模糊阻尼过渡：焦点/激活/悬停/手动滚动及 HDR 退场余晖期完全清晰（0px），避免离屏模糊截断 EDR 高光
         let blurRadius: CGFloat = {
-            if isActive || dist == 0 || isHovered || isUserScrolling { return 0 }
+            if isActive || dist == 0 || isHovered || isUserScrolling || (store.config.hdr && useSweepRenderer) { return 0 }
             let baseBlur = placed.isPast ? 3.0 : min(4.0, 1.0 + Double(dist))
             let spotBlur = spotDimmed ? (2.5 * globalSpot) : 0
             return CGFloat(max(baseBlur, spotBlur) * LyricSpecs.compactBlurFactor * placed.blurProgress)
@@ -596,14 +604,6 @@ private struct LyricStageRow: View {
         let rowDimFactor: Double = spotDimmed ? (1.0 - 0.35 * globalSpot) : 1.0
         let bgAlpha: Double = line.isBackground ? (0.75 * placed.expand) : 1.0
         let slotMaxWidth: CGFloat = isMultiVocal ? (stageWidth * 0.85) : stageWidth
-
-        // 句尾若带 shatter / dissolve / glow 余韵，保持动态行视图至余韵结束，杜绝行刚结束时截断碎裂或呼吸尾迹
-        let hasActiveTailEffect: Bool = store.preferences.showLyricEffects
-            && nowMs >= line.end
-            && nowMs < line.end + 1250
-            && line.emphasis.contains { $0.effect == "shatter" || $0.effect == "dissolve" || $0.effect == "glow" }
-        let useSweepRenderer = isActive || activeBlend > 0.004 || hasActiveTailEffect
-        let inactiveDimScale = store.config.hdr ? 0.6 : 1.0
 
         // 已逐字对齐的音译由行内 .lyric-ruby 在每个音节正下方渲染并同步擦除，不再重复渲染整行音译（对齐 lyric-player.ts 1242）
         let showWholeLineRomaji = showRomaji && line.romanizationWords.isEmpty
@@ -625,6 +625,7 @@ private struct LyricStageRow: View {
                         line: line,
                         lineKeyPrefix: "stage-\(item.id)",
                         songFont: songFont,
+                        songMotion: store.lyrics.motion,
                         wordSynced: wordSynced,
                         showEffects: store.preferences.showLyricEffects,
                         showRomaji: showRomaji,
@@ -714,6 +715,7 @@ private struct LyricStageRow: View {
             store.stageSpringEngine.reportHeight(id: placed.id, height: h)
         }
         .scaleEffect(placed.scale, anchor: scaleAnchor)
+        .rotationEffect(.degrees(abs(placed.rotDeg) < 0.02 ? 0 : placed.rotDeg), anchor: scaleAnchor)
         .blur(radius: blurRadius)
         .opacity(bgAlpha * rowDimFactor)
         .contentShape(Rectangle())
@@ -728,7 +730,7 @@ private struct LyricStageRow: View {
                 && placed.y < stageHeight - 4
                 && (!line.isBackground || placed.expand > 0.35)
         )
-        .offset(y: placed.y)
+        .offset(x: abs(placed.x) < 0.02 ? 0 : placed.x, y: placed.y)
     }
 }
 

@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"math"
 	"regexp"
 	"slices"
 	"strings"
@@ -301,16 +302,25 @@ func lyricCreditRange(texts []string, title string, artists []string) (head, tai
 	return head, tail
 }
 
-// lyricPaceSummary 预处理算出的全曲句子推进时速参考（供模型选择全曲滚动律动预设 motion）：
-// 统计非署名主唱行在非间奏连续演唱段内的句间推进间隔（中位数秒/行、折算行/分钟、快切占比与平均发音单元速率），
-// 让模型客观感知歌词在屏幕上滚动换行的真实物理快慢，不必仅凭歌词字数盲猜。
+// lyricPaceSummary 预处理算出的全曲句子推进时速与松紧反差画像（供模型选择全曲滚动律动预设 motion，以及未走 AI 时的启发式兜底）：
+// 基于线上 798 首歌单实测分位数标定（median p10=2.39s / p50=3.57s / p90=5.88s；p25_step p10=1.68s / p50=2.85s；
+// rapid <1.5s p75=8% / p90=19%；units/s p50=2.33 / p90=3.56；held >=1.5s p50=8% / p75=18%；step_cv p50=0.39 / p75=0.46），
+// 让模型客观感知歌词在屏幕上滚动换行的真实物理快慢、段落爆发反差与留白长音比例。
 type lyricPaceSummary struct {
-	Valid         bool
-	MedianStepSec float64
-	LinesPerMin   float64
-	RapidPct      int
-	UnitsPerSec   float64
-	RangeHint     string
+	Valid          bool
+	MedianStepSec  float64
+	P25StepSec     float64
+	SurgeRatio     float64
+	LinesPerMin    float64
+	RapidPct       int
+	UltraRapidPct  int
+	UnitsPerSec    float64
+	HeldPct        int
+	LivelyPunctPct int
+	RepeatPct      int
+	StepCV         float64
+	Suggested      string
+	RangeHint      string
 }
 
 func (p lyricPaceSummary) format() string {
@@ -318,11 +328,51 @@ func (p lyricPaceSummary) format() string {
 		return ""
 	}
 	if p.UnitsPerSec > 0.1 {
-		return fmt.Sprintf("median %.2fs/line (~%.0f lines/min, %d%% rapid <1.5s steps, %.1f vocal units/s — %s)",
-			p.MedianStepSec, p.LinesPerMin, p.RapidPct, p.UnitsPerSec, p.RangeHint)
+		return fmt.Sprintf("median %.2fs/line, p25 %.2fs/line (%.2fx surge, ~%.0f lines/min, %d%% rapid <1.5s steps, %.1f vocal units/s, %d%% held notes, step CV %.2f — %s)",
+			p.MedianStepSec, p.P25StepSec, p.SurgeRatio, p.LinesPerMin, p.RapidPct, p.UnitsPerSec, p.HeldPct, p.StepCV, p.RangeHint)
 	}
-	return fmt.Sprintf("median %.2fs/line (~%.0f lines/min, %d%% rapid <1.5s steps — %s)",
-		p.MedianStepSec, p.LinesPerMin, p.RapidPct, p.RangeHint)
+	return fmt.Sprintf("median %.2fs/line, p25 %.2fs/line (%.2fx surge, ~%.0f lines/min, %d%% rapid <1.5s steps, step CV %.2f — %s)",
+		p.MedianStepSec, p.P25StepSec, p.SurgeRatio, p.LinesPerMin, p.RapidPct, p.StepCV, p.RangeHint)
+}
+
+func hasLivelyLyricPunct(text string) bool {
+	return strings.ContainsAny(text, "!！?？~～♪☆♡")
+}
+
+// classifyLyricMotionFromPace 按线上歌单实测分布标定出的 6 档滚动预设粗略区间与推荐提示
+func classifyLyricMotionFromPace(med, p25, surge float64, rapid, ultra int, ups float64, held, lively, repeatPct int, cv float64) (suggested, hint string) {
+	// 1. crisp（干脆磁吸）：高速密集说唱 / 电子 / 疾走快切
+	if med <= 2.30 || p25 <= 1.60 || rapid >= 22 || ultra >= 10 || (ups >= 3.90 && p25 <= 2.20) {
+		return "crisp", "fast / dense line turnover, empirically calibrated for crisp or bouncy (avoid gentle/plush)"
+	}
+
+	// 2. gentle（舒缓呼吸）：从容慢抒情 / 留白长音（连快段 p25 都偏舒缓）
+	if p25 >= 3.25 && rapid <= 5 && ((med >= 5.15 && (ups == 0 || ups <= 2.55)) || (med >= 4.55 && held >= 20) || med >= 5.75) {
+		return "gentle", "slow / spacious phrasing, empirically calibrated for gentle or plush (avoid crisp/bouncy)"
+	}
+
+	// 3. bouncy（俏皮快弹）：轻快跳跃 / 元气电波 / 副歌活泼点踏
+	if (med <= 3.05 && (rapid >= 7 || p25 <= 2.20 || ups >= 2.85 || lively >= 8)) ||
+		(p25 <= 2.05 && held <= 12 && med <= 3.55) ||
+		(lively >= 12 && med <= 3.75 && held <= 15) {
+		return "bouncy", "upbeat / lively step rhythm, empirically calibrated for bouncy, flow, or crisp (avoid gentle)"
+	}
+
+	// 4. cascade（扇入推镜）：戏剧张力强、主副歌松紧反差显著（高 step CV 或高主副歌提速比）
+	if (cv >= 0.45 && med >= 2.85 && med <= 5.50 && (held >= 12 || surge >= 1.45 || repeatPct >= 28)) ||
+		(surge >= 1.75 && med >= 3.80 && (held >= 10 || repeatPct >= 22)) ||
+		(cv >= 0.52 && med <= 5.40) {
+		return "cascade", "dramatic dynamic contrast (verse-to-chorus surge), empirically calibrated for cascade, plush, or flow"
+	}
+
+	// 5. plush（云朵慢弹）：温润绵软慢回弹，广泛适配中速/中慢速温暖流行、R&B、City Pop、治愈系与抒情律动
+	if (med >= 3.40 && med <= 5.45 && rapid <= 8 && (ups == 0 || ups <= 2.95)) ||
+		(med >= 3.00 && med <= 4.40 && held <= 10 && cv < 0.42 && (ups == 0 || ups <= 2.70)) {
+		return "plush", "warm relaxed mid-tempo groove, empirically calibrated for plush, flow, or gentle (avoid crisp)"
+	}
+
+	// 6. flow（丝滑波浪）：匀称连贯推进的经典流行 / 叙事摇滚 / J-Pop
+	return "flow", "steady balanced cadence, empirically calibrated for flow, plush, or bouncy depending on mood"
 }
 
 func countLyricVocalUnits(text string) int {
@@ -362,11 +412,15 @@ func lyricPaceSummaryOf(info lyricAnnotationInfo) lyricPaceSummary {
 			credit[i] = i < head || i >= tail
 		}
 	}
+	repeatGroups, _ := lyricRepeatGroups(timed, credit)
 
 	type mainSpan struct {
-		start int64
-		end   int64
-		units int
+		start  int64
+		end    int64
+		units  int
+		held   bool
+		lively bool
+		repeat bool
 	}
 	var mains []mainSpan
 	for i, l := range timed {
@@ -377,7 +431,18 @@ func lyricPaceSummaryOf(info lyricAnnotationInfo) lyricPaceSummary {
 		if u == 0 {
 			continue
 		}
-		mains = append(mains, mainSpan{start: l.Start, end: l.End, units: u})
+		held := l.Held != nil
+		if !held && l.End > l.Start && (l.End-l.Start) >= 4800 && u <= 8 {
+			held = true
+		}
+		mains = append(mains, mainSpan{
+			start:  l.Start,
+			end:    l.End,
+			units:  u,
+			held:   held,
+			lively: hasLivelyLyricPunct(l.Text),
+			repeat: i < len(repeatGroups) && repeatGroups[i] > 0,
+		})
 	}
 	if len(mains) < 5 {
 		return lyricPaceSummary{}
@@ -386,9 +451,22 @@ func lyricPaceSummaryOf(info lyricAnnotationInfo) lyricPaceSummary {
 
 	var stepsMs []int64
 	rapidCount := 0
+	ultraRapidCount := 0
+	heldCount := 0
+	livelyCount := 0
+	repeatCount := 0
 	var totalUnits int
 	var totalDurMs int64
 	for i, m := range mains {
+		if m.held {
+			heldCount++
+		}
+		if m.lively {
+			livelyCount++
+		}
+		if m.repeat {
+			repeatCount++
+		}
 		if m.end > m.start {
 			dur := m.end - m.start
 			if dur >= 250 && dur <= 20000 {
@@ -417,6 +495,9 @@ func lyricPaceSummaryOf(info lyricAnnotationInfo) lyricPaceSummary {
 		if step < 1500 {
 			rapidCount++
 		}
+		if step < 1050 {
+			ultraRapidCount++
+		}
 	}
 	if len(stepsMs) < 4 {
 		return lyricPaceSummary{}
@@ -433,26 +514,64 @@ func lyricPaceSummaryOf(info lyricAnnotationInfo) lyricPaceSummary {
 	if medianSec <= 0.1 {
 		return lyricPaceSummary{}
 	}
+	p25Sec := float64(stepsMs[n/4]) / 1000.0
+	if p25Sec <= 0.1 {
+		p25Sec = medianSec
+	}
+	surgeRatio := medianSec / max(0.2, p25Sec)
+
+	var sumMs float64
+	for _, s := range stepsMs {
+		sumMs += float64(s)
+	}
+	meanMs := sumMs / float64(n)
+	var stepCV float64
+	if meanMs > 1 {
+		var variance float64
+		for _, s := range stepsMs {
+			diff := float64(s) - meanMs
+			variance += diff * diff
+		}
+		stepCV = math.Sqrt(variance/float64(n)) / meanMs
+	}
+
 	linesPerMin := 60.0 / medianSec
 	rapidPct := (rapidCount*100 + n/2) / n
+	ultraRapidPct := (ultraRapidCount*100 + n/2) / n
+	mCount := len(mains)
+	heldPct := (heldCount*100 + mCount/2) / mCount
+	livelyPct := (livelyCount*100 + mCount/2) / mCount
+	repeatPct := (repeatCount*100 + mCount/2) / mCount
 	var unitsPerSec float64
 	if totalDurMs >= 2000 {
 		unitsPerSec = float64(totalUnits) / (float64(totalDurMs) / 1000.0)
 	}
 
-	hint := "moderate cadence, suits flow, bouncy, or gentle depending on mood"
-	if medianSec <= 1.85 || rapidPct >= 45 || unitsPerSec >= 6.5 {
-		hint = "fast / dense line turnover, suits crisp or bouncy (avoid gentle)"
-	} else if medianSec >= 4.10 && rapidPct <= 15 && (unitsPerSec == 0 || unitsPerSec <= 3.6) {
-		hint = "slow / spacious phrasing, suits gentle or flow (avoid crisp/bouncy)"
-	}
+	suggested, hint := classifyLyricMotionFromPace(
+		medianSec, p25Sec, surgeRatio, rapidPct, ultraRapidPct, unitsPerSec, heldPct, livelyPct, repeatPct, stepCV,
+	)
 
 	return lyricPaceSummary{
-		Valid:         true,
-		MedianStepSec: medianSec,
-		LinesPerMin:   linesPerMin,
-		RapidPct:      rapidPct,
-		UnitsPerSec:   unitsPerSec,
-		RangeHint:     hint,
+		Valid:          true,
+		MedianStepSec:  medianSec,
+		P25StepSec:     p25Sec,
+		SurgeRatio:     surgeRatio,
+		LinesPerMin:    linesPerMin,
+		RapidPct:       rapidPct,
+		UltraRapidPct:  ultraRapidPct,
+		UnitsPerSec:    unitsPerSec,
+		HeldPct:        heldPct,
+		LivelyPunctPct: livelyPct,
+		RepeatPct:      repeatPct,
+		StepCV:         stepCV,
+		Suggested:      suggested,
+		RangeHint:      hint,
 	}
+}
+
+func suggestHeuristicLyricMotion(info lyricAnnotationInfo) string {
+	if pace := lyricPaceSummaryOf(info); pace.Valid && lyricAnnotationMotions[pace.Suggested] {
+		return pace.Suggested
+	}
+	return "plush"
 }

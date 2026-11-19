@@ -103,7 +103,7 @@ type MusicLyricAnnotationsDto struct {
 	SongLang string `json:"song_lang,omitempty"`
 	// 全曲字体（字体表中的名称，见 service.lyricAnnotationFonts），为空时用站点默认字体
 	Font string `json:"font,omitempty"`
-	// 全曲歌词行滚动律动预设（见 service.lyricAnnotationMotions：flow / bouncy / crisp / gentle），为空时默认走 flow
+	// 全曲歌词行滚动律动预设（见 service.lyricAnnotationMotions：flow / plush / bouncy / crisp / gentle / cascade），为空时默认走 flow
 	Motion string `json:"motion,omitempty"`
 	// 前奏时显示的一句导语（模型写给听众），可为空
 	Intro string `json:"intro,omitempty"`
@@ -613,4 +613,24 @@ type MusicSongMVDto struct {
 type MusicMVSettingReq struct {
 	OffsetMs int  `json:"offset_ms"`
 	Disabled bool `json:"disabled"`
+}
+
+// MusicLyricMotionReq 获取一首歌指定词源的歌词上浮弹性（source 为空时取全站歌词版本，支持逐字与逐行 LRC）
+type MusicLyricMotionReq struct {
+	Source string `query:"source"`
+}
+
+// MusicLyricMotionRefreshReq 管理员单独重新生成指定词源的 AI 歌词上浮弹性
+type MusicLyricMotionRefreshReq struct {
+	Source string `json:"source"`
+}
+
+// MusicLyricMotionDto 独立查询/生成的歌词上浮弹性结果：
+// status 为 ready 或 pending；即使处于 pending 首屏也立即携带按歌单时速标定出的启发式 motion 兜底，AI 完成后平滑切换
+type MusicLyricMotionDto struct {
+	Status string `json:"status"`
+	Stale  bool   `json:"stale,omitempty"`
+	Source string `json:"source,omitempty"`
+	Motion string `json:"motion"`
+	AI     bool   `json:"ai,omitempty"`
 }

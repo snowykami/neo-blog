@@ -70,6 +70,12 @@ interface Entry {
 }
 
 const entries = new Map<number, Entry>()
+const readyHooks = new Set<(id: number) => void>()
+
+export function onLyricAnnotationsReady(hook: (id: number) => void) {
+  readyHooks.add(hook)
+  return () => readyHooks.delete(hook)
+}
 
 function getEntry(id: number): Entry {
   let entry = entries.get(id)
@@ -119,8 +125,10 @@ export function requestLyricAnnotations(id: number) {
         settle(entry, toSiteAnnotations(result), generating)
       else
         setGenerating(entry, generating)
-      if (!generating)
+      if (!generating) {
+        readyHooks.forEach(hook => hook(id))
         return
+      }
       polls++
       if (polls < MAX_POLLS)
         setTimeout(load, pollDelayMs(polls))

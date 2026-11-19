@@ -1291,7 +1291,7 @@ extension IslandStore {
             if pollAttempt == 0 {
                 self.scheduleAutonomousPrewarm()
             }
-            if (resolved.translationsGenerating || resolved.pronunciationsGenerating) && pollAttempt < 6 {
+            if (resolved.translationsGenerating || resolved.pronunciationsGenerating || resolved.motionGenerating) && pollAttempt < 6 {
                 try? await Task.sleep(for: .milliseconds(2500))
                 guard !Task.isCancelled,
                       self.autonomousSessionStorage?.track.id == curTrack.id else {

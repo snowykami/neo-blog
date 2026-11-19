@@ -160,6 +160,8 @@ interface ItemView {
   main: HTMLElement | null
   height: number
   y: Spring
+  x: Spring
+  rot: Spring
   scale: Spring
   // 间奏展开程度（0 收起，1 展开）
   expand?: Spring
@@ -1124,8 +1126,12 @@ export class LyricPlayer {
 
   private syncMotionSprings() {
     const springs = resolveMotionSprings(this.lyrics.motion, this.currentStepIntervalMs)
+    this.container.style.setProperty('--lyric-blur-in', `${Math.round(springs.blurInTau * 1600)}ms`)
+    this.container.style.setProperty('--lyric-blur-out', `${Math.round(springs.blurOutTau * 1600)}ms`)
     for (const view of this.views) {
       view.y.setParams(springs.position)
+      view.x.setParams(springs.position)
+      view.rot.setParams(springs.position)
       view.scale.setParams(springs.scale)
       view.pillExpand?.setParams(springs.position)
       if (view.item.kind === 'interlude')
@@ -1144,6 +1150,8 @@ export class LyricPlayer {
     const soloCount = soloAgents.length
     const bgOwners = getBackgroundOwnerMap(this.lyrics.lines)
     const initSprings = resolveMotionSprings(this.lyrics.motion)
+    this.container.style.setProperty('--lyric-blur-in', `${Math.round(initSprings.blurInTau * 1600)}ms`)
+    this.container.style.setProperty('--lyric-blur-out', `${Math.round(initSprings.blurOutTau * 1600)}ms`)
     this.views = this.items.map((item, itemIndex) => {
       const view: ItemView = {
         item,
@@ -1151,6 +1159,8 @@ export class LyricPlayer {
         main: null,
         height: 0,
         y: new Spring(0, initSprings.position),
+        x: new Spring(0, initSprings.position),
+        rot: new Spring(0, initSprings.position),
         scale: new Spring(initSprings.inactiveScale, initSprings.scale),
         words: [],
         emphasis: [],
@@ -1870,12 +1880,17 @@ export class LyricPlayer {
     this.stripSlots = slots
     const center = (tops[focus] ?? 0) - scroll
 
-    // 阶梯入场：仅对真实可视区内的条目计阶梯（不含 300px 离屏缓冲区），且前两行零延迟立即响应，避免出局句与焦点句慢半拍
+    // 阶梯入场与空间弧线：仅对真实可视区内的条目计阶梯（不含 300px 离屏缓冲区）；
+    // 出局句零延迟立即上移，新焦点句按 focusDelayMul 轻微蓄力错拍，待唱句按阶梯延迟波浪递进
     const motionSprings = resolveMotionSprings(this.lyrics.motion, this.currentStepIntervalMs)
-    let delay = 0
+    const focusDelay = motionSprings.staggerBaseS * motionSprings.focusDelayMul
+    let delay = focusDelay
     let step = motionSprings.staggerBaseS
-    let staggerOrder = 0
     const stagger = focusChanged && !jump && !this.manual
+    const fastCut = this.currentStepIntervalMs != null && this.currentStepIntervalMs > 0 && this.currentStepIntervalMs < 420
+    const spatialActive = !strip && !this.manual && !dragging && !this.reducedMotion && Boolean(this.lyrics.motion)
+    const arcScale = spatialActive ? (this.options.compact ? 0.5 : 1) : 0
+    const tiltScale = spatialActive ? (this.options.compact ? 0.65 : 1) : 0
 
     for (let i = 0; i < this.views.length; i++) {
       const view = this.views[i]
@@ -1894,6 +1909,21 @@ export class LyricPlayer {
           view.el.classList.toggle('lyric-line--half', half)
         }
       }
+
+      const rel = i - focus
+      let alignSign = 1
+      if (view.item.kind === 'line') {
+        const align = getLyricLineAlign(this.lyrics.lines[view.item.line])
+        alignSign = align === 'right' ? -1 : (align === 'center' ? 0 : 1)
+      }
+      const highlighted = view.item.kind === 'line' ? this.activeLines.has(view.item.line) || i === focus : false
+      const targetX = (arcScale === 0 || highlighted)
+        ? 0
+        : (rel > 0 ? Math.min(3, rel) * motionSprings.arcPx : (rel < 0 ? -motionSprings.arcPx * 0.25 : 0)) * arcScale * alignSign
+      const targetRot = (tiltScale === 0 || highlighted)
+        ? 0
+        : (rel > 0 ? Math.min(2.5, rel * 0.8) * motionSprings.tiltDeg : 0) * tiltScale * alignSign
+
       // 单行条按容器本身判断：移出的上一行不排队，新行立即移入；多行舞台只对真实可视区条目施加波浪阶梯
       const inStaggerViewport = !strip && (
         (target + heights[i] > 4 && target < this.containerHeight - 4)
@@ -1901,22 +1931,34 @@ export class LyricPlayer {
       )
       if (jump || dragging) {
         view.y.jump(target)
+        view.x.jump(targetX)
+        view.rot.jump(targetRot)
       }
       else if (stagger && inStaggerViewport) {
-        const itemDelay = staggerOrder <= 1 ? 0 : delay
-        view.y.setTarget(target, itemDelay)
-        if (staggerOrder >= 1) {
+        let itemDelay = 0
+        if (rel === 0) {
+          itemDelay = focusDelay
+        }
+        else if (rel > 0) {
           delay += step
           step /= LYRIC_STAGGER_DECAY
+          itemDelay = delay
         }
-        staggerOrder++
+        if (fastCut && itemDelay > 0 && Math.abs(view.y.velocity) > 120 && (target - view.y.position) * view.y.velocity > 0)
+          itemDelay = Math.min(itemDelay * 0.35, 0.018)
+        view.y.setTarget(target, itemDelay)
+        view.x.setTarget(targetX, itemDelay)
+        view.rot.setTarget(targetRot, itemDelay)
       }
       else {
         view.y.setTarget(target, 0)
+        view.x.setTarget(targetX, 0)
+        view.rot.setTarget(targetRot, 0)
       }
       view.y.step(dt)
+      view.x.step(dt)
+      view.rot.step(dt)
 
-      const highlighted = view.item.kind === 'line' ? this.activeLines.has(view.item.line) || i === focus : false
       const bgLine = !strip && view.owner >= 0 && view.expand != null
       const baseScale = bgLine
         ? (this.isBgExpanded(i) ? 1 : LYRIC_BG_COLLAPSED_SCALE)
@@ -1931,9 +1973,9 @@ export class LyricPlayer {
       if (jump)
         view.scale.jump(scaleTarget)
       else
-        view.scale.setTarget(scaleTarget)
+        view.scale.setTarget(scaleTarget, stagger && inStaggerViewport && rel === 0 ? focusDelay * 0.5 : 0)
       view.scale.step(dt)
-      animating ||= !view.y.resting || !view.scale.resting
+      animating ||= !view.y.resting || !view.x.resting || !view.rot.resting || !view.scale.resting
     }
     return animating
   }
@@ -2046,7 +2088,11 @@ export class LyricPlayer {
         continue
 
       const scale = view.scale.position
-      const transform = `translate3d(0, ${y.toFixed(2)}px, 0) scale(${scale.toFixed(4)})`
+      const x = view.x.position
+      const rot = view.rot.position
+      const xStr = Math.abs(x) < 0.02 ? '0' : `${x.toFixed(2)}px`
+      const rotStr = Math.abs(rot) < 0.02 ? '' : ` rotate(${rot.toFixed(2)}deg)`
+      const transform = `translate3d(${xStr}, ${y.toFixed(2)}px, 0) scale(${scale.toFixed(4)})${rotStr}`
       if (transform !== view.transform) {
         view.transform = transform
         view.el.style.transform = transform
@@ -2244,7 +2290,11 @@ export class LyricPlayer {
     liftExitWeight = 0,
   ) {
     const bg = view.item.kind === 'line' && Boolean(this.lyrics.lines[view.item.line]?.isBackground)
-    const floatPx = LYRIC_WORD_FLOAT_EM * this.fontSize * (bg ? 2 : 1)
+    const motionSpec = this.lyrics.motion ? resolveMotionSprings(this.lyrics.motion) : null
+    const wordFloatEm = motionSpec ? motionSpec.wordFloatEm : LYRIC_WORD_FLOAT_EM
+    const bounceBell = motionSpec ? motionSpec.bounceBell : 0
+    const floatPx = wordFloatEm * this.fontSize * (bg ? 2 : 1)
+    const liftCurve = (p: number) => easeOut(p) + (bounceBell > 0 ? Math.sin(p * Math.PI) * bounceBell : 0)
     const effectsOn = this.display.effects && !this.reducedMotion
     const wordEndAlpha = hdrExit ? hdrExitEndAlpha(hdrExit.targetAlpha, hdrExit.lineGain) : 0
     for (const word of view.words) {
@@ -2270,7 +2320,7 @@ export class LyricPlayer {
           }
         }
         if (!this.reducedMotion && progress > 0 && word.lifts && (!word.emphasized || !effectsOn))
-          transform = `translateY(${(-floatPx * easeOut(progress)).toFixed(2)}px)`
+          transform = `translateY(${(-floatPx * liftCurve(progress)).toFixed(2)}px)`
       }
       else if (hdrExit && !word.split) {
         const progress = getWordProgress(word.word.start, word.word.end, timeMs)
@@ -2278,7 +2328,7 @@ export class LyricPlayer {
         const nextAlpha = wordEndAlpha + (startAlpha - wordEndAlpha) * hdrExit.weight
         opacity = nextAlpha < 0.9995 ? nextAlpha.toFixed(3) : ''
         if (!this.reducedMotion && progress > 0 && word.lifts) {
-          const dy = -floatPx * easeOut(progress) * hdrExit.weight
+          const dy = -floatPx * liftCurve(progress) * hdrExit.weight
           if (Math.abs(dy) >= 0.02)
             transform = `translateY(${dy.toFixed(2)}px)`
         }
@@ -2286,7 +2336,7 @@ export class LyricPlayer {
       else if (liftExitWeight > 0 && !word.split && !this.reducedMotion && word.lifts && (!word.emphasized || !effectsOn)) {
         const progress = getWordProgress(word.word.start, word.word.end, timeMs)
         if (progress > 0) {
-          const dy = -floatPx * easeOut(progress) * liftExitWeight
+          const dy = -floatPx * liftCurve(progress) * liftExitWeight
           if (Math.abs(dy) >= 0.02)
             transform = `translateY(${dy.toFixed(2)}px)`
         }

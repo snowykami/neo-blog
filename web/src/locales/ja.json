@@ -3811,7 +3811,11 @@
       "target": "目標周期",
       "inhale": "吸うときの拡大",
       "exhale": "吐くときの縮小"
-    }
+    },
+    "motion_title": "歌詞フロート弾性",
+    "motion_effective": "有効プリセット：{motion}",
+    "motion_preview_note": "（プレビュー試聴中）",
+    "motion_chart_hint": "青・ピンク・紫は退場行・フォーカス行・待機行の階段スプリング応答軌跡"
   },
   "Response": {
     "error": {
@@ -4880,7 +4884,11 @@
     "mv_setting_save": "保存",
     "mv_setting_saving": "保存中…",
     "mv_setting_saved": "MV 設定を保存しました",
-    "mv_setting_save_failed": "MV 設定を保存できませんでした"
+    "mv_setting_save_failed": "MV 設定を保存できませんでした",
+    "lyric_ai_menu_label": "AI 歌詞の再生成",
+    "lyric_motion_refresh": "AI 歌詞弾性を再生成",
+    "lyric_motion_refresh_started": "歌詞弾性の再生成を開始しました。完了後に自動反映されます",
+    "lyric_motion_refresh_failed": "歌詞弾性の再生成に失敗しました"
   },
   "LyricOptions": {
     "categories": {
@@ -4933,10 +4941,12 @@
       "script": "筆記体（英字）"
     },
     "motions": {
+      "plush": "雲スローバウンス",
       "flow": "なめらかウェーブ",
-      "bouncy": "弾むバウンス",
+      "bouncy": "ポップ快弾み",
       "crisp": "キレのあるスナップ",
-      "gentle": "ゆったり呼吸"
+      "gentle": "ゆったり呼吸",
+      "cascade": "シネマ扇イン"
     },
     "scenes": {
       "petals": "花びら",

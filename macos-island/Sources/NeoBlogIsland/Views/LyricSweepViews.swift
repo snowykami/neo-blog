@@ -1041,6 +1041,7 @@ struct LyricLineSweepView: View {
     let line: LyricLinePayload
     let lineKeyPrefix: String
     let songFont: String?
+    var songMotion: String? = nil
     let wordSynced: Bool
     let showEffects: Bool
     var showRomaji: Bool = false
@@ -1096,6 +1097,7 @@ struct LyricLineSweepView: View {
                             defaultFont: defaultFont,
                             lineEnd: line.end,
                             songFont: songFont,
+                            songMotion: songMotion,
                             fontSize: fontSize,
                             isBackground: isBackground,
                             hdrEnabled: hdrEnabled,
@@ -1148,6 +1150,7 @@ struct LyricLineSweepView: View {
                             defaultFont: defaultFont,
                             lineEnd: line.end,
                             songFont: songFont,
+                            songMotion: songMotion,
                             fontSize: fontSize,
                             isBackground: isBackground,
                             hdrEnabled: hdrEnabled,
@@ -1450,6 +1453,7 @@ private struct LyricWordUnitView: View {
     let defaultFont: Font
     let lineEnd: Double
     let songFont: String?
+    var songMotion: String? = nil
     let fontSize: CGFloat
     let isBackground: Bool
     let hdrEnabled: Bool
@@ -1470,6 +1474,7 @@ private struct LyricWordUnitView: View {
                     fontSize: fontSize,
                     isBackground: isBackground,
                     hdrEnabled: hdrEnabled,
+                    songMotion: songMotion,
                     spotlightLevel: spotlightLevel,
                     activeBlend: activeBlend,
                     allowsFloat: true,
@@ -1507,6 +1512,7 @@ private struct PlainWordSpanView: View {
     let fontSize: CGFloat
     let isBackground: Bool
     let hdrEnabled: Bool
+    var songMotion: String? = nil
     var spotlightLevel: Double = 0
     var activeBlend: Double = 1.0
     var allowsFloat: Bool = true
@@ -1519,9 +1525,13 @@ private struct PlainWordSpanView: View {
             ? (shiftedMs >= word.start ? 1.0 : 0.0)
             : min(1.0, max(0.0, (shiftedMs - word.start) / dur))
         let liftBlend = min(1.0, max(0.0, activeBlend * 1.85))
-        let floatPx = allowsFloat ? (LyricSpecs.wordFloatEm * Double(fontSize) * (isBackground ? 2.0 : 1.0)) : 0
+        let motionPreset = songMotion.flatMap(LyricMotionPreset.init(rawValue:))
+        let effWordFloatEm = motionPreset?.wordFloatEm ?? LyricSpecs.wordFloatEm
+        let effBounceBell = motionPreset?.bounceBell ?? 0.0
+        let floatPx = allowsFloat ? (effWordFloatEm * Double(fontSize) * (isBackground ? 2.0 : 1.0)) : 0
+        let liftCurve = CubicBezier.easeOut.eval(progress) + (effBounceBell > 0 ? Foundation.sin(progress * .pi) * effBounceBell : 0.0)
         let dy = (allowsFloat && progress > 0 && liftBlend > 0)
-            ? CGFloat(-floatPx * CubicBezier.easeOut.eval(progress) * liftBlend)
+            ? CGFloat(-floatPx * liftCurve * liftBlend)
             : 0
         let fullPeakGain = 1.32 + (1.78 - 1.32) * spotlightLevel
         let peakGain = hdrEnabled ? (1.0 + (fullPeakGain - 1.0) * activeBlend) : 1.0

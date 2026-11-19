@@ -358,7 +358,8 @@
   "RhythmDebug": {
     "reasons": {
       "save_data": "瀏覽器開啟了節省數據，不額外下載音訊分析"
-    }
+    },
+    "motion_preview_note": "（偵錯試聽中）"
   },
   "Response": {
     "error_details": {

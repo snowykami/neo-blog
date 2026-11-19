@@ -3811,7 +3811,11 @@
       "target": "목표 주기",
       "inhale": "들숨 확대",
       "exhale": "날숨 축소"
-    }
+    },
+    "motion_title": "가사 플로트 탄성",
+    "motion_effective": "적용 탄성: {motion}",
+    "motion_preview_note": " (디버그 미리듣기 중)",
+    "motion_chart_hint": "파랑 / 분홍 / 보라는 퇴장행, 포커스행, 대기행의 계단형 스프링 응답 궤적입니다"
   },
   "Response": {
     "error": {
@@ -4880,7 +4884,11 @@
     "mv_setting_save": "저장",
     "mv_setting_saving": "저장 중…",
     "mv_setting_saved": "MV 설정을 저장했습니다",
-    "mv_setting_save_failed": "MV 설정을 저장하지 못했습니다"
+    "mv_setting_save_failed": "MV 설정을 저장하지 못했습니다",
+    "lyric_ai_menu_label": "AI 가사 재생성",
+    "lyric_motion_refresh": "AI 가사 탄성 재생성",
+    "lyric_motion_refresh_started": "가사 탄성 재생성을 시작했으며 완료 후 자동 적용됩니다",
+    "lyric_motion_refresh_failed": "가사 탄성 재생성에 실패했습니다"
   },
   "LyricOptions": {
     "categories": {
@@ -4933,10 +4941,12 @@
       "script": "필기체(영문)"
     },
     "motions": {
+      "plush": "구름 슬로우 바운스",
       "flow": "부드러운 물결",
-      "bouncy": "통통 튀는 탄성",
+      "bouncy": "발랄 패스트 바운스",
       "crisp": "절도 있는 스냅",
-      "gentle": "잔잔한 호흡"
+      "gentle": "잔잔한 호흡",
+      "cascade": "팬인 캐스케이드"
     },
     "scenes": {
       "petals": "꽃잎",

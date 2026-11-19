@@ -8,7 +8,7 @@ import type { LyricTrackInfo } from '@/lib/lyrics/strip-credits'
 import type { LyricTargetLang } from '@/lib/lyrics/target-lang'
 import type { LyricLang } from '@/lib/lyrics/types'
 import { useLocale } from 'next-intl'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { normalizeDisplayLangTag } from '@/lib/language-label'
 import { applyLyricSingers, canResolveLyricSingers } from '@/lib/lyrics/apply-singers'
@@ -28,6 +28,7 @@ import {
   detectSongPronunciationBucket,
   shouldHideSameLangPronunciation,
 } from '@/lib/lyrics/lyric-pronunciation'
+import { getRhythmParams, subscribeRhythmParams } from '@/lib/lyrics/rhythm/params'
 import {
   resolveBucketSelections,
   resolvePronunciationEnabled,
@@ -36,6 +37,7 @@ import {
   toPronunciationBucket,
 } from '@/lib/lyrics/target-lang'
 import { requestLyricAnnotations, useLyricAnnotations, useLyricAnnotationsGenerating } from './lyric-annotations'
+import { requestLyricMotion, useLyricMotion } from './lyric-motion'
 import { requestLyricPronunciations, useLyricPronunciations, useLyricPronunciationsGenerating } from './lyric-pronunciations'
 import { requestLyricSingers, useLyricSingers } from './lyric-singers'
 import {
@@ -451,30 +453,55 @@ export function MusicLyricsEngine({
     && pronouncedLyrics.lines.some(line => Boolean(line.romanization)),
   )
 
+  const storedAnnotations = useLyricAnnotations(trackId)
+  const annotations = storedAnnotations?.source === rawLyrics.source ? storedAnnotations : null
   const wantsAnnotations = isPlaying && showLyricEffects && rawLyrics.wordTimed && isSiteVersion && trackId != null && trackId > 0
   useEffect(() => {
     if (wantsAnnotations && trackId != null)
       requestLyricAnnotations(trackId)
   }, [trackId, wantsAnnotations])
+  const wantsMotion = isPlaying && validTrackId != null && lyricSource != null && !rawLyrics.instrumental && rawLyrics.lines.length > 0
+  useEffect(() => {
+    if (!wantsMotion || validTrackId == null || lyricSource == null)
+      return
+    if (annotations?.motion)
+      return
+    // 逐字全站词源且已开启 AI 歌词特效时，错开 400ms 让 /annotations 先建立任务租约，避免同帧并发双倍触发大模型
+    if (wantsAnnotations && siteInfo.musicAiEnabled) {
+      const timer = setTimeout(requestLyricMotion, 400, validTrackId, lyricSource)
+      return () => clearTimeout(timer)
+    }
+    requestLyricMotion(validTrackId, lyricSource)
+  }, [annotations?.motion, lyricSource, siteInfo.musicAiEnabled, validTrackId, wantsAnnotations, wantsMotion])
   const wantsHotComment = isPlaying && showLyricMoments && validTrackId != null
   useEffect(() => {
     if (wantsHotComment && validTrackId != null)
       requestSongHotComment(validTrackId)
   }, [validTrackId, wantsHotComment])
   const hotComment = useSongHotComment(showLyricMoments ? validTrackId : null)
-  const storedAnnotations = useLyricAnnotations(trackId)
-  const annotations = storedAnnotations?.source === rawLyrics.source ? storedAnnotations : null
+  const standaloneMotion = useLyricMotion(validTrackId, lyricSource)
+  const motionPreview = useSyncExternalStore(
+    subscribeRhythmParams,
+    () => getRhythmParams().motionPreview,
+    () => null,
+  )
+  const effectiveMotion = motionPreview
+    ?? (standaloneMotion?.ai ? standaloneMotion.motion : undefined)
+    ?? annotations?.motion
+    ?? standaloneMotion?.motion
   const emphasizedLyrics = useMemo(() => applyEmphasis(pronouncedLyrics, annotations), [annotations, pronouncedLyrics])
   const singerLyrics = useMemo(
     () => applyLyricSingers(emphasizedLyrics, storedSingers, effectiveShowTranslation),
     [effectiveShowTranslation, emphasizedLyrics, storedSingers],
   )
-  const lyrics = useMemo(
-    () => (showLyricMoments && !singerLyrics.outro && hotComment
-      ? { ...singerLyrics, outro: hotComment }
-      : singerLyrics),
-    [hotComment, showLyricMoments, singerLyrics],
-  )
+  const lyrics = useMemo(() => {
+    let resolved = singerLyrics
+    if (effectiveMotion && resolved.motion !== effectiveMotion)
+      resolved = { ...resolved, motion: effectiveMotion }
+    if (showLyricMoments && !resolved.outro && hotComment)
+      resolved = { ...resolved, outro: hotComment }
+    return resolved
+  }, [effectiveMotion, hotComment, showLyricMoments, singerLyrics])
   const annotationsGenerating = useLyricAnnotationsGenerating(showLyricEffects && rawLyrics.wordTimed && isSiteVersion ? trackId : null)
   const annotated = showLyricEffects && rawLyrics.wordTimed && ((annotations?.lines.length ?? 0) > 0 || (annotations?.singers?.length ?? 0) > 0)
 

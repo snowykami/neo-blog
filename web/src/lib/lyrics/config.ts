@@ -14,44 +14,163 @@ export const LYRIC_USER_SCROLL_HOLD_MS = 3000
 export interface LyricMotionPresetConfig {
   stiffness: number
   dampingRatio: number
+  scaleStiffness: number
+  scaleDampingRatio: number
   staggerBaseS: number
+  focusDelayMul: number
   inactiveScale: number
+  wordFloatEm: number
+  arcPx: number
+  tiltDeg: number
+  blurInTau: number
+  blurOutTau: number
+  bounceBell: number
 }
 
-// 四档全曲滚动律动预设（与后端 lyricAnnotationMotionList 及 macOS LyricMotionPreset 严格 1:1 对齐）
+// 六档全曲滚动律动预设（与后端 lyricAnnotationMotionList 及 macOS LyricMotionPreset 严格 1:1 对齐）
 export const LYRIC_MOTION_PRESETS: Record<LyricMotion, LyricMotionPresetConfig> = {
-  flow: { stiffness: 168, dampingRatio: 0.78, staggerBaseS: 0.042, inactiveScale: 0.97 },
-  bouncy: { stiffness: 185, dampingRatio: 0.66, staggerBaseS: 0.044, inactiveScale: 0.94 },
-  crisp: { stiffness: 225, dampingRatio: 0.86, staggerBaseS: 0.026, inactiveScale: 0.965 },
-  gentle: { stiffness: 118, dampingRatio: 0.88, staggerBaseS: 0.052, inactiveScale: 0.975 },
+  plush: {
+    stiffness: 90,
+    dampingRatio: 0.64,
+    scaleStiffness: 98,
+    scaleDampingRatio: 0.68,
+    staggerBaseS: 0.066,
+    focusDelayMul: 0.45,
+    inactiveScale: 0.895,
+    wordFloatEm: 0.10,
+    arcPx: 5,
+    tiltDeg: 0,
+    blurInTau: 0.14,
+    blurOutTau: 0.22,
+    bounceBell: 0.18,
+  },
+  flow: {
+    stiffness: 142,
+    dampingRatio: 0.78,
+    scaleStiffness: 155,
+    scaleDampingRatio: 0.82,
+    staggerBaseS: 0.060,
+    focusDelayMul: 0.45,
+    inactiveScale: 0.905,
+    wordFloatEm: 0.09,
+    arcPx: 8,
+    tiltDeg: 0,
+    blurInTau: 0.11,
+    blurOutTau: 0.20,
+    bounceBell: 0,
+  },
+  bouncy: {
+    stiffness: 165,
+    dampingRatio: 0.63,
+    scaleStiffness: 180,
+    scaleDampingRatio: 0.66,
+    staggerBaseS: 0.036,
+    focusDelayMul: 0.30,
+    inactiveScale: 0.885,
+    wordFloatEm: 0.12,
+    arcPx: 0,
+    tiltDeg: -0.45,
+    blurInTau: 0.055,
+    blurOutTau: 0.13,
+    bounceBell: 0.26,
+  },
+  crisp: {
+    stiffness: 360,
+    dampingRatio: 0.90,
+    scaleStiffness: 400,
+    scaleDampingRatio: 0.92,
+    staggerBaseS: 0.014,
+    focusDelayMul: 0.0,
+    inactiveScale: 0.885,
+    wordFloatEm: 0.06,
+    arcPx: 0,
+    tiltDeg: 0,
+    blurInTau: 0.03,
+    blurOutTau: 0.08,
+    bounceBell: 0,
+  },
+  gentle: {
+    stiffness: 68,
+    dampingRatio: 0.96,
+    scaleStiffness: 76,
+    scaleDampingRatio: 0.96,
+    staggerBaseS: 0.085,
+    focusDelayMul: 0.55,
+    inactiveScale: 0.925,
+    wordFloatEm: 0.08,
+    arcPx: 4,
+    tiltDeg: 0,
+    blurInTau: 0.26,
+    blurOutTau: 0.34,
+    bounceBell: 0,
+  },
+  cascade: {
+    stiffness: 162,
+    dampingRatio: 0.74,
+    scaleStiffness: 175,
+    scaleDampingRatio: 0.78,
+    staggerBaseS: 0.068,
+    focusDelayMul: 0.40,
+    inactiveScale: 0.880,
+    wordFloatEm: 0.10,
+    arcPx: 16,
+    tiltDeg: 1.7,
+    blurInTau: 0.12,
+    blurOutTau: 0.22,
+    bounceBell: 0,
+  },
 }
 
 export function resolveLyricMotionPreset(motion?: LyricMotion | null): LyricMotionPresetConfig {
   return (motion && LYRIC_MOTION_PRESETS[motion]) || LYRIC_MOTION_PRESETS.flow
 }
 
+export interface ResolvedMotionSprings {
+  position: SpringParams
+  scale: SpringParams
+  staggerBaseS: number
+  focusDelayMul: number
+  inactiveScale: number
+  wordFloatEm: number
+  arcPx: number
+  tiltDeg: number
+  blurInTau: number
+  blurOutTau: number
+  bounceBell: number
+}
+
 /**
- * 按全曲预设与当次切句时间间隔计算弹簧参数：
- * 当连续两句推进间隔 < 420ms（快嘴连切）时，自动收紧阻尼比至 ≥ 0.84 并提高刚度下限，防止 bouncy / gentle 在密集快句段上下晃动糊字
+ * 按全曲预设与当次切句时间间隔计算弹簧与轨迹参数：
+ * 当连续两句推进间隔 < 420ms（快嘴连切）时，自动收紧阻尼比至 ≥ 0.85 并提高刚度下限，防止 bouncy / plush / gentle 在密集快句段上下晃动糊字
  */
 export function resolveMotionSprings(
   motion?: LyricMotion | null,
   stepIntervalMs?: number | null,
-): { position: SpringParams, scale: SpringParams, staggerBaseS: number, inactiveScale: number } {
+): ResolvedMotionSprings {
   const preset = resolveLyricMotionPreset(motion)
   let k = preset.stiffness
   let zeta = preset.dampingRatio
+  let scaleK = preset.scaleStiffness
+  let scaleZeta = preset.scaleDampingRatio
   if (stepIntervalMs != null && stepIntervalMs > 0 && stepIntervalMs < 420) {
     const t = 1 - Math.max(0, stepIntervalMs - 160) / 260
-    k = Math.max(k, k + (205 - k) * t)
-    zeta = Math.max(zeta, zeta + (0.84 - zeta) * t)
+    k = Math.max(k, k + (230 - k) * t)
+    zeta = Math.max(zeta, zeta + (0.85 - zeta) * t)
+    scaleK = Math.max(scaleK, scaleK + (250 - scaleK) * t)
+    scaleZeta = Math.max(scaleZeta, scaleZeta + (0.88 - scaleZeta) * t)
   }
-  const scaleZeta = Math.min(0.92, zeta + 0.05)
   return {
     position: { mass: 1, stiffness: k, damping: 2 * zeta * Math.sqrt(k) },
-    scale: { mass: 1, stiffness: k, damping: 2 * scaleZeta * Math.sqrt(k) },
+    scale: { mass: 1, stiffness: scaleK, damping: 2 * scaleZeta * Math.sqrt(scaleK) },
     staggerBaseS: preset.staggerBaseS,
+    focusDelayMul: preset.focusDelayMul,
     inactiveScale: preset.inactiveScale,
+    wordFloatEm: preset.wordFloatEm,
+    arcPx: preset.arcPx,
+    tiltDeg: preset.tiltDeg,
+    blurInTau: preset.blurInTau,
+    blurOutTau: preset.blurOutTau,
+    bounceBell: preset.bounceBell,
   }
 }
 

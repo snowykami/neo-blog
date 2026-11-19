@@ -190,12 +190,15 @@ type lyricAnnotationMotion struct {
 	Key, Hint string
 }
 
-// lyricAnnotationMotionList 全曲可选的滚动物理预设（与前端 web/src/lib/lyrics/config.ts 及 macOS StageSpringEngine 对齐）
+// lyricAnnotationMotionList 全曲可选的 6 档滚动物理预设（与前端 web/src/lib/lyrics/config.ts 及 macOS StageSpringEngine 严格 1:1 对齐，
+// 数值区间经线上 798 首歌单实测分布标定，消除单一默认偏置）
 var lyricAnnotationMotionList = []lyricAnnotationMotion{
-	{"flow", "smooth elastic wave (default) — balanced, fluid cascade suited to most pop, ACG, J-Pop, R&B, and rock ballads"},
-	{"bouncy", "playful springy bounce — lively ~3% micro-overshoot cushion for cute, denpa, upbeat dance, idol, joyful youth tracks"},
-	{"crisp", "snappy magnetic — high initial velocity and tight stagger for fast rap, electronic, intense rock, cyberpunk, rapid-fire vocals"},
-	{"gentle", "soft slow breathing — unhurried, cushioned glide for slow piano/acoustic ballads, lullabies, classical/poetic, quiet sorrow"},
+	{"plush", "warm cloud slow-bounce (k=90, ζ=0.64, ~7.3% cushioned slow rebound, 66ms stagger) — versatile warm groove suited to many mid/mid-slow pop, R&B, City Pop, healing acoustic/synth-pop, and tender ACG tracks; empirical range: median 3.0–5.4s/line, ≤8% rapid <1.5s steps"},
+	{"flow", "smooth elastic wave (k=142, ζ=0.78, 60ms cascade + 8px fluid arc, zero bounce) — steady forward narrative momentum for classic J-Pop/C-Pop, melodic rock, and steady story-driven pop; empirical range: median 2.6–3.8s/line, balanced step cadence"},
+	{"bouncy", "playful crisp-bounce (k=165, ζ=0.63, ~7.8% snappy single hop + lively syllable lift) — cute, denpa, idol, upbeat dance-pop, joyful youth/anime OP; empirical range: median 2.2–3.5s/line or p25 ≤2.2s, lively phrasing"},
+	{"crisp", "snappy magnetic lock (k=360, ζ=0.90, 14ms tight stagger + 30ms instant focus, zero overshoot) — fast rap, electronic/EDM, intense rock, cyberpunk, rapid-fire vocaloid; empirical range: median ≤2.30s/line, p25 ≤1.60s, ≥22% rapid <1.5s steps, or ≥3.9 vocal units/s"},
+	{"gentle", "soft breathing glide (k=68, ζ=0.96, 85ms overdamped float + misty focus) — slow piano/strings ballad, lullaby, classical/poetic lzh, quiet solitude/sorrow; empirical range: median ≥4.55s/line with p25 ≥3.25s, ≤5% rapid steps, or ≥20% held ≥1.5s notes"},
+	{"cascade", "cinematic fan-in push (k=162, ζ=0.74, 16px fan arc + 1.7° tilt) — theatrical/musical, jazz/waltz, grand orchestral OST, or songs with dramatic calm-verse-to-surging-chorus contrast; empirical range: step CV ≥0.45 or median/p25 surge ≥1.65x"},
 }
 
 var (
@@ -605,6 +608,9 @@ func (a *lyricAnnotationService) execute(lease *sharedstate.Lease, key string, i
 	if info.VisualTheme == "" {
 		info.VisualTheme = lookupLyricDirectorVisualTheme(id, lines)
 	}
+	if info.BPM <= 0 {
+		info.BPM = lookupCachedSongBPM(id)
+	}
 	raw, err := a.generateWithPartial(key, id, cfg, info, lines)
 	if err != nil {
 		logrus.Warnf("lyric annotation failed for song %d: %v", id, err)
@@ -615,6 +621,9 @@ func (a *lyricAnnotationService) execute(lease *sharedstate.Lease, key string, i
 		logrus.Warnf("lyric annotation for song %d is invalid: %v", id, err)
 		return err
 	}
+	if annotated.Motion == "" {
+		annotated.Motion = suggestHeuristicLyricMotion(info)
+	}
 	data, _ := json.Marshal(annotated)
 	record := &model.LyricAnnotation{SongID: id, LyricHash: hash, Data: string(data), Model: cfg.Model, Source: info.Source, Phrases: lyricAnnotationPhraseCount(annotated.Lines), CreatedAt: time.Now()}
 	if err := a.saveGenerated(record, startedAt, overwrite); err != nil {
@@ -624,6 +633,9 @@ func (a *lyricAnnotationService) execute(lease *sharedstate.Lease, key string, i
 			logrus.Errorf("save lyric annotation for song %d failed: %v", id, err)
 		}
 		return err
+	}
+	if annotated.Motion != "" {
+		syncLyricMotionFromAnnotation(id, hash, info.Source, cfg.Model, annotated.Motion)
 	}
 	return nil
 }
@@ -714,6 +726,9 @@ func (a *lyricAnnotationService) deleteSongs(ctx context.Context, ids []int64) (
 		return 0, 0, err
 	}
 	result := db.Where("song_id IN ?", ids).Delete(&model.LyricAnnotation{})
+	if result.Error == nil {
+		_ = db.Where("song_id IN ?", ids).Delete(&model.LyricMotion{}).Error
+	}
 	return songs, result.RowsAffected, result.Error
 }
 

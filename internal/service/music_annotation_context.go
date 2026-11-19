@@ -64,6 +64,8 @@ type lyricAnnotationInfo struct {
 	Source string
 	// 歌曲时长（毫秒，用于算尾奏）；未知时为 0
 	Duration int64
+	// 音频节拍分析得到的 BPM（置信度达标时附带进提示词辅助判断滚动弹性）；未知时为 0
+	BPM float64
 }
 
 // lyricAnnotationComment 一条网易云热评
@@ -497,6 +499,9 @@ func writeLyricAnnotationSong(b *strings.Builder, info lyricAnnotationInfo, albu
 	}
 	if album && info.VisualTheme != "" {
 		b.WriteString(text.VisualTheme + info.VisualTheme + "\n")
+	}
+	if album && info.BPM >= 45 {
+		fmt.Fprintf(b, "%s~%.0f BPM\n", text.AudioTempo, info.BPM)
 	}
 	if album {
 		if pace := lyricPaceSummaryOf(info).format(); pace != "" {

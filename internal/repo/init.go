@@ -326,6 +326,7 @@ var models = []any{
 	&model.LyricAnnotation{},
 	&model.LyricCache{},
 	&model.LyricDirector{},
+	&model.LyricMotion{},
 	&model.LyricPronunciation{},
 	&model.LyricSetting{},
 	&model.LyricSingerAnnotation{},

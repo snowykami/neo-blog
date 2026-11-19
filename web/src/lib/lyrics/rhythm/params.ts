@@ -1,4 +1,5 @@
 import type { FixedLyricPace } from '../pace'
+import type { LyricMotion } from '../types'
 
 /**
  * 韵律动效的参数（时间均为毫秒）：默认值即线上效果，播放器的调试面板（专业模式）可以临时修改，只在当前页面生效。
@@ -7,6 +8,8 @@ import type { FixedLyricPace } from '../pace'
 export interface RhythmParams {
   // 试听档位：调试面板中临时覆盖整首歌的节奏（固定档），为 null 时按节拍（不可信时回退到 fallback）
   preview: FixedLyricPace | null
+  // 歌词上浮弹性试听：调试面板中临时覆盖整首歌的滚动物理预设（6 档），为 null 时跟随歌曲 AI / 启发式弹性
+  motionPreview: LyricMotion | null
   // 基准脉冲的八度改判：T_b = 2^n·τ_F，0 为不覆盖。拍速在八度上本来就有歧义（见 analysis.ts 的梳状和与先验），
   // 这里只是手动改判，不改分析结果；只在跟随节拍时有效
   pulseOctave: number
@@ -30,6 +33,7 @@ export interface RhythmParams {
 
 export const DEFAULT_RHYTHM_PARAMS: RhythmParams = {
   preview: null,
+  motionPreview: null,
   pulseOctave: 0,
   leadMs: 20,
   minConfidence: 0.12,

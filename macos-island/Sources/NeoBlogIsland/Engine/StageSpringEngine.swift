@@ -13,7 +13,9 @@ struct PlacedStageEntry: Identifiable {
     let id: String
     let entryIndex: Int
     let entry: StageTimelineEntry
+    let x: CGFloat
     let y: CGFloat
+    let rotDeg: Double
     let scale: CGFloat
     let expand: Double
     let isActive: Bool
@@ -33,6 +35,8 @@ struct PlacedStageEntry: Identifiable {
 final class StageSpringEngine {
     private final class ItemNode {
         let y: DampedSpring
+        let x: DampedSpring
+        let rot: DampedSpring
         let scale: DampedSpring
         let expand: DampedSpring?
         let pillExpand: DampedSpring?
@@ -42,6 +46,8 @@ final class StageSpringEngine {
 
         init(entry: StageTimelineEntry) {
             self.y = DampedSpring(initial: 0, params: LyricSpecs.positionSpring)
+            self.x = DampedSpring(initial: 0, params: LyricSpecs.positionSpring)
+            self.rot = DampedSpring(initial: 0, params: LyricSpecs.positionSpring)
             switch entry {
             case .line(let item):
                 if item.line.isBackground {
@@ -290,12 +296,16 @@ final class StageSpringEngine {
         for e in entries {
             if let existing = nodes[e.id] {
                 existing.y.setParams(motionSprings.position)
+                existing.x.setParams(motionSprings.position)
+                existing.rot.setParams(motionSprings.position)
                 existing.scale.setParams(motionSprings.scale)
                 existing.pillExpand?.setParams(motionSprings.position)
                 entryNodes.append(existing)
             } else {
                 let created = ItemNode(entry: e)
                 created.y.setParams(motionSprings.position)
+                created.x.setParams(motionSprings.position)
+                created.rot.setParams(motionSprings.position)
                 created.scale.setParams(motionSprings.scale)
                 created.pillExpand?.setParams(motionSprings.position)
                 nodes[e.id] = created
@@ -466,11 +476,15 @@ final class StageSpringEngine {
             spotSpread = 0.35 * Self.mainFontSizePx * spotLevel
         }
 
-        // 6. 推进每条目的独立位移弹簧与缩放弹簧（仅对真实可视区条目施加阶梯波浪，前两行零延迟立即响应）
+        // 6. 推进每条目的独立位移弹簧、空间扇面/微倾弹簧与缩放弹簧（1:1 对齐 web lyric-player.ts 紧凑模式）
         let useStagger = (focusChanged || returnFromManual) && !jump && manualOffset == nil
-        var delay = 0.0
+        let fastCut = (currentStepIntervalMs ?? .infinity) > 0 && (currentStepIntervalMs ?? .infinity) < 420
+        let focusDelay = motionSprings.staggerBaseSec * motionSprings.focusDelayMul
+        var delay = focusDelay
         var delayStep = motionSprings.staggerBaseSec
-        var staggerOrder = 0
+        let spatialActive = manualOffset == nil && motion != nil
+        let arcScale = spatialActive ? 0.5 : 0.0
+        let tiltScale = spatialActive ? 0.65 : 0.0
 
         for (i, e) in entries.enumerated() {
             let node = entryNodes[i]
@@ -479,24 +493,53 @@ final class StageSpringEngine {
                 return i < sIdx ? -1.0 : 1.0
             }()
             let targetY = tops[i] - scroll + spotShift + spreadSign * spotSpread
+            let rel = i - focusEntryIdx
+            let alignSign: Double = {
+                if case .line(let item) = e {
+                    if item.line.align == "right" { return -1.0 }
+                    if item.line.align == "center" { return 0.0 }
+                }
+                return 1.0
+            }()
+            let highlighted = lineRenderActiveFlags[i]
+            let targetX: Double = (arcScale == 0.0 || highlighted)
+                ? 0.0
+                : (rel > 0 ? min(3.0, Double(rel)) * motionSprings.arcPx : (rel < 0 ? -motionSprings.arcPx * 0.25 : 0.0)) * arcScale * alignSign
+            let targetRot: Double = (tiltScale == 0.0 || highlighted)
+                ? 0.0
+                : (rel > 0 ? min(2.5, Double(rel) * 0.8) * motionSprings.tiltDeg : 0.0) * tiltScale * alignSign
+
             let inStaggerViewport = (targetY + heights[i] > 4 && targetY < stageHeight - 4)
                 || (node.y.position + heights[i] > 4 && node.y.position < stageHeight - 4)
 
             if jump {
                 node.y.jump(targetY)
+                node.x.jump(targetX)
+                node.rot.jump(targetRot)
             } else if useStagger && inStaggerViewport {
-                let itemDelay = staggerOrder <= 1 ? 0.0 : delay
-                node.y.setTarget(targetY, delay: itemDelay)
-                if staggerOrder >= 1 {
+                var itemDelay = 0.0
+                if rel == 0 {
+                    itemDelay = focusDelay
+                } else if rel > 0 {
                     delay += delayStep
                     delayStep /= Self.staggerDecay
+                    itemDelay = delay
                 }
-                staggerOrder += 1
+                if fastCut && itemDelay > 0 && abs(node.y.velocity) > 120 && (targetY - node.y.position) * node.y.velocity > 0 {
+                    itemDelay = min(itemDelay * 0.35, 0.018)
+                }
+                node.y.setTarget(targetY, delay: itemDelay)
+                node.x.setTarget(targetX, delay: itemDelay)
+                node.rot.setTarget(targetRot, delay: itemDelay)
             } else {
                 node.y.setTarget(targetY, delay: 0)
+                node.x.setTarget(targetX, delay: 0)
+                node.rot.setTarget(targetRot, delay: 0)
             }
             node.y.step(dt: dt)
-            if !node.y.resting { anySpringMoving = true }
+            node.x.step(dt: dt)
+            node.rot.step(dt: dt)
+            if !node.y.resting || !node.x.resting || !node.rot.resting { anySpringMoving = true }
 
             let baseScale: Double = {
                 switch e {
@@ -513,7 +556,7 @@ final class StageSpringEngine {
             if jump {
                 node.scale.jump(targetScale)
             } else {
-                node.scale.setTarget(targetScale)
+                node.scale.setTarget(targetScale, delay: (useStagger && inStaggerViewport && rel == 0) ? (focusDelay * 0.5) : 0)
             }
             node.scale.step(dt: dt)
             if !node.scale.resting { anySpringMoving = true }
@@ -572,7 +615,7 @@ final class StageSpringEngine {
             if jump {
                 node.blurProgress = targetBlur
             } else {
-                let tau = targetBlur < node.blurProgress ? 0.09 : 0.16
+                let tau = targetBlur < node.blurProgress ? motionSprings.blurInTau : motionSprings.blurOutTau
                 let stepBlend = 1.0 - exp(-dt / tau)
                 node.blurProgress += (targetBlur - node.blurProgress) * stepBlend
                 if abs(node.blurProgress - targetBlur) > 0.008 {
@@ -600,7 +643,9 @@ final class StageSpringEngine {
                     id: e.id,
                     entryIndex: i,
                     entry: e,
+                    x: CGFloat(node.x.position),
                     y: CGFloat(curY),
+                    rotDeg: node.rot.position,
                     scale: CGFloat(node.scale.position),
                     expand: expPos,
                     isActive: isAct,

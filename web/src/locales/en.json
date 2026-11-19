@@ -3811,7 +3811,11 @@
       "target": "Target period",
       "inhale": "Inhale scale",
       "exhale": "Exhale scale"
-    }
+    },
+    "motion_title": "Lyric Float Motion",
+    "motion_effective": "Active motion: {motion}",
+    "motion_preview_note": " (preview override)",
+    "motion_chart_hint": "Blue / pink / purple show outgoing, focus, and upcoming staggered spring step responses"
   },
   "Response": {
     "error": {
@@ -4880,7 +4884,11 @@
     "mv_setting_save": "Save",
     "mv_setting_saving": "Saving…",
     "mv_setting_saved": "MV settings saved",
-    "mv_setting_save_failed": "Failed to save MV settings"
+    "mv_setting_save_failed": "Failed to save MV settings",
+    "lyric_ai_menu_label": "Regenerate AI Lyrics",
+    "lyric_motion_refresh": "Regenerate AI Lyric Motion",
+    "lyric_motion_refresh_started": "Started regenerating lyric motion; it will apply automatically",
+    "lyric_motion_refresh_failed": "Failed to regenerate lyric motion"
   },
   "LyricOptions": {
     "categories": {
@@ -4933,10 +4941,12 @@
       "script": "Script"
     },
     "motions": {
+      "plush": "Plush Slow-Bounce",
       "flow": "Smooth Flow",
-      "bouncy": "Springy Bounce",
+      "bouncy": "Playful Fast-Bounce",
       "crisp": "Snappy Magnetic",
-      "gentle": "Gentle Breath"
+      "gentle": "Gentle Breath",
+      "cascade": "Fan-In Cascade"
     },
     "scenes": {
       "petals": "Petals",

@@ -125,6 +125,11 @@ func (s *MusicService) SaveLyricAnnotations(ctx context.Context, id int64, req *
 		logrus.Errorf("save edited lyric annotation for song %d failed: %v", id, err)
 		return nil, errs.Internal("failed_to_update_target", err)
 	}
+	editedMotion := data.Motion
+	if editedMotion == "" {
+		editedMotion = "flow"
+	}
+	syncLyricMotionFromAnnotation(id, hash, info.Source, "manual", editedMotion)
 	return s.GetLyricAnnotationEditor(ctx, id)
 }
 

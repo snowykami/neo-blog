@@ -314,7 +314,7 @@ struct BridgeAndEngineTests {
         // 1. 验证四档预设与快切阻尼收紧
         let bouncyNormal = LyricSpecs.resolveMotionSprings(motion: "bouncy", stepIntervalMs: 1800)
         let bouncyRapid = LyricSpecs.resolveMotionSprings(motion: "bouncy", stepIntervalMs: 200)
-        #expect(bouncyNormal.inactiveScale == 0.94)
+        #expect(bouncyNormal.inactiveScale == 0.885)
         #expect(bouncyRapid.position.stiffness >= bouncyNormal.position.stiffness)
         #expect(bouncyRapid.position.damping > bouncyNormal.position.damping)
 
@@ -2375,5 +2375,48 @@ struct BridgeAndEngineTests {
         }
         #expect(peerB.trustedTokens.isEmpty)
         #expect(peerB.isReconnecting == false)
+    }
+
+    @Test("六档歌词上浮弹性预设（plush / flow / bouncy / crisp / gentle / cascade）双端 1:1 物理对齐与快切收敛")
+    @MainActor
+    func sixMotionPresetsPhysicsAndStageSpring() {
+        #expect(LyricMotionPreset.allCases.count == 6)
+        #expect(LyricSpecs.resolveMotionSprings(motion: "bouncy").position.stiffness == 165)
+        #expect(LyricSpecs.resolveMotionSprings(motion: "plush").position.stiffness == 90)
+        #expect(LyricSpecs.resolveMotionSprings(motion: "crisp").position.stiffness == 360)
+        #expect(LyricSpecs.resolveMotionSprings(motion: "gentle").position.stiffness == 68)
+        #expect(LyricSpecs.resolveMotionSprings(motion: "cascade").arcPx == 16.0)
+
+        let rapidPlush = LyricSpecs.resolveMotionSprings(motion: "plush", stepIntervalMs: 220)
+        #expect(rapidPlush.position.stiffness > 190)
+
+        let engine = StageSpringEngine()
+        let lines: [LyricLinePayload] = [
+            LyricLinePayload(start: 0, end: 1500, align: "left", words: [LyricWordPayload(text: "首句焦点", start: 0, end: 1500)]),
+            LyricLinePayload(start: 1600, end: 3000, align: "left", words: [LyricWordPayload(text: "左待唱", start: 1600, end: 3000)]),
+            LyricLinePayload(start: 3100, end: 4500, isDuet: true, align: "right", words: [LyricWordPayload(text: "右对唱", start: 3100, end: 4500)])
+        ]
+        let entries: [StageTimelineEntry] = lines.enumerated().map { idx, l in
+            .line(IndexedLyricLine(id: "line-\(idx)", index: idx, line: l, singerDots: []))
+        }
+        let placed = engine.stepLayout(
+            entries: entries,
+            lines: lines,
+            stageHeight: 160,
+            showRomaji: false,
+            showTranslation: false,
+            date: Date(),
+            nowMs: 500,
+            tState: (active: [0], focus: 0, interlude: nil),
+            spot: nil,
+            motion: "cascade"
+        )
+        #expect(placed.count == 3)
+        #expect(abs(placed[0].x) < 0.01)
+        #expect(abs(placed[0].rotDeg) < 0.01)
+        #expect(abs(placed[1].x - 8.0) < 0.05)
+        #expect(placed[1].rotDeg > 0.8)
+        #expect(abs(placed[2].x - (-16.0)) < 0.05)
+        #expect(placed[2].rotDeg < -1.5)
     }
 }

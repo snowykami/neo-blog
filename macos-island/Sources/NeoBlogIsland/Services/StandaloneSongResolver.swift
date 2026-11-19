@@ -14,6 +14,7 @@ enum StandaloneSongResolver {
         let availableTranslationLangs: [AvailableTranslationLangItem]?
         let translationsGenerating: Bool
         let pronunciationsGenerating: Bool
+        let motionGenerating: Bool
     }
 
     private struct APIEnvelope<T: Decodable>: Decodable {
@@ -128,6 +129,7 @@ enum StandaloneSongResolver {
 
     private struct BackendAnnotationsDTO: Decodable {
         let status: String?
+        let stale: Bool?
         let song_lang: String?
         let font: String?
         let motion: String?
@@ -140,6 +142,14 @@ enum StandaloneSongResolver {
         let sprites: [BackendSpriteDTO]?
         let singers: [BackendSingerItemDTO]?
         let source: String?
+    }
+
+    private struct BackendMotionDTO: Decodable {
+        let status: String?
+        let stale: Bool?
+        let source: String?
+        let motion: String?
+        let ai: Bool?
     }
 
     private struct BackendTranslationLineDTO: Decodable {
@@ -418,14 +428,14 @@ enum StandaloneSongResolver {
         let secondarySlot = effectiveSelections.count > 1 ? effectiveSelections[1] : nil
         let refreshQuery = refresh ? "?refresh=1" : ""
 
-        async let settingsFetch: BackendLyricSettingsDTO? = getData(url: URL(string: "\(base)/api/v1/music/song/\(id)/lyric/settings"), reload: refresh)
+        async let settingsFetch: BackendLyricSettingsDTO? = getData(url: URL(string: "\(base)/api/v1/music/song/\(id)/lyric/settings"), reload: true)
         async let chorusFetch: [BackendChorusDTO]? = getData(url: URL(string: "\(base)/api/v1/music/song/\(id)/chorus"), reload: refresh)
         async let annotationsFetch: BackendAnnotationsDTO? = passivePreload
             ? nil
-            : await getData(url: URL(string: "\(base)/api/v1/music/song/\(id)/lyric/annotations"), reload: refresh)
+            : await getData(url: URL(string: "\(base)/api/v1/music/song/\(id)/lyric/annotations"), reload: true)
         async let rhythmFetch: BackendSongRhythmDTO? = passivePreload
             ? nil
-            : await getData(url: URL(string: "\(base)/api/v1/music/song/\(id)/rhythm"), reload: refresh)
+            : await getData(url: URL(string: "\(base)/api/v1/music/song/\(id)/rhythm"), reload: true)
 
         let cache: BackendLyricCacheDTO?
         var ncmFallback: BackendNCMLyricDTO?
@@ -486,36 +496,45 @@ enum StandaloneSongResolver {
         let needPronunciations = !passivePreload && hasVocalLines && preferences.showRomaji
         let needSingers = !passivePreload && hasVocalLines
         let needLangs = !passivePreload && hasVocalLines
+        let matchedAnnotations = (annotations?.source == nil || annotations?.source == parsed.source) ? annotations : nil
+        let hasAnnotationMotion = matchedAnnotations?.motion.flatMap(LyricMotionPreset.init(rawValue:)) != nil
+        let needMotion = !passivePreload && hasVocalLines && !hasAnnotationMotion
 
         async let primaryTransFetch: BackendTranslationsDTO? = needPrimaryAI
             ? await getData(
                 url: URL(string: "\(base)/api/v1/music/song/\(id)/lyric/translations?lang=\(primarySlot.lang)&source=\(sourceParam)"),
-                reload: refresh
+                reload: true
             )
             : nil
         async let secondaryTransFetch: BackendTranslationsDTO? = {
             guard needSecondaryAI, let sec = secondarySlot else { return nil }
             return await getData(
                 url: URL(string: "\(base)/api/v1/music/song/\(id)/lyric/translations?lang=\(sec.lang)&source=\(sourceParam)"),
-                reload: refresh
+                reload: true
             )
         }()
         async let pronunciationsFetch: BackendPronunciationsDTO? = needPronunciations
             ? await getData(
                 url: URL(string: "\(base)/api/v1/music/song/\(id)/lyric/pronunciations?source=\(sourceParam)"),
-                reload: refresh
+                reload: true
             )
             : nil
         async let singersFetch: BackendSingersDTO? = needSingers
             ? await getData(
                 url: URL(string: "\(base)/api/v1/music/song/\(id)/lyric/singers?lang=\(primarySlot.lang)&source=\(sourceParam)"),
-                reload: refresh
+                reload: true
             )
             : nil
         async let langsFetch: BackendTranslationLanguagesDTO? = needLangs
             ? await getData(
                 url: URL(string: "\(base)/api/v1/music/song/\(id)/lyric/translations/available?source=\(sourceParam)"),
-                reload: refresh
+                reload: true
+            )
+            : nil
+        async let motionFetch: BackendMotionDTO? = needMotion
+            ? await getData(
+                url: URL(string: "\(base)/api/v1/music/song/\(id)/lyric/motion?source=\(sourceParam)"),
+                reload: true
             )
             : nil
 
@@ -525,10 +544,25 @@ enum StandaloneSongResolver {
         let pronunciations = await pronunciationsFetch
         let singers = await singersFetch
         let langsResp = await langsFetch
+        let motionResp = await motionFetch
+
+        let resolvedMotion: String? = {
+            if let aiM = motionResp?.motion, motionResp?.ai == true, LyricMotionPreset(rawValue: aiM) != nil {
+                return aiM
+            }
+            if let annM = matchedAnnotations?.motion, LyricMotionPreset(rawValue: annM) != nil {
+                return annM
+            }
+            if let fallbackM = motionResp?.motion, LyricMotionPreset(rawValue: fallbackM) != nil {
+                return fallbackM
+            }
+            return nil
+        }()
 
         let enriched = applyOverlays(
             base: parsed,
-            annotations: annotations,
+            annotations: matchedAnnotations,
+            overrideMotion: resolvedMotion,
             primarySlot: primarySlot,
             primaryTranslations: primaryTrans,
             secondarySlot: secondarySlot,
@@ -569,6 +603,10 @@ enum StandaloneSongResolver {
             || (secondaryTrans?.status == "pending")
             || (availableLangs?.contains(where: { $0.generating && ($0.lang == primarySlot.lang || $0.lang == secondarySlot?.lang) }) == true)
         let romaPending = pronunciations?.status == "pending"
+        let motionPending = (motionResp?.status == "pending")
+            || (motionResp?.stale == true)
+            || (matchedAnnotations?.status == "pending")
+            || (matchedAnnotations?.stale == true)
 
         return ResolvedBundle(
             track: track,
@@ -579,7 +617,8 @@ enum StandaloneSongResolver {
             songLangLabel: songLangLabel,
             availableTranslationLangs: availableLangs,
             translationsGenerating: transPending,
-            pronunciationsGenerating: romaPending
+            pronunciationsGenerating: romaPending,
+            motionGenerating: motionPending
         )
     }
 
@@ -2175,6 +2214,7 @@ enum StandaloneSongResolver {
     private static func applyOverlays(
         base: BaseParsedLyrics,
         annotations: BackendAnnotationsDTO?,
+        overrideMotion: String? = nil,
         primarySlot: TranslationSelectionItem,
         primaryTranslations: BackendTranslationsDTO?,
         secondarySlot: TranslationSelectionItem?,
@@ -2182,12 +2222,13 @@ enum StandaloneSongResolver {
         pronunciations: BackendPronunciationsDTO?,
         singers: BackendSingersDTO?
     ) -> LyricsBundlePayload {
+        let effectiveMotion = overrideMotion ?? annotations?.motion
         if base.lines.isEmpty {
             return LyricsBundlePayload(
                 source: base.source,
                 sourceName: base.sourceName,
                 font: annotations?.font,
-                motion: annotations?.motion,
+                motion: effectiveMotion,
                 wordSynced: base.wordSynced,
                 instrumental: base.instrumental,
                 spotlights: [],
@@ -2521,7 +2562,7 @@ enum StandaloneSongResolver {
             source: base.source,
             sourceName: base.sourceName,
             font: annotations?.font,
-            motion: annotations?.motion,
+            motion: effectiveMotion,
             wordSynced: base.wordSynced,
             instrumental: base.instrumental,
             spotlights: spotlights,

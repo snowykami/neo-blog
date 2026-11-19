@@ -4,7 +4,7 @@ import type { Lane } from './charts'
 import type { DebugEffect, FormulaSection } from './formulas'
 import type { FixedLyricPace } from '@/lib/lyrics/pace'
 import type { RhythmParams } from '@/lib/lyrics/rhythm/params'
-import type { LyricEffect, LyricEmphasis, ResolvedLyrics } from '@/lib/lyrics/types'
+import type { LyricEffect, LyricEmphasis, LyricMotion, ResolvedLyrics } from '@/lib/lyrics/types'
 import katex from 'katex'
 import { ChevronDownIcon, RotateCcwIcon, XIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
@@ -15,10 +15,13 @@ import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useMusic, useMusicClockStore } from '@/contexts/music-context'
+import { LYRIC_MOTIONS } from '@/lib/lyrics/annotation-options'
+import { LYRIC_STAGGER_DECAY, resolveLyricMotionPreset, resolveMotionSprings } from '@/lib/lyrics/config'
 import { FIXED_LYRIC_PACES, PACE } from '@/lib/lyrics/pace'
 import { periodOf, pulsesIn, rhythmContext } from '@/lib/lyrics/rhythm/effects'
 import { basePeriodOf, getRhythmParams, PULSE_OCTAVES, resetRhythmParams, setRhythmParams, subscribeRhythmParams } from '@/lib/lyrics/rhythm/params'
 import { getRhythmState, subscribeRhythm } from '@/lib/lyrics/rhythm/source'
+import { Spring } from '@/lib/lyrics/spring'
 import { buildTimeline } from '@/lib/lyrics/timeline'
 import { drawInput, drawKernels, drawLanes, drawTempo, WINDOW_MS } from './charts'
 import { formulasFor, octaveOf } from './formulas'
@@ -133,6 +136,7 @@ const bpmText = (periodMs: number) => String(Number((60000 / periodMs).toFixed(1
 
 export default function RhythmDebugPanel({ onClose }: { onClose: () => void }) {
   const t = useTranslations('RhythmDebug')
+  const optionT = useTranslations('LyricOptions')
   const { lyrics, currentTrack, getAudio } = useMusic()
   const clock = useMusicClockStore()
   const trackId = currentTrack?.id ?? null
@@ -147,7 +151,10 @@ export default function RhythmDebugPanel({ onClose }: { onClose: () => void }) {
   const lanesRef = useRef<HTMLCanvasElement>(null)
   const kernelsRef = useRef<HTMLCanvasElement>(null)
   const tempoRef = useRef<HTMLCanvasElement>(null)
+  const motionRef = useRef<HTMLCanvasElement>(null)
   const liveRef = useRef<HTMLSpanElement>(null)
+  const effectiveMotion: LyricMotion = params.motionPreview ?? lyrics.motion ?? 'flow'
+  const activeMotionPreset = resolveLyricMotionPreset(effectiveMotion)
 
   // 当前动效随播放时钟更新（同一组时不重新渲染）
   useEffect(() => {
@@ -244,6 +251,100 @@ export default function RhythmDebugPanel({ onClose }: { onClose: () => void }) {
     observer.observe(canvas)
     return () => observer.disconnect()
   }, [model, tierLabels, params.pulseOctave])
+
+  // 歌词上浮弹性 3 行阶梯跃迁响应图（出局行 / 焦点行 / 待唱行）
+  const motionStats = useMemo(() => {
+    const springs = resolveMotionSprings(effectiveMotion)
+    const focusDelay = springs.staggerBaseS * springs.focusDelayMul
+    const nextDelay = focusDelay + springs.staggerBaseS + springs.staggerBaseS / LYRIC_STAGGER_DECAY
+    const delays = [0, focusDelay, nextDelay]
+    const totalSec = 0.95
+    const steps = 114
+    const dt = totalSec / steps
+    let peak = 1
+    let settleSec = totalSec
+    const traces = delays.map((delay, idx) => {
+      const sp = new Spring(0, springs.position)
+      sp.setTarget(1, delay)
+      const pts: number[] = [0]
+      for (let s = 1; s <= steps; s++) {
+        sp.step(dt)
+        pts.push(sp.position)
+        if (idx === 1) {
+          if (sp.position > peak)
+            peak = sp.position
+          if (Math.abs(sp.position - 1) > 0.015)
+            settleSec = (s / steps) * totalSec
+        }
+      }
+      return pts
+    })
+    return {
+      traces,
+      overshootPct: Math.max(0, (peak - 1) * 100),
+      settleMs: Math.round(settleSec * 1000),
+    }
+  }, [effectiveMotion])
+
+  useEffect(() => {
+    const canvas = motionRef.current
+    if (!canvas)
+      return
+    const draw = () => {
+      const ctx = canvas.getContext('2d')
+      if (!ctx)
+        return
+      const dpr = Math.min(2, window.devicePixelRatio || 1)
+      const w = canvas.clientWidth || 320
+      const h = canvas.clientHeight || 88
+      canvas.width = Math.round(w * dpr)
+      canvas.height = Math.round(h * dpr)
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      ctx.clearRect(0, 0, w, h)
+
+      const padL = 8
+      const padR = 8
+      const padT = 12
+      const padB = 14
+      const plotW = Math.max(10, w - padL - padR)
+      const plotH = Math.max(10, h - padT - padB)
+      const yAt = (val: number) => padT + plotH * (1 - val / 1.16)
+
+      ctx.strokeStyle = 'rgba(255,255,255,0.12)'
+      ctx.setLineDash([3, 3])
+      ctx.beginPath()
+      ctx.moveTo(padL, yAt(1))
+      ctx.lineTo(w - padR, yAt(1))
+      ctx.stroke()
+      ctx.setLineDash([])
+
+      const colors = ['#60a5fa', '#f472b6', '#a78bfa']
+      motionStats.traces.forEach((pts, idx) => {
+        ctx.strokeStyle = colors[idx]
+        ctx.lineWidth = idx === 1 ? 2.1 : 1.3
+        ctx.globalAlpha = idx === 1 ? 1 : 0.65
+        ctx.beginPath()
+        pts.forEach((v, s) => {
+          const x = padL + (s / (pts.length - 1)) * plotW
+          const y = yAt(v)
+          if (s === 0)
+            ctx.moveTo(x, y)
+          else
+            ctx.lineTo(x, y)
+        })
+        ctx.stroke()
+      })
+      ctx.globalAlpha = 1
+      ctx.fillStyle = 'rgba(255,255,255,0.5)'
+      ctx.font = '10px ui-monospace, SFMono-Regular, monospace'
+      ctx.fillText(`~${motionStats.settleMs} ms`, padL, h - 3)
+      ctx.fillText('950 ms', w - padR - 36, h - 3)
+    }
+    draw()
+    const observer = new ResizeObserver(draw)
+    observer.observe(canvas)
+    return () => observer.disconnect()
+  }, [motionStats])
 
   // 分析状态
   let status = t('status_idle')
@@ -380,6 +481,39 @@ export default function RhythmDebugPanel({ onClose }: { onClose: () => void }) {
               {params.pulseOctave < 0 && <p className="text-white/50">{t('pulse_note')}</p>}
             </div>
           )}
+        </section>
+
+        <section className="grid gap-2 border-t border-white/10 pt-3 text-xs">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h3 className="text-xs font-semibold text-white/80">{t('motion_title')}</h3>
+            <span className="font-mono text-[11px] text-white/60 tabular-nums">
+              {`k=${activeMotionPreset.stiffness} · ζ=${activeMotionPreset.dampingRatio.toFixed(2)} · Δt=${Math.round(activeMotionPreset.staggerBaseS * 1000)}ms`}
+              {motionStats.overshootPct >= 0.6 ? ` · +${motionStats.overshootPct.toFixed(1)}%` : ''}
+            </span>
+          </div>
+          <p className="text-white/65">
+            {t('motion_effective', { motion: optionT(`motions.${effectiveMotion}`) })}
+            {params.motionPreview !== null && t('motion_preview_note')}
+          </p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <ToggleGroup
+              type="single"
+              size="sm"
+              variant="outline"
+              value={params.motionPreview ?? 'auto'}
+              onValueChange={value => value && setRhythmParams({ motionPreview: value === 'auto' ? null : value as LyricMotion })}
+              className="flex-wrap justify-start"
+            >
+              <ToggleGroupItem value="auto" className="px-2 text-xs">{t('preview_auto')}</ToggleGroupItem>
+              {LYRIC_MOTIONS.map(motion => (
+                <ToggleGroupItem key={motion} value={motion} className="px-2 text-xs">
+                  {optionT(`motions.${motion}`)}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+          </div>
+          <canvas ref={motionRef} className="h-20 w-full rounded-lg bg-white/5" />
+          <p className="text-[11px] text-white/50">{t('motion_chart_hint')}</p>
         </section>
 
         <section className="grid gap-1.5">

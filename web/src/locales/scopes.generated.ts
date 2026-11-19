@@ -97,6 +97,7 @@ export const SCOPES = {
     'TopbarIsland',
   ],
   '(player)/music': [
+    'LyricOptions',
     'RhythmDebug',
   ],
   'auth': [

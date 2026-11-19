@@ -278,6 +278,36 @@ func (m *musicType) RefreshLyricAnnotations(ctx context.Context, c *app.RequestC
 	resps.Ok(c, resps.Success, result)
 }
 
+// SongLyricMotion 独立获取一首歌的歌词上浮弹性（兼顾逐字歌词、逐行 LRC 与关闭歌词特效的场景）
+func (m *musicType) SongLyricMotion(ctx context.Context, c *app.RequestContext) {
+	var req dto.MusicLyricMotionReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	result, svcerr := m.service.GetLyricMotion(ctx, ctxutils.GetIDParam(c).Int64, req.Source)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, result)
+}
+
+// RefreshLyricMotion 管理员单独重新生成一首歌指定词源的 AI 歌词上浮弹性
+func (m *musicType) RefreshLyricMotion(ctx context.Context, c *app.RequestContext) {
+	var req dto.MusicLyricMotionRefreshReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	result, svcerr := m.service.RefreshLyricMotion(ctx, ctxutils.GetIDParam(c).Int64, req.Source)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, result)
+}
+
 func prepareMusicSSE(c *app.RequestContext) (onReady func(), send func(event string, data any) error) {
 	onReady = func() {
 		c.SetStatusCode(http.StatusOK)

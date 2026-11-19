@@ -3811,7 +3811,11 @@
       "target": "目標週期",
       "inhale": "吸氣縮放",
       "exhale": "呼氣縮放"
-    }
+    },
+    "motion_title": "歌詞上浮彈性",
+    "motion_effective": "生效彈性：{motion}",
+    "motion_preview_note": "（除錯試聽中）",
+    "motion_chart_hint": "藍 / 粉 / 紫分別對應出局行、焦點行與待唱行的階梯彈簧躍遷軌跡"
   },
   "Response": {
     "error": {
@@ -4880,7 +4884,11 @@
     "mv_setting_save": "儲存",
     "mv_setting_saving": "儲存中…",
     "mv_setting_saved": "已儲存 MV 設定",
-    "mv_setting_save_failed": "儲存 MV 設定失敗"
+    "mv_setting_save_failed": "儲存 MV 設定失敗",
+    "lyric_ai_menu_label": "AI 歌詞重新產生",
+    "lyric_motion_refresh": "重新產生 AI 歌詞彈性",
+    "lyric_motion_refresh_started": "已開始重新產生歌詞彈性，完成後自動套用",
+    "lyric_motion_refresh_failed": "重新產生歌詞彈性失敗"
   },
   "LyricOptions": {
     "categories": {
@@ -4933,10 +4941,12 @@
       "script": "英文花體"
     },
     "motions": {
+      "plush": "雲朵慢彈",
       "flow": "絲滑波浪",
-      "bouncy": "輕盈 Q 彈",
+      "bouncy": "俏皮快彈",
       "crisp": "俐落磁吸",
-      "gentle": "舒緩呼吸"
+      "gentle": "舒緩呼吸",
+      "cascade": "扇入推鏡"
     },
     "scenes": {
       "petals": "花瓣",

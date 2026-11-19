@@ -3,44 +3,153 @@ import Foundation
 // MARK: - 1:1 对应 web/src/lib/lyrics/config.ts 的物理与视觉常量
 
 enum LyricMotionPreset: String, Sendable, CaseIterable {
+    case plush
     case flow
     case bouncy
     case crisp
     case gentle
+    case cascade
 
     var stiffness: Double {
         switch self {
-        case .flow: return 168
-        case .bouncy: return 185
-        case .crisp: return 225
-        case .gentle: return 118
+        case .plush: return 90
+        case .flow: return 142
+        case .bouncy: return 165
+        case .crisp: return 360
+        case .gentle: return 68
+        case .cascade: return 162
         }
     }
 
     var dampingRatio: Double {
         switch self {
+        case .plush: return 0.64
         case .flow: return 0.78
+        case .bouncy: return 0.63
+        case .crisp: return 0.90
+        case .gentle: return 0.96
+        case .cascade: return 0.74
+        }
+    }
+
+    var scaleStiffness: Double {
+        switch self {
+        case .plush: return 98
+        case .flow: return 155
+        case .bouncy: return 180
+        case .crisp: return 400
+        case .gentle: return 76
+        case .cascade: return 175
+        }
+    }
+
+    var scaleDampingRatio: Double {
+        switch self {
+        case .plush: return 0.68
+        case .flow: return 0.82
         case .bouncy: return 0.66
-        case .crisp: return 0.86
-        case .gentle: return 0.88
+        case .crisp: return 0.92
+        case .gentle: return 0.96
+        case .cascade: return 0.78
         }
     }
 
     var staggerBaseSec: Double {
         switch self {
-        case .flow: return 0.042
-        case .bouncy: return 0.044
-        case .crisp: return 0.026
-        case .gentle: return 0.052
+        case .plush: return 0.066
+        case .flow: return 0.060
+        case .bouncy: return 0.036
+        case .crisp: return 0.014
+        case .gentle: return 0.085
+        case .cascade: return 0.068
+        }
+    }
+
+    var focusDelayMul: Double {
+        switch self {
+        case .plush: return 0.45
+        case .flow: return 0.45
+        case .bouncy: return 0.30
+        case .crisp: return 0.0
+        case .gentle: return 0.55
+        case .cascade: return 0.40
         }
     }
 
     var inactiveScale: Double {
         switch self {
-        case .flow: return 0.97
-        case .bouncy: return 0.94
-        case .crisp: return 0.965
-        case .gentle: return 0.975
+        case .plush: return 0.895
+        case .flow: return 0.905
+        case .bouncy: return 0.885
+        case .crisp: return 0.885
+        case .gentle: return 0.925
+        case .cascade: return 0.880
+        }
+    }
+
+    var wordFloatEm: Double {
+        switch self {
+        case .plush: return 0.10
+        case .flow: return 0.09
+        case .bouncy: return 0.12
+        case .crisp: return 0.06
+        case .gentle: return 0.08
+        case .cascade: return 0.10
+        }
+    }
+
+    var arcPx: Double {
+        switch self {
+        case .plush: return 5.0
+        case .flow: return 8.0
+        case .bouncy: return 0.0
+        case .crisp: return 0.0
+        case .gentle: return 4.0
+        case .cascade: return 16.0
+        }
+    }
+
+    var tiltDeg: Double {
+        switch self {
+        case .plush: return 0.0
+        case .flow: return 0.0
+        case .bouncy: return -0.45
+        case .crisp: return 0.0
+        case .gentle: return 0.0
+        case .cascade: return 1.7
+        }
+    }
+
+    var blurInTau: Double {
+        switch self {
+        case .plush: return 0.14
+        case .flow: return 0.11
+        case .bouncy: return 0.055
+        case .crisp: return 0.03
+        case .gentle: return 0.26
+        case .cascade: return 0.12
+        }
+    }
+
+    var blurOutTau: Double {
+        switch self {
+        case .plush: return 0.22
+        case .flow: return 0.20
+        case .bouncy: return 0.13
+        case .crisp: return 0.08
+        case .gentle: return 0.34
+        case .cascade: return 0.22
+        }
+    }
+
+    var bounceBell: Double {
+        switch self {
+        case .plush: return 0.18
+        case .flow: return 0.0
+        case .bouncy: return 0.26
+        case .crisp: return 0.0
+        case .gentle: return 0.0
+        case .cascade: return 0.0
         }
     }
 }
@@ -49,7 +158,14 @@ struct ResolvedMotionSprings: Equatable, Sendable {
     let position: SpringParams
     let scale: SpringParams
     let staggerBaseSec: Double
+    let focusDelayMul: Double
     let inactiveScale: Double
+    let wordFloatEm: Double
+    let arcPx: Double
+    let tiltDeg: Double
+    let blurInTau: Double
+    let blurOutTau: Double
+    let bounceBell: Double
 }
 
 enum LyricSpecs {
@@ -58,22 +174,32 @@ enum LyricSpecs {
     static let compactBlurFactor: Double = 0.50
 
     /// 1:1 对齐 web/src/lib/lyrics/config.ts resolveMotionSprings：
-    /// 连续快句推进间隔 < 420ms 时自动收紧阻尼比至 ≥ 0.84 并提升刚度下限，防止 Q 弹/舒缓档在密集快嘴段乱晃
+    /// 连续快句推进间隔 < 420ms 时自动收紧阻尼比至 ≥ 0.85 并提升刚度下限，防止 Q 弹/舒缓档在密集快嘴段乱晃
     static func resolveMotionSprings(motion: String? = nil, stepIntervalMs: Double? = nil) -> ResolvedMotionSprings {
         let preset = motion.flatMap(LyricMotionPreset.init(rawValue:)) ?? .flow
         var k = preset.stiffness
         var zeta = preset.dampingRatio
+        var scaleK = preset.scaleStiffness
+        var scaleZeta = preset.scaleDampingRatio
         if let stepMs = stepIntervalMs, stepMs > 0, stepMs < 420 {
             let t = 1.0 - max(0.0, stepMs - 160.0) / 260.0
-            k = max(k, k + (205.0 - k) * t)
-            zeta = max(zeta, zeta + (0.84 - zeta) * t)
+            k = max(k, k + (230.0 - k) * t)
+            zeta = max(zeta, zeta + (0.85 - zeta) * t)
+            scaleK = max(scaleK, scaleK + (250.0 - scaleK) * t)
+            scaleZeta = max(scaleZeta, scaleZeta + (0.88 - scaleZeta) * t)
         }
-        let scaleZeta = min(0.92, zeta + 0.05)
         return ResolvedMotionSprings(
             position: SpringParams(mass: 1, stiffness: k, damping: 2.0 * zeta * k.squareRoot()),
-            scale: SpringParams(mass: 1, stiffness: k, damping: 2.0 * scaleZeta * k.squareRoot()),
+            scale: SpringParams(mass: 1, stiffness: scaleK, damping: 2.0 * scaleZeta * scaleK.squareRoot()),
             staggerBaseSec: preset.staggerBaseSec,
-            inactiveScale: preset.inactiveScale
+            focusDelayMul: preset.focusDelayMul,
+            inactiveScale: preset.inactiveScale,
+            wordFloatEm: preset.wordFloatEm,
+            arcPx: preset.arcPx,
+            tiltDeg: preset.tiltDeg,
+            blurInTau: preset.blurInTau,
+            blurOutTau: preset.blurOutTau,
+            bounceBell: preset.bounceBell
         )
     }
 
@@ -179,7 +305,7 @@ struct SpringParams: Equatable, Sendable {
 
 final class DampedSpring {
     private(set) var position: Double
-    private var velocity: Double = 0
+    private(set) var velocity: Double = 0
     private(set) var target: Double
     private var delay: Double = 0
     private var params: SpringParams

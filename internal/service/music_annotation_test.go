@@ -526,18 +526,18 @@ func TestLyricAnnotationMotionAndPace(t *testing.T) {
 	}
 
 	lines := []string{"一二三四五六", "七八九十十一", "十二三十四五", "十六七八九十", "二十一二三四", "二十五六七八"}
-	got, err := sanitizeLyricAnnotations(lines, nil, `{"motion":"bouncy","lines":[]}`)
-	if err != nil || got.Motion != "bouncy" {
-		t.Fatalf("motion = %q, err = %v", got.Motion, err)
+	for _, preset := range []string{"plush", "flow", "bouncy", "crisp", "gentle", "cascade"} {
+		got, err := sanitizeLyricAnnotations(lines, nil, `{"motion":"`+preset+`","lines":[]}`)
+		if err != nil || got.Motion != preset {
+			t.Fatalf("motion %s = %q, err = %v", preset, got.Motion, err)
+		}
+		if edited, ok := sanitizeEditedLyricAnnotations(lines, &dto.MusicLyricAnnotationsEditReq{Motion: preset}, nil); !ok || edited.Motion != preset {
+			t.Fatalf("edited motion %s = %q, ok = %v", preset, edited.Motion, ok)
+		}
 	}
 	gotInvalid, err := sanitizeLyricAnnotations(lines, nil, `{"motion":"unknown_preset","lines":[]}`)
 	if err != nil || gotInvalid.Motion != "" {
 		t.Fatalf("invalid motion should clear, got %q, err = %v", gotInvalid.Motion, err)
-	}
-
-	// 验证手动编辑校验：合法 motion 保留，非法 motion 拒绝
-	if edited, ok := sanitizeEditedLyricAnnotations(lines, &dto.MusicLyricAnnotationsEditReq{Motion: "crisp"}, nil); !ok || edited.Motion != "crisp" {
-		t.Fatalf("edited motion = %q, ok = %v", edited.Motion, ok)
 	}
 	if _, ok := sanitizeEditedLyricAnnotations(lines, &dto.MusicLyricAnnotationsEditReq{Motion: "bad"}, nil); ok {
 		t.Fatal("expected invalid edited motion to fail")

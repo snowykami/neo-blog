@@ -130,8 +130,8 @@ export type LyricColor
 /** 歌词字体（来自歌词标注，与后端 lyricAnnotationFontList 一致），字体栈见 lyric-player.css */
 export type LyricFont = 'song' | 'kai' | 'xingkai' | 'fangsong' | 'round' | 'mono' | 'script'
 
-/** 全曲歌词行滚动律动预设（来自歌词标注，与后端 lyricAnnotationMotionList 一致），为空时默认走 flow */
-export type LyricMotion = 'flow' | 'bouncy' | 'crisp' | 'gentle'
+/** 全曲歌词行滚动律动预设（来自歌词标注或独立弹性服务，与后端 lyricAnnotationMotionList 一致），为空时默认走 flow */
+export type LyricMotion = 'plush' | 'flow' | 'bouncy' | 'crisp' | 'gentle' | 'cascade'
 
 /** 短语字形：粗体、斜体、下划线（下划线在演唱时逐字画出） */
 export type LyricTextStyle = 'bold' | 'italic' | 'underline'

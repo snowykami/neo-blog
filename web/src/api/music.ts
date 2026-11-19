@@ -169,6 +169,37 @@ export async function refreshLyricAnnotations(id: number): Promise<MusicLyricAnn
   return res.data.data
 }
 
+export interface MusicLyricMotion {
+  status: 'ready' | 'pending'
+  stale?: boolean
+  source?: LyricSource | ''
+  motion: LyricMotion
+  ai?: boolean
+}
+
+// 独立获取或触发生成一首歌的歌词上浮弹性（支持逐字歌词、逐行 LRC 与关闭特效场景）
+export async function fetchLyricMotion(id: number, source?: string): Promise<MusicLyricMotion | null> {
+  try {
+    const res = await axiosClient.get<BaseResponse<MusicLyricMotion>>(`/music/song/${id}/lyric/motion`, {
+      params: source ? { source } : undefined,
+    })
+    return res.data.data
+  }
+  catch (error) {
+    if (isAxiosError(error) && error.response?.status === 404)
+      return null
+    throw error
+  }
+}
+
+// 管理员单独重新生成一首歌的 AI 歌词上浮弹性
+export async function refreshLyricMotion(id: number, source?: string): Promise<MusicLyricMotion> {
+  const res = await axiosClient.post<BaseResponse<MusicLyricMotion>>(`/music/song/${id}/lyric/motion/refresh`, {
+    source: source ?? '',
+  })
+  return res.data.data
+}
+
 export interface MusicLyricTranslationLine {
   text: string
   occurrence: number

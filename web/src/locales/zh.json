@@ -3634,7 +3634,11 @@
       "target": "目标周期",
       "inhale": "吸气缩放",
       "exhale": "呼气缩放"
-    }
+    },
+    "motion_title": "歌词上浮弹性",
+    "motion_effective": "生效弹性：{motion}",
+    "motion_preview_note": "（调试试听中）",
+    "motion_chart_hint": "蓝 / 粉 / 紫分别对应出局行、焦点行与待唱行的阶梯弹簧跃迁轨迹"
   },
   "Operation": {
     "back_to_home": "返回首页",
@@ -4880,7 +4884,11 @@
     "mv_setting_save": "保存",
     "mv_setting_saving": "保存中…",
     "mv_setting_saved": "已保存 MV 设置",
-    "mv_setting_save_failed": "保存 MV 设置失败"
+    "mv_setting_save_failed": "保存 MV 设置失败",
+    "lyric_ai_menu_label": "AI 歌词重新生成",
+    "lyric_motion_refresh": "重新生成 AI 歌词弹性",
+    "lyric_motion_refresh_started": "已开始重新生成歌词弹性，完成后自动应用",
+    "lyric_motion_refresh_failed": "重新生成歌词弹性失败"
   },
   "LyricOptions": {
     "categories": {
@@ -4933,10 +4941,12 @@
       "script": "英文花体"
     },
     "motions": {
+      "plush": "云朵慢弹",
       "flow": "丝滑波浪",
-      "bouncy": "轻盈 Q 弹",
+      "bouncy": "俏皮快弹",
       "crisp": "干脆磁吸",
-      "gentle": "舒缓呼吸"
+      "gentle": "舒缓呼吸",
+      "cascade": "扇入推镜"
     },
     "scenes": {
       "petals": "花瓣",

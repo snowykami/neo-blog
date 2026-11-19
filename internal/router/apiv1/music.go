@@ -30,6 +30,7 @@ func registerMusicRoutes(group *route.RouterGroup) {
 		musicGroup.GET("/song/:id/lyric/qq", controller.Music.SongQQLyric)
 		musicGroup.GET("/song/:id/lyric/kugou", controller.Music.SongKugouLyric)
 		musicGroup.GET("/song/:id/lyric/annotations", controller.Music.SongLyricAnnotations)
+		musicGroup.GET("/song/:id/lyric/motion", controller.Music.SongLyricMotion)
 		musicGroup.GET("/song/:id/lyric/translations", controller.Music.SongLyricTranslations)
 		musicGroup.GET("/song/:id/lyric/translations/stream", controller.Music.SongLyricTranslationsStream)
 		musicGroup.GET("/song/:id/lyric/translations/available", controller.Music.SongLyricTranslationLanguages)
@@ -54,6 +55,7 @@ func registerMusicRoutes(group *route.RouterGroup) {
 
 		// 手动重新生成歌词标注或歌词多语言翻译会消耗模型额度，仅管理员可用
 		musicGroupWithAdmin.POST("/song/:id/lyric/annotations/refresh", controller.Music.RefreshLyricAnnotations)
+		musicGroupWithAdmin.POST("/song/:id/lyric/motion/refresh", controller.Music.RefreshLyricMotion)
 		musicGroupWithAdmin.POST("/song/:id/lyric/translations/refresh", controller.Music.RefreshLyricTranslations)
 		musicGroupWithAdmin.POST("/song/:id/translation-meta/refresh", controller.Music.RefreshSongTranslationMeta)
 		musicGroupWithAdmin.POST("/song/:id/lyric/singers/refresh", controller.Music.RefreshLyricSingers)

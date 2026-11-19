@@ -2,6 +2,7 @@ import type { ResolvedLyrics } from './types'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { resolveMotionSprings } from './config'
 import { lineAppearance, LyricPlayer } from './lyric-player'
 
 const base = { inactiveAlpha: 0.35, blurFactor: 1, noBlur: false, spot: 0, spotted: false }
@@ -345,19 +346,20 @@ describe('振假名渲染与 HDR 跨行平滑退场', () => {
     ctx.step(1.25, 16)
     expect(lines[2].style.filter).toBe('')
 
-    // 鼠标按压第三行：向 0.96 缩放；松手回弹
+    // 鼠标按压第三行：在非激活基准缩放上再乘 0.96；松手回弹至非激活基准缩放
+    const baseInactive = resolveMotionSprings().inactiveScale
     const downEv = Object.assign(new Event('pointerdown', { bubbles: true }), { pointerType: 'mouse', button: 0 })
     lines[2].dispatchEvent(downEv)
     for (let i = 0; i < 10; i++)
       ctx.step(1.25, 16)
     const pressedScale = Number.parseFloat(/scale\(([\d.]+)\)/.exec(lines[2].style.transform)?.[1] ?? '1')
-    expect(pressedScale).toBeLessThan(0.96)
+    expect(pressedScale).toBeLessThan(baseInactive - 0.02)
     const upEv = Object.assign(new Event('pointerup', { bubbles: true }), { pointerType: 'mouse', button: 0 })
     lines[2].dispatchEvent(upEv)
     for (let i = 0; i < 40; i++)
       ctx.step(1.3, 16)
     const releasedScale = Number.parseFloat(/scale\(([\d.]+)\)/.exec(lines[2].style.transform)?.[1] ?? '0')
-    expect(releasedScale).toBeGreaterThan(0.96)
+    expect(releasedScale).toBeCloseTo(baseInactive, 2)
 
     // 滚轮手动滚动：非激活行提亮至 50% 且取消全部模糊
     const wheelEv = Object.assign(new Event('wheel', { bubbles: true, cancelable: true }), { deltaMode: 0, deltaY: 20 })
@@ -1031,6 +1033,44 @@ describe('振假名渲染与 HDR 跨行平滑退场', () => {
       ctx.step(2.5, 16)
     const trioFirstY = parseTranslateY(lineEls[2])
     expect(trioFirstY).toBeGreaterThanOrEqual(24 - 0.5)
+    ctx.cleanup()
+  })
+
+  it('六档歌词上浮弹性（plush / flow / bouncy / crisp / gentle / cascade）：参数校准、扇入倾角镜像与快句防乱晃保护', () => {
+    expect(resolveMotionSprings('bouncy').position.stiffness).toBe(165)
+    expect(resolveMotionSprings('plush').position.stiffness).toBe(90)
+    expect(resolveMotionSprings('crisp').position.stiffness).toBe(360)
+    expect(resolveMotionSprings('gentle').position.stiffness).toBe(68)
+    expect(resolveMotionSprings('cascade').arcPx).toBe(16)
+    // 连续 220ms 急促快切时，plush(k=90, ζ=0.64) 自动收紧阻尼并拉高刚度防糊字
+    const rapidPlush = resolveMotionSprings('plush', 220)
+    expect(rapidPlush.position.stiffness).toBeGreaterThan(190)
+
+    const cascadeLyrics: ResolvedLyrics = {
+      source: 'ttml-amll',
+      wordTimed: true,
+      instrumental: false,
+      motion: 'cascade',
+      lines: [
+        { words: [{ text: '焦点首句', start: 0, end: 1500 }], start: 0, end: 1500, isDuet: false, isBackground: false, align: 'left' },
+        { words: [{ text: '左对齐待唱句', start: 1600, end: 3000 }], start: 1600, end: 3000, isDuet: false, isBackground: false, align: 'left' },
+        { words: [{ text: '右对齐对唱待唱句', start: 3100, end: 4500 }], start: 3100, end: 4500, isDuet: true, isBackground: false, align: 'right' },
+      ],
+    }
+
+    const ctx = mountPlayer(cascadeLyrics)
+    const lineEls = Array.from(ctx.container.querySelectorAll<HTMLElement>('.lyric-line'))
+    ctx.step(0.5, 16)
+    for (let i = 0; i < 45; i++)
+      ctx.step(0.5, 16)
+
+    // 焦点句无横向偏移与旋转；左对齐待唱句向右扇出并顺时针微倾，右对齐对唱句镜像向左扇入并逆时针微倾
+    expect(lineEls[0].style.transform).toMatch(/^translate3d\(0,/)
+    expect(lineEls[0].style.transform).not.toContain('rotate(')
+    expect(lineEls[1].style.transform).toContain('translate3d(16.00px,')
+    expect(lineEls[1].style.transform).toContain('rotate(1.36deg)')
+    expect(lineEls[2].style.transform).toContain('translate3d(-32.00px,')
+    expect(lineEls[2].style.transform).toContain('rotate(-2.72deg)')
     ctx.cleanup()
   })
 })
