@@ -242,6 +242,22 @@ enum StageTimelineEngine {
         return (items, nil)
     }
 
+    /// 计算收起态单行条当前焦点行相对上一条主唱行的推进间隔（ms），供 <420ms 快切段收紧弹簧阻尼
+    static func mainLineStepIntervalMs(
+        forFocusIndex focusIdx: Int?,
+        in lines: [LyricLinePayload]
+    ) -> Double? {
+        guard let focusIdx, lines.indices.contains(focusIdx), focusIdx > 0 else {
+            return nil
+        }
+        let currentStart = lines[focusIdx].start
+        for i in stride(from: focusIdx - 1, through: 0, by: -1) where !lines[i].isBackground {
+            let delta = currentStart - lines[i].start
+            return delta > 0 ? delta : nil
+        }
+        return nil
+    }
+
     /// 1:1 对齐 music-page-controls.tsx handleCopyLyrics：按当前音译/翻译开关动态排版整首歌词文本
     static func formatLyricsForClipboard(
         track: IslandTrack?,

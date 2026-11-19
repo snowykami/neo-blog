@@ -308,15 +308,31 @@ struct BridgeAndEngineTests {
         #expect(byId.first?.formattedDuration == "03:48")
     }
 
-    @Test("多歌手胶囊与聚光灯切句无反向掉帧（修复 pillOffset 双重扣除）及四档 motion 律动预设与快切阻尼保护")
+    @Test("多歌手胶囊与聚光灯切句无反向掉帧（修复 pillOffset 双重扣除）及六档 motion 律动预设与快切阻尼保护")
     @MainActor
     func testNoDownwardDipOnSingerPillAndMotionPresets() throws {
-        // 1. 验证四档预设与快切阻尼收紧
+        // 1. 验证六档预设与收起态胶囊快切推进间隔求解、阻尼收紧
         let bouncyNormal = LyricSpecs.resolveMotionSprings(motion: "bouncy", stepIntervalMs: 1800)
         let bouncyRapid = LyricSpecs.resolveMotionSprings(motion: "bouncy", stepIntervalMs: 200)
+        let plushNormal = LyricSpecs.resolveMotionSprings(motion: "plush", stepIntervalMs: 1800)
+        let gentleNormal = LyricSpecs.resolveMotionSprings(motion: "gentle", stepIntervalMs: 1800)
+        #expect(bouncyNormal.position.stiffness == 165)
+        #expect(plushNormal.position.stiffness == 90)
+        #expect(gentleNormal.position.stiffness == 68)
+        #expect(abs(gentleNormal.position.damping - 2.0 * 0.96 * 68.0.squareRoot()) < 1e-6)
         #expect(bouncyNormal.inactiveScale == 0.885)
         #expect(bouncyRapid.position.stiffness >= bouncyNormal.position.stiffness)
         #expect(bouncyRapid.position.damping > bouncyNormal.position.damping)
+
+        let bgMid = try JSONDecoder().decode(LyricLinePayload.self, from: Data(#"{"start":1120,"end":1900,"is_background":true,"owner":0,"words":[{"text":"和声","start":1120,"end":1900}]}"#.utf8))
+        let stripSample = [
+            try JSONDecoder().decode(LyricLinePayload.self, from: Data(#"{"start":1000,"end":1300,"words":[{"text":"一","start":1000,"end":1300}]}"#.utf8)),
+            bgMid,
+            try JSONDecoder().decode(LyricLinePayload.self, from: Data(#"{"start":1280,"end":2000,"words":[{"text":"二","start":1280,"end":2000}]}"#.utf8))
+        ]
+        #expect(StageTimelineEngine.mainLineStepIntervalMs(forFocusIndex: 0, in: stripSample) == nil)
+        // 跳过中间的 x-bg 背景和声，准确量出两条主唱行 280ms (<420ms) 的快切间隔
+        #expect(StageTimelineEngine.mainLineStepIntervalMs(forFocusIndex: 2, in: stripSample) == 280)
 
         // 2. 验证带歌手胶囊 + 聚光灯的句子唱完切入下一句时，y 单调向上减小，不再先往下掉 18px
         let l0 = try JSONDecoder().decode(LyricLinePayload.self, from: Data(#"{"start":0,"end":1000,"singer_name":"甲","words":[{"text":"首句","start":0,"end":1000}]}"#.utf8))

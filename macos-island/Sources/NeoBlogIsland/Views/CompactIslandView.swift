@@ -6,10 +6,12 @@ import SwiftUI
 
 // MARK: - 单行条单元格（基于 SwiftUI 真实几何宽度 + 原生左/中/右对齐 + 溢出时舒适走廊拉紧弦 C² 平滑横向滚动）
 
-/// 1:1 对齐网页端 `lyric-player.ts` 单行条进出场区分：主唱/对唱上下弹簧滑入滑出，背景和声（x-bg）在下层原地淡入淡出
+/// 1:1 对齐网页端 `lyric-player.ts` 单行条进出场区分：主唱/对唱上下弹簧滑入滑出并按预设缩放舒展，背景和声（x-bg）在下层原地淡入淡出
 private struct StripLineTransition: Transition {
     let isBackground: Bool
     let verticalTravel: CGFloat
+    var inactiveScale: CGFloat = 1.0
+    var scaleAnchor: UnitPoint = .leading
 
     func body(content: Content, phase: TransitionPhase) -> some View {
         let dy: CGFloat = {
@@ -20,8 +22,13 @@ private struct StripLineTransition: Transition {
             case .didDisappear: return -verticalTravel
             }
         }()
+        let scale: CGFloat = {
+            guard !phase.isIdentity else { return 1.0 }
+            return isBackground ? 0.94 : inactiveScale
+        }()
         content
             .opacity(phase.isIdentity ? 1.0 : 0.0)
+            .scaleEffect(scale, anchor: scaleAnchor)
             .offset(y: dy)
     }
 }
@@ -136,6 +143,7 @@ private struct StripLineCellView: View {
                 line: line,
                 lineKeyPrefix: "strip-\(item.id)",
                 songFont: store.lyrics.font,
+                songMotion: store.lyrics.motion,
                 wordSynced: store.lyrics.wordSynced,
                 showEffects: store.preferences.showLyricEffects,
                 hdrEnabled: store.config.hdr,
@@ -164,6 +172,7 @@ private struct StripLineCellView: View {
         .padding(.horizontal, horizontalPad)
         .frame(width: cellWidth, alignment: .leading)
         .clipped()
+        .contentShape(Rectangle())
         .mask {
             if fadeLeft || fadeRight {
                 let edgeRatio = min(0.22, 14.0 / max(40.0, cellWidth))
@@ -197,6 +206,21 @@ private struct StripStageContainerView: View {
         TimelineView(.animation(paused: !store.isPlaying && !store.debrisEngine.hasActiveDebris)) { context in
             let nowMs = store.currentPositionMs(at: context.date)
             let plan = store.stripRenderItems(at: nowMs)
+            let focusIdx = plan.items.first(where: \.isFocus)?.lineIndex
+            let stepIntervalMs = StageTimelineEngine.mainLineStepIntervalMs(
+                forFocusIndex: focusIdx,
+                in: store.lyrics.lines
+            )
+            let motionSprings = LyricSpecs.resolveMotionSprings(
+                motion: store.lyrics.motion,
+                stepIntervalMs: stepIntervalMs
+            )
+            let stageSpring = Spring(
+                mass: motionSprings.position.mass,
+                stiffness: motionSprings.position.stiffness,
+                damping: motionSprings.position.damping,
+                allowOverDamping: true
+            )
             let animTokens = plan.items.map {
                 StripAnimStateToken(id: $0.id, slot: $0.slot, isFocus: $0.isFocus)
             }
@@ -205,6 +229,7 @@ private struct StripStageContainerView: View {
             ZStack {
                 if let interlude = plan.interlude {
                     let nextAlign = store.lyrics.lines.first(where: { $0.start >= interlude.end - 50 })?.align ?? "left"
+                    let interAnchor: UnitPoint = nextAlign == "right" ? .trailing : (nextAlign == "center" ? .center : .leading)
                     InterludeDotsView(
                         range: interlude,
                         rhythm: store.rhythm,
@@ -215,7 +240,9 @@ private struct StripStageContainerView: View {
                     )
                     .transition(StripLineTransition(
                         isBackground: false,
-                        verticalTravel: height * 0.42
+                        verticalTravel: height * 0.42,
+                        inactiveScale: CGFloat(motionSprings.inactiveScale),
+                        scaleAnchor: interAnchor
                     ))
                 } else if !plan.items.isEmpty {
                     let topRatio: CGFloat = height < 30 ? -0.235 : CGFloat(LyricSpecs.stripTierTop)
@@ -223,6 +250,7 @@ private struct StripStageContainerView: View {
                     ForEach(plan.items) { item in
                         let isHalf = item.slot?.half == true
                         let isDuet = item.line.isDuet || item.line.align == "right"
+                        let scaleAnchor: UnitPoint = isDuet ? .trailing : (item.line.align == "center" ? .center : .leading)
                         let cellW = isHalf ? width * 0.5 : width
                         let xOffset: CGFloat = isHalf ? (isDuet ? width * 0.25 : -width * 0.25) : 0
                         let yOffset: CGFloat = {
@@ -244,7 +272,9 @@ private struct StripStageContainerView: View {
                         .offset(y: yOffset)
                         .transition(StripLineTransition(
                             isBackground: item.line.isBackground,
-                            verticalTravel: height * 0.42
+                            verticalTravel: height * 0.42,
+                            inactiveScale: CGFloat(motionSprings.inactiveScale),
+                            scaleAnchor: scaleAnchor
                         ))
                     }
                 } else {
@@ -265,8 +295,10 @@ private struct StripStageContainerView: View {
                 }
             }
             .frame(width: width, height: height)
+            .clipped()
+            .contentShape(Rectangle())
             .coordinateSpace(name: "debrisSpace")
-            .animation(.spring(duration: 0.38, bounce: 0.14), value: animState)
+            .animation(.spring(stageSpring), value: animState)
         }
     }
 }
