@@ -24,6 +24,7 @@ func setupAgentTest(t *testing.T) (admin, author context.Context, ai1, ai2 *dto.
 	for k, v := range map[string]any{
 		"ai_agents_enabled": true, "ai_api_base_url": "http://127.0.0.1:1", "ai_api_key": "k", "ai_model": "m",
 		"ai_agents_comments_per_day": 100, "ai_agents_comments_per_post": 10,
+		"ai_comment_moderation_enabled": false,
 	} {
 		if err := repo.KV.SetKV(k, v); err != nil {
 			t.Fatalf("set %s: %v", k, err)

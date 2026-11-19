@@ -102,9 +102,9 @@ func (p *postRepo) StreamHeatLikes(since time.Time, visit func(HeatEvent)) error
 	return streamHeatQuery(q, visit)
 }
 
-// StreamHeatComments 流式扫描近期在文章下的评论（不含已删除，排除作者本人）
+// StreamHeatComments 流式扫描近期在文章下的评论（不含已删除与违规已屏蔽，排除作者本人）
 func (p *postRepo) StreamHeatComments(since time.Time, visit func(HeatEvent)) error {
-	q := GetDB().Model(&model.Comment{}).
+	q := NonRejectedComments(GetDB().Model(&model.Comment{}), "comments").
 		Select("comments.target_id AS post_id, comments.user_id, comments.created_at").
 		Joins("JOIN posts ON posts.id = comments.target_id AND posts.deleted_at IS NULL").
 		Where("comments.target_type = ? AND comments.created_at >= ? AND comments.user_id <> posts.user_id", constant.TargetTypePost, since)

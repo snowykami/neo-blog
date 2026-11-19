@@ -154,7 +154,7 @@ func publicCommentsQuery() *gorm.DB {
 func publicCommentsQueryDB(d *gorm.DB) *gorm.DB {
 	publicPostIDs := d.Model(&model.Post{}).Select("id").Where("is_private = ? AND is_draft = ?", false, false)
 	publicPageIDs := d.Model(&model.Page{}).Select("id").Where("is_private = ?", false)
-	return d.Model(&model.Comment{}).
+	return NonRejectedComments(d.Model(&model.Comment{}), "comments").
 		Where("comments.is_private = ?", false).
 		Where("((comments.target_type = ? AND comments.target_id IN (?)) OR (comments.target_type = ? AND comments.target_id IN (?)))",
 			constant.TargetTypePost, publicPostIDs,

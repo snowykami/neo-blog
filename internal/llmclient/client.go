@@ -246,16 +246,52 @@ func PostChatCompletions(ctx context.Context, cfg tools.AIConfig, payload map[st
 		defer resp.Body.Close()
 		data, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 		msg := strings.TrimSpace(string(data))
-		if r := []rune(msg); len(r) > 200 {
-			msg = string(r[:200])
+		if r := []rune(msg); len(r) > 600 {
+			msg = string(r[:600])
 		}
 		return nil, &StatusError{Code: resp.StatusCode, Message: msg}
 	}
 	return resp, nil
 }
 
+// IsContentFilterError 判断上游非 200 错误是否属于内容安全/敏感词/合规风控拦截（而非不支持识图或思考参数等协议兼容问题）
+func IsContentFilterError(statusErr *StatusError) bool {
+	if statusErr == nil {
+		return false
+	}
+	msg := strings.ToLower(statusErr.Message)
+	for _, marker := range []string{
+		"content_filter",
+		"content_policy_violation",
+		"data_inspection_failed",
+		"inappropriate content",
+		"prohibited_content",
+		"blocklist",
+		"inputtextsensitive",
+		"outputtextsensitive",
+		"sensitive_words",
+		"sensitive content",
+		"high_risk",
+		"violates usage polic",
+		"violates our usage polic",
+		"safety system",
+		"moderation",
+		"内容安全",
+		"敏感词",
+		"敏感内容",
+		"违反使用",
+		"不适当",
+		"违法违规",
+	} {
+		if strings.Contains(msg, marker) {
+			return true
+		}
+	}
+	return false
+}
+
 // PostChatCompletionsVision 同 PostChatCompletions，请求带图片时处理识图降级：
-// 未开启识图或该模型最近拒收过图片时直接去掉图片；接口以 400 等拒收时去掉图片按纯文本重试一次并记住该模型不支持
+// 未开启识图或该模型最近拒收过图片时直接去掉图片；接口以 400 等（非内容风控）拒收时去掉图片按纯文本重试一次并记住该模型不支持
 func PostChatCompletionsVision(ctx context.Context, cfg tools.AIConfig, payload map[string]any) (*http.Response, error) {
 	if !payloadHasImages(payload) {
 		return PostChatCompletions(ctx, cfg, payload)
@@ -266,7 +302,7 @@ func PostChatCompletionsVision(ctx context.Context, cfg tools.AIConfig, payload 
 	}
 	resp, err := PostChatCompletions(ctx, cfg, payload)
 	var statusErr *StatusError
-	if !(errors.As(err, &statusErr) && imageRejectedStatus(statusErr.Code)) {
+	if !(errors.As(err, &statusErr) && imageRejectedStatus(statusErr.Code) && !IsContentFilterError(statusErr)) {
 		return resp, err
 	}
 	logrus.Warnf("chat completion (model %s) rejected images, retrying as plain text: %v", cfg.Model, err)
@@ -311,11 +347,13 @@ func ChatCompletionRawCall(ctx context.Context, cfg tools.AIConfig, system, user
 	thinkingKey, stripThinking := applyThinkingEffort(payload, cfg, effort)
 	resp, err := PostChatCompletionsVision(ctx, cfg, payload)
 	var statusErr *StatusError
-	if stripThinking != nil && errors.As(err, &statusErr) && statusErr.Code == http.StatusBadRequest {
+	if stripThinking != nil && errors.As(err, &statusErr) && statusErr.Code == http.StatusBadRequest && !IsContentFilterError(statusErr) {
 		logrus.Warnf("chat completion rejected thinking/reasoning_effort (%s), retrying without it: %v", effort, err)
-		reasoningEffortUnsupported.Store(thinkingKey, true)
 		stripThinking()
 		resp, err = PostChatCompletionsVision(ctx, cfg, payload)
+		if err == nil {
+			reasoningEffortUnsupported.Store(thinkingKey, true)
+		}
 	}
 	if err != nil {
 		return nil, err
@@ -369,25 +407,31 @@ func ChatCompletionStreamCallWithOptions(ctx context.Context, cfg tools.AIConfig
 	thinkingKey, stripThinking := applyThinkingEffort(payload, cfg, effort)
 	resp, err := PostChatCompletions(ctx, cfg, payload)
 	var statusErr *StatusError
-	if _, sent := payload["stream_options"]; sent && errors.As(err, &statusErr) && statusErr.Code == http.StatusBadRequest &&
+	if _, sent := payload["stream_options"]; sent && errors.As(err, &statusErr) && statusErr.Code == http.StatusBadRequest && !IsContentFilterError(statusErr) &&
 		(stripThinking == nil || strings.Contains(strings.ToLower(statusErr.Message), "stream_options")) {
 		logrus.Warnf("chat completion stream rejected stream_options, retrying without it: %v", err)
-		streamUsageUnsupported.Store(key, true)
 		delete(payload, "stream_options")
 		resp, err = PostChatCompletions(ctx, cfg, payload)
+		if err == nil {
+			streamUsageUnsupported.Store(key, true)
+		}
 	}
-	if stripThinking != nil && errors.As(err, &statusErr) && statusErr.Code == http.StatusBadRequest {
+	if stripThinking != nil && errors.As(err, &statusErr) && statusErr.Code == http.StatusBadRequest && !IsContentFilterError(statusErr) {
 		logrus.Warnf("chat completion stream rejected thinking/reasoning_effort (%s), retrying without it: %v", effort, err)
-		reasoningEffortUnsupported.Store(thinkingKey, true)
 		stripThinking()
 		stripThinking = nil
 		resp, err = PostChatCompletions(ctx, cfg, payload)
+		if err == nil {
+			reasoningEffortUnsupported.Store(thinkingKey, true)
+		}
 	}
-	if _, sent := payload["stream_options"]; sent && errors.As(err, &statusErr) && statusErr.Code == http.StatusBadRequest {
+	if _, sent := payload["stream_options"]; sent && errors.As(err, &statusErr) && statusErr.Code == http.StatusBadRequest && !IsContentFilterError(statusErr) {
 		logrus.Warnf("chat completion stream rejected stream_options, retrying without it: %v", err)
-		streamUsageUnsupported.Store(key, true)
 		delete(payload, "stream_options")
 		resp, err = PostChatCompletions(ctx, cfg, payload)
+		if err == nil {
+			streamUsageUnsupported.Store(key, true)
+		}
 	}
 	if err != nil {
 		return Usage{}, err

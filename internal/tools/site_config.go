@@ -117,6 +117,15 @@ func GetAIWritingThinking() string { return config.String("ai_thinking_writing")
 // GetAICommentTranslateThinking 评论即时翻译的思考强度
 func GetAICommentTranslateThinking() string { return config.String("ai_thinking_comment_translate") }
 
+// GetAICommentModerationThinking 评论 AI 内容审查的思考强度
+func GetAICommentModerationThinking() string { return config.String("ai_thinking_comment_moderation") }
+
+// GetAICommentModerationEnabled 是否启用评论 AI 内容审查（需同时已配置全站 AI 接口才会实际执行）
+func GetAICommentModerationEnabled() bool { return config.Bool("ai_comment_moderation_enabled") }
+
+// GetAICommentModerationPrompt 站点补充的评论审查规则说明（为空时只使用内置通用准则）
+func GetAICommentModerationPrompt() string { return config.String("ai_comment_moderation_prompt") }
+
 // GetAISummaryThinking 文章 AI 摘要生成的思考强度
 func GetAISummaryThinking() string { return config.String("ai_thinking_summary") }
 

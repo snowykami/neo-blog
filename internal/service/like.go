@@ -69,6 +69,9 @@ func (ls *LikeService) toggleLike(ctx context.Context, targetID uint, targetType
 				}
 				return false, errs.Internal("failed_to_get_target", err).WithResource("comment")
 			}
+			if isCommentHiddenByModeration(comment) && !ctxutils.IsAdmin(ctx) {
+				return false, errs.NewNotFound("operation_target_not_found").WithResource("comment")
+			}
 			ownerID = comment.UserID
 			quotedExcerpt = comment.Content
 			subjectType, subjectID = comment.TargetType, comment.TargetID
@@ -175,6 +178,18 @@ func (ls *LikeService) IsLiked(ctx context.Context, targetID uint, targetType st
 	}
 	if !(targetType == constant.TargetTypePost || targetType == constant.TargetTypeComment) {
 		return false, errs.NewBadRequest("invalid_target_type")
+	}
+	if targetType == constant.TargetTypeComment {
+		comment, err := repo.Comment.GetComment(targetID)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return false, nil
+			}
+			return false, errs.Internal("failed_to_get_target", err)
+		}
+		if isCommentHiddenByModeration(comment) {
+			return false, nil
+		}
 	}
 	liked, err := repo.Like.IsLiked(currentUserID, targetID, targetType)
 	if err != nil {

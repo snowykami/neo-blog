@@ -38,6 +38,9 @@ func fakeLLMServer(t *testing.T, calls *atomic.Int32) *httptest.Server {
 		_ = json.Unmarshal(data, &body)
 		usage := `{"prompt_tokens":100,"completion_tokens":20,"prompt_tokens_details":{"cached_tokens":30},"cache_creation_input_tokens":5}`
 		content := `{\"source_lang\": \"en\", \"translation\": \"你好\"}`
+		if strings.Contains(string(data), "comment_to_review") {
+			content = `{\"pass\": true}`
+		}
 		if body.Stream {
 			w.Header().Set("Content-Type", "text/event-stream")
 			_, _ = fmt.Fprintf(w, "data: {\"choices\":[{\"delta\":{\"content\":\"写好了\"}}]}\n\n")
@@ -114,10 +117,17 @@ func TestLLMUsageRecordedForAllPurposes(t *testing.T) {
 		t.Fatalf("writing usage = %+v", writing)
 	}
 
-	// 评论翻译
+	// 评论翻译（同时触发新评论的后台 AI 内容审查用量记录）
+	if err := repo.KV.SetKV("ai_comment_moderation_enabled", true); err != nil {
+		t.Fatal(err)
+	}
 	commentID, svcerr := createComment(admin, postID, 0, false)
 	if svcerr != nil {
 		t.Fatal(svcerr)
+	}
+	moderation := waitLLMUsage(t, constant.LLMPurposeCommentModeration)
+	if moderation.UserID != nil || !moderation.Success || moderation.PromptTokens != 100 {
+		t.Fatalf("comment moderation usage = %+v", moderation)
 	}
 	if _, svcerr := NewCommentTranslateService().Translate(author, &dto.TranslateCommentReq{ID: commentID, TargetLang: "zh", RemoteAddr: "203.0.113.9"}); svcerr != nil {
 		t.Fatalf("translate: %v", svcerr)

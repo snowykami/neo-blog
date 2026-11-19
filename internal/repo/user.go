@@ -294,8 +294,7 @@ func (user *userRepo) DeleteUser(userID, transferTo uint) error {
 				return err
 			}
 			if comment.ReplyID != 0 {
-				if err := tx.Model(&model.Comment{}).Where("id = ? AND comment_count > 0", comment.ReplyID).
-					UpdateColumn("comment_count", gorm.Expr("comment_count - ?", 1)).Error; err != nil {
+				if err := syncParentReplyCount(tx, comment.ReplyID); err != nil {
 					return err
 				}
 			}

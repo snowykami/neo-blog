@@ -623,7 +623,11 @@ func (s *AIAgentService) onCommentCreated(commentID uint, now time.Time) error {
 		}
 		return err
 	}
-	if comment.ReplyID == 0 || comment.IsPrivate {
+	if comment.ModerationStatus == constant.CommentModerationPending {
+		// 待审查评论暂不评估、也不写 evaluated 标记，等审查通过后由 NotifyCommentCreated 或恢复扫描再评估
+		return nil
+	}
+	if comment.ReplyID == 0 || comment.IsPrivate || isCommentHiddenByModeration(comment) {
 		markCommentEvaluated(comment)
 		return nil
 	}
@@ -635,7 +639,7 @@ func (s *AIAgentService) onCommentCreated(commentID uint, now time.Time) error {
 		}
 		return err
 	}
-	if !parent.User.IsAI || parent.UserID == comment.UserID {
+	if isCommentHiddenByModeration(parent) || !parent.User.IsAI || parent.UserID == comment.UserID {
 		markCommentEvaluated(comment)
 		return nil
 	}
@@ -829,8 +833,12 @@ func (s *AIAgentService) onCommentMentioned(commentID uint, now time.Time) error
 		}
 		return err
 	}
-	// 私密评论不投：AI 的回应是公开的，会把私密内容带出去
-	if comment.IsPrivate || len(comment.MentionUserIDs) == 0 {
+	if comment.ModerationStatus == constant.CommentModerationPending {
+		// 待审查评论暂不投递 @ 唤醒，等审查通过后再由审查器触发
+		return nil
+	}
+	// 私密评论或违规已屏蔽评论（含祖先已屏蔽）不投：AI 的回应是公开的，不能把私密或违规内容带出去
+	if comment.IsPrivate || isCommentHiddenByModeration(comment) || len(comment.MentionUserIDs) == 0 {
 		markCommentEvaluated(comment)
 		return nil
 	}

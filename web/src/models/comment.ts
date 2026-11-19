@@ -1,6 +1,10 @@
 import type { TargetType } from './types'
 import type { User } from './user'
 
+export type CommentModerationStatus = '' | 'pending' | 'approved' | 'rejected'
+export type CommentModerationCategory = '' | 'politics' | 'trolling' | 'porn' | 'violence' | 'scam' | 'other'
+export type CommentModerationSource = '' | 'ai' | 'ai_upstream_block' | 'manual'
+
 export interface Comment {
   id: number
   targetType: TargetType
@@ -30,6 +34,12 @@ export interface Comment {
   // 只在主评论列表中返回：整个回复线程（不限层级）中可见的回复数，以及最早回复的几位用户
   threadCount?: number
   threadUsers?: User[]
+  // 以下审查字段仅在后台管理员接口（/admin/comments）返回
+  moderationStatus?: CommentModerationStatus
+  moderationCategory?: CommentModerationCategory
+  moderationReason?: string
+  moderationSource?: CommentModerationSource
+  moderatedAt?: string
 }
 
 // 评论里被 @ 的人：提交时只带 id，读回来时带当前用户名与昵称

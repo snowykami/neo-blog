@@ -102,11 +102,35 @@ export async function deleteUserAdmin(id: number): Promise<BaseResponse<null>> {
   return res.data
 }
 
-export async function listCommentsAdmin(pagination: PaginationParams, query: string): Promise<BaseResponse<{ comments: UserComment[], total: number }>> {
+export async function listCommentsAdmin(
+  pagination: PaginationParams,
+  query: string,
+  moderationStatus = '',
+): Promise<BaseResponse<{ comments: UserComment[], total: number }>> {
   const res = await axiosClient.get(
     '/admin/comments',
-    { params: { ...pagination, query } },
+    { params: { ...pagination, query, moderation_status: moderationStatus || undefined } },
   )
+  return res.data
+}
+
+export async function updateCommentsModerationAdmin({
+  ids,
+  status,
+  category,
+  reason,
+}: {
+  ids: number[]
+  status: 'approved' | 'rejected'
+  category?: string
+  reason?: string
+}): Promise<BaseResponse<{ updated: number }>> {
+  const res = await axiosClient.post('/admin/comments/moderation', {
+    ids,
+    status,
+    category,
+    reason,
+  })
   return res.data
 }
 

@@ -234,7 +234,7 @@ func (l *likeRepo) ListLikesByUser(userID uint, viewAll, isSelf bool, page, size
 	publicPosts := func() *gorm.DB {
 		return GetDB().Model(&model.Post{}).Select("id").Where("is_private = ? AND is_draft = ?", false, false)
 	}
-	visibleComments := GetDB().Model(&model.Comment{}).Select("id").
+	visibleComments := NonRejectedComments(GetDB().Model(&model.Comment{})).Select("id").
 		Where("((target_type = ? AND target_id IN (?)) OR (target_type = ? AND target_id IN (?)))",
 			constant.TargetTypePost, publicPosts(),
 			constant.TargetTypePage, visibleTargets(&model.Page{}))
@@ -244,7 +244,7 @@ func (l *likeRepo) ListLikesByUser(userID uint, viewAll, isSelf bool, page, size
 		ownTargets := func(m any) *gorm.DB {
 			return GetDB().Model(m).Select("id").Where("user_id = ?", userID)
 		}
-		participated := GetDB().Model(&model.Comment{}).Select("distinct root_id").Where("user_id = ?", userID)
+		participated := NonRejectedComments(GetDB().Model(&model.Comment{})).Select("distinct root_id").Where("user_id = ?", userID)
 		visibleComments = visibleComments.Where("(is_private = ? OR root_id IN (?) OR (target_type = ? AND target_id IN (?)) OR (target_type = ? AND target_id IN (?)))",
 			false, participated,
 			constant.TargetTypePost, ownTargets(&model.Post{}),

@@ -23,10 +23,24 @@ func (cc *AdminController) ListComments(ctx context.Context, c *app.RequestConte
 		return
 	}
 	commentService := service.NewCommentService()
-	comments, total, svcerr := commentService.ListCommentsAdmin(ctx, paginationParams, c.Query("query"))
+	comments, total, svcerr := commentService.ListCommentsAdmin(ctx, paginationParams, c.Query("query"), c.Query("moderation_status"))
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return
 	}
 	resps.Ok(c, resps.Success, utils.H{"comments": comments, "total": total})
+}
+
+func (cc *AdminController) UpdateCommentsModeration(ctx context.Context, c *app.RequestContext) {
+	var req dto.AdminUpdateCommentModerationReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	updated, svcerr := service.NewCommentService().UpdateCommentsModerationAdmin(ctx, &req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, utils.H{"updated": updated})
 }

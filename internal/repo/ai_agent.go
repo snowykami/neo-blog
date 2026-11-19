@@ -435,10 +435,10 @@ func (r *aiAgentRepo) CountUserComments(userID uint, since time.Time) (int64, er
 	return n, GetDB().Model(&model.Comment{}).Where("user_id = ? AND created_at >= ?", userID, since).Count(&n).Error
 }
 
-// RecentUserComments 用户最近发表的评论内容，新的在前
+// RecentUserComments 用户最近发表的可见评论内容，新的在前（不含已屏蔽违规评论，防止违规文本回流进 AI 提示词）
 func (r *aiAgentRepo) RecentUserComments(userID uint, limit int) ([]string, error) {
 	var contents []string
-	err := GetDB().Model(&model.Comment{}).Where("user_id = ?", userID).
+	err := NonRejectedComments(GetDB().Model(&model.Comment{})).Where("user_id = ?", userID).
 		Order("created_at DESC").Limit(limit).Pluck("content", &contents).Error
 	return contents, err
 }
@@ -490,14 +490,14 @@ func (r *aiAgentRepo) CountAILikes(since time.Time) (int64, error) {
 		Where("users.is_ai = ? AND likes.created_at >= ?", true, since).Count(&n).Error
 }
 
-// CountTargetComments 目标（文章 / 页面）下 AI 与真人的评论数（含回复）。
+// CountTargetComments 目标（文章 / 页面）下 AI 与真人的可见评论数（含回复，不含违规已屏蔽）。
 // AI 回复真人评论的那些另有上限（见 CountAIRepliesTo），不计入这里的 AI 评论数
 func (r *aiAgentRepo) CountTargetComments(targetType string, targetID uint) (ai, human int64, err error) {
 	var rows []struct {
 		IsAI bool
 		N    int64
 	}
-	err = GetDB().Model(&model.Comment{}).Joins("JOIN users ON users.id = comments.user_id").
+	err = NonRejectedComments(GetDB().Model(&model.Comment{}), "comments").Joins("JOIN users ON users.id = comments.user_id").
 		Joins("LEFT JOIN comments AS parents ON parents.id = comments.reply_id").
 		Joins("LEFT JOIN users AS parent_users ON parent_users.id = parents.user_id").
 		Select("users.is_ai AS is_ai, COUNT(*) AS n").
@@ -514,16 +514,16 @@ func (r *aiAgentRepo) CountTargetComments(targetType string, targetID uint) (ai,
 	return
 }
 
-// CountUserRootCommentsOnTarget 用户在目标下的顶层评论数（不含回复）
+// CountUserRootCommentsOnTarget 用户在目标下的可见顶层评论数（不含回复与违规已屏蔽）
 func (r *aiAgentRepo) CountUserRootCommentsOnTarget(userID uint, targetType string, targetID uint) (int64, error) {
 	var n int64
-	return n, GetDB().Model(&model.Comment{}).Where("user_id = ? AND target_type = ? AND target_id = ? AND reply_id = 0", userID, targetType, targetID).Count(&n).Error
+	return n, NonRejectedComments(GetDB().Model(&model.Comment{})).Where("user_id = ? AND target_type = ? AND target_id = ? AND reply_id = 0", userID, targetType, targetID).Count(&n).Error
 }
 
-// CountAIRepliesTo 直接回复这条评论的 AI 评论数
+// CountAIRepliesTo 直接回复这条评论的非违规 AI 评论数
 func (r *aiAgentRepo) CountAIRepliesTo(commentID uint) (int64, error) {
 	var n int64
-	return n, GetDB().Model(&model.Comment{}).Joins("JOIN users ON users.id = comments.user_id").
+	return n, NonRejectedComments(GetDB().Model(&model.Comment{}), "comments").Joins("JOIN users ON users.id = comments.user_id").
 		Where("comments.reply_id = ? AND users.is_ai = ?", commentID, true).Count(&n).Error
 }
 
@@ -547,10 +547,10 @@ func (r *aiAgentRepo) CountPairReplies(fromUserID, toUserID, rootID uint, since 
 	return n, err
 }
 
-// RecentTargetComments 目标下最近的评论内容，用于相似度去重
+// RecentTargetComments 目标下最近的评论内容，用于相似度去重（不含已屏蔽违规评论）
 func (r *aiAgentRepo) RecentTargetComments(targetType string, targetID uint, limit int) ([]string, error) {
 	var contents []string
-	err := GetDB().Model(&model.Comment{}).Where("target_type = ? AND target_id = ?", targetType, targetID).
+	err := NonRejectedComments(GetDB().Model(&model.Comment{})).Where("target_type = ? AND target_id = ?", targetType, targetID).
 		Order("id DESC").Limit(limit).Pluck("content", &contents).Error
 	return contents, err
 }
@@ -791,12 +791,12 @@ func (r *aiAgentRepo) RecentPublishedPosts(since time.Time, limit int) ([]model.
 	return posts, err
 }
 
-// RecentHumanPublicComments 近期新建或编辑的公开非 AI 评论（供中断恢复兜底补扫）
+// RecentHumanPublicComments 近期新建或编辑的公开非 AI 评论（供中断恢复兜底补扫，排除待审与违规已屏蔽评论）
 func (r *aiAgentRepo) RecentHumanPublicComments(since time.Time, limit int) ([]model.Comment, error) {
 	var comments []model.Comment
-	err := GetDB().Model(&model.Comment{}).
+	err := NonRejectedComments(GetDB().Model(&model.Comment{}), "comments").
 		Joins("JOIN users ON users.id = comments.user_id AND users.deleted_at IS NULL AND users.is_ai = ?", false).
-		Where("comments.is_private = ? AND comments.updated_at >= ?", false, since).
+		Where("comments.is_private = ? AND COALESCE(comments.moderation_status, '') <> ? AND comments.updated_at >= ?", false, constant.CommentModerationPending, since).
 		Order("comments.updated_at DESC").
 		Limit(limit).
 		Find(&comments).Error

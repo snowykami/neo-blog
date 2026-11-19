@@ -3,12 +3,32 @@ package repo
 import (
 	"errors"
 	"slices"
+	"strings"
+	"time"
 
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"gorm.io/gorm"
 )
+
+const rejectedCommentSubtreeCTE = `WITH RECURSIVE rejected_tree(id) AS (
+	SELECT id FROM comments WHERE deleted_at IS NULL AND COALESCE(moderation_status, '') = ?
+	UNION
+	SELECT c.id FROM comments c INNER JOIN rejected_tree rt ON c.reply_id = rt.id WHERE c.deleted_at IS NULL
+) SELECT id FROM rejected_tree`
+
+// NonRejectedComments 使用递归 CTE（兼容 SQLite 与 PostgreSQL）排除已判定违规屏蔽的评论及其任意深度的整棵后代回复子树，
+// 保证前台评论区、个人主页、评论计数、点赞列表、热度与全站检索完全不露出违规内容或悬空孤立子孙回复
+func NonRejectedComments(query *gorm.DB, columnPrefix ...string) *gorm.DB {
+	p := ""
+	if len(columnPrefix) > 0 && columnPrefix[0] != "" {
+		p = columnPrefix[0] + "."
+	}
+	return query.
+		Where("COALESCE("+p+"moderation_status, '') <> ?", constant.CommentModerationRejected).
+		Where(p+"id NOT IN ("+rejectedCommentSubtreeCTE+")", constant.CommentModerationRejected)
+}
 
 type CommentRepo struct {
 }
@@ -108,19 +128,35 @@ func deleteTargetComments(tx *gorm.DB, targetType string, targetID uint) ([]uint
 	return notified, nil
 }
 
-// syncTargetCommentCount 重新统计目标的评论数；页面没有评论计数字段，无需维护
+// syncTargetCommentCount 重新统计目标的可见（非违规屏蔽）评论数；页面没有评论计数字段，无需维护
 func syncTargetCommentCount(tx *gorm.DB, targetType string, targetID uint) error {
 	if targetType != constant.TargetTypePost {
 		return nil
 	}
 	var count int64
-	if err := tx.Model(&model.Comment{}).
+	if err := NonRejectedComments(tx.Session(&gorm.Session{NewDB: true}).Model(&model.Comment{})).
 		Where("target_id = ? AND target_type = ?", targetID, targetType).
 		Count(&count).Error; err != nil {
 		return err
 	}
 	// 文章热度由定时任务重算
-	return tx.Model(&model.Post{}).Where("id = ?", targetID).
+	return tx.Session(&gorm.Session{NewDB: true}).Model(&model.Post{}).Where("id = ?", targetID).
+		UpdateColumn("comment_count", count).Error
+}
+
+// syncParentReplyCount 重新统计父评论下非违规屏蔽的直接回复数
+func syncParentReplyCount(tx *gorm.DB, parentID uint) error {
+	if parentID == 0 {
+		return nil
+	}
+	var count int64
+	if err := NonRejectedComments(tx.Session(&gorm.Session{NewDB: true}).Model(&model.Comment{})).
+		Where("reply_id = ?", parentID).
+		Count(&count).Error; err != nil {
+		return err
+	}
+	return tx.Session(&gorm.Session{NewDB: true}).Model(&model.Comment{}).
+		Where("id = ?", parentID).
 		UpdateColumn("comment_count", count).Error
 }
 
@@ -156,9 +192,6 @@ func (cr *CommentRepo) CreateComment(comment *model.Comment, maxDepth int, tx *g
 			if parentComment.IsPrivate {
 				comment.IsPrivate = true
 			}
-			if err := tx.Model(&parentComment).UpdateColumn("comment_count", gorm.Expr("comment_count + ?", 1)).Error; err != nil {
-				return err
-			}
 			depth = parentComment.Depth + 1
 		} else {
 			// 根评论：暂时把 RootID 设为 0，创建后再更新为自身 ID（回写）
@@ -179,6 +212,11 @@ func (cr *CommentRepo) CreateComment(comment *model.Comment, maxDepth int, tx *g
 			comment.RootID = comment.ID
 		}
 		commentID = comment.ID // 记录主键
+		if comment.ReplyID != 0 {
+			if err := syncParentReplyCount(tx, comment.ReplyID); err != nil {
+				return err
+			}
+		}
 		// 更新目标的评论数量
 		return syncTargetCommentCount(tx, comment.TargetType, comment.TargetID)
 	}
@@ -211,7 +249,10 @@ func (cr *CommentRepo) UpdateComment(comment *model.Comment) ([]uint, error) {
 				comment.IsPrivate = true
 			}
 		}
-		if err := tx.Select("IsPrivate", "ShowClientInfo", "Content", "Language", "AttachmentIDs", "MentionUserIDs").Updates(comment).Error; err != nil {
+		if err := tx.Select(
+			"IsPrivate", "ShowClientInfo", "Content", "Language", "AttachmentIDs", "MentionUserIDs",
+			"ModerationStatus", "ModerationCategory", "ModerationReason", "ModerationSource", "ModeratedAt",
+		).Updates(comment).Error; err != nil {
 			return err
 		}
 		if comment.IsPrivate {
@@ -220,6 +261,12 @@ func (cr *CommentRepo) UpdateComment(comment *model.Comment) ([]uint, error) {
 				return err
 			}
 			cascadedIDs = ids
+		}
+		if err := syncTargetCommentCount(tx, comment.TargetType, comment.TargetID); err != nil {
+			return err
+		}
+		if err := syncParentReplyCount(tx, comment.ReplyID); err != nil {
+			return err
 		}
 		// 内容变化后旧译文全部作废
 		return deleteStaleCommentTranslations(tx, comment.ID, model.CommentContentMD5(comment.Content))
@@ -289,10 +336,9 @@ func (cr *CommentRepo) DeleteComment(commentID uint) ([]uint, error) {
 			return err
 		}
 
-		// 4. 原子地更新父评论的回复计数，不整行覆盖，避免并发时丢失点赞数等字段的更新
+		// 4. 重新统计父评论下非违规屏蔽的直接回复数（避免已屏蔽回复被删除时重复扣减）
 		if comment.ReplyID != 0 {
-			if err := tx.Model(&model.Comment{}).Where("id = ? AND comment_count > 0", comment.ReplyID).
-				UpdateColumn("comment_count", gorm.Expr("comment_count - ?", 1)).Error; err != nil {
+			if err := syncParentReplyCount(tx, comment.ReplyID); err != nil {
 				return err
 			}
 		}
@@ -311,13 +357,13 @@ func (cr *CommentRepo) DeleteComment(commentID uint) ([]uint, error) {
 	return notified, nil
 }
 
-// HasUserCommentedInTree 用户是否参与过某棵评论树（参与者可以看到树内的私密评论）
+// HasUserCommentedInTree 用户是否参与过某棵评论树（参与者可以看到树内的私密评论；违规屏蔽评论不计入）
 func (cr *CommentRepo) HasUserCommentedInTree(rootID, userID uint) (bool, error) {
 	if userID == 0 {
 		return false, nil
 	}
 	var count int64
-	err := GetDB().Model(&model.Comment{}).Where("root_id = ? AND user_id = ?", rootID, userID).Count(&count).Error
+	err := NonRejectedComments(GetDB().Model(&model.Comment{})).Where("root_id = ? AND user_id = ?", rootID, userID).Count(&count).Error
 	return count > 0, err
 }
 
@@ -327,6 +373,63 @@ func (cr *CommentRepo) GetComment(commentID uint) (*model.Comment, error) {
 		return nil, err
 	}
 	return &comment, nil
+}
+
+// IsCommentOrAncestorRejected 判断当前评论自身或其任意层级祖先是否已被判定为违规屏蔽
+func (cr *CommentRepo) IsCommentOrAncestorRejected(comment *model.Comment) (bool, error) {
+	if comment == nil {
+		return false, nil
+	}
+	if comment.IsRejected() {
+		return true, nil
+	}
+	curID := comment.ReplyID
+	visited := map[uint]bool{comment.ID: true}
+	for hops := 0; curID != 0 && hops < 32; hops++ {
+		if visited[curID] {
+			break
+		}
+		visited[curID] = true
+		var row struct {
+			ID               uint
+			ReplyID          uint
+			ModerationStatus string
+		}
+		err := GetDB().Model(&model.Comment{}).
+			Select("id, reply_id, moderation_status").
+			Where("id = ?", curID).
+			Take(&row).Error
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return true, nil
+			}
+			return false, err
+		}
+		if row.ModerationStatus == constant.CommentModerationRejected {
+			return true, nil
+		}
+		curID = row.ReplyID
+	}
+	return false, nil
+}
+
+func collectCommentSubtreeIDs(tx *gorm.DB, rootCommentID uint) ([]uint, error) {
+	all := []uint{rootCommentID}
+	frontier := []uint{rootCommentID}
+	for len(frontier) > 0 {
+		var childIDs []uint
+		if err := tx.Session(&gorm.Session{NewDB: true}).Model(&model.Comment{}).
+			Where("reply_id IN ?", frontier).
+			Pluck("id", &childIDs).Error; err != nil {
+			return nil, err
+		}
+		if len(childIDs) == 0 {
+			break
+		}
+		all = append(all, childIDs...)
+		frontier = childIDs
+	}
+	return all, nil
 }
 
 // ReplyLink 评论回复的上一级评论，以及作者是否 AI 用户（作者已删除时按非 AI）：沿回复链计算 AI 互动深度用，只读两列
@@ -371,18 +474,161 @@ func (cr *CommentRepo) ListComments(currentUserID, targetID, commentID, rootID u
 	return items, nil
 }
 
-// ListCommentsAdmin 列出所有评论，包含用户信息，用于后台管理
-func (cr *CommentRepo) ListCommentsAdmin(page, size uint64, orderBy string, desc bool, queryText string) ([]model.Comment, int64, error) {
+// ListCommentsAdmin 列出所有评论（含违规已屏蔽评论），包含用户信息，仅供后台管理员使用
+func (cr *CommentRepo) ListCommentsAdmin(page, size uint64, orderBy string, desc bool, queryText, moderationFilter string) ([]model.Comment, int64, error) {
 	query := GetDB().Model(&model.Comment{}).Preload("User")
+	switch strings.TrimSpace(moderationFilter) {
+	case constant.CommentModerationRejected:
+		query = query.Where("COALESCE(comments.moderation_status, '') = ?", constant.CommentModerationRejected)
+	case constant.CommentModerationPending:
+		query = query.Where("COALESCE(comments.moderation_status, '') = ?", constant.CommentModerationPending)
+	case constant.CommentModerationApproved:
+		query = query.Where("COALESCE(comments.moderation_status, '') = ?", constant.CommentModerationApproved)
+	case "visible":
+		query = query.Where("COALESCE(comments.moderation_status, '') <> ?", constant.CommentModerationRejected)
+	}
 	if queryText != "" {
-		like := "%" + queryText + "%"
-		query = query.Joins("LEFT JOIN users ON users.id = comments.user_id").
-			Where("comments.content LIKE ? OR users.username LIKE ? OR users.nickname LIKE ? OR users.email LIKE ?", like, like, like, like)
+		like := "%" + likeEscaper.Replace(strings.ToLower(queryText)) + "%"
+		query = query.Joins("LEFT JOIN users ON users.id = comments.user_id AND users.deleted_at IS NULL").
+			Where(
+				"(LOWER(comments.content) LIKE ? ESCAPE '\\' OR LOWER(COALESCE(comments.moderation_reason, '')) LIKE ? ESCAPE '\\' OR LOWER(COALESCE(users.username, '')) LIKE ? ESCAPE '\\' OR LOWER(COALESCE(users.nickname, '')) LIKE ? ESCAPE '\\' OR LOWER(COALESCE(users.email, '')) LIKE ? ESCAPE '\\')",
+				like, like, like, like, like,
+			)
 	}
 	// 搜索时会 JOIN users，排序字段需带上表名避免列名歧义
 	orderBy = "comments." + AllowedOrderBy(orderBy, constant.OrderByEnumComment, constant.OrderByCreatedAt)
 	items, total, err := PaginateQuery[model.Comment](query, page, size, orderBy, desc)
 	return items, total, err
+}
+
+// ModerationVerdictUpdate 审查结论写库参数
+type ModerationVerdictUpdate struct {
+	CommentID           uint
+	ExpectedContent     *string
+	ExpectedAttachments *model.FileIDs
+	RequirePending      bool
+	Status              string
+	Category            string
+	Reason              string
+	Source              string
+	ModeratedAt         time.Time
+}
+
+// ApplyModerationVerdict 原子写入单条评论的审查结论（不改动 updated_at），同步文章与父评论的可见计数，并在标为违规时撤回站内通知与待执行 AI 任务
+func (cr *CommentRepo) ApplyModerationVerdict(in ModerationVerdictUpdate) (*model.Comment, bool, []uint, error) {
+	var updated *model.Comment
+	var applied bool
+	var notified []uint
+	err := GetDB().Transaction(func(tx *gorm.DB) error {
+		var comment model.Comment
+		if err := tx.Where("id = ?", in.CommentID).First(&comment).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
+		}
+		if in.RequirePending && comment.ModerationStatus != constant.CommentModerationPending {
+			return nil
+		}
+		if in.ExpectedContent != nil && comment.Content != *in.ExpectedContent {
+			return nil
+		}
+		if in.ExpectedAttachments != nil && !slices.Equal([]uint(comment.AttachmentIDs), []uint(*in.ExpectedAttachments)) {
+			return nil
+		}
+		t := in.ModeratedAt
+		cols := map[string]any{
+			"moderation_status":   in.Status,
+			"moderation_category": in.Category,
+			"moderation_reason":   in.Reason,
+			"moderation_source":   in.Source,
+			"moderated_at":        &t,
+		}
+		if err := tx.Model(&model.Comment{}).Where("id = ?", comment.ID).UpdateColumns(cols).Error; err != nil {
+			return err
+		}
+		comment.ModerationStatus = in.Status
+		comment.ModerationCategory = in.Category
+		comment.ModerationReason = in.Reason
+		comment.ModerationSource = in.Source
+		comment.ModeratedAt = &t
+
+		if err := syncTargetCommentCount(tx, comment.TargetType, comment.TargetID); err != nil {
+			return err
+		}
+		if err := syncParentReplyCount(tx, comment.ReplyID); err != nil {
+			return err
+		}
+		if in.Status == constant.CommentModerationRejected {
+			subtreeIDs, subErr := collectCommentSubtreeIDs(tx, comment.ID)
+			if subErr != nil {
+				return subErr
+			}
+			var revokeErr error
+			notified, revokeErr = Notification.DeleteByCommentIDs(tx, subtreeIDs)
+			if revokeErr != nil {
+				return revokeErr
+			}
+			// 同步清理或扣减线程活动折叠通知（comment.thread_replied，其 comment_id 指向 root_id）
+			if comment.ReplyID != 0 && comment.RootID != 0 {
+				var aggRows []model.Notification
+				if err := tx.Where("type = ? AND comment_id = ? AND actor_id = ? AND activity_at >= ?",
+					constant.NotificationTypeCommentThreadReplied, comment.RootID, comment.UserID, comment.CreatedAt.Add(-time.Minute)).
+					Find(&aggRows).Error; err != nil {
+					return err
+				}
+				var deleteAggIDs []uint
+				var decrementAggIDs []uint
+				for _, row := range aggRows {
+					if row.AggregateCount <= 1 {
+						deleteAggIDs = append(deleteAggIDs, row.ID)
+					} else {
+						decrementAggIDs = append(decrementAggIDs, row.ID)
+						if !slices.Contains(notified, row.UserID) {
+							notified = append(notified, row.UserID)
+						}
+					}
+				}
+				if len(deleteAggIDs) > 0 {
+					extraUsers, delErr := Notification.DeleteByIDs(tx, deleteAggIDs)
+					if delErr != nil {
+						return delErr
+					}
+					for _, uid := range extraUsers {
+						if !slices.Contains(notified, uid) {
+							notified = append(notified, uid)
+						}
+					}
+				}
+				if len(decrementAggIDs) > 0 {
+					if err := tx.Model(&model.Notification{}).Where("id IN ?", decrementAggIDs).
+						UpdateColumn("aggregate_count", gorm.Expr("aggregate_count - ?", 1)).Error; err != nil {
+						return err
+					}
+				}
+			}
+			if err := tx.Model(&model.AgentRun{}).
+				Where("status = ? AND target_type = ? AND target_id IN ?", constant.AgentRunStatusQueued, constant.TargetTypeComment, subtreeIDs).
+				Updates(map[string]any{"status": constant.AgentRunStatusSkipped, "error": "comment_rejected", "finished_at": &t}).Error; err != nil {
+				return err
+			}
+		}
+		updated = &comment
+		applied = true
+		return nil
+	})
+	return updated, applied, notified, err
+}
+
+// ListPendingModerationComments 查询 since 之后发表或编辑、仍处于待审查（pending）的评论 ID，按最新优先扫描避免退避条目队头阻塞
+func (cr *CommentRepo) ListPendingModerationComments(since time.Time, limit int) ([]uint, error) {
+	var ids []uint
+	err := GetDB().Model(&model.Comment{}).
+		Where("moderation_status = ? AND updated_at >= ?", constant.CommentModerationPending, since).
+		Order("updated_at DESC, id DESC").
+		Limit(limit).
+		Pluck("id", &ids).Error
+	return ids, err
 }
 
 // ListCommentsByUser 列出某用户发表的评论（用户主页使用）
@@ -414,7 +660,7 @@ func (cr *CommentRepo) ListCommentsByUser(userID uint, viewAll, isSelf bool, pag
 		return sub
 	}
 
-	query := GetDB().Model(&model.Comment{}).Preload("User").
+	query := NonRejectedComments(GetDB().Model(&model.Comment{}).Preload("User")).
 		Where("user_id = ?", userID).
 		Where("((target_type = ? AND target_id IN (?)) OR (target_type = ? AND target_id IN (?)))",
 			constant.TargetTypePost, visiblePostTargets(),
@@ -460,23 +706,24 @@ func (cr *CommentRepo) ListTargetBriefs(targetType string, ids []uint) (map[uint
 
 func (cr *CommentRepo) CountComments(targetType string, targetID uint) (int64, error) {
 	var count int64
-	err := GetDB().Model(&model.Comment{}).Where("target_id = ? AND target_type = ?", targetID, targetType).Count(&count).Error
+	err := NonRejectedComments(GetDB().Model(&model.Comment{})).Where("target_id = ? AND target_type = ?", targetID, targetType).Count(&count).Error
 	if err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
-// visibleComments 评论的可见性规则（基于 root_id）：游客只看公开评论；管理员和目标作者可见全部；
-// 普通用户可见公开评论，以及自己参与过的评论树中的私密评论
+// visibleComments 评论的前台可见性规则（基于 root_id）：违规已屏蔽评论在前台一律不展示（包括非管理员文章作者与评论者本人，仅后台评论管理可见）；
+// 游客只看公开评论；管理员和目标作者可见私密评论；普通用户可见公开评论，以及自己参与过的评论树中的私密评论
 func visibleComments(query *gorm.DB, currentUserID uint, viewAll bool, rootIDs ...[]uint) *gorm.DB {
+	query = NonRejectedComments(query)
 	switch {
 	case currentUserID == 0:
 		return query.Where("is_private = ?", false)
 	case viewAll:
 		return query
 	}
-	sub := GetDB().Model(&model.Comment{}).Select("distinct root_id").Where("user_id = ?", currentUserID)
+	sub := NonRejectedComments(GetDB().Model(&model.Comment{})).Select("distinct root_id").Where("user_id = ?", currentUserID)
 	if len(rootIDs) > 0 && len(rootIDs[0]) > 0 {
 		sub = sub.Where("root_id IN ?", rootIDs[0])
 	}

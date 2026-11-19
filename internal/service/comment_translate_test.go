@@ -33,6 +33,9 @@ func fakeCommentTranslate(calls *atomic.Int32) func(ctx context.Context, cfg too
 
 func configureTestAI(t *testing.T) {
 	t.Helper()
+	if err := repo.KV.SetKV("ai_comment_moderation_enabled", false); err != nil {
+		t.Fatalf("set kv: %v", err)
+	}
 	for k, v := range map[string]string{"ai_api_base_url": "https://example.com/v1", "ai_api_key": "sk-test", "ai_model": "test-model"} {
 		if err := repo.KV.SetKV(k, v); err != nil {
 			t.Fatalf("set kv: %v", err)

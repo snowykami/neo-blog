@@ -206,20 +206,48 @@ const (
 
 // 模型调用的用途：所有调用模型的入口都按用途记一条用量（llm_usages）
 const (
-	LLMPurposeSummary         = "summary"          // 文章 AI 摘要
-	LLMPurposeWriting         = "writing"          // 编辑器 AI 写作（帮写 / 润色）
-	LLMPurposeTranslation     = "translation"      // 评论翻译
-	LLMPurposeLyricAnnotation = "lyric_annotation" // 歌词标注
-	LLMPurposeAIAgent         = "ai_agent"         // AI 用户的运行（worker 调用）
-	LLMPurposeAIAgentMemory   = "ai_agent_memory"  // AI 用户的记忆整理（后台任务）
-	LLMPurposeAIAgentPersona  = "ai_agent_persona" // AI 用户的人设生成（后台任务）
-	LLMPurposeOther           = "other"            // 未标明用途的调用（不应出现，出现时说明有入口漏标）
+	LLMPurposeSummary           = "summary"            // 文章 AI 摘要
+	LLMPurposeWriting           = "writing"            // 编辑器 AI 写作（帮写 / 润色）
+	LLMPurposeTranslation       = "translation"        // 评论翻译
+	LLMPurposeCommentModeration = "comment_moderation" // 评论 AI 内容审查（含二阶错误归因）
+	LLMPurposeLyricAnnotation   = "lyric_annotation"   // 歌词标注
+	LLMPurposeAIAgent           = "ai_agent"           // AI 用户的运行（worker 调用）
+	LLMPurposeAIAgentMemory     = "ai_agent_memory"    // AI 用户的记忆整理（后台任务）
+	LLMPurposeAIAgentPersona    = "ai_agent_persona"   // AI 用户的人设生成（后台任务）
+	LLMPurposeOther             = "other"              // 未标明用途的调用（不应出现，出现时说明有入口漏标）
 )
 
 // LLMPurposes 全部用途，用量统计按此顺序输出
 var LLMPurposes = []string{
-	LLMPurposeSummary, LLMPurposeWriting, LLMPurposeTranslation, LLMPurposeLyricAnnotation,
+	LLMPurposeSummary, LLMPurposeWriting, LLMPurposeTranslation, LLMPurposeCommentModeration, LLMPurposeLyricAnnotation,
 	LLMPurposeAIAgent, LLMPurposeAIAgentMemory, LLMPurposeAIAgentPersona, LLMPurposeOther,
+}
+
+// 评论 AI 内容审查状态、判定来源与违规分类
+const (
+	CommentModerationPending  = "pending"  // 已发表先展示，等待后台 AI 审查
+	CommentModerationApproved = "approved" // 审查通过（或管理员恢复展示）
+	CommentModerationRejected = "rejected" // 违规已屏蔽（仅后台管理员可见，不删库）
+
+	CommentModerationSourceAI            = "ai"                // 常规一阶 AI 内容审查判定
+	CommentModerationSourceUpstreamBlock = "ai_upstream_block" // 一阶报错/拒答后经二阶审查归因为输入内容触发上游风控
+	CommentModerationSourceManual        = "manual"            // 管理员手动操作
+
+	CommentModerationCategoryPolitics = "politics" // 政治敏感
+	CommentModerationCategoryTrolling = "trolling" // 恶意引战 / 辱骂网暴 / 歧视
+	CommentModerationCategoryPorn     = "porn"     // 色情低俗
+	CommentModerationCategoryViolence = "violence" // 暴力血腥 / 恐怖极端 / 自残教唆
+	CommentModerationCategoryScam     = "scam"     // 诈骗钓鱼 / 赌博灰产 / 垃圾引流
+	CommentModerationCategoryOther    = "other"    // 其他违规
+)
+
+var CommentModerationCategories = []string{
+	CommentModerationCategoryPolitics,
+	CommentModerationCategoryTrolling,
+	CommentModerationCategoryPorn,
+	CommentModerationCategoryViolence,
+	CommentModerationCategoryScam,
+	CommentModerationCategoryOther,
 }
 
 // IsAIAgentLLMPurpose AI 用户相关的调用：有自己的预算（ai_agents_monthly_token_budget），不受全站 AI 预算拦截

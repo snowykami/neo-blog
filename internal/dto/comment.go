@@ -35,6 +35,12 @@ type CommentDto struct {
 	// 以下只在主评论列表中返回：整个回复线程（不限层级）中当前用户可见的回复数，以及最早回复的几位用户（去重），供折叠时展示
 	ThreadCount uint64    `json:"thread_count,omitempty"`
 	ThreadUsers []UserDto `json:"thread_users,omitempty"`
+	// 以下审查字段仅在管理员后台（ListCommentsAdmin）返回，公开与普通用户接口一律留空不暴露
+	ModerationStatus   string     `json:"moderation_status,omitempty"`
+	ModerationCategory string     `json:"moderation_category,omitempty"`
+	ModerationReason   string     `json:"moderation_reason,omitempty"`
+	ModerationSource   string     `json:"moderation_source,omitempty"`
+	ModeratedAt        *time.Time `json:"moderated_at,omitempty"`
 }
 
 // CommentMentionDto 被 @ 的用户
@@ -122,6 +128,14 @@ type TranslateCommentReq struct {
 
 type BatchDeleteCommentReq struct {
 	IDs []uint `json:"ids"`
+}
+
+// AdminUpdateCommentModerationReq 管理员在后台批量或单条修改评论审查状态（恢复展示 / 手动标为违规）
+type AdminUpdateCommentModerationReq struct {
+	IDs      []uint `json:"ids" binding:"required"`
+	Status   string `json:"status" binding:"required"` // "approved" 或 "rejected"
+	Category string `json:"category"`
+	Reason   string `json:"reason"`
 }
 
 // CommentTranslationDto 评论的 AI 译文

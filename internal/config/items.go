@@ -230,7 +230,13 @@ var sections = []*Section{
 		{Key: "ai_thinking_lyric_pronunciation", Type: TypeEnum, Label: "ai_thinking_lyric_pronunciation", Description: "ai_thinking_lyric_pronunciation_desc", Options: aiThinkingModes, Default: "none"},
 		{Key: "ai_thinking_writing", Type: TypeEnum, Label: "ai_thinking_writing", Description: "ai_thinking_writing_desc", Options: aiThinkingModes, Default: ""},
 		{Key: "ai_thinking_comment_translate", Type: TypeEnum, Label: "ai_thinking_comment_translate", Description: "ai_thinking_comment_translate_desc", Options: aiThinkingModes, Default: "low"},
+		{Key: "ai_thinking_comment_moderation", Type: TypeEnum, Label: "ai_thinking_comment_moderation", Description: "ai_thinking_comment_moderation_desc", Options: aiThinkingModes, Default: "none"},
 		{Key: "ai_thinking_summary", Type: TypeEnum, Label: "ai_thinking_summary", Description: "ai_thinking_summary_desc", Options: aiThinkingModes, Default: "none"},
+	}},
+	// 评论 AI 内容审查：先展示再异步后台审查（含 AI 用户），违规评论保留入库但仅后台管理员可见
+	{Tab: "ai", Key: "ai_moderation", Title: "section_ai_moderation", Description: "section_ai_moderation_desc", Items: []*Item{
+		{Key: "ai_comment_moderation_enabled", Type: TypeBool, Label: "ai_comment_moderation_enabled", Description: "ai_comment_moderation_enabled_desc", Default: true},
+		{Key: "ai_comment_moderation_prompt", Type: TypeText, Label: "ai_comment_moderation_prompt", Description: "ai_comment_moderation_prompt_desc", PlaceholderKey: "ai_comment_moderation_prompt_placeholder", Rows: 4, Wide: true, Default: "", ShowWhen: when("ai_comment_moderation_enabled", "true")},
 	}},
 	// AI 用户：由 Agent 驱动、与普通用户同权限的账号；模型使用上面的 AI 配置
 	{Tab: "ai", Key: "ai_agents", Title: "section_ai_agents", Description: "section_ai_agents_desc", Items: []*Item{

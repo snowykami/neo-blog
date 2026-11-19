@@ -1,7 +1,7 @@
 'use client'
 
-import type { UserComment } from '@/models/comment'
-import { Paperclip } from 'lucide-react'
+import type { CommentModerationCategory, UserComment } from '@/models/comment'
+import { Bot, CheckCircle2, Paperclip, ShieldAlert } from 'lucide-react'
 import { useFormatter, useTranslations } from 'next-intl'
 import {
   parseAsBoolean,
@@ -11,7 +11,7 @@ import {
 } from 'nuqs'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { listCommentsAdmin } from '@/api/admin'
+import { listCommentsAdmin, updateCommentsModerationAdmin } from '@/api/admin'
 import { batchDeleteComments, deleteComment } from '@/api/comment'
 import { UserAvatar } from '@/components/common/avatar'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
@@ -25,6 +25,13 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Empty, EmptyDescription } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
@@ -39,6 +46,7 @@ import { useConsoleQuery } from '@/hooks/use-console-query'
 import { useDebouncedState } from '@/hooks/use-debounce'
 import { useCommonT, useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { Link } from '@/i18n/navigation'
+import { cn } from '@/lib/utils'
 import { OrderBy } from '@/models/common'
 import { formatLocation } from '@/utils/common/location'
 import { getTargetViewUrl } from '@/utils/common/route'
@@ -46,6 +54,10 @@ import { getTargetViewUrl } from '@/utils/common/route'
 const PAGE_SIZE = 15
 const MOBILE_PAGE_SIZE = 10
 const EMPTY_COMMENTS: UserComment[] = []
+const COMMENT_ORDER_BYS = [OrderBy.CreatedAt, OrderBy.UpdatedAt, OrderBy.LikeCount, OrderBy.CommentCount] as const
+const MODERATION_FILTERS = ['all', 'rejected', 'pending', 'approved'] as const
+type ModerationFilter = (typeof MODERATION_FILTERS)[number]
+const KNOWN_CATEGORIES = new Set<CommentModerationCategory>(['politics', 'trolling', 'porn', 'violence', 'scam', 'other'])
 
 export default function CommentsManage() {
   const commonT = useCommonT()
@@ -56,13 +68,19 @@ export default function CommentsManage() {
   const { isMobile } = useDevice()
   const [orderBy, setOrderBy] = useQueryState(
     'order_by',
-    parseAsStringEnum<OrderBy>(Object.values(OrderBy))
+    parseAsStringEnum<OrderBy>([...COMMENT_ORDER_BYS])
       .withDefault(OrderBy.CreatedAt)
       .withOptions({ history: 'replace', clearOnDefault: true }),
   )
   const [desc, setDesc] = useQueryState(
     'desc',
     parseAsBoolean.withDefault(true)
+      .withOptions({ history: 'replace', clearOnDefault: true }),
+  )
+  const [moderationFilter, setModerationFilter] = useQueryState(
+    'moderation',
+    parseAsStringEnum<ModerationFilter>([...MODERATION_FILTERS])
+      .withDefault('all')
       .withOptions({ history: 'replace', clearOnDefault: true }),
   )
   const [page, setPage] = useQueryState(
@@ -78,11 +96,14 @@ export default function CommentsManage() {
   )
   const [queryInput, setQueryInput, debouncedQueryInput] = useDebouncedState('', 200)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set())
+  const [moderatingIds, setModeratingIds] = useState<Set<number>>(() => new Set())
+
+  const backendModerationParam = moderationFilter === 'all' ? '' : moderationFilter
 
   // 回到这个页面时先显示上次的结果，同时重新请求（见 hooks/use-console-query.ts）；写操作后缓存会被清空
   const commentsQuery = useConsoleQuery(
-    ['admin/comments', page, size, orderBy, desc, debouncedQueryInput],
-    () => listCommentsAdmin({ page, size, orderBy, desc }, debouncedQueryInput).then(res => res.data),
+    ['admin/comments', page, size, orderBy, desc, debouncedQueryInput, backendModerationParam],
+    () => listCommentsAdmin({ page, size, orderBy, desc }, debouncedQueryInput, backendModerationParam).then(res => res.data),
     { onError: error => toast.error(`${operationT('fetch_failed')}: ${errorMessageT(error)}`) },
   )
   const comments = commentsQuery.data?.comments ?? EMPTY_COMMENTS
@@ -131,6 +152,49 @@ export default function CommentsManage() {
     [setOrderBy, setDesc, setPage],
   )
 
+  const onModerationFilterChange = useCallback(
+    (value: string) => {
+      setModerationFilter((value as ModerationFilter) || 'all')
+      setSelectedIds(new Set())
+      setPage(1)
+    },
+    [setModerationFilter, setPage],
+  )
+
+  const handleModeration = async (ids: number[], status: 'approved' | 'rejected') => {
+    if (ids.length === 0)
+      return
+    setModeratingIds(prev => new Set([...prev, ...ids]))
+    try {
+      await updateCommentsModerationAdmin({ ids, status })
+      toast.success(status === 'approved' ? t('moderation_approved_toast') : t('moderation_rejected_toast'))
+      const clearingFilteredPage = moderationFilter !== 'all' && moderationFilter !== status && ids.length >= comments.length
+      setSelectedIds((prev) => {
+        if (prev.size === 0)
+          return prev
+        const next = new Set(prev)
+        for (const id of ids)
+          next.delete(id)
+        return next
+      })
+      if (clearingFilteredPage && page > 1)
+        await setPage(page - 1)
+      else
+        await fetchComments()
+    }
+    catch (error) {
+      toast.error(`${operationT('update_failed')}: ${errorMessageT(error)}`)
+    }
+    finally {
+      setModeratingIds((prev) => {
+        const next = new Set(prev)
+        for (const id of ids)
+          next.delete(id)
+        return next
+      })
+    }
+  }
+
   // 删除失败时抛出，由确认组件统一提示并保持打开
   const handleDelete = async (comment: UserComment) => {
     await deleteComment({ id: comment.id })
@@ -165,17 +229,31 @@ export default function CommentsManage() {
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <Input
-          className="w-full sm:w-72"
-          type="search"
-          placeholder={commonT('search')}
-          value={queryInput}
-          onChange={e => setQueryInput(e.target.value)}
-        />
+        <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
+          <Input
+            className="w-full sm:w-72"
+            type="search"
+            placeholder={commonT('search')}
+            value={queryInput}
+            onChange={e => setQueryInput(e.target.value)}
+          />
+          <Select value={moderationFilter} onValueChange={onModerationFilterChange}>
+            <SelectTrigger className="w-full sm:w-44" aria-label={t('moderation_filter_label')}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {MODERATION_FILTERS.map(filter => (
+                <SelectItem key={filter} value={filter}>
+                  {t(`moderation_filter_${filter}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <OrderSelector
           value={{ orderBy, desc }}
           onOrderChange={onOrderChange}
-          orderBys={[OrderBy.CreatedAt, OrderBy.UpdatedAt, OrderBy.LikeCount]}
+          orderBys={[...COMMENT_ORDER_BYS]}
         />
       </div>
       {activeSelectedIds.length > 0 && (
@@ -183,7 +261,25 @@ export default function CommentsManage() {
           <span className="text-muted-foreground">
             {t('selected_count', { count: activeSelectedIds.length })}
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={moderatingIds.size > 0}
+              onClick={() => handleModeration(activeSelectedIds, 'approved')}
+            >
+              <CheckCircle2 aria-hidden className="mr-1 size-3.5" />
+              {t('restore_display')}
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={moderatingIds.size > 0}
+              onClick={() => handleModeration(activeSelectedIds, 'rejected')}
+            >
+              <ShieldAlert aria-hidden className="mr-1 size-3.5" />
+              {t('mark_rejected')}
+            </Button>
             <ConfirmDialog
               title={operationT('confirm_delete')}
               description={t('batch_delete_description', { count: activeSelectedIds.length })}
@@ -249,7 +345,7 @@ export default function CommentsManage() {
                 </TableCell>
                 <TableCell><Skeleton className="h-5 w-14" /></TableCell>
                 <TableCell><Skeleton className="h-4 w-28" /></TableCell>
-                <TableCell><Skeleton className="ml-auto h-8 w-14" /></TableCell>
+                <TableCell><Skeleton className="ml-auto h-8 w-24" /></TableCell>
               </TableRow>
             ))}
             {!loading && comments.length === 0 && (
@@ -266,7 +362,9 @@ export default function CommentsManage() {
                 key={comment.id}
                 comment={comment}
                 selected={selectedIds.has(comment.id)}
+                moderating={moderatingIds.has(comment.id)}
                 onSelectChange={checked => toggleSelectOne(comment.id, checked)}
+                onModerationChange={status => handleModeration([comment.id], status)}
                 onDelete={handleDelete}
               />
             ))}
@@ -299,23 +397,36 @@ export default function CommentsManage() {
 function CommentRow({
   comment,
   selected,
+  moderating,
   onSelectChange,
+  onModerationChange,
   onDelete,
 }: {
   comment: UserComment
   selected: boolean
+  moderating: boolean
   onSelectChange: (checked: boolean) => void
+  onModerationChange: (status: 'approved' | 'rejected') => Promise<void>
   onDelete: (comment: UserComment) => Promise<void>
 }) {
   const operationT = useOperationT()
   const t = useTranslations('Console.comments')
   const format = useFormatter()
+  const isRejected = comment.moderationStatus === 'rejected'
+  const isPending = comment.moderationStatus === 'pending'
+  const isApproved = comment.moderationStatus === 'approved'
+  const category = comment.moderationCategory && KNOWN_CATEGORIES.has(comment.moderationCategory)
+    ? comment.moderationCategory
+    : 'other'
   const clientInfo = [comment.browser, comment.os, comment.location && formatLocation({ location: comment.location, short: true })]
     .map(part => (part || '').trim())
     .filter(Boolean)
     .join(' · ')
   return (
-    <TableRow data-state={selected ? 'selected' : undefined}>
+    <TableRow
+      data-state={selected ? 'selected' : undefined}
+      className={cn(isRejected && 'bg-destructive/[0.04] hover:bg-destructive/[0.07]')}
+    >
       <TableCell className="w-10">
         <Checkbox
           checked={selected}
@@ -324,7 +435,18 @@ function CommentRow({
         />
       </TableCell>
       <TableCell className="max-w-[28rem] whitespace-normal">
-        <div className="line-clamp-3 break-words">{comment.content || t('no_content')}</div>
+        <div className={cn('line-clamp-3 break-words', isRejected && 'text-muted-foreground')}>
+          {comment.content || t('no_content')}
+        </div>
+        {isRejected && (comment.moderationReason || comment.moderationSource === 'ai_upstream_block') && (
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-destructive">
+            <ShieldAlert aria-hidden className="size-3.5 shrink-0" />
+            {comment.moderationSource === 'ai_upstream_block' && (
+              <span className="font-medium">{t('moderation_source_upstream_block')}</span>
+            )}
+            {comment.moderationReason && <span>{comment.moderationReason}</span>}
+          </div>
+        )}
         {!!comment.attachments?.length && (
           <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
             <Paperclip aria-hidden className="size-3" />
@@ -352,7 +474,15 @@ function CommentRow({
         <div className="flex items-center gap-2">
           {comment.user && <UserAvatar user={comment.user} size={64} className="size-8" fallbackClassName="text-xs" />}
           <div className="min-w-0">
-            <div className="truncate text-sm">{comment.user?.nickname || comment.user?.username || t('unknown_user')}</div>
+            <div className="flex items-center gap-1.5">
+              <span className="truncate text-sm">{comment.user?.nickname || comment.user?.username || t('unknown_user')}</span>
+              {comment.user?.isAi && (
+                <Badge variant="outline" className="h-4 gap-0.5 px-1 text-[10px]">
+                  <Bot aria-hidden className="size-2.5" />
+                  AI
+                </Badge>
+              )}
+            </div>
             {/* 邮箱仅在后端返回时展示 */}
             {comment.user?.email && <div className="truncate text-xs text-muted-foreground">{comment.user.email}</div>}
             {/* 设备与归属地：前台只在评论者选择公开时显示，后台管理员始终可见 */}
@@ -362,6 +492,21 @@ function CommentRow({
       </TableCell>
       <TableCell>
         <div className="flex flex-wrap gap-1">
+          {isRejected && (
+            <Badge variant="destructive">
+              {comment.moderationSource === 'manual' && (!comment.moderationCategory || comment.moderationCategory === 'other')
+                ? t('moderation_manual_rejected')
+                : `${comment.moderationSource === 'manual' ? t('moderation_manual_rejected') : t('moderation_rejected')} · ${t(`moderation_category_${category}`)}`}
+            </Badge>
+          )}
+          {isPending && (
+            <Badge variant="outline">{t('moderation_pending')}</Badge>
+          )}
+          {isApproved && (
+            <Badge variant="secondary">
+              {comment.moderationSource === 'manual' ? t('moderation_manual_approved') : t('moderation_approved')}
+            </Badge>
+          )}
           {comment.isPrivate && <Badge variant="secondary">{t('private')}</Badge>}
           {comment.replyCount > 0 && (
             <Badge variant="outline">{t('reply_count', { count: comment.replyCount })}</Badge>
@@ -373,36 +518,59 @@ function CommentRow({
       </TableCell>
       <TableCell>{format.dateTime(new Date(comment.createdAt), { dateStyle: 'medium', timeStyle: 'short' })}</TableCell>
       <TableCell className={`text-right ${STICKY_ACTIONS_CLASS}`}>
-        {/* 有回复时删除会连带整棵回复树，用 AlertDialog 说明后果；否则就地确认 */}
-        {comment.replyCount > 0
-          ? (
-              <ConfirmDialog
-                title={operationT('confirm_delete')}
-                description={t('delete_with_replies_description', { count: comment.replyCount })}
-                confirmLabel={operationT('delete')}
-                errorText={operationT('delete_failed')}
-                confirmVariant="destructive"
-                onConfirm={() => onDelete(comment)}
-              >
-                <Button size="sm" variant="destructive">
-                  {operationT('delete')}
+        <div className="flex items-center justify-end gap-1.5">
+          {isRejected
+            ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={moderating}
+                  onClick={() => onModerationChange('approved')}
+                >
+                  {t('restore_display')}
                 </Button>
-              </ConfirmDialog>
-            )
-          : (
-              <Popconfirm
-                title={operationT('confirm_delete')}
-                description={operationT('delete_description')}
-                confirmText={operationT('delete')}
-                errorText={operationT('delete_failed')}
-                destructive
-                onConfirm={() => onDelete(comment)}
-              >
-                <Button size="sm" variant="destructive">
-                  {operationT('delete')}
+              )
+            : (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={moderating}
+                  onClick={() => onModerationChange('rejected')}
+                >
+                  {t('mark_rejected')}
                 </Button>
-              </Popconfirm>
-            )}
+              )}
+          {/* 有回复时删除会连带整棵回复树，用 AlertDialog 说明后果；否则就地确认 */}
+          {comment.replyCount > 0
+            ? (
+                <ConfirmDialog
+                  title={operationT('confirm_delete')}
+                  description={t('delete_with_replies_description', { count: comment.replyCount })}
+                  confirmLabel={operationT('delete')}
+                  errorText={operationT('delete_failed')}
+                  confirmVariant="destructive"
+                  onConfirm={() => onDelete(comment)}
+                >
+                  <Button size="sm" variant="destructive">
+                    {operationT('delete')}
+                  </Button>
+                </ConfirmDialog>
+              )
+            : (
+                <Popconfirm
+                  title={operationT('confirm_delete')}
+                  description={operationT('delete_description')}
+                  confirmText={operationT('delete')}
+                  errorText={operationT('delete_failed')}
+                  destructive
+                  onConfirm={() => onDelete(comment)}
+                >
+                  <Button size="sm" variant="destructive">
+                    {operationT('delete')}
+                  </Button>
+                </Popconfirm>
+              )}
+        </div>
       </TableCell>
     </TableRow>
   )

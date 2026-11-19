@@ -56,11 +56,11 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
 	// 被评论内容的作者，用于记录互动：回复时为被回复评论的作者，否则为文章/页面作者
 	ownerID := target.ownerID
 	var parent *model.Comment
-	// 只能回复自己看得到的评论，防止通过回复加入私密评论树
+	// 只能回复自己看得到的非违规屏蔽评论，防止通过回复加入私密评论树或挂在已屏蔽评论树下
 	if req.ReplyID != 0 {
 		var err error
 		parent, err = repo.Comment.GetComment(req.ReplyID)
-		if err != nil {
+		if err != nil || isCommentHiddenByModeration(parent) {
 			return 0, errs.NewNotFound("operation_target_not_found").WithResource("comment")
 		}
 		visible, svcerr := cs.canViewComment(ctx, parent, target)
@@ -90,6 +90,12 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
 		return 0, errs.NewBadRequest("content_cannot_be_empty")
 	}
 
+	moderate := ShouldModerateComments()
+	initialModeration := ""
+	if moderate {
+		initialModeration = constant.CommentModerationPending
+	}
+
 	// 评论归属地使用离线库在事务外解析，不再在写库事务里请求第三方接口
 	region := ipregion.Lookup(req.RemoteAddr)
 	comment := &model.Comment{
@@ -99,17 +105,18 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
 			City:     region.City,
 			ISP:      region.ISP,
 		},
-		Content:        content,
-		AttachmentIDs:  attachmentIDs,
-		MentionUserIDs: mentionUserIDs,
-		ReplyID:        req.ReplyID,
-		TargetID:       req.TargetID,
-		TargetType:     req.TargetType,
-		UserID:         currentUser.ID,
-		IsPrivate:      req.IsPrivate,
-		RemoteAddr:     req.RemoteAddr,
-		UserAgent:      req.UserAgent,
-		ShowClientInfo: req.ShowClientInfo,
+		Content:          content,
+		AttachmentIDs:    attachmentIDs,
+		MentionUserIDs:   mentionUserIDs,
+		ReplyID:          req.ReplyID,
+		TargetID:         req.TargetID,
+		TargetType:       req.TargetType,
+		UserID:           currentUser.ID,
+		IsPrivate:        req.IsPrivate,
+		RemoteAddr:       req.RemoteAddr,
+		UserAgent:        req.UserAgent,
+		ShowClientInfo:   req.ShowClientInfo,
+		ModerationStatus: initialModeration,
 	}
 	// 评论与互动通知写在同一个事务里：评论成功就必须留下通知，崩溃也不会只留下其中一半（5.2 方案 A）
 	var commentID uint
@@ -149,8 +156,16 @@ func (cs *CommentService) CreateComment(ctx context.Context, req *dto.CreateComm
 	} else {
 		NewVisitService().RecordInteraction(currentUser.ID, ownerID, constant.VisitActionComment, req.TargetType, req.TargetID, commentID)
 	}
-	// 回复了 AI 用户的评论、或评论里 @ 了 AI 用户时，由调度器决定该 AI 是否回应（异步，不影响本次请求）
-	if req.ReplyID != 0 || len(comment.MentionUserIDs) > 0 {
+	// 开启 AI 内容审查时，先展示并投入后台异步审查；AI 用户的被回复 / @ 唤醒延后至审查通过再触发，避免 AI 阅读或回应违规评论
+	notifyAI := !comment.IsPrivate && (req.ReplyID != 0 || len(comment.MentionUserIDs) > 0)
+	if moderate {
+		trigger := CommentModerationTriggerCreate
+		if notifyAI {
+			trigger = CommentModerationTriggerCreateNotify
+		}
+		EnqueueCommentModeration(commentID, trigger)
+	} else if notifyAI {
+		// 回复了 AI 用户的评论、或评论里 @ 了 AI 用户时，由调度器决定该 AI 是否回应（异步，不影响本次请求）
 		NotifyCommentCreated(commentID)
 	}
 	if !comment.IsPrivate && !target.isPrivate {
@@ -164,7 +179,7 @@ func (cs *CommentService) UpdateComment(ctx context.Context, req *dto.UpdateComm
 		return errs.NewForbidden("comment_disabled")
 	}
 	comment, err := repo.Comment.GetComment(req.ID)
-	if err != nil {
+	if err != nil || (isCommentHiddenByModeration(comment) && !ctxutils.IsAdmin(ctx)) {
 		return errs.NewNotFound("operation_target_not_found").WithResource("comment")
 	}
 
@@ -175,6 +190,7 @@ func (cs *CommentService) UpdateComment(ctx context.Context, req *dto.UpdateComm
 	// 编辑前的可见性与提及列表：编辑后据此收回 / 补发通知
 	wasPrivate := comment.IsPrivate
 	previousMentions := slices.Clone([]uint(comment.MentionUserIDs))
+	previousAttachments := slices.Clone([]uint(comment.AttachmentIDs))
 
 	// 内容校验：去首尾空白，字符数不超过后台配置的上限（默认 500）；有附件时可以只保留附件
 	content := strings.TrimSpace(req.Content)
@@ -201,9 +217,19 @@ func (cs *CommentService) UpdateComment(ctx context.Context, req *dto.UpdateComm
 		return errs.NewBadRequest("content_cannot_be_empty")
 	}
 
+	contentChanged := comment.Content != content
+	attachmentsChanged := req.AttachmentIDs != nil && !slices.Equal(previousAttachments, []uint(comment.AttachmentIDs))
 	// 内容变化后原先识别的语言不再可信，下次翻译时重新识别
-	if comment.Content != content {
+	if contentChanged {
 		comment.Language = ""
+	}
+	remoderate := (contentChanged || attachmentsChanged) && ShouldModerateComments()
+	if remoderate {
+		comment.ModerationStatus = constant.CommentModerationPending
+		comment.ModerationCategory = ""
+		comment.ModerationReason = ""
+		comment.ModerationSource = ""
+		comment.ModeratedAt = nil
 	}
 	comment.Content = content
 	comment.IsPrivate = req.IsPrivate
@@ -222,11 +248,22 @@ func (cs *CommentService) UpdateComment(ctx context.Context, req *dto.UpdateComm
 		SyncSearchComment(descID)
 	}
 	notifyNotificationUsers(notified)
-	// 新加了 @ 或改为公开时，由调度器决定被 @ 的 AI 用户是否回应（异步，不影响本次请求）
-	if !comment.IsPrivate && (wasPrivate || hasNewMention(comment.MentionUserIDs, previousMentions)) {
+	notifyEdit := !comment.IsPrivate && (wasPrivate || hasNewMention(comment.MentionUserIDs, previousMentions))
+	if remoderate {
+		trigger := CommentModerationTriggerEdit
+		if notifyEdit {
+			trigger = CommentModerationTriggerEditNotify
+		}
+		EnqueueCommentModeration(comment.ID, trigger)
+	} else if !isCommentHiddenByModeration(comment) && notifyEdit {
+		// 新加了 @ 或改为公开时，由调度器决定被 @ 的 AI 用户是否回应（异步，不影响本次请求）
 		NotifyCommentEdited(comment.ID)
 	}
-	SyncSearchComment(comment.ID)
+	if isCommentHiddenByModeration(comment) {
+		DeleteSearchComment(comment.ID, comment.TargetID, comment.TargetType)
+	} else {
+		SyncSearchComment(comment.ID)
+	}
 	return nil
 }
 
@@ -253,7 +290,7 @@ func (cs *CommentService) DeleteComment(ctx context.Context, commentID uint) *er
 	}
 
 	comment, err := repo.Comment.GetComment(commentID)
-	if err != nil {
+	if err != nil || (isCommentHiddenByModeration(comment) && !ctxutils.IsAdmin(ctx)) {
 		return errs.NewNotFound("operation_target_not_found").WithResource("comment")
 	}
 
@@ -273,6 +310,7 @@ func (cs *CommentService) DeleteComment(ctx context.Context, commentID uint) *er
 		logrus.Errorf("DeleteComment error: %s", err.Error())
 		return errs.Internal("failed_to_delete_target", err).WithResource("comment")
 	}
+	ClearCommentModerationPendingState(commentID)
 	notifyNotificationUsers(notified)
 	DeleteSearchComment(commentID, comment.TargetID, comment.TargetType)
 	return nil
@@ -298,6 +336,10 @@ func (cs *CommentService) BatchDeleteComments(ctx context.Context, ids []uint) (
 				continue
 			}
 			return 0, errs.Internal("failed_to_get_target", err).WithResource("comment")
+		}
+		if isCommentHiddenByModeration(comment) && !ctxutils.IsAdmin(ctx) {
+			// 非管理员对已屏蔽评论（及其子孙回复）与已删除评论一致按不存在跳过，不返回 403 泄露存在性
+			continue
 		}
 		var targetOwnerID uint
 		if target, svcerr := cs.getTarget(comment.TargetID, comment.TargetType); svcerr == nil {
@@ -342,10 +384,11 @@ func (cs *CommentService) GetComment(ctx context.Context, commentID uint, target
 	return &commentDtos[0], nil
 }
 
-// loadVisibleComment 读取当前用户看得到的评论：所属文章 / 页面可访问，私密评论还需对当前用户可见
+// loadVisibleComment 读取前台接口看得到的评论：违规已屏蔽评论（含祖先被屏蔽的子回复）在前台一律按不存在处理（管理员仅在后台管理页查看）；
+// 所属文章 / 页面需可访问，私密评论还需对当前用户可见
 func (cs *CommentService) loadVisibleComment(ctx context.Context, commentID uint) (*model.Comment, *errs.ServiceError) {
 	comment, err := repo.Comment.GetComment(commentID)
-	if err != nil {
+	if err != nil || isCommentHiddenByModeration(comment) {
 		return nil, errs.NewNotFound("operation_target_not_found").WithResource("comment")
 	}
 	target, svcerr := cs.getTarget(comment.TargetID, comment.TargetType)
@@ -415,9 +458,16 @@ func (cs *CommentService) GetCommentList(ctx context.Context, req *dto.GetCommen
 	return commentDtos, nil
 }
 
-func (cs *CommentService) ListCommentsAdmin(ctx context.Context, pagination *dto.PaginationParams, query string) ([]dto.UserCommentDto, int64, *errs.ServiceError) {
+func (cs *CommentService) ListCommentsAdmin(ctx context.Context, pagination *dto.PaginationParams, query string, moderationFilter ...string) ([]dto.UserCommentDto, int64, *errs.ServiceError) {
+	if !ctxutils.IsAdmin(ctx) {
+		return nil, 0, errs.NewForbidden("permission_denied")
+	}
+	filter := ""
+	if len(moderationFilter) > 0 {
+		filter = moderationFilter[0]
+	}
 	currentUserID, _ := ctxutils.GetCurrentUserID(ctx)
-	comments, total, err := repo.Comment.ListCommentsAdmin(pagination.Page, pagination.Size, pagination.OrderBy, pagination.Desc, strings.TrimSpace(query))
+	comments, total, err := repo.Comment.ListCommentsAdmin(pagination.Page, pagination.Size, pagination.OrderBy, pagination.Desc, strings.TrimSpace(query), filter)
 	if err != nil {
 		logrus.Errorf("ListCommentsAdmin: ListCommentsAdmin error: %s", err.Error())
 		return nil, 0, errs.Internal("failed_to_get_target", err).WithResource("comment")
@@ -447,6 +497,68 @@ func (cs *CommentService) ListCommentsAdmin(ctx context.Context, pagination *dto
 		result = append(result, item)
 	}
 	return result, total, nil
+}
+
+// UpdateCommentsModerationAdmin 管理员手动调整评论审查状态（恢复展示或标为违规屏蔽），不物理删除数据
+func (cs *CommentService) UpdateCommentsModerationAdmin(ctx context.Context, req *dto.AdminUpdateCommentModerationReq) (int, *errs.ServiceError) {
+	if !ctxutils.IsAdmin(ctx) {
+		return 0, errs.NewForbidden("permission_denied")
+	}
+	unique, svcerr := normalizeBatchIDs(req.IDs)
+	if svcerr != nil {
+		return 0, svcerr
+	}
+	status := strings.TrimSpace(req.Status)
+	if status != constant.CommentModerationApproved && status != constant.CommentModerationRejected {
+		return 0, errs.NewBadRequest("invalid_request_parameters")
+	}
+	category, reason := "", ""
+	if status == constant.CommentModerationRejected {
+		if strings.TrimSpace(req.Category) != "" {
+			category = normalizeModerationCategory(req.Category)
+		} else {
+			category = constant.CommentModerationCategoryOther
+		}
+		reason = clipModerationRunes(strings.TrimSpace(req.Reason), commentModerationReasonMaxRune)
+	}
+
+	now := time.Now()
+	changed := 0
+	for _, id := range unique {
+		commentReason := reason
+		commentCategory := category
+		if status == constant.CommentModerationRejected && commentReason == "" {
+			if existing, gErr := repo.Comment.GetComment(id); gErr == nil && existing.ModerationReason != "" {
+				commentReason = existing.ModerationReason
+				if strings.TrimSpace(req.Category) == "" && existing.ModerationCategory != "" {
+					commentCategory = existing.ModerationCategory
+				}
+			}
+		}
+		updated, applied, notified, err := repo.Comment.ApplyModerationVerdict(repo.ModerationVerdictUpdate{
+			CommentID:   id,
+			Status:      status,
+			Category:    commentCategory,
+			Reason:      commentReason,
+			Source:      constant.CommentModerationSourceManual,
+			ModeratedAt: now,
+		})
+		if err != nil {
+			logrus.Errorf("UpdateCommentsModerationAdmin: comment %d error: %v", id, err)
+			return changed, errs.Internal("failed_to_update_target", err).WithResource("comment")
+		}
+		if !applied || updated == nil {
+			continue
+		}
+		changed++
+		ClearCommentModerationPendingState(updated.ID)
+		if status == constant.CommentModerationRejected {
+			notifyNotificationUsers(notified)
+		}
+		// 无论屏蔽还是恢复展示，都重新对账该目标下的公开评论索引，使子孙回复与当前评论同步上下架
+		DeleteSearchComment(updated.ID, updated.TargetID, updated.TargetType)
+	}
+	return changed, nil
 }
 
 // ListUserComments 用户主页的评论列表：管理员可见全部，本人可见自己的私密评论，其他人只能看到公开目标下的公开评论
@@ -578,14 +690,26 @@ func commentMentionUsers(comments []model.Comment) map[uint]model.User {
 // toGetCommentDto 转换单条评论。设备与归属地只在评论者选择公开（ShowClientInfo）或 revealClient（管理员后台）时返回；
 // 系统版本被 UA 固定（如 macOS 10.15.7、Windows NT 10.0）时只给系统名
 func (cs *CommentService) toGetCommentDto(comment *model.Comment, isLiked, revealClient bool) dto.CommentDto {
-	ua := utils.ParseUA(comment.UserAgent)
-	osName, browser := ua.PublicOS(), ua.PublicBrowser()
-	if !(comment.ShowClientInfo || revealClient) {
-		comment.CommentLocation = model.CommentLocation{}
-		osName, browser = "", ""
+	var osName, browser string
+	var loc dto.CommentLocationDto
+	if comment.ShowClientInfo || revealClient {
+		ua := utils.ParseUA(comment.UserAgent)
+		osName, browser = ua.PublicOS(), ua.PublicBrowser()
+		loc = dto.CommentLocationDto{
+			Country:   comment.Country,
+			Province:  comment.Province,
+			City:      comment.City,
+			Districts: comment.Districts,
+			ISP:       comment.ISP,
+			IDC:       comment.IDC,
+		}
 	}
 
-	return dto.CommentDto{
+	userDto := comment.User.ToDto()
+	if revealClient {
+		userDto = comment.User.ToPrivateDto()
+	}
+	out := dto.CommentDto{
 		ID:             comment.ID,
 		Content:        comment.Content,
 		MentionUserIDs: comment.MentionUserIDs,
@@ -597,23 +721,24 @@ func (cs *CommentService) toGetCommentDto(comment *model.Comment, isLiked, revea
 		CreatedAt:      comment.CreatedAt,
 		UpdatedAt:      comment.UpdatedAt,
 		Depth:          comment.Depth,
-		User:           comment.User.ToDto(),
+		User:           userDto,
 		ReplyCount:     comment.CommentCount,
 		LikeCount:      comment.LikeCount,
 		IsLiked:        isLiked,
 		IsPrivate:      comment.IsPrivate,
 		OS:             osName,
 		Browser:        browser,
-		Location: dto.CommentLocationDto{
-			Country:   comment.Country,
-			Province:  comment.Province,
-			City:      comment.City,
-			Districts: comment.Districts,
-			ISP:       comment.ISP,
-			IDC:       comment.IDC,
-		},
+		Location:       loc,
 		ShowClientInfo: comment.ShowClientInfo,
 	}
+	if revealClient {
+		out.ModerationStatus = comment.ModerationStatus
+		out.ModerationCategory = comment.ModerationCategory
+		out.ModerationReason = comment.ModerationReason
+		out.ModerationSource = comment.ModerationSource
+		out.ModeratedAt = comment.ModeratedAt
+	}
+	return out
 }
 
 // commentTarget 评论目标（文章或页面）的作者与可见性
@@ -653,8 +778,24 @@ func (cs *CommentService) getTarget(targetID uint, targetType string) (*commentT
 	return &commentTarget{ownerID: meta.UserID, isPrivate: !meta.IsPublic()}, nil
 }
 
-// canViewComment 公开评论所有人可见；私密评论对管理员、目标作者、评论作者和参与过该评论树的用户可见
+func isCommentHiddenByModeration(comment *model.Comment) bool {
+	if comment == nil {
+		return true
+	}
+	rejected, err := repo.Comment.IsCommentOrAncestorRejected(comment)
+	if err != nil {
+		// 查询祖先链出错时按保守原则视为不可见，避免数据库异常时意外放行
+		return true
+	}
+	return rejected
+}
+
+// canViewComment 违规已屏蔽评论（含祖先被屏蔽的子回复）仅管理员可见（非管理员文章作者与评论者本人也不可见）；
+// 公开评论所有人可见；私密评论对管理员、目标作者、评论作者和参与过该评论树的用户可见
 func (cs *CommentService) canViewComment(ctx context.Context, comment *model.Comment, target *commentTarget) (bool, *errs.ServiceError) {
+	if isCommentHiddenByModeration(comment) {
+		return ctxutils.IsAdmin(ctx), nil
+	}
 	if !comment.IsPrivate || target.canViewAllComments(ctx) || ctxutils.IsOwnerOfTarget(ctx, comment.UserID) {
 		return true, nil
 	}

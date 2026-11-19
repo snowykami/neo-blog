@@ -286,6 +286,12 @@ func eventTargetSkipReason(run *model.AgentRun) string {
 		if c.IsPrivate {
 			return "comment_private"
 		}
+		if c.ModerationStatus == constant.CommentModerationPending {
+			return "comment_pending_moderation"
+		}
+		if isCommentHiddenByModeration(c) {
+			return "comment_rejected"
+		}
 		return contentTargetSkipReason(c.TargetType, c.TargetID)
 	}
 	return ""
@@ -626,13 +632,16 @@ func (s *AIAgentService) buildLeaseRun(run *model.AgentRun, agent *model.AIAgent
 		if err != nil {
 			return nil, fmt.Errorf("target comment not found: %w", err)
 		}
+		if c.IsPrivate || c.ModerationStatus == constant.CommentModerationPending || isCommentHiddenByModeration(c) {
+			return nil, errors.New("target comment not visible")
+		}
 		ref := &dto.AgentCommentRef{
 			ID: c.ID, Content: c.Content, AuthorID: c.UserID, AuthorName: displayName(&c.User),
 			TargetType: c.TargetType, TargetID: c.TargetID, ReplyID: c.ReplyID, RootID: c.RootID,
 		}
-		// 被回复的是私密评论时不把它的内容交给 AI
+		// 被回复的是私密评论或违规屏蔽评论时不把它的内容交给 AI
 		if c.ReplyID != 0 {
-			if parent, err := repo.Comment.GetComment(c.ReplyID); err == nil && !parent.IsPrivate {
+			if parent, err := repo.Comment.GetComment(c.ReplyID); err == nil && !parent.IsPrivate && !isCommentHiddenByModeration(parent) {
 				ref.ReplyToContent = parent.Content
 			}
 		}

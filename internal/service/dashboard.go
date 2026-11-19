@@ -99,7 +99,7 @@ func (c *AdminService) fillDashboardTotals(result *dto.DashboardDto) error {
 	if err := db.Model(&model.User{}).Count(&result.TotalUsers).Error; err != nil {
 		return err
 	}
-	if err := db.Model(&model.Comment{}).Count(&result.TotalComments).Error; err != nil {
+	if err := repo.NonRejectedComments(db.Model(&model.Comment{})).Count(&result.TotalComments).Error; err != nil {
 		return err
 	}
 	return db.Model(&model.File{}).Count(&result.TotalFiles).Error

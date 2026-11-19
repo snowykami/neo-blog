@@ -196,9 +196,9 @@ func (d *dashboardRepo) visits() *gorm.DB {
 	return HumanVisits(GetDB().Model(&model.VisitLog{}))
 }
 
-// CountCommentsTrend 各天及双期新增的评论数（含回复，不含已删除）
+// CountCommentsTrend 各天及双期新增的评论数（含回复，不含已删除与违规已屏蔽）
 func (d *dashboardRepo) CountCommentsTrend(days []TimeRange, current, previous TimeRange) (TrendCounts, error) {
-	return countTimestampsInRanges(GetDB().Model(&model.Comment{}), days, current, previous)
+	return countTimestampsInRanges(NonRejectedComments(GetDB().Model(&model.Comment{})), days, current, previous)
 }
 
 // CountLikesTrend 各天及双期新增的点赞数（文章与评论，已取消的不计）
@@ -211,24 +211,24 @@ func (d *dashboardRepo) CountUsersTrend(days []TimeRange, current, previous Time
 	return countTimestampsInRanges(GetDB().Model(&model.User{}), days, current, previous)
 }
 
-// CountPendingComments 指定时间之后发表、仍待回复的根评论数
+// CountPendingComments 指定时间之后发表、仍待回复的根评论数（不含违规已屏蔽评论）
 func (d *dashboardRepo) CountPendingComments(since time.Time) (int64, error) {
 	var count int64
-	err := GetDB().Model(&model.Comment{}).
+	err := NonRejectedComments(GetDB().Model(&model.Comment{}), "comments").
 		Where("comments.created_at >= ?", since).
 		Where(pendingCommentCond, pendingCommentArgs()...).
 		Count(&count).Error
 	return count, err
 }
 
-// FilterPendingComments 从给定评论中筛出待回复的评论ID
+// FilterPendingComments 从给定评论中筛出待回复的评论ID（不含违规已屏蔽评论）
 func (d *dashboardRepo) FilterPendingComments(ids []uint) (map[uint]bool, error) {
 	result := map[uint]bool{}
 	if len(ids) == 0 {
 		return result, nil
 	}
 	var pending []uint
-	if err := GetDB().Model(&model.Comment{}).Where("comments.id IN ?", ids).
+	if err := NonRejectedComments(GetDB().Model(&model.Comment{}), "comments").Where("comments.id IN ?", ids).
 		Where(pendingCommentCond, pendingCommentArgs()...).
 		Pluck("comments.id", &pending).Error; err != nil {
 		return nil, err
@@ -239,10 +239,10 @@ func (d *dashboardRepo) FilterPendingComments(ids []uint) (map[uint]bool, error)
 	return result, nil
 }
 
-// ListRecentComments 最新的评论（含回复）及评论者
+// ListRecentComments 最新的非违规评论（含回复）及评论者
 func (d *dashboardRepo) ListRecentComments(limit int) ([]model.Comment, error) {
 	var comments []model.Comment
-	err := GetDB().Preload("User").Order("created_at DESC, id DESC").Limit(limit).Find(&comments).Error
+	err := NonRejectedComments(GetDB().Model(&model.Comment{})).Preload("User").Order("created_at DESC, id DESC").Limit(limit).Find(&comments).Error
 	return comments, err
 }
 

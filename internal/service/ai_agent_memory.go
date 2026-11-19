@@ -119,9 +119,9 @@ func (s *AIAgentService) recordRunMemory(run *model.AgentRun, note string, now t
 	var facts []string
 	targetType, targetID := run.TargetType, run.TargetID
 
-	// 被回复 / 被点名：对方主动找我说话，无论我是否回应都更熟一点
+	// 被回复 / 被点名：对方主动找我说话，无论我是否回应都更熟一点（违规屏蔽评论不记入长期记忆）
 	if run.Trigger == constant.AgentTriggerCommentReplied || run.Trigger == constant.AgentTriggerCommentMentioned {
-		if c, err := repo.Comment.GetComment(run.TargetID); err == nil {
+		if c, err := repo.Comment.GetComment(run.TargetID); err == nil && !isCommentHiddenByModeration(c) {
 			subject = c.UserID
 			s.bumpRelation(agent, profile, c.UserID, weightRepliedToMe, run.ID, now)
 			if run.Trigger == constant.AgentTriggerCommentMentioned {
@@ -135,12 +135,12 @@ func (s *AIAgentService) recordRunMemory(run *model.AgentRun, note string, now t
 		switch e.Type {
 		case "comment":
 			c, err := repo.Comment.GetComment(e.CommentID)
-			if err != nil {
+			if err != nil || isCommentHiddenByModeration(c) {
 				continue
 			}
 			targetType, targetID = c.TargetType, c.TargetID
 			if c.ReplyID != 0 {
-				if parent, err := repo.Comment.GetComment(c.ReplyID); err == nil {
+				if parent, err := repo.Comment.GetComment(c.ReplyID); err == nil && !isCommentHiddenByModeration(parent) {
 					if subject == 0 {
 						subject = parent.UserID
 					}
@@ -162,7 +162,7 @@ func (s *AIAgentService) recordRunMemory(run *model.AgentRun, note string, now t
 				continue
 			}
 			if e.TargetType == constant.TargetTypeComment {
-				if c, err := repo.Comment.GetComment(e.TargetID); err == nil {
+				if c, err := repo.Comment.GetComment(e.TargetID); err == nil && !isCommentHiddenByModeration(c) {
 					s.bumpRelation(agent, profile, c.UserID, weightLikedTheirs, run.ID, now)
 				}
 			} else {

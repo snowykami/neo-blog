@@ -156,7 +156,7 @@ func (w *agentWriteContext) checkComment(targetType string, targetID, replyID ui
 	var parent *model.Comment
 	if replyID != 0 {
 		var err error
-		if parent, err = repo.Comment.GetComment(replyID); err != nil {
+		if parent, err = repo.Comment.GetComment(replyID); err != nil || isCommentHiddenByModeration(parent) {
 			return errs.NewNotFound("operation_target_not_found").WithResource("comment")
 		}
 	}
@@ -222,7 +222,7 @@ func (s *AIAgentService) AgentCreateComment(ctx context.Context, targetType stri
 	// 回复时以被回复评论所在的文章 / 页面为目标
 	if replyID != 0 {
 		parent, err := repo.Comment.GetComment(replyID)
-		if err != nil {
+		if err != nil || isCommentHiddenByModeration(parent) {
 			return 0, errs.NewNotFound("operation_target_not_found").WithResource("comment")
 		}
 		targetType, targetID = parent.TargetType, parent.TargetID

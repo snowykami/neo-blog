@@ -46,6 +46,7 @@ func registerAdminRoutes(group *route.RouterGroup) {
 		consoleGroup.PUT("/users/:id/password", adminController.ResetUserPassword)
 		consoleGroup.DELETE("/users/:id", adminController.DeleteUser)
 		consoleGroup.GET("/comments", adminController.ListComments)
+		consoleGroup.POST("/comments/moderation", adminController.UpdateCommentsModeration)
 		consoleGroup.GET("/posts", adminController.ListPosts)
 		// 文章置顶：首页最多 3 篇，可设到期时间
 		consoleGroup.GET("/posts/pinned", adminController.ListPinnedPosts)

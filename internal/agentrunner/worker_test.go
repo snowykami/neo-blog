@@ -35,6 +35,9 @@ func setupWorkerTest(t *testing.T) {
 	if err := repo.InitDatabase(); err != nil {
 		t.Fatalf("init database: %v", err)
 	}
+	if err := repo.KV.SetKV("ai_comment_moderation_enabled", false); err != nil {
+		t.Fatalf("disable moderation in worker test: %v", err)
+	}
 }
 
 // startWorkers 启动一组 worker（相当于一个实例），返回停止函数

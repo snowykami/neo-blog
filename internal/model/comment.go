@@ -4,7 +4,9 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"time"
 
+	"github.com/snowykami/neo-blog/pkg/constant"
 	"gorm.io/gorm"
 )
 
@@ -31,6 +33,18 @@ type Comment struct {
 	AttachmentIDs FileIDs `gorm:"type:text"`
 	// 正文里被 @ 的用户 ID（去重、最多 3 个）。正文只存 @用户名 这样的纯文本，通知用这里的 ID，用户改名不影响已发出的通知
 	MentionUserIDs UintIDs `gorm:"type:text"`
+
+	// AI 内容审查状态："" 未启用审查，"pending" 待审查（先展示），"approved" 已通过，"rejected" 违规已屏蔽（不删除，仅管理员后台可见）
+	ModerationStatus   string `gorm:"type:varchar(16);index;default:''"`
+	ModerationCategory string `gorm:"type:varchar(32);default:''"`
+	ModerationReason   string `gorm:"type:varchar(512);default:''"`
+	ModerationSource   string `gorm:"type:varchar(32);default:''"`
+	ModeratedAt        *time.Time
+}
+
+// IsRejected 是否已被判定为违规并屏蔽（前台与非管理员完全不可见）
+func (c *Comment) IsRejected() bool {
+	return c != nil && c.ModerationStatus == constant.CommentModerationRejected
 }
 
 type CommentLocation struct {
