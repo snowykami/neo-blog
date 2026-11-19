@@ -1073,4 +1073,74 @@ describe('振假名渲染与 HDR 跨行平滑退场', () => {
     expect(lineEls[2].style.transform).toContain('rotate(-2.72deg)')
     ctx.cleanup()
   })
+
+  it('移动端 WebKit 渲染防掉帧：聚光灯期间非焦点模糊行零 color/filter 重绘（仅改合成层 opacity），长短语流光仅激活光带覆盖单字', () => {
+    const perfLyrics: ResolvedLyrics = {
+      source: 'ncm-yrc',
+      wordTimed: true,
+      instrumental: false,
+      spotlights: [1],
+      lines: [
+        {
+          words: [{ text: 'dontsaycrazy', start: 500, end: 2500 }],
+          emphasis: [{ from: 0, to: 1, start: 500, end: 2500, factor: 1, effect: 'shimmer', color: 'cherry-blossom' }],
+          start: 500,
+          end: 2500,
+          isDuet: false,
+          isBackground: false,
+        },
+        {
+          words: [{ text: '聚焦高光句', start: 3000, end: 4500 }],
+          start: 3000,
+          end: 4500,
+          isDuet: false,
+          isBackground: false,
+        },
+        {
+          words: [{ text: '待唱下一句', start: 4700, end: 6000 }],
+          start: 4700,
+          end: 6000,
+          isDuet: false,
+          isBackground: false,
+        },
+      ],
+    }
+
+    const ctx = mountPlayer(perfLyrics, { hdr: true })
+    const lineEls = Array.from(ctx.container.querySelectorAll<HTMLElement>('.lyric-line'))
+
+    // 1. 流光扫过 12 字母短语中途：仅光带实际接触的 1~3 个单字挂 .lyric-char--shine，其余单字保持静态 HDR 底色
+    ctx.step(0.7, 32)
+    const chars = Array.from(lineEls[0].querySelectorAll<HTMLElement>('.lyric-char'))
+    expect(chars).toHaveLength(12)
+    const shiningCount = chars.filter(ch => ch.classList.contains('lyric-char--shine')).length
+    expect(shiningCount).toBeGreaterThanOrEqual(1)
+    expect(shiningCount).toBeLessThanOrEqual(4)
+
+    // 2. 进入聚光灯第 1 行（t=3.02s，聚光灯尚在渐入途中）后，统计聚光灯渐入/满强/渐出全程待唱行 lineEls[2] 的 color 与 filter 写入次数（应为 0）
+    ctx.player.setDisplay({ showTranslation: true, showRomanization: true, footerText: '', effects: true, hdr: false })
+    ctx.step(3.02, 500)
+    let colorWrites = 0
+    let filterWrites = 0
+    const realStyle = lineEls[2].style
+    const styleProxy = new Proxy(realStyle, {
+      set(target, prop, val) {
+        if (prop === 'color')
+          colorWrites++
+        if (prop === 'filter')
+          filterWrites++
+        return Reflect.set(target, prop, val)
+      },
+    })
+    Object.defineProperty(lineEls[2], 'style', { get: () => styleProxy, configurable: true })
+
+    // 从聚光灯渐入（3.05s）一路步进到满强（3.60s）：非焦点行由合成层 opacity 压暗，不重设 color 或 filter
+    for (let t = 3.05; t <= 3.60; t += 0.05)
+      ctx.step(t, 50)
+    expect(colorWrites).toBe(0)
+    expect(filterWrites).toBe(0)
+    expect(Number.parseFloat(realStyle.opacity)).toBeCloseTo(0.24 / 0.35, 2)
+
+    ctx.cleanup()
+  })
 })

@@ -146,10 +146,8 @@ export function MusicLyricStage({ className, compact = false, strip = false, the
       // 单行条嵌在链接（导航栏标题）里，只是其中的文字，不单独成区
       role={strip ? undefined : 'region'}
       aria-label={strip ? undefined : pageT('lyrics_region')}
-      data-stage-push={stagePush}
-      // 推近时单独成为合成层，缩放不重绘歌词
-      className={cn(stagePush != null && 'will-change-[scale]', className)}
-      // 单行条只有一行，不做上下渐隐
+      className={className}
+      // 单行条只有一行，不做上下渐隐；遮罩固定在外层不参与 scale 动画，避免 WebKit 对带 mask 的容器逐帧重光栅化
       style={strip
         ? colorStyle
         : {
@@ -158,8 +156,16 @@ export function MusicLyricStage({ className, compact = false, strip = false, the
             WebkitMaskImage: 'linear-gradient(to bottom, transparent, black 10%, black 85%, transparent)',
           }}
     >
-      {/* 节点由歌词引擎直接管理，React 不渲染任何子元素，也不改动它的类名 */}
-      <div ref={containerRef} className="size-full" />
+      {stagePush != null
+        ? (
+            <div data-stage-push={stagePush} data-stage-push-text="" className="size-full will-change-[scale]">
+              <div ref={containerRef} className="size-full" />
+            </div>
+          )
+        : (
+            /* 节点由歌词引擎直接管理，React 不渲染任何子元素，也不改动它的类名 */
+            <div ref={containerRef} className="size-full" />
+          )}
     </div>
   )
 }

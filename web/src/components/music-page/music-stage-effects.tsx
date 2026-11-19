@@ -8,7 +8,7 @@ import { useMusic, useMusicClockStore } from '@/contexts/music-context'
 import { useHdrEnabled } from '@/hooks/use-hdr-highlight'
 import { createHdrCanvasPresenter } from '@/lib/hdr-canvas'
 import { HDR_BRIGHTNESS } from '@/lib/hdr-color'
-import { hexToRgb, LYRIC_COLORS } from '@/lib/lyrics/colors'
+import { LYRIC_COLORS } from '@/lib/lyrics/colors'
 import { backgroundLevel, particleHeartLevel, particlePulses, periodOf, rhythmContext } from '@/lib/lyrics/rhythm/effects'
 import { rhythmModelFor } from '@/lib/lyrics/rhythm/source'
 import { getStageSignals } from '@/lib/lyrics/stage-effects'
@@ -36,6 +36,27 @@ const HDR_PARTICLE_RESOLUTION = 0.5
 const STAGE_PUSH_SELECTOR = '[data-stage-push]'
 
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
+
+function isIOSDevice(): boolean {
+  if (typeof navigator === 'undefined')
+    return false
+  return /iPhone|iPad|iPod/i.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+}
+
+/** WebKit 内核（含全部 iOS 浏览器与 macOS Safari）：动态缩放文字祖先层会触发 RenderLayerBacking 重光栅化字形纹理 */
+function isWebKitEngine(): boolean {
+  if (typeof navigator === 'undefined')
+    return false
+  if (isIOSDevice())
+    return true
+  const ua = navigator.userAgent
+  return /AppleWebKit/i.test(ua) && !/Chrome|Chromium|Android/i.test(ua)
+}
+
+function buildTintGradient(hex: string): string {
+  return `radial-gradient(ellipse at 65% 45%, ${hex}, transparent 70%)`
+}
 
 function subscribeReducedMotion(listener: () => void) {
   const query = window.matchMedia(REDUCED_MOTION_QUERY)
@@ -71,11 +92,12 @@ export function MusicStageEffects({
   const clock = useMusicClockStore()
   const reducedMotion = useSyncExternalStore(subscribeReducedMotion, () => window.matchMedia(REDUCED_MOTION_QUERY).matches, () => true)
   const enabled = showLyricEffects && !reducedMotion
-  // 不支持 WebGPU 的 HDR 输出或设备丢失后，本次会话退回 2D
-  const [gpuFailed, setGpuFailed] = useState(false)
+  // 不支持 WebGPU 的 HDR 输出或设备丢失后，本次会话退回 2D；iOS WebKit 不支持 extended WebGPU，直接跳过异步探测避免二次挂载
+  const [gpuFailed, setGpuFailed] = useState(() => isIOSDevice())
   const hdr = useHdrEnabled() && !contained && !gpuFailed
   const pulseRef = useRef<HTMLDivElement>(null)
-  const tintRef = useRef<HTMLDivElement>(null)
+  const tintARef = useRef<HTMLDivElement>(null)
+  const tintBRef = useRef<HTMLDivElement>(null)
   const spotlightRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -105,9 +127,10 @@ export function MusicStageEffects({
   useEffect(() => {
     const canvas = canvasRef.current
     const pulseEl = pulseRef.current
-    const tintEl = tintRef.current
+    const tintAEl = tintARef.current
+    const tintBEl = tintBRef.current
     const spotlightEl = spotlightRef.current
-    if (!enabled || !canvas || !pulseEl || !tintEl || !spotlightEl)
+    if (!enabled || !canvas || !pulseEl || !tintAEl || !tintBEl || !spotlightEl)
       return
     // HDR：粒子画在不显示的画布上，WebGPU 输出就绪后逐帧拷到页面上的 canvas；就绪前不显示粒子
     const drawCanvas = hdr ? document.createElement('canvas') : canvas
@@ -154,20 +177,28 @@ export function MusicStageEffects({
     let prevSettledTimeMs: number | null = null
     let wasSettled = false
     let pulseOpacity = ''
-    let tintOpacity = ''
-    let tintColor = ''
     let tintShift = ''
-    let curTintRgb: [number, number, number] | null = null
     let curShiftPct = 0
     let wasTintVisible = false
+    let activeTintSlot = 0
+    const tintSlots = [
+      { el: tintAEl, colorKey: '', weight: 0, opacity: '' },
+      { el: tintBEl, colorKey: '', weight: 0, opacity: '' },
+    ]
     let push = 0
     let spotlight = ''
-    // 镜头推近作用于页面中标了 data-stage-push 的层（小窗不推近）；每次推近开始时重新查找，推近期间复用
+    const skipTextPush = isWebKitEngine()
+    // 镜头推近作用于页面中标了 data-stage-push 的层（小窗不推近，WebKit 下豁免文字层以避免子层字形纹理重光栅化）；每次推近开始时重新查找，推近期间复用
     const pushRoot = contained ? null : rootRef.current?.parentElement ?? null
     let pushTargets: HTMLElement[] = []
     const writePush = (value: number) => {
-      if (push === 0)
-        pushTargets = pushRoot ? Array.from(pushRoot.querySelectorAll<HTMLElement>(STAGE_PUSH_SELECTOR)) : []
+      if (push === 0) {
+        pushTargets = pushRoot
+          ? Array.from(pushRoot.querySelectorAll<HTMLElement>(STAGE_PUSH_SELECTOR)).filter(
+              el => !(skipTextPush && el.hasAttribute('data-stage-push-text')),
+            )
+          : []
+      }
       push = value
       for (const el of pushTargets)
         el.style.scale = value > 0 ? (1 + value * (Number(el.dataset.stagePush) || 0)).toFixed(4) : ''
@@ -216,43 +247,64 @@ export function MusicStageEffects({
       const vocal = signals?.vocal ?? null
       const activeTint = phraseTint && (!vocal || phraseTint.strength >= vocal.strength) ? phraseTint : vocal
       const rawTintStrength = activeTint?.strength ?? 0
-      const nextTintOpacity = (rawTintStrength * TINT_MAX_OPACITY).toFixed(3)
-      const tintVisibleNow = Number(nextTintOpacity) > 0
-      if (nextTintOpacity !== tintOpacity) {
-        tintOpacity = nextTintOpacity
-        tintEl.style.opacity = nextTintOpacity
-        tintEl.style.visibility = tintVisibleNow ? '' : 'hidden'
+      const baseTintOpacity = rawTintStrength * TINT_MAX_OPACITY
+      const tintVisibleNow = baseTintOpacity >= 0.002
+
+      // 双槽位乒乓交叉淡入淡出：仅在新颜色名首次进入槽位时写一次静态 radial-gradient，
+      // 逐帧只改 GPU 合成层 opacity 与 translate，彻底杜绝每帧修改渐变色值触发整屏 500 万像素重光栅化
+      if (activeTint && tintSlots[activeTintSlot].colorKey !== activeTint.color) {
+        const otherSlot = 1 - activeTintSlot
+        if (!wasTintVisible || tintSlots[activeTintSlot].weight < 0.01) {
+          tintSlots[activeTintSlot].colorKey = activeTint.color
+          tintSlots[activeTintSlot].el.style.background = buildTintGradient(LYRIC_COLORS[activeTint.color])
+        }
+        else if (tintSlots[otherSlot].colorKey === activeTint.color) {
+          activeTintSlot = otherSlot
+        }
+        else {
+          activeTintSlot = otherSlot
+          tintSlots[activeTintSlot].colorKey = activeTint.color
+          tintSlots[activeTintSlot].weight = 0
+          tintSlots[activeTintSlot].el.style.background = buildTintGradient(LYRIC_COLORS[activeTint.color])
+        }
       }
-      // 多声部交替对唱或短语染色切换时，按指数阻尼平滑过渡 RGB 色值与左右偏移（从暗态首次亮起时直接到位不闪旧色）
-      const targetRgb = activeTint ? hexToRgb(LYRIC_COLORS[activeTint.color]) : curTintRgb
+      const tintBlend = !wasTintVisible ? 1 : (1 - Math.exp(-dt / 0.28))
+      if (tintVisibleNow && tintSlots[activeTintSlot].colorKey) {
+        const nextActiveW = tintSlots[activeTintSlot].weight + (1 - tintSlots[activeTintSlot].weight) * tintBlend
+        tintSlots[activeTintSlot].weight = nextActiveW > 0.995 ? 1 : nextActiveW
+        const nextIdleW = tintSlots[1 - activeTintSlot].weight * (1 - tintBlend)
+        tintSlots[1 - activeTintSlot].weight = nextIdleW < 0.005 ? 0 : nextIdleW
+      }
+      else if (!tintVisibleNow) {
+        tintSlots[0].weight = 0
+        tintSlots[1].weight = 0
+      }
+
       const targetShiftPct = vocal
         ? (vocal.align === 'left' ? -7 : vocal.align === 'right' ? 7 : 0)
         : (!phraseTint ? 0 : curShiftPct)
-      const tintBlend = !wasTintVisible || curTintRgb == null ? 1 : (1 - Math.exp(-dt / 0.28))
-      if (targetRgb) {
-        curTintRgb = curTintRgb == null || tintBlend >= 0.999
-          ? [targetRgb[0], targetRgb[1], targetRgb[2]]
-          : [
-              curTintRgb[0] + (targetRgb[0] - curTintRgb[0]) * tintBlend,
-              curTintRgb[1] + (targetRgb[1] - curTintRgb[1]) * tintBlend,
-              curTintRgb[2] + (targetRgb[2] - curTintRgb[2]) * tintBlend,
-            ]
-        const nextTintCss = `rgb(${Math.round(curTintRgb[0])} ${Math.round(curTintRgb[1])} ${Math.round(curTintRgb[2])})`
-        if (nextTintCss !== tintColor) {
-          tintColor = nextTintCss
-          tintEl.style.setProperty('--stage-tint', nextTintCss)
-        }
-      }
       curShiftPct = !wasTintVisible || Math.abs(targetShiftPct - curShiftPct) < 0.02
         ? targetShiftPct
         : curShiftPct + (targetShiftPct - curShiftPct) * tintBlend
       const nextShift = Math.abs(curShiftPct) < 0.02 ? '0 0' : `${curShiftPct.toFixed(2)}% 0`
       if (nextShift !== tintShift) {
         tintShift = nextShift
-        tintEl.style.translate = nextShift
+        tintAEl.style.translate = nextShift
+        tintBEl.style.translate = nextShift
       }
-      const tintSettling = tintVisibleNow && targetRgb != null && curTintRgb != null && (
-        Math.hypot(targetRgb[0] - curTintRgb[0], targetRgb[1] - curTintRgb[1], targetRgb[2] - curTintRgb[2]) > 0.8
+
+      for (const slot of tintSlots) {
+        const slotVal = tintVisibleNow ? baseTintOpacity * slot.weight : 0
+        const nextOp = slotVal >= 0.002 ? slotVal.toFixed(3) : '0'
+        if (nextOp !== slot.opacity) {
+          slot.opacity = nextOp
+          slot.el.style.opacity = nextOp
+          slot.el.style.visibility = slotVal >= 0.002 ? '' : 'hidden'
+        }
+      }
+
+      const tintSettling = tintVisibleNow && (
+        tintSlots[1 - activeTintSlot].weight > 0.005
         || Math.abs(targetShiftPct - curShiftPct) > 0.04
       )
       wasTintVisible = tintVisibleNow
@@ -310,9 +362,11 @@ export function MusicStageEffects({
       presenter?.dispose()
       pulseEl.style.opacity = '0'
       pulseEl.style.visibility = 'hidden'
-      tintEl.style.opacity = '0'
-      tintEl.style.visibility = 'hidden'
-      tintEl.style.removeProperty('translate')
+      for (const el of [tintAEl, tintBEl]) {
+        el.style.opacity = '0'
+        el.style.visibility = 'hidden'
+        el.style.removeProperty('translate')
+      }
       spotlightEl.style.opacity = '0'
       spotlightEl.style.visibility = 'hidden'
       pushTargets.forEach(el => el.style.removeProperty('scale'))
@@ -330,15 +384,20 @@ export function MusicStageEffects({
         data-stage-push={contained ? undefined : 0.08}
         className={cn('pointer-events-none inset-0 overflow-hidden', contained ? 'absolute' : 'fixed will-change-[scale]')}
       >
-        {/* 三层的透明度逐帧变化：各自提升为合成层，只改合成参数，不必每帧重新光栅化整屏渐变；不透明度为 0 时隐藏避免空合成 */}
+        {/* 全部氛围层采用纯 GPU source-over 透明度合成（不使用会触发移动端 Tile GPU 帧缓冲回读的 mix-blend-*），且渐变纹理静态缓存不随帧重绘 */}
         <div
-          ref={tintRef}
-          className="absolute -inset-[16%] opacity-0 mix-blend-screen will-change-[opacity,translate]"
-          style={{ background: 'radial-gradient(ellipse at 65% 45%, var(--stage-tint, transparent), transparent 70%)', visibility: 'hidden' }}
+          ref={tintARef}
+          className="absolute -inset-[16%] opacity-0 will-change-[opacity,translate]"
+          style={{ visibility: 'hidden' }}
+        />
+        <div
+          ref={tintBRef}
+          className="absolute -inset-[16%] opacity-0 will-change-[opacity,translate]"
+          style={{ visibility: 'hidden' }}
         />
         <div
           ref={pulseRef}
-          className="absolute inset-0 opacity-0 mix-blend-soft-light will-change-[opacity]"
+          className="absolute inset-0 opacity-0 will-change-[opacity]"
           style={{ background: 'radial-gradient(ellipse at 50% 50%, var(--lyric-accent, #fff), transparent 75%)', visibility: 'hidden' }}
         />
         {/* 聚光灯：歌词区中央一团暖光（播放器页宽屏时歌词在右侧），四周略微压暗 */}

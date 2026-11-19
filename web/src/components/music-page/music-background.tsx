@@ -11,6 +11,8 @@ import { formatMusicCoverUrl } from '@/utils/common/image'
  * morphBackdrop 时标为顶栏灵动岛展开形变的底色：形变的外壳复制它，胶囊比面板宽出来的部分也是模糊封面而不是纯色（见 topbar-island/island-morph.ts）
  */
 export function MusicBackground({ cover, contained = false, imageClassName, morphBackdrop = false }: { cover?: string, contained?: boolean, imageClassName?: string, morphBackdrop?: boolean }) {
+  // 全屏播放器页将模糊封面渲染在 1/4 面积内层再经 GPU 放大 2.5 倍（等效 60px 高斯模糊半径），将高分屏离屏模糊显存与带宽压低 75%
+  const compactBlurBuffer = !contained && !morphBackdrop && !imageClassName
   return (
     // 播放器页副歌开唱时的镜头推近：data-stage-push 为推近到底时多放大的比例，由 MusicStageEffects 逐帧写入 scale；
     // 单独成为合成层，缩放只改合成参数，不重绘模糊的封面；小窗不推近
@@ -21,17 +23,34 @@ export function MusicBackground({ cover, contained = false, imageClassName, morp
       className={cn('pointer-events-none inset-0 overflow-hidden bg-neutral-950', contained ? 'absolute' : 'fixed will-change-[scale]')}
     >
       {cover && (
-        <SafeImage
-          // 换封面时重新挂载以触发淡入
-          key={cover}
-          src={formatMusicCoverUrl(cover, 256)}
-          alt=""
-          fill
-          sizes="256px"
-          quality={45}
-          fallback={null}
-          className={cn('scale-125 animate-in object-cover opacity-80 blur-3xl saturate-150 duration-1000 fade-in', imageClassName)}
-        />
+        compactBlurBuffer
+          ? (
+              <div className="absolute inset-[25%] scale-[2.5] transform-gpu will-change-transform">
+                <SafeImage
+                  key={cover}
+                  src={formatMusicCoverUrl(cover, 256)}
+                  alt=""
+                  fill
+                  sizes="256px"
+                  quality={45}
+                  fallback={null}
+                  className="animate-in object-cover opacity-80 blur-xl saturate-150 duration-1000 fade-in"
+                />
+              </div>
+            )
+          : (
+              <SafeImage
+                // 换封面时重新挂载以触发淡入
+                key={cover}
+                src={formatMusicCoverUrl(cover, 256)}
+                alt=""
+                fill
+                sizes="256px"
+                quality={45}
+                fallback={null}
+                className={cn('scale-125 animate-in object-cover opacity-80 blur-3xl saturate-150 duration-1000 fade-in', imageClassName)}
+              />
+            )
       )}
       <div className="absolute inset-0 bg-black/50" />
     </div>

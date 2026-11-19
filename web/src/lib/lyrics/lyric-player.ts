@@ -152,6 +152,8 @@ interface StripMarquee {
 interface EmphasisView {
   group: LyricEmphasis
   chars: CharView[]
+  isRuby?: boolean
+  wasHidden?: boolean
 }
 
 interface ItemView {
@@ -159,6 +161,7 @@ interface ItemView {
   el: HTMLElement
   main: HTMLElement | null
   height: number
+  spotFitScale: number | null
   y: Spring
   x: Spring
   rot: Spring
@@ -286,9 +289,9 @@ const PARAGRAPH_GAP_COMPACT_EM = 0.35
 
 /**
  * 聚光灯放大倍数：不超过 max，且放大后文字不超出整行（缩放默认以行首为原点，对唱行以行尾为原点，合唱行以中心为原点）。
- * 按各文字节点相对整行的位置计算，与当前缩放无关
+ * 直接测量 .lyric-main 整体内容包围盒（自动排除外层 .lyric-singer 胶囊），避免逐文本节点循环调用 getBoundingClientRect 触发多次回流
  */
-function spotlightFit(el: HTMLElement, max: number): number {
+function spotlightFit(el: HTMLElement, main: HTMLElement | null, max: number): number {
   const box = el.getBoundingClientRect()
   if (box.width <= 0 || el.offsetWidth <= 0)
     return max
@@ -296,24 +299,15 @@ function spotlightFit(el: HTMLElement, max: number): number {
   const centered = el.classList.contains('lyric-line--center')
   const centerX = (box.left + box.right) / 2
   const range = el.ownerDocument.createRange()
-  const walker = el.ownerDocument.createTreeWalker(el, NodeFilter.SHOW_TEXT)
-  let extent = 0
-  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-    if (node.parentElement?.closest('.lyric-singer'))
-      continue
-    range.selectNodeContents(node)
-    const rect = range.getBoundingClientRect()
-    if (rect.width > 0) {
-      extent = Math.max(
-        extent,
-        centered
-          ? 2 * Math.max(centerX - rect.left, rect.right - centerX)
-          : fromRight
-            ? box.right - rect.left
-            : rect.right - box.left,
-      )
-    }
-  }
+  range.selectNodeContents(main ?? el)
+  const rect = range.getBoundingClientRect()
+  const extent = rect.width > 0
+    ? (centered
+        ? 2 * Math.max(centerX - rect.left, rect.right - centerX)
+        : fromRight
+          ? box.right - rect.left
+          : rect.right - box.left)
+    : 0
   // 留出行尾（合唱行留出两侧）的内边距
   const style = getComputedStyle(el)
   const padRight = (Number.parseFloat(style.paddingRight) || 0) * box.width / el.offsetWidth
@@ -961,14 +955,17 @@ export class LyricPlayer {
 
       if (next.wordTimed && view.main && !sameRomanizationWords(prevLine.romanizationWords, nextLine.romanizationWords)) {
         changed = true
+        const isNarrow = this.container.ownerDocument.defaultView?.matchMedia('(max-width: 1024px)').matches ?? false
         const mainWords = view.words.slice(0, nextLine.words.length)
         const baseEmphasisCount = nextLine.emphasis?.length ?? 0
         view.emphasis.length = baseEmphasisCount
-        const rubyEmphasis: EmphasisView[] = (nextLine.emphasis ?? []).map(group => ({ group, chars: [] }))
+        const rubyEmphasis: EmphasisView[] = isNarrow ? [] : (nextLine.emphasis ?? []).map(group => ({ group, chars: [], isRuby: true }))
         const groupOf = (index: number) => nextLine.emphasis?.findIndex(group => index >= group.from && index < group.to) ?? -1
         view.main.replaceChildren()
         view.rubyUnits = []
         const extraWords = this.buildWords(view.main, nextLine, mainWords, view.rubyUnits, (index) => {
+          if (isNarrow)
+            return null
           const group = groupOf(index)
           return group >= 0 ? rubyEmphasis[group] : null
         })
@@ -1144,6 +1141,7 @@ export class LyricPlayer {
 
   private build() {
     const doc = this.container.ownerDocument
+    const isNarrow = doc.defaultView?.matchMedia('(max-width: 1024px)').matches ?? false
     const lineTimed = !this.lyrics.wordTimed
     const agents = this.lyrics.agents
     const soloAgents = agents ? Object.values(agents).filter(agent => !agent.isGroup) : []
@@ -1158,6 +1156,7 @@ export class LyricPlayer {
         el: doc.createElement(item.kind === 'line' && !this.options.strip ? 'button' : 'div'),
         main: null,
         height: 0,
+        spotFitScale: null,
         y: new Spring(0, initSprings.position),
         x: new Spring(0, initSprings.position),
         rot: new Spring(0, initSprings.position),
@@ -1231,10 +1230,10 @@ export class LyricPlayer {
           main.textContent = line.words.map(word => word.text).join('')
         }
         else {
-          // 强调的词拆成单字，逐字演出；逐字对齐的音译跟随所注音节的强调，作为同一组的另一份单字单独演出
+          // 强调的词拆成单字，逐字演出；桌面宽屏下逐字音译跟随所注音节演出，移动端窄屏保持整词擦除免除 3～4 倍单字重绘开销
           const groupOf = (index: number) => line.emphasis?.findIndex(group => index >= group.from && index < group.to) ?? -1
           view.emphasis = (line.emphasis ?? []).map(group => ({ group, chars: [] }))
-          const rubyEmphasis: EmphasisView[] = (line.emphasis ?? []).map(group => ({ group, chars: [] }))
+          const rubyEmphasis: EmphasisView[] = isNarrow ? [] : (line.emphasis ?? []).map(group => ({ group, chars: [], isRuby: true }))
           const mainWords: WordView[] = line.words.map((word, index) => {
             const wordEl = doc.createElement('span')
             wordEl.className = 'lyric-word'
@@ -1247,6 +1246,8 @@ export class LyricPlayer {
             return { word, el: wordEl, width: 0, pad: 0, lifts: true, split: group >= 0, emphasized, mask: '', maskPos: '', opacity: '', transform: '' }
           })
           view.words = [...mainWords, ...this.buildWords(main, line, mainWords, view.rubyUnits, (index) => {
+            if (isNarrow)
+              return null
             const group = groupOf(index)
             return group >= 0 ? rubyEmphasis[group] : null
           })]
@@ -1514,6 +1515,15 @@ export class LyricPlayer {
         }))
         marquee.knots = null
         marquee.knotsWidth = -1
+      }
+      view.spotFitScale = null
+    }
+    if (!this.options.strip && this.spotViews.size > 0) {
+      const maxSpot = this.options.compact ? SPOTLIGHT_SCALE_COMPACT : SPOTLIGHT_SCALE
+      for (const idx of this.spotViews.values()) {
+        const spotItem = this.views[idx]
+        if (spotItem)
+          spotItem.spotFitScale = spotlightFit(spotItem.el, spotItem.main, maxSpot)
       }
     }
     this.spotScale = null
@@ -1870,7 +1880,8 @@ export class LyricPlayer {
     if (spotView >= 0) {
       spotShift = (0.5 - effectiveAlignRatio) * this.containerHeight * spot
       spotSpread = (this.options.compact ? SPOTLIGHT_SPREAD_COMPACT_EM : SPOTLIGHT_SPREAD_EM) * this.fontSize * spot
-      this.spotScale ??= spotlightFit(this.views[spotView].el, this.options.compact ? SPOTLIGHT_SCALE_COMPACT : SPOTLIGHT_SCALE)
+      const targetView = this.views[spotView]
+      this.spotScale ??= targetView.spotFitScale ?? spotlightFit(targetView.el, targetView.main, this.options.compact ? SPOTLIGHT_SCALE_COMPACT : SPOTLIGHT_SCALE)
       spotScale = this.spotScale
     }
 
@@ -2100,45 +2111,63 @@ export class LyricPlayer {
 
       const item = view.item
       if (item.kind === 'line') {
-        if (this.options.strip && view.owner >= 0) {
-          const opacity = this.stripSlots.has(i) ? '' : '0'
-          if (opacity !== view.opacity) {
-            view.opacity = opacity
-            view.el.style.opacity = opacity
-          }
-        }
-        else if (!this.options.strip && view.owner >= 0) {
-          const opacity = (0.75 * (view.expand?.position ?? 0)).toFixed(3)
-          if (opacity !== view.opacity) {
-            view.opacity = opacity
-            view.el.style.opacity = opacity
-          }
-        }
         const active = this.isLineRenderActive(i)
         const hdrExiting = view.hdrExitStart != null
         const hdrExitWeight = hdrExiting ? (1 - Math.min(1, Math.max(0, (now - view.hdrExitStart!) / HDR_EXIT_MS))) ** 2 : 0
         const liftExiting = view.liftExitStart != null
         const liftExitWeight = liftExiting ? (1 - Math.min(1, Math.max(0, (now - view.liftExitStart!) / 220))) ** 2 : 0
         const offset = visualIndex[i] - focusVisual
-        // 聚光灯亮起时其余不在唱的行变淡、变虚；同时在唱的行与鼠标悬停行保持清晰
-        const { alpha, blur } = lineAppearance({
+        const hovered = !this.options.strip && i === this.hoveredView
+        // 稳态字色与模糊（spot=0）：仅在激活态、行距档位、悬停或手动滚动切换时更新，
+        // 聚光灯渐入/渐出期间通过合成层 opacity 压暗其余行，避免逐帧改写 8～12 行模糊文字的 color/filter 引发移动端全屏重光栅化
+        const steady = lineAppearance({
           active,
           distance: Math.abs(offset),
           past: offset < 0,
-          hovered: !this.options.strip && i === this.hoveredView,
+          hovered,
           spotted: i === this.spotView,
-          spot,
+          spot: 0,
           inactiveAlpha,
           blurFactor,
           noBlur,
         })
-        const color = lyricColor(Math.round(alpha * 100) / 100)
+        const { alpha } = spot > 0
+          ? lineAppearance({
+              active,
+              distance: Math.abs(offset),
+              past: offset < 0,
+              hovered,
+              spotted: i === this.spotView,
+              spot,
+              inactiveAlpha,
+              blurFactor,
+              noBlur,
+            })
+          : steady
+        const spotDimFactor = spot > 0 && steady.alpha > 0 && alpha < steady.alpha - 0.001
+          ? alpha / steady.alpha
+          : 1
+        let lineOpacity = ''
+        if (this.options.strip && view.owner >= 0) {
+          lineOpacity = this.stripSlots.has(i) ? '' : '0'
+        }
+        else if (!this.options.strip && view.owner >= 0) {
+          lineOpacity = (0.75 * (view.expand?.position ?? 0) * spotDimFactor).toFixed(3)
+        }
+        else if (spotDimFactor < 0.999) {
+          lineOpacity = spotDimFactor.toFixed(3)
+        }
+        if (lineOpacity !== view.opacity) {
+          view.opacity = lineOpacity
+          view.el.style.opacity = lineOpacity
+        }
+        const color = lyricColor(Math.round(steady.alpha * 100) / 100)
         if (color !== view.color) {
           view.color = color
           view.el.style.color = color
         }
         // HDR 高光下在唱或处于 0.4s 退场窗口内的行不加模糊：background-clip: text 与 filter: blur 叠加在离屏纹理上会闪出白色矩形
-        const filter = blur > 0 && !(this.display.hdr && (active || view.active || hdrExiting)) ? `blur(${blur.toFixed(1)}px)` : ''
+        const filter = steady.blur > 0 && !(this.display.hdr && (active || view.active || hdrExiting)) ? `blur(${steady.blur.toFixed(1)}px)` : ''
         if (filter !== view.filter) {
           view.filter = filter
           view.el.style.filter = filter
@@ -2313,7 +2342,7 @@ export class LyricPlayer {
           const x = word.pad + progress * (width + feather)
           if (word.width <= 960) {
             mask = getStaticWordMask(dimAlpha, feather)
-            maskPos = `${(x - feather - WORD_MASK_SOLID_PX).toFixed(1)}px 0px`
+            maskPos = `${(Math.round((x - feather - WORD_MASK_SOLID_PX) * 2) / 2).toFixed(1)}px 0px`
           }
           else {
             mask = `linear-gradient(90deg, #000 ${(x - feather).toFixed(1)}px, rgb(0 0 0 / ${dimAlpha}) ${x.toFixed(1)}px)`
@@ -2400,7 +2429,16 @@ export class LyricPlayer {
     const growScale = 1 - (1 - SPOTLIGHT_EMPHASIS_SCALE) * spot
     // 柔光持续到这一行结束
     const lineEnd = view.item.kind === 'line' ? this.lyrics.lines[view.item.line]?.end ?? 0 : 0
-    for (const { group, chars } of view.emphasis) {
+    for (const emphasisItem of view.emphasis) {
+      const { group, chars, isRuby } = emphasisItem
+      if (isRuby && !this.display.showRomanization) {
+        if (!emphasisItem.wasHidden) {
+          emphasisItem.wasHidden = true
+          this.resetEmphasisChars(chars)
+        }
+        continue
+      }
+      emphasisItem.wasHidden = false
       // 特效节奏：跟随节拍时由拍点驱动（心跳、重音、柔光呼吸、波浪、抖动的调幅、流光），固定快慢时按固定周期；
       // 起落曲线、消散的时长按基准周期 T_b 换算（见 rhythm/effects.ts）
       const rhythm = rhythmContext(this.rhythm)
@@ -2454,7 +2492,9 @@ export class LyricPlayer {
           }
           if (dissolve.amount > 0.002) {
             opacity = (1 - dissolve.amount).toFixed(3)
-            filter = `blur(${(dissolve.amount * 0.08).toFixed(3)}em)`
+            const blurPx = Math.round(dissolve.amount * 0.08 * this.fontSize * 2.5) / 2.5
+            if (blurPx > 0)
+              filter = `blur(${blurPx.toFixed(1)}px)`
             drift = dissolve.amount * 0.15
           }
         }
@@ -2473,18 +2513,20 @@ export class LyricPlayer {
           crack = shatter.crack
         }
         if (lined)
-          line = Math.min(1, Math.max(0, (timeMs - char.start) / Math.max(1, char.end - char.start))).toFixed(3)
+          line = Math.min(1, Math.max(0, (timeMs - char.start) / Math.max(1, char.end - char.start))).toFixed(2)
         if (group.effect === 'focus' && active && f > 0) {
-          // 唱到之前模糊，唱到后在前 60% 的演出时长内变清晰
+          // 唱到之前模糊，唱到后在前 60% 的演出时长内按 0.4px 阶梯显影变清，避免单字每帧重建高斯模糊离屏纹理
           const clear = Math.min(1, Math.max(0, (timeMs - begin) / (duration * EMPHASIS_FOCUS_CLEAR_RATIO)))
-          const blur = (1 - clear) * (0.05 + 0.07 * f)
-          if (blur > 0.002)
-            filter = `blur(${blur.toFixed(3)}em)`
+          const blurPx = Math.round((1 - clear) * (0.05 + 0.07 * f) * this.fontSize * 2.5) / 2.5
+          if (blurPx > 0)
+            filter = `blur(${blurPx.toFixed(1)}px)`
         }
         if (tintColor) {
           tint = Math.max(v * EMPHASIS_TINT_PEAK, (active || hdrExiting) && timeMs >= begin ? EMPHASIS_TINT_HOLD : 0)
-          if (tint > 0.005)
-            color = `color-mix(in srgb, ${tintColor} ${(tint * 100).toFixed(1)}%, currentColor)`
+          if (tint > 0.005) {
+            const tintPct = Math.round(tint * 20) * 5
+            color = `color-mix(in srgb, ${tintColor} ${tintPct}%, currentColor)`
+          }
         }
         // factor 为 0 的组（唱得太快的标注短语）只保留颜色、字体与字形，不做动效；柔光与波浪由拍驱动，起落曲线之外也会动
         const rise = waves?.[i] ?? 0
@@ -2548,8 +2590,8 @@ export class LyricPlayer {
           scale = 1 + (scale - 1) * growScale
           glow *= glowScale
           transform = `translate(${x.toFixed(3)}em, ${y.toFixed(3)}em) scale(${scale.toFixed(3)})`
-          // 辉光强度按整数百分比写入：看不出的细微变化不重写 text-shadow（每次重写都要重绘这个字）
-          const glowPercent = Math.round(glow * 100)
+          // 辉光强度按 4% 阶梯量化：减少不可见的细微变化触发移动端逐字高斯阴影重绘
+          const glowPercent = Math.round(glow * 25) * 4
           if (glowPercent > 0)
             shadow = `0 0 ${radius}em color-mix(in srgb, ${tintColor ?? 'var(--lyric-glow, var(--lyric-accent, var(--lyric-color, #fff)))'} ${glowPercent}%, transparent)`
         }
@@ -2559,19 +2601,19 @@ export class LyricPlayer {
           // 碎之前的颤：每个字相位不同，越接近碎越明显
           transform = `${transform} translate(${(Math.sin(timeMs * 0.09 + i * 1.7) * 0.03 * crack).toFixed(3)}em, ${(Math.cos(timeMs * 0.11 + i) * 0.02 * crack).toFixed(3)}em)`.trim()
         }
-        const canShine = shine != null && !(hdr && hdrExiting && !char.shine)
+        // 流光光带半宽为 0.4 字宽（含 105deg 倾角余量仅覆盖 pos ∈ [-65, 165]），仅在光带实际扫过当前字时启用双层背景与位移，消除其余 80% 单字的 WebKit 字形裁剪重绘
+        const rawPos = shine != null ? (shine - i) * 100 : -999
+        const bandOverlapsChar = rawPos > -65 && rawPos < 165
+        const canShine = shine != null && bandOverlapsChar && !(hdr && hdrExiting && !char.shine)
         let usedHdrBg = false
         if (canShine) {
-          // 流光：字的颜色改由背景绘制（裁剪到字形，见 lyric-player.css），叠上一道光带；文字本身透明，辉光会盖住背景所以不用
-          const pos = (shine - i) * 100
+          const pos = Math.round(rawPos / 2) * 2
           if (hdr && hdrExiting && char.shine && char.background) {
             background = char.background
             shineX = shimmerPosition(pos)
             usedHdrBg = true
           }
           else {
-            // HDR 高光：底色与光带都是 HDR——一张「底色 → 光带 → 底色」的横条素材随光带移动，底下再铺一层底色素材（横条移出字外时兜底）。
-            // CSS 不能给图片层加渐变遮罩，所以光带直接画进素材里（见 hdrShimmerUrl）；扫光期间整个字就是 HDR，扫完不会突然变亮
             const hdrBase = hdr ? hdrTint(tintColor, tint) : null
             const strip = hdrBase ? hdrShimmerUrl(hdrBase, hdrGain, HDR_SHINE_COLOR, Math.max(HDR_BRIGHTNESS.shimmer, hdrGain)) : null
             const baseUrl = hdrBase ? hdrColorUrl(hdrBase, hdrGain) : null
@@ -2590,11 +2632,9 @@ export class LyricPlayer {
           color = 'transparent'
           shadow = ''
         }
-        else if (hdr && (!filter || group.effect === 'focus')) {
-          // 字的颜色改由 HDR 素材绘制、裁剪到字形（见 lyric-player.css）。辉光不画：text-shadow 会盖在背景上，
-          // 改用 drop-shadow 等滤镜与 background-clip: text 叠在同一个元素上时，Chrome 偶尔按整个盒子而不是字形绘制，闪出白色矩形；
-          // HDR 的亮度本身代替辉光。消散时（带模糊、正在淡出）这个字退回 SDR 颜色；聚焦的模糊例外，整个词从头到尾都是 HDR——
-          // 逐字等模糊消失再切换会一个一个字跳亮，而单纯的 blur 与 background-clip: text 叠加实测渲染正常。
+        else if (hdr && !filter) {
+          // 字的颜色改由 HDR 素材绘制、裁剪到字形（见 lyric-player.css）。模糊期间（消散淡出或 focus 显影前段）走轻量 SDR 字色，
+          // 显影清晰后切入 HDR，避免在十几个单字上同时叠加 filter: blur() 与 16 位 cICP background-clip: text 造成 iOS WebKit 掉帧。
           // 跨行退场期间直接复用激活态已解码的素材（若流光刚扫完则取已在第二层解码的底色素材），杜绝 WebKit 异步解码空帧闪烁
           if (hdrExiting && char.background) {
             const commaIdx = char.shine ? char.background.indexOf(', url(') : -1
@@ -2665,48 +2705,53 @@ export class LyricPlayer {
     }
   }
 
-  private resetEmphasis(view: ItemView) {
-    for (const { chars } of view.emphasis) {
-      for (const char of chars) {
-        if (char.transform) {
-          char.transform = ''
-          char.el.style.transform = ''
-        }
-        if (char.shadow) {
-          char.shadow = ''
-          char.el.style.textShadow = ''
-        }
-        if (char.color) {
-          char.color = ''
-          char.el.style.color = ''
-        }
-        if (char.filter) {
-          char.filter = ''
-          char.el.style.filter = ''
-        }
-        if (char.background) {
-          char.background = ''
-          char.el.style.backgroundImage = ''
-        }
-        if (char.bgColor) {
-          char.bgColor = ''
-          char.el.style.backgroundColor = ''
-        }
-        if (char.shine) {
-          char.shine = ''
-          char.el.classList.remove('lyric-char--shine')
-          char.el.style.removeProperty('--lyric-shine-x')
-        }
-        if (char.opacity) {
-          char.opacity = ''
-          char.el.style.opacity = ''
-        }
-        // 不演出时下划线完整显示（CSS 默认值）
-        if (char.line) {
-          char.line = ''
-          char.el.style.removeProperty('--lyric-line')
-        }
+  private resetEmphasisChars(chars: CharView[]) {
+    for (const char of chars) {
+      if (char.transform) {
+        char.transform = ''
+        char.el.style.transform = ''
       }
+      if (char.shadow) {
+        char.shadow = ''
+        char.el.style.textShadow = ''
+      }
+      if (char.color) {
+        char.color = ''
+        char.el.style.color = ''
+      }
+      if (char.filter) {
+        char.filter = ''
+        char.el.style.filter = ''
+      }
+      if (char.background) {
+        char.background = ''
+        char.el.style.backgroundImage = ''
+      }
+      if (char.bgColor) {
+        char.bgColor = ''
+        char.el.style.backgroundColor = ''
+      }
+      if (char.shine) {
+        char.shine = ''
+        char.el.classList.remove('lyric-char--shine')
+        char.el.style.removeProperty('--lyric-shine-x')
+      }
+      if (char.opacity) {
+        char.opacity = ''
+        char.el.style.opacity = ''
+      }
+      // 不演出时下划线完整显示（CSS 默认值）
+      if (char.line) {
+        char.line = ''
+        char.el.style.removeProperty('--lyric-line')
+      }
+    }
+  }
+
+  private resetEmphasis(view: ItemView) {
+    for (const item of view.emphasis) {
+      item.wasHidden = false
+      this.resetEmphasisChars(item.chars)
     }
   }
 

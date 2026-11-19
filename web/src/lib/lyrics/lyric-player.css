@@ -248,11 +248,15 @@
   margin: -0.3em;
 }
 
-/* 强调词拆成的单字：放大以底部偏上为原点，向上长 */
+/* 强调词拆成的单字：放大以底部偏上为原点，向上长；仅当前激活行的单字提升为合成层，唱完立即释放显存 */
 .lyric-char {
   display: inline-block;
   white-space: pre;
   transform-origin: 50% 80%;
+}
+
+.lyric-line--active .lyric-char {
+  will-change: transform;
 }
 
 /* 流光：扫动时字的颜色由背景绘制（光带 + 底色），裁剪到字形 */
