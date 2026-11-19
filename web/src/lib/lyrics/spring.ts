@@ -16,13 +16,17 @@ const REST_VELOCITY = 0.01
 
 export class Spring {
   position: number
-  private velocity = 0
+  private _velocity = 0
   private target: number
   private delay = 0
 
   constructor(initial: number, private params: SpringParams) {
     this.position = initial
     this.target = initial
+  }
+
+  get velocity(): number {
+    return this._velocity
   }
 
   /** 动态更新弹簧物理参数（切换全曲律动预设或快切阻尼保护时平滑衔接，不改变当前位移与速度） */
@@ -37,7 +41,7 @@ export class Spring {
   setTarget(target: number, delay?: number) {
     const delta = target - this.position
     if (delay !== undefined) {
-      if (delay > 0 && Math.abs(this.velocity) > 8 && delta * this.velocity > 0)
+      if (delay > 0 && Math.abs(this._velocity) > 8 && delta * this._velocity > 0)
         this.delay = Math.min(delay * 0.2, 0.014)
       else
         this.delay = delay
@@ -49,12 +53,12 @@ export class Spring {
   jump(target: number) {
     this.target = target
     this.position = target
-    this.velocity = 0
+    this._velocity = 0
     this.delay = 0
   }
 
   get resting(): boolean {
-    return this.delay <= 0 && Math.abs(this.position - this.target) < REST_DISTANCE && Math.abs(this.velocity) < REST_VELOCITY
+    return this.delay <= 0 && Math.abs(this.position - this.target) < REST_DISTANCE && Math.abs(this._velocity) < REST_VELOCITY
   }
 
   /** 推进 dt 秒；静止时直接对齐目标 */
@@ -69,13 +73,13 @@ export class Spring {
     const { mass, stiffness, damping } = this.params
     for (let remaining = dt; remaining > 0; remaining -= SUB_STEP) {
       const h = Math.min(SUB_STEP, remaining)
-      const acceleration = (-stiffness * (this.position - this.target) - damping * this.velocity) / mass
-      this.velocity += acceleration * h
-      this.position += this.velocity * h
+      const acceleration = (-stiffness * (this.position - this.target) - damping * this._velocity) / mass
+      this._velocity += acceleration * h
+      this.position += this._velocity * h
     }
     if (this.resting) {
       this.position = this.target
-      this.velocity = 0
+      this._velocity = 0
     }
   }
 }
