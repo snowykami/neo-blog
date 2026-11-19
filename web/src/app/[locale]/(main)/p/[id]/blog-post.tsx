@@ -74,7 +74,7 @@ async function PostArticle({ post, html, isDraft }: { post: Post, html: string, 
     commentCount: post.commentCount,
   }
   return (
-    <div className="surface-card rounded-2xl bg-card px-5 pt-6 pb-8 sm:px-7 md:px-10 lg:px-14">
+    <div className="surface-card rounded-2xl bg-card p-5 sm:p-7 md:p-8">
       <PostLiveStats post={postInfo} words={countWords(content)} minutes={calculateReadingTime(content)} className="mb-3" />
 
       {/* 私密徽标只会出现在后台预览里：前台接口不返回私密文章 */}
@@ -95,8 +95,8 @@ async function PostArticle({ post, html, isDraft }: { post: Post, html: string, 
         </div>
       )}
 
-      {/* 标题：桌面端左侧主色短色条位于卡片内边距中 */}
-      <h1 className="relative mb-3 text-2xl font-bold text-foreground/90 [text-wrap:balance] sm:text-3xl md:text-[2.125rem] md:leading-[2.65rem] md:before:absolute md:before:top-[0.825rem] md:before:-left-[1.25rem] md:before:h-4.5 md:before:w-1 md:before:rounded-md md:before:bg-primary">
+      {/* 标题：左侧主色竖条与内容左边界、正文引用块竖条严格同轴对齐 */}
+      <h1 className="relative mb-3 pl-4 text-2xl font-bold text-foreground/90 [text-wrap:balance] before:absolute before:top-[0.4375rem] before:left-0 before:h-4.5 before:w-1 before:rounded-full before:bg-primary sm:text-3xl sm:before:top-2 sm:before:h-5 md:pl-5 md:text-[2.125rem] md:leading-[2.65rem] md:before:top-[0.6375rem] md:before:h-5.5">
         {post.title}
       </h1>
 
@@ -128,7 +128,7 @@ async function PostArticle({ post, html, isDraft }: { post: Post, html: string, 
       <ContentFontLinks fonts={contentWebFonts(theme, html)} />
       <article
         id="blog-content"
-        className="content-body article-prose prose max-w-none dark:prose-invert pangu-autospace"
+        className="content-body prose max-w-none dark:prose-invert pangu-autospace"
         data-content-theme={theme}
         dangerouslySetInnerHTML={{ __html: html }}
       />
@@ -212,7 +212,7 @@ export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?
         {!isDraft && neighbors && <PostContinuation neighbors={neighbors} />}
         {/* 评论区接近视口时才加载（见 DeferredCommentSection）；id 供顶栏迷你目录「去评论区」跳转 */}
         {commentEnabled && (
-          <div id="comments" className="surface-card scroll-mt-[calc(var(--nav-h)+1rem)] rounded-2xl bg-card px-5 py-6 sm:px-7 md:px-10 md:py-8 lg:px-14">
+          <div id="comments" className="surface-card scroll-mt-[calc(var(--nav-h)+1rem)] rounded-2xl bg-card p-5 sm:p-7 md:p-8">
             <DeferredCommentSection
               targetType={TargetType.Post}
               ownerId={post.user.id}

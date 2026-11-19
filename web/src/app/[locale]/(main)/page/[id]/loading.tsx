@@ -18,7 +18,7 @@ export default function Loading() {
         </div>
       )}
     >
-      <div className="surface-card rounded-2xl bg-card px-5 pt-6 pb-8 sm:px-7 md:px-10 lg:px-14" aria-busy="true">
+      <div className="surface-card rounded-2xl bg-card p-5 sm:p-7 md:p-8" aria-busy="true">
         <Skeleton className="mb-5 h-9 w-3/4 md:h-11" />
         <div className="space-y-4">
           <Skeleton className="h-4 w-full" />

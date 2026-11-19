@@ -38,13 +38,3 @@
   --tw-prose-invert-th-borders: color-mix(in oklab, var(--foreground) 15%, transparent);
   --tw-prose-invert-td-borders: color-mix(in oklab, var(--foreground) 10%, transparent);
 }
-
-/* 长文阅读卡片内的代码块适度外扩（Breakout），让文字保持舒适视幅的同时给代码清单留出更从容的横向呼吸感；
-   双类选择器提升特异性至 (0,2,1)，确保盖过后加载的 content-themes 中 .content-body pre { max-width: 100% } */
-@media (min-width: 768px) {
-  .article-prose.article-prose > [data-code-block],
-  .article-prose.article-prose > pre {
-    margin-inline: -0.75rem;
-    max-width: calc(100% + 1.5rem);
-  }
-}

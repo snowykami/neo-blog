@@ -50,8 +50,8 @@ export async function HtmlPageView({ page }: { page: PageModel }) {
 
   return (
     <SiteShell>
-      <div className="surface-card rounded-2xl bg-card px-5 pt-6 pb-8 sm:px-7 md:px-9">
-        <h1 className="relative mb-3 text-2xl font-bold text-foreground/90 [text-wrap:balance] sm:text-3xl md:text-[2.125rem] md:leading-[2.65rem] md:before:absolute md:before:top-[0.825rem] md:before:-left-[1.25rem] md:before:h-4.5 md:before:w-1 md:before:rounded-md md:before:bg-primary">
+      <div className="surface-card rounded-2xl bg-card p-5 sm:p-7 md:p-8">
+        <h1 className="relative mb-3 pl-4 text-2xl font-bold text-foreground/90 [text-wrap:balance] before:absolute before:top-[0.4375rem] before:left-0 before:h-4.5 before:w-1 before:rounded-full before:bg-primary sm:text-3xl sm:before:top-2 sm:before:h-5 md:pl-5 md:text-[2.125rem] md:leading-[2.65rem] md:before:top-[0.6375rem] md:before:h-5.5">
           {page.title}
         </h1>
         {page.description && <p className="mb-5 text-foreground/75">{page.description}</p>}
