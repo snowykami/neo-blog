@@ -76,9 +76,9 @@ export function CreateOrUpdateStorageDialog({
           <Button size="sm" variant={initStorageProvider ? 'outline' : 'default'}>{operationT(initStorageProvider ? 'edit' : 'create')}</Button>
         </DialogTrigger>
       )}
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-h-[90dvh] max-w-2xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{t('create_storage')}</DialogTitle>
+          <DialogTitle>{initStorageProvider ? operationT('edit') : t('create_storage')}</DialogTitle>
         </DialogHeader>
         {open && (
           <StorageDialogBody

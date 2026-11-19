@@ -16,6 +16,7 @@ import { STICKY_ACTIONS_CLASS } from '@/components/console/common/sticky-actions
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Empty, EmptyDescription } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -313,7 +314,7 @@ export function AIAgentsPage() {
               </Button>
             </div>
           )}
-          <div className="overflow-x-auto rounded-md border">
+          <div className="overflow-hidden rounded-xl border bg-card shadow-[0_1px_1px_-0.5px_rgba(0,0,0,0.035),0_3px_8px_-2px_rgba(0,0,0,0.035)] dark:shadow-none">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -367,8 +368,12 @@ export function AIAgentsPage() {
                   </TableRow>
                 )}
                 {!loading && !error && agents.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={COLUMN_COUNT} className="py-8 text-center text-muted-foreground">{t('list.empty')}</TableCell>
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell colSpan={COLUMN_COUNT} className="p-0">
+                      <Empty className="py-10">
+                        <EmptyDescription>{t('list.empty')}</EmptyDescription>
+                      </Empty>
+                    </TableCell>
                   </TableRow>
                 )}
                 {!loading && !error && agents.map(agent => (

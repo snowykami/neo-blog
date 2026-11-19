@@ -35,7 +35,7 @@ export function RegisterForm({ className, ...props }: React.ComponentProps<'div'
   const redirectBack = readRedirectBack(searchParams)
 
   return (
-    <div className={cn('', className)} {...props}>
+    <div className={cn('flex flex-col gap-6', className)} {...props}>
       <Card>
         <CardHeader className="text-center">
           <CardTitle className="text-xl">{t('title')}</CardTitle>

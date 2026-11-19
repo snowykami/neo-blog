@@ -12,7 +12,7 @@ import { TimeZoneCombobox } from '@/components/common/time-zone-combobox'
 import { useUserFieldRules } from '@/components/console/users/user-profile-fields'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Form,
   FormControl,
@@ -24,7 +24,6 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-
 import {
   Select,
   SelectContent,
@@ -32,10 +31,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Spinner } from '@/components/ui/spinner'
+import { Switch } from '@/components/ui/switch'
 import { GenderInput } from '@/components/user/gender-input'
 import { useAuth } from '@/contexts/auth-context'
 import { useBrowserTimeZone } from '@/hooks/use-browser-time-zone'
-import { useErrorMessageT } from '@/hooks/use-translations'
+import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { writeLocaleCookie } from '@/i18n/locale-cookie'
 import { LOCALES, resolveLocale } from '@/locales/registry'
 import { getFileUri } from '@/utils/client/file'
@@ -78,9 +79,10 @@ interface FormValues {
 
 export function UserProfilePage() {
   const t = useTranslations('Console.user_profile')
+  const operationT = useOperationT()
   const errorMessageT = useErrorMessageT()
   const rules = useUserFieldRules()
-  const { user } = useAuth()
+  const { user, refresh } = useAuth()
 
   const form = useForm<FormValues>({
     defaultValues: {
@@ -171,11 +173,27 @@ export function UserProfilePage() {
         // 关闭时不再上报时区，后端会一并清空已保存的时区
         timeZone: values.showLocalTime ? values.timeZone : '',
       })
-      // 服务端按语言 Cookie 选界面语言（不再查当前用户），先写好再刷新，刷新后直接是新语言
+      // 服务端按语言 Cookie 选界面语言（不再查当前用户），语言变更时先写 Cookie 再刷新页面
+      const prevLocale = resolveLocale(user.language) ?? user.language
       const nextLocale = resolveLocale(values.language)
       if (nextLocale)
         writeLocaleCookie(nextLocale)
-      window.location.reload()
+
+      setAvatarUrl(nextAvatarUrl)
+      setBackgroundUrl(nextBackgroundUrl)
+      setAvatarCropped(null)
+      setBackgroundCropped(null)
+      form.reset({
+        ...values,
+        gender: values.gender.trim(),
+        timeZone: values.showLocalTime ? values.timeZone : '',
+      })
+
+      toast.success(operationT('update_success'))
+      await refresh()
+      if (nextLocale && nextLocale !== prevLocale) {
+        window.setTimeout(() => window.location.reload(), 400)
+      }
     }
     catch (error: unknown) {
       toast.error(`${t('failed_to_update_profile')}: ${errorMessageT(error)}`)
@@ -184,212 +202,231 @@ export function UserProfilePage() {
 
   return (
     <Form {...form}>
-      <form onSubmit={onSubmit} className="grid w-full max-w-sm items-center gap-4">
-        <h1 className="text-2xl font-bold">{t('public_profile')}</h1>
-
-        <div className="grid w-full items-center gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="picture">{t('picture')}</Label>
-            <ImageAvatar
-              src={avatarCroppedUrl ?? getAvatarOrGravatarUrlFromUser({ user: { ...user, avatarUrl }, size: 256 })}
-              alt={form.getValues('nickname') || form.getValues('username')}
-              fallback={getFallbackAvatarFromUsername(form.getValues('nickname') || form.getValues('username'))}
-              className="size-40 rounded-xl border-2"
-              fallbackClassName="text-6xl font-semibold text-white"
-              fallbackStyle={getFallbackAvatarStyle(user?.username ?? '')}
-            />
-            <AssetField
-              id="picture"
-              value={avatarUrl}
-              onChange={(url) => {
-                setAvatarUrl(url)
-                setAvatarCropped(null)
-              }}
-              accept={PICTURE_ACCEPT}
-              preview={false}
-              pickerProps={{ title: t('picture'), maxSize: PICTURE_MAX_SIZE }}
-              actions={(
-                <ImageCropper
-                  image={avatarCropped ?? croppableUrl(avatarUrl)}
-                  onCropped={blob => setAvatarCropped(new File([blob], 'avatar.png', { type: blob.type }))}
-                  initialAspect={1}
-                  lockAspect={true}
+      <form onSubmit={onSubmit} className="grid w-full max-w-2xl gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">{t('public_profile')}</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid content-start gap-2">
+                <Label htmlFor="picture">{t('picture')}</Label>
+                <ImageAvatar
+                  src={avatarCroppedUrl ?? getAvatarOrGravatarUrlFromUser({ user: { ...user, avatarUrl }, size: 256 })}
+                  alt={form.getValues('nickname') || form.getValues('username')}
+                  fallback={getFallbackAvatarFromUsername(form.getValues('nickname') || form.getValues('username'))}
+                  className="size-32 rounded-xl border-2"
+                  fallbackClassName="text-5xl font-semibold text-white"
+                  fallbackStyle={getFallbackAvatarStyle(user?.username ?? '')}
                 />
-              )}
-            />
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="background">{t('background')}</Label>
-            <Avatar className="h-40 w-full max-w-80 rounded-sm border-2">
-              <AvatarImage
-                className="object-cover rounded-none"
-                src={backgroundCroppedUrl ?? backgroundUrl}
-                alt={form.getValues('nickname') || form.getValues('username')}
-              />
-              <AvatarFallback className="rounded-none">{t('background')}</AvatarFallback>
-            </Avatar>
-            <AssetField
-              id="background"
-              value={backgroundUrl}
-              onChange={(url) => {
-                setBackgroundUrl(url)
-                setBackgroundCropped(null)
-              }}
-              accept={PICTURE_ACCEPT}
-              preview={false}
-              pickerProps={{ title: t('background'), maxSize: PICTURE_MAX_SIZE }}
-              actions={(
-                <ImageCropper
-                  image={backgroundCropped ?? croppableUrl(backgroundUrl)}
-                  onCropped={blob => setBackgroundCropped(new File([blob], 'background.png', { type: blob.type }))}
-                  initialAspect={3}
-                  lockAspect={false}
+                <AssetField
+                  id="picture"
+                  value={avatarUrl}
+                  onChange={(url) => {
+                    setAvatarUrl(url)
+                    setAvatarCropped(null)
+                  }}
+                  accept={PICTURE_ACCEPT}
+                  preview={false}
+                  pickerProps={{ title: t('picture'), maxSize: PICTURE_MAX_SIZE }}
+                  actions={(
+                    <ImageCropper
+                      image={avatarCropped ?? croppableUrl(avatarUrl)}
+                      onCropped={blob => setAvatarCropped(new File([blob], 'avatar.png', { type: blob.type }))}
+                      initialAspect={1}
+                      lockAspect={true}
+                    />
+                  )}
                 />
-              )}
-            />
-          </div>
+              </div>
 
-          <FormField
-            control={form.control}
-            name="nickname"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t('nickname')}</FormLabel>
-                <FormControl>
-                  <Input {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="username"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t('username')}</FormLabel>
-                <FormControl>
-                  <Input {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="gender"
-            rules={rules.gender}
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t('gender')}</FormLabel>
-                <FormControl>
-                  <GenderInput {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="showIpLocation"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t('show_ip_location')}</FormLabel>
-                <FormControl>
-                  <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="showLikes"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t('show_likes')}</FormLabel>
-                <FormControl>
-                  <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                </FormControl>
-                <FormDescription>{t('show_likes_description')}</FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="showLocalTime"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t('show_local_time')}</FormLabel>
-                <FormControl>
-                  <Checkbox
-                    checked={field.value}
-                    onCheckedChange={(checked) => {
-                      field.onChange(checked === true)
-                      // 首次开启时默认使用浏览器所在的时区
-                      if (checked === true && !form.getValues('timeZone') && isValidTimeZone(browserTimeZone))
-                        form.setValue('timeZone', browserTimeZone)
-                    }}
+              <div className="grid content-start gap-2">
+                <Label htmlFor="background">{t('background')}</Label>
+                <Avatar className="h-32 w-full rounded-sm border-2">
+                  <AvatarImage
+                    className="rounded-none object-cover"
+                    src={backgroundCroppedUrl ?? backgroundUrl}
+                    alt={form.getValues('nickname') || form.getValues('username')}
                   />
-                </FormControl>
-                <FormDescription>{t('show_local_time_description')}</FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+                  <AvatarFallback className="rounded-none">{t('background')}</AvatarFallback>
+                </Avatar>
+                <AssetField
+                  id="background"
+                  value={backgroundUrl}
+                  onChange={(url) => {
+                    setBackgroundUrl(url)
+                    setBackgroundCropped(null)
+                  }}
+                  accept={PICTURE_ACCEPT}
+                  preview={false}
+                  pickerProps={{ title: t('background'), maxSize: PICTURE_MAX_SIZE }}
+                  actions={(
+                    <ImageCropper
+                      image={backgroundCropped ?? croppableUrl(backgroundUrl)}
+                      onCropped={blob => setBackgroundCropped(new File([blob], 'background.png', { type: blob.type }))}
+                      initialAspect={3}
+                      lockAspect={false}
+                    />
+                  )}
+                />
+              </div>
+            </div>
 
-          {showLocalTime && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="nickname"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('nickname')}</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="username"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('username')}</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
             <FormField
               control={form.control}
-              name="timeZone"
-              rules={{ validate: value => isValidTimeZone(value) || t('invalid_time_zone') }}
+              name="gender"
+              rules={rules.gender}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('time_zone')}</FormLabel>
+                  <FormLabel>{t('gender')}</FormLabel>
                   <FormControl>
-                    <TimeZoneCombobox value={field.value} onChange={field.onChange} />
+                    <GenderInput {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-          )}
+          </CardContent>
+        </Card>
 
-          <FormField
-            control={form.control}
-            name="language"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t('language')}</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">{operationT('setting')}</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <FormField
+              control={form.control}
+              name="language"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('language')}</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder={t('select_language')} />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {Object.entries(LOCALES).map(([code, { name }]) => (
+                        <SelectItem key={code} value={code}>
+                          {name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="showIpLocation"
+              render={({ field }) => (
+                <FormItem className="flex items-center justify-between gap-4 rounded-lg border p-3">
+                  <div className="grid gap-1">
+                    <FormLabel>{t('show_ip_location')}</FormLabel>
+                  </div>
                   <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder={t('select_language')} />
-                    </SelectTrigger>
+                    <Switch checked={field.value} onCheckedChange={field.onChange} />
                   </FormControl>
-                  <SelectContent>
-                    {Object.entries(LOCALES).map(([code, { name }]) => (
-                      <SelectItem key={code} value={code}>
-                        {name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+                </FormItem>
+              )}
+            />
 
-          <Button type="submit" disabled={form.formState.isSubmitting} className="w-full">
+            <FormField
+              control={form.control}
+              name="showLikes"
+              render={({ field }) => (
+                <FormItem className="flex items-center justify-between gap-4 rounded-lg border p-3">
+                  <div className="grid gap-1">
+                    <FormLabel>{t('show_likes')}</FormLabel>
+                    <FormDescription>{t('show_likes_description')}</FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="showLocalTime"
+              render={({ field }) => (
+                <FormItem className="flex items-center justify-between gap-4 rounded-lg border p-3">
+                  <div className="grid gap-1">
+                    <FormLabel>{t('show_local_time')}</FormLabel>
+                    <FormDescription>{t('show_local_time_description')}</FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={(checked) => {
+                        field.onChange(checked)
+                        // 首次开启时默认使用浏览器所在的时区
+                        if (checked && !form.getValues('timeZone') && isValidTimeZone(browserTimeZone))
+                          form.setValue('timeZone', browserTimeZone)
+                      }}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            {showLocalTime && (
+              <FormField
+                control={form.control}
+                name="timeZone"
+                rules={{ validate: value => isValidTimeZone(value) || t('invalid_time_zone') }}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('time_zone')}</FormLabel>
+                    <FormControl>
+                      <TimeZoneCombobox value={field.value} onChange={field.onChange} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+          </CardContent>
+        </Card>
+
+        <div className="flex justify-end">
+          <Button type="submit" disabled={form.formState.isSubmitting}>
+            {form.formState.isSubmitting && <Spinner />}
             {t('update_profile')}
-            {form.formState.isSubmitting && '...'}
           </Button>
         </div>
       </form>

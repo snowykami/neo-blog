@@ -4,6 +4,8 @@ import type { VisitInsights } from '@/models/visit'
 import { useFormatter, useTranslations } from 'next-intl'
 import { useState } from 'react'
 import { getVisitInsightsAdmin } from '@/api/admin'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Empty, EmptyDescription } from '@/components/ui/empty'
 import { Label } from '@/components/ui/label'
@@ -13,6 +15,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useConsoleQuery } from '@/hooks/use-console-query'
 import { useIncludeAI } from '@/hooks/use-include-ai'
+import { useErrorMessageT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
 import { VISIT_TRUSTS } from '@/models/visit'
 import { useCountryName } from './format'
@@ -29,6 +32,8 @@ type Section = (typeof SECTIONS)[number]
 // 后台：访客统计，按推断位置与 IP 位置对比地区分布，并展示可信度、设备与语言
 export function VisitInsightsView() {
   const t = useTranslations('Console.visit_insights')
+  const errorPageT = useTranslations('ErrorPage')
+  const errorMessageT = useErrorMessageT()
   const [range, setRange] = useState<Range>(7)
   const [section, setSection] = useState<Section>('visitors')
   const [includeAi, setIncludeAi] = useIncludeAI()
@@ -59,11 +64,61 @@ export function VisitInsightsView() {
         </div>
       </div>
       <p className="text-xs text-muted-foreground">{t('bot_note')}</p>
-      {loading && !data && <Skeleton className="h-64 w-full" />}
-      {!loading && !data && <p className="py-8 text-center text-muted-foreground">{t('load_failed')}</p>}
+      {loading && !data && <InsightsSkeleton />}
+      {!loading && !data && (
+        <Alert variant="destructive">
+          <AlertTitle>{t('load_failed')}</AlertTitle>
+          <AlertDescription className="flex flex-wrap items-center gap-3">
+            {Boolean(insights.error) && <span>{errorMessageT(insights.error)}</span>}
+            <Button variant="outline" size="sm" onClick={() => void insights.refresh()}>
+              {errorPageT('retry')}
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
       {data && section === 'visitors' && <InsightsContent data={data} />}
       {data && section === 'content' && <InsightsContentTab data={data} />}
       {data && section === 'performance' && <InsightsPerformanceTab data={data} />}
+    </div>
+  )
+}
+
+function InsightsSkeleton() {
+  return (
+    <div className="grid gap-4" aria-busy="true">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {Array.from({ length: 4 }, (_, i) => (
+          <Card key={i} className="gap-2 px-4 py-3">
+            <Skeleton className="h-3.5 w-16" />
+            <Skeleton className="h-8 w-24" />
+            <Skeleton className="h-3.5 w-32" />
+          </Card>
+        ))}
+      </div>
+      <Card className="gap-3 py-4">
+        <CardHeader className="px-4">
+          <Skeleton className="h-5 w-48" />
+          <Skeleton className="h-3.5 w-36" />
+        </CardHeader>
+        <CardContent className="grid gap-2.5 px-4">
+          {Array.from({ length: 4 }, (_, i) => (
+            <Skeleton key={i} className="h-6 w-full" />
+          ))}
+        </CardContent>
+      </Card>
+      <div className="grid gap-4 lg:grid-cols-2">
+        {Array.from({ length: 2 }, (_, i) => (
+          <Card key={i} className="gap-3 py-4">
+            <CardHeader className="px-4">
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-3.5 w-24" />
+            </CardHeader>
+            <CardContent className="px-4">
+              <Skeleton className="h-44 w-full" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </div>
   )
 }
@@ -96,14 +151,22 @@ function InsightsContent({ data }: { data: VisitInsights }) {
           <CardContent className="grid gap-3 px-4">
             {data.total > 0 && (
               <div className="flex h-4 gap-0.5 overflow-hidden rounded">
-                {VISIT_TRUSTS.filter(item => verdict(item) > 0).map(item => (
-                  <Tooltip key={item}>
-                    <TooltipTrigger asChild>
-                      <span className={TRUST_STYLES[item].fill} style={{ flexGrow: verdict(item) }} />
-                    </TooltipTrigger>
-                    <TooltipContent>{t('count_tip', { name: visitsT(`trust.verdicts.${item}.label`), count: verdict(item), percent: percent(verdict(item), data.total) })}</TooltipContent>
-                  </Tooltip>
-                ))}
+                {VISIT_TRUSTS.filter(item => verdict(item) > 0).map((item) => {
+                  const tip = t('count_tip', { name: visitsT(`trust.verdicts.${item}.label`), count: verdict(item), percent: percent(verdict(item), data.total) })
+                  return (
+                    <Tooltip key={item}>
+                      <TooltipTrigger asChild>
+                        <span
+                          tabIndex={0}
+                          aria-label={tip}
+                          className={cn(TRUST_STYLES[item].fill, 'focus-visible:outline-2 focus-visible:outline-ring')}
+                          style={{ flexGrow: verdict(item) }}
+                        />
+                      </TooltipTrigger>
+                      <TooltipContent>{tip}</TooltipContent>
+                    </Tooltip>
+                  )
+                })}
               </div>
             )}
             <ul className="grid gap-1.5">
@@ -165,24 +228,32 @@ function RegionCard({ data }: { data: VisitInsights }) {
           </span>
         </div>
         {codes.length === 0 && <Empty className="py-6"><EmptyDescription>{t('empty')}</EmptyDescription></Empty>}
-        {codes.map(item => (
-          <Tooltip key={item.code}>
-            <TooltipTrigger asChild>
-              <div className="grid grid-cols-[5.5rem_minmax(0,1fr)_7.5rem] items-center gap-3 py-0.5 text-sm">
-                <span className="truncate">{countryName(item.code)}</span>
-                <span className="grid gap-0.5">
-                  <span className={cn('h-2 rounded-r', IP_FILL)} style={{ width: `${item.ip / max * 100}%` }} />
-                  <span className={cn('h-2 rounded-r', INFERRED_FILL)} style={{ width: `${item.inferred / max * 100}%` }} />
-                </span>
-                <span className="text-right text-xs text-muted-foreground tabular-nums">
-                  {`${percent(item.ip)} → `}
-                  <b className="text-foreground">{percent(item.inferred)}</b>
-                </span>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>{t('region_tip', { ip: item.ip, inferred: item.inferred })}</TooltipContent>
-          </Tooltip>
-        ))}
+        {codes.map((item) => {
+          const tip = t('region_tip', { ip: item.ip, inferred: item.inferred })
+          return (
+            <Tooltip key={item.code}>
+              <TooltipTrigger asChild>
+                <div
+                  tabIndex={0}
+                  aria-label={`${countryName(item.code)}: ${tip}`}
+                  className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 rounded-sm py-1 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:grid-cols-[6rem_minmax(0,1fr)_10rem] sm:py-0.5"
+                >
+                  <span className="truncate">{countryName(item.code)}</span>
+                  <span className="order-3 col-span-2 grid gap-0.5 sm:order-2 sm:col-span-1">
+                    <span className={cn('h-2 rounded-r', IP_FILL)} style={{ width: `${item.ip / max * 100}%` }} />
+                    <span className={cn('h-2 rounded-r', INFERRED_FILL)} style={{ width: `${item.inferred / max * 100}%` }} />
+                  </span>
+                  <span className="order-2 text-right text-xs text-muted-foreground tabular-nums sm:order-3">
+                    {`${percent(item.ip)} → `}
+                    <b className="text-foreground">{percent(item.inferred)}</b>
+                    <span className="ml-1.5 text-[11px]">{`(${format.number(item.ip)} → ${format.number(item.inferred)})`}</span>
+                  </span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>{tip}</TooltipContent>
+            </Tooltip>
+          )
+        })}
         <p className="text-xs text-muted-foreground">{t('region_note')}</p>
       </CardContent>
     </Card>
@@ -195,6 +266,9 @@ function TrendCard({ data }: { data: VisitInsights }) {
   const visitsT = useTranslations('Console.visits')
   const format = useFormatter()
   const totals = data.trend.map(point => VISIT_TRUSTS.reduce((sum, item) => sum + (point.counts[item] ?? 0), 0))
+  const trustTotals = Object.fromEntries(
+    VISIT_TRUSTS.map(item => [item, data.trend.reduce((sum, point) => sum + (point.counts[item] ?? 0), 0)]),
+  ) as Record<(typeof VISIT_TRUSTS)[number], number>
   const max = Math.max(1, ...totals)
   const hourly = data.days === 1
   const labelEvery = data.trend.length > 12 ? Math.ceil(data.trend.length / 8) : 1
@@ -207,32 +281,40 @@ function TrendCard({ data }: { data: VisitInsights }) {
       </CardHeader>
       <CardContent className="grid gap-2 px-4">
         <div className="flex h-36 items-end gap-1 border-b">
-          {data.trend.map((point, index) => (
-            <Tooltip key={point.label}>
-              <TooltipTrigger asChild>
-                <div className="flex h-full flex-1 items-end justify-center">
-                  <div className="flex w-full max-w-5 flex-col-reverse gap-0.5" style={{ height: `${totals[index] / max * 100}%` }}>
-                    {VISIT_TRUSTS.filter(item => point.counts[item]).map(item => (
-                      <span key={item} className={cn('min-h-0.5 last:rounded-t', TRUST_STYLES[item].fill)} style={{ flexGrow: point.counts[item] }} />
-                    ))}
+          {data.trend.map((point, index) => {
+            const pointLabel = `${label(point.label)}${hourly ? t('hour_suffix') : ''} · ${t('visits_total', { count: totals[index] })}`
+            return (
+              <Tooltip key={point.label}>
+                <TooltipTrigger asChild>
+                  <div
+                    tabIndex={0}
+                    aria-label={pointLabel}
+                    className="flex h-full flex-1 items-end justify-center rounded-t focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  >
+                    <div className="flex w-full max-w-5 flex-col-reverse gap-0.5" style={{ height: `${totals[index] / max * 100}%` }}>
+                      {VISIT_TRUSTS.filter(item => point.counts[item]).map(item => (
+                        <span key={item} className={cn('min-h-0.5 last:rounded-t', TRUST_STYLES[item].fill)} style={{ flexGrow: point.counts[item] }} />
+                      ))}
+                    </div>
                   </div>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>
-                <div>{`${label(point.label)}${hourly ? t('hour_suffix') : ''} · ${t('visits_total', { count: totals[index] })}`}</div>
-                {VISIT_TRUSTS.filter(item => point.counts[item]).map(item => <div key={item}>{`${visitsT(`trust.verdicts.${item}.label`)} ${point.counts[item]}`}</div>)}
-              </TooltipContent>
-            </Tooltip>
-          ))}
+                </TooltipTrigger>
+                <TooltipContent>
+                  <div>{pointLabel}</div>
+                  {VISIT_TRUSTS.filter(item => point.counts[item]).map(item => <div key={item}>{`${visitsT(`trust.verdicts.${item}.label`)} ${point.counts[item]}`}</div>)}
+                </TooltipContent>
+              </Tooltip>
+            )
+          })}
         </div>
-        <div className="flex gap-1 text-[11px] text-muted-foreground">
+        <div className="flex gap-1 text-[11px] text-muted-foreground tabular-nums">
           {data.trend.map((point, index) => <span key={point.label} className="flex-1 overflow-hidden text-center whitespace-nowrap">{index % labelEvery === 0 ? label(point.label) : ''}</span>)}
         </div>
         <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
           {VISIT_TRUSTS.map(item => (
-            <span key={item} className="flex items-center gap-1.5">
+            <span key={item} className="flex items-center gap-1.5 tabular-nums">
               <span className={cn('size-2.5 rounded-sm', TRUST_STYLES[item].fill)} />
-              {visitsT(`trust.verdicts.${item}.label`)}
+              <span>{visitsT(`trust.verdicts.${item}.label`)}</span>
+              <span className="font-medium text-foreground">{format.number(trustTotals[item])}</span>
             </span>
           ))}
         </div>

@@ -162,6 +162,7 @@ export function CreateOrUpdateLabelDialogWithButton({
                   <FormControl>
                     <Input {...field} />
                   </FormControl>
+                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -180,6 +181,7 @@ export function CreateOrUpdateLabelDialogWithButton({
                   <FormControl>
                     <Input {...field} />
                   </FormControl>
+                  <FormMessage />
                 </FormItem>
               )}
             />

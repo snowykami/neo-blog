@@ -148,6 +148,23 @@ export function EditorAppBar(props: EditorAppBarProps) {
   const { resolvedTheme, setTheme } = useTheme()
   const isDark = resolvedTheme === 'dark'
 
+  const statusText = isUnpublished
+    ? t('status_draft')
+    : hasUnpublishedChanges
+      ? t('status_unpublished_changes')
+      : t('status_published')
+  const fullStatusLabel = isPrivate ? `${statusText} · ${t('status_private')}` : statusText
+  const statusToneClass = isUnpublished
+    ? 'bg-amber-500/12 text-amber-700 dark:text-amber-400'
+    : hasUnpublishedChanges
+      ? 'bg-muted text-muted-foreground'
+      : 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-400'
+  const statusDotClass = isUnpublished
+    ? 'bg-amber-500'
+    : hasUnpublishedChanges
+      ? 'bg-muted-foreground'
+      : 'bg-emerald-500'
+
   return (
     <header
       className={cn(
@@ -168,20 +185,35 @@ export function EditorAppBar(props: EditorAppBarProps) {
         <span className="hidden shrink-0 text-muted-foreground md:inline">{crumbRoot}</span>
         <span className="hidden shrink-0 text-foreground/30 md:inline">/</span>
         <span className="min-w-0 truncate font-semibold text-foreground/90" title={title}>{title}</span>
+        {/* 移动端保留紧凑状态点徽标，点击可查看完整发布/私密状态 */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              aria-label={fullStatusLabel}
+              title={fullStatusLabel}
+              className={cn(
+                'inline-flex h-[22px] shrink-0 items-center gap-1 rounded-full px-1.5 font-medium transition-opacity hover:opacity-85 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none md:hidden',
+                statusToneClass,
+              )}
+            >
+              <span aria-hidden="true" className={cn('size-2 rounded-full', statusDotClass)} />
+              {isPrivate && <LockIcon className="size-3" aria-hidden="true" />}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="start" sideOffset={6} className="w-auto rounded-lg px-2.5 py-1.5 text-xs font-medium">
+            {fullStatusLabel}
+          </PopoverContent>
+        </Popover>
         <Badge
           variant="secondary"
           className={cn(
             'hidden h-[22px] shrink-0 rounded-full px-2 font-medium md:inline-flex',
-            isUnpublished
-              ? 'bg-amber-500/12 text-amber-700 dark:text-amber-400'
-              : hasUnpublishedChanges
-                ? 'bg-muted text-muted-foreground'
-                : 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-400',
+            statusToneClass,
           )}
         >
           {isPrivate && <LockIcon className="size-3" />}
-          {isUnpublished ? t('status_draft') : hasUnpublishedChanges ? t('status_unpublished_changes') : t('status_published')}
-          {isPrivate && ` · ${t('status_private')}`}
+          {fullStatusLabel}
         </Badge>
       </nav>
 

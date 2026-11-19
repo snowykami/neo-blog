@@ -101,24 +101,56 @@ export function AIUsageCard() {
           : (
               <>
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="grid gap-1">
+                  <div className="grid content-between gap-1.5 rounded-xl border bg-muted/20 p-3.5">
                     <span className="text-xs text-muted-foreground">{t('month_tokens')}</span>
                     <span className="text-2xl font-semibold tabular-nums">{compact(stats.monthTokens)}</span>
-                    <span className="text-xs text-muted-foreground">{t('month_calls', { count: stats.monthCalls })}</span>
+                    <span className="text-xs text-muted-foreground tabular-nums">{t('month_calls', { count: stats.monthCalls })}</span>
                   </div>
-                  <div className="grid content-start gap-1">
-                    <span className="text-xs text-muted-foreground">{t('site_budget')}</span>
-                    <span className="text-sm tabular-nums">
-                      {stats.budget > 0 ? `${compact(stats.monthTokens)} / ${compact(stats.budget)}` : t('unlimited')}
-                    </span>
-                    {budgetRatio !== null && <Progress value={budgetRatio} className={cn('h-1.5', budgetRatio >= 90 && '[&>[data-slot=progress-indicator]]:bg-destructive')} />}
+                  <div className="grid content-between gap-1.5 rounded-xl border bg-muted/20 p-3.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs text-muted-foreground">{t('site_budget')}</span>
+                      {budgetRatio !== null && (
+                        <span className={cn('text-xs tabular-nums', budgetRatio >= 90 ? 'font-medium text-destructive' : 'text-muted-foreground')}>
+                          {format.number(budgetRatio / 100, { style: 'percent', maximumFractionDigits: 0 })}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-baseline gap-1.5 tabular-nums">
+                      {stats.budget > 0
+                        ? (
+                            <>
+                              <span className="text-2xl font-semibold">{compact(stats.monthTokens)}</span>
+                              <span className="text-xs text-muted-foreground">{`/ ${compact(stats.budget)}`}</span>
+                            </>
+                          )
+                        : <span className="text-2xl font-semibold">{t('unlimited')}</span>}
+                    </div>
+                    {budgetRatio !== null
+                      ? <Progress value={budgetRatio} className={cn('h-1.5', budgetRatio >= 90 && '[&>[data-slot=progress-indicator]]:bg-destructive')} />
+                      : <span className="text-xs text-muted-foreground tabular-nums">{compact(stats.monthTokens)}</span>}
                   </div>
-                  <div className="grid content-start gap-1">
-                    <span className="text-xs text-muted-foreground">{t('agent_budget')}</span>
-                    <span className="text-sm tabular-nums">
-                      {stats.agentBudget > 0 ? `${compact(stats.agentMonthTokens)} / ${compact(stats.agentBudget)}` : t('unlimited')}
-                    </span>
-                    {agentRatio !== null && <Progress value={agentRatio} className={cn('h-1.5', agentRatio >= 90 && '[&>[data-slot=progress-indicator]]:bg-destructive')} />}
+                  <div className="grid content-between gap-1.5 rounded-xl border bg-muted/20 p-3.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs text-muted-foreground">{t('agent_budget')}</span>
+                      {agentRatio !== null && (
+                        <span className={cn('text-xs tabular-nums', agentRatio >= 90 ? 'font-medium text-destructive' : 'text-muted-foreground')}>
+                          {format.number(agentRatio / 100, { style: 'percent', maximumFractionDigits: 0 })}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-baseline gap-1.5 tabular-nums">
+                      {stats.agentBudget > 0
+                        ? (
+                            <>
+                              <span className="text-2xl font-semibold">{compact(stats.agentMonthTokens)}</span>
+                              <span className="text-xs text-muted-foreground">{`/ ${compact(stats.agentBudget)}`}</span>
+                            </>
+                          )
+                        : <span className="text-2xl font-semibold">{t('unlimited')}</span>}
+                    </div>
+                    {agentRatio !== null
+                      ? <Progress value={agentRatio} className={cn('h-1.5', agentRatio >= 90 && '[&>[data-slot=progress-indicator]]:bg-destructive')} />
+                      : <span className="text-xs text-muted-foreground tabular-nums">{compact(stats.agentMonthTokens)}</span>}
                   </div>
                 </div>
 

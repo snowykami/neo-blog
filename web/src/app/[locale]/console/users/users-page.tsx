@@ -264,7 +264,7 @@ export function UserManagePage() {
       <div className="text-sm text-muted-foreground tabular-nums">
         {t('total', { total })}
       </div>
-      <div className="overflow-hidden rounded-md border">
+      <div className="overflow-hidden rounded-xl border bg-card shadow-[0_1px_1px_-0.5px_rgba(0,0,0,0.035),0_3px_8px_-2px_rgba(0,0,0,0.035)] dark:shadow-none">
         <Table>
           <TableHeader>
             <TableRow>

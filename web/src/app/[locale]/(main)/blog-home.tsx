@@ -71,8 +71,10 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
     if (scrollKeyRef.current === scrollKey)
       return
     scrollKeyRef.current = scrollKey
-    if (!fromPopState)
-      window.scrollTo({ top: 0, behavior: 'smooth' })
+    if (!fromPopState) {
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' })
+    }
   }, [scrollKey])
 
   useEffect(() => {

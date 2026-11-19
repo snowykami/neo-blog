@@ -23,8 +23,9 @@ import { STICKY_ACTIONS_CLASS } from '@/components/console/common/sticky-actions
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Empty, EmptyDescription } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
-import { Separator } from '@/components/ui/separator'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
   TableBody,
@@ -201,49 +202,78 @@ export default function CommentsManage() {
           </div>
         </div>
       )}
-      <Separator />
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-10">
-              <Checkbox
-                checked={allSelected ? true : partiallySelected ? 'indeterminate' : false}
-                disabled={comments.length === 0}
-                onCheckedChange={checked => toggleSelectAll(checked === true)}
-                aria-label={t('select_all')}
+      <div className="overflow-hidden rounded-xl border bg-card shadow-[0_1px_1px_-0.5px_rgba(0,0,0,0.035),0_3px_8px_-2px_rgba(0,0,0,0.035)] dark:shadow-none">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10">
+                <Checkbox
+                  checked={allSelected ? true : partiallySelected ? 'indeterminate' : false}
+                  disabled={comments.length === 0}
+                  onCheckedChange={checked => toggleSelectAll(checked === true)}
+                  aria-label={t('select_all')}
+                />
+              </TableHead>
+              <TableHead>{t('comment')}</TableHead>
+              <TableHead>{t('target')}</TableHead>
+              <TableHead>{t('user')}</TableHead>
+              <TableHead>{t('status')}</TableHead>
+              <TableHead>{t('time')}</TableHead>
+              <TableHead className={`text-right ${STICKY_ACTIONS_CLASS}`}>{t('actions')}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading && Array.from({ length: 5 }, (_, i) => (
+              <TableRow key={`skeleton-${i}`}>
+                <TableCell><Skeleton className="size-4" /></TableCell>
+                <TableCell>
+                  <div className="space-y-1.5">
+                    <Skeleton className="h-4 w-56" />
+                    <Skeleton className="h-3 w-32" />
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="space-y-1.5">
+                    <Skeleton className="h-4 w-28" />
+                    <Skeleton className="h-3 w-12" />
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="size-8 rounded-full" />
+                    <div className="space-y-1.5">
+                      <Skeleton className="h-4 w-20" />
+                      <Skeleton className="h-3 w-28" />
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell><Skeleton className="h-5 w-14" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                <TableCell><Skeleton className="ml-auto h-8 w-14" /></TableCell>
+              </TableRow>
+            ))}
+            {!loading && comments.length === 0 && (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={7} className="p-0">
+                  <Empty className="py-10">
+                    <EmptyDescription>{t('empty')}</EmptyDescription>
+                  </Empty>
+                </TableCell>
+              </TableRow>
+            )}
+            {!loading && comments.map(comment => (
+              <CommentRow
+                key={comment.id}
+                comment={comment}
+                selected={selectedIds.has(comment.id)}
+                onSelectChange={checked => toggleSelectOne(comment.id, checked)}
+                onDelete={handleDelete}
               />
-            </TableHead>
-            <TableHead>{t('comment')}</TableHead>
-            <TableHead>{t('target')}</TableHead>
-            <TableHead>{t('user')}</TableHead>
-            <TableHead>{t('status')}</TableHead>
-            <TableHead>{t('time')}</TableHead>
-            <TableHead className={`text-right ${STICKY_ACTIONS_CLASS}`}>{t('actions')}</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {loading && (
-            <TableRow>
-              <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">{t('loading')}</TableCell>
-            </TableRow>
-          )}
-          {!loading && comments.length === 0 && (
-            <TableRow>
-              <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">{t('empty')}</TableCell>
-            </TableRow>
-          )}
-          {!loading && comments.map(comment => (
-            <CommentRow
-              key={comment.id}
-              comment={comment}
-              selected={selectedIds.has(comment.id)}
-              onSelectChange={checked => toggleSelectOne(comment.id, checked)}
-              onDelete={handleDelete}
-            />
-          ))}
-        </TableBody>
-      </Table>
-      <div className="flex items-center justify-center py-4">
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+      <div className="flex flex-wrap items-center justify-center gap-2 py-4">
         {total > 0 && (
           <PaginationController
             page={page}
@@ -285,7 +315,7 @@ function CommentRow({
     .filter(Boolean)
     .join(' · ')
   return (
-    <TableRow>
+    <TableRow data-state={selected ? 'selected' : undefined}>
       <TableCell className="w-10">
         <Checkbox
           checked={selected}

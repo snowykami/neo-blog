@@ -15,13 +15,15 @@ import { SafeImage } from '@/components/common/safe-image'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Empty, EmptyDescription } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
-import { Separator } from '@/components/ui/separator'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useConsoleQuery } from '@/hooks/use-console-query'
-import { useErrorBodyT, useErrorMessageT, useOperationT } from '@/hooks/use-translations'
+import { useCommonT, useErrorBodyT, useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { Link, useRouter } from '@/i18n/navigation'
+import { cn } from '@/lib/utils'
 import { formatMusicCoverUrl } from '@/utils/common/image'
 import { consolePath } from '@/utils/common/route'
 
@@ -37,6 +39,7 @@ type BatchItem = MusicLyricAnnotationBatchStatus['items'][number]
  */
 export function LyricEffectManage() {
   const t = useTranslations('Console.lyric_effects')
+  const commonT = useCommonT()
   const metricsT = useTranslations('Metrics')
   const errorMessageT = useErrorMessageT()
   const operationT = useOperationT()
@@ -232,21 +235,43 @@ export function LyricEffectManage() {
           </div>
         )}
       </div>
-      <Separator />
-      {!loading && rows.length === 0 && <div className="py-10 text-center text-sm text-muted-foreground">{t('empty')}</div>}
-      {rows.map(row => (
-        <div key={row.songId}>
+      <div className="overflow-hidden rounded-xl border bg-card divide-y shadow-[0_1px_1px_-0.5px_rgba(0,0,0,0.035),0_3px_8px_-2px_rgba(0,0,0,0.035)] empty:hidden dark:shadow-none">
+        {loading && (
+          <div className="divide-y" aria-busy="true" aria-label={commonT('loading')}>
+            {Array.from({ length: 6 }, (_, idx) => (
+              <div key={idx} className="flex items-center gap-3 px-4 py-3">
+                <Skeleton className="size-4 shrink-0 rounded-xs" />
+                <Skeleton className="size-11 shrink-0 rounded-md" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Skeleton className="h-4 w-2/5 max-w-xs" />
+                  <div className="flex gap-2">
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-5 w-16 rounded-md" />
+                    <Skeleton className="h-5 w-14 rounded-md" />
+                  </div>
+                </div>
+                <Skeleton className="size-8 shrink-0 rounded-md" />
+              </div>
+            ))}
+          </div>
+        )}
+        {!loading && rows.length === 0 && (
+          <Empty className="py-10">
+            <EmptyDescription>{t('empty')}</EmptyDescription>
+          </Empty>
+        )}
+        {!loading && rows.map(row => (
           <LyricEffectItem
+            key={row.songId}
             row={row}
             now={now}
             selected={selected.has(row.songId)}
             onSelectedChange={checked => toggle([row.songId], checked)}
             batchItem={batchItems.get(row.songId)}
           />
-          <Separator />
-        </div>
-      ))}
-      <div className="flex items-center justify-center py-4">
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center justify-center gap-2 py-4">
         {total > 0 && <PaginationController page={page} onPageChange={next => void setPage(next)} total={total} pageSize={size} />}
         <PageSizeSelector size={size} onSizeChange={changeSize} />
         {' '}
@@ -367,7 +392,7 @@ function LyricEffectItem({ row, now, selected, onSelectedChange, batchItem }: {
   const { summary, track } = row
   const editUrl = `${consolePath.lyricEffect}/${row.songId}`
   return (
-    <div className="flex w-full items-center gap-3 py-3">
+    <div className={cn('flex w-full items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/40', selected && 'bg-primary/[0.04]')}>
       {/* 复选框与封面包在同一个 label 里，并上下铺满整行高度：点封面或它上下的空白都能切换选中（歌名是编辑链接，不在其中） */}
       <label className="-my-3 flex shrink-0 cursor-pointer items-center gap-3 self-stretch py-3">
         <Checkbox

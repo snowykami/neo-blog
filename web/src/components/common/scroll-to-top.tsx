@@ -40,7 +40,7 @@ export default function ScrollToTopButton({
   positionClass = 'right-4 bottom-5',
   className = '',
   showProgress = true,
-  size = 38,
+  size = 42,
 }: {
   threshold?: number
   positionClass?: string

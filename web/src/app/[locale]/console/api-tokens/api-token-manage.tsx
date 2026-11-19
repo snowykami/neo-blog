@@ -9,6 +9,7 @@ import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { STICKY_ACTIONS_CLASS } from '@/components/console/common/sticky-actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Empty, EmptyDescription } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
@@ -68,7 +69,7 @@ export function APITokenManage() {
         </div>
         <CreateAPITokenDialog onCreated={fetchTokens} />
       </div>
-      <div className="overflow-hidden rounded-md border">
+      <div className="overflow-hidden rounded-xl border bg-card shadow-[0_1px_1px_-0.5px_rgba(0,0,0,0.035),0_3px_8px_-2px_rgba(0,0,0,0.035)] dark:shadow-none">
         <Table>
           <TableHeader>
             <TableRow>
@@ -99,9 +100,11 @@ export function APITokenManage() {
               </TableRow>
             )}
             {!loading && !error && tokens.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={COLUMN_COUNT} className="py-8 text-center text-muted-foreground">
-                  {t('empty')}
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={COLUMN_COUNT} className="p-0">
+                  <Empty className="py-10">
+                    <EmptyDescription>{t('empty')}</EmptyDescription>
+                  </Empty>
                 </TableCell>
               </TableRow>
             )}

@@ -32,7 +32,7 @@ import {
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Separator } from '@/components/ui/separator'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { useAuth } from '@/contexts/auth-context'
 import { useDevice } from '@/contexts/device-context'
@@ -78,7 +78,7 @@ const FileItem = memo(({
         <div
           onClick={() => onToggleSelect(file.id, !selected)}
           className={cn(
-            'flex flex-col items-center px-2 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer select-none',
+            'flex flex-col items-center px-2 border rounded-lg bg-card hover:bg-accent/50 transition-colors cursor-pointer select-none',
             selected && 'border-primary bg-accent/50',
           )}
         >
@@ -134,8 +134,8 @@ const FileItem = memo(({
 
   // List 布局
   return (
-    <div>
-      <div className="flex w-full items-center gap-3 py-2">
+    <div className={cn('px-4 py-3 transition-colors hover:bg-muted/40', selected && 'bg-primary/[0.04]')}>
+      <div className="flex w-full items-center gap-3">
         {/* left */}
         <div className="flex items-center gap-3 w-0 flex-1 min-w-0">
           <div className="flex-shrink-0">
@@ -252,8 +252,9 @@ export function FileManage() {
   )
   const files = listFilesQuery.data?.files ?? EMPTY_FILES
   const total = listFilesQuery.data?.total ?? 0
+  const loading = listFilesQuery.loading && !listFilesQuery.data
   // 首次请求完成前不显示空状态，避免闪一下「没有文件」
-  const showEmpty = listFilesQuery.data !== undefined && !listFilesQuery.isPreviousData && files.length === 0
+  const showEmpty = !loading && listFilesQuery.data !== undefined && !listFilesQuery.isPreviousData && files.length === 0
   const { refresh: refreshFiles, setData: setFileList } = listFilesQuery
 
   // 防抖后的搜索词真正变化时才重置分页，避免挂载时把 URL 中的页码重置为 1
@@ -356,24 +357,21 @@ export function FileManage() {
             aria-label={operationT('select_all')}
             title={operationT('select_all')}
           />
-          {/* 批量删除影响多个文件，使用 AlertDialog 并说明后果 */}
-          <ConfirmDialog
-            title={operationT('batch_delete')}
-            description={t('batch_delete_description', { n: selectedFileIds.size })}
-            confirmLabel={operationT('delete')}
-            errorText={operationT('delete_failed')}
-            confirmVariant="destructive"
-            disabled={selectedFileIds.size === 0}
-            onConfirm={handleBatchDelete}
-          >
-            <Button
-              variant="destructive"
-              size="sm"
-              disabled={Array.from(selectedFileIds).length === 0}
+          {/* 批量删除影响多个文件，有选中项时显示，使用 AlertDialog 说明后果 */}
+          {selectedFileIds.size > 0 && (
+            <ConfirmDialog
+              title={operationT('batch_delete')}
+              description={t('batch_delete_description', { n: selectedFileIds.size })}
+              confirmLabel={operationT('delete')}
+              errorText={operationT('delete_failed')}
+              confirmVariant="destructive"
+              onConfirm={handleBatchDelete}
             >
-              {operationT('batch_delete')}
-            </Button>
-          </ConfirmDialog>
+              <Button variant="destructive" size="sm">
+                {operationT('batch_delete')}
+              </Button>
+            </ConfirmDialog>
+          )}
           {isAdminUser && (
             <Button variant="outline" size="sm" disabled={selectedFileIds.size === 0} onClick={() => setMigrateOpen(true)}>
               <ArrowRightLeft />
@@ -442,9 +440,42 @@ export function FileManage() {
         confirmVariant="destructive"
         onConfirm={handleDeleteOne}
       />
-      <Separator className="flex-1" />
+      {loading && arrangement === ArrangementMode.List && (
+        <div
+          className="overflow-hidden rounded-xl border bg-card divide-y shadow-[0_1px_1px_-0.5px_rgba(0,0,0,0.035),0_3px_8px_-2px_rgba(0,0,0,0.035)] dark:shadow-none"
+          aria-busy="true"
+          aria-label={commonT('loading')}
+        >
+          {Array.from({ length: 6 }, (_, idx) => (
+            <div key={idx} className="flex items-center gap-3 px-4 py-3">
+              <Skeleton className="size-4 shrink-0 rounded-xs" />
+              <Skeleton className="size-10 shrink-0 rounded" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <Skeleton className="h-4 w-2/5 max-w-xs" />
+                <Skeleton className="h-3 w-3/5 max-w-md" />
+              </div>
+              <Skeleton className="size-8 shrink-0 rounded-md" />
+            </div>
+          ))}
+        </div>
+      )}
+      {loading && arrangement === ArrangementMode.Grid && (
+        <div
+          className={`grid gap-4 ${isMobile ? 'grid-cols-2' : 'grid-cols-4'}`}
+          aria-busy="true"
+          aria-label={commonT('loading')}
+        >
+          {Array.from({ length: 8 }, (_, idx) => (
+            <div key={idx} className="flex flex-col items-center gap-2 rounded-lg border bg-card p-3">
+              <Skeleton className="size-20 rounded" />
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+          ))}
+        </div>
+      )}
       {showEmpty && (
-        <Empty className="my-4 border">
+        <Empty className="rounded-xl border bg-card">
           <EmptyHeader>
             <EmptyTitle>{t('empty_title')}</EmptyTitle>
             <EmptyDescription>
@@ -454,21 +485,22 @@ export function FileManage() {
         </Empty>
       )}
       {/* 列表 */}
-      {arrangement === ArrangementMode.List
-        && files.map(file => (
-          <div key={file.id}>
+      {!loading && arrangement === ArrangementMode.List && (
+        <div className="overflow-hidden rounded-xl border bg-card divide-y shadow-[0_1px_1px_-0.5px_rgba(0,0,0,0.035),0_3px_8px_-2px_rgba(0,0,0,0.035)] empty:hidden dark:shadow-none">
+          {files.map(file => (
             <FileItem
+              key={file.id}
               file={file}
               layout={ArrangementMode.List}
               onRequestDelete={setDeletingFile}
               selected={selectedFileIds.has(file.id)}
               onToggleSelect={onToggleFileSelect}
             />
-            <Separator className="flex-1" />
-          </div>
-        ))}
+          ))}
+        </div>
+      )}
       {/* 网格 */}
-      {arrangement === ArrangementMode.Grid && (
+      {!loading && arrangement === ArrangementMode.Grid && files.length > 0 && (
         <div className={`grid gap-4 ${isMobile ? 'grid-cols-2' : 'grid-cols-4'}`}>
           {files.map(file => (
             <FileItem
@@ -483,7 +515,7 @@ export function FileManage() {
         </div>
       )}
       {/* 分页 */}
-      <div className="flex justify-center items-center py-4">
+      <div className="flex flex-wrap justify-center items-center gap-2 py-4">
         {total > 0 && (
           <PaginationController
             page={page}

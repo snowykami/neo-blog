@@ -3,6 +3,7 @@
 import type { Editor } from '@tiptap/react'
 import type { EditSessionStatus } from '@/hooks/use-edit-session'
 import { useFormatter, useTranslations } from 'next-intl'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import { useEditorStats } from './use-editor-stats'
 import { useEditorToolbarState } from './use-editor-toolbar-state'
@@ -45,6 +46,8 @@ export function EditorStatusBar({ editor, sessionStatus, className }: { editor: 
   else
     blockLabel = t(`block.${state.blockType}`)
 
+  const sessionLabel = t(`session_${sessionStatus}`)
+
   return (
     <footer
       className={cn(
@@ -55,10 +58,29 @@ export function EditorStatusBar({ editor, sessionStatus, className }: { editor: 
       <EditorStatusStats editor={editor} />
       <span className="hidden md:inline">{t('status_block', { type: blockLabel })}</span>
       <span className="flex-1" />
-      <span className="inline-flex items-center gap-2" aria-live="polite">
-        <span aria-hidden="true" className={cn('size-[7px] rounded-full', SESSION_DOT[sessionStatus])} />
-        <span className="hidden sm:inline">{t(`session_${sessionStatus}`)}</span>
-      </span>
+      <div className="inline-flex items-center" aria-live="polite">
+        {/* 移动端点击状态点可弹出完整说明，并附带可访问 aria-label 与原生 title */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              aria-label={sessionLabel}
+              title={sessionLabel}
+              className="inline-flex items-center gap-1.5 rounded-sm px-1 py-0.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:hidden"
+            >
+              <span aria-hidden="true" className={cn('size-[7px] rounded-full', SESSION_DOT[sessionStatus])} />
+              <span className="sr-only">{sessionLabel}</span>
+            </button>
+          </PopoverTrigger>
+          <PopoverContent side="top" align="end" sideOffset={6} className="w-auto rounded-lg px-2.5 py-1.5 text-xs">
+            {sessionLabel}
+          </PopoverContent>
+        </Popover>
+        <span className="hidden items-center gap-2 sm:inline-flex">
+          <span aria-hidden="true" className={cn('size-[7px] rounded-full', SESSION_DOT[sessionStatus])} />
+          <span>{sessionLabel}</span>
+        </span>
+      </div>
     </footer>
   )
 }

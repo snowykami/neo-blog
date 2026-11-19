@@ -46,8 +46,8 @@ export function NavSearch({ className, onNavigate }: { className?: string, onNav
       <button
         type="button"
         aria-label={t('search')}
-        title={t('search')}
-        className={cn('inline-flex items-center justify-center', className)}
+        title={`${t('search')} (⌘K / Ctrl+K)`}
+        className={cn('inline-flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', className)}
         // 悬停 / 聚焦时先下载弹窗代码，点下去时通常已经就绪
         onPointerEnter={() => void import('./nav-search-dialog')}
         onFocus={() => void import('./nav-search-dialog')}

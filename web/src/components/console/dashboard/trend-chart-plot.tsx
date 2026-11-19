@@ -2,9 +2,11 @@
 
 import type { ChartConfig } from '@/components/ui/chart'
 import type { DashboardTrendPoint } from '@/models/dashboard'
-import { useFormatter } from 'next-intl'
+import { useFormatter, useTranslations } from 'next-intl'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
+import { Empty, EmptyDescription } from '@/components/ui/empty'
+import { formatCompactNumber } from '@/utils/common/number'
 
 export type TrendChartView = 'traffic' | 'interaction'
 
@@ -22,16 +24,32 @@ export function TrendChartPlot({
   trend: DashboardTrendPoint[]
   config: ChartConfig
 }) {
+  const t = useTranslations('Console.dashboard')
   const format = useFormatter()
   const keys = Object.keys(config)
 
+  const hasData = trend.some(point =>
+    keys.some(key => Number(point[key as keyof DashboardTrendPoint] ?? 0) > 0),
+  )
+
+  if (!hasData) {
+    return (
+      <Empty className="h-64">
+        <EmptyDescription>
+          {t(view === 'traffic' ? 'empty_top' : 'empty_comments')}
+        </EmptyDescription>
+      </Empty>
+    )
+  }
+
   const tickFormatter = (value: string) => format.dateTime(parseDay(value), { month: 'numeric', day: 'numeric' })
+  const yTickFormatter = (value: number) => formatCompactNumber(value)
   const labelFormatter = (value: unknown) => typeof value === 'string'
     ? format.dateTime(parseDay(value), { month: 'short', day: 'numeric', weekday: 'short' })
     : ''
   const axisProps = { tickLine: false, axisLine: false } as const
   const xAxis = <XAxis dataKey="date" {...axisProps} tickMargin={8} minTickGap={24} tickFormatter={tickFormatter} />
-  const yAxis = <YAxis {...axisProps} width={32} allowDecimals={false} />
+  const yAxis = <YAxis {...axisProps} width={44} allowDecimals={false} tickFormatter={yTickFormatter} />
   const tooltip = <ChartTooltip cursor={view === 'interaction' ? { fill: 'var(--muted)', opacity: 0.6 } : true} content={<ChartTooltipContent labelFormatter={labelFormatter} />} />
   const legend = <ChartLegend content={<ChartLegendContent />} />
 

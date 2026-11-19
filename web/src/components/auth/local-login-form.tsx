@@ -1,6 +1,7 @@
 'use client'
 import type { User } from '@/models/user'
 import type { CaptchaProps } from '@/types/captcha'
+import { Eye, EyeOff } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -37,6 +38,7 @@ export function LocalLoginForm({ onSuccess }: { onSuccess?: (user: User) => void
   const [captchaProps, setCaptchaProps] = useState<Pick<CaptchaProps, 'provider' | 'siteKey' | 'url'> | null>(null)
   const [captchaToken, setCaptchaToken] = useState<string | null>(null)
   const [refreshCaptchaKey, setRefreshCaptchaKey] = useState(0)
+  const [showPassword, setShowPassword] = useState(false)
   const { isSubmitting } = form.formState
 
   useEffect(() => {
@@ -98,7 +100,7 @@ export function LocalLoginForm({ onSuccess }: { onSuccess?: (user: User) => void
                 />
               </div>
               <FormControl>
-                <Input type="text" autoComplete="username" placeholder="example@liteyuki.org" {...field} />
+                <Input type="text" autoComplete="username" placeholder={t('email_or_username')} {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -116,9 +118,25 @@ export function LocalLoginForm({ onSuccess }: { onSuccess?: (user: User) => void
                   {t('forgot_password')}
                 </Link>
               </div>
-              <FormControl>
-                <Input type="password" autoComplete="current-password" {...field} />
-              </FormControl>
+              <div className="relative">
+                <FormControl>
+                  <Input
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    className="pr-10"
+                    {...field}
+                  />
+                </FormControl>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(prev => !prev)}
+                  aria-label={`${operationT('view')} ${t('password')}`}
+                  aria-pressed={showPassword}
+                  className="absolute inset-y-0 right-0 flex w-9 items-center justify-center rounded-r-md text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {showPassword ? <EyeOff className="size-4" aria-hidden /> : <Eye className="size-4" aria-hidden />}
+                </button>
+              </div>
               <FormMessage />
             </FormItem>
           )}

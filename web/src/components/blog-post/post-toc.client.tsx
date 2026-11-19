@@ -9,6 +9,10 @@ import { getScrollOffset, getVisibleElementById, isElementRendered } from '@/uti
 
 export { getScrollOffset }
 
+function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
 /**
  * 文章目录：标题 id 由服务端注入，这里负责高亮当前阅读位置与平滑滚动
  * 少于 2 个标题时不显示
@@ -113,6 +117,28 @@ export function PostToc({ headings, className }: { headings: TocHeading[], class
     }
   }, [headings])
 
+  // 当前激活项变化时，在桌面端柔和滚入目录容器可视区（只滚目录自身，不干扰正文滚动）
+  useEffect(() => {
+    if (!activeId)
+      return
+    const nav = navRef.current
+    if (!nav || !isElementRendered(nav) || !window.matchMedia('(min-width: 1024px)').matches)
+      return
+    const activeLink = nav.querySelector<HTMLAnchorElement>('a[aria-current="location"]')
+    if (!activeLink)
+      return
+    const navRect = nav.getBoundingClientRect()
+    const itemRect = activeLink.getBoundingClientRect()
+    const padding = 24
+    if (itemRect.top >= navRect.top + padding && itemRect.bottom <= navRect.bottom - padding)
+      return
+    const targetTop = nav.scrollTop + (itemRect.top - navRect.top) - (nav.clientHeight - itemRect.height) / 2
+    nav.scrollTo({
+      top: Math.max(0, targetTop),
+      behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+    })
+  }, [activeId])
+
   if (headings.length < 2)
     return null
 
@@ -131,7 +157,10 @@ export function PostToc({ headings, className }: { headings: TocHeading[], class
     unlockTimerRef.current = setTimeout(() => {
       lockedRef.current = false
     }, 300)
-    window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - getScrollOffset(), behavior: 'smooth' })
+    window.scrollTo({
+      top: el.getBoundingClientRect().top + window.scrollY - getScrollOffset(),
+      behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+    })
     window.history.replaceState(null, '', `#${encodeURIComponent(id)}`)
   }
 
@@ -155,7 +184,7 @@ export function PostToc({ headings, className }: { headings: TocHeading[], class
                   onClick={e => scrollTo(e, heading.id)}
                   aria-current={active ? 'location' : undefined}
                   className={cn(
-                    'flex w-full items-start gap-2 rounded-lg px-2 py-2 transition-colors duration-150 hover:bg-primary/10 hover:text-primary',
+                    'flex w-full items-start gap-2 rounded-lg px-2 py-2 transition-colors duration-150 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                     active ? 'bg-primary/10 font-medium text-primary' : 'text-foreground/75',
                   )}
                   title={heading.text}

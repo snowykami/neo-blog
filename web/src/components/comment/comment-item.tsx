@@ -14,6 +14,7 @@ import { notifySuccess } from '@/components/layout/topbar-island/island-feedback
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/contexts/auth-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { LikeIcon } from '@/contexts/theme-context'
@@ -76,10 +77,12 @@ function CommentItemImpl({
     setRoot(comment)
   }
   const [replies, setReplies] = useState<Comment[] | null>(null) // 展开后才加载
+  const [loadingThread, setLoadingThread] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [shown, setShown] = useState(THREAD_PAGE)
 
   const loadThread = useCallback(async () => {
+    setLoadingThread(true)
     try {
       const res = await listCommentThread({ targetType: root.targetType, targetId: root.targetId, rootId: root.id, targetLang })
       setReplies(res.data.comments ?? [])
@@ -88,6 +91,9 @@ function CommentItemImpl({
     catch (error) {
       toast.error(`${t('load_failed')}: ${errorMessageT(error)}`)
       return null
+    }
+    finally {
+      setLoadingThread(false)
     }
   }, [root.targetType, root.targetId, root.id, targetLang, t, errorMessageT])
 
@@ -211,7 +217,8 @@ function CommentItemImpl({
     // 等一帧，等线程展开后的布局稳定再滚动；滚动后才记为已完成，等待期间依赖变化会重新安排
     const timer = window.setTimeout(() => {
       scrolledRef.current = focusCommentId
-      node.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      node.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' })
     }, 80)
     return () => window.clearTimeout(timer)
   }, [focusCommentId, focused, replies, root.id])
@@ -236,6 +243,19 @@ function CommentItemImpl({
       </div>
       {(threadCount > 0 || replying === root.id) && (
         <div className={cn('comment-thread', !expanded && 'is-collapsed')}>
+          {expanded && loadingThread && replies === null && (
+            <div className="grid gap-3 py-1" aria-busy="true">
+              {[0, 1].map(idx => (
+                <div key={idx} className="comment-reply flex gap-3">
+                  <Skeleton className="size-7 shrink-0 rounded-full" />
+                  <div className="grid flex-1 gap-2 py-0.5">
+                    <Skeleton className="h-3.5 w-28" />
+                    <Skeleton className="h-3.5 w-4/5" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
           {visibleReplies.map((reply) => {
             // 只有回复的是另一条回复时才显示 @某人（被回复的那条不可见时不显示）
             const target = reply.replyId === root.id ? undefined : byId.get(reply.replyId)
@@ -260,16 +280,16 @@ function CommentItemImpl({
             )
           })}
           {expanded && replies && replies.length > shown && (
-            <button type="button" className="comment-thread-more" onClick={() => setShown(Infinity)}>
+            <button type="button" className="comment-thread-more rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setShown(Infinity)}>
               {t('show_remaining', { count: replies.length - shown })}
             </button>
           )}
           {replying === root.id && replyComposer(root)}
           {threadCount > 0 && (
-            <button type="button" className="comment-thread-toggle" aria-expanded={expanded} onClick={toggleThread}>
+            <button type="button" className="comment-thread-toggle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-expanded={expanded} onClick={toggleThread}>
               <span className="flex shrink-0">
                 {threadUsers.map(u => (
-                  <UserAvatar key={u.id} user={u} size={40} className="-ml-1.5 size-5 border-2 border-card first:ml-0" fallbackClassName="text-[9px]" />
+                  <UserAvatar key={u.id} user={u} size={40} className="-ml-1.5 size-5 border-2 border-card first:ml-0" fallbackClassName="text-xs" />
                 ))}
               </span>
               <span className="shrink-0">{expanded ? t('collapse_thread') : t('thread_replies', { count: threadCount })}</span>
@@ -467,9 +487,9 @@ function CommentBody({
             >
               {name(comment.user)}
             </Link>
-            {comment.user.id === ownerId && <Badge variant="secondary" className="h-[18px] rounded-md px-1.5 text-[11px]">{roleT('author')}</Badge>}
+            {comment.user.id === ownerId && <Badge variant="secondary" className="h-[18px] rounded-md px-1.5 text-xs">{roleT('author')}</Badge>}
             {comment.isPrivate && (
-              <span className="inline-flex items-center gap-0.5 text-[11px] text-muted-foreground">
+              <span className="inline-flex items-center gap-0.5 text-xs text-muted-foreground">
                 <Lock aria-hidden className="size-3" />
                 {t('private')}
               </span>
@@ -503,7 +523,7 @@ function CommentBody({
             </p>
           )}
           {translated && (
-            <p className="mb-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
+            <p className="mb-0.5 flex items-center gap-1 text-xs text-muted-foreground">
               <Languages aria-hidden className="size-3" />
               {t('translated_from', { language: languageName(translated.sourceLang, locale) })}
             </p>
@@ -517,7 +537,7 @@ function CommentBody({
               aria-label={t('reply')}
               onClick={toggleReply}
               aria-pressed={replyActive}
-              className={cn('inline-flex h-7 min-w-7 max-sm:h-9 max-sm:min-w-9 items-center justify-center rounded-md px-2 transition-colors hover:bg-muted hover:text-foreground', replyActive && 'text-primary')}
+              className={cn('inline-flex h-7 min-w-7 max-sm:h-9 max-sm:min-w-9 items-center justify-center rounded-md px-2 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', replyActive && 'text-primary')}
             >
               <Reply aria-hidden className="size-3.5" />
             </button>
@@ -529,9 +549,9 @@ function CommentBody({
                 aria-label={operationT('like')}
                 aria-pressed={liked}
                 onClick={handleToggleLike}
-                className={cn('inline-flex h-7 min-w-7 max-sm:h-9 max-sm:min-w-9 items-center gap-1 rounded-md px-2 tabular-nums transition-colors hover:bg-muted hover:text-foreground', liked && 'text-primary hover:text-primary')}
+                className={cn('group inline-flex h-7 min-w-7 max-sm:h-9 max-sm:min-w-9 items-center gap-1 rounded-md px-2 tabular-nums transition-[color,background-color,transform] duration-150 hover:bg-muted hover:text-foreground active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', liked && 'text-primary hover:text-primary')}
               >
-                <LikeIcon className={cn('size-3.5', liked && 'fill-current')} />
+                <LikeIcon className={cn('size-3.5 transition-transform duration-150 group-active:scale-90', liked && 'fill-current')} />
                 {likeCount > 0 && likeCount}
               </button>
             )}
@@ -544,7 +564,7 @@ function CommentBody({
                 aria-busy={translating}
                 disabled={translating}
                 onClick={toggleTranslation}
-                className={cn('inline-flex h-7 min-w-7 max-sm:h-9 max-sm:min-w-9 items-center justify-center rounded-md px-2 transition-colors hover:bg-muted hover:text-foreground disabled:cursor-wait', translated && 'text-primary hover:text-primary')}
+                className={cn('inline-flex h-7 min-w-7 max-sm:h-9 max-sm:min-w-9 items-center justify-center rounded-md px-2 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait', translated && 'text-primary hover:text-primary')}
               >
                 {translating
                   ? <Loader2 aria-hidden className="size-3.5 animate-spin" />

@@ -110,7 +110,7 @@ export function ColorSchemeCircles({
           aria-pressed={color === scheme}
           title={schemeName(scheme)}
           className={cn(
-            'inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground ring-2 ring-transparent transition-[transform,box-shadow] duration-150 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-ring',
+            'inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground ring-2 ring-transparent transition-[transform,box-shadow] duration-150 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card max-sm:size-10',
             color === scheme && 'ring-foreground/40',
           )}
         >
@@ -175,7 +175,7 @@ export function ColorSchemePicker({ className }: { className?: string }) {
           type="button"
           aria-label={t('title')}
           title={t('title')}
-          className={className}
+          className={cn('focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', className)}
         >
           <PaletteIcon aria-hidden className="size-5" />
         </button>

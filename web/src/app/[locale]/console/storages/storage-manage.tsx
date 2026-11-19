@@ -11,7 +11,7 @@ import { isDirectStorage, StorageMigrationDialog, StorageMigrationProgress, useS
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription } from '@/components/ui/empty'
-import { Separator } from '@/components/ui/separator'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useConsoleQuery } from '@/hooks/use-console-query'
 import { useCommonT, useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { formatDataSize } from '@/utils/common/datasize'
@@ -40,8 +40,8 @@ const StorageProviderItem = memo(({
   const commonT = useCommonT()
   const inUse = usage.files > 0 || usage.pageHtmlVersions > 0
   return (
-    <div>
-      <div className="flex w-full items-center gap-3 py-2">
+    <div className="px-4 py-3 transition-colors hover:bg-muted/40">
+      <div className="flex w-full items-center gap-3">
         {/* left */}
         <div className="flex items-center gap-3">
           <div>
@@ -182,17 +182,33 @@ export function StorageProviderManage() {
       {migration.status && (
         <StorageMigrationProgress status={migration.status} providers={storages} onChange={migration.refresh} />
       )}
-      <Separator className="my-1" />
-      <div>
+      <div className="overflow-hidden rounded-xl border bg-card divide-y shadow-[0_1px_1px_-0.5px_rgba(0,0,0,0.035),0_3px_8px_-2px_rgba(0,0,0,0.035)] empty:hidden dark:shadow-none">
         {loading && (
-          <div className="py-10 text-center text-sm text-muted-foreground">{t('loading')}</div>
+          <div className="divide-y" aria-busy="true" aria-label={t('loading')}>
+            {Array.from({ length: 3 }, (_, idx) => (
+              <div key={idx} className="flex items-center justify-between gap-3 px-4 py-3">
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-32" />
+                  <div className="flex gap-2">
+                    <Skeleton className="h-3 w-16" />
+                    <Skeleton className="h-3 w-20" />
+                    <Skeleton className="h-3 w-24" />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-8 w-14 rounded-md" />
+                  <Skeleton className="size-8 rounded-md" />
+                </div>
+              </div>
+            ))}
+          </div>
         )}
         {!loading && storages.length === 0 && (
           <Empty className="py-10">
             <EmptyDescription>{t('no_storages')}</EmptyDescription>
           </Empty>
         )}
-        {storages.map(storage => (
+        {!loading && storages.map(storage => (
           <div id={`storage-${storage.id}`} key={storage.id}>
             <StorageProviderItem
               storage={storage}
@@ -202,7 +218,6 @@ export function StorageProviderManage() {
               onRequestMigrate={setMigratingStorage}
               onRequestDelete={setDeletingStorage}
             />
-            <Separator className="my-1" />
           </div>
         ))}
       </div>

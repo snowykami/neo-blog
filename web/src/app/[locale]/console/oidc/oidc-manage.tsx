@@ -15,6 +15,7 @@ import {
 import { AssetField } from '@/components/common/asset-picker'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { STICKY_ACTIONS_CLASS } from '@/components/console/common/sticky-actions'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -23,6 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Empty, EmptyDescription } from '@/components/ui/empty'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import {
@@ -32,7 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import {
   Table,
@@ -93,7 +95,7 @@ export default function OidcManage() {
   const errorMessageT = useErrorMessageT()
   const operationT = useOperationT()
   const [configs, setConfigs] = useState<OidcConfig[]>([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<OidcForm>(EMPTY_FORM)
 
@@ -134,68 +136,88 @@ export default function OidcManage() {
   }
 
   return (
-    <div>
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold">{t('title')}</h1>
-          <p className="text-sm text-muted-foreground">{t('description')}</p>
-        </div>
+    <div className="grid gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">{t('description')}</p>
         <Button size="sm" onClick={openCreateDialog}>
           <Plus className="size-4" />
           {t('create')}
         </Button>
       </div>
-      <Separator />
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>{t('name')}</TableHead>
-            <TableHead>{t('type')}</TableHead>
-            <TableHead>{t('issuer')}</TableHead>
-            <TableHead>{t('status')}</TableHead>
-            <TableHead className={`text-right ${STICKY_ACTIONS_CLASS}`}>{t('actions')}</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {loading && (
+      <div className="overflow-hidden rounded-xl border bg-card shadow-[0_1px_1px_-0.5px_rgba(0,0,0,0.035),0_3px_8px_-2px_rgba(0,0,0,0.035)] dark:shadow-none">
+        <Table>
+          <TableHeader>
             <TableRow>
-              <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">{t('loading')}</TableCell>
+              <TableHead>{t('name')}</TableHead>
+              <TableHead>{t('type')}</TableHead>
+              <TableHead>{t('issuer')}</TableHead>
+              <TableHead>{t('status')}</TableHead>
+              <TableHead className={`text-right ${STICKY_ACTIONS_CLASS}`}>{t('actions')}</TableHead>
             </TableRow>
-          )}
-          {!loading && configs.length === 0 && (
-            <TableRow>
-              <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">{t('empty')}</TableCell>
-            </TableRow>
-          )}
-          {!loading && configs.map(config => (
-            <TableRow key={config.id}>
-              <TableCell>
-                <div className="font-medium">{config.displayName || config.name}</div>
-                <div className="text-xs text-muted-foreground">{config.name}</div>
-              </TableCell>
-              <TableCell>{t(`types.${config.type === 'misskey' ? 'misskey' : 'oauth2'}`)}</TableCell>
-              <TableCell className="max-w-80 truncate">{config.issuer || config.oidcDiscoveryUrl || '-'}</TableCell>
-              <TableCell>{config.enabled ? t('enabled') : t('disabled')}</TableCell>
-              <TableCell className={`text-right ${STICKY_ACTIONS_CLASS}`}>
-                <div className="flex justify-end gap-2">
-                  <Button size="sm" variant="outline" onClick={() => openEditDialog(config)}>{operationT('edit')}</Button>
-                  {/* 删除认证源会让已绑定的用户无法再用它登录，使用 AlertDialog 确认 */}
-                  <ConfirmDialog
-                    title={operationT('confirm_delete')}
-                    description={t('delete_description')}
-                    confirmLabel={operationT('delete')}
-                    errorText={operationT('delete_failed')}
-                    confirmVariant="destructive"
-                    onConfirm={() => handleDelete(config.id)}
+          </TableHeader>
+          <TableBody>
+            {loading && Array.from({ length: 3 }, (_, i) => (
+              <TableRow key={`skeleton-${i}`}>
+                <TableCell>
+                  <div className="space-y-1.5">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-3 w-16" />
+                  </div>
+                </TableCell>
+                <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-48" /></TableCell>
+                <TableCell><Skeleton className="h-5 w-14" /></TableCell>
+                <TableCell><Skeleton className="ml-auto h-8 w-28" /></TableCell>
+              </TableRow>
+            ))}
+            {!loading && configs.length === 0 && (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={5} className="p-0">
+                  <Empty className="py-10">
+                    <EmptyDescription>{t('empty')}</EmptyDescription>
+                  </Empty>
+                </TableCell>
+              </TableRow>
+            )}
+            {!loading && configs.map(config => (
+              <TableRow key={config.id}>
+                <TableCell>
+                  <div className="font-medium">{config.displayName || config.name}</div>
+                  <div className="text-xs text-muted-foreground">{config.name}</div>
+                </TableCell>
+                <TableCell>{t(`types.${config.type === 'misskey' ? 'misskey' : 'oauth2'}`)}</TableCell>
+                <TableCell className="max-w-80 truncate">{config.issuer || config.oidcDiscoveryUrl || '-'}</TableCell>
+                <TableCell>
+                  <Badge
+                    variant="secondary"
+                    className={config.enabled
+                      ? 'bg-green-100 text-green-800 dark:bg-green-500/15 dark:text-green-300'
+                      : 'bg-muted text-muted-foreground'}
                   >
-                    <Button size="sm" variant="destructive">{operationT('delete')}</Button>
-                  </ConfirmDialog>
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+                    {config.enabled ? t('enabled') : t('disabled')}
+                  </Badge>
+                </TableCell>
+                <TableCell className={`text-right ${STICKY_ACTIONS_CLASS}`}>
+                  <div className="flex justify-end gap-2">
+                    <Button size="sm" variant="outline" onClick={() => openEditDialog(config)}>{operationT('edit')}</Button>
+                    {/* 删除认证源会让已绑定的用户无法再用它登录，使用 AlertDialog 确认 */}
+                    <ConfirmDialog
+                      title={operationT('confirm_delete')}
+                      description={t('delete_description')}
+                      confirmLabel={operationT('delete')}
+                      errorText={operationT('delete_failed')}
+                      confirmVariant="destructive"
+                      onConfirm={() => handleDelete(config.id)}
+                    >
+                      <Button size="sm" variant="destructive">{operationT('delete')}</Button>
+                    </ConfirmDialog>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">

@@ -1,18 +1,21 @@
 'use client'
 
 import type { NotificationPreferences } from '@/models/notification'
-import { BellRing } from 'lucide-react'
+import { ArrowLeft, BellRing } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { getNotificationPreferences } from '@/api/notification'
 import { useLoginDialog } from '@/components/auth/login-dialog'
+import { SectionTitle } from '@/components/layout/site-shell'
 import { NotificationPreferencesForm } from '@/components/notification/notification-preferences-form'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/contexts/auth-context'
 import { useErrorMessageT } from '@/hooks/use-translations'
+import { Link } from '@/i18n/navigation'
+import { mainPath } from '@/utils/common/route'
 
 // 邮件里的免登录凭据：只从地址栏读一次，不写进任何全局状态
 function readTokenFromUrl(): string {
@@ -27,6 +30,7 @@ function readTokenFromUrl(): string {
  */
 export function NotificationSettingsPage() {
   const t = useTranslations('NotificationSettings')
+  const notificationsT = useTranslations('Notifications')
   const errorMessageT = useErrorMessageT()
   const { user, loading: authLoading } = useAuth()
   const openLogin = useLoginDialog()
@@ -70,22 +74,30 @@ export function NotificationSettingsPage() {
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-8">
-      <div className="mb-5 grid gap-1">
-        <h1 className="text-2xl font-bold">{t('title')}</h1>
-        <p className="text-muted-foreground text-sm text-balance">{t('description')}</p>
+      <div className="mb-5 grid gap-2">
+        <div>
+          <Button asChild variant="ghost" size="sm" className="-ml-2 text-muted-foreground hover:text-foreground">
+            <Link href={mainPath.notifications}>
+              <ArrowLeft className="size-4" aria-hidden />
+              {notificationsT('title')}
+            </Link>
+          </Button>
+        </div>
+        <SectionTitle as="h1" className="text-xl md:text-2xl">{t('title')}</SectionTitle>
+        <p className="pl-4 text-sm text-balance text-muted-foreground">{t('description')}</p>
       </div>
 
       {status === 'loading'
         ? (
             <div className="grid gap-4">
-              <Skeleton className="h-40 w-full rounded-xl" />
-              <Skeleton className="h-32 w-full rounded-xl" />
+              <Skeleton className="h-40 w-full rounded-2xl" />
+              <Skeleton className="h-32 w-full rounded-2xl" />
             </div>
           )
         : status === 'ready' && preferences
           ? <NotificationPreferencesForm initial={preferences} token={user ? undefined : token} />
           : (
-              <Empty className="border">
+              <Empty className="surface-card rounded-2xl bg-card">
                 <EmptyHeader>
                   <EmptyMedia variant="icon">
                     <BellRing />

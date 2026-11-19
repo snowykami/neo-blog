@@ -203,7 +203,12 @@ export function CommentInput({
           <span className="mt-2 ml-2.5 inline-flex max-w-[calc(100%-0.625rem)] items-center gap-1 rounded-full bg-secondary py-0.5 pr-1 pl-2 text-xs text-secondary-foreground">
             <span className="truncate">{t('reply_to', { name: replyTo })}</span>
             {onCancel && (
-              <button type="button" onClick={onCancel} aria-label={t('cancel_reply')} className="shrink-0 rounded-full p-0.5 opacity-70 hover:opacity-100">
+              <button
+                type="button"
+                onClick={onCancel}
+                aria-label={t('cancel_reply')}
+                className="relative shrink-0 rounded-full p-0.5 opacity-70 transition-opacity after:absolute after:-inset-2 after:content-[''] hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
                 <X className="size-3" />
               </button>
             )}
@@ -314,58 +319,61 @@ export function CommentInput({
         </Popover>
         <CommentAttachmentList state={attachments} />
         {expanded && (
-          <div className="flex flex-wrap items-center gap-1.5 px-2 pb-2">
-            <CommentAttachmentButton state={attachments} />
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              aria-disabled={mention.atLimit}
-              title={mention.atLimit ? t('mentions_max', { count: MAX_COMMENT_MENTIONS }) : t('mention_button_hint')}
-              aria-label={t('mention_button')}
-              onMouseDown={e => e.preventDefault()}
-              onClick={mention.triggerMention}
-              className={cn(
-                'h-7 rounded-full px-2.5 text-xs font-normal text-muted-foreground max-sm:h-9 max-sm:px-3',
-                mention.mentionCount > 0 && 'text-primary hover:text-primary',
-                mention.atLimit && 'opacity-60',
-              )}
-            >
-              <AtSign className="size-3.5" />
-              {mention.mentionCount > 0 && <span className="tabular-nums">{`${mention.mentionCount}/${MAX_COMMENT_MENTIONS}`}</span>}
-            </Button>
-            <Toggle
-              size="sm"
-              variant="outline"
-              pressed={isPrivate}
-              onPressedChange={setIsPrivate}
-              className="h-7 rounded-full px-2.5 text-xs font-normal text-muted-foreground data-[state=on]:border-transparent data-[state=on]:bg-secondary data-[state=on]:text-secondary-foreground max-sm:h-9 max-sm:px-3"
-            >
-              <Lock className="size-3.5" />
-              {t('private')}
-            </Toggle>
-            <Toggle
-              size="sm"
-              variant="outline"
-              pressed={showClientInfo}
-              onPressedChange={setShowClientInfo}
-              className="h-7 rounded-full px-2.5 text-xs font-normal text-muted-foreground data-[state=on]:border-transparent data-[state=on]:bg-secondary data-[state=on]:text-secondary-foreground max-sm:h-9 max-sm:px-3"
-            >
-              <Monitor className="size-3.5" />
-              {t('show_client_info')}
-            </Toggle>
-            <span className="flex-1" />
-            <CommentLengthRing used={charCount} max={maxLength} />
-            <Kbd className="hidden sm:inline-flex" title={t('submit_shortcut')}>{mac ? '⌘ ↵' : 'Ctrl ↵'}</Kbd>
-            {onCancel && (
-              <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
-                {operationT('cancel')}
+          <div className="flex flex-wrap items-center justify-between gap-2 px-2 pb-2">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <CommentAttachmentButton state={attachments} />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-disabled={mention.atLimit}
+                title={mention.atLimit ? t('mentions_max', { count: MAX_COMMENT_MENTIONS }) : t('mention_button_hint')}
+                aria-label={t('mention_button')}
+                onMouseDown={e => e.preventDefault()}
+                onClick={mention.triggerMention}
+                className={cn(
+                  'h-7 rounded-full px-2.5 text-xs font-normal text-muted-foreground max-sm:h-9 max-sm:px-3',
+                  mention.mentionCount > 0 && 'text-primary hover:text-primary',
+                  mention.atLimit && 'opacity-60',
+                )}
+              >
+                <AtSign className="size-3.5" />
+                {mention.mentionCount > 0 && <span className="tabular-nums">{`${mention.mentionCount}/${MAX_COMMENT_MENTIONS}`}</span>}
               </Button>
-            )}
-            <Button type="button" size="sm" onClick={handleCommentSubmit} disabled={submitting || empty || tooLong || attachments.uploading || unchanged}>
-              {submitting && <Loader2 className="animate-spin" />}
-              {isUpdate ? operationT('update') : replyTo ? t('reply') : t('publish')}
-            </Button>
+              <Toggle
+                size="sm"
+                variant="outline"
+                pressed={isPrivate}
+                onPressedChange={setIsPrivate}
+                className="h-7 rounded-full px-2.5 text-xs font-normal text-muted-foreground data-[state=on]:border-transparent data-[state=on]:bg-secondary data-[state=on]:text-secondary-foreground max-sm:h-9 max-sm:px-3"
+              >
+                <Lock className="size-3.5" />
+                {t('private')}
+              </Toggle>
+              <Toggle
+                size="sm"
+                variant="outline"
+                pressed={showClientInfo}
+                onPressedChange={setShowClientInfo}
+                className="h-7 rounded-full px-2.5 text-xs font-normal text-muted-foreground data-[state=on]:border-transparent data-[state=on]:bg-secondary data-[state=on]:text-secondary-foreground max-sm:h-9 max-sm:px-3"
+              >
+                <Monitor className="size-3.5" />
+                {t('show_client_info')}
+              </Toggle>
+            </div>
+            <div className="ml-auto flex items-center gap-1.5">
+              <CommentLengthRing used={charCount} max={maxLength} />
+              <Kbd className="hidden sm:inline-flex" title={t('submit_shortcut')}>{mac ? '⌘ ↵' : 'Ctrl ↵'}</Kbd>
+              {onCancel && (
+                <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
+                  {operationT('cancel')}
+                </Button>
+              )}
+              <Button type="button" size="sm" onClick={handleCommentSubmit} disabled={submitting || empty || tooLong || attachments.uploading || unchanged}>
+                {submitting && <Loader2 className="animate-spin" />}
+                {isUpdate ? operationT('update') : replyTo ? t('reply') : t('publish')}
+              </Button>
+            </div>
           </div>
         )}
       </div>

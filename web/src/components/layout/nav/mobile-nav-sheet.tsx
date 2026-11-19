@@ -26,7 +26,7 @@ export function MobileNavSheet({ items, open, setOpen, triggerRef }: {
   const routeT = useTranslations('Route')
   const pathname = usePathname() || '/'
   const linkClass = (href: string) => cn(
-    'flex h-11 items-center gap-3 rounded-lg px-3 font-medium text-foreground/75 transition-colors hover:bg-primary/10 hover:text-primary',
+    'flex h-11 items-center gap-3 rounded-lg px-3 font-medium text-foreground/75 transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
     isActivePath(pathname, href) && 'bg-primary/10 font-semibold text-secondary-foreground hover:text-secondary-foreground',
   )
   return (

@@ -35,7 +35,7 @@ export async function PostContinuation({ neighbors }: { neighbors: PostNeighbors
           {prev && (
             <Link
               href={getPostUrl({ post: prev })}
-              className="surface-card group flex flex-col justify-between gap-2 rounded-2xl bg-card px-5 py-4 transition-colors hover:bg-accent/50"
+              className="surface-card group flex flex-col justify-between gap-2 rounded-2xl bg-card px-5 py-4 transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
                 <ChevronLeft className="size-3.5 transition-transform group-hover:-translate-x-0.5" aria-hidden />
@@ -50,7 +50,7 @@ export async function PostContinuation({ neighbors }: { neighbors: PostNeighbors
             <Link
               href={getPostUrl({ post: next })}
               className={cn(
-                'surface-card group flex flex-col justify-between gap-2 rounded-2xl bg-card px-5 py-4 text-right transition-colors hover:bg-accent/50',
+                'surface-card group flex flex-col justify-between gap-2 rounded-2xl bg-card px-5 py-4 text-right transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 !prev && 'sm:col-start-2',
               )}
             >
@@ -67,7 +67,7 @@ export async function PostContinuation({ neighbors }: { neighbors: PostNeighbors
       )}
 
       {hasRelated && (
-        <section className="surface-card rounded-2xl bg-card px-5 py-6 sm:px-7 md:px-10 lg:px-14">
+        <section className="surface-card rounded-2xl bg-card p-5 sm:p-7 md:p-8">
           <div className="mb-4 flex items-center gap-2">
             <Sparkles className="size-4 text-primary" aria-hidden />
             <h2 className="text-base font-semibold text-foreground/90">{t('related_posts')}</h2>
@@ -79,7 +79,7 @@ export async function PostContinuation({ neighbors }: { neighbors: PostNeighbors
                 <Link
                   key={item.id}
                   href={getPostUrl({ post: item })}
-                  className="group flex gap-3.5 rounded-xl border border-border/50 bg-background/40 p-3.5 transition-colors hover:border-primary/30 hover:bg-accent/40"
+                  className="group flex gap-3.5 rounded-xl border border-border/50 bg-background/40 p-3.5 transition-colors hover:border-primary/30 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   {item.cover && (
                     <div className="relative size-18 shrink-0 overflow-hidden rounded-lg bg-muted">
@@ -106,7 +106,7 @@ export async function PostContinuation({ neighbors }: { neighbors: PostNeighbors
                     </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       {item.category?.name && (
-                        <Badge variant="secondary" className="h-5 max-w-28 truncate px-1.5 text-[11px] font-normal">
+                        <Badge variant="secondary" className="h-5 max-w-28 truncate px-1.5 text-xs font-normal">
                           {item.category.name}
                         </Badge>
                       )}

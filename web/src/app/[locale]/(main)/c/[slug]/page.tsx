@@ -9,6 +9,7 @@ import { SectionTitle, SiteShell } from '@/components/layout/site-shell'
 import {
   Pagination,
   PaginationContent,
+  PaginationEllipsis,
   PaginationItem,
   PaginationLink,
 } from '@/components/ui/pagination'
@@ -85,14 +86,41 @@ async function CategoryTotal({ slug, searchParams }: { slug: string, searchParam
   return total > 0 ? <span className="ml-2 text-base font-medium text-muted-foreground tabular-nums">{total}</span> : null
 }
 
+function buildPageItems(currentPage: number, totalPages: number): (number | 'ellipsis-start' | 'ellipsis-end')[] {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1)
+  }
+  const windowSize = 3
+  let start = currentPage - 1
+  let end = currentPage + 1
+  if (start < 3) {
+    start = 3
+    end = start + windowSize - 1
+  }
+  if (end > totalPages - 2) {
+    end = totalPages - 2
+    start = end - windowSize + 1
+  }
+  const items: (number | 'ellipsis-start' | 'ellipsis-end')[] = [1]
+  items.push(start > 3 ? 'ellipsis-start' : 2)
+  for (let p = start; p <= end; p++) items.push(p)
+  items.push(end < totalPages - 2 ? 'ellipsis-end' : totalPages - 1)
+  items.push(totalPages)
+  return items
+}
+
 // 读 ?page= 的部分：按请求渲染，第一页取自取数缓存
 async function CategoryPosts({ slug, baseUrl, searchParams }: { slug: string, baseUrl: string, searchParams: Promise<{ page?: string }> }) {
   const { page: pageParam } = await searchParams
-  const page = readPage(pageParam)
-  const operationT = await getTranslations('Operation')
-  const { posts, total } = await listCategoryPosts(slug, page).catch(() => ({ posts: [], total: 0 }))
+  const rawPage = readPage(pageParam)
+  const [paginationT, { posts, total }] = await Promise.all([
+    getTranslations('Components.pagination'),
+    listCategoryPosts(slug, rawPage).catch(() => ({ posts: [], total: 0 })),
+  ])
 
   const totalPages = Math.max(1, Math.ceil(total / CATEGORY_PAGE_SIZE))
+  const currentPage = Math.min(rawPage, totalPages)
+  const pageItems = buildPageItems(currentPage, totalPages)
   // 翻页用站内 Link（自动带语言前缀）：客户端跳转，不整页刷新、音乐不中断；预取沿用默认（进入视口取外壳、悬停取整页）
   const pageUrl = (p: number) => (p <= 1 ? baseUrl : `${baseUrl}?page=${p}`)
 
@@ -101,27 +129,37 @@ async function CategoryPosts({ slug, baseUrl, searchParams }: { slug: string, ba
       <PostList posts={posts} prioritizeFirst />
       {totalPages > 1 && (
         <Pagination className="pt-2">
-          <PaginationContent>
-            {page > 1 && (
+          <PaginationContent className="select-none gap-1.5 md:gap-1">
+            {currentPage > 1 && (
               <PaginationItem>
                 <PaginationLink asChild size="default" className="px-2.5">
-                  <Link href={pageUrl(page - 1)} aria-label={operationT('previous')}>
+                  <Link href={pageUrl(currentPage - 1)} aria-label={paginationT('previous_page')}>
                     <ChevronLeftIcon aria-hidden />
                   </Link>
                 </PaginationLink>
               </PaginationItem>
             )}
-            <PaginationItem>
-              <span className="px-3 text-sm text-muted-foreground tabular-nums">
-                {page}
-                {' / '}
-                {totalPages}
-              </span>
-            </PaginationItem>
-            {page < totalPages && (
+            {pageItems.map(item => (
+              typeof item === 'number'
+                ? (
+                    <PaginationItem key={item}>
+                      <PaginationLink asChild isActive={item === currentPage}>
+                        <Link href={pageUrl(item)} aria-label={paginationT('go_to_page', { page: item })}>
+                          {item}
+                        </Link>
+                      </PaginationLink>
+                    </PaginationItem>
+                  )
+                : (
+                    <PaginationItem key={item}>
+                      <PaginationEllipsis aria-hidden />
+                    </PaginationItem>
+                  )
+            ))}
+            {currentPage < totalPages && (
               <PaginationItem>
                 <PaginationLink asChild size="default" className="px-2.5">
-                  <Link href={pageUrl(page + 1)} aria-label={operationT('next')}>
+                  <Link href={pageUrl(currentPage + 1)} aria-label={paginationT('next_page')}>
                     <ChevronRightIcon aria-hidden />
                   </Link>
                 </PaginationLink>

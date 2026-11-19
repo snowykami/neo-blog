@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { listNotificationGroupMembers, listNotifications, markAllNotificationsRead, markNotificationRead } from '@/api/notification'
 import { useLoginDialog } from '@/components/auth/login-dialog'
 import { UserAvatar } from '@/components/common/avatar'
+import { SectionTitle } from '@/components/layout/site-shell'
 import { formatNotificationActors, formatNotificationSummary, getNotificationTargetHref } from '@/components/notification/notification-format'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
@@ -170,7 +171,7 @@ export function NotificationsPage() {
   if (!user && !authLoading) {
     return (
       <div className="mx-auto w-full max-w-2xl px-4 py-10">
-        <Empty className="border">
+        <Empty className="surface-card rounded-2xl bg-card">
           <EmptyHeader>
             <EmptyMedia variant="icon">
               <Bell />
@@ -191,7 +192,7 @@ export function NotificationsPage() {
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold">{t('title')}</h1>
+        <SectionTitle as="h1" className="text-xl md:text-2xl">{t('title')}</SectionTitle>
         <div className="flex items-center gap-2">
           <Button asChild type="button" variant="ghost" size="sm">
             <Link href={mainPath.notificationSettings}>
@@ -212,7 +213,7 @@ export function NotificationsPage() {
         </div>
       </div>
 
-      <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border bg-card px-3.5 py-2.5">
+      <div className="surface-card mb-4 flex items-center justify-between gap-3 rounded-2xl bg-card px-4 py-3">
         <div className="grid gap-0.5">
           <Label htmlFor="island-notification-switch" className="cursor-pointer text-sm font-normal">
             {t('island_alert_switch')}
@@ -239,7 +240,7 @@ export function NotificationsPage() {
         ? (
             <div className="grid gap-3">
               {Array.from({ length: 4 }).map((_, index) => (
-                <div key={index} className="flex gap-3 rounded-lg border p-3">
+                <div key={index} className="surface-card flex gap-3 rounded-2xl bg-card p-3.5">
                   <Skeleton className="size-9 shrink-0 rounded-full" />
                   <div className="grid flex-1 gap-2">
                     <Skeleton className="h-3.5 w-4/5" />
@@ -251,7 +252,7 @@ export function NotificationsPage() {
           )
         : items.length === 0
           ? (
-              <Empty className="border">
+              <Empty className="surface-card rounded-2xl bg-card">
                 <EmptyHeader>
                   <EmptyMedia variant="icon">
                     <Bell />
@@ -289,6 +290,10 @@ export function NotificationsPage() {
 function NotificationRow({ item, onOpen }: { item: NotificationItemModel, onOpen: (item: NotificationItemModel) => void }) {
   const [members, setMembers] = useState<NotificationItemModel[] | null>(null)
   const [expanding, setExpanding] = useState(false)
+  const t = useTranslations('Notifications')
+  const commonT = useTranslations('Common')
+  const errorMessageT = useErrorMessageT()
+  const locale = useLocale()
 
   // 聚合行可以展开看具体是谁；展开后仍只算一个未读
   const toggleMembers = async () => {
@@ -301,24 +306,22 @@ function NotificationRow({ item, onOpen }: { item: NotificationItemModel, onOpen
       const res = await listNotificationGroupMembers(item.id)
       setMembers(res.data.notifications)
     }
-    catch {
+    catch (error) {
       setMembers(null)
+      toast.error(`${t('load_failed')}: ${errorMessageT(error)}`)
     }
     finally {
       setExpanding(false)
     }
   }
 
-  const t = useTranslations('Notifications')
-  const commonT = useTranslations('Common')
-  const locale = useLocale()
   const href = getNotificationTargetHref(item)
   const actors = formatNotificationActors(t, item)
   const stackedActors = resolveStackedActors(item)
 
   const body = (
     <div className={cn(
-      'flex gap-3 rounded-lg border p-3 transition-colors hover:bg-accent/60',
+      'surface-card flex gap-3 rounded-2xl p-3.5 transition-colors hover:bg-accent/60',
       item.isRead ? 'bg-card' : 'bg-accent/30',
     )}
     >
@@ -340,7 +343,7 @@ function NotificationRow({ item, onOpen }: { item: NotificationItemModel, onOpen
         <p className="text-sm break-words">
           {formatNotificationSummary(t, item, actors)}
           {item.actorIsAi && (
-            <span className="ml-1 rounded bg-muted px-1 py-0.5 align-middle text-[10px] font-medium">AI</span>
+            <span className="ml-1 rounded bg-muted px-1 py-0.5 align-middle text-xs font-medium">AI</span>
           )}
         </p>
         <span className="text-muted-foreground text-xs">
@@ -369,7 +372,15 @@ function NotificationRow({ item, onOpen }: { item: NotificationItemModel, onOpen
 
   const expandable = item.aggregateCount > 1 && item.type !== 'comment.thread_replied'
   const content = href
-    ? <Link href={href} onClick={() => onOpen(item)}>{body}</Link>
+    ? (
+        <Link
+          href={href}
+          onClick={() => onOpen(item)}
+          className="block rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {body}
+        </Link>
+      )
     : body
 
   return (
@@ -379,7 +390,7 @@ function NotificationRow({ item, onOpen }: { item: NotificationItemModel, onOpen
         <div className="pl-14">
           <button
             type="button"
-            className="text-muted-foreground text-xs underline-offset-4 hover:underline"
+            className="text-muted-foreground -mx-2 inline-flex min-h-8 items-center rounded-md px-2 text-xs underline-offset-4 transition-colors hover:bg-muted/60 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             disabled={expanding}
             aria-expanded={Boolean(members)}
             onClick={() => void toggleMembers()}

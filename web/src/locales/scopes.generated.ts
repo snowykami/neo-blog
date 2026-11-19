@@ -214,7 +214,9 @@ export const SCOPES = {
     'LyricOptions',
   ],
   'console/notification-deliveries': [
+    'Components',
     'Console.global',
+    'Metrics',
     'NotificationDelivery',
   ],
   'console/oidc': [

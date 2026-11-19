@@ -32,7 +32,7 @@ export function ThemeModeCycleButton({
   return (
     <button
       type="button"
-      className={cn('inline-flex items-center justify-center', className)}
+      className={cn('inline-flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', className)}
       onClick={() => setMode(nextMode(mode))}
       title={t(`${mode}_mode`)}
       aria-label={t(`${mode}_mode`)}
@@ -68,7 +68,7 @@ export function ThemeModeSegmented(
       <div className={baseCls}>
         {/* 滑动高亮块：纯 CSS 位移过渡，减少动态效果时直接跳到目标位置 */}
         <div
-          className="absolute top-1 left-1 z-1 h-8 w-12 rounded-md bg-card shadow-sm transition-transform duration-[386ms] motion-reduce:transition-none"
+          className="absolute top-1 left-1 z-1 h-9 w-12 rounded-md bg-card shadow-sm transition-transform duration-[386ms] motion-reduce:transition-none"
           style={{
             transform: `translateX(calc(${activeIndex} * (3rem + 0.25rem)))`,
             transitionTimingFunction: SEGMENT_SPRING_EASING,
@@ -78,7 +78,7 @@ export function ThemeModeSegmented(
           <button
             key={m.value}
             className={cn(
-              'relative z-10 flex h-8 w-12 items-center justify-center rounded-md text-sm font-medium transition-colors',
+              'relative z-10 flex h-9 w-12 items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               mode === m.value ? 'text-primary' : 'text-muted-foreground',
             )}
             onClick={() => setMode(m.value)}

@@ -10,9 +10,10 @@ import { PageSizeSelector } from '@/components/common/page-size-selector'
 import { PaginationController } from '@/components/common/pagination'
 import { IssueBadges, LevelDot } from '@/components/console/errors/error-badges'
 import { Card } from '@/components/ui/card'
+import { Empty, EmptyDescription } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useConsoleQuery } from '@/hooks/use-console-query'
 import { Link } from '@/i18n/navigation'
@@ -78,16 +79,27 @@ export default function ErrorsPage() {
 
   return (
     <div className="grid gap-4">
-      {stats && (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <Card className="gap-1 px-4 py-3">
-            <div className="text-xs text-muted-foreground">{t('stats_unresolved')}</div>
-            <div className="text-2xl font-semibold tabular-nums">{stats.unresolved}</div>
-          </Card>
-          <Card className="gap-1 px-4 py-3">
-            <div className="text-xs text-muted-foreground">{t('stats_active_24h')}</div>
-            <div className="text-2xl font-semibold tabular-nums">{stats.activeLastDay}</div>
-          </Card>
+      {(stats || statsQuery.loading) && (
+        <div className="grid grid-cols-2 gap-3">
+          {stats
+            ? (
+                <>
+                  <Card className="gap-1 px-4 py-3">
+                    <div className="text-xs text-muted-foreground">{t('stats_unresolved')}</div>
+                    <div className="text-2xl font-semibold tabular-nums">{stats.unresolved}</div>
+                  </Card>
+                  <Card className="gap-1 px-4 py-3">
+                    <div className="text-xs text-muted-foreground">{t('stats_active_24h')}</div>
+                    <div className="text-2xl font-semibold tabular-nums">{stats.activeLastDay}</div>
+                  </Card>
+                </>
+              )
+            : Array.from({ length: 2 }, (_, idx) => (
+                <Card key={idx} className="gap-2 px-4 py-3">
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-8 w-14" />
+                </Card>
+              ))}
         </div>
       )}
 
@@ -123,19 +135,37 @@ export default function ErrorsPage() {
         </div>
       </div>
 
-      <Separator />
-      <div>
-        {loading && <p className="py-8 text-center text-muted-foreground">{t('loading')}</p>}
-        {!loading && issues.length === 0 && <p className="py-8 text-center text-muted-foreground">{t('empty')}</p>}
-        {!loading && issues.map(issue => (
-          <div key={issue.id}>
-            <IssueRow issue={issue} />
-            <Separator />
+      <div className="overflow-hidden rounded-xl border bg-card divide-y shadow-[0_1px_1px_-0.5px_rgba(0,0,0,0.035),0_3px_8px_-2px_rgba(0,0,0,0.035)] empty:hidden dark:shadow-none">
+        {loading && (
+          <div className="divide-y" aria-busy="true" aria-label={t('loading')}>
+            {Array.from({ length: 6 }, (_, idx) => (
+              <div key={idx} className="space-y-2 px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <Skeleton className="size-2.5 rounded-full" />
+                  <Skeleton className="h-4 w-2/5 max-w-sm" />
+                  <Skeleton className="h-5 w-14 rounded-md" />
+                  <Skeleton className="ml-auto h-4 w-12" />
+                </div>
+                <div className="flex gap-3 pl-4">
+                  <Skeleton className="h-3 w-36" />
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="h-3 w-20" />
+                </div>
+              </div>
+            ))}
           </div>
+        )}
+        {!loading && issues.length === 0 && (
+          <Empty className="py-10">
+            <EmptyDescription>{t('empty')}</EmptyDescription>
+          </Empty>
+        )}
+        {!loading && issues.map(issue => (
+          <IssueRow key={issue.id} issue={issue} />
         ))}
       </div>
 
-      <div className="flex items-center justify-center py-2">
+      <div className="flex flex-wrap items-center justify-center gap-2 py-2">
         {total > 0 && <PaginationController page={page} onPageChange={setPage} total={total} pageSize={size} />}
         <PageSizeSelector size={size} onSizeChange={changeSize} />
         {' '}
@@ -149,7 +179,7 @@ function IssueRow({ issue }: { issue: ErrorIssue }) {
   const t = useTranslations('Console.errors')
   const format = useFormatter()
   return (
-    <Link href={`${consolePath.error}/${issue.id}`} className="grid gap-1 px-1 py-3 transition-colors hover:bg-accent/50">
+    <Link href={`${consolePath.error}/${issue.id}`} className="grid gap-1 px-4 py-3 transition-colors hover:bg-muted/40">
       <div className="flex min-w-0 items-center gap-2">
         <LevelDot level={issue.level} />
         <span className="min-w-0 truncate font-medium">{issue.kind === 'crash' || issue.kind === 'discarded' ? t(`kind_title_${issue.kind}`) : issue.title}</span>

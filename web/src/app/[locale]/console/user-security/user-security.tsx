@@ -10,9 +10,10 @@ import { ImageAvatar } from '@/components/common/avatar'
 import { InputOTPControlled } from '@/components/common/input-otp'
 import { Popconfirm } from '@/components/common/popconfirm'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Separator } from '@/components/ui/separator'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/contexts/auth-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { resetPasswordPath } from '@/hooks/use-route'
@@ -40,6 +41,7 @@ export function UserSecurityPage() {
   const { user, setUser } = useAuth()
   const { siteInfo } = useSiteInfo()
   const [openIds, setOpenIds] = useState<OpenIdDto[]>([])
+  const [openIdsLoading, setOpenIdsLoading] = useState(true)
   const [coolDown, setCoolDown] = useState(0)
   const [sendingVerifyCode, setSendingVerifyCode] = useState(false)
 
@@ -55,15 +57,25 @@ export function UserSecurityPage() {
   const watchedVerifyCode = emailForm.watch('verifyCode')
 
   useEffect(() => {
+    let cancelled = false
     getUserOpenIdList()
       .then((res) => {
-        setOpenIds(res.data.openids)
+        if (!cancelled)
+          setOpenIds(res.data.openids)
       })
       .catch((error: unknown) => {
         console.error('error', error)
-        toast.error(errorMessageT(error))
+        if (!cancelled)
+          toast.error(errorMessageT(error))
       })
-  }, [setOpenIds])
+      .finally(() => {
+        if (!cancelled)
+          setOpenIdsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [errorMessageT])
 
   // 验证码冷却倒计时
   useEffect(() => {
@@ -125,143 +137,183 @@ export function UserSecurityPage() {
   if (!user)
     return null
   return (
-    <div>
-      <Form {...passwordForm}>
-        <form className="grid w-full max-w-sm items-center gap-4" onSubmit={passwordForm.handleSubmit(handleSubmitPassword)}>
-          <h1 className="text-2xl font-bold">{t('password_setting')}</h1>
-          <FormField
-            control={passwordForm.control}
-            name="oldPassword"
-            rules={{ required: t('password_required') }}
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t('old_password')}</FormLabel>
-                <FormControl>
-                  <Input type="password" autoComplete="current-password" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={passwordForm.control}
-            name="newPassword"
-            rules={{
-              required: t('password_required'),
-              minLength: { value: PASSWORD_MIN_LENGTH, message: t('password_length', { min: PASSWORD_MIN_LENGTH, max: PASSWORD_MAX_LENGTH }) },
-              maxLength: { value: PASSWORD_MAX_LENGTH, message: t('password_length', { min: PASSWORD_MIN_LENGTH, max: PASSWORD_MAX_LENGTH }) },
-            }}
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t('new_password')}</FormLabel>
-                <FormControl>
-                  <Input type="password" autoComplete="new-password" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={passwordForm.control}
-            name="confirmPassword"
-            rules={{
-              required: t('password_required'),
-              validate: value => value === passwordForm.getValues('newPassword') || t('password_mismatch'),
-            }}
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t('confirm_new_password')}</FormLabel>
-                <FormControl>
-                  <Input type="password" autoComplete="new-password" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+    <div className="grid w-full max-w-2xl gap-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">{t('password_setting')}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Form {...passwordForm}>
+            <form className="grid gap-4" onSubmit={passwordForm.handleSubmit(handleSubmitPassword)}>
+              <FormField
+                control={passwordForm.control}
+                name="oldPassword"
+                rules={{ required: t('password_required') }}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('old_password')}</FormLabel>
+                    <FormControl>
+                      <Input type="password" autoComplete="current-password" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={passwordForm.control}
+                name="newPassword"
+                rules={{
+                  required: t('password_required'),
+                  minLength: { value: PASSWORD_MIN_LENGTH, message: t('password_length', { min: PASSWORD_MIN_LENGTH, max: PASSWORD_MAX_LENGTH }) },
+                  maxLength: { value: PASSWORD_MAX_LENGTH, message: t('password_length', { min: PASSWORD_MIN_LENGTH, max: PASSWORD_MAX_LENGTH }) },
+                }}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('new_password')}</FormLabel>
+                    <FormControl>
+                      <Input type="password" autoComplete="new-password" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={passwordForm.control}
+                name="confirmPassword"
+                rules={{
+                  required: t('password_required'),
+                  validate: value => value === passwordForm.getValues('newPassword') || t('password_mismatch'),
+                }}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('confirm_new_password')}</FormLabel>
+                    <FormControl>
+                      <Input type="password" autoComplete="new-password" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-          <div className="flex w-full items-center justify-between">
-            <Button
-              type="submit"
-              disabled={passwordForm.formState.isSubmitting}
-              className="max-w-1/3 border-2"
-            >
-              {passwordForm.formState.isSubmitting && <Loader2 className="size-4 animate-spin" />}
-              {t('update_password')}
-            </Button>
-            <Link href={resetPasswordPath}>{t('forgot_password_or_no_password')}</Link>
-          </div>
-        </form>
-      </Form>
-      <Separator className="my-4" />
-      <Form {...emailForm}>
-        <form className="grid w-full max-w-sm items-center gap-4 py-4" onSubmit={emailForm.handleSubmit(handleSubmitEmail)}>
-          <h1 className="text-2xl font-bold">{t('email_setting')}</h1>
-          <FormField
-            control={emailForm.control}
-            name="email"
-            rules={{ required: true }}
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{commonT('email')}</FormLabel>
-                <FormControl>
-                  <Input type="email" autoComplete="email" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={emailForm.control}
-            name="verifyCode"
-            rules={{ required: true, minLength: 6 }}
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t('verify_code')}</FormLabel>
-                {/* 窄屏放不下验证码输入框和按钮时，按钮换到下一行 */}
-                <div className="flex flex-wrap gap-2 justify-between">
-                  <FormControl>
-                    <InputOTPControlled value={field.value} onChange={field.onChange} />
-                  </FormControl>
-                  <Button
-                    type="button"
-                    disabled={!watchedEmail || watchedEmail === user.email || coolDown > 0 || sendingVerifyCode}
-                    variant="outline"
-                    className="border-2"
-                    onClick={handleSendVerifyCode}
-                  >
-                    {sendingVerifyCode && <Loader2 className="size-4 animate-spin" />}
-                    {t('send_verify_code')}
-                    {coolDown > 0 ? `(${coolDown})` : ''}
-                  </Button>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <Button
+                  type="submit"
+                  disabled={passwordForm.formState.isSubmitting}
+                >
+                  {passwordForm.formState.isSubmitting && <Loader2 className="size-4 animate-spin" />}
+                  {t('update_password')}
+                </Button>
+                <Link
+                  href={resetPasswordPath}
+                  className="text-sm text-primary hover:underline underline-offset-4"
+                >
+                  {t('forgot_password_or_no_password')}
+                </Link>
+              </div>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">{t('email_setting')}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Form {...emailForm}>
+            <form className="grid gap-4" onSubmit={emailForm.handleSubmit(handleSubmitEmail)}>
+              <FormField
+                control={emailForm.control}
+                name="email"
+                rules={{ required: true }}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{commonT('email')}</FormLabel>
+                    <FormControl>
+                      <Input type="email" autoComplete="email" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={emailForm.control}
+                name="verifyCode"
+                rules={{ required: true, minLength: 6 }}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('verify_code')}</FormLabel>
+                    {/* 窄屏放不下验证码输入框和按钮时，按钮换到下一行 */}
+                    <div className="flex flex-wrap items-center gap-3">
+                      <FormControl>
+                        <InputOTPControlled value={field.value} onChange={field.onChange} />
+                      </FormControl>
+                      <Button
+                        type="button"
+                        disabled={!watchedEmail || watchedEmail === user.email || coolDown > 0 || sendingVerifyCode}
+                        variant="outline"
+                        onClick={handleSendVerifyCode}
+                      >
+                        {sendingVerifyCode && <Loader2 className="size-4 animate-spin" />}
+                        {t('send_verify_code')}
+                        {coolDown > 0 ? `(${coolDown})` : ''}
+                      </Button>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="flex justify-start">
+                <Button
+                  type="submit"
+                  disabled={watchedVerifyCode.length < 6 || emailForm.formState.isSubmitting}
+                >
+                  {emailForm.formState.isSubmitting && <Loader2 className="size-4 animate-spin" />}
+                  {t('update_email')}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">{t('openid_accounts')}</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          {openIdsLoading
+            ? (
+                <div className="grid gap-3" aria-busy="true">
+                  {Array.from({ length: 2 }, (_, i) => (
+                    <div key={i} className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                      <div className="flex items-center gap-3">
+                        <Skeleton className="size-8 rounded-full" />
+                        <div className="grid gap-1.5">
+                          <Skeleton className="h-3.5 w-20" />
+                          <Skeleton className="h-4 w-44" />
+                        </div>
+                      </div>
+                      <Skeleton className="size-8 rounded-md" />
+                    </div>
+                  ))}
                 </div>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <Button
-            type="submit"
-            disabled={watchedVerifyCode.length < 6 || emailForm.formState.isSubmitting}
-            className="border-2"
-          >
-            {emailForm.formState.isSubmitting && <Loader2 className="size-4 animate-spin" />}
-            {t('update_email')}
-          </Button>
-        </form>
-      </Form>
-      <Separator className="my-4" />
-      <div className="grid w-full max-w-sm items-center gap-4 py-4">
-        <h1 className="text-2xl font-bold">{t('openid_accounts')}</h1>
-        {openIds.length === 0 && <p className="text-sm text-muted-foreground">{t('no_openid_accounts')}</p>}
-        <div className="grid gap-4">
-          {openIds.map(openId => (
-            <UserOpenIdItem
-              key={openId.id}
-              openId={openId}
-              onUnbind={id => setOpenIds(prev => prev.filter(item => item.id !== id))}
-            />
-          ))}
-        </div>
-      </div>
+              )
+            : openIds.length === 0
+              ? <p className="text-sm text-muted-foreground">{t('no_openid_accounts')}</p>
+              : (
+                  <div className="grid gap-3">
+                    {openIds.map(openId => (
+                      <UserOpenIdItem
+                        key={openId.id}
+                        openId={openId}
+                        onUnbind={id => setOpenIds(prev => prev.filter(item => item.id !== id))}
+                      />
+                    ))}
+                  </div>
+                )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
@@ -275,13 +327,13 @@ function UserOpenIdItem({ openId, onUnbind }: { openId: OpenIdDto, onUnbind: (id
     onUnbind(openId.id)
   }, [openId.id, onUnbind, t])
   return (
-    <div className="flex items-center justify-between w-full max-w-sm border p-2 rounded-md gap-2">
+    <div className="flex w-full items-center justify-between gap-3 rounded-lg border p-3">
       {/* 左头像 */}
-      <div className="flex items-center gap-2">
+      <div className="flex min-w-0 items-center gap-3">
         <ImageAvatar src={openId.oidcIcon} alt={openId.oidcName} sizes="32px" fallback={(openId.oidcDisplayName || openId.oidcName).slice(0, 1)} />
-        <div className="grid">
-          <span className="text-sm text-muted-foreground">{openId.oidcDisplayName || openId.oidcName}</span>
-          <span className="font-medium truncate">
+        <div className="grid min-w-0">
+          <span className="text-xs text-muted-foreground">{openId.oidcDisplayName || openId.oidcName}</span>
+          <span className="truncate text-sm font-medium">
             {openId.name || openId.preferredUsername}
             {' '}
             (
@@ -289,10 +341,6 @@ function UserOpenIdItem({ openId, onUnbind }: { openId: OpenIdDto, onUnbind: (id
             )
           </span>
         </div>
-      </div>
-      {/* 右信息 */}
-      <div className="flex items-center gap-2 justify-start">
-
       </div>
       {/* 解绑可随时重新绑定，使用就地确认 */}
       <Popconfirm
@@ -306,7 +354,7 @@ function UserOpenIdItem({ openId, onUnbind }: { openId: OpenIdDto, onUnbind: (id
         <Button
           variant="ghost"
           size="icon"
-          className="text-red-500 hover:text-red-600"
+          className="shrink-0 text-destructive hover:text-destructive"
           aria-label={t('unbind')}
           title={t('unbind')}
         >

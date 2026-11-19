@@ -6,7 +6,10 @@ import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { listNotificationDeliveries, retryNotificationDelivery } from '@/api/admin'
+import { PageSizeSelector } from '@/components/common/page-size-selector'
+import { PaginationController } from '@/components/common/pagination'
 import { STICKY_ACTIONS_CLASS } from '@/components/console/common/sticky-actions'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -15,6 +18,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useErrorMessageT } from '@/hooks/use-translations'
 
 const PAGE_SIZE = 20
+
+const STATE_BADGE_CLASS: Record<string, string> = {
+  sent: 'bg-green-100 text-green-800 dark:bg-green-500/15 dark:text-green-300',
+  failed: 'bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-300',
+  sending: 'bg-sky-100 text-sky-800 dark:bg-sky-500/15 dark:text-sky-300',
+  pending: 'bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300',
+  skipped: 'bg-muted text-muted-foreground',
+}
 
 const STATES = [
   { value: 'attention', label: 'state_attention' },
@@ -32,22 +43,24 @@ const STATES = [
 export default function NotificationDeliveriesPage() {
   const t = useTranslations('NotificationDelivery')
   const globalT = useTranslations('Console.global')
+  const metricsT = useTranslations('Metrics')
   const errorMessageT = useErrorMessageT()
   const [state, setState] = useState<string>('attention')
   const [rows, setRows] = useState<NotificationDelivery[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
+  const [size, setSize] = useState(PAGE_SIZE)
   const [loading, setLoading] = useState(true)
   const [retrying, setRetrying] = useState<number | null>(null)
 
-  const load = useCallback(async (nextPage: number) => {
+  const load = useCallback(async (nextPage: number, nextSize: number = size) => {
     setLoading(true)
     try {
       const res = await listNotificationDeliveries({
         // 「需要关注」不带 state，后端默认返回 failed + sending
         state: state === 'attention' ? undefined : state,
         page: nextPage,
-        size: PAGE_SIZE,
+        size: nextSize,
       })
       setRows(res.data.deliveries)
       setTotal(res.data.total)
@@ -59,18 +72,18 @@ export default function NotificationDeliveriesPage() {
     finally {
       setLoading(false)
     }
-  }, [state, t, errorMessageT])
+  }, [state, size, t, errorMessageT])
 
   useEffect(() => {
-    void load(1)
-  }, [load])
+    void load(1, size)
+  }, [load, size])
 
   const retry = async (id: number) => {
     setRetrying(id)
     try {
       await retryNotificationDelivery(id)
       toast.success(t('retry_success'))
-      await load(page)
+      await load(page, size)
     }
     catch (error) {
       toast.error(`${t('retry_failed')}: ${errorMessageT(error)}`)
@@ -80,15 +93,10 @@ export default function NotificationDeliveriesPage() {
     }
   }
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
-
   return (
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="grid gap-1">
-          <h1 className="text-2xl font-bold">{t('title')}</h1>
-          <p className="text-muted-foreground text-sm text-balance">{t('description')}</p>
-        </div>
+        <p className="text-muted-foreground text-sm text-balance">{t('description')}</p>
         <div className="flex items-center gap-2">
           <Select value={state} onValueChange={setState}>
             <SelectTrigger className="w-40">
@@ -100,7 +108,7 @@ export default function NotificationDeliveriesPage() {
               ))}
             </SelectContent>
           </Select>
-          <Button type="button" variant="outline" size="icon" onClick={() => void load(page)}>
+          <Button type="button" variant="outline" size="icon" onClick={() => void load(page, size)}>
             <RefreshCw />
             <span className="sr-only">{globalT('refresh')}</span>
           </Button>
@@ -111,7 +119,7 @@ export default function NotificationDeliveriesPage() {
         ? <Skeleton className="h-64 w-full rounded-xl" />
         : rows.length === 0
           ? (
-              <Empty className="border">
+              <Empty className="rounded-xl border bg-card">
                 <EmptyHeader>
                   <EmptyTitle>{t('empty_title')}</EmptyTitle>
                   <EmptyDescription>{t('empty_desc')}</EmptyDescription>
@@ -119,7 +127,7 @@ export default function NotificationDeliveriesPage() {
               </Empty>
             )
           : (
-              <div className="rounded-xl border">
+              <div className="overflow-hidden rounded-xl border bg-card shadow-[0_1px_1px_-0.5px_rgba(0,0,0,0.035),0_3px_8px_-2px_rgba(0,0,0,0.035)] dark:shadow-none">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -141,7 +149,11 @@ export default function NotificationDeliveriesPage() {
                             <div>{t.has(typeKey) ? t(typeKey) : row.type}</div>
                             <div className="text-muted-foreground max-w-48 truncate">{row.subjectTitle}</div>
                           </TableCell>
-                          <TableCell className="text-xs">{t(`state_${row.emailState}`)}</TableCell>
+                          <TableCell className="text-xs">
+                            <Badge variant="secondary" className={STATE_BADGE_CLASS[row.emailState] ?? 'bg-muted text-muted-foreground'}>
+                              {t(`state_${row.emailState}`)}
+                            </Badge>
+                          </TableCell>
                           <TableCell className="text-xs tabular-nums">{row.attempts}</TableCell>
                           <TableCell className="text-muted-foreground max-w-64 truncate text-xs" title={row.lastError}>{row.lastError || '—'}</TableCell>
                           <TableCell className={`text-right ${STICKY_ACTIONS_CLASS}`}>
@@ -165,23 +177,26 @@ export default function NotificationDeliveriesPage() {
               </div>
             )}
 
-      {totalPages > 1 && (
-        <div className="text-muted-foreground flex items-center justify-end gap-2 text-xs">
-          <Button type="button" variant="outline" size="sm" disabled={page <= 1} onClick={() => void load(page - 1)}>
-            {t('prev')}
-          </Button>
-          <span className="tabular-nums">
-            {page}
-            {' '}
-            /
-            {' '}
-            {totalPages}
-          </span>
-          <Button type="button" variant="outline" size="sm" disabled={page >= totalPages} onClick={() => void load(page + 1)}>
-            {t('next')}
-          </Button>
+      <div className="flex flex-wrap items-center justify-center gap-2 py-2">
+        {total > 0 && (
+          <PaginationController
+            page={page}
+            onPageChange={nextPage => void load(nextPage, size)}
+            total={total}
+            pageSize={size}
+          />
+        )}
+        <div className="flex items-center gap-1 text-sm">
+          <PageSizeSelector
+            size={size}
+            onSizeChange={(nextSize) => {
+              setSize(nextSize)
+              setPage(1)
+            }}
+          />
+          {metricsT('per_page')}
         </div>
-      )}
+      </div>
     </div>
   )
 }

@@ -1,14 +1,16 @@
 'use client'
 
 import type { GlobalSearchResult, SearchCommentHit, SearchPageHit } from '@/models/search'
-import { ExternalLinkIcon, FileIcon, FileTextIcon, MessageSquareIcon, SearchIcon, UserIcon } from 'lucide-react'
+import { AlertCircleIcon, ArchiveIcon, ExternalLinkIcon, FileIcon, FileTextIcon, FolderIcon, HashIcon, MessageSquareIcon, RotateCwIcon, SearchIcon, ShuffleIcon, UserIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useEffect, useMemo, useState } from 'react'
 import { globalSearch } from '@/api/search'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Button } from '@/components/ui/button'
 import { CommandDialog, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from '@/components/ui/command'
 import { Spinner } from '@/components/ui/spinner'
 import { useSiteInfo } from '@/contexts/site-info-context'
+import { useCommonT, useOperationT } from '@/hooks/use-translations'
 import { useRouter } from '@/i18n/navigation'
 import { splitHighlight } from '@/utils/common/highlight'
 import { getPageUrl, getPostUrl, getUserUrl, mainPath, withCommentAnchor } from '@/utils/common/route'
@@ -44,9 +46,15 @@ export function NavSearchDialog({ open, setOpen, onNavigate }: { open: boolean, 
   const { siteInfo } = useSiteInfo()
   const commentEnabled = isCommentEnabled(siteInfo)
   const t = useTranslations('Search')
+  const routeT = useTranslations('Route')
+  const musicPageT = useTranslations('MusicPage')
+  const commonT = useCommonT()
+  const operationT = useOperationT()
   const router = useRouter()
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(false)
+  const [retryKey, setRetryKey] = useState(0)
   const [result, setResult] = useState<GlobalSearchResult | null>(null)
 
   const keyword = query.trim()
@@ -54,11 +62,13 @@ export function NavSearchDialog({ open, setOpen, onNavigate }: { open: boolean, 
   useEffect(() => {
     if (!open || !keyword) {
       setResult(null)
+      setError(false)
       setLoading(false)
       return
     }
     const controller = new AbortController()
     setLoading(true)
+    setError(false)
     const timer = window.setTimeout(() => {
       globalSearch({
         q: keyword,
@@ -69,11 +79,13 @@ export function NavSearchDialog({ open, setOpen, onNavigate }: { open: boolean, 
         .then((res) => {
           if (!controller.signal.aborted) {
             setResult(res.data)
+            setError(false)
           }
         })
         .catch(() => {
           if (!controller.signal.aborted) {
             setResult(null)
+            setError(true)
           }
         })
         .finally(() => {
@@ -86,7 +98,7 @@ export function NavSearchDialog({ open, setOpen, onNavigate }: { open: boolean, 
       window.clearTimeout(timer)
       controller.abort()
     }
-  }, [open, keyword, commentEnabled])
+  }, [open, keyword, commentEnabled, retryKey])
 
   const closeAndNavigate = (href: string, external = false) => {
     setOpen(false)
@@ -141,6 +153,26 @@ export function NavSearchDialog({ open, setOpen, onNavigate }: { open: boolean, 
           placeholder={t('placeholder')}
         />
         <CommandList className="max-h-[min(70vh,440px)]">
+          {!keyword && (
+            <CommandGroup>
+              <CommandItem value="quick-archive" onSelect={() => closeAndNavigate(mainPath.archive)}>
+                <ArchiveIcon className="text-muted-foreground" />
+                <span>{routeT('archive')}</span>
+              </CommandItem>
+              <CommandItem value="quick-category" onSelect={() => closeAndNavigate(mainPath.category)}>
+                <FolderIcon className="text-muted-foreground" />
+                <span>{routeT('category')}</span>
+              </CommandItem>
+              <CommandItem value="quick-label" onSelect={() => closeAndNavigate(mainPath.label)}>
+                <HashIcon className="text-muted-foreground" />
+                <span>{routeT('label')}</span>
+              </CommandItem>
+              <CommandItem value="quick-random" onSelect={() => closeAndNavigate(mainPath.random)}>
+                <ShuffleIcon className="text-muted-foreground" />
+                <span>{routeT('random')}</span>
+              </CommandItem>
+            </CommandGroup>
+          )}
           {keyword && (
             <>
               <CommandGroup>
@@ -169,7 +201,7 @@ export function NavSearchDialog({ open, setOpen, onNavigate }: { open: boolean, 
                                 <HighlightedText text={post.title} terms={terms} />
                               </span>
                               {post.categoryName && (
-                                <span className="shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                                <span className="shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
                                   <HighlightedText text={post.categoryName} terms={terms} />
                                 </span>
                               )}
@@ -266,7 +298,7 @@ export function NavSearchDialog({ open, setOpen, onNavigate }: { open: boolean, 
                         >
                           <Avatar className="size-5 shrink-0">
                             {u.avatarUrl && <AvatarImage src={u.avatarUrl} alt={displayName} />}
-                            <AvatarFallback className="text-[10px]">
+                            <AvatarFallback className="text-xs">
                               <UserIcon className="size-3" />
                             </AvatarFallback>
                           </Avatar>
@@ -286,12 +318,46 @@ export function NavSearchDialog({ open, setOpen, onNavigate }: { open: boolean, 
                 </>
               )}
 
-              {!loading && result && !hasAnyHit && (
+              {!loading && error && (
+                <div className="flex flex-col items-center justify-center gap-2 px-4 py-6 text-center text-xs text-muted-foreground">
+                  <div className="flex items-center gap-1.5 text-destructive">
+                    <AlertCircleIcon className="size-4" aria-hidden />
+                    <span>{operationT('fetch_failed')}</span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setRetryKey(k => k + 1)}
+                  >
+                    <RotateCwIcon className="size-3.5" aria-hidden />
+                    {musicPageT('retry')}
+                  </Button>
+                </div>
+              )}
+
+              {!loading && !error && result && !hasAnyHit && (
                 <p className="px-4 py-6 text-center text-xs text-muted-foreground">{t('no_results')}</p>
               )}
             </>
           )}
         </CommandList>
+        <div className="hidden items-center justify-between border-t bg-muted/30 px-3 py-2 text-xs text-muted-foreground sm:flex">
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center gap-1">
+              <kbd className="rounded border bg-background px-1.5 py-0.5 font-mono text-xs leading-none">↑</kbd>
+              <kbd className="rounded border bg-background px-1.5 py-0.5 font-mono text-xs leading-none">↓</kbd>
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <kbd className="rounded border bg-background px-1.5 py-0.5 font-mono text-xs leading-none">↵</kbd>
+              <span>{operationT('open')}</span>
+            </span>
+          </div>
+          <span className="inline-flex items-center gap-1">
+            <kbd className="rounded border bg-background px-1.5 py-0.5 font-mono text-xs leading-none">Esc</kbd>
+            <span>{commonT('close')}</span>
+          </span>
+        </div>
       </CommandDialog>
     </>
   )

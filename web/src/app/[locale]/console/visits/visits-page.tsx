@@ -16,9 +16,10 @@ import { IpAddress } from '@/components/console/visits/ip-address'
 import { RuleFlagBadge, TRUST_STYLES, TrustBadge } from '@/components/console/visits/trust-badge'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
+import { Empty, EmptyDescription } from '@/components/ui/empty'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/contexts/auth-context'
@@ -235,19 +236,36 @@ export default function VisitsPage() {
       {/* 单个访客详情 */}
       {visitor && <VisitorCard visitor={visitor} />}
 
-      <Separator />
-      <div>
-        {loading && <p className="py-8 text-center text-muted-foreground">{t('loading')}</p>}
-        {!loading && visits.length === 0 && <p className="py-8 text-center text-muted-foreground">{t('empty')}</p>}
-        {!loading && visits.map(visit => (
-          <div key={visit.id}>
-            <VisitRow visit={visit} onSelectVisitor={selectVisitor} />
-            <Separator />
+      <div className="overflow-hidden rounded-xl border bg-card divide-y shadow-[0_1px_1px_-0.5px_rgba(0,0,0,0.035),0_3px_8px_-2px_rgba(0,0,0,0.035)] empty:hidden dark:shadow-none">
+        {loading && (
+          <div className="divide-y" aria-busy="true" aria-label={t('loading')}>
+            {Array.from({ length: 6 }, (_, idx) => (
+              <div key={idx} className="space-y-2 px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <Skeleton className="size-6 rounded-full" />
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-4 w-48" />
+                </div>
+                <div className="flex gap-3">
+                  <Skeleton className="h-3 w-16" />
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="h-3 w-20" />
+                </div>
+              </div>
+            ))}
           </div>
+        )}
+        {!loading && visits.length === 0 && (
+          <Empty className="py-10">
+            <EmptyDescription>{t('empty')}</EmptyDescription>
+          </Empty>
+        )}
+        {!loading && visits.map(visit => (
+          <VisitRow key={visit.id} visit={visit} onSelectVisitor={selectVisitor} />
         ))}
       </div>
 
-      <div className="flex items-center justify-center py-2">
+      <div className="flex flex-wrap items-center justify-center gap-2 py-2">
         {total > 0 && <PaginationController page={page} onPageChange={setPage} total={total} pageSize={size} />}
         <PageSizeSelector size={size} onSizeChange={changeSize} />
         {' '}
@@ -385,7 +403,7 @@ function VisitRow({ visit, onSelectVisitor }: { visit: VisitLog, onSelectVisitor
 
   return (
     // 长标题、长链接、长路径在窄屏上折行，不把页面撑宽
-    <div className="flex min-w-0 flex-col gap-1 py-3 text-sm">
+    <div className="flex min-w-0 flex-col gap-1 px-4 py-3 text-sm transition-colors hover:bg-muted/40">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <VisitActor visit={visit} onSelectVisitor={onSelectVisitor} />
         {visit.trust && <TrustBadge trust={visit.trust} />}
