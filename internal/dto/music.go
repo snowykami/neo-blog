@@ -625,6 +625,12 @@ type MusicLyricMotionRefreshReq struct {
 	Source string `json:"source"`
 }
 
+// MusicLyricMotionSaveReq 管理员手动设置一首歌指定词源的歌词上浮弹性预设（source 为空时取全站歌词版本）
+type MusicLyricMotionSaveReq struct {
+	Motion string `json:"motion" vd:"len($)>0"`
+	Source string `json:"source"`
+}
+
 // MusicLyricMotionDto 独立查询/生成的歌词上浮弹性结果：
 // status 为 ready 或 pending；即使处于 pending 首屏也立即携带按歌单时速标定出的启发式 motion 兜底，AI 完成后平滑切换
 type MusicLyricMotionDto struct {

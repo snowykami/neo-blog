@@ -286,7 +286,7 @@ func TestLyricAnnotationStage1PartialAndParallelPrefetch(t *testing.T) {
 	if svc.loadPartial(key, lines) != nil {
 		t.Fatal("partial cache should be deleted after execute finishes")
 	}
-	got, svcerr := svc.get(777, lines, info, tools.AIConfig{Model: "m"}, time.Hour)
+	got, svcerr := svc.get(777, lines, info, tools.AIConfig{Model: "m"})
 	if svcerr != nil || got.Status != lyricAnnotationStatusReady || len(got.Lines) == 0 {
 		t.Fatalf("final get = %+v, err=%v", got, svcerr)
 	}

@@ -1203,8 +1203,6 @@
       "ai_summary_concurrency_desc": "Maximum number of simultaneous model requests (1–100), shared by AI summaries and AI writing in the editor; extra requests queue in order, with AI writing served first",
       "ai_monthly_token_budget": "Site-wide monthly token budget",
       "ai_monthly_token_budget_desc": "Tokens the whole site may use per month (AI users included). Once used up, AI summaries, AI writing, comment translation and lyric effects pause until next month; AI users are limited only by their own budget. 0 means unlimited",
-      "lyric_annotation_ttl_days": "Lyric effects lifetime (days)",
-      "lyric_annotation_ttl_days_desc": "How long AI lyric effects are cached (1–365); after expiry readers keep seeing the old effects while new ones are generated in the background",
       "section_ai_thinking": "Thinking mode",
       "section_ai_thinking_desc": "Configure reasoning effort per AI task (compatible with OpenAI reasoning_effort and DeepSeek thinking toggles); unsupported models automatically fall back on 400 errors",
       "ai_thinking_mode_default": "Default (Model default)",
@@ -3815,6 +3813,8 @@
     "motion_title": "Lyric Float Motion",
     "motion_effective": "Active motion: {motion}",
     "motion_preview_note": " (preview override)",
+    "motion_saved": "Saved lyric motion: {motion}",
+    "motion_save_failed": "Failed to save lyric motion",
     "motion_chart_hint": "Blue / pink / purple show outgoing, focus, and upcoming staggered spring step responses"
   },
   "Response": {

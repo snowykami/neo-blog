@@ -9,11 +9,14 @@ import katex from 'katex'
 import { ChevronDownIcon, RotateCcwIcon, XIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { toast } from 'sonner'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { useAuth } from '@/contexts/auth-context'
+import { saveSongMotion } from '@/contexts/lyric-motion'
 import { useMusic, useMusicClockStore } from '@/contexts/music-context'
 import { LYRIC_MOTIONS } from '@/lib/lyrics/annotation-options'
 import { LYRIC_STAGGER_DECAY, resolveLyricMotionPreset, resolveMotionSprings } from '@/lib/lyrics/config'
@@ -23,6 +26,7 @@ import { basePeriodOf, getRhythmParams, PULSE_OCTAVES, resetRhythmParams, setRhy
 import { getRhythmState, subscribeRhythm } from '@/lib/lyrics/rhythm/source'
 import { Spring } from '@/lib/lyrics/spring'
 import { buildTimeline } from '@/lib/lyrics/timeline'
+import { isAdmin } from '@/utils/common/permission'
 import { drawInput, drawKernels, drawLanes, drawTempo, WINDOW_MS } from './charts'
 import { formulasFor, octaveOf } from './formulas'
 import { backgroundTrace, emphasisTrace, interludeTrace, kernelCurves } from './levels'
@@ -137,9 +141,15 @@ const bpmText = (periodMs: number) => String(Number((60000 / periodMs).toFixed(1
 export default function RhythmDebugPanel({ onClose }: { onClose: () => void }) {
   const t = useTranslations('RhythmDebug')
   const optionT = useTranslations('LyricOptions')
+  const { user } = useAuth()
   const { lyrics, currentTrack, getAudio } = useMusic()
   const clock = useMusicClockStore()
   const trackId = currentTrack?.id ?? null
+  const admin = Boolean(user && isAdmin({ user }))
+  const lyricSource = lyrics.source !== 'none' ? lyrics.source : null
+  const canSaveMotion = admin && trackId != null && trackId > 0 && lyricSource != null && lyrics.lines.length > 0
+  const inFlightMotionKeyRef = useRef('')
+  const saveMotionSeqRef = useRef(0)
   const rhythmState = useSyncExternalStore(subscribeRhythm, () => getRhythmState(trackId), () => null)
   const params = useSyncExternalStore(subscribeRhythmParams, getRhythmParams, getRhythmParams)
   const model = rhythmState?.status === 'ready' ? rhythmState.model : null
@@ -153,8 +163,36 @@ export default function RhythmDebugPanel({ onClose }: { onClose: () => void }) {
   const tempoRef = useRef<HTMLCanvasElement>(null)
   const motionRef = useRef<HTMLCanvasElement>(null)
   const liveRef = useRef<HTMLSpanElement>(null)
-  const effectiveMotion: LyricMotion = params.motionPreview ?? lyrics.motion ?? 'flow'
+  const effectiveMotion: LyricMotion = (!canSaveMotion ? params.motionPreview : null) ?? lyrics.motion ?? 'flow'
   const activeMotionPreset = resolveLyricMotionPreset(effectiveMotion)
+
+  useEffect(() => {
+    if (canSaveMotion && params.motionPreview !== null)
+      setRhythmParams({ motionPreview: null })
+  }, [canSaveMotion, params.motionPreview])
+
+  const handleAdminSaveMotion = (motion: LyricMotion) => {
+    if (!canSaveMotion || trackId == null || lyricSource == null)
+      return
+    const flightKey = `${trackId}:${lyricSource}:${motion}`
+    if (inFlightMotionKeyRef.current === flightKey)
+      return
+    inFlightMotionKeyRef.current = flightKey
+    const seq = ++saveMotionSeqRef.current
+    saveSongMotion(trackId, motion, lyricSource)
+      .then(() => {
+        if (seq === saveMotionSeqRef.current)
+          toast.success(t('motion_saved', { motion: optionT(`motions.${motion}`) }))
+      })
+      .catch(() => {
+        if (seq === saveMotionSeqRef.current)
+          toast.error(t('motion_save_failed'))
+      })
+      .finally(() => {
+        if (inFlightMotionKeyRef.current === flightKey)
+          inFlightMotionKeyRef.current = ''
+      })
+  }
 
   // 当前动效随播放时钟更新（同一组时不重新渲染）
   useEffect(() => {
@@ -493,24 +531,48 @@ export default function RhythmDebugPanel({ onClose }: { onClose: () => void }) {
           </div>
           <p className="text-white/65">
             {t('motion_effective', { motion: optionT(`motions.${effectiveMotion}`) })}
-            {params.motionPreview !== null && t('motion_preview_note')}
+            {!canSaveMotion && params.motionPreview !== null && t('motion_preview_note')}
           </p>
           <div className="flex flex-wrap items-center gap-1.5">
-            <ToggleGroup
-              type="single"
-              size="sm"
-              variant="outline"
-              value={params.motionPreview ?? 'auto'}
-              onValueChange={value => value && setRhythmParams({ motionPreview: value === 'auto' ? null : value as LyricMotion })}
-              className="flex-wrap justify-start"
-            >
-              <ToggleGroupItem value="auto" className="px-2 text-xs">{t('preview_auto')}</ToggleGroupItem>
-              {LYRIC_MOTIONS.map(motion => (
-                <ToggleGroupItem key={motion} value={motion} className="px-2 text-xs">
-                  {optionT(`motions.${motion}`)}
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
+            {canSaveMotion
+              ? (
+                  <ToggleGroup
+                    type="single"
+                    size="sm"
+                    variant="outline"
+                    value={effectiveMotion}
+                    onValueChange={() => {}}
+                    className="flex-wrap justify-start"
+                  >
+                    {LYRIC_MOTIONS.map(motion => (
+                      <ToggleGroupItem
+                        key={motion}
+                        value={motion}
+                        onClick={() => handleAdminSaveMotion(motion)}
+                        className="px-2 text-xs"
+                      >
+                        {optionT(`motions.${motion}`)}
+                      </ToggleGroupItem>
+                    ))}
+                  </ToggleGroup>
+                )
+              : (
+                  <ToggleGroup
+                    type="single"
+                    size="sm"
+                    variant="outline"
+                    value={params.motionPreview ?? 'auto'}
+                    onValueChange={value => value && setRhythmParams({ motionPreview: value === 'auto' ? null : value as LyricMotion })}
+                    className="flex-wrap justify-start"
+                  >
+                    <ToggleGroupItem value="auto" className="px-2 text-xs">{t('preview_auto')}</ToggleGroupItem>
+                    {LYRIC_MOTIONS.map(motion => (
+                      <ToggleGroupItem key={motion} value={motion} className="px-2 text-xs">
+                        {optionT(`motions.${motion}`)}
+                      </ToggleGroupItem>
+                    ))}
+                  </ToggleGroup>
+                )}
           </div>
           <canvas ref={motionRef} className="h-20 w-full rounded-lg bg-white/5" />
           <p className="text-[11px] text-white/50">{t('motion_chart_hint')}</p>

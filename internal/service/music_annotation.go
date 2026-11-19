@@ -274,7 +274,7 @@ func fetchWordTimedLyric(ctx context.Context, id int64) string {
 	return ""
 }
 
-// GetLyricAnnotations 取一首歌的歌词标注；还没有时开始生成并返回 pending，已过期时返回旧结果并在后台重新生成
+// GetLyricAnnotations 取一首歌的歌词标注；还没有时开始生成并返回 pending，生成后长期有效（仅在管理员手动重新生成或词源更换后重算）
 // 全站歌词版本还没有选出时先开始选择、稍等片刻，等不到就返回 pending（前端会轮询），绝不改用其他来源的歌词
 func (s *MusicService) GetLyricAnnotations(ctx context.Context, id int64) (*dto.MusicLyricAnnotationsDto, *errs.ServiceError) {
 	lines, info, cfg, svcerr := s.prepareLyricAnnotations(withLyricVersionWait(ctx, lyricVersionPollWait), id)
@@ -284,8 +284,7 @@ func (s *MusicService) GetLyricAnnotations(ctx context.Context, id int64) (*dto.
 	if svcerr != nil {
 		return nil, svcerr
 	}
-	ttl := time.Duration(tools.GetLyricAnnotationTTLDays()) * 24 * time.Hour
-	result, svcerr := lyricAnnotations.get(id, lines, info, cfg, ttl)
+	result, svcerr := lyricAnnotations.get(id, lines, info, cfg)
 	if result != nil {
 		result.Source = info.Source
 	}
@@ -405,7 +404,7 @@ func lyricAnnotationKey(id int64, lines []string) (key, hash string) {
 	return strconv.FormatInt(id, 10) + ":" + hash, hash
 }
 
-func (a *lyricAnnotationService) get(id int64, lines []string, info lyricAnnotationInfo, cfg tools.AIConfig, ttl time.Duration) (*dto.MusicLyricAnnotationsDto, *errs.ServiceError) {
+func (a *lyricAnnotationService) get(id int64, lines []string, info lyricAnnotationInfo, cfg tools.AIConfig) (*dto.MusicLyricAnnotationsDto, *errs.ServiceError) {
 	key, hash := lyricAnnotationKey(id, lines)
 	var record model.LyricAnnotation
 	err := repo.GetDB().Where("song_id = ? AND lyric_hash = ?", id, hash).First(&record).Error
@@ -421,12 +420,6 @@ func (a *lyricAnnotationService) get(id int64, lines []string, info lyricAnnotat
 	if found {
 		data := parseLyricAnnotationData(record.Data)
 		result := &dto.MusicLyricAnnotationsDto{Status: lyricAnnotationStatusReady, SongLang: data.SongLang, Font: data.Font, Motion: data.Motion, Intro: data.Intro, Outro: data.Outro, Moments: data.Moments, Spotlights: data.spotlightsFor(lines), Accent: data.Accent, Lines: data.Lines, Sprites: data.Sprites, Singers: data.Singers, Edited: record.EditedAt != nil}
-		// 已过期：先返回旧结果，在后台重新生成（失败冷却期内不重试，继续使用旧结果）；管理员手动编辑过的不自动重新生成
-		// 全站 AI 预算已用完时不重新生成，继续使用旧结果
-		if !running && !coolingDown && record.EditedAt == nil && time.Since(record.CreatedAt) > ttl && checkSiteAIBudget(time.Now()) == nil {
-			a.startLocked(key, id, hash, lines, info, cfg, false)
-			running = true
-		}
 		result.Stale = running
 		return result, nil
 	}
@@ -626,7 +619,8 @@ func (a *lyricAnnotationService) execute(lease *sharedstate.Lease, key string, i
 	}
 	data, _ := json.Marshal(annotated)
 	record := &model.LyricAnnotation{SongID: id, LyricHash: hash, Data: string(data), Model: cfg.Model, Source: info.Source, Phrases: lyricAnnotationPhraseCount(annotated.Lines), CreatedAt: time.Now()}
-	if err := a.saveGenerated(record, startedAt, overwrite); err != nil {
+	preserveManualMotion, err := a.saveGenerated(record, &annotated, startedAt, overwrite)
+	if err != nil {
 		if errors.Is(err, errLyricAnnotationEdited) || errors.Is(err, errLyricAnnotationDeleted) {
 			logrus.Infof("lyric annotation for song %d discarded: %v", id, err)
 		} else {
@@ -634,7 +628,7 @@ func (a *lyricAnnotationService) execute(lease *sharedstate.Lease, key string, i
 		}
 		return err
 	}
-	if annotated.Motion != "" {
+	if !preserveManualMotion && annotated.Motion != "" {
 		syncLyricMotionFromAnnotation(id, hash, info.Source, cfg.Model, annotated.Motion)
 	}
 	return nil
@@ -662,20 +656,33 @@ func (a *lyricAnnotationService) deletedKey() string   { return a.prefix() + ":d
 //   - 与批量删除互斥（共享状态中的锁）：生成开始后这首歌的标注被删除时不写回（errLyricAnnotationDeleted）
 //   - 已有记录时只覆盖没有手动编辑过的；overwrite（管理员明确要求重新生成：单首「AI 重新生成」或批量勾选覆盖）时也覆盖
 //     生成开始前的手动编辑。生成期间保存的手动编辑一律保留（errLyricAnnotationEdited），由数据库条件保证，不依赖事先检查
-func (a *lyricAnnotationService) saveGenerated(record *model.LyricAnnotation, startedAt time.Time, overwrite bool) error {
+func (a *lyricAnnotationService) saveGenerated(record *model.LyricAnnotation, annotated *lyricAnnotationData, startedAt time.Time, overwrite bool) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), lyricAnnotationWriteLockWait)
 	defer cancel()
 	release, err := sharedstate.Lock(ctx, a.writeLockKey(), lyricAnnotationWriteLockTTL)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer release()
 	var deleted map[int64]int64
 	if _, err := sharedstate.GetJSON(a.deletedKey(), &deleted); err != nil {
-		return err
+		return false, err
 	}
 	if at, ok := deleted[record.SongID]; ok && at >= startedAt.UnixNano() {
-		return errLyricAnnotationDeleted
+		return false, errLyricAnnotationDeleted
+	}
+	preserveManualMotion := false
+	var existingMotion model.LyricMotion
+	if repo.GetDB().Where("song_id = ? AND lyric_hash = ?", record.SongID, record.LyricHash).First(&existingMotion).Error == nil {
+		if existingMotion.Model == "manual" && lyricAnnotationMotions[existingMotion.Motion] && (!overwrite || existingMotion.UpdatedAt.After(startedAt)) {
+			preserveManualMotion = true
+			if annotated != nil && annotated.Motion != existingMotion.Motion {
+				annotated.Motion = existingMotion.Motion
+				if raw, mErr := json.Marshal(annotated); mErr == nil {
+					record.Data = string(raw)
+				}
+			}
+		}
 	}
 	condition := clause.Expr{SQL: "lyric_annotations.edited_at IS NULL"}
 	if overwrite {
@@ -689,12 +696,12 @@ func (a *lyricAnnotationService) saveGenerated(record *model.LyricAnnotation, st
 	}
 	result := repo.GetDB().Clauses(upsert).Create(record)
 	if result.Error != nil {
-		return result.Error
+		return false, result.Error
 	}
 	if result.RowsAffected == 0 {
-		return errLyricAnnotationEdited
+		return false, errLyricAnnotationEdited
 	}
-	return nil
+	return preserveManualMotion, nil
 }
 
 // deleteSongs 删除这些歌曲所有歌词版本的标注，返回删除了标注的歌曲数与记录数。与写回生成结果互斥，并记下删除时间：

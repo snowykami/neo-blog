@@ -1203,8 +1203,6 @@
       "ai_summary_concurrency_desc": "モデルへの同時リクエスト数の上限（1～100）。AI 要約とエディターの AI ライティングで共有し、超えた分は順番に待機します（AI ライティングを優先）",
       "ai_monthly_token_budget": "サイト全体の月間トークン予算",
       "ai_monthly_token_budget_desc": "サイト全体で 1 か月に使えるトークン（AI ユーザーを含む）。使い切ると AI 要約・AI ライティング・コメント翻訳・歌詞エフェクトは翌月まで停止します。AI ユーザーには自身の予算だけが適用されます。0 で無制限",
-      "lyric_annotation_ttl_days": "歌詞エフェクトの有効期間（日）",
-      "lyric_annotation_ttl_days_desc": "AI 歌詞エフェクトのキャッシュ日数（1～365）。期限切れ後も新しいエフェクトがバックグラウンドで生成されるまで古いものを表示します",
       "section_ai_thinking": "思考モード",
       "section_ai_thinking_desc": "AI タスクごとに思考強度（OpenAI reasoning_effort / DeepSeek thinking）を個別に制御します。非対応モデルが 400 を返した場合は自動でパラメータを外して再試行します",
       "ai_thinking_mode_default": "デフォルト（モデルに従う）",
@@ -3815,6 +3813,8 @@
     "motion_title": "歌詞フロート弾性",
     "motion_effective": "有効プリセット：{motion}",
     "motion_preview_note": "（プレビュー試聴中）",
+    "motion_saved": "歌詞弾性を保存しました：{motion}",
+    "motion_save_failed": "歌詞弾性の保存に失敗しました",
     "motion_chart_hint": "青・ピンク・紫は退場行・フォーカス行・待機行の階段スプリング応答軌跡"
   },
   "Response": {

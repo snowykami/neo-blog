@@ -465,7 +465,7 @@ func TestAnnotationHelpersUseSiteVersionLines(t *testing.T) {
 	// 旧版只记句子的聚光灯：按全站版本的行展开为每一次出现
 	_, hash := lyricAnnotationKey(5, lines)
 	repo.GetDB().Create(&model.LyricAnnotation{SongID: 5, LyricHash: hash, Data: `{"spotlights":["浔阳江头夜送客"],"lines":[]}`, CreatedAt: time.Now()})
-	got, svcerr := lyricAnnotations.get(5, lines, info, tools.AIConfig{}, time.Hour)
+	got, svcerr := lyricAnnotations.get(5, lines, info, tools.AIConfig{})
 	want := []dto.MusicLyricAnnotationSpotlight{{Text: "浔阳江头夜送客", Occurrence: 0}, {Text: "浔阳江头夜送客", Occurrence: 1}}
 	if svcerr != nil || !reflect.DeepEqual(got.Spotlights, want) {
 		t.Fatalf("legacy spotlights = %+v %v", got, svcerr)

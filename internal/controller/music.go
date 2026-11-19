@@ -293,6 +293,21 @@ func (m *musicType) SongLyricMotion(ctx context.Context, c *app.RequestContext) 
 	resps.Ok(c, resps.Success, result)
 }
 
+// SaveLyricMotion 管理员手动保存一首歌指定词源的歌词上浮弹性预设
+func (m *musicType) SaveLyricMotion(ctx context.Context, c *app.RequestContext) {
+	var req dto.MusicLyricMotionSaveReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	result, svcerr := m.service.SaveLyricMotion(ctx, ctxutils.GetIDParam(c).Int64, &req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, result)
+}
+
 // RefreshLyricMotion 管理员单独重新生成一首歌指定词源的 AI 歌词上浮弹性
 func (m *musicType) RefreshLyricMotion(ctx context.Context, c *app.RequestContext) {
 	var req dto.MusicLyricMotionRefreshReq

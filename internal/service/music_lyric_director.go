@@ -162,11 +162,7 @@ func (a *lyricDirectorService) dataKey(stateKey string) string {
 }
 
 func lyricDirectorCacheTTL() time.Duration {
-	days := tools.GetLyricAnnotationTTLDays()
-	if days <= 0 {
-		days = lyricDirectorTTLDefaultDays
-	}
-	return time.Duration(days) * 24 * time.Hour
+	return time.Duration(lyricDirectorTTLDefaultDays) * 24 * time.Hour
 }
 
 // computeLyricDirectorHash 对演唱歌词行计算与来源/目标语言无关的文本哈希，便于跨语种复用导演分析与对齐视觉主题。
@@ -517,14 +513,13 @@ func lookupLyricDirectorSongLang(songID int64, lines []string) string {
 	return validateSongLangWithTexts(parsed.SongLang, lines)
 }
 
-// CleanupLyricDirectors 删除超过两倍 TTL 的过期歌词导演分析缓存。
+// CleanupLyricDirectors 删除超过两倍默认保留期的过期歌词导演分析缓存。
 func CleanupLyricDirectors(now time.Time) (int64, error) {
 	db := repo.GetDB()
 	if db == nil {
 		return 0, nil
 	}
-	days := max(lyricDirectorTTLDefaultDays, tools.GetLyricAnnotationTTLDays())
-	retention := time.Duration(days*2) * 24 * time.Hour
+	retention := time.Duration(lyricDirectorTTLDefaultDays*2) * 24 * time.Hour
 	result := db.Where("created_at < ?", now.Add(-retention)).Delete(&model.LyricDirector{})
 	return result.RowsAffected, result.Error
 }

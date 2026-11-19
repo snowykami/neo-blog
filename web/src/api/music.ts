@@ -192,6 +192,15 @@ export async function fetchLyricMotion(id: number, source?: string): Promise<Mus
   }
 }
 
+// 管理员手动保存一首歌的歌词上浮弹性预设（对所有人生效，并同步已有歌词标注中的 motion）
+export async function saveLyricMotion(id: number, motion: LyricMotion, source?: string): Promise<MusicLyricMotion> {
+  const res = await axiosClient.put<BaseResponse<MusicLyricMotion>>(`/music/song/${id}/lyric/motion`, {
+    motion,
+    source: source ?? '',
+  })
+  return res.data.data
+}
+
 // 管理员单独重新生成一首歌的 AI 歌词上浮弹性
 export async function refreshLyricMotion(id: number, source?: string): Promise<MusicLyricMotion> {
   const res = await axiosClient.post<BaseResponse<MusicLyricMotion>>(`/music/song/${id}/lyric/motion/refresh`, {

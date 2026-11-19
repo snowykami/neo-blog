@@ -244,8 +244,36 @@ func (s *MusicService) GetLyricMotion(ctx context.Context, id int64, source stri
 	if svcerr != nil {
 		return nil, svcerr
 	}
-	ttl := time.Duration(tools.GetLyricAnnotationTTLDays()) * 24 * time.Hour
-	return lyricMotions.getOrStart(id, lines, info, ttl)
+	return lyricMotions.getOrStart(id, lines, info)
+}
+
+// SaveLyricMotion 管理员手动保存一首歌指定词源的歌词上浮弹性预设（source 为空时取全站歌词版本，并同步已有歌词标注中的 motion）
+func (s *MusicService) SaveLyricMotion(ctx context.Context, id int64, req *dto.MusicLyricMotionSaveReq) (*dto.MusicLyricMotionDto, *errs.ServiceError) {
+	if id <= 0 || req == nil {
+		return nil, errs.NewBadRequest("invalid_request_parameters")
+	}
+	motion := strings.ToLower(strings.TrimSpace(req.Motion))
+	if !lyricAnnotationMotions[motion] {
+		return nil, errs.NewBadRequest("invalid_request_parameters")
+	}
+	track := s.resolveMotionTrack(ctx, id)
+	if track == nil {
+		return nil, errs.NewNotFound("lyric_annotations_unavailable")
+	}
+	lines, info, svcerr := s.resolveMotionSourceLines(ctx, track, req.Source)
+	if svcerr != nil {
+		return nil, svcerr
+	}
+	if err := saveManualLyricMotion(ctx, id, lines, info.Source, motion); err != nil {
+		logrus.Errorf("save manual lyric motion for song %d failed: %v", id, err)
+		return nil, errs.Internal("failed_to_update_target", err)
+	}
+	return &dto.MusicLyricMotionDto{
+		Status: lyricAnnotationStatusReady,
+		Source: info.Source,
+		Motion: motion,
+		AI:     true,
+	}, nil
 }
 
 // RefreshLyricMotion 管理员单独重新生成一首歌的 AI 歌词上浮弹性（不覆盖手动编辑的短语特效，仅同步更新弹性预设）
@@ -295,7 +323,7 @@ func (m *lyricMotionService) jobState(key string) (running, coolingDown bool) {
 	return running, coolingDown
 }
 
-func (m *lyricMotionService) getOrStart(id int64, lines []string, info lyricAnnotationInfo, ttl time.Duration) (*dto.MusicLyricMotionDto, *errs.ServiceError) {
+func (m *lyricMotionService) getOrStart(id int64, lines []string, info lyricAnnotationInfo) (*dto.MusicLyricMotionDto, *errs.ServiceError) {
 	key, hash := lyricAnnotationKey(id, lines)
 	heuristic := suggestHeuristicLyricMotion(info)
 	db := repo.GetDB()
@@ -309,18 +337,7 @@ func (m *lyricMotionService) getOrStart(id int64, lines []string, info lyricAnno
 		return nil, errs.Internal("failed_to_get_target", err)
 	}
 	if err == nil && lyricAnnotationMotions[motionRec.Motion] {
-		m.mu.Lock()
-		running, coolingDown := m.jobState(key)
-		cfg := tools.GetAIConfig()
-		refTimestamp := motionRec.UpdatedAt
-		if refTimestamp.IsZero() {
-			refTimestamp = motionRec.CreatedAt
-		}
-		if !running && !coolingDown && motionRec.Model != "manual" && cfg.Configured() && ttl > 0 && time.Since(refTimestamp) > ttl && checkSiteAIBudget(time.Now()) == nil {
-			m.startLocked(key, id, hash, lines, info, cfg, false)
-			running = true
-		}
-		m.mu.Unlock()
+		running, _ := m.jobState(key)
 		return &dto.MusicLyricMotionDto{
 			Status: lyricAnnotationStatusReady,
 			Stale:  running,
@@ -577,6 +594,48 @@ func (m *lyricMotionService) execute(lease *sharedstate.Lease, key string, id in
 	}
 }
 
+func saveManualLyricMotion(ctx context.Context, songID int64, lines []string, source, motion string) error {
+	db := repo.GetDB().WithContext(ctx)
+	_, hash := lyricAnnotationKey(songID, lines)
+	lockCtx, cancel := context.WithTimeout(ctx, lyricAnnotationWriteLockWait)
+	defer cancel()
+	release, err := sharedstate.Lock(lockCtx, lyricAnnotations.writeLockKey(), lyricAnnotationWriteLockTTL)
+	if err != nil {
+		return err
+	}
+	defer release()
+
+	now := time.Now()
+	record := &model.LyricMotion{
+		SongID:    songID,
+		LyricHash: hash,
+		Motion:    motion,
+		Source:    source,
+		Model:     "manual",
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	upsert := clause.OnConflict{
+		Columns:   []clause.Column{{Name: "song_id"}, {Name: "lyric_hash"}},
+		DoUpdates: clause.AssignmentColumns([]string{"motion", "source", "model", "updated_at"}),
+	}
+	if err := db.Clauses(upsert).Create(record).Error; err != nil {
+		return err
+	}
+
+	var existingAnn model.LyricAnnotation
+	if db.Where("song_id = ? AND lyric_hash = ?", songID, hash).First(&existingAnn).Error == nil {
+		data := parseLyricAnnotationData(existingAnn.Data)
+		if data.Motion != motion {
+			data.Motion = motion
+			if raw, mErr := json.Marshal(data); mErr == nil {
+				_ = db.Model(&model.LyricAnnotation{}).Where("id = ?", existingAnn.ID).Update("data", string(raw)).Error
+			}
+		}
+	}
+	return nil
+}
+
 func saveGeneratedStandaloneMotion(songID int64, hash, source, modelName, motion string, startedAt time.Time, syncAnnotation bool) error {
 	db := repo.GetDB()
 	if db == nil {
@@ -598,13 +657,13 @@ func saveGeneratedStandaloneMotion(songID int64, hash, source, modelName, motion
 		return errLyricAnnotationDeleted
 	}
 
-	if !syncAnnotation {
-		var existingMotion model.LyricMotion
-		if db.Where("song_id = ? AND lyric_hash = ?", songID, hash).First(&existingMotion).Error == nil {
-			if existingMotion.Model == "manual" || existingMotion.UpdatedAt.After(startedAt) {
-				return errLyricAnnotationEdited
-			}
+	var existingMotion model.LyricMotion
+	if db.Where("song_id = ? AND lyric_hash = ?", songID, hash).First(&existingMotion).Error == nil {
+		if existingMotion.UpdatedAt.After(startedAt) || (!syncAnnotation && existingMotion.Model == "manual") {
+			return errLyricAnnotationEdited
 		}
+	}
+	if !syncAnnotation {
 		var existingAnn model.LyricAnnotation
 		if db.Where("song_id = ? AND lyric_hash = ?", songID, hash).First(&existingAnn).Error == nil {
 			if existingAnn.EditedAt != nil || existingAnn.CreatedAt.After(startedAt) {

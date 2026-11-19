@@ -61,7 +61,7 @@ func TestLyricAnnotationGenerationKeepsManualEdit(t *testing.T) {
 			before := time.Now().Add(-time.Minute)
 			repo.GetDB().Create(&model.LyricAnnotation{SongID: id, LyricHash: hash, Data: `{"lines":[]}`, Model: "manual", CreatedAt: before, EditedAt: &before})
 			svc.refresh(id, lines, lyricAnnotationInfo{}, cfg)
-		} else if _, svcerr := svc.get(id, lines, lyricAnnotationInfo{}, cfg, time.Hour); svcerr != nil {
+		} else if _, svcerr := svc.get(id, lines, lyricAnnotationInfo{}, cfg); svcerr != nil {
 			t.Fatal(svcerr)
 		}
 		waitSignal(t, started, "generation")
@@ -113,7 +113,7 @@ func TestLyricAnnotationDeleteDiscardsRunningGeneration(t *testing.T) {
 	svc, started, done := blockingAnnotationService(release)
 	lines := []string{"怦然心动"}
 	key, _ := lyricAnnotationKey(34, lines)
-	if _, svcerr := svc.get(34, lines, lyricAnnotationInfo{}, tools.AIConfig{Model: "test"}, time.Hour); svcerr != nil {
+	if _, svcerr := svc.get(34, lines, lyricAnnotationInfo{}, tools.AIConfig{Model: "test"}); svcerr != nil {
 		t.Fatal(svcerr)
 	}
 	waitSignal(t, started, "generation")
@@ -131,7 +131,7 @@ func TestLyricAnnotationDeleteDiscardsRunningGeneration(t *testing.T) {
 		t.Fatal("discarded result should not count as failure")
 	}
 	// 删除之后才开始的生成照常写回
-	if _, svcerr := svc.get(34, lines, lyricAnnotationInfo{}, tools.AIConfig{Model: "test"}, time.Hour); svcerr != nil {
+	if _, svcerr := svc.get(34, lines, lyricAnnotationInfo{}, tools.AIConfig{Model: "test"}); svcerr != nil {
 		t.Fatal(svcerr)
 	}
 	waitSignal(t, done, "second generation")

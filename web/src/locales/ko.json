@@ -1203,8 +1203,6 @@
       "ai_summary_concurrency_desc": "모델 동시 요청 수 상한(1~100). AI 요약과 편집기 AI 글쓰기가 함께 사용하며, 초과 요청은 순서대로 대기합니다(AI 글쓰기 우선)",
       "ai_monthly_token_budget": "사이트 전체 월 토큰 예산",
       "ai_monthly_token_budget_desc": "사이트 전체가 한 달에 사용할 수 있는 토큰(AI 사용자 포함). 다 쓰면 AI 요약·AI 글쓰기·댓글 번역·가사 효과가 다음 달까지 중지됩니다. AI 사용자에게는 자체 예산만 적용됩니다. 0이면 무제한",
-      "lyric_annotation_ttl_days": "가사 효과 유효 기간(일)",
-      "lyric_annotation_ttl_days_desc": "AI 가사 효과 캐시 일수(1~365). 만료 후에도 새 효과가 백그라운드에서 생성될 때까지 기존 효과를 표시합니다",
       "section_ai_thinking": "사고 모드",
       "section_ai_thinking_desc": "AI 작업별로 사고 강도(OpenAI reasoning_effort 및 DeepSeek thinking 토글 호환)를 개별 설정합니다. 미지원 모델이 400 오류를 반환하면 자동으로 파라미터를 제외하고 재시도합니다",
       "ai_thinking_mode_default": "기본값 (모델 기본 설정)",
@@ -3815,6 +3813,8 @@
     "motion_title": "가사 플로트 탄성",
     "motion_effective": "적용 탄성: {motion}",
     "motion_preview_note": " (디버그 미리듣기 중)",
+    "motion_saved": "가사 탄성을 저장했습니다: {motion}",
+    "motion_save_failed": "가사 탄성 저장 실패",
     "motion_chart_hint": "파랑 / 분홍 / 보라는 퇴장행, 포커스행, 대기행의 계단형 스프링 응답 궤적입니다"
   },
   "Response": {

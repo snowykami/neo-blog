@@ -86,7 +86,7 @@ func TestStandaloneLyricMotionAndAnnotationSync(t *testing.T) {
 	_, hash := lyricAnnotationKey(songID, lines)
 
 	// 1. 未配置 AI 时：直接返回启发式标定结果，状态 ready
-	noAI, svcerr := svc.getOrStart(songID, lines, info, 7*24*time.Hour)
+	noAI, svcerr := svc.getOrStart(songID, lines, info)
 	if svcerr != nil || noAI.Status != lyricAnnotationStatusReady || !lyricAnnotationMotions[noAI.Motion] || noAI.AI {
 		t.Fatalf("unexpected heuristic motion response: %+v, err=%v", noAI, svcerr)
 	}
@@ -113,7 +113,7 @@ func TestStandaloneLyricMotionAndAnnotationSync(t *testing.T) {
 		t.Fatalf("seed LyricAnnotation: %v", err)
 	}
 
-	backfilled, svcerr := svc.getOrStart(songID, lines, info, 7*24*time.Hour)
+	backfilled, svcerr := svc.getOrStart(songID, lines, info)
 	if svcerr != nil || backfilled.Status != lyricAnnotationStatusReady || backfilled.Motion != "plush" || !backfilled.AI {
 		t.Fatalf("expected backfilled plush motion, got %+v, err=%v", backfilled, svcerr)
 	}
@@ -130,7 +130,7 @@ func TestStandaloneLyricMotionAndAnnotationSync(t *testing.T) {
 		t.Fatal("timed out waiting for standalone motion refresh")
 	}
 
-	ready, svcerr := svc.getOrStart(songID, lines, info, 7*24*time.Hour)
+	ready, svcerr := svc.getOrStart(songID, lines, info)
 	if svcerr != nil || ready.Status != lyricAnnotationStatusReady || ready.Motion != "cascade" || !ready.AI {
 		t.Fatalf("expected refreshed cascade motion, got %+v, err=%v", ready, svcerr)
 	}
@@ -145,6 +145,26 @@ func TestStandaloneLyricMotionAndAnnotationSync(t *testing.T) {
 	parsedAnn := parseLyricAnnotationData(updatedAnn.Data)
 	if parsedAnn.Motion != "cascade" || parsedAnn.Font != "song" || len(parsedAnn.Lines) != 1 {
 		t.Fatalf("expected synced motion without losing manual edits, got %+v", parsedAnn)
+	}
+
+	// 3b. 管理员在前端调试面板直接点击保存弹性（saveManualLyricMotion）：立即写入 model=manual 并同步 LyricAnnotation.Data.Motion，
+	// 且早于该手动保存启动的后台刷新（syncAnnotation=true）写回时不会覆盖管理员刚保存的档位
+	staleRefreshStart := time.Now().Add(-time.Second)
+	if err := saveManualLyricMotion(context.Background(), songID, lines, "ncm-lrc", "bouncy"); err != nil {
+		t.Fatalf("saveManualLyricMotion failed: %v", err)
+	}
+	manualGot, svcerr := svc.getOrStart(songID, lines, info)
+	if svcerr != nil || manualGot.Motion != "bouncy" || !manualGot.AI || manualGot.Stale {
+		t.Fatalf("expected saved manual bouncy motion, got %+v, err=%v", manualGot, svcerr)
+	}
+	if err := repo.GetDB().Where("song_id = ? AND lyric_hash = ?", songID, hash).First(&updatedAnn).Error; err != nil {
+		t.Fatalf("reload LyricAnnotation after manual motion save: %v", err)
+	}
+	if parseLyricAnnotationData(updatedAnn.Data).Motion != "bouncy" {
+		t.Fatalf("expected LyricAnnotation.Data.Motion synced to bouncy, got %s", updatedAnn.Data)
+	}
+	if err := saveGeneratedStandaloneMotion(songID, hash, "ncm-lrc", "test-motion-model", "gentle", staleRefreshStart, true); err != errLyricAnnotationEdited {
+		t.Fatalf("expected stale refresh writeback after manual click to return errLyricAnnotationEdited, got %v", err)
 	}
 
 	// 4. 自动触发的旧任务（syncAnnotation=false）晚于已有新记录或批量删除时拒绝覆盖

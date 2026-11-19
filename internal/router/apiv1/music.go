@@ -55,6 +55,7 @@ func registerMusicRoutes(group *route.RouterGroup) {
 
 		// 手动重新生成歌词标注或歌词多语言翻译会消耗模型额度，仅管理员可用
 		musicGroupWithAdmin.POST("/song/:id/lyric/annotations/refresh", controller.Music.RefreshLyricAnnotations)
+		musicGroupWithAdmin.PUT("/song/:id/lyric/motion", controller.Music.SaveLyricMotion)
 		musicGroupWithAdmin.POST("/song/:id/lyric/motion/refresh", controller.Music.RefreshLyricMotion)
 		musicGroupWithAdmin.POST("/song/:id/lyric/translations/refresh", controller.Music.RefreshLyricTranslations)
 		musicGroupWithAdmin.POST("/song/:id/translation-meta/refresh", controller.Music.RefreshSongTranslationMeta)

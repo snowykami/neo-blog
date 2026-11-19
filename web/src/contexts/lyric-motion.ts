@@ -2,7 +2,7 @@
 
 import type { LyricMotion, LyricSource } from '@/lib/lyrics/types'
 import { useCallback, useSyncExternalStore } from 'react'
-import { fetchLyricMotion, refreshLyricMotion } from '@/api/music'
+import { fetchLyricMotion, refreshLyricMotion, saveLyricMotion } from '@/api/music'
 import { onLyricAnnotationsReady, reloadAnnotations } from './lyric-annotations'
 
 export interface SiteLyricMotion {
@@ -105,6 +105,43 @@ export function requestLyricMotion(id: number, source?: LyricSource | null) {
     })
   }
   load(false)
+}
+
+export async function saveSongMotion(id: number, motion: LyricMotion, source?: LyricSource | null): Promise<void> {
+  if (id <= 0)
+    throw new Error('invalid song id')
+  const normSource = source && source !== 'none' ? source : undefined
+  const key = makeKey(id, normSource)
+  const entry = getEntry(key)
+  const prevValue = entry.value
+  const prevStarted = entry.started
+  const prevGenerating = entry.generating
+  entry.started = true
+  const round = ++entry.round
+  settle(entry, { motion, source: normSource ?? prevValue?.source, ai: true }, false)
+
+  try {
+    const result = await saveLyricMotion(id, motion, normSource)
+    if (round === entry.round) {
+      settle(
+        entry,
+        {
+          motion: result.motion,
+          source: result.source,
+          ai: Boolean(result.ai ?? true),
+        },
+        false,
+      )
+      reloadAnnotations(id)
+    }
+  }
+  catch (error) {
+    if (round === entry.round) {
+      entry.started = prevStarted
+      settle(entry, prevValue ?? null, prevGenerating)
+    }
+    throw error
+  }
 }
 
 export async function refreshMotion(id: number, source?: LyricSource | null): Promise<'started' | 'failed'> {

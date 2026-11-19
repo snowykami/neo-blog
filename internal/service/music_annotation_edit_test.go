@@ -169,15 +169,14 @@ func TestEditedLyricAnnotationLocked(t *testing.T) {
 	}
 	lines := []string{"怦然心动"}
 	cfg := tools.AIConfig{Model: "test"}
-	ttl := time.Hour
-	if _, svcerr := service.get(2, lines, lyricAnnotationInfo{}, cfg, ttl); svcerr != nil {
+	if _, svcerr := service.get(2, lines, lyricAnnotationInfo{}, cfg); svcerr != nil {
 		t.Fatal(svcerr)
 	}
 	<-done
-	// 手动编辑过且已过期：不自动重新生成
+	// 手动编辑过：保持永久有效不自动重新生成
 	edited := time.Now()
-	repo.GetDB().Model(&model.LyricAnnotation{}).Where("song_id = ?", 2).Updates(map[string]any{"created_at": time.Now().Add(-2 * ttl), "edited_at": edited})
-	if got, _ := service.get(2, lines, lyricAnnotationInfo{}, cfg, ttl); got.Stale || service.running(lyricAnnotationKeyOf(2, lines)) {
+	repo.GetDB().Model(&model.LyricAnnotation{}).Where("song_id = ?", 2).Updates(map[string]any{"created_at": time.Now().Add(-365 * 24 * time.Hour), "edited_at": edited})
+	if got, _ := service.get(2, lines, lyricAnnotationInfo{}, cfg); got.Stale || service.running(lyricAnnotationKeyOf(2, lines)) {
 		t.Fatalf("edited annotation should not regenerate: %+v", got)
 	}
 	// 管理员手动刷新时覆盖，并清空编辑时间

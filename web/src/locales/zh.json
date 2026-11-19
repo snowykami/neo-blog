@@ -1203,8 +1203,6 @@
       "ai_summary_concurrency_desc": "同时调用模型的请求数上限（1～100），AI 摘要与编辑器 AI 写作共用；超出时排队依次执行，AI 写作优先",
       "ai_monthly_token_budget": "全站每月 token 预算",
       "ai_monthly_token_budget_desc": "全站每月最多消耗的 tokens（含 AI 用户）。用完后 AI 摘要、AI 写作、评论翻译与歌词特效暂停到下个月；AI 用户只受自己的预算限制。0 为不限",
-      "lyric_annotation_ttl_days": "歌词特效有效期（天）",
-      "lyric_annotation_ttl_days_desc": "AI 歌词特效的缓存天数（1～365）；过期后读者仍先看到旧特效，后台自动重新生成",
       "section_ai_thinking": "思考模式",
       "section_ai_thinking_desc": "按 AI 任务独立控制模型的深度思考强度（兼容 OpenAI reasoning_effort 与 DeepSeek thinking 开关）；上游模型不支持时会自动降级重试",
       "ai_thinking_mode_default": "默认（跟随模型）",
@@ -3638,6 +3636,8 @@
     "motion_title": "歌词上浮弹性",
     "motion_effective": "生效弹性：{motion}",
     "motion_preview_note": "（调试试听中）",
+    "motion_saved": "已保存歌词弹性：{motion}",
+    "motion_save_failed": "保存歌词弹性失败",
     "motion_chart_hint": "蓝 / 粉 / 紫分别对应出局行、焦点行与待唱行的阶梯弹簧跃迁轨迹"
   },
   "Operation": {

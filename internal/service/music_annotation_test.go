@@ -120,9 +120,8 @@ func TestLyricAnnotationJob(t *testing.T) {
 	}
 	cfg := tools.AIConfig{Model: "test"}
 	info := lyricAnnotationInfo{Title: "歌"}
-	ttl := 24 * time.Hour
 
-	got, svcerr := service.get(1, []string{"怦然心动"}, info, cfg, ttl)
+	got, svcerr := service.get(1, []string{"怦然心动"}, info, cfg)
 	if svcerr != nil || got.Status != lyricAnnotationStatusPending {
 		t.Fatalf("first call = %+v, %v", got, svcerr)
 	}
@@ -130,31 +129,22 @@ func TestLyricAnnotationJob(t *testing.T) {
 	if user, _ := lastUser.Load().(string); !strings.Contains(user, "听哭了 (42 likes)") || !strings.Contains(user, "Title: 歌") {
 		t.Fatalf("user prompt = %q", user)
 	}
-	got, svcerr = service.get(1, []string{"怦然心动"}, info, cfg, ttl)
+	got, svcerr = service.get(1, []string{"怦然心动"}, info, cfg)
 	if svcerr != nil || got.Status != lyricAnnotationStatusReady || len(got.Lines) != 1 || got.Lines[0].Phrases[0].Text != "心动" {
 		t.Fatalf("ready = %+v, %v", got, svcerr)
 	}
-	// 结果已保存：不再调用模型
-	if _, _ = service.get(1, []string{"怦然心动"}, info, cfg, ttl); calls.Load() != 1 {
-		t.Fatalf("model called %d times", calls.Load())
+	// 结果已保存且无自动过期：即使创建时间很久以前，未手动刷新前始终直接命中，不再调用模型
+	repo.GetDB().Model(&model.LyricAnnotation{}).Where("song_id = ?", 1).Update("created_at", time.Now().Add(-365*24*time.Hour))
+	if got, svcerr = service.get(1, []string{"怦然心动"}, info, cfg); svcerr != nil || got.Status != lyricAnnotationStatusReady || got.Stale || calls.Load() != 1 {
+		t.Fatalf("permanent annotation should stay valid without regenerating: %+v, err=%v, calls=%d", got, svcerr, calls.Load())
 	}
 
-	// 过期后先返回旧结果并在后台重新生成，生成完成后不再是旧结果
-	repo.GetDB().Model(&model.LyricAnnotation{}).Where("song_id = ?", 1).Update("created_at", time.Now().Add(-2*ttl))
-	if got, svcerr = service.get(1, []string{"怦然心动"}, info, cfg, ttl); svcerr != nil || got.Status != lyricAnnotationStatusReady || !got.Stale || len(got.Lines) != 1 {
-		t.Fatalf("expired = %+v, %v", got, svcerr)
-	}
-	wait()
-	if got, _ = service.get(1, []string{"怦然心动"}, info, cfg, ttl); got.Stale || calls.Load() != 2 {
-		t.Fatalf("regenerated = %+v, model called %d times", got, calls.Load())
-	}
-
-	// 管理员手动刷新：立即开始重新生成，生成期间返回旧结果
+	// 管理员手动刷新：立即开始重新生成，生成期间返回旧结果且标记 Stale
 	if got = service.refresh(1, []string{"怦然心动"}, info, cfg); got.Status != lyricAnnotationStatusPending {
 		t.Fatalf("refresh = %+v", got)
 	}
 	wait()
-	if got, _ = service.get(1, []string{"怦然心动"}, info, cfg, ttl); got.Status != lyricAnnotationStatusReady || got.Stale || calls.Load() != 3 {
+	if got, _ = service.get(1, []string{"怦然心动"}, info, cfg); got.Status != lyricAnnotationStatusReady || got.Stale || calls.Load() != 2 {
 		t.Fatalf("refreshed = %+v, model called %d times", got, calls.Load())
 	}
 	var count int64
@@ -165,15 +155,15 @@ func TestLyricAnnotationJob(t *testing.T) {
 
 	// 歌词文本变化后重新标注；失败后一段时间内不重试
 	fail.Store(true)
-	if got, _ = service.get(1, []string{"怦然心动", "新的一行"}, info, cfg, ttl); got.Status != lyricAnnotationStatusPending {
+	if got, _ = service.get(1, []string{"怦然心动", "新的一行"}, info, cfg); got.Status != lyricAnnotationStatusPending {
 		t.Fatalf("changed lyric should start a new job, got %+v", got)
 	}
 	wait()
-	if _, svcerr = service.get(1, []string{"怦然心动", "新的一行"}, info, cfg, ttl); svcerr == nil || svcerr.Code != http.StatusNotFound {
+	if _, svcerr = service.get(1, []string{"怦然心动", "新的一行"}, info, cfg); svcerr == nil || svcerr.Code != http.StatusNotFound {
 		t.Fatalf("failed job should not retry immediately, got %v", svcerr)
 	}
 	// 失败的那次生成会把全曲规划重试 lyricAnnotationPlanRetries 次
-	if calls.Load() != int32(4+lyricAnnotationPlanRetries) {
+	if calls.Load() != int32(3+lyricAnnotationPlanRetries) {
 		t.Fatalf("model called %d times", calls.Load())
 	}
 }

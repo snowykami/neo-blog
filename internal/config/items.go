@@ -222,7 +222,6 @@ var sections = []*Section{
 		// 全站 AI 月度预算：摘要、写作、翻译、歌词标注等非 AI 用户的调用在本月全站用量（含 AI 用户）达到后被拒绝；默认 0 不限
 		{Key: "ai_monthly_token_budget", Type: TypeInt, Label: "ai_monthly_token_budget", Description: "ai_monthly_token_budget_desc", Min: num(0), Max: num(1e12), Default: 0},
 		{Key: "ai_writing_style", Type: TypeText, Label: "ai_writing_style", Description: "ai_writing_style_desc", PlaceholderKey: "ai_writing_style_placeholder", Rows: 6, Wide: true, Default: ""},
-		{Key: "lyric_annotation_ttl_days", Type: TypeInt, Label: "lyric_annotation_ttl_days", Description: "lyric_annotation_ttl_days_desc", Min: num(1), Max: num(365), Default: 7},
 	}},
 	// AI 思考强度：按任务独立控制 reasoning_effort / DeepSeek thinking；不支持的模型会自动降级重试
 	{Tab: "ai", Key: "ai_thinking", Title: "section_ai_thinking", Description: "section_ai_thinking_desc", Items: []*Item{
