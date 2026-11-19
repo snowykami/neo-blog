@@ -175,6 +175,44 @@ struct RhythmEngineContext: Equatable {
         })
     }
 
+    /// 粒子在 (t0, t1] 内经过的拍点（含 20ms 视觉提前量）；不跟随节拍时返回 nil
+    func particlePulses(octave: Int, t0: Double, t1: Double) -> [RhythmPulsePoint]? {
+        guard reliable else { return nil }
+        return pulsesIn(octave: octave, origin: 0, t0: t0 + Self.leadMs + 1e-6, t1: t1 + Self.leadMs)
+    }
+
+    /// 摇摆类粒子对齐真实拍点的连续钟摆相位（-1 ~ 1，一拍左一拍右，拍点处速度为零平滑换向）；不跟随节拍时为 nil
+    func particleSway(timeMs: Double) -> Double? {
+        guard reliable else { return nil }
+        let T = max(120, period(octave: 0))
+        let at = timeMs + Self.leadMs
+        guard let train = trains[0], !train.isEmpty else {
+            return -cos(.pi * at / T)
+        }
+        var lo = 0
+        var hi = train.count
+        while lo < hi {
+            let mid = (lo + hi) >> 1
+            if train[mid].t < at { lo = mid + 1 } else { hi = mid }
+        }
+        let idx = lo
+        if idx > 0 && idx < train.count {
+            let t0 = train[idx - 1].t
+            let span = train[idx].t - t0
+            if span > 40 && span <= 2.5 * T {
+                let u = (at - t0) / span
+                return -cos(.pi * (Double(idx - 1) + u))
+            }
+        }
+        let anchorIdx = idx > 0 ? (idx - 1) : 0
+        return -cos(.pi * (Double(anchorIdx) + (at - train[anchorIdx].t) / T))
+    }
+
+    /// 粒子动作相对中速（750ms）的曲速缩放倍率（0.65 ~ 1.55）
+    var particleTempoScale: Double {
+        min(1.55, max(0.65, FixedLyricPace.medium.basePeriodMs / max(120, basePeriodMs)))
+    }
+
     // MARK: - 1:1 对应 interlude.ts（间奏圆点倒计时点亮、呼吸、吸气放大与收拢退场）
 
     struct InterludeDotState {

@@ -1,5 +1,6 @@
 import type { LyricLine, ResolvedLyrics } from './types'
 import { describe, expect, it, vi } from 'vitest'
+import { LYRIC_SCENES } from './annotation-options'
 import { getStageSignals, SCENE_MAX_LINES, spotlightAt, spotlightLevel, VOCAL_TINT_FACTOR } from './stage-effects'
 import { StageParticles } from './stage-particles'
 
@@ -173,5 +174,66 @@ describe('播放器页全屏特效信号', () => {
       engine.update(0.05, { name: 'rain', color: null }, true)
     // snow 只用 fill 画圆，rain 只用 stroke 画雨线；stroke 被调用证明新场景 rain 已并行生成绘制
     expect(noopCtx.stroke).toHaveBeenCalled()
+  })
+
+  it('全部 24 种内置粒子场景与自定义 sway/burst 在节拍输入下均可正常生成与绘制', () => {
+    const noopGradient = { addColorStop: vi.fn() }
+    const noopCtx = {
+      setTransform: vi.fn(),
+      clearRect: vi.fn(),
+      save: vi.fn(),
+      restore: vi.fn(),
+      translate: vi.fn(),
+      rotate: vi.fn(),
+      scale: vi.fn(),
+      beginPath: vi.fn(),
+      arc: vi.fn(),
+      ellipse: vi.fn(),
+      fill: vi.fn(),
+      stroke: vi.fn(),
+      fillRect: vi.fn(),
+      strokeRect: vi.fn(),
+      fillText: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      createLinearGradient: vi.fn(() => noopGradient),
+      createRadialGradient: vi.fn(() => noopGradient),
+      fillStyle: '',
+      strokeStyle: '',
+      lineWidth: 1,
+      lineCap: 'butt',
+      lineJoin: 'miter',
+      font: '',
+      textAlign: 'left',
+      textBaseline: 'alphabetic',
+    } as unknown as CanvasRenderingContext2D
+    const canvas = {
+      width: 1280,
+      height: 800,
+      getContext: () => noopCtx,
+    } as unknown as HTMLCanvasElement
+
+    expect(LYRIC_SCENES).toHaveLength(24)
+    const engine = new StageParticles(canvas)
+    engine.resize(1280, 800)
+
+    const rhythm = {
+      pulses: () => ({ pulses: [{ t: 1000, a: 1, synth: false }], periodMs: 600 }),
+      heart: 0.85,
+      breath: 0.7,
+      sway: 0.6,
+      tempoScale: 1.2,
+    }
+
+    for (const name of LYRIC_SCENES) {
+      engine.clear()
+      let paintedAny = false
+      for (let i = 0; i < 90; i++) {
+        if (engine.update(0.05, { name, color: null }, true, rhythm))
+          paintedAny = true
+      }
+      expect(paintedAny, `scene ${name} should spawn and paint`).toBe(true)
+      expect(engine.idle).toBe(false)
+    }
   })
 })

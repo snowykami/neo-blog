@@ -45,6 +45,12 @@ export const LYRIC_SCENES: LyricScene[] = [
   'clouds',
   'ripples',
   'notes',
+  'bokeh',
+  'pixels',
+  'lightning',
+  'lanterns',
+  'embers',
+  'sparkles',
 ]
 
 export const LYRIC_FONTS: LyricFont[] = ['song', 'kai', 'xingkai', 'fangsong', 'round', 'mono', 'script']

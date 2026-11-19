@@ -4966,7 +4966,13 @@
       "meteors": "Meteors",
       "clouds": "Clouds",
       "ripples": "Ripples",
-      "notes": "Notes"
+      "notes": "Notes",
+      "bokeh": "Bokeh",
+      "pixels": "Pixels",
+      "lightning": "Lightning",
+      "lanterns": "Sky Lanterns",
+      "embers": "Embers",
+      "sparkles": "Sparkles"
     },
     "colors": {
       "crimson": "Crimson",

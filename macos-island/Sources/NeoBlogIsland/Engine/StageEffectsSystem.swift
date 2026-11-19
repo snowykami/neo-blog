@@ -3,7 +3,7 @@ import Observation
 import SwiftUI
 
 // MARK: - 1:1 对应 web/src/lib/lyrics/colors.ts、stage-effects.ts 与 stage-particles.ts
-// 【双端同步维护约定】小窗与胶囊的背景呼吸、副歌爆发、短语/多声部方向性染色、聚光灯暖光及 18 种内置场景 + 自定义 SVG 粒子均与前端对齐。
+// 【双端同步维护约定】小窗与胶囊的背景呼吸、副歌爆发、短语/多声部方向性染色、聚光灯暖光及 24 种内置场景 + 自定义 SVG 粒子均与前端对齐。
 
 enum LyricColorPalette {
     static let map: [String: String] = [
@@ -279,7 +279,7 @@ enum StageSignalsSolver {
     }
 }
 
-// MARK: - 18 种内置场景 + 自定义 SVG 精灵粒子引擎（1:1 对应 stage-particles.ts）
+// MARK: - 24 种内置场景 + 自定义 SVG 精灵粒子引擎（1:1 对应 stage-particles.ts）
 
 @Observable
 @MainActor
@@ -301,6 +301,7 @@ final class StageParticlesEngine {
         let seed: Double
         var leave: Double
         let onBeat: Bool
+        let instant: Bool
     }
 
     private static let baseArea: Double = 1280.0 * 800.0
@@ -322,6 +323,7 @@ final class StageParticlesEngine {
     @ObservationIgnored private var density: Double = 0
     @ObservationIgnored private var currentScene: ResolvedStageScene? = nil
     @ObservationIgnored private var pending: Double = 0
+    @ObservationIgnored private var beatPending: Double = 0
     @ObservationIgnored private var lastStepDate: Date? = nil
     @ObservationIgnored private var lastTimeMs: Double? = nil
     @ObservationIgnored private var compiledSprites: [String: [(paint: String, path: Path)]] = [:]
@@ -340,6 +342,7 @@ final class StageParticlesEngine {
         density = 0
         currentScene = nil
         pending = 0
+        beatPending = 0
         lastStepDate = nil
         lastTimeMs = nil
         compiledSprites.removeAll()
@@ -429,6 +432,7 @@ final class StageParticlesEngine {
             if let scene {
                 currentScene = scene
                 pending = 0
+                beatPending = 0.5
                 density = min(density, 0.18)
             } else if density <= 0.0001 {
                 currentScene = nil
@@ -450,6 +454,11 @@ final class StageParticlesEngine {
         let heartBeat: Double? = rhythm.reliable
             ? rhythm.heartbeatLevel(start: 0, end: timeMs + 2000, timeMs: timeMs)
             : nil
+        let beatBreath: Double? = rhythm.reliable
+            ? rhythm.backgroundLevel(timeMs: timeMs)
+            : nil
+        let beatSway: Double? = rhythm.particleSway(timeMs: timeMs)
+        let tempoScale = rhythm.particleTempoScale
 
         if let cur, density > 0, isPlaying {
             let meta = sceneMeta(for: cur)
@@ -487,20 +496,33 @@ final class StageParticlesEngine {
                         life: m.life,
                         seed: Double.random(in: 0...10),
                         leave: 0,
-                        onBeat: onBeat
+                        onBeat: onBeat,
+                        instant: meta.instant
                     )
                 )
             }
 
-            if let beatOct = meta.beatOctave, rhythm.reliable, validBeatWindow, let since = prevMs {
-                let pulses = rhythm.pulsesIn(octave: beatOct, origin: 0, t0: since, t1: timeMs)
+            if let beatOct = meta.beatOctave,
+               validBeatWindow,
+               let since = prevMs,
+               let pulses = rhythm.particlePulses(octave: beatOct, t0: since, t1: timeMs) {
+                let ratio = meta.beatRatio
+                if ratio < 1.0 {
+                    pending += meta.rate * (1.0 - ratio) * area * density * dt
+                    while pending >= 1.0 {
+                        pending -= 1.0
+                        spawnOne(false)
+                    }
+                }
                 let periodSec = rhythm.period(octave: beatOct) / 1000.0
                 for p in pulses {
-                    pending += meta.rate * periodSec * area * density * p.a
-                    let count = max(1, Int(floor(pending)))
-                    pending = max(0, pending - Double(count))
-                    for _ in 0..<count {
-                        spawnOne(true)
+                    beatPending += meta.rate * ratio * periodSec * area * density * p.a
+                    if beatPending >= 0.65 {
+                        let count = max(1, Int(floor(beatPending + 0.35)))
+                        beatPending = max(-0.35, beatPending - Double(count))
+                        for _ in 0..<count {
+                            spawnOne(true)
+                        }
                     }
                 }
             } else {
@@ -512,6 +534,7 @@ final class StageParticlesEngine {
             }
         } else {
             pending = 0
+            beatPending = 0
         }
 
         var nextParticles: [StageParticle] = []
@@ -534,11 +557,21 @@ final class StageParticlesEngine {
                 || p.x < -margin * 2 {
                 continue
             }
-            let fadeIn = min(1.0, p.age / (p.onBeat ? 0.25 : 0.60))
-            let fadeOut = p.life.isFinite ? min(1.0, max(0, p.life - p.age)) : 1.0
+            let inDur = p.instant ? 0.02 : min(p.onBeat ? 0.25 : 0.60, p.life * 0.25)
+            let outDur = min(1.0, p.life * 0.40)
+            let fadeIn = min(1.0, p.age / max(0.01, inDur))
+            let fadeOut = p.life.isFinite ? min(1.0, max(0, (p.life - p.age) / max(0.01, outDur))) : 1.0
             let alpha = max(0, min(1.0, min(fadeIn, fadeOut) * (1.0 - p.leave)))
             if alpha > 0.005 {
-                drawParticle(p, alpha: alpha, heartBeat: heartBeat, in: &context)
+                drawParticle(
+                    p,
+                    alpha: alpha,
+                    heartBeat: heartBeat,
+                    beatBreath: beatBreath,
+                    beatSway: beatSway,
+                    tempoScale: tempoScale,
+                    in: &context
+                )
             }
             nextParticles.append(p)
         }
@@ -553,6 +586,8 @@ final class StageParticlesEngine {
         let defaultColors: [String]
         var maxCount: Int? = nil
         var beatOctave: Int? = nil
+        var beatRatio: Double = 1.0
+        var instant: Bool = false
     }
 
     private struct SpawnedMotion {
@@ -579,11 +614,12 @@ final class StageParticlesEngine {
                 default: return 2.2
                 }
             }()
-            return SceneMeta(rate: rate, defaultColors: [sp.colorHex], maxCount: Self.spriteMaxCount)
+            let beatOct: Int? = (sp.motion == "burst") ? 1 : nil
+            return SceneMeta(rate: rate, defaultColors: [sp.colorHex], maxCount: Self.spriteMaxCount, beatOctave: beatOct)
         }
         switch scene.name {
         case "petals": return SceneMeta(rate: 5, defaultColors: ["#f9a8d4"])
-        case "sparks": return SceneMeta(rate: 9, defaultColors: ["#ffd977"])
+        case "sparks": return SceneMeta(rate: 9, defaultColors: ["#ffd977"], beatOctave: 1, beatRatio: 0.45)
         case "snow": return SceneMeta(rate: 14, defaultColors: ["#ffffff"])
         case "stars": return SceneMeta(rate: 7, defaultColors: ["#ffffff"])
         case "bubbles": return SceneMeta(rate: 4, defaultColors: ["#c8ebff"])
@@ -592,14 +628,20 @@ final class StageParticlesEngine {
         case "fireflies": return SceneMeta(rate: 3, defaultColors: ["#d4f56a"])
         case "feathers": return SceneMeta(rate: 1.5, defaultColors: ["#f5f5f5"])
         case "hearts": return SceneMeta(rate: 3, defaultColors: ["rose", "cherry-blossom", "peach"], beatOctave: 0)
-        case "confetti": return SceneMeta(rate: 14, defaultColors: LyricColorPalette.festive)
+        case "confetti": return SceneMeta(rate: 14, defaultColors: LyricColorPalette.festive, beatOctave: 1, beatRatio: 0.70)
         case "fireworks": return SceneMeta(rate: 0.8, defaultColors: LyricColorPalette.festive, beatOctave: 1)
         case "dandelion": return SceneMeta(rate: 2, defaultColors: ["#ffffff"])
         case "butterflies": return SceneMeta(rate: 1.2, defaultColors: ["lavender", "sky", "sunshine", "cherry-blossom"])
-        case "meteors": return SceneMeta(rate: 0.6, defaultColors: ["#e6f0ff"])
+        case "meteors": return SceneMeta(rate: 0.6, defaultColors: ["#e6f0ff"], beatOctave: 2)
         case "clouds": return SceneMeta(rate: 0.35, defaultColors: ["#ffffff"])
         case "ripples": return SceneMeta(rate: 2.5, defaultColors: ["#c8ebff"], beatOctave: 0)
         case "notes": return SceneMeta(rate: 2.5, defaultColors: ["#ffffff"], beatOctave: 0)
+        case "bokeh": return SceneMeta(rate: 2.2, defaultColors: ["sunset", "lavender", "amber", "sky", "rose"], maxCount: 28)
+        case "pixels": return SceneMeta(rate: 8, defaultColors: ["aurora", "sky", "violet", "lemon"], beatOctave: 0, beatRatio: 0.75)
+        case "lightning": return SceneMeta(rate: 0.55, defaultColors: ["#dcebff", "ice", "violet"], maxCount: 6, beatOctave: 2, instant: true)
+        case "lanterns": return SceneMeta(rate: 1.8, defaultColors: ["amber", "candlelight", "sunset"], maxCount: 32)
+        case "embers": return SceneMeta(rate: 7, defaultColors: ["flame", "crimson", "amber"], beatOctave: 1, beatRatio: 0.50)
+        case "sparkles": return SceneMeta(rate: 5.5, defaultColors: ["#ffffff", "moonlight", "lemon", "lavender", "cherry-blossom"], beatOctave: 0, beatRatio: 0.80)
         default: return SceneMeta(rate: 4, defaultColors: ["#ffffff"])
         }
     }
@@ -629,6 +671,9 @@ final class StageParticlesEngine {
         case "petals":
             return SpawnedMotion(x: .random(in: -30...w), y: -16, vx: .random(in: 10...40), vy: .random(in: 35...70), size: .random(in: 6...11), rotation: .random(in: 0...tau), spin: .random(in: -1.5...1.5))
         case "sparks":
+            if onBeat {
+                return SpawnedMotion(x: .random(in: 0...w), y: .random(in: (h * 0.85)...(h + 8)), vx: .random(in: -14...14), vy: .random(in: -80 ... -35), size: .random(in: 1.4...3.0), life: .random(in: 3.5...7.5))
+            }
             return SpawnedMotion(x: .random(in: 0...w), y: h + 8, vx: .random(in: -8...8), vy: .random(in: -55 ... -20), size: .random(in: 1.2...2.8), life: .random(in: 4...9))
         case "snow":
             return SpawnedMotion(x: .random(in: -16...(w + 16)), y: -10, vx: .random(in: -6...10), vy: .random(in: 22...55), size: .random(in: 1.2...3.8))
@@ -648,6 +693,9 @@ final class StageParticlesEngine {
             let y0 = onBeat ? Double.random(in: (h * 0.55)...(h * 0.95)) : (h + 16)
             return SpawnedMotion(x: .random(in: 0...w), y: y0, vx: 0, vy: .random(in: -60 ... -30), size: .random(in: 6...12), rotation: .random(in: -0.3...0.3))
         case "confetti":
+            if onBeat {
+                return SpawnedMotion(x: .random(in: (w * 0.05)...(w * 0.95)), y: .random(in: -10...(h * 0.28)), vx: .random(in: -65...65), vy: .random(in: 45...115), size: .random(in: 4...8), rotation: .random(in: 0...tau), spin: .random(in: -8...8))
+            }
             return SpawnedMotion(x: .random(in: 0...w), y: -14, vx: .random(in: -30...30), vy: .random(in: 60...120), size: .random(in: 4...8), rotation: .random(in: 0...tau), spin: .random(in: -6...6))
         case "fireworks":
             return SpawnedMotion(x: .random(in: (w * 0.15)...(w * 0.85)), y: .random(in: (h * 0.12)...(h * 0.52)), vx: 0, vy: 0, size: .random(in: 55...95), rotation: .random(in: 0...tau), life: .random(in: 1.8...2.4))
@@ -665,6 +713,24 @@ final class StageParticlesEngine {
         case "notes":
             let y0 = onBeat ? Double.random(in: (h * 0.55)...(h * 0.95)) : (h + 16)
             return SpawnedMotion(x: .random(in: 0...w), y: y0, vx: 0, vy: .random(in: -45 ... -25), size: .random(in: 13...20), rotation: .random(in: -0.3...0.3), spin: .random(in: -0.3...0.3))
+        case "bokeh":
+            return SpawnedMotion(x: .random(in: 0...w), y: .random(in: (h * 0.08)...(h * 0.92)), vx: .random(in: -10...10), vy: .random(in: -14 ... -4), size: .random(in: 26...60), life: .random(in: 6...10))
+        case "pixels":
+            if onBeat {
+                return SpawnedMotion(x: .random(in: (w * 0.05)...(w * 0.95)), y: .random(in: (h * 0.18)...(h * 0.88)), vx: 0, vy: .random(in: -65 ... -28), size: .random(in: 5...12), life: .random(in: 1.6...2.8))
+            }
+            return SpawnedMotion(x: .random(in: 0...w), y: .random(in: (h * 0.45)...(h + 12)), vx: 0, vy: .random(in: -75 ... -35), size: .random(in: 5...11), life: .random(in: 2.2...3.8))
+        case "lightning":
+            return SpawnedMotion(x: .random(in: (w * 0.12)...(w * 0.88)), y: .random(in: -8...(h * 0.18)), vx: 0, vy: 0, size: .random(in: 140...250), rotation: .random(in: (.pi * 0.36)...(.pi * 0.64)), life: .random(in: 0.42...0.62))
+        case "lanterns":
+            return SpawnedMotion(x: .random(in: (w * 0.05)...(w * 0.95)), y: h + 20, vx: .random(in: -6...6), vy: .random(in: -34 ... -18), size: .random(in: 9...16))
+        case "embers":
+            if onBeat {
+                return SpawnedMotion(x: .random(in: -10...w), y: .random(in: (h * 0.82)...(h + 10)), vx: .random(in: 16...58), vy: .random(in: -105 ... -50), size: .random(in: 3.2...7.0), rotation: .random(in: 0...tau), spin: .random(in: -4.5...4.5), life: .random(in: 2.8...5.5))
+            }
+            return SpawnedMotion(x: .random(in: -24...w), y: h + 12, vx: .random(in: 12...48), vy: .random(in: -78 ... -32), size: .random(in: 3.0...6.5), rotation: .random(in: 0...tau), spin: .random(in: -3.5...3.5), life: .random(in: 3.5...7.0))
+        case "sparkles":
+            return SpawnedMotion(x: .random(in: (w * 0.06)...(w * 0.94)), y: .random(in: (h * 0.08)...(h * 0.85)), vx: 0, vy: .random(in: -10 ... -2), size: .random(in: 7...15), rotation: .random(in: -0.25...0.25), spin: .random(in: -0.6...0.6), life: .random(in: 0.9...1.7))
         default:
             return SpawnedMotion(x: .random(in: 0...w), y: -12, vx: 0, vy: 35, size: 3)
         }
@@ -693,12 +759,17 @@ final class StageParticlesEngine {
         _ p: StageParticle,
         alpha: Double,
         heartBeat: Double?,
+        beatBreath: Double?,
+        beatSway: Double?,
+        tempoScale: Double,
         in ctx: inout GraphicsContext
     ) {
         if let sp = p.sprite {
-            drawCustomSprite(p, sprite: sp, alpha: alpha, in: &ctx)
+            drawCustomSprite(p, sprite: sp, alpha: alpha, beatSway: beatSway, in: &ctx)
             return
         }
+
+        let breath = beatBreath ?? 0
 
         switch p.sceneName {
         case "petals":
@@ -712,7 +783,15 @@ final class StageParticlesEngine {
 
         case "sparks":
             let flicker = 0.6 + 0.4 * sin(p.age * 6 + p.seed * 10)
-            drawGlowDot(in: &ctx, x: p.x + sin(p.age * 0.8 + p.seed) * 10, y: p.y, size: p.size, rgb: p.rgb, alpha: alpha * flicker)
+            let boost = 1.0 + 0.32 * breath
+            drawGlowDot(
+                in: &ctx,
+                x: p.x + sin(p.age * 0.8 + p.seed) * 10,
+                y: p.y,
+                size: p.size * (1.0 + 0.08 * breath),
+                rgb: p.rgb,
+                alpha: min(1.0, alpha * flicker * boost)
+            )
 
         case "snow":
             let x = p.x + sin(p.age + p.seed) * 8
@@ -723,7 +802,8 @@ final class StageParticlesEngine {
 
         case "stars":
             let lifeFrac = p.life.isFinite ? (p.age / max(0.01, p.life)) : 0.5
-            let a = alpha * sin(.pi * lifeFrac) * (0.75 + 0.25 * sin(p.age * 5 + p.seed * 7))
+            let boost = 1.0 + 0.28 * breath
+            let a = min(1.0, alpha * sin(.pi * lifeFrac) * (0.75 + 0.25 * sin(p.age * 5 + p.seed * 7)) * boost)
             ctx.fill(
                 Path(ellipseIn: CGRect(x: p.x - p.size, y: p.y - p.size, width: p.size * 2, height: p.size * 2)),
                 with: .color(color(p.rgb, alpha: 0.90 * a))
@@ -776,7 +856,15 @@ final class StageParticlesEngine {
             let x = p.x + sin(p.age * 0.7 + p.seed) * 24
             let y = p.y + cos(p.age * 0.9 + p.seed * 2) * 16
             let s = (sin(p.age * 2.5 + p.seed * 5) + 1.0) * 0.5
-            drawGlowDot(in: &ctx, x: x, y: y, size: p.size, rgb: p.rgb, alpha: alpha * (0.15 + 0.85 * s * s))
+            let boost = 1.0 + 0.30 * breath
+            drawGlowDot(
+                in: &ctx,
+                x: x,
+                y: y,
+                size: p.size * (1.0 + 0.10 * breath),
+                rgb: p.rgb,
+                alpha: min(1.0, alpha * (0.15 + 0.85 * s * s) * boost)
+            )
 
         case "feathers":
             let swing = sin(p.age * 1.2 + p.seed)
@@ -857,10 +945,10 @@ final class StageParticlesEngine {
 
         case "butterflies":
             var sub = ctx
-            sub.translateBy(x: p.x + sin(p.age * 0.9 + p.seed) * 32, y: p.y)
+            sub.translateBy(x: p.x + sin(p.age * 0.9 + p.seed) * 32, y: p.y - 2.5 * breath)
             sub.rotate(by: .radians(cos(p.age * 0.9 + p.seed) * 0.4 + p.vx / 120.0))
             let s = p.size
-            let flap = 0.25 + 0.75 * abs(sin(p.age * 8 + p.seed))
+            let flap = 0.25 + 0.75 * abs(sin(p.age * 8 * tempoScale + p.seed))
             let wingCol = color(p.rgb, alpha: 0.75 * alpha)
             for side in [-1.0, 1.0] {
                 var wCtx = sub
@@ -931,6 +1019,190 @@ final class StageParticlesEngine {
                 .foregroundStyle(color(p.rgb, alpha: 0.60 * alpha))
             sub.draw(txt, at: .zero, anchor: .center)
 
+        case "bokeh":
+            let lifeFrac = p.life.isFinite ? min(1.0, p.age / max(0.01, p.life)) : 0.5
+            let env = sin(.pi * lifeFrac)
+            let a = min(1.0, alpha * env * (1.0 + 0.20 * breath))
+            let r = p.size * (1.0 + 0.08 * breath)
+            let x = p.x + sin(p.age * 0.5 + p.seed) * 14
+            let y = p.y + cos(p.age * 0.4 + p.seed * 1.7) * 9
+            ctx.fill(
+                Path(ellipseIn: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2)),
+                with: .color(color(p.rgb, alpha: 0.085 * a))
+            )
+            let innerR = r * 0.68
+            ctx.fill(
+                Path(ellipseIn: CGRect(x: x - innerR, y: y - innerR, width: innerR * 2, height: innerR * 2)),
+                with: .color(color(LyricColorPalette.mixWhite(p.rgb, t: 0.35), alpha: 0.05 * a))
+            )
+            let rimR = r * 0.94
+            ctx.stroke(
+                Path(ellipseIn: CGRect(x: x - rimR, y: y - rimR, width: rimR * 2, height: rimR * 2)),
+                with: .color(color(LyricColorPalette.mixWhite(p.rgb, t: 0.45), alpha: 0.13 * a)),
+                lineWidth: max(1.1, r * 0.075)
+            )
+
+        case "pixels":
+            let stepAge = floor(p.age * 8.0) / 8.0
+            let hop = round(sin(stepAge * 7.0 + p.seed * 3.0)) * p.size * 0.9
+            let x = round(p.x + hop)
+            let y = round(p.y)
+            let s = max(3.0, round(p.size * (1.0 + 0.12 * breath)))
+            let flicker = 0.75 + 0.25 * (sin(stepAge * 19.0 + p.seed * 11.0) > -0.4 ? 1.0 : 0.2)
+            let a = min(1.0, alpha * flicker * (1.0 + 0.25 * breath))
+            let rect = CGRect(x: x - s * 0.5, y: y - s * 0.5, width: s, height: s)
+            if Int(floor(p.seed * 10.0)) % 3 == 0 {
+                ctx.stroke(Path(rect), with: .color(color(LyricColorPalette.mixWhite(p.rgb, t: 0.35), alpha: 0.82 * a)), lineWidth: 1.3)
+            } else {
+                ctx.fill(Path(rect), with: .color(color(p.rgb, alpha: 0.72 * a)))
+                let hi = max(1.5, s * 0.28)
+                let hiRect = CGRect(x: rect.minX + 1, y: rect.minY + 1, width: hi, height: hi)
+                ctx.fill(Path(hiRect), with: .color(color(LyricColorPalette.mixWhite(p.rgb, t: 0.65), alpha: 0.75 * a)))
+            }
+
+        case "lightning":
+            let t = min(1.0, p.age / max(0.01, p.life))
+            let steps = 7
+            let reach = min(steps, max(2, Int(ceil((t / 0.18) * Double(steps)))))
+            let flicker = t < 0.18
+                ? 1.0
+                : (0.72 + 0.28 * sin(t * 26.0 + p.seed * 3.0)) * pow(max(0, (1.0 - t) / 0.82), 1.4)
+            let a = min(1.0, alpha * flicker)
+            guard a > 0.01 else { break }
+            let dx = cos(p.rotation)
+            let dy = sin(p.rotation)
+            let px = -dy
+            let py = dx
+            var bolt = Path()
+            bolt.move(to: CGPoint(x: p.x, y: p.y))
+            var forkOrigin = CGPoint(x: p.x, y: p.y)
+            for i in 1...reach {
+                let frac = Double(i) / Double(steps)
+                let jitter = (i == steps) ? 0 : sin(p.seed * 13.7 + Double(i) * 4.3) * 0.095 * p.size
+                let pt = CGPoint(
+                    x: p.x + dx * p.size * frac + px * jitter,
+                    y: p.y + dy * p.size * frac + py * jitter
+                )
+                bolt.addLine(to: pt)
+                if i == 3 {
+                    forkOrigin = pt
+                }
+            }
+            if reach > 3 {
+                let forkAngle = p.rotation + (sin(p.seed * 7.1) >= 0 ? 0.52 : -0.52)
+                let fdx = cos(forkAngle)
+                let fdy = sin(forkAngle)
+                let fpx = -fdy
+                let fpy = fdx
+                let forkLen = p.size * 0.42
+                let forkReach = min(3, reach - 3)
+                bolt.move(to: forkOrigin)
+                for j in 1...forkReach {
+                    let frac = Double(j) / 3.0
+                    let jitter = sin(p.seed * 9.3 + Double(j) * 5.1) * 0.05 * p.size
+                    bolt.addLine(to: CGPoint(
+                        x: forkOrigin.x + fdx * forkLen * frac + fpx * jitter,
+                        y: forkOrigin.y + fdy * forkLen * frac + fpy * jitter
+                    ))
+                }
+            }
+            ctx.stroke(
+                bolt,
+                with: .color(color(p.rgb, alpha: 0.30 * a)),
+                style: StrokeStyle(lineWidth: 4.5, lineCap: .round, lineJoin: .round)
+            )
+            ctx.stroke(
+                bolt,
+                with: .color(color(LyricColorPalette.mixWhite(p.rgb, t: 0.85), alpha: 0.95 * a)),
+                style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round)
+            )
+
+        case "lanterns":
+            let sway = sin(p.age * 0.8 + p.seed)
+            let s = max(1, p.size)
+            let wickGlow = (0.88 + 0.12 * sin(p.age * 3.6 + p.seed * 4.0)) * (1.0 + 0.28 * breath)
+            var sub = ctx
+            sub.translateBy(x: p.x + sway * 14, y: p.y)
+            sub.rotate(by: .radians(cos(p.age * 0.8 + p.seed) * 0.12))
+            let auraR = s * 1.85
+            sub.fill(
+                Path(ellipseIn: CGRect(x: -auraR, y: s * 0.15 - auraR, width: auraR * 2, height: auraR * 2)),
+                with: .color(color(p.rgb, alpha: min(1.0, 0.15 * alpha * wickGlow)))
+            )
+            var body = Path()
+            body.move(to: CGPoint(x: -0.38 * s, y: 0.72 * s))
+            body.addCurve(
+                to: CGPoint(x: -0.32 * s, y: -0.82 * s),
+                control1: CGPoint(x: -0.72 * s, y: 0.15 * s),
+                control2: CGPoint(x: -0.68 * s, y: -0.58 * s)
+            )
+            body.addQuadCurve(to: CGPoint(x: 0.32 * s, y: -0.82 * s), control: CGPoint(x: 0, y: -0.96 * s))
+            body.addCurve(
+                to: CGPoint(x: 0.38 * s, y: 0.72 * s),
+                control1: CGPoint(x: 0.68 * s, y: -0.58 * s),
+                control2: CGPoint(x: 0.72 * s, y: 0.15 * s)
+            )
+            body.closeSubpath()
+            sub.fill(body, with: .color(color(p.rgb, alpha: 0.72 * alpha)))
+            let rimRect = CGRect(x: -0.36 * s, y: 0.62 * s, width: 0.72 * s, height: 0.20 * s)
+            sub.stroke(Path(ellipseIn: rimRect), with: .color(color(LyricColorPalette.mixWhite(p.rgb, t: 0.45), alpha: 0.65 * alpha)), lineWidth: 1)
+            let flameR = 0.28 * s
+            sub.fill(
+                Path(ellipseIn: CGRect(x: -flameR, y: 0.42 * s - flameR, width: flameR * 2, height: flameR * 2)),
+                with: .color(color(LyricColorPalette.mixWhite(p.rgb, t: 0.82), alpha: min(1.0, 0.92 * alpha * wickGlow)))
+            )
+
+        case "embers":
+            let x = p.x + sin(p.age * 1.5 + p.seed) * 12
+            let smolder = (0.35 + 0.65 * ((sin(p.age * 4.5 + p.seed * 6.0) + 1.0) * 0.5)) * (1.0 + 0.35 * breath)
+            let a = min(1.0, alpha * smolder)
+            let haloR = p.size * 2.2
+            ctx.fill(
+                Path(ellipseIn: CGRect(x: x - haloR, y: p.y - haloR, width: haloR * 2, height: haloR * 2)),
+                with: .color(color(p.rgb, alpha: 0.14 * a))
+            )
+            var sub = ctx
+            sub.translateBy(x: x, y: p.y)
+            sub.rotate(by: .radians(p.rotation))
+            let s = max(1, p.size)
+            sub.scaleBy(x: (0.25 + 0.75 * abs(cos(p.age * 3.2 + p.seed))) * s, y: s)
+            var shard = Path()
+            shard.move(to: CGPoint(x: 0, y: -1))
+            shard.addLine(to: CGPoint(x: 0.72, y: -0.22))
+            shard.addLine(to: CGPoint(x: 0.34, y: 0.88))
+            shard.addLine(to: CGPoint(x: -0.65, y: 0.42))
+            shard.addLine(to: CGPoint(x: -0.52, y: -0.55))
+            shard.closeSubpath()
+            sub.fill(
+                shard,
+                with: .color(color(LyricColorPalette.mixWhite(p.rgb, t: 0.35 * min(1.0, smolder)), alpha: 0.88 * a))
+            )
+
+        case "sparkles":
+            let lifeFrac = p.life.isFinite ? min(1.0, p.age / max(0.01, p.life)) : 0.5
+            let bloom = sin(.pi * lifeFrac)
+            let a = min(1.0, alpha * bloom * (1.0 + 0.22 * breath))
+            let s = p.size * (0.35 + 0.75 * bloom) * (1.0 + 0.14 * breath)
+            var sub = ctx
+            sub.translateBy(x: p.x, y: p.y)
+            sub.rotate(by: .radians(p.rotation))
+            let diag = s * 0.42
+            var cross = Path()
+            cross.move(to: CGPoint(x: -diag, y: -diag))
+            cross.addLine(to: CGPoint(x: diag, y: diag))
+            cross.move(to: CGPoint(x: -diag, y: diag))
+            cross.addLine(to: CGPoint(x: diag, y: -diag))
+            sub.stroke(cross, with: .color(color(p.rgb, alpha: 0.45 * a)), lineWidth: 1)
+            sub.scaleBy(x: s, y: s)
+            var star = Path()
+            star.move(to: CGPoint(x: 0, y: -1))
+            star.addQuadCurve(to: CGPoint(x: 1, y: 0), control: CGPoint(x: 0.12, y: -0.12))
+            star.addQuadCurve(to: CGPoint(x: 0, y: 1), control: CGPoint(x: 0.12, y: 0.12))
+            star.addQuadCurve(to: CGPoint(x: -1, y: 0), control: CGPoint(x: -0.12, y: 0.12))
+            star.addQuadCurve(to: CGPoint(x: 0, y: -1), control: CGPoint(x: -0.12, y: -0.12))
+            star.closeSubpath()
+            sub.fill(star, with: .color(color(LyricColorPalette.mixWhite(p.rgb, t: 0.55), alpha: 0.92 * a)))
+
         default:
             break
         }
@@ -940,6 +1212,7 @@ final class StageParticlesEngine {
         _ p: StageParticle,
         sprite: LyricSpritePayload,
         alpha: Double,
+        beatSway: Double?,
         in ctx: inout GraphicsContext
     ) {
         let compiled: [(paint: String, path: Path)] = {
@@ -961,7 +1234,13 @@ final class StageParticlesEngine {
         case "drift":
             oy = sin(p.age * 2.0 + p.seed) * 10
         case "sway":
-            rot = sin(p.age * 2.2 + p.seed) * 0.35
+            if let sway = beatSway {
+                let frac = p.seed - floor(p.seed)
+                let amp = 0.36 * (0.85 + 0.30 * frac)
+                rot = sway * amp + sin(p.age * 1.7 + p.seed) * 0.05
+            } else {
+                rot = sin(p.age * 2.2 + p.seed) * 0.35
+            }
         case "swirl":
             let frac = p.seed - floor(p.seed)
             ox = sin(p.age * 1.6 + p.seed) * (18 + frac * 22)

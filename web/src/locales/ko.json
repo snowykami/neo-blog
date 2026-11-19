@@ -4966,7 +4966,13 @@
       "meteors": "유성",
       "clouds": "구름",
       "ripples": "물결무늬",
-      "notes": "음표"
+      "notes": "음표",
+      "bokeh": "보케 빛망울",
+      "pixels": "픽셀",
+      "lightning": "번개",
+      "lanterns": "풍등",
+      "embers": "잔불",
+      "sparkles": "반짝임"
     },
     "colors": {
       "crimson": "진홍",

@@ -6,12 +6,14 @@ import { hdrCanvasColor } from '@/lib/hdr-color'
 import { hexToRgb, LYRIC_COLORS } from './colors'
 
 /**
- * 播放器页的全屏粒子（canvas 2D），共 18 种场景（与后端 lyricAnnotationSceneList 一致）。
+ * 播放器页的全屏粒子（canvas 2D），共 24 种内置场景（与后端 lyricAnnotationSceneList 及 macOS StageEffectsSystem 一致）。
  * 当前场景按 density（0 ~ 1，渐入渐出）生成粒子；切换场景或颜色主题、结束场景或暂停后不再生成，已有粒子在 LEAVE_SECONDS 内淡出。
  * 颜色：指定了颜色主题时所有粒子使用该颜色（略微随机提亮以增加层次），否则使用场景的默认色（部分场景为多色）。
  * 自定义粒子（场景名为 custom:<name>，见 spriteSpec）：按动作预设生成，用 Path2D 画图标库的图标或模型画的剪影，数量与透明度有上限。
- * 离散事件类场景（烟花、涟漪、音符、爱心，见 SceneSpec.beat）跟随节拍时在拍点成簇生成（点过程，长期平均速率不变），爱心随拍跳动；
- * 不跟随节拍时均匀生成（见 rhythm/effects.ts 的 particlePulses）
+ * 节拍联动分两类：
+ * 1. 拍点簇发生成（SceneSpec.beat / beatRatio）：烟花、涟漪、音符、爱心、彩纸、流星、像素块、电弧、星芒、余烬、星火及自定义 burst；
+ * 2. 已有粒子的姿态/光晕随拍调制：爱心噗通缩放、光点/散景/天灯/余烬随拍呼吸提亮、蝴蝶随曲速振翅、自定义 sway 对齐拍点左右挥摆；
+ * 雪、雨、花瓣、落叶、羽毛、蒲公英、云朵、气泡等自然流体场景保持纯自然无节拍运动。
  */
 
 interface Particle {
@@ -45,21 +47,31 @@ interface SceneSpec {
   colors: readonly string[]
   spawn: (w: number, h: number) => Motion
   draw: (ctx: CanvasRenderingContext2D, p: Particle, alpha: number) => void
-  // 同屏数量上限（自定义粒子用），未设置时只受总数上限限制
+  // 同屏数量上限（自定义粒子或大尺寸粒子用），未设置时只受总数上限限制
   max?: number
-  // 离散事件类：跟随节拍时在拍点成簇生成，值为相对基准脉冲的八度；beatSpawn 为在拍点生成时的位置（直接出现在画面里，而不是从画面外进入）
+  // 跟随节拍时在拍点成簇生成，值为相对基准脉冲的八度；beatRatio（默认 1）为走拍点簇发的速率占比，其余保持连续底流；
+  // beatSpawn 为在拍点生成时的位置（直接出现在画面里，而不是从画面外进入）
   beat?: number
+  beatRatio?: number
   beatSpawn?: (w: number, h: number) => Motion
+  // 瞬态闪现（如闪电）：省去慢淡入让第一帧即亮起
+  instant?: boolean
 }
 
-/** 跟随节拍时的输入：本帧经过的拍（按八度）与爱心随拍的缩放；不跟随节拍时为 null */
+/** 跟随节拍时的输入：本帧经过的拍（按八度）与各类随拍调制信号；不跟随节拍时为 null */
 export interface StageParticleRhythm {
   pulses: (octave: number) => { pulses: RhythmPulse[], periodMs: number } | null
   heart: number | null
+  breath?: number | null
+  sway?: number | null
+  tempoScale?: number
 }
 
-// 这一帧爱心随拍的缩放（update 中写入，绘制时读取）；不跟随节拍时为 null，爱心用缓慢起伏
+// 这一帧随拍调制的瞬时状态（update 中写入，绘制时读取）；不跟随节拍时为 null，退回粒子自身的柔和自然起伏
 let heartBeat: number | null = null
+let beatBreath: number | null = null
+let beatSway: number | null = null
+let beatTempoScale = 1
 // 这一帧的 HDR 亮度倍数（update 中写入，rgba 读取）：大于 1 时颜色写成 color(srgb-linear …) 并乘以它，见 StageParticlesOptions.hdrGain
 let colorGain = 1
 
@@ -94,6 +106,9 @@ let unitPetalPath: Path2D | null = null
 let unitHeartPath: Path2D | null = null
 let unitLeafBodyPath: Path2D | null = null
 let unitLeafStemPath: Path2D | null = null
+let unitLanternPath: Path2D | null = null
+let unitEmberPath: Path2D | null = null
+let unitSparklePath: Path2D | null = null
 
 function getUnitPetalPath() {
   if (!unitPetalPath && typeof Path2D !== 'undefined') {
@@ -131,6 +146,47 @@ function getUnitLeafPaths() {
   return { body: unitLeafBodyPath!, stem: unitLeafStemPath! }
 }
 
+function getUnitLanternPath() {
+  if (!unitLanternPath && typeof Path2D !== 'undefined') {
+    const p = new Path2D()
+    p.moveTo(-0.38, 0.72)
+    p.bezierCurveTo(-0.72, 0.15, -0.68, -0.58, -0.32, -0.82)
+    p.quadraticCurveTo(0, -0.96, 0.32, -0.82)
+    p.bezierCurveTo(0.68, -0.58, 0.72, 0.15, 0.38, 0.72)
+    p.closePath()
+    unitLanternPath = p
+  }
+  return unitLanternPath
+}
+
+function getUnitEmberPath() {
+  if (!unitEmberPath && typeof Path2D !== 'undefined') {
+    const p = new Path2D()
+    p.moveTo(0, -1)
+    p.lineTo(0.72, -0.22)
+    p.lineTo(0.34, 0.88)
+    p.lineTo(-0.65, 0.42)
+    p.lineTo(-0.52, -0.55)
+    p.closePath()
+    unitEmberPath = p
+  }
+  return unitEmberPath
+}
+
+function getUnitSparklePath() {
+  if (!unitSparklePath && typeof Path2D !== 'undefined') {
+    const p = new Path2D()
+    p.moveTo(0, -1)
+    p.quadraticCurveTo(0.12, -0.12, 1, 0)
+    p.quadraticCurveTo(0.12, 0.12, 0, 1)
+    p.quadraticCurveTo(-0.12, 0.12, -1, 0)
+    p.quadraticCurveTo(-0.12, -0.12, 0, -1)
+    p.closePath()
+    unitSparklePath = p
+  }
+  return unitSparklePath
+}
+
 /** 光晕 + 亮核的光点 */
 function glowDot(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, color: Rgb, a: number) {
   ctx.fillStyle = rgba(color, 0.18 * a)
@@ -162,10 +218,14 @@ const SCENES: Record<LyricScene, SceneSpec> = {
   sparks: {
     rate: 9,
     colors: ['#ffd977'],
+    beat: 1,
+    beatRatio: 0.45,
     spawn: (w, h) => ({ x: rand(0, w), y: h + 10, vx: rand(-8, 8), vy: rand(-55, -20), size: rand(1.2, 2.8), rotation: 0, spin: 0, life: rand(4, 9) }),
+    beatSpawn: (w, h) => ({ x: rand(0, w), y: rand(h * 0.85, h + 10), vx: rand(-14, 14), vy: rand(-80, -35), size: rand(1.4, 3), rotation: 0, spin: 0, life: rand(3.5, 7.5) }),
     draw: (ctx, p, alpha) => {
       const flicker = 0.6 + 0.4 * Math.sin(p.age * 6 + p.seed * 10)
-      glowDot(ctx, p.x + Math.sin(p.age * 0.8 + p.seed) * 10, p.y, p.size, p.color, alpha * flicker)
+      const boost = 1 + 0.32 * (beatBreath ?? 0)
+      glowDot(ctx, p.x + Math.sin(p.age * 0.8 + p.seed) * 10, p.y, p.size * (1 + 0.08 * (beatBreath ?? 0)), p.color, Math.min(1, alpha * flicker * boost))
     },
   },
   snow: {
@@ -184,8 +244,9 @@ const SCENES: Record<LyricScene, SceneSpec> = {
     colors: ['#ffffff'],
     spawn: (w, h) => ({ x: rand(0, w), y: rand(0, h * 0.75), vx: rand(-3, 3), vy: rand(-2, 2), size: rand(0.8, 2.4), rotation: 0, spin: 0, life: rand(3, 6) }),
     draw: (ctx, p, alpha) => {
-      // 一生中亮起再熄灭，并带轻微闪烁
-      const a = alpha * Math.sin(Math.PI * p.age / p.life) * (0.75 + 0.25 * Math.sin(p.age * 5 + p.seed * 7))
+      // 一生中亮起再熄灭，带独立闪烁，跟随节拍时轻微呼吸提亮
+      const boost = 1 + 0.28 * (beatBreath ?? 0)
+      const a = Math.min(1, alpha * Math.sin(Math.PI * p.age / p.life) * (0.75 + 0.25 * Math.sin(p.age * 5 + p.seed * 7)) * boost)
       ctx.fillStyle = rgba(p.color, 0.9 * a)
       ctx.beginPath()
       ctx.arc(p.x, p.y, p.size, 0, TAU)
@@ -259,11 +320,12 @@ const SCENES: Record<LyricScene, SceneSpec> = {
     colors: ['#d4f56a'],
     spawn: (w, h) => ({ x: rand(0, w), y: rand(h * 0.3, h), vx: rand(-6, 6), vy: rand(-8, 2), size: rand(1.4, 2.6), rotation: 0, spin: 0, life: rand(5, 9) }),
     draw: (ctx, p, alpha) => {
-      // 游走 + 呼吸式明灭
+      // 游走 + 呼吸式明灭，跟随节拍时微提光晕
       const x = p.x + Math.sin(p.age * 0.7 + p.seed) * 30
       const y = p.y + Math.cos(p.age * 0.9 + p.seed * 2) * 20
       const blink = ((Math.sin(p.age * 2.5 + p.seed * 5) + 1) / 2) ** 2
-      glowDot(ctx, x, y, p.size, p.color, alpha * (0.15 + 0.85 * blink))
+      const boost = 1 + 0.3 * (beatBreath ?? 0)
+      glowDot(ctx, x, y, p.size * (1 + 0.1 * (beatBreath ?? 0)), p.color, Math.min(1, alpha * (0.15 + 0.85 * blink) * boost))
     },
   },
   feathers: {
@@ -311,7 +373,10 @@ const SCENES: Record<LyricScene, SceneSpec> = {
   confetti: {
     rate: 14,
     colors: FESTIVE,
+    beat: 1,
+    beatRatio: 0.7,
     spawn: w => ({ x: rand(0, w), y: -15, vx: rand(-30, 30), vy: rand(60, 120), size: rand(4, 8), rotation: rand(0, TAU), spin: rand(-6, 6), life: Infinity }),
+    beatSpawn: (w, h) => ({ x: rand(w * 0.05, w * 0.95), y: rand(-10, h * 0.28), vx: rand(-65, 65), vy: rand(45, 115), size: rand(4, 8), rotation: rand(0, TAU), spin: rand(-8, 8), life: Infinity }),
     draw: (ctx, p, alpha) => {
       ctx.save()
       ctx.translate(p.x + Math.sin(p.age * 2 + p.seed) * 10, p.y)
@@ -394,12 +459,13 @@ const SCENES: Record<LyricScene, SceneSpec> = {
     spawn: (w, h) => ({ x: rand(0, w), y: h + 20, vx: rand(-30, 30), vy: rand(-45, -25), size: rand(6, 10), rotation: 0, spin: 0, life: Infinity }),
     draw: (ctx, p, alpha) => {
       const x = p.x + Math.sin(p.age * 0.9 + p.seed) * 40
+      const y = p.y - 3 * (beatBreath ?? 0)
       ctx.save()
-      ctx.translate(x, p.y)
+      ctx.translate(x, y)
       // 朝飞行方向略微倾斜
       ctx.rotate(Math.cos(p.age * 0.9 + p.seed) * 0.4 + p.vx / 120)
       const s = p.size
-      const flap = 0.25 + 0.75 * Math.abs(Math.sin(p.age * 8 + p.seed))
+      const flap = 0.25 + 0.75 * Math.abs(Math.sin(p.age * 8 * beatTempoScale + p.seed))
       ctx.fillStyle = rgba(p.color, 0.75 * alpha)
       for (const side of [-1, 1]) {
         ctx.save()
@@ -422,6 +488,7 @@ const SCENES: Record<LyricScene, SceneSpec> = {
   meteors: {
     rate: 0.6,
     colors: ['#e6f0ff'],
+    beat: 2,
     // size 为拖尾长度
     spawn: (w, h) => ({ x: rand(w * 0.3, w + 100), y: rand(-40, h * 0.3), vx: rand(-700, -500), vy: rand(250, 350), size: rand(120, 220), rotation: 0, spin: 0, life: rand(1.2, 2) }),
     draw: (ctx, p, alpha) => {
@@ -503,6 +570,242 @@ const SCENES: Record<LyricScene, SceneSpec> = {
       ctx.restore()
     },
   },
+  bokeh: {
+    rate: 2.2,
+    max: 28,
+    colors: ['sunset', 'lavender', 'amber', 'sky', 'rose'],
+    spawn: (w, h) => ({ x: rand(0, w), y: rand(h * 0.08, h * 0.92), vx: rand(-10, 10), vy: rand(-14, -4), size: rand(28, 68), rotation: 0, spin: 0, life: rand(6, 10) }),
+    draw: (ctx, p, alpha) => {
+      // 镜头虚焦圆光斑：柔和半透明光盘 + 球差微亮外缘，随节拍极轻微呼吸，纯几何绘制无渐变分配
+      const breath = beatBreath ?? 0
+      const env = Math.sin(Math.PI * Math.min(1, p.age / p.life))
+      const a = Math.min(1, alpha * env * (1 + 0.2 * breath))
+      const r = p.size * (1 + 0.08 * breath)
+      const x = p.x + Math.sin(p.age * 0.5 + p.seed) * 16
+      const y = p.y + Math.cos(p.age * 0.4 + p.seed * 1.7) * 10
+      ctx.fillStyle = rgba(p.color, 0.085 * a)
+      ctx.beginPath()
+      ctx.arc(x, y, r, 0, TAU)
+      ctx.fill()
+      ctx.fillStyle = rgba(mixWhite(p.color, 0.35), 0.05 * a)
+      ctx.beginPath()
+      ctx.arc(x, y, r * 0.68, 0, TAU)
+      ctx.fill()
+      ctx.strokeStyle = rgba(mixWhite(p.color, 0.45), 0.13 * a)
+      ctx.lineWidth = Math.max(1.2, r * 0.075)
+      ctx.beginPath()
+      ctx.arc(x, y, r * 0.94, 0, TAU)
+      ctx.stroke()
+    },
+  },
+  pixels: {
+    rate: 8,
+    colors: ['aurora', 'sky', 'violet', 'lemon'],
+    beat: 0,
+    beatRatio: 0.75,
+    spawn: (w, h) => ({ x: rand(0, w), y: rand(h * 0.45, h + 12), vx: 0, vy: rand(-75, -35), size: rand(5, 11), rotation: 0, spin: 0, life: rand(2.2, 3.8) }),
+    beatSpawn: (w, h) => ({ x: rand(w * 0.05, w * 0.95), y: rand(h * 0.18, h * 0.88), vx: 0, vy: rand(-65, -28), size: rand(5, 12), rotation: 0, spin: 0, life: rand(1.6, 2.8) }),
+    draw: (ctx, p, alpha) => {
+      // 量化阶梯横跳 + 实心/线框混合数码方块
+      const stepAge = Math.floor(p.age * 8) / 8
+      const hop = Math.round(Math.sin(stepAge * 7 + p.seed * 3)) * p.size * 0.9
+      const x = Math.round(p.x + hop)
+      const y = Math.round(p.y)
+      const s = Math.max(3, Math.round(p.size * (1 + 0.12 * (beatBreath ?? 0))))
+      const flicker = 0.75 + 0.25 * (Math.sin(stepAge * 19 + p.seed * 11) > -0.4 ? 1 : 0.2)
+      const a = Math.min(1, alpha * flicker * (1 + 0.25 * (beatBreath ?? 0)))
+      const hollow = Math.floor(p.seed * 10) % 3 === 0
+      if (hollow) {
+        ctx.strokeStyle = rgba(mixWhite(p.color, 0.35), 0.82 * a)
+        ctx.lineWidth = 1.4
+        ctx.strokeRect(x - s / 2, y - s / 2, s, s)
+      }
+      else {
+        ctx.fillStyle = rgba(p.color, 0.72 * a)
+        ctx.fillRect(x - s / 2, y - s / 2, s, s)
+        const hi = Math.max(1.5, s * 0.28)
+        ctx.fillStyle = rgba(mixWhite(p.color, 0.65), 0.75 * a)
+        ctx.fillRect(x - s / 2 + 1, y - s / 2 + 1, hi, hi)
+      }
+    },
+  },
+  lightning: {
+    rate: 0.55,
+    max: 6,
+    colors: ['#dcebff', 'ice', 'violet'],
+    beat: 2,
+    instant: true,
+    // size 为闪电主干长度，rotation 为劈落方向角（约朝下 ±25°）
+    spawn: (w, h) => ({ x: rand(w * 0.12, w * 0.88), y: rand(-10, h * 0.18), vx: 0, vy: 0, size: rand(160, 300), rotation: rand(Math.PI * 0.36, Math.PI * 0.64), spin: 0, life: rand(0.42, 0.62) }),
+    draw: (ctx, p, alpha) => {
+      const t = Math.min(1, p.age / p.life)
+      const steps = 7
+      const reach = Math.min(steps, Math.max(2, Math.ceil((t / 0.18) * steps)))
+      const flicker = t < 0.18 ? 1 : (0.72 + 0.28 * Math.sin(t * 26 + p.seed * 3)) * ((1 - t) / 0.82) ** 1.4
+      const a = Math.min(1, alpha * flicker)
+      if (a <= 0.01)
+        return
+      const dx = Math.cos(p.rotation)
+      const dy = Math.sin(p.rotation)
+      const px = -dy
+      const py = dx
+      const traceBolt = () => {
+        ctx.beginPath()
+        ctx.moveTo(p.x, p.y)
+        let forkX = p.x
+        let forkY = p.y
+        for (let i = 1; i <= reach; i++) {
+          const frac = i / steps
+          const jitter = i === steps ? 0 : Math.sin(p.seed * 13.7 + i * 4.3) * 0.095 * p.size
+          const vx = p.x + dx * p.size * frac + px * jitter
+          const vy = p.y + dy * p.size * frac + py * jitter
+          ctx.lineTo(vx, vy)
+          if (i === 3) {
+            forkX = vx
+            forkY = vy
+          }
+        }
+        if (reach > 3) {
+          const forkAngle = p.rotation + (Math.sin(p.seed * 7.1) >= 0 ? 0.52 : -0.52)
+          const fdx = Math.cos(forkAngle)
+          const fdy = Math.sin(forkAngle)
+          const fpx = -fdy
+          const fpy = fdx
+          const forkLen = p.size * 0.42
+          const forkReach = Math.min(3, reach - 3)
+          ctx.moveTo(forkX, forkY)
+          for (let j = 1; j <= forkReach; j++) {
+            const frac = j / 3
+            const jitter = Math.sin(p.seed * 9.3 + j * 5.1) * 0.05 * p.size
+            ctx.lineTo(forkX + fdx * forkLen * frac + fpx * jitter, forkY + fdy * forkLen * frac + fpy * jitter)
+          }
+        }
+      }
+      ctx.save()
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      traceBolt()
+      ctx.strokeStyle = rgba(p.color, 0.3 * a)
+      ctx.lineWidth = 5
+      ctx.stroke()
+      ctx.strokeStyle = rgba(mixWhite(p.color, 0.85), 0.95 * a)
+      ctx.lineWidth = 1.8
+      ctx.stroke()
+      ctx.restore()
+    },
+  },
+  lanterns: {
+    rate: 1.8,
+    max: 32,
+    colors: ['amber', 'candlelight', 'sunset'],
+    spawn: (w, h) => ({ x: rand(w * 0.05, w * 0.95), y: h + 24, vx: rand(-6, 6), vy: rand(-34, -18), size: rand(9, 16), rotation: 0, spin: 0, life: Infinity }),
+    draw: (ctx, p, alpha) => {
+      const sway = Math.sin(p.age * 0.8 + p.seed)
+      const x = p.x + sway * 16
+      const s = p.size
+      const wickGlow = (0.88 + 0.12 * Math.sin(p.age * 3.6 + p.seed * 4)) * (1 + 0.28 * (beatBreath ?? 0))
+      ctx.save()
+      ctx.translate(x, p.y)
+      ctx.rotate(Math.cos(p.age * 0.8 + p.seed) * 0.12)
+      // 外层暖光晕
+      ctx.fillStyle = rgba(p.color, Math.min(1, 0.15 * alpha * wickGlow))
+      ctx.beginPath()
+      ctx.arc(0, s * 0.15, s * 1.85, 0, TAU)
+      ctx.fill()
+      // 灯罩轮廓
+      ctx.save()
+      ctx.scale(s, s)
+      ctx.fillStyle = rgba(p.color, 0.72 * alpha)
+      const lanternPath = getUnitLanternPath()
+      if (lanternPath) {
+        ctx.fill(lanternPath)
+      }
+      else {
+        ctx.beginPath()
+        ctx.arc(0, 0, 0.65, 0, TAU)
+        ctx.fill()
+      }
+      ctx.restore()
+      // 底部灯口与明亮灯芯火苗
+      ctx.strokeStyle = rgba(mixWhite(p.color, 0.45), 0.65 * alpha)
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      ctx.ellipse(0, s * 0.72, s * 0.36, s * 0.1, 0, 0, TAU)
+      ctx.stroke()
+      ctx.fillStyle = rgba(mixWhite(p.color, 0.82), Math.min(1, 0.92 * alpha * wickGlow))
+      ctx.beginPath()
+      ctx.arc(0, s * 0.42, s * 0.28, 0, TAU)
+      ctx.fill()
+      ctx.restore()
+    },
+  },
+  embers: {
+    rate: 7,
+    colors: ['flame', 'crimson', 'amber'],
+    beat: 1,
+    beatRatio: 0.5,
+    spawn: (w, h) => ({ x: rand(-30, w), y: h + 14, vx: rand(12, 48), vy: rand(-78, -32), size: rand(3, 6.5), rotation: rand(0, TAU), spin: rand(-3.5, 3.5), life: rand(3.5, 7) }),
+    beatSpawn: (w, h) => ({ x: rand(-10, w), y: rand(h * 0.82, h + 10), vx: rand(16, 58), vy: rand(-105, -50), size: rand(3.2, 7), rotation: rand(0, TAU), spin: rand(-4.5, 4.5), life: rand(2.8, 5.5) }),
+    draw: (ctx, p, alpha) => {
+      const x = p.x + Math.sin(p.age * 1.5 + p.seed) * 14
+      const smolder = (0.35 + 0.65 * ((Math.sin(p.age * 4.5 + p.seed * 6) + 1) / 2)) * (1 + 0.35 * (beatBreath ?? 0))
+      const a = Math.min(1, alpha * smolder)
+      ctx.fillStyle = rgba(p.color, 0.14 * a)
+      ctx.beginPath()
+      ctx.arc(x, p.y, p.size * 2.2, 0, TAU)
+      ctx.fill()
+      ctx.save()
+      ctx.translate(x, p.y)
+      ctx.rotate(p.rotation)
+      ctx.scale((0.25 + 0.75 * Math.abs(Math.cos(p.age * 3.2 + p.seed))) * p.size, p.size)
+      ctx.fillStyle = rgba(mixWhite(p.color, 0.35 * Math.min(1, smolder)), 0.88 * a)
+      const emberPath = getUnitEmberPath()
+      if (emberPath) {
+        ctx.fill(emberPath)
+      }
+      else {
+        ctx.fillRect(-0.6, -0.6, 1.2, 1.2)
+      }
+      ctx.restore()
+    },
+  },
+  sparkles: {
+    rate: 5.5,
+    colors: ['#ffffff', 'moonlight', 'lemon', 'lavender', 'cherry-blossom'],
+    beat: 0,
+    beatRatio: 0.8,
+    spawn: (w, h) => ({ x: rand(w * 0.06, w * 0.94), y: rand(h * 0.08, h * 0.85), vx: 0, vy: rand(-10, -2), size: rand(7, 15), rotation: rand(-0.25, 0.25), spin: rand(-0.6, 0.6), life: rand(0.9, 1.7) }),
+    draw: (ctx, p, alpha) => {
+      const bloom = Math.sin(Math.PI * Math.min(1, p.age / p.life))
+      const breath = beatBreath ?? 0
+      const a = Math.min(1, alpha * bloom * (1 + 0.22 * breath))
+      const s = p.size * (0.35 + 0.75 * bloom) * (1 + 0.14 * breath)
+      ctx.save()
+      ctx.translate(p.x, p.y)
+      ctx.rotate(p.rotation)
+      ctx.strokeStyle = rgba(p.color, 0.45 * a)
+      ctx.lineWidth = 1
+      const diag = s * 0.42
+      ctx.beginPath()
+      ctx.moveTo(-diag, -diag)
+      ctx.lineTo(diag, diag)
+      ctx.moveTo(-diag, diag)
+      ctx.lineTo(diag, -diag)
+      ctx.stroke()
+      ctx.scale(s, s)
+      ctx.fillStyle = rgba(mixWhite(p.color, 0.55), 0.92 * a)
+      const sparklePath = getUnitSparklePath()
+      if (sparklePath) {
+        ctx.fill(sparklePath)
+      }
+      else {
+        ctx.beginPath()
+        ctx.arc(0, 0, 0.35, 0, TAU)
+        ctx.fill()
+      }
+      ctx.restore()
+    },
+  },
 }
 
 // 自定义粒子：尺寸（px，再随机 ±20%）、透明度上限、同屏上限；图标库图标的线宽（原样 2 在粒子尺寸下偏细）
@@ -514,6 +817,7 @@ const SPRITE_LINE_WIDTH = 2.5
 /** 各动作预设：生成速率（1280×800 画面上每秒）、出生位置与速度、绘制时的附加位移或旋转（update 只做匀速运动） */
 const SPRITE_MOTIONS: Record<LyricSpriteMotion, {
   rate: number
+  beat?: number
   spawn: (w: number, h: number, spin: boolean) => Omit<Motion, 'size'>
   offset?: (p: Particle) => { x?: number, y?: number, rotation?: number }
 }> = {
@@ -523,13 +827,23 @@ const SPRITE_MOTIONS: Record<LyricSpriteMotion, {
   float: { rate: 2, spawn: (w, h, spin) => ({ x: rand(0, w), y: h + 20, vx: 0, vy: rand(-55, -30), rotation: rand(-0.3, 0.3), spin: spin ? rand(-0.4, 0.4) : 0, life: Infinity }), offset: p => ({ x: Math.sin(p.age * 1.1 + p.seed) * 16 }) },
   // 从左侧滑过，轻微起伏
   drift: { rate: 1.6, spawn: (_w, h, spin) => ({ x: -24, y: rand(h * 0.08, h * 0.75), vx: rand(45, 75), vy: rand(-6, 6), rotation: 0, spin: spin ? rand(-0.3, 0.3) : 0, life: Infinity }), offset: p => ({ y: Math.sin(p.age * 2 + p.seed) * 10 }) },
-  // 在原地出现，像挂着一样摇摆，几秒后淡出
-  sway: { rate: 1.2, spawn: (w, h) => ({ x: rand(w * 0.08, w * 0.92), y: rand(h * 0.1, h * 0.7), vx: 0, vy: 6, rotation: 0, spin: 0, life: rand(4, 6) }), offset: p => ({ rotation: Math.sin(p.age * 2.2 + p.seed) * 0.35 }) },
+  // 在原地出现，像挥应援棒/挂饰一样左右摇摆（跟随节拍时一拍一摆），几秒后淡出
+  sway: {
+    rate: 1.2,
+    spawn: (w, h) => ({ x: rand(w * 0.08, w * 0.92), y: rand(h * 0.1, h * 0.7), vx: 0, vy: 6, rotation: 0, spin: 0, life: rand(4, 6) }),
+    offset: (p) => {
+      if (beatSway == null)
+        return { rotation: Math.sin(p.age * 2.2 + p.seed) * 0.35 }
+      const amp = 0.36 * (0.85 + 0.3 * (p.seed % 1))
+      return { rotation: beatSway * amp + Math.sin(p.age * 1.7 + p.seed) * 0.05 }
+    },
+  },
   // 边旋转边沿弧线落下
   swirl: { rate: 1.8, spawn: (w, _h, spin) => ({ x: rand(0, w), y: -20, vx: 0, vy: rand(30, 45), rotation: 0, spin: spin ? rand(1.5, 3) : 0, life: Infinity }), offset: p => ({ x: Math.sin(p.age * 1.6 + p.seed) * (18 + (p.seed % 1) * 22) }) },
-  // 从画面中部向外散开，减速后淡出
+  // 从画面中部踩拍向外爆发散开，减速后淡出
   burst: {
     rate: 2.5,
+    beat: 1,
     spawn: (w, h, spin) => ({ x: w / 2 + rand(-w * 0.15, w * 0.15), y: h * 0.45 + rand(-h * 0.1, h * 0.1), vx: 0, vy: 0, rotation: rand(0, TAU), spin: spin ? rand(-3, 3) : 0, life: rand(1.6, 2.2) }),
     offset: (p) => {
       const angle = p.seed / 10 * TAU
@@ -551,6 +865,7 @@ function spriteSpec(sprite: LyricSprite): SceneSpec {
   const size = SPRITE_SIZES[sprite.size] ?? SPRITE_SIZES.m
   const spec: SceneSpec = {
     rate: motion.rate,
+    beat: motion.beat,
     colors: [sprite.color],
     max: SPRITE_MAX_COUNT,
     spawn: (w, h) => ({ ...motion.spawn(w, h, !!sprite.spin), size: size * rand(0.8, 1.2) }),
@@ -614,8 +929,9 @@ export class StageParticles {
   private particles: Particle[] = []
   private density = 0
   private scene: StageScene | null = null
-  // 累积的待生成数量（小数部分留到下一帧）
+  // 累积的待生成数量（底流与拍点簇发分别累积余量）
   private pending = 0
+  private beatPending = 0
   // 画布上是否画着东西：空着且没有粒子时不再逐帧清空（每次清空都要重新合成整块画布）
   private painted = false
   private width = 0
@@ -677,6 +993,9 @@ export class StageParticles {
       this.applySize()
     }
     heartBeat = rhythm?.heart ?? null
+    beatBreath = rhythm?.breath ?? null
+    beatSway = rhythm?.sway ?? null
+    beatTempoScale = rhythm?.tempoScale ?? 1
     colorGain = this.hdrGain
     const key = sceneKey(scene)
     // 换到新场景（或颜色主题）时立即切入并从柔和初密度起爬升，旧粒子各自沿 LEAVE_SECONDS 自然淡出（交叉淡入淡出，消除 1.2s 空档）；
@@ -685,6 +1004,7 @@ export class StageParticles {
       if (scene != null) {
         this.scene = scene
         this.pending = 0
+        this.beatPending = 0.5
         this.density = Math.min(this.density, 0.18)
       }
       else if (this.density === 0) {
@@ -711,13 +1031,23 @@ export class StageParticles {
       }
       const beat = spec.beat != null && active ? rhythm?.pulses(spec.beat) ?? null : null
       if (beat) {
-        // 点过程：每拍生成 N_k = max(1, ⌊r·T_e·A·a_k + 累计的小数⌋) 个
+        const ratio = spec.beatRatio ?? 1
+        if (ratio < 1) {
+          this.pending += spec.rate * (1 - ratio) * area * this.density * dt
+          while (this.pending >= 1) {
+            this.pending--
+            spawn(false)
+          }
+        }
+        // 点过程：每拍累积 r·ratio·T_e·A·a_k，达到阈值即在拍点成簇触发并结转余量，兼顾首拍即时响应与小画幅平均速率守恒
         for (const pulse of beat.pulses) {
-          this.pending += spec.rate * (beat.periodMs / 1000) * area * this.density * pulse.a
-          const count = Math.max(1, Math.floor(this.pending))
-          this.pending = Math.max(0, this.pending - count)
-          for (let i = 0; i < count; i++)
-            spawn(true)
+          this.beatPending += spec.rate * ratio * (beat.periodMs / 1000) * area * this.density * pulse.a
+          if (this.beatPending >= 0.65) {
+            const count = Math.max(1, Math.floor(this.beatPending + 0.35))
+            this.beatPending = Math.max(-0.35, this.beatPending - count)
+            for (let i = 0; i < count; i++)
+              spawn(true)
+          }
         }
       }
       else {
@@ -730,6 +1060,7 @@ export class StageParticles {
     }
     else {
       this.pending = 0
+      this.beatPending = 0
     }
 
     if (this.particles.length === 0 && !this.painted) {
@@ -754,8 +1085,10 @@ export class StageParticles {
       const margin = MARGIN + p.size
       if (p.leave >= 1 || p.age >= p.life || p.y > this.height + margin || p.y < -margin * 2 || p.x > this.width + margin * 2 || p.x < -margin * 2)
         return false
-      // 刚生成时淡入，有寿命的在最后一秒淡出
-      const alpha = Math.min(1, p.age / (p.onBeat ? 0.25 : 0.6), Number.isFinite(p.life) ? p.life - p.age : 1) * (1 - p.leave)
+      // 刚生成时淡入（瞬态闪电立即点亮），有寿命的在收尾阶段平滑淡出（短寿命粒子按比例压缩淡入淡出窗避免峰值被压低）
+      const inDur = p.spec.instant ? 0.02 : Math.min(p.onBeat ? 0.25 : 0.6, p.life * 0.25)
+      const outDur = Math.min(1, p.life * 0.4)
+      const alpha = Math.min(1, p.age / inDur, Number.isFinite(p.life) ? (p.life - p.age) / outDur : 1) * (1 - p.leave)
       p.spec.draw(ctx, p, alpha)
       return true
     })
@@ -768,6 +1101,7 @@ export class StageParticles {
     this.scene = null
     this.density = 0
     this.pending = 0
+    this.beatPending = 0
     this.painted = false
     this.ctx?.clearRect(0, 0, this.width, this.height)
   }

@@ -2435,4 +2435,46 @@ struct BridgeAndEngineTests {
         #expect(abs(placed[2].x - (-16.0)) < 0.05)
         #expect(placed[2].rotDeg < -1.5)
     }
+
+    @Test("24 种舞台粒子场景与节拍钟摆相位（sway / tempoScale / 新场景生成）对齐验证")
+    @MainActor
+    func testParticleSwayAndNewScenes() throws {
+        let rhythm = RhythmEngineContext(
+            reliable: true,
+            basePeriodMs: 500,
+            trains: [
+                0: [
+                    RhythmPulsePoint(t: 500, a: 1.0),
+                    RhythmPulsePoint(t: 1000, a: 1.0),
+                    RhythmPulsePoint(t: 1500, a: 1.0)
+                ],
+                1: [RhythmPulsePoint(t: 500, a: 1.0), RhythmPulsePoint(t: 1500, a: 1.0)],
+                2: [RhythmPulsePoint(t: 500, a: 1.0)]
+            ]
+        )
+        let lead = RhythmEngineContext.leadMs
+        // 拍点 0 -> -1，中点 -> 0，拍点 1 -> +1，拍点 2 -> -1（C^1 平滑交替）
+        #expect(abs((rhythm.particleSway(timeMs: 500 - lead) ?? 0) - (-1.0)) < 1e-6)
+        #expect(abs(rhythm.particleSway(timeMs: 750 - lead) ?? 1) < 1e-3)
+        #expect(abs((rhythm.particleSway(timeMs: 1000 - lead) ?? 0) - 1.0) < 1e-6)
+        #expect(abs((rhythm.particleSway(timeMs: 1500 - lead) ?? 0) - (-1.0)) < 1e-6)
+        #expect(RhythmEngineContext.fallback.particleSway(timeMs: 600) == nil)
+        #expect(rhythm.particleTempoScale > 1.2)
+
+        let pulses = rhythm.particlePulses(octave: 2, t0: 450, t1: 500)
+        #expect(pulses?.map(\.t) == [500])
+
+        let sim = StageParticlesEngine(scale: 0.7, maxParticles: 80)
+        let newScenes = ["bokeh", "pixels", "lightning", "lanterns", "embers", "sparkles", "confetti", "meteors", "sparks"]
+        for name in newScenes {
+            sim.reset()
+            #expect(!sim.hasActiveParticles)
+            let scene = ResolvedStageScene(name: name, colorHex: nil, sprite: nil)
+            // 验证各新增场景均能由 StageSignalsSolver 识别并激活
+            let json = #"{"lines":[{"start":0,"end":5000,"scene":"\#(name)","scene_lines":4,"words":[{"text":"舞台","start":0,"end":5000}]}]}"#
+            let bundle = try JSONDecoder().decode(LyricsBundlePayload.self, from: Data(json.utf8))
+            let snap = StageSignalsSolver.compute(lyrics: bundle, chorusRanges: [], rhythm: rhythm, timeMs: 500)
+            #expect(snap.scene == scene)
+        }
+    }
 }

@@ -98,6 +98,7 @@ export type LyricScene
   = | 'petals' | 'sparks' | 'snow' | 'stars' | 'bubbles' | 'rain'
     | 'leaves' | 'fireflies' | 'feathers' | 'hearts' | 'confetti' | 'fireworks'
     | 'dandelion' | 'butterflies' | 'meteors' | 'clouds' | 'ripples' | 'notes'
+    | 'bokeh' | 'pixels' | 'lightning' | 'lanterns' | 'embers' | 'sparkles'
 
 /** 行的粒子场景：内置场景，或 custom:<name> 指向这首歌的自定义粒子 */
 export type LyricSceneName = LyricScene | `custom:${string}`

@@ -2,7 +2,7 @@ import type { FixedLyricPace } from '../pace'
 import type { RhythmAnalysis } from './analysis'
 import { describe, expect, it } from 'vitest'
 import { analyzeRhythm, mixToMono } from './analysis'
-import { backgroundLevel, breathScale, dissolveFadeMs, envelopeScale, glowLevel, heartbeatLevel, nearestFixedPace, particlePulses, pulsesIn, rhythmContext, shimmerCenter, waveLevels } from './effects'
+import { backgroundLevel, breathScale, dissolveFadeMs, envelopeScale, glowLevel, heartbeatLevel, nearestFixedPace, particleBreathLevel, particlePulses, particleSway, particleTempoScale, pulsesIn, rhythmContext, shimmerCenter, waveLevels } from './effects'
 import { buildRhythmModel, trainOf } from './model'
 import { DEFAULT_RHYTHM_PARAMS } from './params'
 
@@ -196,9 +196,20 @@ describe('各动效的输出', () => {
     const fixed = fixedPace('medium')
     expect(backgroundLevel(fixed, 1100)).toBe(0)
     expect(particlePulses(fixed, 0, 1000, 1100)).toBeNull()
+    expect(particleBreathLevel(fixed, 1100)).toBeNull()
+    expect(particleSway(fixed, 1100)).toBeNull()
     const beat = rhythmContext(model)
     expect(backgroundLevel(beat, 1040 + 30 - lead)).toBeGreaterThan(0.7)
+    expect(particleBreathLevel(beat, 1040 + 30 - lead)).toBeGreaterThan(0.7)
     expect(particlePulses(beat, 0, 1000, 1100)!.map(p => p.t)).toEqual([1040])
+    // 摇摆粒子在相邻两拍上平滑交替到左右极值（-1 与 +1），中点穿过 0
+    const train = trainOf(model, 0)
+    expect(particleSway(beat, train[0].t - lead)).toBeCloseTo(-1, 5)
+    expect(particleSway(beat, (train[0].t + train[1].t) / 2 - lead)).toBeCloseTo(0, 2)
+    expect(particleSway(beat, train[1].t - lead)).toBeCloseTo(1, 5)
+    expect(particleSway(beat, train[2].t - lead)).toBeCloseTo(-1, 5)
+    expect(particleTempoScale(fixedPace('fast'))).toBeGreaterThan(1)
+    expect(particleTempoScale(fixedPace('slow'))).toBeLessThan(1)
   })
 })
 

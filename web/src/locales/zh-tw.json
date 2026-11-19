@@ -4966,7 +4966,13 @@
       "meteors": "流星",
       "clouds": "雲",
       "ripples": "漣漪",
-      "notes": "音符"
+      "notes": "音符",
+      "bokeh": "散景光斑",
+      "pixels": "像素塊",
+      "lightning": "電弧",
+      "lanterns": "天燈",
+      "embers": "餘燼",
+      "sparkles": "星芒"
     },
     "colors": {
       "crimson": "緋紅",

@@ -233,6 +233,41 @@ export function particleHeartLevel(ctx: RhythmContext, timeMs: number): number |
   return Math.min(1.2, convolve(pulsesIn(ctx, p.octave, 0, at - 1000, at), at, dt => kernels.heartbeat(dt, Te, p)))
 }
 
+/** 光点/余烬/天灯/散景等粒子随拍的呼吸提亮（0 ~ 1）；不跟随节拍时为 null */
+export function particleBreathLevel(ctx: RhythmContext, timeMs: number): number | null {
+  if (!ctx.model)
+    return null
+  return backgroundLevel(ctx, timeMs)
+}
+
+/** 摇摆类粒子（如应援棒、拨片、风铃）对齐真实拍点的连续钟摆相位（-1 ~ 1，一拍左一拍右，拍点处速度为零平滑换向）；不跟随节拍时为 null */
+export function particleSway(ctx: RhythmContext, timeMs: number): number | null {
+  if (!ctx.model)
+    return null
+  const octave = ctx.params.particles.octave
+  const train = trainOf(ctx.model, octave)
+  const T = Math.max(120, periodOf(ctx, octave))
+  const at = timeMs + ctx.params.leadMs
+  if (train.length === 0)
+    return -Math.cos((Math.PI * at) / T)
+  const idx = firstAtOrAfter(train, at)
+  if (idx > 0 && idx < train.length) {
+    const t0 = train[idx - 1].t
+    const span = train[idx].t - t0
+    if (span > 40 && span <= 2.5 * T) {
+      const u = (at - t0) / span
+      return -Math.cos(Math.PI * ((idx - 1) + u))
+    }
+  }
+  const anchorIdx = idx > 0 ? idx - 1 : 0
+  return -Math.cos(Math.PI * (anchorIdx + (at - train[anchorIdx].t) / T))
+}
+
+/** 粒子动作相对中速（750ms）的曲速缩放倍率（0.65 ~ 1.55），供蝴蝶振翅等随曲速舒缓/轻快调节 */
+export function particleTempoScale(ctx: RhythmContext): number {
+  return clamp(PACE.basePeriod.medium / ctx.base, 0.65, 1.55)
+}
+
 /** 粒子在 (t0, t1] 内经过的拍（点过程）；不跟随节拍时为 null（粒子均匀生成） */
 export function particlePulses(ctx: RhythmContext, octave: number, t0: number, t1: number): RhythmPulse[] | null {
   if (!ctx.model)

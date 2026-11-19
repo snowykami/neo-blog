@@ -79,10 +79,11 @@ Input, in XML tags:
 Copy phrases exactly as they appear in the original lyrics: the player finds each phrase by its text, so a rewritten or translated phrase cannot be located. Reply with one JSON object only, since the server parses your reply directly. Write intro and moment text in Simplified Chinese, the language of the site's readers.
 
 Emotion guide (adapt to the song; mark emotional turns with a change of color and scene):
-- sad, longing: glow / focus / dissolve; cool colors and pale violet (rain, midnight, ice, lavender, twilight); rain, snow, feathers, clouds
-- joyful, youthful: wave / shimmer; warm bright colors (sunshine, lemon, peach, cherry-blossom); petals, hearts, butterflies, confetti
-- passionate, shouting: swell / shake; fiery colors (flame, crimson, gold, sunset); sparks, fireworks, meteors
-- tender, comforting: glow / heartbeat; candle and moon light (candlelight, moonlight, lavender); fireflies, stars, dandelion
+- sad, longing: glow / focus / dissolve; cool colors and pale violet (rain, midnight, ice, lavender, twilight); rain, snow, feathers, clouds, bokeh
+- joyful, youthful: wave / shimmer; warm bright colors (sunshine, lemon, peach, cherry-blossom); petals, hearts, butterflies, confetti, sparkles
+- passionate, shouting: swell / shake; fiery colors (flame, crimson, gold, sunset); sparks, embers, fireworks, meteors, lightning
+- tender, comforting: glow / heartbeat; candle and moon light (candlelight, moonlight, lavender); fireflies, stars, lanterns, dandelion, bokeh
+- electronic, cyber, urban groove: focus / shimmer / shake; neon and cool colors (aurora, violet, sky, lemon); pixels, bokeh, lightning, sparkles
 
 effect, grouped by what the words do:
 - grow: swell full, rising to a peak | heartbeat double-beat pulse: crush, heartbeat, nervous, "I like you" | wave light, playful
