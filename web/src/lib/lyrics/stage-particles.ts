@@ -391,14 +391,18 @@ const SCENES: Record<LyricScene, SceneSpec> = {
     rate: 0.8,
     colors: FESTIVE,
     beat: 1,
-    // size 为炸开的最大半径
-    spawn: (w, h) => ({ x: rand(w * 0.15, w * 0.85), y: rand(h * 0.1, h * 0.5), vx: 0, vy: 0, size: rand(60, 110), rotation: rand(0, TAU), spin: 0, life: rand(1.8, 2.4) }),
+    // size 为炸开的最大半径；在扁平胶囊（如 36px 高灵动岛）内自适应收敛半径并居中落点，保证整朵烟花完整可见
+    spawn: (w, h) => {
+      const hScale = Math.min(1, Math.max(0.42, h / 140))
+      const y = h < 90 ? rand(h * 0.24, h * 0.68) : rand(h * 0.1, h * 0.5)
+      return { x: rand(w * 0.15, w * 0.85), y, vx: 0, vy: 0, size: rand(60, 110) * hScale, rotation: rand(0, TAU), spin: 0, life: rand(1.8, 2.4) }
+    },
     draw: (ctx, p, alpha) => {
       const t = p.age / p.life
       const radius = p.size * (1 - (1 - t) ** 3)
       const fade = alpha * (1 - t) ** 1.5
       const count = 28
-      const drop = 30 * t * t
+      const drop = Math.min(30, p.size * 0.32) * t * t
       ctx.fillStyle = rgba(mixWhite(p.color, 0.3), 0.9 * fade)
       ctx.strokeStyle = rgba(p.color, 0.45 * fade)
       ctx.lineWidth = 1.2
@@ -421,7 +425,7 @@ const SCENES: Record<LyricScene, SceneSpec> = {
       if (t < 0.12) {
         ctx.fillStyle = rgba(mixWhite(p.color, 0.7), (1 - t / 0.12) * 0.6 * alpha)
         ctx.beginPath()
-        ctx.arc(p.x, p.y, 10, 0, TAU)
+        ctx.arc(p.x, p.y, Math.min(10, p.size * 0.22), 0, TAU)
         ctx.fill()
       }
     },
@@ -636,7 +640,7 @@ const SCENES: Record<LyricScene, SceneSpec> = {
     beat: 2,
     instant: true,
     // size 为闪电主干长度，rotation 为劈落方向角（约朝下 ±25°）
-    spawn: (w, h) => ({ x: rand(w * 0.12, w * 0.88), y: rand(-10, h * 0.18), vx: 0, vy: 0, size: rand(160, 300), rotation: rand(Math.PI * 0.36, Math.PI * 0.64), spin: 0, life: rand(0.42, 0.62) }),
+    spawn: (w, h) => ({ x: rand(w * 0.12, w * 0.88), y: rand(-10, h * 0.18), vx: 0, vy: 0, size: rand(160, 300) * Math.min(1, Math.max(0.32, h / 180)), rotation: rand(Math.PI * 0.36, Math.PI * 0.64), spin: 0, life: rand(0.42, 0.62) }),
     draw: (ctx, p, alpha) => {
       const t = Math.min(1, p.age / p.life)
       const steps = 7
@@ -1004,7 +1008,7 @@ export class StageParticles {
       if (scene != null) {
         this.scene = scene
         this.pending = 0
-        this.beatPending = 0.5
+        this.beatPending = 0
         this.density = Math.min(this.density, 0.18)
       }
       else if (this.density === 0) {
@@ -1022,8 +1026,45 @@ export class StageParticles {
     if (current && spec && this.density > 0) {
       const area = Math.min(2, Math.max(0.3, (this.width * this.height) / BASE_AREA))
       const spawn = (onBeat: boolean) => {
-        if (this.particles.length >= this.maxParticles || (spec.max != null && this.particles.filter(p => p.spec === spec).length >= spec.max))
-          return
+        if (spec.max != null) {
+          let sameCount = 0
+          let evictSameIdx = -1
+          for (let i = 0; i < this.particles.length; i++) {
+            const p = this.particles[i]
+            if (p.spec !== spec)
+              continue
+            sameCount++
+            if (evictSameIdx < 0) {
+              evictSameIdx = i
+            }
+            else {
+              const best = this.particles[evictSameIdx]
+              if ((p.leave > 0) !== (best.leave > 0) ? p.leave > 0 : p.age > best.age)
+                evictSameIdx = i
+            }
+          }
+          if (sameCount >= spec.max) {
+            if (!onBeat || evictSameIdx < 0)
+              return
+            this.particles.splice(evictSameIdx, 1)
+          }
+        }
+        if (this.particles.length >= this.maxParticles) {
+          if (!onBeat || this.maxParticles <= 0)
+            return
+          // 拍点粒子绝不因小岛名额满而漏拍：优先淘汰正在离场的旧场景粒子、其次非拍点环境粒子、最后最老粒子
+          let evictIdx = 0
+          const rank = (p: Particle) => (p.key !== currentKey || p.leave > 0 ? 2 : !p.onBeat ? 1 : 0)
+          for (let i = 1; i < this.particles.length; i++) {
+            const p = this.particles[i]
+            const best = this.particles[evictIdx]
+            const rp = rank(p)
+            const rb = rank(best)
+            if (rp > rb || (rp === rb && p.age > best.age))
+              evictIdx = i
+          }
+          this.particles.splice(evictIdx, 1)
+        }
         // 指定颜色主题时略微随机提亮，避免整片同色
         const color = current.color ? mixWhite(resolveColor(current.color), rand(0, 0.25)) : resolveColor(pick(spec.colors))
         const motion = (onBeat && spec.beatSpawn ? spec.beatSpawn : spec.spawn)(this.width, this.height)
@@ -1039,15 +1080,13 @@ export class StageParticles {
             spawn(false)
           }
         }
-        // 点过程：每拍累积 r·ratio·T_e·A·a_k，达到阈值即在拍点成簇触发并结转余量，兼顾首拍即时响应与小画幅平均速率守恒
+        // 节奏相关粒子绝不漏拍：每到一个拍点保底至少触发 1 个，小画幅仅缩减单拍同时簇发的个数；无节奏场景走下方连续分支自然稀疏
         for (const pulse of beat.pulses) {
           this.beatPending += spec.rate * ratio * (beat.periodMs / 1000) * area * this.density * pulse.a
-          if (this.beatPending >= 0.65) {
-            const count = Math.max(1, Math.floor(this.beatPending + 0.35))
-            this.beatPending = Math.max(-0.35, this.beatPending - count)
-            for (let i = 0; i < count; i++)
-              spawn(true)
-          }
+          const count = Math.max(1, Math.floor(this.beatPending))
+          this.beatPending = Math.max(0, this.beatPending - count)
+          for (let i = 0; i < count; i++)
+            spawn(true)
         }
       }
       else {

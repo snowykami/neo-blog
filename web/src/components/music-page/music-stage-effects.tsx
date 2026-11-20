@@ -223,20 +223,23 @@ export function MusicStageEffects({
       onFrameRef.current?.(timeMs, model)
       const signals = timeMs == null ? null : getStageSignals(lyrics, timeMs, model)
 
-      // 跟随节拍：背景随拍呼吸；粒子取上一帧到这一帧之间经过的拍（拖动进度时不补）
+      // 跟随节拍：背景随拍呼吸；粒子取上一帧到这一帧之间经过的拍（两帧落在同一 audio 硬件时间片时保持节拍上下文为空脉冲，避免退回无节拍均匀撒点或随拍信号闪烁）
       const rhythm = rhythmContext(model)
       const beat = timeMs == null ? 0 : backgroundLevel(rhythm, timeMs)
       const since = lastTimeMs
-      lastTimeMs = timeMs
-      const particleRhythm: StageParticleRhythm | null = timeMs == null || since == null || timeMs <= since || timeMs - since > BEAT_SEEK_GAP_MS
+      const sameAudioTick = timeMs != null && since != null && timeMs === since
+      const validBeatStep = timeMs != null && since != null && timeMs > since && timeMs - since <= BEAT_SEEK_GAP_MS
+      if (!sameAudioTick)
+        lastTimeMs = timeMs
+      const particleRhythm: StageParticleRhythm | null = timeMs == null || !rhythm.model
         ? null
         : {
             pulses: (octave) => {
-              const pulses = particlePulses(rhythm, octave, since, timeMs)
+              const pulses = validBeatStep ? particlePulses(rhythm, octave, since, timeMs) : []
               return pulses && { pulses, periodMs: periodOf(rhythm, rhythm.params.particles.octave + octave) }
             },
             heart: particleHeartLevel(rhythm, timeMs),
-            breath: rhythm.model ? beat : null,
+            breath: beat,
             sway: particleSway(rhythm, timeMs),
             tempoScale: particleTempoScale(rhythm),
           }

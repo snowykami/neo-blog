@@ -236,4 +236,53 @@ describe('播放器页全屏特效信号', () => {
       expect(engine.idle).toBe(false)
     }
   })
+
+  it('小画幅灵动岛（320×36, maxParticles=20）节奏粒子逐拍必响应不漏拍，无节奏雨雪按面积稀疏', () => {
+    const arcCalls: number[] = []
+    const noopCtx = {
+      setTransform: vi.fn(),
+      clearRect: vi.fn(),
+      save: vi.fn(),
+      restore: vi.fn(),
+      translate: vi.fn(),
+      rotate: vi.fn(),
+      scale: vi.fn(),
+      beginPath: vi.fn(),
+      arc: vi.fn((x: number, y: number, r: number) => arcCalls.push(r)),
+      fill: vi.fn(),
+      stroke: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      fillStyle: '',
+      strokeStyle: '',
+      lineWidth: 1,
+    } as unknown as CanvasRenderingContext2D
+    const canvas = {
+      width: 320,
+      height: 36,
+      getContext: () => noopCtx,
+    } as unknown as HTMLCanvasElement
+
+    const compact = new StageParticles(canvas, { scale: 0.7, maxParticles: 20 })
+    compact.resize(320, 36)
+
+    // 先用无节奏高密 rain 把 20 个名额彻底占满
+    for (let i = 0; i < 40; i++)
+      compact.update(0.05, { name: 'rain', color: null }, true, null)
+
+    // 紧接着切入 fireworks（beat: 1，每朵烟花刚炸开首帧画 28 颗火花圆点 + 1 个中心闪光 = 29 次 arc）：
+    // 连续喂入 4 个独立拍点，即便面积仅 320×36 且旧雨滴尚未散尽，每一拍都必须新增 1 朵烟花（绝不漏拍）
+    for (let beatIdx = 1; beatIdx <= 4; beatIdx++) {
+      arcCalls.length = 0
+      compact.update(0.02, { name: 'fireworks', color: null }, true, {
+        pulses: () => ({ pulses: [{ t: beatIdx * 1000, a: 0.75, synth: false }], periodMs: 1000 }),
+        heart: 0.8,
+        breath: 0.6,
+        sway: 0,
+        tempoScale: 1,
+      })
+      // 第 k 拍后同屏至少有 k 朵烟花（每朵 ≥ 28 次火花 arc）
+      expect(arcCalls.length).toBeGreaterThanOrEqual(beatIdx * 28)
+    }
+  })
 })

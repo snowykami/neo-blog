@@ -2476,5 +2476,43 @@ struct BridgeAndEngineTests {
             let snap = StageSignalsSolver.compute(lyrics: bundle, chorusRanges: [], rhythm: rhythm, timeMs: 500)
             #expect(snap.scene == scene)
         }
+
+        // 小画幅胶囊（320×36, maxParticles: 5）：即使先被无节奏 stars 填满全部名额，切到 fireworks 后每个拍点都必须抢占旧粒子逐拍绽放不漏拍
+        let compactSim = StageParticlesEngine(scale: 0.7, maxParticles: 5)
+        let compactSize = CGSize(width: 320, height: 36)
+        var t0 = Date(timeIntervalSince1970: 1_700_000_000)
+        var ms = 0.0
+        let starsScene = ResolvedStageScene(name: "stars", colorHex: nil, sprite: nil)
+        for _ in 0..<200 {
+            t0 = t0.addingTimeInterval(0.05)
+            ms += 50
+            compactSim.stepSimulation(size: compactSize, date: t0, timeMs: ms, scene: starsScene, isPlaying: true, rhythm: .fallback)
+            if compactSim.particleCount() == 5 { break }
+        }
+        #expect(compactSim.particleCount() == 5)
+
+        let fireworkBeats = RhythmEngineContext(
+            reliable: true,
+            basePeriodMs: 500,
+            trains: [
+                0: [RhythmPulsePoint(t: 25500, a: 0.75), RhythmPulsePoint(t: 26000, a: 0.75), RhythmPulsePoint(t: 26500, a: 0.75), RhythmPulsePoint(t: 27000, a: 0.75)],
+                1: [RhythmPulsePoint(t: 25500, a: 0.75), RhythmPulsePoint(t: 26500, a: 0.75)],
+                2: [RhythmPulsePoint(t: 25500, a: 0.75)]
+            ]
+        )
+        let fwScene = ResolvedStageScene(name: "fireworks", colorHex: nil, sprite: nil)
+        // 先建立起始时间窗口（25400ms）
+        t0 = t0.addingTimeInterval(0.02)
+        compactSim.stepSimulation(size: compactSize, date: t0, timeMs: 25400, scene: fwScene, isPlaying: true, rhythm: fireworkBeats)
+        // 跨越第 1 个烟花拍点（25500ms）
+        t0 = t0.addingTimeInterval(0.12)
+        compactSim.stepSimulation(size: compactSize, date: t0, timeMs: 25520, scene: fwScene, isPlaying: true, rhythm: fireworkBeats)
+        #expect(compactSim.particleCount(for: "fireworks") == 1)
+        // 跨越第 2 个烟花拍点（26500ms，前拍仍存活）
+        t0 = t0.addingTimeInterval(0.20)
+        compactSim.stepSimulation(size: compactSize, date: t0, timeMs: 26400, scene: fwScene, isPlaying: true, rhythm: fireworkBeats)
+        t0 = t0.addingTimeInterval(0.12)
+        compactSim.stepSimulation(size: compactSize, date: t0, timeMs: 26520, scene: fwScene, isPlaying: true, rhythm: fireworkBeats)
+        #expect(compactSim.particleCount(for: "fireworks") == 2)
     }
 }

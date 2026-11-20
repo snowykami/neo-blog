@@ -404,18 +404,23 @@ final class StageParticlesEngine {
         }
     }
 
-    func stepAndDraw(
-        in context: inout GraphicsContext,
+    func particleCount(for sceneName: String? = nil) -> Int {
+        guard let sceneName else { return particles.count }
+        return particles.reduce(0) { $0 + ($1.sceneName == sceneName ? 1 : 0) }
+    }
+
+    @discardableResult
+    func stepSimulation(
         size: CGSize,
         date: Date,
         timeMs: Double,
         scene: ResolvedStageScene?,
         isPlaying: Bool,
         rhythm: RhythmEngineContext
-    ) {
+    ) -> (heartBeat: Double?, beatBreath: Double?, beatSway: Double?, tempoScale: Double)? {
         let w = Double(size.width)
         let h = Double(size.height)
-        guard w > 4, h > 4 else { return }
+        guard w > 4, h > 4 else { return nil }
 
         let dt: Double
         if let prev = lastStepDate {
@@ -432,7 +437,7 @@ final class StageParticlesEngine {
             if let scene {
                 currentScene = scene
                 pending = 0
-                beatPending = 0.5
+                beatPending = 0
                 density = min(density, 0.18)
             } else if density <= 0.0001 {
                 currentScene = nil
@@ -466,10 +471,40 @@ final class StageParticlesEngine {
 
             let spawnOne = { [weak self] (onBeat: Bool) in
                 guard let self else { return }
-                if self.particles.count >= self.maxParticles { return }
                 if let maxCap = meta.maxCount {
-                    let sameCount = self.particles.reduce(0) { $0 + ($1.sceneName == cur.name ? 1 : 0) }
-                    if sameCount >= maxCap { return }
+                    var sameCount = 0
+                    var evictSameIdx: Int? = nil
+                    for (idx, existing) in self.particles.enumerated() where existing.sceneName == cur.name {
+                        sameCount += 1
+                        if let bestIdx = evictSameIdx {
+                            let best = self.particles[bestIdx]
+                            let prefer = (existing.leave > 0) != (best.leave > 0) ? (existing.leave > 0) : (existing.age > best.age)
+                            if prefer { evictSameIdx = idx }
+                        } else {
+                            evictSameIdx = idx
+                        }
+                    }
+                    if sameCount >= maxCap {
+                        guard onBeat, let idx = evictSameIdx else { return }
+                        self.particles.remove(at: idx)
+                    }
+                }
+                if self.particles.count >= self.maxParticles {
+                    guard onBeat, self.maxParticles > 0 else { return }
+                    var evictIdx = 0
+                    let rank: (StageParticle) -> Int = { p in
+                        (p.key != curKey || p.leave > 0) ? 2 : (!p.onBeat ? 1 : 0)
+                    }
+                    for idx in 1..<self.particles.count {
+                        let cand = self.particles[idx]
+                        let best = self.particles[evictIdx]
+                        let rc = rank(cand)
+                        let rb = rank(best)
+                        if rc > rb || (rc == rb && cand.age > best.age) {
+                            evictIdx = idx
+                        }
+                    }
+                    self.particles.remove(at: evictIdx)
                 }
                 let rgb: (r: Double, g: Double, b: Double)
                 if let themeHex = cur.colorHex {
@@ -502,10 +537,7 @@ final class StageParticlesEngine {
                 )
             }
 
-            if let beatOct = meta.beatOctave,
-               validBeatWindow,
-               let since = prevMs,
-               let pulses = rhythm.particlePulses(octave: beatOct, t0: since, t1: timeMs) {
+            if let beatOct = meta.beatOctave, rhythm.reliable {
                 let ratio = meta.beatRatio
                 if ratio < 1.0 {
                     pending += meta.rate * (1.0 - ratio) * area * density * dt
@@ -514,12 +546,14 @@ final class StageParticlesEngine {
                         spawnOne(false)
                     }
                 }
-                let periodSec = rhythm.period(octave: beatOct) / 1000.0
-                for p in pulses {
-                    beatPending += meta.rate * ratio * periodSec * area * density * p.a
-                    if beatPending >= 0.65 {
-                        let count = max(1, Int(floor(beatPending + 0.35)))
-                        beatPending = max(-0.35, beatPending - Double(count))
+                if validBeatWindow,
+                   let since = prevMs,
+                   let pulses = rhythm.particlePulses(octave: beatOct, t0: since, t1: timeMs) {
+                    let periodSec = rhythm.period(octave: beatOct) / 1000.0
+                    for p in pulses {
+                        beatPending += meta.rate * ratio * periodSec * area * density * p.a
+                        let count = max(1, Int(floor(beatPending)))
+                        beatPending = max(0, beatPending - Double(count))
                         for _ in 0..<count {
                             spawnOne(true)
                         }
@@ -557,6 +591,31 @@ final class StageParticlesEngine {
                 || p.x < -margin * 2 {
                 continue
             }
+            nextParticles.append(p)
+        }
+        particles = nextParticles
+        syncActiveFlag()
+        return (heartBeat, beatBreath, beatSway, tempoScale)
+    }
+
+    func stepAndDraw(
+        in context: inout GraphicsContext,
+        size: CGSize,
+        date: Date,
+        timeMs: Double,
+        scene: ResolvedStageScene?,
+        isPlaying: Bool,
+        rhythm: RhythmEngineContext
+    ) {
+        guard let mod = stepSimulation(
+            size: size,
+            date: date,
+            timeMs: timeMs,
+            scene: scene,
+            isPlaying: isPlaying,
+            rhythm: rhythm
+        ) else { return }
+        for p in particles {
             let inDur = p.instant ? 0.02 : min(p.onBeat ? 0.25 : 0.60, p.life * 0.25)
             let outDur = min(1.0, p.life * 0.40)
             let fadeIn = min(1.0, p.age / max(0.01, inDur))
@@ -566,17 +625,14 @@ final class StageParticlesEngine {
                 drawParticle(
                     p,
                     alpha: alpha,
-                    heartBeat: heartBeat,
-                    beatBreath: beatBreath,
-                    beatSway: beatSway,
-                    tempoScale: tempoScale,
+                    heartBeat: mod.heartBeat,
+                    beatBreath: mod.beatBreath,
+                    beatSway: mod.beatSway,
+                    tempoScale: mod.tempoScale,
                     in: &context
                 )
             }
-            nextParticles.append(p)
         }
-        particles = nextParticles
-        syncActiveFlag()
     }
 
     // MARK: - 场景配置与初始运动学
@@ -698,7 +754,9 @@ final class StageParticlesEngine {
             }
             return SpawnedMotion(x: .random(in: 0...w), y: -14, vx: .random(in: -30...30), vy: .random(in: 60...120), size: .random(in: 4...8), rotation: .random(in: 0...tau), spin: .random(in: -6...6))
         case "fireworks":
-            return SpawnedMotion(x: .random(in: (w * 0.15)...(w * 0.85)), y: .random(in: (h * 0.12)...(h * 0.52)), vx: 0, vy: 0, size: .random(in: 55...95), rotation: .random(in: 0...tau), life: .random(in: 1.8...2.4))
+            let hScale = min(1.0, max(0.42, h / 140.0))
+            let y0 = h < 90 ? Double.random(in: (h * 0.24)...(h * 0.68)) : Double.random(in: (h * 0.12)...(h * 0.52))
+            return SpawnedMotion(x: .random(in: (w * 0.15)...(w * 0.85)), y: y0, vx: 0, vy: 0, size: .random(in: 55...95) * hScale, rotation: .random(in: 0...tau), life: .random(in: 1.8...2.4))
         case "dandelion":
             return SpawnedMotion(x: -16, y: .random(in: (h * 0.2)...h), vx: .random(in: 25...55), vy: .random(in: -20 ... -5), size: .random(in: 5...8), rotation: .random(in: -0.4...0.4), spin: .random(in: -0.3...0.3))
         case "butterflies":
@@ -721,7 +779,8 @@ final class StageParticlesEngine {
             }
             return SpawnedMotion(x: .random(in: 0...w), y: .random(in: (h * 0.45)...(h + 12)), vx: 0, vy: .random(in: -75 ... -35), size: .random(in: 5...11), life: .random(in: 2.2...3.8))
         case "lightning":
-            return SpawnedMotion(x: .random(in: (w * 0.12)...(w * 0.88)), y: .random(in: -8...(h * 0.18)), vx: 0, vy: 0, size: .random(in: 140...250), rotation: .random(in: (.pi * 0.36)...(.pi * 0.64)), life: .random(in: 0.42...0.62))
+            let hScale = min(1.0, max(0.32, h / 180.0))
+            return SpawnedMotion(x: .random(in: (w * 0.12)...(w * 0.88)), y: .random(in: -8...(h * 0.18)), vx: 0, vy: 0, size: .random(in: 140...250) * hScale, rotation: .random(in: (.pi * 0.36)...(.pi * 0.64)), life: .random(in: 0.42...0.62))
         case "lanterns":
             return SpawnedMotion(x: .random(in: (w * 0.05)...(w * 0.95)), y: h + 20, vx: .random(in: -6...6), vy: .random(in: -34 ... -18), size: .random(in: 9...16))
         case "embers":
@@ -904,7 +963,7 @@ final class StageParticlesEngine {
             let radius = p.size * (1.0 - pow(1.0 - t, 3))
             let fade = alpha * pow(max(0, 1.0 - t), 1.5)
             let count = 24
-            let drop = 24.0 * t * t
+            let drop = min(24.0, p.size * 0.32) * t * t
             let sparkCol = color(LyricColorPalette.mixWhite(p.rgb, t: 0.3), alpha: 0.90 * fade)
             let trailCol = color(p.rgb, alpha: 0.45 * fade)
             for i in 0..<count {
@@ -922,8 +981,9 @@ final class StageParticlesEngine {
             }
             if t < 0.12 {
                 let flashAlpha = (1.0 - t / 0.12) * 0.6 * alpha
+                let flashR = min(8.0, p.size * 0.22)
                 ctx.fill(
-                    Path(ellipseIn: CGRect(x: p.x - 8, y: p.y - 8, width: 16, height: 16)),
+                    Path(ellipseIn: CGRect(x: p.x - flashR, y: p.y - flashR, width: flashR * 2, height: flashR * 2)),
                     with: .color(color(LyricColorPalette.mixWhite(p.rgb, t: 0.7), alpha: flashAlpha))
                 )
             }
