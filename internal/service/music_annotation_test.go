@@ -218,6 +218,14 @@ func TestLyricAnnotationPrompt(t *testing.T) {
 			t.Fatalf("legacy color %s maps to %s", legacy, mapped)
 		}
 	}
+	// 已下线的旧内置场景（如 bokeh）在读取存量标注时自动清空，不阻断已有数据读取与再次保存
+	parsed := parseLyricAnnotationData(`{"lines":[{"text":"a","scene":"bokeh","scene_color":"rose","scene_lines":4},{"text":"b","scene":"sparkles","scene_color":"rose","scene_lines":4},{"text":"c","scene":"custom:star","scene_color":"gold","scene_lines":3}]}`)
+	if parsed.Lines[0].Scene != "" || parsed.Lines[0].SceneColor != "" || parsed.Lines[0].SceneLines != 0 {
+		t.Fatalf("legacy bokeh should be stripped, got %+v", parsed.Lines[0])
+	}
+	if parsed.Lines[1].Scene != "sparkles" || parsed.Lines[2].Scene != "custom:star" {
+		t.Fatalf("valid scenes should be kept, got %+v %+v", parsed.Lines[1], parsed.Lines[2])
+	}
 }
 
 func TestSanitizeLyricIntroAndOutro(t *testing.T) {

@@ -214,7 +214,7 @@ describe('播放器页全屏特效信号', () => {
       getContext: () => noopCtx,
     } as unknown as HTMLCanvasElement
 
-    expect(LYRIC_SCENES).toHaveLength(25)
+    expect(LYRIC_SCENES).toHaveLength(24)
     expect(LYRIC_SCENES).toContain('beams')
     const engine = new StageParticles(canvas)
     engine.resize(1280, 800)

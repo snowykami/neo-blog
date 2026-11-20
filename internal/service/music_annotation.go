@@ -167,7 +167,6 @@ var lyricAnnotationSceneList = []lyricAnnotationScene{
 	{"clouds", "clouds, mist, sky, haze"},
 	{"ripples", "lake surface, rain on water, a stirred heart"},
 	{"notes", "singing, melody, music itself"},
-	{"bokeh", "soft bokeh light circles, city night, neon streetlights, dreamy film, jazz/R&B/City Pop"},
 	{"pixels", "digital pixels, glitch blocks, electronic, Vocaloid, 8-bit, cyberpunk, sci-fi"},
 	{"lightning", "lightning arcs, electric bolts, thunderstorm, rock/metal climax, fateful clash"},
 	{"lanterns", "sky lanterns floating up, wishes, classical/ancient style, warm reunion or farewell"},
@@ -869,11 +868,17 @@ func normalizeLegacyLyricSingers(singers *[]dto.MusicLyricAnnotationSinger) {
 	*singers = kept
 }
 
-// normalizeLegacyLyricLines 兼容旧版标注：旧版颜色名映射到新色板，已取消的字形（删除线 strike，已由「消散 + 下划线」代替）去掉。
-// 读取时统一处理（播放器、后台编辑器与保存时保留的旧数据都经过这里），否则编辑器读回旧字形再保存会被校验拒绝
+// normalizeLegacyLyricLines 兼容旧版标注：旧版颜色名映射到新色板，已下线的内置粒子场景（如 bokeh）与字形（删除线 strike）去掉。
+// 读取时统一处理（播放器、后台编辑器与保存时保留的旧数据都经过这里），否则编辑器读回旧值再保存会被校验拒绝
 func normalizeLegacyLyricLines(lines []dto.MusicLyricAnnotationLine) {
 	for i := range lines {
-		lines[i].SceneColor = normalizeLyricColor(lines[i].SceneColor)
+		if lines[i].Scene != "" && !strings.HasPrefix(lines[i].Scene, "custom:") && !lyricAnnotationScenes[lines[i].Scene] {
+			lines[i].Scene = ""
+			lines[i].SceneColor = ""
+			lines[i].SceneLines = 0
+		} else {
+			lines[i].SceneColor = normalizeLyricColor(lines[i].SceneColor)
+		}
 		for j := range lines[i].Phrases {
 			phrase := &lines[i].Phrases[j]
 			phrase.Color = normalizeLyricColor(phrase.Color)

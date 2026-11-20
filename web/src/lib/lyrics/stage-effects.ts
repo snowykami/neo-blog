@@ -1,9 +1,12 @@
 import type { RhythmModel } from './rhythm/model'
 import type { LyricAlign, LyricColor, LyricLine, LyricSceneName, LyricSprite, ResolvedLyrics } from './types'
+import { LYRIC_SCENES } from './annotation-options'
 import { swellCurve } from './easing'
 import { getLyricLineAlign } from './line-utils'
 import { envelopeScale, heartbeatLevel, rhythmContext } from './rhythm/effects'
 import { shatterFlash } from './word-effects'
+
+const KNOWN_LYRIC_SCENES = new Set<string>(LYRIC_SCENES)
 
 /**
  * 播放器页的全屏特效信号（纯函数，由 MusicStageEffects 每帧调用）：
@@ -128,9 +131,10 @@ function getStageIndex(lyrics: ResolvedLyrics): StageIndex {
         vocals.push({ line, align: getLyricLineAlign(line), color: agents[line.agent].color })
       let scene: StageScene | null = null
       if (line.scene) {
-        // 自定义粒子在这首歌的粒子中找不到时（标注与歌词不同步）当作没有场景
-        const sprite = line.scene.startsWith('custom:') ? lyrics.sprites?.[line.scene.slice('custom:'.length)] : undefined
-        if (!line.scene.startsWith('custom:') || sprite)
+        // 自定义粒子找不到或已下线的旧内置场景均当作没有场景
+        const isCustom = line.scene.startsWith('custom:')
+        const sprite = isCustom ? lyrics.sprites?.[line.scene.slice('custom:'.length)] : undefined
+        if (isCustom ? Boolean(sprite) : KNOWN_LYRIC_SCENES.has(line.scene))
           scene = { name: line.scene, color: line.sceneColor ?? null, ...(sprite && { sprite }) }
       }
       mainLines.push({ line, scene, sceneLines: line.sceneLines && line.sceneLines > 0 ? line.sceneLines : SCENE_MAX_LINES })

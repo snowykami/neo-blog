@@ -2465,7 +2465,7 @@ struct BridgeAndEngineTests {
         #expect(pulses?.map(\.t) == [500])
 
         let sim = StageParticlesEngine(scale: 0.7, maxParticles: 80)
-        let newScenes = ["bokeh", "pixels", "lightning", "lanterns", "embers", "sparkles", "confetti", "meteors", "sparks", "beams"]
+        let newScenes = ["pixels", "lightning", "lanterns", "embers", "sparkles", "confetti", "meteors", "sparks", "beams"]
         for name in newScenes {
             sim.reset()
             #expect(!sim.hasActiveParticles)

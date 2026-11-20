@@ -593,34 +593,6 @@ const SCENES: Record<LyricScene, SceneSpec> = {
       ctx.restore()
     },
   },
-  bokeh: {
-    rate: 2.2,
-    max: 28,
-    colors: ['sunset', 'lavender', 'amber', 'sky', 'rose'],
-    spawn: (w, h) => ({ x: rand(0, w), y: rand(h * 0.08, h * 0.92), vx: rand(-10, 10), vy: rand(-14, -4), size: rand(28, 68), rotation: 0, spin: 0, life: rand(6, 10) }),
-    draw: (ctx, p, alpha) => {
-      // 镜头虚焦圆光斑：柔和半透明光盘 + 球差微亮外缘，随节拍极轻微呼吸，纯几何绘制无渐变分配
-      const breath = beatBreath ?? 0
-      const env = Math.sin(Math.PI * Math.min(1, p.age / p.life))
-      const a = Math.min(1, alpha * env * (1 + 0.2 * breath))
-      const r = p.size * (1 + 0.08 * breath)
-      const x = p.x + Math.sin(p.age * 0.5 + p.seed) * 16
-      const y = p.y + Math.cos(p.age * 0.4 + p.seed * 1.7) * 10
-      ctx.fillStyle = rgba(p.color, 0.085 * a)
-      ctx.beginPath()
-      ctx.arc(x, y, r, 0, TAU)
-      ctx.fill()
-      ctx.fillStyle = rgba(mixWhite(p.color, 0.35), 0.05 * a)
-      ctx.beginPath()
-      ctx.arc(x, y, r * 0.68, 0, TAU)
-      ctx.fill()
-      ctx.strokeStyle = rgba(mixWhite(p.color, 0.45), 0.13 * a)
-      ctx.lineWidth = Math.max(1.2, r * 0.075)
-      ctx.beginPath()
-      ctx.arc(x, y, r * 0.94, 0, TAU)
-      ctx.stroke()
-    },
-  },
   pixels: {
     rate: 8,
     colors: ['aurora', 'sky', 'violet', 'lemon'],
@@ -831,33 +803,33 @@ const SCENES: Record<LyricScene, SceneSpec> = {
     },
   },
   beams: {
-    rate: 3.2,
-    max: 7,
+    rate: 1.6,
+    max: 4,
     colors: ['rose', 'violet', 'aurora', 'sky', 'gold', 'cherry-blossom'],
     beat: 0,
     instant: true,
-    // 演唱会双向摇头光束灯：顶部桁架向下俯射（~55%）与台唇地排灯向上仰射（~45%）交错汇聚，随真实单拍摆角扫掠并在落拍瞬间频闪爆亮
+    // 演唱会双向摇头光束灯：顶部桁架向下俯射（~55%）与台唇地排灯向上仰射（~45%）交错汇聚，随真实单拍摆角扫掠并在落拍瞬间轻闪速散
     spawn: (w, h) => {
       const fromBottom = Math.random() < 0.45
-      const slotCount = w < 380 ? 4 : 6
+      const slotCount = w < 380 ? 3 : 5
       const slot = Math.floor(Math.random() * slotCount)
       const slotRatio = slot / (slotCount - 1)
-      const x = w * (0.12 + 0.76 * slotRatio) + rand(-w * 0.03, w * 0.03)
+      const x = w * (0.14 + 0.72 * slotRatio) + rand(-w * 0.03, w * 0.03)
       const y = fromBottom ? h + 3 : -3
       const baseAngle = (0.5 - slotRatio) * (fromBottom ? 0.36 : 0.42)
-      const size = Math.min(rand(w * 0.08, w * 0.15), rand(h * 0.22, h * 0.38))
-      const len = h * rand(0.88, 1.18)
-      const life = rawBeatSec != null ? clamp(rawBeatSec * rand(2.4, 3.6), 0.9, 3.8) : rand(1.6, 2.4)
-      return { x, y, vx: 0, vy: 0, size, len, baseAngle, sweepAmp: rand(0.18, 0.36), sweepDir: Math.random() < 0.5 ? 1 : -1, rotation: 0, spin: 0, life }
+      const size = Math.min(rand(w * 0.08, w * 0.14), rand(h * 0.2, h * 0.34))
+      const len = h * rand(0.86, 1.14)
+      const life = rawBeatSec != null ? clamp(rawBeatSec * rand(1.35, 2.0), 0.65, 2.1) : rand(0.95, 1.45)
+      return { x, y, vx: 0, vy: 0, size, len, baseAngle, sweepAmp: rand(0.16, 0.32), sweepDir: Math.random() < 0.5 ? 1 : -1, rotation: 0, spin: 0, life }
     },
     draw: (ctx, p, alpha) => {
       const fromBottom = p.y > 0
       const swayOmega = rawBeatSec != null ? Math.PI / Math.max(0.24, rawBeatSec) : 2.4
-      const angle = (p.baseAngle ?? 0) + (p.sweepDir ?? 1) * Math.sin(p.age * swayOmega + p.seed) * (p.sweepAmp ?? 0.28)
-      const strobeTau = rawBeatSec != null ? Math.max(0.08, rawBeatSec * 0.35) : 0.22
+      const angle = (p.baseAngle ?? 0) + (p.sweepDir ?? 1) * Math.sin(p.age * swayOmega + p.seed) * (p.sweepAmp ?? 0.26)
+      const strobeTau = rawBeatSec != null ? Math.max(0.07, rawBeatSec * 0.24) : 0.15
       const strobe = Math.exp(-p.age / strobeTau)
       const env = Math.sin(Math.PI * Math.min(1, p.age / p.life))
-      const beamAlpha = Math.min(1, alpha * (0.42 * env + 0.58 * strobe) * (1 + 0.35 * (beatBreath ?? 0)))
+      const beamAlpha = Math.min(1, alpha * (0.4 * env + 0.6 * strobe) * (1 + 0.28 * (beatBreath ?? 0)))
       if (beamAlpha <= 0.008)
         return
       const len = p.len ?? 240
@@ -870,10 +842,10 @@ const SCENES: Record<LyricScene, SceneSpec> = {
         ctx.scale(1, -1)
       ctx.rotate(-angle)
 
-      // 外层丁达尔雾感柔光锥
+      // 外层丁达尔雾感柔光锥（减淡不抢歌词）
       const outerGrad = ctx.createLinearGradient(0, 0, 0, len)
-      outerGrad.addColorStop(0, rgba(mixWhite(p.color, 0.55), 0.44 * beamAlpha))
-      outerGrad.addColorStop(0.38, rgba(p.color, 0.2 * beamAlpha))
+      outerGrad.addColorStop(0, rgba(mixWhite(p.color, 0.55), 0.25 * beamAlpha))
+      outerGrad.addColorStop(0.38, rgba(p.color, 0.11 * beamAlpha))
       outerGrad.addColorStop(1, rgba(p.color, 0))
       ctx.fillStyle = outerGrad
       ctx.beginPath()
@@ -884,10 +856,10 @@ const SCENES: Record<LyricScene, SceneSpec> = {
       ctx.closePath()
       ctx.fill()
 
-      // 内层高能准直亮芯
+      // 内层准直亮芯
       const coreLen = len * 0.88
       const coreGrad = ctx.createLinearGradient(0, 0, 0, coreLen)
-      coreGrad.addColorStop(0, rgba(mixWhite(p.color, 0.85), 0.52 * beamAlpha))
+      coreGrad.addColorStop(0, rgba(mixWhite(p.color, 0.85), 0.28 * beamAlpha))
       coreGrad.addColorStop(1, rgba(p.color, 0))
       ctx.fillStyle = coreGrad
       ctx.beginPath()
@@ -899,8 +871,8 @@ const SCENES: Record<LyricScene, SceneSpec> = {
       ctx.fill()
 
       // 灯口点光源炫光
-      const glowSize = clamp(len * 0.012, 1.4, 3.4)
-      glowDot(ctx, 0, 2, glowSize, p.color, Math.min(1, beamAlpha * 1.15))
+      const glowSize = clamp(len * 0.012, 1.4, 3.2)
+      glowDot(ctx, 0, 2, glowSize, p.color, Math.min(0.72, beamAlpha * 0.68))
       ctx.restore()
     },
   },

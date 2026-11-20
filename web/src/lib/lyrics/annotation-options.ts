@@ -45,7 +45,6 @@ export const LYRIC_SCENES: LyricScene[] = [
   'clouds',
   'ripples',
   'notes',
-  'bokeh',
   'pixels',
   'lightning',
   'lanterns',

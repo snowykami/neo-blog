@@ -237,6 +237,8 @@ enum StageSignalsSolver {
                 let spriteKey = String(rawName.dropFirst("custom:".count))
                 guard let sp = lyrics.sprites[spriteKey] else { continue }
                 resolvedSprite = sp
+            } else if !StageParticlesEngine.knownBuiltInScenes.contains(rawName) {
+                continue
             }
 
             let span = (candidate.sceneLines ?? 0) > 0 ? candidate.sceneLines! : sceneDefaultMaxLines
@@ -279,11 +281,18 @@ enum StageSignalsSolver {
     }
 }
 
-// MARK: - 25 种内置场景 + 自定义 SVG 精灵粒子引擎（1:1 对应 stage-particles.ts）
+// MARK: - 24 种内置场景 + 自定义 SVG 精灵粒子引擎（1:1 对应 stage-particles.ts）
 
 @Observable
 @MainActor
 final class StageParticlesEngine {
+    nonisolated static let knownBuiltInScenes: Set<String> = [
+        "petals", "sparks", "snow", "stars", "bubbles", "rain",
+        "leaves", "fireflies", "feathers", "hearts", "confetti", "fireworks",
+        "dandelion", "butterflies", "meteors", "clouds", "ripples", "notes",
+        "pixels", "lightning", "lanterns", "embers", "sparkles", "beams"
+    ]
+
     private struct StageParticle {
         let sceneName: String
         let key: String
@@ -719,13 +728,12 @@ final class StageParticlesEngine {
         case "clouds": return SceneMeta(rate: 0.35, defaultColors: ["#ffffff"])
         case "ripples": return SceneMeta(rate: 2.5, defaultColors: ["#c8ebff"], beatOctave: 0)
         case "notes": return SceneMeta(rate: 2.5, defaultColors: ["#ffffff"], beatOctave: 0)
-        case "bokeh": return SceneMeta(rate: 2.2, defaultColors: ["sunset", "lavender", "amber", "sky", "rose"], maxCount: 28)
         case "pixels": return SceneMeta(rate: 8, defaultColors: ["aurora", "sky", "violet", "lemon"], beatOctave: 0, beatRatio: 0.75)
         case "lightning": return SceneMeta(rate: 0.55, defaultColors: ["#dcebff", "ice", "violet"], maxCount: 6, beatOctave: 2, instant: true)
         case "lanterns": return SceneMeta(rate: 1.8, defaultColors: ["amber", "candlelight", "sunset"], maxCount: 32)
         case "embers": return SceneMeta(rate: 7, defaultColors: ["flame", "crimson", "amber"], beatOctave: 1, beatRatio: 0.50)
         case "sparkles": return SceneMeta(rate: 5.5, defaultColors: ["#ffffff", "moonlight", "lemon", "lavender", "cherry-blossom"], beatOctave: 0, beatRatio: 0.80)
-        case "beams": return SceneMeta(rate: 3.2, defaultColors: ["rose", "violet", "aurora", "sky", "gold", "cherry-blossom"], maxCount: 7, beatOctave: 0, instant: true)
+        case "beams": return SceneMeta(rate: 1.6, defaultColors: ["rose", "violet", "aurora", "sky", "gold", "cherry-blossom"], maxCount: 4, beatOctave: 0, instant: true)
         default: return SceneMeta(rate: 4, defaultColors: ["#ffffff"])
         }
     }
@@ -817,8 +825,6 @@ final class StageParticlesEngine {
         case "notes":
             let y0 = onBeat ? Double.random(in: (h * 0.55)...(h * 0.95)) : (h + 16)
             return SpawnedMotion(x: .random(in: 0...w), y: y0, vx: 0, vy: .random(in: -45 ... -25) * riseMul, size: .random(in: 13...20), rotation: .random(in: -0.3...0.3), spin: .random(in: -0.3...0.3))
-        case "bokeh":
-            return SpawnedMotion(x: .random(in: 0...w), y: .random(in: (h * 0.08)...(h * 0.92)), vx: .random(in: -10...10), vy: .random(in: -14 ... -4), size: .random(in: 26...60), life: .random(in: 6...10))
         case "pixels":
             if onBeat {
                 let life = rawBeatSec.map { clampVal($0 * .random(in: 2.6...4.2), 0.90, 3.6) } ?? .random(in: 1.6...2.8)
@@ -842,15 +848,15 @@ final class StageParticlesEngine {
             return SpawnedMotion(x: .random(in: (w * 0.06)...(w * 0.94)), y: .random(in: (h * 0.08)...(h * 0.85)), vx: 0, vy: .random(in: -10 ... -2) * tempoScale, size: .random(in: 7...15), rotation: .random(in: -0.25...0.25), spin: .random(in: -0.6...0.6) * tempoScale, life: life)
         case "beams":
             let fromBottom = Double.random(in: 0..<1) < 0.45 // ~45% 底部台唇向上仰射，~55% 顶部桁架向下俯射
-            let slotCount = w < 380 ? 4 : 6
+            let slotCount = w < 380 ? 3 : 5
             let slot = Int.random(in: 0..<slotCount)
             let slotRatio = Double(slot) / Double(max(1, slotCount - 1))
-            let x = w * (0.12 + 0.76 * slotRatio) + Double.random(in: (-w * 0.03)...(w * 0.03))
+            let x = w * (0.14 + 0.72 * slotRatio) + Double.random(in: (-w * 0.03)...(w * 0.03))
             let y = fromBottom ? (h + 3.0) : -3.0
             let baseAngle = (0.5 - slotRatio) * (fromBottom ? 0.36 : 0.42)
-            let coneSize = min(Double.random(in: (w * 0.08)...(w * 0.15)), Double.random(in: (h * 0.22)...(h * 0.38)))
-            let beamLen = h * Double.random(in: 0.88...1.18)
-            let life = rawBeatSec.map { clampVal($0 * .random(in: 2.4...3.6), 0.90, 3.8) } ?? .random(in: 1.6...2.4)
+            let coneSize = min(Double.random(in: (w * 0.08)...(w * 0.14)), Double.random(in: (h * 0.20)...(h * 0.34)))
+            let beamLen = h * Double.random(in: 0.86...1.14)
+            let life = rawBeatSec.map { clampVal($0 * .random(in: 1.35...2.0), 0.65, 2.1) } ?? .random(in: 0.95...1.45)
             return SpawnedMotion(
                 x: x,
                 y: y,
@@ -859,7 +865,7 @@ final class StageParticlesEngine {
                 size: coneSize,
                 len: beamLen,
                 baseAngle: baseAngle,
-                sweepAmp: .random(in: 0.18...0.36),
+                sweepAmp: .random(in: 0.16...0.32),
                 sweepDir: Bool.random() ? 1.0 : -1.0,
                 life: life
             )
@@ -1153,29 +1159,6 @@ final class StageParticlesEngine {
                 .foregroundStyle(color(p.rgb, alpha: 0.60 * alpha))
             sub.draw(txt, at: .zero, anchor: .center)
 
-        case "bokeh":
-            let lifeFrac = p.life.isFinite ? min(1.0, p.age / max(0.01, p.life)) : 0.5
-            let env = sin(.pi * lifeFrac)
-            let a = min(1.0, alpha * env * (1.0 + 0.20 * breath))
-            let r = p.size * (1.0 + 0.08 * breath)
-            let x = p.x + sin(p.age * 0.5 + p.seed) * 14
-            let y = p.y + cos(p.age * 0.4 + p.seed * 1.7) * 9
-            ctx.fill(
-                Path(ellipseIn: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2)),
-                with: .color(color(p.rgb, alpha: 0.085 * a))
-            )
-            let innerR = r * 0.68
-            ctx.fill(
-                Path(ellipseIn: CGRect(x: x - innerR, y: y - innerR, width: innerR * 2, height: innerR * 2)),
-                with: .color(color(LyricColorPalette.mixWhite(p.rgb, t: 0.35), alpha: 0.05 * a))
-            )
-            let rimR = r * 0.94
-            ctx.stroke(
-                Path(ellipseIn: CGRect(x: x - rimR, y: y - rimR, width: rimR * 2, height: rimR * 2)),
-                with: .color(color(LyricColorPalette.mixWhite(p.rgb, t: 0.45), alpha: 0.13 * a)),
-                lineWidth: max(1.1, r * 0.075)
-            )
-
         case "pixels":
             let stepHz = rawBeatSec.map { clampVal(1.0 / ($0 * 0.5), 2.5, 14.0) } ?? 8.0
             let stepAge = floor(p.age * stepHz) / stepHz
@@ -1341,12 +1324,12 @@ final class StageParticlesEngine {
         case "beams":
             let fromBottom = p.y > 0
             let swayOmega = rawBeatSec.map { Double.pi / max(0.24, $0) } ?? 2.4
-            let angle = (p.baseAngle ?? 0) + (p.sweepDir ?? 1.0) * sin(p.age * swayOmega + p.seed) * (p.sweepAmp ?? 0.28)
-            let strobeTau = rawBeatSec.map { max(0.08, $0 * 0.35) } ?? 0.22
+            let angle = (p.baseAngle ?? 0) + (p.sweepDir ?? 1.0) * sin(p.age * swayOmega + p.seed) * (p.sweepAmp ?? 0.26)
+            let strobeTau = rawBeatSec.map { max(0.07, $0 * 0.24) } ?? 0.15
             let strobe = exp(-p.age / strobeTau)
             let lifeFrac = p.life.isFinite ? min(1.0, p.age / max(0.01, p.life)) : 0.5
             let env = sin(.pi * lifeFrac)
-            let beamAlpha = min(1.0, alpha * (0.42 * env + 0.58 * strobe) * (1.0 + 0.35 * breath))
+            let beamAlpha = min(1.0, alpha * (0.40 * env + 0.60 * strobe) * (1.0 + 0.28 * breath))
             guard beamAlpha > 0.008 else { break }
             let len = p.len ?? 120.0
             let topW = max(1.8, p.size * 0.08)
@@ -1369,8 +1352,8 @@ final class StageParticlesEngine {
                 outer,
                 with: .linearGradient(
                     Gradient(stops: [
-                        .init(color: color(LyricColorPalette.mixWhite(p.rgb, t: 0.55), alpha: 0.44 * beamAlpha), location: 0),
-                        .init(color: color(p.rgb, alpha: 0.20 * beamAlpha), location: 0.38),
+                        .init(color: color(LyricColorPalette.mixWhite(p.rgb, t: 0.55), alpha: 0.25 * beamAlpha), location: 0),
+                        .init(color: color(p.rgb, alpha: 0.11 * beamAlpha), location: 0.38),
                         .init(color: color(p.rgb, alpha: 0), location: 1)
                     ]),
                     startPoint: .zero,
@@ -1389,7 +1372,7 @@ final class StageParticlesEngine {
                 core,
                 with: .linearGradient(
                     Gradient(colors: [
-                        color(LyricColorPalette.mixWhite(p.rgb, t: 0.85), alpha: 0.52 * beamAlpha),
+                        color(LyricColorPalette.mixWhite(p.rgb, t: 0.85), alpha: 0.28 * beamAlpha),
                         color(p.rgb, alpha: 0)
                     ]),
                     startPoint: .zero,
@@ -1397,8 +1380,8 @@ final class StageParticlesEngine {
                 )
             )
 
-            let glowSize = clampVal(len * 0.012, 1.4, 3.4)
-            drawGlowDot(in: &sub, x: 0, y: 2.0, size: glowSize, rgb: p.rgb, alpha: min(1.0, beamAlpha * 1.15))
+            let glowSize = clampVal(len * 0.012, 1.4, 3.2)
+            drawGlowDot(in: &sub, x: 0, y: 2.0, size: glowSize, rgb: p.rgb, alpha: min(0.72, beamAlpha * 0.68))
 
         default:
             break
