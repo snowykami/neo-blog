@@ -940,16 +940,19 @@ struct WebMediaMessage: Codable {
 struct RhythmDataPayload: Codable, Equatable, Sendable {
     let reliable: Bool
     let basePeriodMs: Double
+    let periodMs: Double?
     let trains: [String: [[Double]]]
 
     enum CodingKeys: String, CodingKey {
         case reliable, trains
         case basePeriodMs = "base_period_ms"
+        case periodMs = "period_ms"
     }
 
-    init(reliable: Bool, basePeriodMs: Double, trains: [String: [[Double]]]) {
+    init(reliable: Bool, basePeriodMs: Double, periodMs: Double? = nil, trains: [String: [[Double]]]) {
         self.reliable = reliable
         self.basePeriodMs = basePeriodMs
+        self.periodMs = periodMs
         self.trains = trains
     }
 
@@ -964,7 +967,9 @@ struct RhythmDataPayload: Codable, Equatable, Sendable {
                 }
             }
         }
-        return RhythmEngineContext(reliable: true, basePeriodMs: max(120, basePeriodMs), trains: map)
+        let base = max(120, basePeriodMs)
+        let raw = max(120, periodMs ?? basePeriodMs)
+        return RhythmEngineContext(reliable: true, basePeriodMs: base, rawPeriodMs: raw, trains: map)
     }
 }
 

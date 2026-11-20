@@ -263,9 +263,18 @@ export function particleSway(ctx: RhythmContext, timeMs: number): number | null 
   return -Math.cos(Math.PI * (anchorIdx + (at - train[anchorIdx].t) / T))
 }
 
-/** 粒子动作相对中速（750ms）的曲速缩放倍率（0.65 ~ 1.55），供蝴蝶振翅等随曲速舒缓/轻快调节 */
+/** 粒子动作相对中速的曲速缩放倍率（0.65 ~ 1.75）：跟随真实节拍时按未折叠的原始单拍周期 periodMs 计算，使高速快歌（如 165 BPM）获得真实轻快感 */
 export function particleTempoScale(ctx: RhythmContext): number {
+  if (ctx.model)
+    return clamp(600 / Math.max(200, basePeriodOf(ctx.model.analysis.periodMs, ctx.params)), 0.68, 1.75)
   return clamp(PACE.basePeriod.medium / ctx.base, 0.65, 1.55)
+}
+
+/** 真实音频未折叠的单拍周期（毫秒，60000/BPM）；不跟随节拍时为 null */
+export function particleRawPeriodMs(ctx: RhythmContext): number | null {
+  if (!ctx.model)
+    return null
+  return basePeriodOf(ctx.model.analysis.periodMs, ctx.params)
 }
 
 /** 粒子在 (t0, t1] 内经过的拍（点过程）；不跟随节拍时为 null（粒子均匀生成） */

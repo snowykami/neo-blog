@@ -10,8 +10,17 @@ struct RhythmPulsePoint: Equatable {
 struct RhythmEngineContext: Equatable {
     let reliable: Bool
     let basePeriodMs: Double
+    /// 未折叠的真实单拍周期（毫秒，60000/BPM）；未提供时与 basePeriodMs 一致
+    let rawPeriodMs: Double
     /// octave (-1, 0, 1, 2) -> 脉冲序列（按 t 升序）
     let trains: [Int: [RhythmPulsePoint]]
+
+    init(reliable: Bool, basePeriodMs: Double, rawPeriodMs: Double? = nil, trains: [Int: [RhythmPulsePoint]]) {
+        self.reliable = reliable
+        self.basePeriodMs = basePeriodMs
+        self.rawPeriodMs = rawPeriodMs ?? basePeriodMs
+        self.trains = trains
+    }
 
     static let fallback = RhythmEngineContext(reliable: false, basePeriodMs: 750, trains: [:])
 
@@ -208,9 +217,24 @@ struct RhythmEngineContext: Equatable {
         return -cos(.pi * (Double(anchorIdx) + (at - train[anchorIdx].t) / T))
     }
 
-    /// 粒子动作相对中速（750ms）的曲速缩放倍率（0.65 ~ 1.55）
+    /// 粒子动作相对中速的曲速缩放倍率（0.65 ~ 1.75）：跟随真实节拍时按未折叠原始单拍周期 rawPeriodMs 计算
     var particleTempoScale: Double {
-        min(1.55, max(0.65, FixedLyricPace.medium.basePeriodMs / max(120, basePeriodMs)))
+        if reliable {
+            return min(1.75, max(0.68, 600.0 / max(200.0, rawPeriodMs)))
+        }
+        return min(1.55, max(0.65, FixedLyricPace.medium.basePeriodMs / max(120, basePeriodMs)))
+    }
+
+    /// 粒子绽放寿命使用的真实单拍秒数 T_0（限制在 0.24s ~ 1.25s）；不跟随节拍时为 nil
+    var particleRawBeatSec: Double? {
+        guard reliable else { return nil }
+        return min(1.25, max(0.24, rawPeriodMs / 1000.0))
+    }
+
+    /// 快歌歌词基准周期相对真实单拍的折叠八度差（如 >125 BPM 时折叠了 1 个八度），用于还原真实单拍/双拍/小节脉冲
+    var particleFoldShift: Int {
+        guard reliable, rawPeriodMs > 0 else { return 0 }
+        return max(0, Int(round(log2(basePeriodMs / rawPeriodMs))))
     }
 
     // MARK: - 1:1 对应 interlude.ts（间奏圆点倒计时点亮、呼吸、吸气放大与收拢退场）

@@ -173,6 +173,7 @@ var lyricAnnotationSceneList = []lyricAnnotationScene{
 	{"lanterns", "sky lanterns floating up, wishes, classical/ancient style, warm reunion or farewell"},
 	{"embers", "drifting embers, burning ash, battlefield, tragic epic, smoldering resolve"},
 	{"sparkles", "four-point starlight sparkles, dazzling stage, magical, idol chorus, radiant"},
+	{"beams", "concert stage light beams (overhead & floor spotlights) — reserve strictly for true live stage, idol performance, concert hall, or club/disco climaxes"},
 }
 
 // lyricAnnotationFont 字体：名称（模型输出与前端字体栈的键）与字体及适合的气质（英文，写进提示词供模型挑选）

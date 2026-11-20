@@ -2459,13 +2459,13 @@ struct BridgeAndEngineTests {
         #expect(abs((rhythm.particleSway(timeMs: 1000 - lead) ?? 0) - 1.0) < 1e-6)
         #expect(abs((rhythm.particleSway(timeMs: 1500 - lead) ?? 0) - (-1.0)) < 1e-6)
         #expect(RhythmEngineContext.fallback.particleSway(timeMs: 600) == nil)
-        #expect(rhythm.particleTempoScale > 1.2)
+        #expect(abs(rhythm.particleTempoScale - 1.2) < 1e-6)
 
         let pulses = rhythm.particlePulses(octave: 2, t0: 450, t1: 500)
         #expect(pulses?.map(\.t) == [500])
 
         let sim = StageParticlesEngine(scale: 0.7, maxParticles: 80)
-        let newScenes = ["bokeh", "pixels", "lightning", "lanterns", "embers", "sparkles", "confetti", "meteors", "sparks"]
+        let newScenes = ["bokeh", "pixels", "lightning", "lanterns", "embers", "sparkles", "confetti", "meteors", "sparks", "beams"]
         for name in newScenes {
             sim.reset()
             #expect(!sim.hasActiveParticles)
@@ -2476,6 +2476,60 @@ struct BridgeAndEngineTests {
             let snap = StageSignalsSolver.compute(lyrics: bundle, chorusRanges: [], rhythm: rhythm, timeMs: 500)
             #expect(snap.scene == scene)
         }
+
+        // 舞台灯（beams）双向投射（顶部 y < 0 与底部 y > h）及快慢曲速周期自适应寿命验证
+        let fastFoldedRhythm = RhythmEngineContext(
+            reliable: true,
+            basePeriodMs: 720,
+            rawPeriodMs: 360,
+            trains: [
+                -1: (1...40).map { RhythmPulsePoint(t: Double($0) * 360.0, a: 1.0) },
+                0: (1...20).map { RhythmPulsePoint(t: Double($0) * 720.0, a: 1.0) },
+                1: (1...10).map { RhythmPulsePoint(t: Double($0) * 1440.0, a: 1.0) }
+            ]
+        )
+        #expect(fastFoldedRhythm.particleFoldShift == 1)
+        #expect(fastFoldedRhythm.particleTempoScale > 1.6)
+
+        let beamSim = StageParticlesEngine(scale: 1.0, maxParticles: 80)
+        let stageSize = CGSize(width: 460, height: 220)
+        let beamScene = ResolvedStageScene(name: "beams", colorHex: nil, sprite: nil)
+        var beamDate = Date(timeIntervalSince1970: 1_700_000_000)
+        var sawTopBeam = false
+        var sawBottomBeam = false
+        beamSim.stepSimulation(size: stageSize, date: beamDate, timeMs: 300, scene: beamScene, isPlaying: true, rhythm: fastFoldedRhythm)
+        for step in 1...30 {
+            beamDate = beamDate.addingTimeInterval(0.04)
+            beamSim.stepSimulation(size: stageSize, date: beamDate, timeMs: Double(step) * 360.0 + 20.0, scene: beamScene, isPlaying: true, rhythm: fastFoldedRhythm)
+            let ys = beamSim.particlePositionsY(for: "beams")
+            if ys.contains(where: { $0 < 0 }) { sawTopBeam = true }
+            if ys.contains(where: { $0 > Double(stageSize.height) }) { sawBottomBeam = true }
+        }
+        #expect(sawTopBeam)
+        #expect(sawBottomBeam)
+
+        // 快歌（rawPeriodMs=360）烟花寿命显著短于慢歌（rawPeriodMs=780）
+        let fwFastSim = StageParticlesEngine(scale: 1.0, maxParticles: 40)
+        let fwSceneCheck = ResolvedStageScene(name: "fireworks", colorHex: nil, sprite: nil)
+        fwFastSim.stepSimulation(size: stageSize, date: beamDate, timeMs: 680, scene: fwSceneCheck, isPlaying: true, rhythm: fastFoldedRhythm)
+        beamDate = beamDate.addingTimeInterval(0.05)
+        fwFastSim.stepSimulation(size: stageSize, date: beamDate, timeMs: 740, scene: fwSceneCheck, isPlaying: true, rhythm: fastFoldedRhythm)
+        let fastLives = fwFastSim.particleLifetimes(for: "fireworks")
+        #expect(!fastLives.isEmpty)
+
+        let slowRhythm = RhythmEngineContext(
+            reliable: true,
+            basePeriodMs: 780,
+            rawPeriodMs: 780,
+            trains: [1: [RhythmPulsePoint(t: 780, a: 1.0)]]
+        )
+        let fwSlowSim = StageParticlesEngine(scale: 1.0, maxParticles: 40)
+        fwSlowSim.stepSimulation(size: stageSize, date: beamDate, timeMs: 700, scene: fwSceneCheck, isPlaying: true, rhythm: slowRhythm)
+        beamDate = beamDate.addingTimeInterval(0.05)
+        fwSlowSim.stepSimulation(size: stageSize, date: beamDate, timeMs: 800, scene: fwSceneCheck, isPlaying: true, rhythm: slowRhythm)
+        let slowLives = fwSlowSim.particleLifetimes(for: "fireworks")
+        #expect(!slowLives.isEmpty)
+        #expect((fastLives.max() ?? 99) < (slowLives.min() ?? 0))
 
         // 小画幅胶囊（320×36, maxParticles: 5）：即使先被无节奏 stars 填满全部名额，切到 fireworks 后每个拍点都必须抢占旧粒子逐拍绽放不漏拍
         let compactSim = StageParticlesEngine(scale: 0.7, maxParticles: 5)

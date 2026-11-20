@@ -176,7 +176,7 @@ describe('播放器页全屏特效信号', () => {
     expect(noopCtx.stroke).toHaveBeenCalled()
   })
 
-  it('全部 24 种内置粒子场景与自定义 sway/burst 在节拍输入下均可正常生成与绘制', () => {
+  it('全部 25 种内置粒子场景与自定义 sway/burst 在节拍输入下均可正常生成与绘制', () => {
     const noopGradient = { addColorStop: vi.fn() }
     const noopCtx = {
       setTransform: vi.fn(),
@@ -196,6 +196,7 @@ describe('播放器页全屏特效信号', () => {
       fillText: vi.fn(),
       moveTo: vi.fn(),
       lineTo: vi.fn(),
+      closePath: vi.fn(),
       createLinearGradient: vi.fn(() => noopGradient),
       createRadialGradient: vi.fn(() => noopGradient),
       fillStyle: '',
@@ -213,7 +214,8 @@ describe('播放器页全屏特效信号', () => {
       getContext: () => noopCtx,
     } as unknown as HTMLCanvasElement
 
-    expect(LYRIC_SCENES).toHaveLength(24)
+    expect(LYRIC_SCENES).toHaveLength(25)
+    expect(LYRIC_SCENES).toContain('beams')
     const engine = new StageParticles(canvas)
     engine.resize(1280, 800)
 
@@ -223,6 +225,8 @@ describe('播放器页全屏特效信号', () => {
       breath: 0.7,
       sway: 0.6,
       tempoScale: 1.2,
+      rawPeriodMs: 500,
+      basePeriodMs: 500,
     }
 
     for (const name of LYRIC_SCENES) {
@@ -235,6 +239,111 @@ describe('播放器页全屏特效信号', () => {
       expect(paintedAny, `scene ${name} should spawn and paint`).toBe(true)
       expect(engine.idle).toBe(false)
     }
+  })
+
+  it('舞台灯（beams）支持顶部向下与底部向上双向投射，且烟花绽放寿命随真实单拍周期自适应伸缩', () => {
+    const translateYs: number[] = []
+    const scaleYs: number[] = []
+    const noopGradient = { addColorStop: vi.fn() }
+    const noopCtx = {
+      setTransform: vi.fn(),
+      clearRect: vi.fn(),
+      save: vi.fn(),
+      restore: vi.fn(),
+      translate: vi.fn((_x: number, y: number) => translateYs.push(y)),
+      rotate: vi.fn(),
+      scale: vi.fn((_sx: number, sy: number) => scaleYs.push(sy)),
+      beginPath: vi.fn(),
+      arc: vi.fn(),
+      fill: vi.fn(),
+      stroke: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      closePath: vi.fn(),
+      createLinearGradient: vi.fn(() => noopGradient),
+      fillStyle: '',
+      strokeStyle: '',
+      lineWidth: 1,
+    } as unknown as CanvasRenderingContext2D
+    const canvas = {
+      width: 1280,
+      height: 800,
+      getContext: () => noopCtx,
+    } as unknown as HTMLCanvasElement
+
+    const engine = new StageParticles(canvas)
+    engine.resize(1280, 800)
+
+    // 连续触发多拍舞台灯，验证既有顶部桁架（y = -3）也有底部台唇（y = 803 + scale(1, -1)）
+    for (let beatIdx = 1; beatIdx <= 30; beatIdx++) {
+      engine.update(0.04, { name: 'beams', color: null }, true, {
+        pulses: () => ({ pulses: [{ t: beatIdx * 360, a: 1, synth: false }], periodMs: 360 }),
+        heart: 0.9,
+        breath: 0.8,
+        sway: 0.5,
+        tempoScale: 1.67,
+        rawPeriodMs: 360,
+        basePeriodMs: 720,
+      })
+    }
+    expect(translateYs.some(y => y < 0)).toBe(true)
+    expect(translateYs.some(y => y > 800)).toBe(true)
+    expect(scaleYs).toContain(-1)
+
+    // 验证快歌（166.7 BPM, rawPeriodMs=360, basePeriodMs=720）抵消八度折叠并缩短烟花绽放寿命，慢歌（77 BPM, rawPeriodMs=780）烟花持久悬停
+    const queriedOctaves: number[] = []
+    engine.clear()
+    engine.update(0.05, { name: 'fireworks', color: null }, true, {
+      pulses: (oct) => {
+        queriedOctaves.push(oct)
+        return { pulses: [{ t: 360, a: 1, synth: false }], periodMs: 720 }
+      },
+      heart: 0.8,
+      breath: 0.5,
+      sway: 0,
+      tempoScale: 1.67,
+      rawPeriodMs: 360,
+      basePeriodMs: 720,
+    })
+    // fireworks 原始 beat=1，抵消快歌 foldShift=1 后应查询 octave=0（真实双拍 720ms，而非 4 拍 1440ms）
+    expect(queriedOctaves).toContain(0)
+    // 保持播放态（无新拍点）推进 1.35s（> 快歌最大寿命 2 * 0.36 * 1.62 ≈ 1.17s），快歌烟花已按自身寿命干净消散
+    const fastIdleRhythm = {
+      pulses: () => ({ pulses: [], periodMs: 720 }),
+      heart: 0.2,
+      breath: 0.2,
+      sway: 0,
+      tempoScale: 1.67,
+      rawPeriodMs: 360,
+      basePeriodMs: 720,
+    }
+    const clearCallsBeforeFastEnd = (noopCtx.clearRect as ReturnType<typeof vi.fn>).mock.calls.length
+    for (let i = 0; i < 28; i++)
+      engine.update(0.05, { name: 'fireworks', color: null }, true, fastIdleRhythm)
+    // 最后一帧已无存活烟花（不再触发绘制）
+    const paintedAtFast1400ms = engine.update(0.05, { name: 'fireworks', color: null }, true, fastIdleRhythm)
+    expect(paintedAtFast1400ms).toBe(false)
+    expect((noopCtx.clearRect as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(clearCallsBeforeFastEnd)
+
+    // 对比慢歌（rawPeriodMs=780，最小寿命 2 * 0.78 * 1.25 = 1.95s）：同样推进 1.45s 时烟花仍在空中绽放绘制
+    engine.clear()
+    const slowIdleRhythm = {
+      pulses: () => ({ pulses: [], periodMs: 1560 }),
+      heart: 0.2,
+      breath: 0.2,
+      sway: 0,
+      tempoScale: 0.77,
+      rawPeriodMs: 780,
+      basePeriodMs: 780,
+    }
+    engine.update(0.05, { name: 'fireworks', color: null }, true, {
+      ...slowIdleRhythm,
+      pulses: () => ({ pulses: [{ t: 780, a: 1, synth: false }], periodMs: 1560 }),
+    })
+    for (let i = 0; i < 28; i++)
+      engine.update(0.05, { name: 'fireworks', color: null }, true, slowIdleRhythm)
+    const paintedAtSlow1400ms = engine.update(0.05, { name: 'fireworks', color: null }, true, slowIdleRhythm)
+    expect(paintedAtSlow1400ms).toBe(true)
   })
 
   it('小画幅灵动岛（320×36, maxParticles=20）节奏粒子逐拍必响应不漏拍，无节奏雨雪按面积稀疏', () => {

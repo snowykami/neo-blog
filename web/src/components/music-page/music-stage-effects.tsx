@@ -9,7 +9,7 @@ import { useHdrEnabled } from '@/hooks/use-hdr-highlight'
 import { createHdrCanvasPresenter } from '@/lib/hdr-canvas'
 import { HDR_BRIGHTNESS } from '@/lib/hdr-color'
 import { LYRIC_COLORS } from '@/lib/lyrics/colors'
-import { backgroundLevel, particleHeartLevel, particlePulses, particleSway, particleTempoScale, periodOf, rhythmContext } from '@/lib/lyrics/rhythm/effects'
+import { backgroundLevel, particleHeartLevel, particlePulses, particleRawPeriodMs, particleSway, particleTempoScale, periodOf, rhythmContext } from '@/lib/lyrics/rhythm/effects'
 import { rhythmModelFor } from '@/lib/lyrics/rhythm/source'
 import { getStageSignals } from '@/lib/lyrics/stage-effects'
 import { StageParticles } from '@/lib/lyrics/stage-particles'
@@ -242,6 +242,8 @@ export function MusicStageEffects({
             breath: beat,
             sway: particleSway(rhythm, timeMs),
             tempoScale: particleTempoScale(rhythm),
+            rawPeriodMs: particleRawPeriodMs(rhythm),
+            basePeriodMs: rhythm.base,
           }
       const nextPulse = Math.max((signals?.pulse ?? 0) * PULSE_MAX_OPACITY, (signals?.burst ?? 0) * BURST_MAX_OPACITY, beat * BEAT_MAX_OPACITY).toFixed(3)
       if (nextPulse !== pulseOpacity) {

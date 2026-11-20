@@ -3,7 +3,7 @@ import Observation
 import SwiftUI
 
 // MARK: - 1:1 对应 web/src/lib/lyrics/colors.ts、stage-effects.ts 与 stage-particles.ts
-// 【双端同步维护约定】小窗与胶囊的背景呼吸、副歌爆发、短语/多声部方向性染色、聚光灯暖光及 24 种内置场景 + 自定义 SVG 粒子均与前端对齐。
+// 【双端同步维护约定】小窗与胶囊的背景呼吸、副歌爆发、短语/多声部方向性染色、聚光灯暖光及 25 种内置场景 + 自定义 SVG 粒子均与前端对齐。
 
 enum LyricColorPalette {
     static let map: [String: String] = [
@@ -279,7 +279,7 @@ enum StageSignalsSolver {
     }
 }
 
-// MARK: - 24 种内置场景 + 自定义 SVG 精灵粒子引擎（1:1 对应 stage-particles.ts）
+// MARK: - 25 种内置场景 + 自定义 SVG 精灵粒子引擎（1:1 对应 stage-particles.ts）
 
 @Observable
 @MainActor
@@ -294,6 +294,11 @@ final class StageParticlesEngine {
         let vx: Double
         let vy: Double
         let size: Double
+        let len: Double?
+        let baseAngle: Double?
+        let sweepAmp: Double?
+        let sweepDir: Double?
+        let burstExp: Double?
         var rotation: Double
         let spin: Double
         var age: Double
@@ -409,6 +414,14 @@ final class StageParticlesEngine {
         return particles.reduce(0) { $0 + ($1.sceneName == sceneName ? 1 : 0) }
     }
 
+    func particleLifetimes(for sceneName: String) -> [Double] {
+        particles.filter { $0.sceneName == sceneName }.map(\.life)
+    }
+
+    func particlePositionsY(for sceneName: String) -> [Double] {
+        particles.filter { $0.sceneName == sceneName }.map(\.y)
+    }
+
     @discardableResult
     func stepSimulation(
         size: CGSize,
@@ -417,7 +430,7 @@ final class StageParticlesEngine {
         scene: ResolvedStageScene?,
         isPlaying: Bool,
         rhythm: RhythmEngineContext
-    ) -> (heartBeat: Double?, beatBreath: Double?, beatSway: Double?, tempoScale: Double)? {
+    ) -> (heartBeat: Double?, beatBreath: Double?, beatSway: Double?, tempoScale: Double, rawBeatSec: Double?)? {
         let w = Double(size.width)
         let h = Double(size.height)
         guard w > 4, h > 4 else { return nil }
@@ -464,6 +477,8 @@ final class StageParticlesEngine {
             : nil
         let beatSway: Double? = rhythm.particleSway(timeMs: timeMs)
         let tempoScale = rhythm.particleTempoScale
+        let rawBeatSec = rhythm.particleRawBeatSec
+        let foldShift = rhythm.particleFoldShift
 
         if let cur, density > 0, isPlaying {
             let meta = sceneMeta(for: cur)
@@ -513,7 +528,7 @@ final class StageParticlesEngine {
                     let picked = meta.defaultColors.randomElement() ?? "#ffffff"
                     rgb = LyricColorPalette.resolveRGB(picked)
                 }
-                let m = self.spawnMotion(for: cur, w: w, h: h, onBeat: onBeat)
+                let m = self.spawnMotion(for: cur, w: w, h: h, onBeat: onBeat, rawBeatSec: rawBeatSec, tempoScale: tempoScale)
                 self.particles.append(
                     StageParticle(
                         sceneName: cur.name,
@@ -525,6 +540,11 @@ final class StageParticlesEngine {
                         vx: m.vx,
                         vy: m.vy,
                         size: m.size * self.particleScale,
+                        len: m.len,
+                        baseAngle: m.baseAngle,
+                        sweepAmp: m.sweepAmp,
+                        sweepDir: m.sweepDir,
+                        burstExp: m.burstExp,
                         rotation: m.rotation,
                         spin: m.spin,
                         age: 0,
@@ -538,6 +558,7 @@ final class StageParticlesEngine {
             }
 
             if let beatOct = meta.beatOctave, rhythm.reliable {
+                let effOct = beatOct - foldShift
                 let ratio = meta.beatRatio
                 if ratio < 1.0 {
                     pending += meta.rate * (1.0 - ratio) * area * density * dt
@@ -548,8 +569,8 @@ final class StageParticlesEngine {
                 }
                 if validBeatWindow,
                    let since = prevMs,
-                   let pulses = rhythm.particlePulses(octave: beatOct, t0: since, t1: timeMs) {
-                    let periodSec = rhythm.period(octave: beatOct) / 1000.0
+                   let pulses = rhythm.particlePulses(octave: effOct, t0: since, t1: timeMs) {
+                    let periodSec = rhythm.period(octave: effOct) / 1000.0
                     for p in pulses {
                         beatPending += meta.rate * ratio * periodSec * area * density * p.a
                         let count = max(1, Int(floor(beatPending)))
@@ -595,7 +616,7 @@ final class StageParticlesEngine {
         }
         particles = nextParticles
         syncActiveFlag()
-        return (heartBeat, beatBreath, beatSway, tempoScale)
+        return (heartBeat, beatBreath, beatSway, tempoScale, rawBeatSec)
     }
 
     func stepAndDraw(
@@ -629,6 +650,7 @@ final class StageParticlesEngine {
                     beatBreath: mod.beatBreath,
                     beatSway: mod.beatSway,
                     tempoScale: mod.tempoScale,
+                    rawBeatSec: mod.rawBeatSec,
                     in: &context
                 )
             }
@@ -652,6 +674,11 @@ final class StageParticlesEngine {
         var vx: Double
         var vy: Double
         var size: Double
+        var len: Double? = nil
+        var baseAngle: Double? = nil
+        var sweepAmp: Double? = nil
+        var sweepDir: Double? = nil
+        var burstExp: Double? = nil
         var rotation: Double = 0
         var spin: Double = 0
         var life: Double = .infinity
@@ -698,12 +725,25 @@ final class StageParticlesEngine {
         case "lanterns": return SceneMeta(rate: 1.8, defaultColors: ["amber", "candlelight", "sunset"], maxCount: 32)
         case "embers": return SceneMeta(rate: 7, defaultColors: ["flame", "crimson", "amber"], beatOctave: 1, beatRatio: 0.50)
         case "sparkles": return SceneMeta(rate: 5.5, defaultColors: ["#ffffff", "moonlight", "lemon", "lavender", "cherry-blossom"], beatOctave: 0, beatRatio: 0.80)
+        case "beams": return SceneMeta(rate: 3.2, defaultColors: ["rose", "violet", "aurora", "sky", "gold", "cherry-blossom"], maxCount: 7, beatOctave: 0, instant: true)
         default: return SceneMeta(rate: 4, defaultColors: ["#ffffff"])
         }
     }
 
-    private func spawnMotion(for scene: ResolvedStageScene, w: Double, h: Double, onBeat: Bool) -> SpawnedMotion {
+    private func clampVal(_ v: Double, _ lo: Double, _ hi: Double) -> Double {
+        min(hi, max(lo, v))
+    }
+
+    private func spawnMotion(
+        for scene: ResolvedStageScene,
+        w: Double,
+        h: Double,
+        onBeat: Bool,
+        rawBeatSec: Double?,
+        tempoScale: Double
+    ) -> SpawnedMotion {
         let tau = 2.0 * Double.pi
+        let riseMul = clampVal(tempoScale, 0.78, 1.32)
         if let sp = scene.sprite {
             let baseSize: Double = sp.size == "s" ? 14 : (sp.size == "l" ? 26 : 20)
             let sz = baseSize * Double.random(in: 0.8...1.2)
@@ -717,7 +757,8 @@ final class StageParticlesEngine {
             case "swirl":
                 return SpawnedMotion(x: .random(in: 0...w), y: -16, vx: 0, vy: .random(in: 30...45), size: sz, spin: sp.spin ? .random(in: 1.5...3.0) : 0)
             case "burst":
-                return SpawnedMotion(x: w * 0.5 + .random(in: (-w * 0.15)...(w * 0.15)), y: h * 0.45 + .random(in: (-h * 0.1)...(h * 0.1)), vx: 0, vy: 0, size: sz, rotation: .random(in: 0...tau), spin: sp.spin ? .random(in: -3...3) : 0, life: .random(in: 1.6...2.2))
+                let burstLife = rawBeatSec.map { clampVal(2.0 * $0 * .random(in: 1.25...1.60), 0.90, 3.2) } ?? .random(in: 1.6...2.2)
+                return SpawnedMotion(x: w * 0.5 + .random(in: (-w * 0.15)...(w * 0.15)), y: h * 0.45 + .random(in: (-h * 0.1)...(h * 0.1)), vx: 0, vy: 0, size: sz, rotation: .random(in: 0...tau), spin: sp.spin ? .random(in: -3...3) : 0, life: burstLife)
             default:
                 return SpawnedMotion(x: .random(in: 0...w), y: -16, vx: .random(in: -12...12), vy: .random(in: 38...62), size: sz, rotation: .random(in: 0...tau), spin: sp.spin ? .random(in: -1.4...1.4) : 0)
             }
@@ -728,9 +769,9 @@ final class StageParticlesEngine {
             return SpawnedMotion(x: .random(in: -30...w), y: -16, vx: .random(in: 10...40), vy: .random(in: 35...70), size: .random(in: 6...11), rotation: .random(in: 0...tau), spin: .random(in: -1.5...1.5))
         case "sparks":
             if onBeat {
-                return SpawnedMotion(x: .random(in: 0...w), y: .random(in: (h * 0.85)...(h + 8)), vx: .random(in: -14...14), vy: .random(in: -80 ... -35), size: .random(in: 1.4...3.0), life: .random(in: 3.5...7.5))
+                return SpawnedMotion(x: .random(in: 0...w), y: .random(in: (h * 0.85)...(h + 8)), vx: .random(in: -14...14), vy: .random(in: -80 ... -35) * riseMul, size: .random(in: 1.4...3.0), life: .random(in: 3.5...7.5))
             }
-            return SpawnedMotion(x: .random(in: 0...w), y: h + 8, vx: .random(in: -8...8), vy: .random(in: -55 ... -20), size: .random(in: 1.2...2.8), life: .random(in: 4...9))
+            return SpawnedMotion(x: .random(in: 0...w), y: h + 8, vx: .random(in: -8...8), vy: .random(in: -55 ... -20) * riseMul, size: .random(in: 1.2...2.8), life: .random(in: 4...9))
         case "snow":
             return SpawnedMotion(x: .random(in: -16...(w + 16)), y: -10, vx: .random(in: -6...10), vy: .random(in: 22...55), size: .random(in: 1.2...3.8))
         case "stars":
@@ -747,49 +788,81 @@ final class StageParticlesEngine {
             return SpawnedMotion(x: .random(in: 0...w), y: -24, vx: .random(in: -5...15), vy: .random(in: 18...35), size: .random(in: 10...18))
         case "hearts":
             let y0 = onBeat ? Double.random(in: (h * 0.55)...(h * 0.95)) : (h + 16)
-            return SpawnedMotion(x: .random(in: 0...w), y: y0, vx: 0, vy: .random(in: -60 ... -30), size: .random(in: 6...12), rotation: .random(in: -0.3...0.3))
+            return SpawnedMotion(x: .random(in: 0...w), y: y0, vx: 0, vy: .random(in: -60 ... -30) * riseMul, size: .random(in: 6...12), rotation: .random(in: -0.3...0.3))
         case "confetti":
+            let vyMul = clampVal(tempoScale, 0.78, 1.40)
             if onBeat {
-                return SpawnedMotion(x: .random(in: (w * 0.05)...(w * 0.95)), y: .random(in: -10...(h * 0.28)), vx: .random(in: -65...65), vy: .random(in: 45...115), size: .random(in: 4...8), rotation: .random(in: 0...tau), spin: .random(in: -8...8))
+                return SpawnedMotion(x: .random(in: (w * 0.05)...(w * 0.95)), y: .random(in: -10...(h * 0.28)), vx: .random(in: -65...65) * tempoScale, vy: .random(in: 45...115) * vyMul, size: .random(in: 4...8), rotation: .random(in: 0...tau), spin: .random(in: -8...8) * tempoScale)
             }
-            return SpawnedMotion(x: .random(in: 0...w), y: -14, vx: .random(in: -30...30), vy: .random(in: 60...120), size: .random(in: 4...8), rotation: .random(in: 0...tau), spin: .random(in: -6...6))
+            return SpawnedMotion(x: .random(in: 0...w), y: -14, vx: .random(in: -30...30) * tempoScale, vy: .random(in: 60...120) * vyMul, size: .random(in: 4...8), rotation: .random(in: 0...tau), spin: .random(in: -6...6) * tempoScale)
         case "fireworks":
             let hScale = min(1.0, max(0.42, h / 140.0))
             let y0 = h < 90 ? Double.random(in: (h * 0.24)...(h * 0.68)) : Double.random(in: (h * 0.12)...(h * 0.52))
-            return SpawnedMotion(x: .random(in: (w * 0.15)...(w * 0.85)), y: y0, vx: 0, vy: 0, size: .random(in: 55...95) * hScale, rotation: .random(in: 0...tau), life: .random(in: 1.8...2.4))
+            let life = rawBeatSec.map { clampVal(2.0 * $0 * .random(in: 1.25...1.62), 0.85, 3.5) } ?? .random(in: 1.8...2.4)
+            let burstExp = rawBeatSec != nil ? clampVal(2.8 + (tempoScale - 1.0) * 1.1, 2.2, 4.4) : 3.0
+            return SpawnedMotion(x: .random(in: (w * 0.15)...(w * 0.85)), y: y0, vx: 0, vy: 0, size: .random(in: 55...95) * hScale, burstExp: burstExp, rotation: .random(in: 0...tau), life: life)
         case "dandelion":
             return SpawnedMotion(x: -16, y: .random(in: (h * 0.2)...h), vx: .random(in: 25...55), vy: .random(in: -20 ... -5), size: .random(in: 5...8), rotation: .random(in: -0.4...0.4), spin: .random(in: -0.3...0.3))
         case "butterflies":
             return SpawnedMotion(x: .random(in: 0...w), y: h + 16, vx: .random(in: -30...30), vy: .random(in: -45 ... -25), size: .random(in: 6...10))
         case "meteors":
-            return SpawnedMotion(x: .random(in: (w * 0.3)...(w + 80)), y: .random(in: -30...(h * 0.3)), vx: .random(in: -700 ... -500), vy: .random(in: 250...350), size: .random(in: 110...190), life: .random(in: 1.2...2.0))
+            let speedMul = clampVal(tempoScale, 0.75, 1.50)
+            return SpawnedMotion(x: .random(in: (w * 0.3)...(w + 80)), y: .random(in: -30...(h * 0.3)), vx: .random(in: -700 ... -500) * speedMul, vy: .random(in: 250...350) * speedMul, size: .random(in: 110...190), life: .random(in: 1.2...2.0) / speedMul)
         case "clouds":
             let sz = Double.random(in: 100...210)
             return SpawnedMotion(x: -sz, y: .random(in: 0...(h * 0.7)), vx: .random(in: 8...20), vy: 0, size: sz)
         case "ripples":
-            return SpawnedMotion(x: .random(in: 0...w), y: .random(in: (h * 0.4)...h), vx: 0, vy: 0, size: .random(in: 28...64), life: .random(in: 2...3))
+            let life = rawBeatSec.map { clampVal($0 * .random(in: 2.2...3.0), 0.95, 3.8) } ?? .random(in: 2...3)
+            return SpawnedMotion(x: .random(in: 0...w), y: .random(in: (h * 0.4)...h), vx: 0, vy: 0, size: .random(in: 28...64), life: life)
         case "notes":
             let y0 = onBeat ? Double.random(in: (h * 0.55)...(h * 0.95)) : (h + 16)
-            return SpawnedMotion(x: .random(in: 0...w), y: y0, vx: 0, vy: .random(in: -45 ... -25), size: .random(in: 13...20), rotation: .random(in: -0.3...0.3), spin: .random(in: -0.3...0.3))
+            return SpawnedMotion(x: .random(in: 0...w), y: y0, vx: 0, vy: .random(in: -45 ... -25) * riseMul, size: .random(in: 13...20), rotation: .random(in: -0.3...0.3), spin: .random(in: -0.3...0.3))
         case "bokeh":
             return SpawnedMotion(x: .random(in: 0...w), y: .random(in: (h * 0.08)...(h * 0.92)), vx: .random(in: -10...10), vy: .random(in: -14 ... -4), size: .random(in: 26...60), life: .random(in: 6...10))
         case "pixels":
             if onBeat {
-                return SpawnedMotion(x: .random(in: (w * 0.05)...(w * 0.95)), y: .random(in: (h * 0.18)...(h * 0.88)), vx: 0, vy: .random(in: -65 ... -28), size: .random(in: 5...12), life: .random(in: 1.6...2.8))
+                let life = rawBeatSec.map { clampVal($0 * .random(in: 2.6...4.2), 0.90, 3.6) } ?? .random(in: 1.6...2.8)
+                return SpawnedMotion(x: .random(in: (w * 0.05)...(w * 0.95)), y: .random(in: (h * 0.18)...(h * 0.88)), vx: 0, vy: .random(in: -65 ... -28) * tempoScale, size: .random(in: 5...12), life: life)
             }
-            return SpawnedMotion(x: .random(in: 0...w), y: .random(in: (h * 0.45)...(h + 12)), vx: 0, vy: .random(in: -75 ... -35), size: .random(in: 5...11), life: .random(in: 2.2...3.8))
+            let life = rawBeatSec.map { clampVal($0 * .random(in: 3.5...5.8), 1.1, 4.8) } ?? .random(in: 2.2...3.8)
+            return SpawnedMotion(x: .random(in: 0...w), y: .random(in: (h * 0.45)...(h + 12)), vx: 0, vy: .random(in: -75 ... -35) * tempoScale, size: .random(in: 5...11), life: life)
         case "lightning":
             let hScale = min(1.0, max(0.32, h / 180.0))
-            return SpawnedMotion(x: .random(in: (w * 0.12)...(w * 0.88)), y: .random(in: -8...(h * 0.18)), vx: 0, vy: 0, size: .random(in: 140...250) * hScale, rotation: .random(in: (.pi * 0.36)...(.pi * 0.64)), life: .random(in: 0.42...0.62))
+            let life = rawBeatSec.map { clampVal(4.0 * $0 * .random(in: 0.20...0.30), 0.24, 0.92) } ?? .random(in: 0.42...0.62)
+            return SpawnedMotion(x: .random(in: (w * 0.12)...(w * 0.88)), y: .random(in: -8...(h * 0.18)), vx: 0, vy: 0, size: .random(in: 140...250) * hScale, rotation: .random(in: (.pi * 0.36)...(.pi * 0.64)), life: life)
         case "lanterns":
             return SpawnedMotion(x: .random(in: (w * 0.05)...(w * 0.95)), y: h + 20, vx: .random(in: -6...6), vy: .random(in: -34 ... -18), size: .random(in: 9...16))
         case "embers":
             if onBeat {
-                return SpawnedMotion(x: .random(in: -10...w), y: .random(in: (h * 0.82)...(h + 10)), vx: .random(in: 16...58), vy: .random(in: -105 ... -50), size: .random(in: 3.2...7.0), rotation: .random(in: 0...tau), spin: .random(in: -4.5...4.5), life: .random(in: 2.8...5.5))
+                return SpawnedMotion(x: .random(in: -10...w), y: .random(in: (h * 0.82)...(h + 10)), vx: .random(in: 16...58), vy: .random(in: -105 ... -50) * riseMul, size: .random(in: 3.2...7.0), rotation: .random(in: 0...tau), spin: .random(in: -4.5...4.5), life: .random(in: 2.8...5.5))
             }
-            return SpawnedMotion(x: .random(in: -24...w), y: h + 12, vx: .random(in: 12...48), vy: .random(in: -78 ... -32), size: .random(in: 3.0...6.5), rotation: .random(in: 0...tau), spin: .random(in: -3.5...3.5), life: .random(in: 3.5...7.0))
+            return SpawnedMotion(x: .random(in: -24...w), y: h + 12, vx: .random(in: 12...48), vy: .random(in: -78 ... -32) * riseMul, size: .random(in: 3.0...6.5), rotation: .random(in: 0...tau), spin: .random(in: -3.5...3.5), life: .random(in: 3.5...7.0))
         case "sparkles":
-            return SpawnedMotion(x: .random(in: (w * 0.06)...(w * 0.94)), y: .random(in: (h * 0.08)...(h * 0.85)), vx: 0, vy: .random(in: -10 ... -2), size: .random(in: 7...15), rotation: .random(in: -0.25...0.25), spin: .random(in: -0.6...0.6), life: .random(in: 0.9...1.7))
+            let life = rawBeatSec.map { clampVal($0 * .random(in: 1.15...1.85), 0.48, 2.6) } ?? .random(in: 0.9...1.7)
+            return SpawnedMotion(x: .random(in: (w * 0.06)...(w * 0.94)), y: .random(in: (h * 0.08)...(h * 0.85)), vx: 0, vy: .random(in: -10 ... -2) * tempoScale, size: .random(in: 7...15), rotation: .random(in: -0.25...0.25), spin: .random(in: -0.6...0.6) * tempoScale, life: life)
+        case "beams":
+            let fromBottom = Double.random(in: 0..<1) < 0.45 // ~45% 底部台唇向上仰射，~55% 顶部桁架向下俯射
+            let slotCount = w < 380 ? 4 : 6
+            let slot = Int.random(in: 0..<slotCount)
+            let slotRatio = Double(slot) / Double(max(1, slotCount - 1))
+            let x = w * (0.12 + 0.76 * slotRatio) + Double.random(in: (-w * 0.03)...(w * 0.03))
+            let y = fromBottom ? (h + 3.0) : -3.0
+            let baseAngle = (0.5 - slotRatio) * (fromBottom ? 0.36 : 0.42)
+            let coneSize = min(Double.random(in: (w * 0.08)...(w * 0.15)), Double.random(in: (h * 0.22)...(h * 0.38)))
+            let beamLen = h * Double.random(in: 0.88...1.18)
+            let life = rawBeatSec.map { clampVal($0 * .random(in: 2.4...3.6), 0.90, 3.8) } ?? .random(in: 1.6...2.4)
+            return SpawnedMotion(
+                x: x,
+                y: y,
+                vx: 0,
+                vy: 0,
+                size: coneSize,
+                len: beamLen,
+                baseAngle: baseAngle,
+                sweepAmp: .random(in: 0.18...0.36),
+                sweepDir: Bool.random() ? 1.0 : -1.0,
+                life: life
+            )
         default:
             return SpawnedMotion(x: .random(in: 0...w), y: -12, vx: 0, vy: 35, size: 3)
         }
@@ -821,10 +894,11 @@ final class StageParticlesEngine {
         beatBreath: Double?,
         beatSway: Double?,
         tempoScale: Double,
+        rawBeatSec: Double?,
         in ctx: inout GraphicsContext
     ) {
         if let sp = p.sprite {
-            drawCustomSprite(p, sprite: sp, alpha: alpha, beatSway: beatSway, in: &ctx)
+            drawCustomSprite(p, sprite: sp, alpha: alpha, beatSway: beatSway, tempoScale: tempoScale, in: &ctx)
             return
         }
 
@@ -954,13 +1028,13 @@ final class StageParticlesEngine {
             var sub = ctx
             sub.translateBy(x: p.x + sin(p.age * 2 + p.seed) * 10, y: p.y)
             sub.rotate(by: .radians(p.rotation))
-            let flip = cos(p.age * 6 + p.seed)
+            let flip = cos(p.age * 6 * tempoScale + p.seed)
             sub.scaleBy(x: abs(flip) < 0.05 ? 0.05 : flip, y: 1)
             sub.fill(Path(CGRect(x: -p.size * 0.5, y: -p.size * 0.3, width: p.size, height: p.size * 0.6)), with: .color(color(p.rgb, alpha: 0.85 * alpha)))
 
         case "fireworks":
             let t = min(1.0, p.age / max(0.01, p.life))
-            let radius = p.size * (1.0 - pow(1.0 - t, 3))
+            let radius = p.size * (1.0 - pow(1.0 - t, p.burstExp ?? 3.0))
             let fade = alpha * pow(max(0, 1.0 - t), 1.5)
             let count = 24
             let drop = min(24.0, p.size * 0.32) * t * t
@@ -1103,7 +1177,8 @@ final class StageParticlesEngine {
             )
 
         case "pixels":
-            let stepAge = floor(p.age * 8.0) / 8.0
+            let stepHz = rawBeatSec.map { clampVal(1.0 / ($0 * 0.5), 2.5, 14.0) } ?? 8.0
+            let stepAge = floor(p.age * stepHz) / stepHz
             let hop = round(sin(stepAge * 7.0 + p.seed * 3.0)) * p.size * 0.9
             let x = round(p.x + hop)
             let y = round(p.y)
@@ -1126,7 +1201,7 @@ final class StageParticlesEngine {
             let reach = min(steps, max(2, Int(ceil((t / 0.18) * Double(steps)))))
             let flicker = t < 0.18
                 ? 1.0
-                : (0.72 + 0.28 * sin(t * 26.0 + p.seed * 3.0)) * pow(max(0, (1.0 - t) / 0.82), 1.4)
+                : (0.72 + 0.28 * sin(t * 26.0 * tempoScale + p.seed * 3.0)) * pow(max(0, (1.0 - t) / 0.82), 1.4)
             let a = min(1.0, alpha * flicker)
             guard a > 0.01 else { break }
             let dx = cos(p.rotation)
@@ -1263,6 +1338,68 @@ final class StageParticlesEngine {
             star.closeSubpath()
             sub.fill(star, with: .color(color(LyricColorPalette.mixWhite(p.rgb, t: 0.55), alpha: 0.92 * a)))
 
+        case "beams":
+            let fromBottom = p.y > 0
+            let swayOmega = rawBeatSec.map { Double.pi / max(0.24, $0) } ?? 2.4
+            let angle = (p.baseAngle ?? 0) + (p.sweepDir ?? 1.0) * sin(p.age * swayOmega + p.seed) * (p.sweepAmp ?? 0.28)
+            let strobeTau = rawBeatSec.map { max(0.08, $0 * 0.35) } ?? 0.22
+            let strobe = exp(-p.age / strobeTau)
+            let lifeFrac = p.life.isFinite ? min(1.0, p.age / max(0.01, p.life)) : 0.5
+            let env = sin(.pi * lifeFrac)
+            let beamAlpha = min(1.0, alpha * (0.42 * env + 0.58 * strobe) * (1.0 + 0.35 * breath))
+            guard beamAlpha > 0.008 else { break }
+            let len = p.len ?? 120.0
+            let topW = max(1.8, p.size * 0.08)
+            let botW = p.size
+
+            var sub = ctx
+            sub.translateBy(x: p.x, y: p.y)
+            if fromBottom {
+                sub.scaleBy(x: 1, y: -1)
+            }
+            sub.rotate(by: .radians(-angle))
+
+            var outer = Path()
+            outer.move(to: CGPoint(x: -topW, y: 0))
+            outer.addLine(to: CGPoint(x: topW, y: 0))
+            outer.addLine(to: CGPoint(x: botW, y: len))
+            outer.addLine(to: CGPoint(x: -botW, y: len))
+            outer.closeSubpath()
+            sub.fill(
+                outer,
+                with: .linearGradient(
+                    Gradient(stops: [
+                        .init(color: color(LyricColorPalette.mixWhite(p.rgb, t: 0.55), alpha: 0.44 * beamAlpha), location: 0),
+                        .init(color: color(p.rgb, alpha: 0.20 * beamAlpha), location: 0.38),
+                        .init(color: color(p.rgb, alpha: 0), location: 1)
+                    ]),
+                    startPoint: .zero,
+                    endPoint: CGPoint(x: 0, y: len)
+                )
+            )
+
+            let coreLen = len * 0.88
+            var core = Path()
+            core.move(to: CGPoint(x: -topW * 0.45, y: 0))
+            core.addLine(to: CGPoint(x: topW * 0.45, y: 0))
+            core.addLine(to: CGPoint(x: botW * 0.32, y: coreLen))
+            core.addLine(to: CGPoint(x: -botW * 0.32, y: coreLen))
+            core.closeSubpath()
+            sub.fill(
+                core,
+                with: .linearGradient(
+                    Gradient(colors: [
+                        color(LyricColorPalette.mixWhite(p.rgb, t: 0.85), alpha: 0.52 * beamAlpha),
+                        color(p.rgb, alpha: 0)
+                    ]),
+                    startPoint: .zero,
+                    endPoint: CGPoint(x: 0, y: coreLen)
+                )
+            )
+
+            let glowSize = clampVal(len * 0.012, 1.4, 3.4)
+            drawGlowDot(in: &sub, x: 0, y: 2.0, size: glowSize, rgb: p.rgb, alpha: min(1.0, beamAlpha * 1.15))
+
         default:
             break
         }
@@ -1273,6 +1410,7 @@ final class StageParticlesEngine {
         sprite: LyricSpritePayload,
         alpha: Double,
         beatSway: Double?,
+        tempoScale: Double,
         in ctx: inout GraphicsContext
     ) {
         let compiled: [(paint: String, path: Path)] = {
@@ -1307,7 +1445,7 @@ final class StageParticlesEngine {
         case "burst":
             let angle = (p.seed / 10.0) * 2.0 * .pi
             let rem = (p.seed * 37.0).truncatingRemainder(dividingBy: 60.0)
-            let dist = (70.0 + rem) * (1.0 - exp(-1.5 * p.age)) / 1.5
+            let dist = (70.0 + rem) * (1.0 - exp(-1.5 * tempoScale * p.age)) / 1.5
             ox = cos(angle) * dist
             oy = sin(angle) * dist + 10.0 * p.age * p.age
         default:

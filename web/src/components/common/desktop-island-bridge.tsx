@@ -295,6 +295,7 @@ function serializeRhythm(model: RhythmModel | null) {
 
   return {
     reliable: true,
+    period_ms: basePeriodOf(model.analysis.periodMs, params),
     base_period_ms: basePeriodOf(model.analysis.basePeriodMs, params),
     trains: {
       '-1': compactTrain(-1),

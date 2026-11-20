@@ -2745,6 +2745,7 @@ enum StandaloneSongResolver {
         return RhythmDataPayload(
             reliable: true,
             basePeriodMs: basePeriod,
+            periodMs: T,
             trains: [
                 "-1": compact(octave: -1),
                 "0": compact(octave: 0),
