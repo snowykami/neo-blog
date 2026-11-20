@@ -648,6 +648,7 @@
       "moderation_pending": "審查中",
       "moderation_approved": "已過審",
       "moderation_manual_approved": "人工放行",
+      "moderation_admin_exempt": "管理員豁免",
       "moderation_manual_rejected": "人工屏蔽",
       "moderation_source_upstream_block": "二次審查攔截（上游風控拒審）：",
       "moderation_category_politics": "涉政敏感",

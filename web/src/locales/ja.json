@@ -648,6 +648,7 @@
       "moderation_pending": "審査中",
       "moderation_approved": "承認済み",
       "moderation_manual_approved": "手動承認",
+      "moderation_admin_exempt": "管理者豁免",
       "moderation_manual_rejected": "手動非表示",
       "moderation_source_upstream_block": "二次審査で遮断（上流の安全フィルタ拒否）：",
       "moderation_category_politics": "政治的センシティブ",

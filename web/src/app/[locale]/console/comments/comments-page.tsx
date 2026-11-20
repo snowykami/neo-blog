@@ -504,7 +504,11 @@ function CommentRow({
           )}
           {isApproved && (
             <Badge variant="secondary">
-              {comment.moderationSource === 'manual' ? t('moderation_manual_approved') : t('moderation_approved')}
+              {comment.moderationSource === 'manual'
+                ? t('moderation_manual_approved')
+                : comment.moderationSource === 'admin_exempt'
+                  ? t('moderation_admin_exempt')
+                  : t('moderation_approved')}
             </Badge>
           )}
           {comment.isPrivate && <Badge variant="secondary">{t('private')}</Badge>}

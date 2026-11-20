@@ -212,13 +212,69 @@ func TestCommentModerationVisibilityAndAdminControls(t *testing.T) {
 	}
 }
 
+// 验证管理员评论豁免 AI 审查：仍进 pending 走后台任务，但直接放行并标记 source=admin_exempt，不调用模型
+func TestCommentModerationAdminExempt(t *testing.T) {
+	author, admin, other, _, _ := setupEditTest(t)
+	postID := createPublicPost(t, author, nil)
+	for k, v := range map[string]any{
+		"ai_api_base_url":               "https://example.com/v1",
+		"ai_api_key":                    "sk-test",
+		"ai_model":                      "mod-model",
+		"ai_comment_moderation_enabled": true,
+	} {
+		if err := repo.KV.SetKV(k, v); err != nil {
+			t.Fatalf("set kv %s: %v", k, err)
+		}
+	}
+
+	prevRaw := commentModerator.rawComplete
+	t.Cleanup(func() { commentModerator.rawComplete = prevRaw })
+
+	var calls atomic.Int32
+	commentModerator.rawComplete = func(ctx context.Context, cfg tools.AIConfig, system, user string, images []VisionImage, temperature float64, effort string) ([]byte, error) {
+		calls.Add(1)
+		return []byte(`{"choices":[{"finish_reason":"stop","message":{"content":"{\"pass\":false,\"category\":\"politics\",\"reason\":\"测试判定违规\"}"}}]}`), nil
+	}
+
+	svc := NewCommentService()
+	adminCommentID, svcerr := svc.CreateComment(admin, &dto.CreateCommentReq{
+		TargetType: constant.TargetTypePost,
+		TargetID:   postID,
+		Content:    "管理员发布的一条评论",
+	})
+	if svcerr != nil {
+		t.Fatalf("admin create comment: %v", svcerr)
+	}
+	stored := waitForModerationStatus(t, adminCommentID, constant.CommentModerationApproved)
+	if stored.ModerationSource != constant.CommentModerationSourceAdminExempt || stored.IsRejected() {
+		t.Fatalf("admin comment must be auto-approved with source=admin_exempt, got %+v", stored)
+	}
+	if got := calls.Load(); got != 0 {
+		t.Fatalf("admin comment must not call the moderation model, got %d calls", got)
+	}
+
+	// 非管理员（editor）评论仍然照常审查并被屏蔽
+	editorCommentID, svcerr := svc.CreateComment(other, &dto.CreateCommentReq{
+		TargetType: constant.TargetTypePost,
+		TargetID:   postID,
+		Content:    "普通用户发布的一条评论",
+	})
+	if svcerr != nil {
+		t.Fatalf("editor create comment: %v", svcerr)
+	}
+	editorStored := waitForModerationStatus(t, editorCommentID, constant.CommentModerationRejected)
+	if editorStored.ModerationSource != constant.CommentModerationSourceAI {
+		t.Fatalf("editor comment must be moderated by AI, got %+v", editorStored)
+	}
+}
+
 // 验证二阶审查机制：
 //  1. 一阶调用因评论违规触发上游服务商 400 content_filter / data_inspection_failed 报错时，
 //     二阶调用不带原违规评论正文，仅对错误元数据进行归因，判定属于输入违规后同样标为 rejected（source=ai_upstream_block）；
 //  2. 一阶调用返回 HTTP 200 但模型拒答（finish_reason=content_filter 或自然语言拒答）时，同样经二阶归因拦截；
 //  3. 一阶遇到普通服务端网关/参数故障（二阶判定非内容违规或 429 限流）时绝不误杀正常评论，待接口恢复后由定时恢复任务补审通过。
 func TestCommentModerationSecondStageAttributionAndRecovery(t *testing.T) {
-	author, admin, other, _, _ := setupEditTest(t)
+	author, _, other, _, _ := setupEditTest(t)
 	postID := createPublicPost(t, author, nil)
 	for k, v := range map[string]any{
 		"ai_api_base_url":               "https://example.com/v1",
@@ -303,8 +359,9 @@ func TestCommentModerationSecondStageAttributionAndRecovery(t *testing.T) {
 	}
 
 	// 场景 C：一阶 500 内部故障 -> 二阶诊断为非违规故障 -> 不误杀，保持 pending 前台可见；恢复后补审通过
+	// （作者用非管理员账号，管理员评论走豁免路径不调用模型）
 	failTransient.Store(true)
-	c3, svcerr := svc.CreateComment(admin, &dto.CreateCommentReq{
+	c3, svcerr := svc.CreateComment(author, &dto.CreateCommentReq{
 		TargetType: constant.TargetTypePost,
 		TargetID:   postID,
 		Content:    "这是一条完全正常的技术讨论评论",

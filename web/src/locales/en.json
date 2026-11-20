@@ -648,6 +648,7 @@
       "moderation_pending": "Reviewing",
       "moderation_approved": "Approved",
       "moderation_manual_approved": "Manually approved",
+      "moderation_admin_exempt": "Exempt for admin",
       "moderation_manual_rejected": "Manually blocked",
       "moderation_source_upstream_block": "Blocked via 2nd-stage check (upstream safety filter):",
       "moderation_category_politics": "Politics",

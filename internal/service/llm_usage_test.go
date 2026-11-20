@@ -117,11 +117,11 @@ func TestLLMUsageRecordedForAllPurposes(t *testing.T) {
 		t.Fatalf("writing usage = %+v", writing)
 	}
 
-	// 评论翻译（同时触发新评论的后台 AI 内容审查用量记录）
+	// 评论翻译（同时触发新评论的后台 AI 内容审查用量记录；管理员评论豁免审查，这里用普通作者账号）
 	if err := repo.KV.SetKV("ai_comment_moderation_enabled", true); err != nil {
 		t.Fatal(err)
 	}
-	commentID, svcerr := createComment(admin, postID, 0, false)
+	commentID, svcerr := createComment(author, postID, 0, false)
 	if svcerr != nil {
 		t.Fatal(svcerr)
 	}

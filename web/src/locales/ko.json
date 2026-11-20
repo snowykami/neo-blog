@@ -648,6 +648,7 @@
       "moderation_pending": "심사 중",
       "moderation_approved": "승인됨",
       "moderation_manual_approved": "수동 승인",
+      "moderation_admin_exempt": "관리자 면제",
       "moderation_manual_rejected": "수동 숨김",
       "moderation_source_upstream_block": "2차 심사 차단(상위 안전 필터 거부):",
       "moderation_category_politics": "정치 민감",

@@ -277,11 +277,18 @@ func (s *commentModerationService) run(commentID uint, lease *sharedstate.Lease)
 		snapshotContent := comment.Content
 		snapshotAttachments := model.FileIDs(slices.Clone([]uint(comment.AttachmentIDs)))
 
-		verdict, err := s.evaluateComment(cfg, comment)
-		if err != nil {
-			logrus.Warnf("comment moderation transient error for comment %d: %v", commentID, err)
-			_ = st.Set(commentModerationBackoffKey(commentID), "1", commentModerationBackoffTTL)
-			return
+		// 管理员本人的评论豁免 AI 审查：在后台任务里直接放行，不调用模型也不占用 AI 预算
+		verdict := commentModerationVerdict{Pass: true, Source: constant.CommentModerationSourceAdminExempt}
+		if comment.User.IsAdmin() {
+			logrus.Infof("comment %d by admin auto-approved (moderation exempt)", commentID)
+		} else {
+			var evalErr error
+			verdict, evalErr = s.evaluateComment(cfg, comment)
+			if evalErr != nil {
+				logrus.Warnf("comment moderation transient error for comment %d: %v", commentID, evalErr)
+				_ = st.Set(commentModerationBackoffKey(commentID), "1", commentModerationBackoffTTL)
+				return
+			}
 		}
 		_ = st.Delete(commentModerationBackoffKey(commentID))
 

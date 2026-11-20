@@ -232,6 +232,7 @@ const (
 	CommentModerationSourceAI            = "ai"                // 常规一阶 AI 内容审查判定
 	CommentModerationSourceUpstreamBlock = "ai_upstream_block" // 一阶报错/拒答后经二阶审查归因为输入内容触发上游风控
 	CommentModerationSourceManual        = "manual"            // 管理员手动操作
+	CommentModerationSourceAdminExempt   = "admin_exempt"      // 管理员本人评论豁免 AI 审查，后台任务直接放行
 
 	CommentModerationCategoryPolitics = "politics" // 政治敏感
 	CommentModerationCategoryTrolling = "trolling" // 恶意引战 / 辱骂网暴 / 歧视

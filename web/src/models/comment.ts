@@ -3,7 +3,7 @@ import type { User } from './user'
 
 export type CommentModerationStatus = '' | 'pending' | 'approved' | 'rejected'
 export type CommentModerationCategory = '' | 'politics' | 'trolling' | 'porn' | 'violence' | 'scam' | 'other'
-export type CommentModerationSource = '' | 'ai' | 'ai_upstream_block' | 'manual'
+export type CommentModerationSource = '' | 'ai' | 'ai_upstream_block' | 'manual' | 'admin_exempt'
 
 export interface Comment {
   id: number
