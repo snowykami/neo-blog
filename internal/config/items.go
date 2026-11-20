@@ -70,6 +70,7 @@ var sections = []*Section{
 		{Key: "owner_description", Type: TypeText, Label: "owner_description", Wide: true, Default: "", siteInfoPath: path("owner.description")},
 		{Key: "owner_avatar", Type: TypeImage, Label: "owner_avatar", Default: "", siteInfoPath: path("owner.avatar")},
 		{Key: "owner_gravatar_email", Type: TypeEmail, Label: "owner_gravatar_email", Description: "owner_gravatar_email_desc", Default: "", siteInfoPath: path("owner.gravatar_email")},
+		{Key: "owner_links", Type: TypeJSON, Widget: "owner_links", Label: "owner_links", Description: "owner_links_desc", Default: []OwnerLink{}, siteInfoPath: path("owner.links"), decode: decodeOwnerLinks},
 	}},
 
 	{Tab: "content", Key: "appearance", Title: "section_appearance", Widget: "theme_preview", Items: []*Item{

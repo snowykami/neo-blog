@@ -4,6 +4,7 @@ import type { LucideIcon } from 'lucide-react'
 import type { SidebarCardConfig, SidebarPresetCard } from '@/components/blog-sidebar/sidebar-cards'
 import { AppWindowIcon, ArrowDownIcon, ArrowUpIcon, ClockIcon, FlameIcon, PlusIcon, PuzzleIcon, Settings2Icon, TagsIcon, Trash2Icon, UserRoundIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import { parseAsString, useQueryState } from 'nuqs'
 import { useState } from 'react'
 import { useFormContext } from 'react-hook-form'
 import { SIDEBAR_CARD_TITLE_MAX, SIDEBAR_CARDS_MAX, SIDEBAR_IFRAME_HEIGHT, SIDEBAR_PRESET_CARDS } from '@/components/blog-sidebar/sidebar-cards'
@@ -34,10 +35,11 @@ interface CardRowProps {
   onMove: (to: number) => void
   onRemove: () => void
   onEditProps: () => void
+  onEditOwner?: () => void
 }
 
 /** 单张卡片：类型与名称、排序 / 删除按钮；嵌入页面与组件卡片可编辑标题等参数 */
-function SidebarCardRow({ card, index, count, onChange, onMove, onRemove, onEditProps }: CardRowProps) {
+function SidebarCardRow({ card, index, count, onChange, onMove, onRemove, onEditProps, onEditOwner }: CardRowProps) {
   const t = useTranslations('Console.global')
   const componentT = useTranslations('ContentComponents')
   const def = card.type === 'component' ? getContentComponent(card.name) : undefined
@@ -55,6 +57,12 @@ function SidebarCardRow({ card, index, count, onChange, onMove, onRemove, onEdit
         {card.type === 'component' && <span className="text-xs text-muted-foreground">{t('sidebar_card_component_tag')}</span>}
         {invalid && <span className="text-xs text-destructive">{t('sidebar_card_invalid')}</span>}
         <div className="ml-auto flex items-center gap-0.5">
+          {card.type === 'about' && onEditOwner && (
+            <Button type="button" variant="ghost" size="sm" onClick={onEditOwner}>
+              <Settings2Icon />
+              {t('sidebar_card_edit_owner')}
+            </Button>
+          )}
           {card.type === 'component' && def && (
             <Button type="button" variant="ghost" size="sm" onClick={onEditProps}>
               <Settings2Icon />
@@ -118,6 +126,7 @@ function SidebarCardRow({ card, index, count, onChange, onMove, onRemove, onEdit
 export function SidebarCardsField({ name, label, description }: { name: string, label: string, description?: string }) {
   const t = useTranslations('Console.global')
   const { control } = useFormContext<Record<string, SidebarCardConfig[]>>()
+  const [, setTab] = useQueryState('tab', parseAsString.withDefault('site').withOptions({ history: 'replace', clearOnDefault: true }))
   const [libraryOpen, setLibraryOpen] = useState(false)
   // 正在编辑属性的组件卡片位置
   const [editing, setEditing] = useState<number | null>(null)
@@ -156,6 +165,7 @@ export function SidebarCardsField({ name, label, description }: { name: string, 
                   onMove={to => move(index, to)}
                   onRemove={() => setCards(cards.filter((_, i) => i !== index))}
                   onEditProps={() => setEditing(index)}
+                  onEditOwner={card.type === 'about' ? () => void setTab('site') : undefined}
                 />
               ))}
               <DropdownMenu modal={false}>

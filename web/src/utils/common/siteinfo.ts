@@ -1,4 +1,18 @@
 import type { SidebarCardConfig } from '@/components/blog-sidebar/sidebar-cards'
+import type { ResolvedIconSpec } from '@/lib/social-icons/types'
+
+/**
+ * 侧边栏「关于我」卡片中的站长社交 / 个人链接条目
+ */
+export interface OwnerLink {
+  name?: string
+  url: string
+  icon: string
+  /** 服务端 loadSiteInfo 预解析的图标节点树（前台直出，避免客户端下载图标目录） */
+  resolvedIcon?: ResolvedIconSpec | null
+  /** 服务端预解析的平台兜底名称（当 name 留空时用于气泡与无障碍说明） */
+  resolvedLabel?: string
+}
 
 /**
  * 全站背景（前台）。值都存在站点信息 KV 里，因此后端无需改动。
@@ -72,6 +86,7 @@ export interface SiteInfo {
     motto?: string
     avatar?: string
     gravatarEmail?: string
+    links?: OwnerLink[]
   }
   postsPerPage: number
   commentsPerPage: number
@@ -124,6 +139,7 @@ export const fallbackSiteInfo: SiteInfo = {
     motto: '',
     avatar: '',
     gravatarEmail: '',
+    links: [],
   },
   postsPerPage: 10,
   commentsPerPage: 10,

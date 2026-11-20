@@ -231,6 +231,8 @@
     "owner_description",
     "owner_gravatar_email",
     "owner_gravatar_email_desc",
+    "owner_links",
+    "owner_links_desc",
     "owner_motto",
     "owner_name",
     "page_background",

@@ -3,7 +3,7 @@ import type { ComponentType } from 'react'
 import type { ContentViewProps } from '@/components/content-components/content-component-view'
 import type { Label } from '@/models/label'
 import type { Post } from '@/models/post'
-import type { SiteInfo } from '@/utils/common/siteinfo'
+import type { OwnerLink, SiteInfo } from '@/utils/common/siteinfo'
 import { ChevronDownIcon, ChevronUpIcon, Eye } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { Suspense, useEffect, useState } from 'react'
@@ -13,9 +13,12 @@ import { ImageAvatar } from '@/components/common/avatar'
 import { LinkPreviewScopeProvider } from '@/components/common/link-preview-context'
 import { SafeImage } from '@/components/common/safe-image'
 import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { LikeIcon } from '@/contexts/theme-context'
 import { Link, useRouter } from '@/i18n/navigation'
+import { OwnerLinkIcon } from '@/lib/social-icons/icon-spec-svg'
+import { DEFAULT_OWNER_LINK_ICON, fallbackLabelFromIconName, isSafeOwnerLinkUrl } from '@/lib/social-icons/types'
 import { cn } from '@/lib/utils'
 import { OrderBy } from '@/models/common'
 import { getGravatarUrl } from '@/utils/common/gravatar'
@@ -34,6 +37,56 @@ function resolveOwnerAvatar(siteInfo: SiteInfo) {
   const avatarSizes = aboutBackground ? '80px' : '64px'
   const name = owner?.name || siteInfo.metadata.name
   return { owner, aboutBackground, avatarSrc, avatarSizes, name }
+}
+
+function OwnerSocialLinks({ links, compact = false }: { links?: OwnerLink[], compact?: boolean }) {
+  const validLinks = (links ?? []).filter(item => item.url && isSafeOwnerLinkUrl(item.url))
+  if (validLinks.length === 0)
+    return null
+
+  const buttonClass = cn(
+    'inline-flex items-center justify-center rounded-xl bg-primary/10 text-primary transition-[background-color,color,transform] duration-150 hover:bg-primary/20 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+    compact ? 'size-9' : 'size-10',
+  )
+  const iconClass = compact ? 'size-[1.125rem]' : 'size-5'
+
+  return (
+    <div className={cn('mt-3 flex flex-wrap gap-2', !compact && 'justify-center')}>
+      {validLinks.map((link, index) => {
+        const href = link.url.trim()
+        const label = link.name?.trim() || link.resolvedLabel || fallbackLabelFromIconName(link.icon || DEFAULT_OWNER_LINK_ICON)
+        const iconNode = <OwnerLinkIcon icon={link.icon} resolved={link.resolvedIcon} className={iconClass} />
+        const isHttp = /^https?:\/\//i.test(href)
+        const isRawRootAsset = /^\/(?:api\/|(?:rss|feed|atom)\.xml(?:$|\?))/i.test(href)
+        const isInternalPage = href.startsWith('/') && !isRawRootAsset
+
+        const trigger = isInternalPage
+          ? (
+              <Link href={href} aria-label={label} className={buttonClass}>
+                {iconNode}
+              </Link>
+            )
+          : (
+              <a
+                href={href}
+                target={isHttp || isRawRootAsset ? '_blank' : undefined}
+                rel={isHttp ? 'noopener noreferrer me' : isRawRootAsset ? 'noopener noreferrer' : undefined}
+                aria-label={label}
+                className={buttonClass}
+              >
+                {iconNode}
+              </a>
+            )
+
+        return (
+          <Tooltip key={`${href}-${index}`}>
+            <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+            <TooltipContent side="bottom" sideOffset={6}>{label}</TooltipContent>
+          </Tooltip>
+        )
+      })}
+    </div>
+  )
 }
 
 // 关于我卡片（参考 Fuwari 的 Profile，MIT License, saicaca/fuwari）：
@@ -62,6 +115,7 @@ export function BlogSidebarAbout() {
             {owner?.description && <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{owner.description}</p>}
           </div>
         </div>
+        <OwnerSocialLinks links={owner?.links} compact />
       </SidebarCard>
     )
   }
@@ -86,6 +140,7 @@ export function BlogSidebarAbout() {
         <div aria-hidden className="mx-auto mb-2 h-1 w-5 rounded-full bg-primary" />
         {owner?.motto && <p className="mb-1 text-foreground/75">{owner.motto}</p>}
         {owner?.description && <p className="text-sm text-muted-foreground">{owner.description}</p>}
+        <OwnerSocialLinks links={owner?.links} />
       </div>
     </SidebarCard>
   )

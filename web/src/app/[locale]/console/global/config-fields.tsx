@@ -24,6 +24,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useColorSchemeName } from '@/hooks/use-color-scheme-name'
 import { useErrorMessageT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
+import { OwnerLinksField } from './owner-links-field'
 import { SidebarCardsField } from './sidebar-cards-field'
 
 // 表单值：键为配置键（snake_case）
@@ -60,6 +61,8 @@ export function ConfigField({ item }: { item: ConfigItem }) {
       return <ColorSchemeSelect {...props} />
     case 'sidebar_cards':
       return <SidebarCardsField name={item.key} label={props.label} description={props.description} />
+    case 'owner_links':
+      return <OwnerLinksField name={item.key} label={props.label} description={props.description} />
     case 'ncm_playlist':
       return <NCMPlaylistField {...props} />
     case 'ttml_sources':

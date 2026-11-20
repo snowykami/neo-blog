@@ -1,9 +1,12 @@
 import type { LucideIcon } from 'lucide-react'
+import type { ComponentType } from 'react'
 
 /**
  * 图标选择器的图标目录：检索数据（lucide-meta.json，由 scripts/gen-lucide-icon-meta.mjs 生成）+ lucide-react 的全部图标组件
  * 两者体积都较大，只在打开选择器时按需加载，不进入编辑器与前台的首屏包
  */
+
+export type CatalogIconComponent = ComponentType<{ className?: string }>
 
 /** lucide-meta.json 的结构：icons 为 [图标名, 逗号分隔的检索词, 分类下标] */
 export interface LucideMeta {
@@ -16,12 +19,14 @@ export interface IconCatalogEntry {
   name: string
   words: string[]
   categories: number[]
+  /** 可选显示名称（如社交平台图标「微信 (WeChat)」） */
+  label?: string
 }
 
 export interface IconCatalog {
   categories: string[]
   icons: IconCatalogEntry[]
-  component: (name: string) => LucideIcon | undefined
+  component: (name: string) => CatalogIconComponent | undefined
 }
 
 /** 图标名转为 lucide-react 的导出名：a-arrow-down → AArrowDown（与 lucide 的 toPascalCase 一致） */
@@ -62,15 +67,22 @@ const SCORE = {
   category: 7,
 } as const
 
+function bareIconName(name: string): string {
+  const colon = name.indexOf(':')
+  return colon >= 0 ? name.slice(colon + 1) : name
+}
+
 function termScore(icon: IconCatalogEntry, term: string, categoryLabels: string[]): number {
   const { name } = icon
-  if (name === term)
+  const bare = bareIconName(name)
+  if (name === term || bare === term)
     return SCORE.exact
-  if (name.startsWith(term))
+  if (name.startsWith(term) || bare.startsWith(term))
     return SCORE.prefix
-  if (name.split('-').some(segment => segment.startsWith(term)))
+  if (bare.split('-').some(segment => segment.startsWith(term)))
     return SCORE.segmentPrefix
-  if (name.includes(term))
+  const allowShortContains = term.length >= 3 || /[\u0080-\uFFFF]/.test(term)
+  if (allowShortContains && (bare.includes(term) || name.includes(term)))
     return SCORE.nameContains
   let best: number = Number.POSITIVE_INFINITY
   for (const word of icon.words) {
@@ -78,7 +90,7 @@ function termScore(icon: IconCatalogEntry, term: string, categoryLabels: string[
       return SCORE.wordExact
     if (word.startsWith(term) || word.split(' ').some(part => part.startsWith(term)))
       best = Math.min(best, SCORE.wordPrefix)
-    else if (term.length >= 3 && word.includes(term))
+    else if (allowShortContains && word.includes(term))
       best = Math.min(best, SCORE.wordContains)
   }
   if (best < Number.POSITIVE_INFINITY)
@@ -99,7 +111,8 @@ export function searchIcons(catalog: IconCatalog, query: string, categoryLabels:
   const joined = terms.join('-')
   const results: { icon: IconCatalogEntry, score: number, total: number }[] = []
   for (const icon of catalog.icons) {
-    if (icon.name === joined) {
+    const bare = bareIconName(icon.name)
+    if (icon.name === joined || bare === joined) {
       results.push({ icon, score: -1, total: -1 })
       continue
     }
@@ -118,6 +131,18 @@ export function searchIcons(catalog: IconCatalog, query: string, categoryLabels:
       results.push({ icon, score, total })
   }
   return results
-    .sort((a, b) => a.score - b.score || a.total - b.total || a.icon.name.length - b.icon.name.length || (a.icon.name < b.icon.name ? -1 : 1))
+    .sort((a, b) => {
+      if (a.score !== b.score)
+        return a.score - b.score
+      if (a.total !== b.total)
+        return a.total - b.total
+      const aBrand = a.icon.name.includes(':') ? 0 : 1
+      const bBrand = b.icon.name.includes(':') ? 0 : 1
+      if (aBrand !== bBrand)
+        return aBrand - bBrand
+      const aBare = bareIconName(a.icon.name)
+      const bBare = bareIconName(b.icon.name)
+      return aBare.length - bBare.length || (a.icon.name < b.icon.name ? -1 : 1)
+    })
     .map(result => result.icon)
 }

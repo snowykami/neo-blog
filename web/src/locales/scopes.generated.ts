@@ -195,6 +195,7 @@ export const SCOPES = {
     'AssetPicker',
     'CodeBlock',
     'ColorScheme',
+    'Console.editor',
     'Console.global',
     'ContentCard',
     'ContentComponents',

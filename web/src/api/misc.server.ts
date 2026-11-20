@@ -2,8 +2,38 @@ import type { SiteInfo } from '@/utils/common/siteinfo'
 import { cacheLife, cacheTag } from 'next/cache'
 import { cache } from 'react'
 import { CacheTag, skipBackendAtBuild } from '@/lib/cache-tags'
+import { resolveOwnerIconLabel, resolveOwnerIconSpec } from '@/lib/social-icons/resolve'
+import { DEFAULT_OWNER_LINK_ICON } from '@/lib/social-icons/types'
 import { fallbackSiteInfo } from '@/utils/common/siteinfo'
 import { getSiteInfo } from './misc'
+
+async function enrichOwnerLinks(info: SiteInfo): Promise<SiteInfo> {
+  const links = info.owner?.links
+  if (!links?.length)
+    return info
+  const enriched = await Promise.all(
+    links.map(async (link) => {
+      const iconName = link.icon || DEFAULT_OWNER_LINK_ICON
+      const [spec, fallbackSpec, resolvedLabel] = await Promise.all([
+        resolveOwnerIconSpec(iconName),
+        iconName === DEFAULT_OWNER_LINK_ICON ? Promise.resolve(null) : resolveOwnerIconSpec(DEFAULT_OWNER_LINK_ICON),
+        link.name?.trim() ? Promise.resolve(link.name.trim()) : resolveOwnerIconLabel(iconName),
+      ])
+      return {
+        ...link,
+        resolvedIcon: spec ?? fallbackSpec,
+        resolvedLabel,
+      }
+    }),
+  )
+  return {
+    ...info,
+    owner: {
+      ...info.owner,
+      links: enriched,
+    },
+  }
+}
 
 /**
  * 站点信息几乎每个页面都要用（layout、generateMetadata、正文主题都要读），跨请求缓存（'use cache'，cacheLife 'site'），
@@ -19,7 +49,7 @@ async function loadSiteInfo(): Promise<SiteInfo> {
   cacheLife('site')
   cacheTag(CacheTag.Site)
   const res = await getSiteInfo()
-  return res.data
+  return enrichOwnerLinks(res.data)
 }
 
 /**
