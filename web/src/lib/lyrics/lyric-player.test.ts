@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resolveMotionSprings } from './config'
-import { lineAppearance, LyricPlayer, toLyricHtmlLang } from './lyric-player'
+import { lineAppearance, LyricPlayer } from './lyric-player'
 
 const base = { inactiveAlpha: 0.35, blurFactor: 1, noBlur: false, spot: 0, spotted: false }
 
@@ -1229,51 +1229,63 @@ describe('振假名渲染与 HDR 跨行平滑退场', () => {
     ctx.cleanup()
   })
 
-  it('跨浏览器字体对齐：艺术字体以自托管 WebFont 优先、关闭伪粗体合成，且歌曲语种仅绑定在原文 .lyric-main 不污染译文行', () => {
-    expect(toLyricHtmlLang('ja')).toBe('ja')
-    expect(toLyricHtmlLang('ko')).toBe('ko')
-    expect(toLyricHtmlLang('zh-cn')).toBe('zh-Hans')
-    expect(toLyricHtmlLang('zh-tw')).toBe('zh-Hant')
-    expect(toLyricHtmlLang('yue')).toBe('zh-HK')
-    expect(toLyricHtmlLang('mul')).toBe('')
-    expect(toLyricHtmlLang(null)).toBe('')
-
+  it('歌词字体保持 Chrome 原生系统字体优先与饱满 700 字重，Safari/移动端走自托管 WebFont 回退', () => {
     const css = readFileSync(resolve(__dirname, 'lyric-player.css'), 'utf8')
-    expect(css).toContain('-webkit-font-smoothing: antialiased')
-    expect(css).toContain('font-synthesis-weight: none')
-    expect(css).toContain('font-family: var(--lyric-wf-kai) \'Kaiti SC\'')
-    expect(css).toContain('font-family: var(--lyric-wf-song) \'Songti SC\'')
-    expect(css).toContain('font-family: var(--lyric-wf-xingkai) \'Xingkai SC\'')
-    expect(css).toContain('font-family: var(--lyric-wf-round) \'Yuanti SC\'')
+    expect(css).not.toContain('-webkit-font-smoothing: antialiased')
+    expect(css).not.toContain('font-synthesis-weight: none')
+    expect(css).toContain('font-weight: 700;')
+    expect(css).toContain('font-family: \'Songti SC\', STSong, var(--lyric-wf-song)')
+    expect(css).toContain('font-family: \'Kaiti SC\', STKaiti, KaiTi, var(--lyric-wf-kai)')
+    expect(css).toContain('font-family: \'Xingkai SC\', STXingkai, var(--lyric-wf-xingkai)')
+    expect(css).toContain('font-family: \'Yuanti SC\', var(--lyric-wf-round)')
+  })
 
-    const jpLyrics: ResolvedLyrics = {
+  it('由虚到实（focus）在 HDR 下随单字自身演唱时段实时对焦并点亮 HDR，不在整词唱完后滞后逐字跳变', () => {
+    const focusLyrics: ResolvedLyrics = {
       source: 'ttml-amll',
       wordTimed: true,
       instrumental: false,
       lines: [
         {
-          words: [{ text: '直ぐに空へ', start: 0, end: 1500 }],
-          translation: '立刻向着天空',
+          words: [
+            { text: 'もし', start: 0, end: 500 },
+            { text: '変われるのなら', start: 500, end: 1200 },
+            { text: '白になる', start: 1300, end: 2200 },
+          ],
+          emphasis: [{ from: 1, to: 2, start: 500, end: 1200, factor: 1, effect: 'focus', color: 'lavender' }],
           start: 0,
-          end: 1500,
+          end: 2400,
           isDuet: false,
           isBackground: false,
         },
       ],
     }
 
-    const ctx = mountPlayer(jpLyrics)
-    ctx.player.setDisplay({ showTranslation: true, showRomanization: true, footerText: '', songLang: 'ja', effects: true, hdr: false })
-    const mainEl = ctx.container.querySelector<HTMLElement>('.lyric-main')!
-    const transEl = ctx.container.querySelector<HTMLElement>('.lyric-extra[data-kind="translation"]')!
-    expect(mainEl.getAttribute('lang')).toBe('ja')
-    expect(transEl.getAttribute('lang')).toBeNull()
+    const ctx = mountPlayer(focusLyrics)
+    ctx.player.setDisplay({ showTranslation: true, showRomanization: true, footerText: '', effects: true, hdr: true })
+    const focusChars = Array.from(ctx.container.querySelectorAll<HTMLElement>('.lyric-word--fx-focus .lyric-char'))
+    expect(focusChars).toHaveLength(7)
 
-    ctx.player.setDisplay({ showTranslation: true, showRomanization: true, footerText: '', songLang: 'yue', effects: true, hdr: false })
-    expect(mainEl.getAttribute('lang')).toBe('zh-HK')
+    // t=200ms：正在唱「もし」，「変われるのなら」尚未唱到，单字保持模糊虚焦态
+    ctx.step(0.2, 32)
+    expect(focusChars[0].style.filter).toContain('blur(')
+    expect(focusChars[6].style.filter).toContain('blur(')
 
-    ctx.player.setDisplay({ showTranslation: true, showRomanization: true, footerText: '', songLang: null, effects: true, hdr: false })
-    expect(mainEl.getAttribute('lang')).toBeNull()
+    // t=850ms：唱到词中部（第 3~4 字），前两字「変わ」已唱完，必须已经完全对焦归零并挂上 HDR 素材；末尾待唱字「ら」仍保持虚焦
+    ctx.step(0.85, 650)
+    expect(focusChars[0].style.filter).toBe('')
+    expect(focusChars[0].style.backgroundImage).toContain('url(')
+    expect(focusChars[1].style.filter).toBe('')
+    expect(focusChars[1].style.backgroundImage).toContain('url(')
+    expect(focusChars[6].style.filter).toContain('blur(')
+
+    // t=1200ms：该词刚唱完的瞬间，全部 7 个字必须已经 100% 清晰且全部点亮 HDR，不再滞后逐字蹦出
+    ctx.step(1.2, 350)
+    for (const ch of focusChars) {
+      expect(ch.style.filter).toBe('')
+      expect(ch.style.backgroundImage).toContain('url(')
+    }
+
     ctx.cleanup()
   })
 })

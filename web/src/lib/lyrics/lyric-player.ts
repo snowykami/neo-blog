@@ -73,31 +73,10 @@ export interface LyricPlayerDisplay {
   footerText: string
   // 无名合唱胶囊的兜底文案（多语言「合唱」 / Together）
   togetherLabel?: string
-  // 歌曲原文语种代码（映射为 BCP 47 lang 挂在 .lyric-main 上，统一跨浏览器中日韩异体字选形，不影响译文行）
-  songLang?: string | null
   // 强调特效（放大、辉光、波浪）；减少动态效果时始终关闭
   effects: boolean
   // HDR 高光：正在唱的字亮过 SDR 白（只在深色界面、屏幕支持 HDR 时开启，见 lib/hdr-color.ts）
   hdr: boolean
-}
-
-/** 将内部歌曲语种标识规范化为标准 HTML BCP 47 lang 属性值（多语混合或未知时返回空串，沿用页面根语言） */
-export function toLyricHtmlLang(songLang?: string | null): string {
-  const raw = songLang?.trim().toLowerCase().replace(/_/g, '-')
-  if (!raw || raw === 'other' || raw === 'und' || raw === 'zxx' || raw === 'mul' || raw === 'art' || raw === 'unknown' || raw === 'none')
-    return ''
-  if (raw === 'zh' || raw === 'zh-cn' || raw === 'zh-sg' || raw === 'zh-hans' || raw.startsWith('zh-hans-'))
-    return 'zh-Hans'
-  if (raw === 'zh-tw' || raw === 'zh-hant' || raw.startsWith('zh-hant-'))
-    return 'zh-Hant'
-  if (raw === 'zh-hk' || raw === 'zh-mo' || raw === 'yue' || raw.startsWith('yue-'))
-    return 'zh-HK'
-  if (raw === 'jp')
-    return 'ja'
-  if (raw === 'kr')
-    return 'ko'
-  const head = raw.split('-', 1)[0]
-  return /^[a-z]{2,3}$/.test(head) ? head : ''
 }
 
 interface WordView {
@@ -236,8 +215,8 @@ interface ItemView {
 // 字与字的错开比例；演出时长下限见 config.ts 的 LYRIC_EMPHASIS_MIN_MS
 const EMPHASIS_STAGGER_RATIO = 1 / 2.5
 
-// focus 在演出时长的多少比例内由模糊变清晰（shake 的抖动周期等随节奏变化的参数见 pace.ts）
-const EMPHASIS_FOCUS_CLEAR_RATIO = 0.6
+// focus 单字显影前导提前量（ms，早于扫词前缘开始由虚对焦，在单字唱中即完全清晰并切入 HDR）
+const EMPHASIS_FOCUS_LEAD_MS = 180
 // 上色的峰值与唱过后保留的比例（高亮行内）
 const EMPHASIS_TINT_PEAK = 0.85
 const EMPHASIS_TINT_HOLD = 0.6
@@ -1073,7 +1052,7 @@ export class LyricPlayer {
   }
 
   setDisplay(display: LyricPlayerDisplay) {
-    const { showTranslation, showRomanization, footerText, togetherLabel, songLang, effects, hdr } = this.display
+    const { showTranslation, showRomanization, footerText, togetherLabel, effects, hdr } = this.display
     this.display = display
     // HDR 高光开关时强调词的字从头重写样式（背景、辉光的画法不同）
     if ((effects && !display.effects) || display.hdr !== hdr)
@@ -1103,17 +1082,6 @@ export class LyricPlayer {
         view.el.querySelectorAll<HTMLElement>('.lyric-singer__label[data-together="1"]').forEach((label) => {
           label.textContent = nextTogether
         })
-      })
-    }
-    const nextHtmlLang = toLyricHtmlLang(display.songLang)
-    if (nextHtmlLang !== toLyricHtmlLang(songLang)) {
-      this.views.forEach((view) => {
-        if (!view.main)
-          return
-        if (nextHtmlLang)
-          view.main.lang = nextHtmlLang
-        else
-          view.main.removeAttribute('lang')
       })
     }
     // 逐字音译（注音行）随音译开关显示 / 隐藏
@@ -1257,9 +1225,6 @@ export class LyricPlayer {
         el.dataset.start = String(line.start)
         const main = doc.createElement('span')
         main.className = 'lyric-main'
-        const htmlLang = toLyricHtmlLang(this.display.songLang)
-        if (htmlLang)
-          main.lang = htmlLang
         view.main = main
         if (lineTimed) {
           main.textContent = line.words.map(word => word.text).join('')
@@ -2563,8 +2528,17 @@ export class LyricPlayer {
         if (lined)
           line = Math.min(1, Math.max(0, (timeMs - char.start) / Math.max(1, char.end - char.start))).toFixed(2)
         if (group.effect === 'focus' && active && f > 0) {
-          // 唱到之前模糊，唱到后在前 60% 的演出时长内按 0.4px 阶梯显影变清，避免单字每帧重建高斯模糊离屏纹理
-          const clear = Math.min(1, Math.max(0, (timeMs - begin) / (duration * EMPHASIS_FOCUS_CLEAR_RATIO)))
+          // 对焦窗口锚定单字自身演唱时段：开唱前 180ms 起由虚对焦，在单字唱中即完全清晰并切入 HDR，杜绝唱完后才逐字滞后蹦出 HDR
+          const focusStart = char.start - EMPHASIS_FOCUS_LEAD_MS
+          const focusRatio = hdr ? 0.45 : 0.7
+          const focusSpan = Math.max(
+            150,
+            Math.min(
+              Math.max(150, char.end - focusStart),
+              EMPHASIS_FOCUS_LEAD_MS + Math.max(40, (char.end - char.start) * focusRatio),
+            ),
+          )
+          const clear = Math.min(1, Math.max(0, (timeMs - focusStart) / focusSpan))
           const blurPx = Math.round((1 - clear) * (0.05 + 0.07 * f) * this.fontSize * 2.5) / 2.5
           if (blurPx > 0)
             filter = `blur(${blurPx.toFixed(1)}px)`

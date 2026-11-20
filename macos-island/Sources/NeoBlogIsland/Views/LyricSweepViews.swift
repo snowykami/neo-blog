@@ -2008,7 +2008,10 @@ private struct EmphasisCharGlyphView: View {
         var m = CharMotion(dyPx: baseLiftPx)
 
         if group.effect == "focus" && f > 0 {
-            let clear = min(1.0, max(0.0, (nowMs - begin) / max(1, duration * LyricSpecs.emphasisFocusClearRatio)))
+            let focusStart = slice.start - 180.0
+            let focusRatio = hdrEnabled ? 0.45 : 0.70
+            let focusSpan = max(150.0, min(max(150.0, slice.end - focusStart), 180.0 + max(40.0, (slice.end - slice.start) * focusRatio)))
+            let clear = min(1.0, max(0.0, (nowMs - focusStart) / focusSpan))
             m.blurPx = (1.0 - clear) * (0.05 + 0.07 * f) * em
         }
         if dissolveAmount > 0.002 {

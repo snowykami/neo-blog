@@ -5,9 +5,6 @@
   /* 触摸拖动由引擎处理（带惯性），不交给浏览器滚动 */
   touch-action: none;
   user-select: none;
-  /* 深色舞台上统一关闭 macOS Chrome 的 CoreGraphics 字形描边膨胀，对齐 Safari 灰度抗锯齿笔画粗细 */
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
 .lyric-item {
@@ -32,11 +29,9 @@
   border-radius: 1rem;
   background: transparent;
   text-align: left;
-  font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans', 'Noto Sans SC', 'Microsoft YaHei', sans-serif);
+  font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', 'Microsoft YaHei', sans-serif);
   font-size: 1.625rem;
-  /* 苹方（PingFang）与 Hiragino 原生上限为 Semibold(600)，Windows 微软雅黑在 600 下按 CSS 规则向上命中原生 700；禁合成伪粗体消除 Safari CoreText 与 Chrome Skia 描边发虚差异 */
-  font-weight: 600;
-  font-synthesis-weight: none;
+  font-weight: 700;
   line-height: 1.3;
   color: color-mix(in srgb, var(--lyric-color, #fff) 35%, transparent);
   cursor: pointer;
@@ -353,9 +348,9 @@
 
 /*
  * 字体（来自歌词标注，与后端 lyricAnnotationFontList 一致）：全曲字体作用于原文，短语字体覆盖全曲字体。
- * 艺术字体按「自托管网页字体（lyric-fonts.ts）→ 系统字体 → 通用字体」回退：Safari 默认屏蔽本机可选中文字体，
- * 网页字体排在最前可确保 Safari 与 Chrome 渲染完全同一套字形（仅下载歌词里实际出现的字所在的 woff2 分片）；
- * 省流量模式或慢速网络时引擎加上 lyric-player--no-webfonts，把 --lyric-wf-* 置空，直接回退到系统字体
+ * 字体栈按「本机系统字体 → 自托管网页字体（lyric-fonts.ts）→ 通用字体」回退：Chrome 等支持读取本机可选字体的桌面端直接命中原生苹果/系统字体，
+ * Safari（因 WebKit 防指纹策略屏蔽本机可选中文字体）与手机等缺失对应字体的设备自动走自托管 woff2 分片兜底；
+ * 省流量模式或慢速网络时引擎加上 lyric-player--no-webfonts，把 --lyric-wf-* 置空，直接回退到通用字体
  */
 .lyric-player {
   --lyric-wf-song: 'Noto Serif SC',;
@@ -373,38 +368,25 @@
   --lyric-wf-round: ;
   --lyric-wf-script: ;
 }
-/* 未指定全曲艺术字体时，按歌曲原文语种对齐中日韩繁主选原生无衬线字库（译文行 .lyric-extra 不受影响） */
-.lyric-player:not([data-lyric-font]) .lyric-main[lang='ja'] {
-  font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', Meiryo, 'Noto Sans JP', sans-serif;
-}
-.lyric-player:not([data-lyric-font]) .lyric-main[lang='ko'] {
-  font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif;
-}
-.lyric-player:not([data-lyric-font]) .lyric-main[lang='zh-Hant'] {
-  font-family: -apple-system, BlinkMacSystemFont, 'PingFang TC', 'Microsoft JhengHei', 'Noto Sans TC', sans-serif;
-}
-.lyric-player:not([data-lyric-font]) .lyric-main[lang='zh-HK'] {
-  font-family: -apple-system, BlinkMacSystemFont, 'PingFang HK', 'PingFang TC', 'Microsoft JhengHei', 'Noto Sans HK', sans-serif;
-}
 .lyric-player[data-lyric-font='song'] .lyric-main,
 .lyric-word[data-font='song'] {
-  font-family: var(--lyric-wf-song) 'Songti SC', STSong, 'Source Han Serif SC', SimSun, serif;
+  font-family: 'Songti SC', STSong, var(--lyric-wf-song) 'Source Han Serif SC', SimSun, serif;
 }
 .lyric-player[data-lyric-font='kai'] .lyric-main,
 .lyric-word[data-font='kai'] {
-  font-family: var(--lyric-wf-kai) 'Kaiti SC', STKaiti, KaiTi, serif;
+  font-family: 'Kaiti SC', STKaiti, KaiTi, var(--lyric-wf-kai) serif;
 }
 .lyric-player[data-lyric-font='xingkai'] .lyric-main,
 .lyric-word[data-font='xingkai'] {
-  font-family: var(--lyric-wf-xingkai) 'Xingkai SC', STXingkai, 'Kaiti SC', serif;
+  font-family: 'Xingkai SC', STXingkai, var(--lyric-wf-xingkai) 'Kaiti SC', serif;
 }
 .lyric-player[data-lyric-font='fangsong'] .lyric-main,
 .lyric-word[data-font='fangsong'] {
-  font-family: var(--lyric-wf-fangsong) STFangsong, FangSong, 'Songti SC', serif;
+  font-family: STFangsong, FangSong, var(--lyric-wf-fangsong) 'Songti SC', serif;
 }
 .lyric-player[data-lyric-font='round'] .lyric-main,
 .lyric-word[data-font='round'] {
-  font-family: var(--lyric-wf-round) 'Yuanti SC', 'Hiragino Maru Gothic ProN', 'Arial Rounded MT Bold', sans-serif;
+  font-family: 'Yuanti SC', var(--lyric-wf-round) 'Arial Rounded MT Bold', sans-serif;
 }
 .lyric-player[data-lyric-font='mono'] .lyric-main,
 .lyric-word[data-font='mono'] {
@@ -413,13 +395,12 @@
 /* 英文花体：中日韩文字回退到苹方等无衬线字体 */
 .lyric-player[data-lyric-font='script'] .lyric-main,
 .lyric-word[data-font='script'] {
-  font-family: var(--lyric-wf-script) 'Snell Roundhand', 'Apple Chancery', 'Segoe Script', 'PingFang SC', sans-serif;
+  font-family: 'Snell Roundhand', 'Apple Chancery', 'Segoe Script', var(--lyric-wf-script) 'PingFang SC', sans-serif;
 }
 
-/* 字形（来自歌词标注）：显式标注粗体的强调短语放开字重合成以保持视觉重音对比 */
+/* 字形（来自歌词标注） */
 .lyric-word--bold {
-  font-weight: 800;
-  font-synthesis-weight: weight;
+  font-weight: 900;
 }
 .lyric-word--italic {
   font-style: italic;

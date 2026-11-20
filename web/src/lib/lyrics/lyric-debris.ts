@@ -26,20 +26,17 @@ interface Grain {
 
 type Rgb = readonly [number, number, number]
 
-/** 一个字的字形位图：HDR 下按亮度分档生成并缓存，SDR 下只有一张 */
-interface Glyph {
-  at: (gain: number) => HTMLCanvasElement | null
-  width: number
-  height: number
-}
-
 interface Shard {
-  // 字形位图（同一个字的碎片共用）与它在容器中的左上角
-  glyph: Glyph
+  // 出生时一次性预裁切好的单字三角碎片图集（同一个字的碎片共用，消除运行期多档 Canvas 创建与每帧三角形 clip 开销）
+  atlas: HTMLCanvasElement
+  sx: number
+  sw: number
+  sh: number
+  w: number
+  h: number
   left: number
   top: number
-  // 三角形顶点（相对字形左上角）与重心
-  points: [number, number][]
+  // 三角形重心（相对字形左上角）
   cx: number
   cy: number
   vx: number
@@ -50,20 +47,18 @@ interface Shard {
 }
 
 // 每个字的颗粒数（按字号缩放的基准，字号 26px 时）、颗粒寿命、上限
-const GRAINS_PER_CHAR = 40
-const GRAIN_LIFE_S = [1.6, 2.2] as const
-const MAX_GRAINS = 1200
+const GRAINS_PER_CHAR = 18
+const GRAIN_LIFE_S = [0.85, 1.25] as const
+const MAX_GRAINS = 500
 // 每个字的碎片数、迸开速度（px/s）、碎之初向上弹起的速度、重力（px/s²）、寿命、上限
-const SHARDS_PER_CHAR = [6, 8] as const
-const SHARD_SPEED = [90, 220] as const
-const SHARD_POP = 70
-const SHARD_GRAVITY = 900
-const SHARD_LIFE_S = [0.9, 1.3] as const
-const MAX_SHARDS = 240
+const SHARDS_PER_CHAR = [3, 4] as const
+const SHARD_SPEED = [95, 215] as const
+const SHARD_POP = 68
+const SHARD_GRAVITY = 940
+const SHARD_LIFE_S = [0.5, 0.75] as const
+const MAX_SHARDS = 100
 // 碎屑全部消失后过这么久释放画布（HDR 下连同 WebGPU 输出），平时不占显存
 const RELEASE_DELAY_MS = 1500
-// HDR 下碎片字形的亮度档数：亮度逐帧熄灭，每档一张位图，按需生成
-const GLYPH_LEVELS = 12
 const WHITE: Rgb = [255, 255, 255]
 
 export interface DebrisMeasured {
@@ -149,7 +144,7 @@ export class LyricDebris {
         size: 0.6 + Math.random() * 1.4,
         phase: Math.random() * Math.PI * 2,
         // 同一个字的颗粒先后被吹起，不是同时
-        age: -Math.random() * 0.4,
+        age: -Math.random() * 0.18,
         life: GRAIN_LIFE_S[0] + Math.random() * (GRAIN_LIFE_S[1] - GRAIN_LIFE_S[0]),
         rgb,
       })
@@ -158,7 +153,7 @@ export class LyricDebris {
 
   /**
    * 破碎：把一个字切成碎片。push 为整个词的迸开方向（-1 ~ 1，词左侧的字向左、右侧的向右），
-   * 字形按字当前的字体、颜色与缩放画到位图上
+   * 在碎的一瞬间把各块三角切片一次性烘焙到一张紧凑小图集上，运动帧内仅做轻量旋转贴图
    */
   shatter(charEl: HTMLElement, push: number, measured?: DebrisMeasured) {
     const box = measured?.box ?? this.container.getBoundingClientRect()
@@ -166,19 +161,27 @@ export class LyricDebris {
     const text = charEl.textContent ?? ''
     if (rect.width <= 0 || !text.trim() || !this.ensureCanvas(box.width, box.height))
       return
-    const glyph = this.renderGlyph(charEl, text, rect, measured)
-    if (!glyph)
-      return
     const { width: w, height: h } = rect
     // 裂点在字的中部附近，碎片是裂点与边框上相邻两点组成的三角形
     const crackX = w * (0.35 + Math.random() * 0.3)
     const crackY = h * (0.35 + Math.random() * 0.3)
-    const count = SHARDS_PER_CHAR[0] + Math.floor(Math.random() * (SHARDS_PER_CHAR[1] - SHARDS_PER_CHAR[0] + 1))
-    const edge = Array.from({ length: count }, (_, k) => (k + 0.2 + Math.random() * 0.6) / count * Math.PI * 2)
+    const totalCount = SHARDS_PER_CHAR[0] + Math.floor(Math.random() * (SHARDS_PER_CHAR[1] - SHARDS_PER_CHAR[0] + 1))
+    const available = MAX_SHARDS - this.shards.length
+    if (available <= 0)
+      return
+    const spawnCount = Math.min(totalCount, available)
+    const edge = Array.from({ length: totalCount }, (_, k) => (k + 0.2 + Math.random() * 0.6) / totalCount * Math.PI * 2)
       .map(angle => rayToRect(crackX, crackY, angle, w, h))
-    for (let k = 0; k < count && this.shards.length < MAX_SHARDS; k++) {
-      const a = edge[k]
-      const b = edge[(k + 1) % count]
+    const triangles: [[number, number], [number, number], [number, number]][] = []
+    for (let k = 0; k < spawnCount; k++)
+      triangles.push([[crackX, crackY], edge[k], edge[(k + 1) % totalCount]])
+    const baked = this.renderShardAtlas(charEl, text, rect, triangles, measured)
+    if (!baked)
+      return
+    const drawW = baked.tileW / this.dpr
+    const drawH = baked.tileH / this.dpr
+    for (let k = 0; k < spawnCount; k++) {
+      const [, a, b] = triangles[k]
       const cx = (crackX + a[0] + b[0]) / 3
       const cy = (crackY + a[1] + b[1]) / 3
       const dx = cx - crackX
@@ -186,10 +189,14 @@ export class LyricDebris {
       const len = Math.hypot(dx, dy) || 1
       const speed = SHARD_SPEED[0] + Math.random() * (SHARD_SPEED[1] - SHARD_SPEED[0])
       this.shards.push({
-        glyph,
+        atlas: baked.canvas,
+        sx: k * baked.stride,
+        sw: baked.tileW,
+        sh: baked.tileH,
+        w: drawW,
+        h: drawH,
         left: rect.left - box.left,
         top: rect.top - box.top,
-        points: [[crackX, crackY], a, b],
         cx,
         cy,
         vx: dx / len * speed + push * 80,
@@ -228,22 +235,13 @@ export class LyricDebris {
       if (shard.age >= shard.life)
         return false
       const t = shard.age
-      const image = shard.glyph.at(this.gainAt(t, shard.life))
-      if (!image)
-        return true
-      // 后半段淡出
-      ctx.globalAlpha = Math.min(1, 2 * (1 - t / shard.life))
+      const p = t / shard.life
+      // 平滑加速淡出（预乘 float16 下 HDR 亮度与不透明度同步自然衰减）
+      ctx.globalAlpha = Math.max(0, 1 - p * p)
       ctx.save()
       ctx.translate(shard.left + shard.cx + shard.vx * t, shard.top + shard.cy + shard.vy * t + SHARD_GRAVITY * t * t / 2)
       ctx.rotate(shard.spin * t)
-      ctx.translate(-shard.cx, -shard.cy)
-      ctx.beginPath()
-      ctx.moveTo(...shard.points[0])
-      ctx.lineTo(...shard.points[1])
-      ctx.lineTo(...shard.points[2])
-      ctx.closePath()
-      ctx.clip()
-      ctx.drawImage(image, 0, 0, shard.glyph.width, shard.glyph.height)
+      ctx.drawImage(shard.atlas, shard.sx, 0, shard.sw, shard.sh, -shard.cx, -shard.cy, shard.w, shard.h)
       ctx.restore()
       this.drawn = true
       return true
@@ -317,10 +315,16 @@ export class LyricDebris {
   }
 
   /**
-   * 把字按当前的字体、颜色与缩放画到位图上（居中），尺寸与字的外框一致（CSS 像素）。
-   * HDR 下按亮度分档（GLYPH_LEVELS）在用到时生成 float16 位图，样式在碎的一瞬间读取
+   * 在碎的一瞬间把单字各块三角切片一次性画进同一张紧凑横向图集（贴片间留 2px 透明缝防旋转采样串边），
+   * 彻底省掉运动帧内的多档 float16 Canvas 动态创建与逐碎片三角形 clip 蒙版开销
    */
-  private renderGlyph(charEl: HTMLElement, text: string, rect: DOMRect, measured?: DebrisMeasured): Glyph | null {
+  private renderShardAtlas(
+    charEl: HTMLElement,
+    text: string,
+    rect: DOMRect,
+    triangles: [[number, number], [number, number], [number, number]][],
+    measured?: DebrisMeasured,
+  ): { canvas: HTMLCanvasElement, tileW: number, tileH: number, stride: number } | null {
     const doc = this.container.ownerDocument
     let fontStyle: string
     let fontWeight: string
@@ -346,40 +350,34 @@ export class LyricDebris {
     const rgb = parseCssColor(colorStr) ?? WHITE
     const dpr = this.dpr
     const hdrGain = this.hdr ? this.hdrGain : 1
-    const levels = new Map<number, HTMLCanvasElement | null>()
-    const draw = (level: number) => {
-      const glyph = doc.createElement('canvas')
-      glyph.width = Math.ceil(rect.width * dpr)
-      glyph.height = Math.ceil(rect.height * dpr)
-      // colorType 尚未进入 TypeScript 的 DOM 类型
-      const g = glyph.getContext('2d', hdrGain > 1 ? { colorType: 'float16' } as CanvasRenderingContext2DSettings : undefined)
-      if (!g)
-        return null
-      g.scale(dpr, dpr)
-      g.font = font
-      g.fillStyle = hdrCanvasColor(rgb, 1 + (hdrGain - 1) * level / GLYPH_LEVELS)
-      g.textAlign = 'center'
-      g.textBaseline = 'middle'
-      g.fillText(text, rect.width / 2, rect.height / 2)
-      return glyph
-    }
-    const first = draw(hdrGain > 1 ? GLYPH_LEVELS : 0)
-    if (!first)
+    const tileW = Math.max(1, Math.ceil(rect.width * dpr))
+    const tileH = Math.max(1, Math.ceil(rect.height * dpr))
+    const stride = tileW + 2
+    const atlas = doc.createElement('canvas')
+    atlas.width = stride * triangles.length
+    atlas.height = tileH
+    // colorType 尚未进入 TypeScript 的 DOM 类型
+    const g = atlas.getContext('2d', hdrGain > 1 ? { colorType: 'float16' } as CanvasRenderingContext2DSettings : undefined)
+    if (!g)
       return null
-    levels.set(hdrGain > 1 ? GLYPH_LEVELS : 0, first)
-    return {
-      width: rect.width,
-      height: rect.height,
-      at: (gain) => {
-        const level = hdrGain > 1 ? Math.max(0, Math.min(GLYPH_LEVELS, Math.round((gain - 1) / (hdrGain - 1) * GLYPH_LEVELS))) : 0
-        let image = levels.get(level)
-        if (image === undefined) {
-          image = draw(level)
-          levels.set(level, image)
-        }
-        return image
-      },
-    }
+    g.font = font
+    g.fillStyle = hdrCanvasColor(rgb, hdrGain)
+    g.textAlign = 'center'
+    g.textBaseline = 'middle'
+    triangles.forEach((pts, idx) => {
+      g.save()
+      g.translate(idx * stride, 0)
+      g.scale(dpr, dpr)
+      g.beginPath()
+      g.moveTo(...pts[0])
+      g.lineTo(...pts[1])
+      g.lineTo(...pts[2])
+      g.closePath()
+      g.clip()
+      g.fillText(text, rect.width / 2, rect.height / 2)
+      g.restore()
+    })
+    return { canvas: atlas, tileW, tileH, stride }
   }
 
   private ensureCanvas(width: number, height: number) {

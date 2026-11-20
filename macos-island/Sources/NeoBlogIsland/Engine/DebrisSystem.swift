@@ -43,11 +43,11 @@ final class DebrisEngine {
     @ObservationIgnored private var triggeredKeys: [String: Double] = [:]
     @ObservationIgnored private var lastStepDate: Date? = nil
 
-    private static let grainsPerChar = 28
-    private static let maxGrains = 600
-    private static let shardGravity = 900.0
-    private static let shardPop = 70.0
-    private static let maxShards = 180
+    private static let grainsPerChar = 14
+    private static let maxGrains = 280
+    private static let shardGravity = 940.0
+    private static let shardPop = 68.0
+    private static let maxShards = 90
 
     private func syncActiveFlag() {
         let active = !grains.isEmpty || !shards.isEmpty
@@ -78,7 +78,7 @@ final class DebrisEngine {
         guard triggeredKeys[key] != at, nowMs - at < 300, rect.width > 0 else { return }
         triggeredKeys[key] = at
 
-        let count = max(8, Int(round(Double(Self.grainsPerChar) * min(2.0, Double(rect.height) / 24.0))))
+        let count = max(4, Int(round(Double(Self.grainsPerChar) * min(2.0, Double(rect.height) / 24.0))))
         for _ in 0..<count where grains.count < Self.maxGrains {
             grains.append(Grain(
                 x: Double(rect.minX) + Double.random(in: 0...Double(rect.width)),
@@ -87,8 +87,8 @@ final class DebrisEngine {
                 vy: Double.random(in: -38 ... -8),
                 size: Double.random(in: 1.0...2.2),
                 phase: Double.random(in: 0...(2 * .pi)),
-                age: -Double.random(in: 0...0.35),
-                life: Double.random(in: 1.5...2.1),
+                age: -Double.random(in: 0...0.18),
+                life: Double.random(in: 0.85...1.25),
                 color: color
             ))
         }
@@ -114,7 +114,7 @@ final class DebrisEngine {
         let h = Double(rect.height)
         let crackX = w * Double.random(in: 0.35...0.65)
         let crackY = h * Double.random(in: 0.35...0.65)
-        let count = Int.random(in: 6...8)
+        let count = Int.random(in: 3...4)
 
         let edgePts: [CGPoint] = (0..<count).map { k in
             let angle = (Double(k) + Double.random(in: 0.2...0.8)) / Double(count) * 2.0 * .pi
@@ -129,7 +129,7 @@ final class DebrisEngine {
             let dx = cx - crackX
             let dy = cy - crackY
             let len = max(1e-3, hypot(dx, dy))
-            let speed = Double.random(in: 90...220)
+            let speed = Double.random(in: 95...215)
 
             shards.append(Shard(
                 originX: Double(rect.minX),
@@ -143,7 +143,7 @@ final class DebrisEngine {
                 vy: dy / len * speed - Self.shardPop,
                 spin: Double.random(in: -5.0...5.0),
                 age: 0,
-                life: Double.random(in: 0.9...1.3),
+                life: Double.random(in: 0.5...0.75),
                 color: color
             ))
         }
