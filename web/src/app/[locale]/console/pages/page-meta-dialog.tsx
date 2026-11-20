@@ -10,7 +10,6 @@ import { createPage, updatePage } from '@/api/page'
 import { AssetField } from '@/components/common/asset-picker'
 import { LabelWithInfo } from '@/components/common/info-tooltip'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -28,6 +27,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/contexts/auth-context'
 import { useErrorMessageT, useOperationT, useResponseErrorDetailsT } from '@/hooks/use-translations'
@@ -100,6 +100,7 @@ export function PageMetaDialog({
   const isLink = kind === 'link'
   const isHtml = kind === 'html'
   const htmlSizeMode = form.watch('htmlSizeMode')
+  const showInNav = form.watch('showInNav')
   // HTML 页面可运行任意脚本，只有管理员可以创建或修改（后端同样校验）
   const kinds = PAGE_KINDS.filter(item => item !== 'html' || (user && isAdmin({ user })))
 
@@ -349,42 +350,44 @@ export function PageMetaDialog({
                   control={form.control}
                   name="fullscreen"
                   render={({ field }) => (
-                    <FormItem className="flex items-center gap-2">
-                      <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                    <FormItem className="flex items-center justify-between gap-4 rounded-lg border p-3">
                       <LabelWithInfo info={editorT('fullscreen_hint')}><FormLabel>{editorT('fullscreen')}</FormLabel></LabelWithInfo>
+                      <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
                     </FormItem>
                   )}
                 />
               </>
             )}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <FormField
-                control={form.control}
-                name="isPrivate"
-                render={({ field }) => (
-                  <FormItem className="flex items-center gap-2">
-                    <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                    <FormLabel>{t('private')}</FormLabel>
-                  </FormItem>
-                )}
-              />
+            <div className="grid gap-3">
               <FormField
                 control={form.control}
                 name="showInNav"
                 render={({ field }) => (
-                  <FormItem className="flex items-center gap-2">
-                    <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                    <FormLabel>{t('show_in_nav')}</FormLabel>
+                  <FormItem className="flex items-center justify-between gap-4 rounded-lg border p-3">
+                    <LabelWithInfo info={editorT('show_in_nav_hint')}><FormLabel>{t('show_in_nav')}</FormLabel></LabelWithInfo>
+                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
                   </FormItem>
                 )}
               />
+              {showInNav && (
+                <FormField
+                  control={form.control}
+                  name="navOrder"
+                  render={({ field }) => (
+                    <FormItem>
+                      <LabelWithInfo info={editorT('nav_order_hint')}><FormLabel>{t('nav_order')}</FormLabel></LabelWithInfo>
+                      <FormControl><Input type="number" {...field} /></FormControl>
+                    </FormItem>
+                  )}
+                />
+              )}
               <FormField
                 control={form.control}
-                name="navOrder"
+                name="isPrivate"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('nav_order')}</FormLabel>
-                    <FormControl><Input type="number" {...field} /></FormControl>
+                  <FormItem className="flex items-center justify-between gap-4 rounded-lg border p-3">
+                    <LabelWithInfo info={editorT('private_hint')}><FormLabel>{t('private')}</FormLabel></LabelWithInfo>
+                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
                   </FormItem>
                 )}
               />

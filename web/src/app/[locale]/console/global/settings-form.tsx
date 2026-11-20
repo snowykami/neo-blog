@@ -3,6 +3,7 @@
 import type { ConfigValues } from './config-fields'
 import type { ConfigItem, ConfigSchema } from '@/models/config'
 import type { SiteInfo } from '@/utils/common/siteinfo'
+import { ArrowUpRightIcon, AudioLinesIcon, BotIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { parseAsString, useQueryState } from 'nuqs'
 import { createContext, memo, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -18,7 +19,9 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
+import { Link } from '@/i18n/navigation'
 import { cn } from '@/lib/utils'
+import { consolePath } from '@/utils/common/route'
 import { fallbackSiteInfo } from '@/utils/common/siteinfo'
 import { ConfigField, useConfigT } from './config-fields'
 import { EmailTestField } from './email-test-field'
@@ -66,8 +69,9 @@ export function SettingsForm({ advanced }: { advanced: React.ReactNode }) {
   const [schema, setSchema] = useState<ConfigSchema | null>(null)
   const [saving, setSaving] = useState(false)
   const form = useForm<ConfigValues>()
-  // 当前 Tab 写入地址参数，便于直接打开某个分组
-  const [tab, setTab] = useQueryState('tab', parseAsString.withDefault('site').withOptions({ history: 'replace', clearOnDefault: true }))
+  // 当前 Tab 写入地址参数，便于直接打开某个分组；兼容旧书签中的 frontend / rss
+  const [rawTab, setTab] = useQueryState('tab', parseAsString.withDefault('site').withOptions({ history: 'replace', clearOnDefault: true }))
+  const tab = rawTab === 'frontend' ? 'appearance' : rawTab === 'rss' ? 'site' : rawTab
   // 只挂载访问过的设置 Tab：首屏免去挂载未访问分组与网易云等懒触发字段，已访问过的保留挂载以维持跨 Tab 校验规则与未保存输入
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set(tab && tab !== 'advanced' ? [tab] : []))
 
@@ -199,7 +203,13 @@ export function SettingsForm({ advanced }: { advanced: React.ReactNode }) {
               return (
                 <TabsContent key={key} value={key} forceMount={mounted || undefined} className="grid gap-4 data-[state=inactive]:hidden">
                   {mounted && schema.sections.filter(section => section.tab === key).map(section => (
-                    <Section key={section.key} title={tr(section.title) ?? section.key} description={tr(section.description)}>
+                    <Section
+                      key={section.key}
+                      id={section.key}
+                      title={tr(section.title) ?? section.key}
+                      description={tr(section.description)}
+                      headerAction={<SectionHeaderAction name={section.widget} />}
+                    >
                       <SectionWidget name={section.widget} items={section.items} />
                       {section.items.map(item => <VisibleField key={item.key} item={item} />)}
                     </Section>
@@ -305,11 +315,54 @@ function SectionWidget({ name, items }: { name?: string, items?: ConfigItem[] })
   return null
 }
 
-function Section({ title, description, children }: { title: string, description?: string, children: React.ReactNode }) {
+// 分组卡片右上角的关联管理页快捷入口（如从音乐播放器配置前往歌词特效，从 AI 用户参数前往 AI 用户管理）
+function SectionHeaderAction({ name }: { name?: string }) {
+  const t = useTranslations('Console.global')
+  if (name === 'music_links') {
+    return (
+      <Button asChild variant="outline" size="sm">
+        <Link href={consolePath.lyricEffect}>
+          <AudioLinesIcon className="size-4" />
+          {t('manage_lyric_effects')}
+          <ArrowUpRightIcon className="size-3.5 text-muted-foreground" />
+        </Link>
+      </Button>
+    )
+  }
+  if (name === 'ai_agents_link') {
+    return (
+      <Button asChild variant="outline" size="sm">
+        <Link href={consolePath.aiAgent}>
+          <BotIcon className="size-4" />
+          {t('manage_ai_agents')}
+          <ArrowUpRightIcon className="size-3.5 text-muted-foreground" />
+        </Link>
+      </Button>
+    )
+  }
+  return null
+}
+
+function Section({
+  id,
+  title,
+  description,
+  headerAction,
+  children,
+}: {
+  id?: string
+  title: string
+  description?: string
+  headerAction?: React.ReactNode
+  children: React.ReactNode
+}) {
   return (
-    <Card>
+    <Card id={id} className="scroll-mt-20">
       <CardHeader>
-        <CardTitle>{title}</CardTitle>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle>{title}</CardTitle>
+          {headerAction}
+        </div>
         {description && <CardDescription>{description}</CardDescription>}
       </CardHeader>
       <CardContent className="grid items-start gap-4 md:grid-cols-2">{children}</CardContent>

@@ -2,7 +2,7 @@
 
 import type { MusicLyricAnnotationBatchStatus, MusicLyricAnnotationListItem } from '@/api/music'
 import type { BaseResponseError } from '@/models/resp'
-import { Eye, Music2Icon, PencilLine, RefreshCw, Trash2, X } from 'lucide-react'
+import { Eye, Music2Icon, PencilLine, RefreshCw, Settings2, Trash2, X } from 'lucide-react'
 import { useFormatter, useNow, useTranslations } from 'next-intl'
 import { parseAsInteger, useQueryState } from 'nuqs'
 import { useEffect, useMemo, useState } from 'react'
@@ -193,16 +193,24 @@ export function LyricEffectManage() {
           onChange={event => setKeyword(event.target.value)}
           className="max-w-sm"
         />
-        <form onSubmit={openById} className="flex gap-2">
-          <Input
-            inputMode="numeric"
-            placeholder={t('open_by_id')}
-            value={openId}
-            onChange={event => setOpenId(event.target.value)}
-            className="w-44"
-          />
-          <Button type="submit" size="sm" variant="outline" disabled={!/^\d+$/.test(openId.trim())}>{t('open')}</Button>
-        </form>
+        <div className="flex flex-wrap items-center gap-2">
+          <form onSubmit={openById} className="flex gap-2">
+            <Input
+              inputMode="numeric"
+              placeholder={t('open_by_id')}
+              value={openId}
+              onChange={event => setOpenId(event.target.value)}
+              className="w-44"
+            />
+            <Button type="submit" size="sm" variant="outline" disabled={!/^\d+$/.test(openId.trim())}>{t('open')}</Button>
+          </form>
+          <Button asChild size="sm" variant="outline">
+            <Link href={`${consolePath.global}?tab=appearance#music`}>
+              <Settings2 className="size-4" />
+              {t('music_settings_link')}
+            </Link>
+          </Button>
+        </div>
       </div>
       <p className="mb-3 text-sm text-muted-foreground">{t('description')}</p>
       {batch && (batchRunning || batch.id !== dismissedBatch) && (

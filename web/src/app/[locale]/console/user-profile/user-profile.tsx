@@ -12,7 +12,7 @@ import { TimeZoneCombobox } from '@/components/common/time-zone-combobox'
 import { useUserFieldRules } from '@/components/console/users/user-profile-fields'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Form,
   FormControl,
@@ -24,23 +24,17 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
 import { GenderInput } from '@/components/user/gender-input'
 import { useAuth } from '@/contexts/auth-context'
 import { useBrowserTimeZone } from '@/hooks/use-browser-time-zone'
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
-import { writeLocaleCookie } from '@/i18n/locale-cookie'
-import { LOCALES, resolveLocale } from '@/locales/registry'
+import { Link } from '@/i18n/navigation'
 import { getFileUri } from '@/utils/client/file'
 import { getAvatarOrGravatarUrlFromUser } from '@/utils/common/gravatar'
+import { isAdmin } from '@/utils/common/permission'
+import { consolePath } from '@/utils/common/route'
 import { isValidTimeZone } from '@/utils/common/time-zone'
 import { getFallbackAvatarFromUsername, getFallbackAvatarStyle } from '@/utils/common/username'
 
@@ -70,7 +64,6 @@ interface FormValues {
   nickname: string
   username: string
   gender: string
-  language: string
   showIpLocation: boolean
   showLikes: boolean
   showLocalTime: boolean
@@ -89,8 +82,6 @@ export function UserProfilePage() {
       nickname: user?.nickname ?? '',
       username: user?.username ?? '',
       gender: user?.gender ?? '',
-      // 旧版本保存的 zh、zh-tw 等写法按规范代码显示在选择器中
-      language: resolveLocale(user?.language) ?? user?.language ?? 'en',
       showIpLocation: user?.showIpLocation ?? true,
       showLikes: user?.showLikes ?? false,
       showLocalTime: user?.showLocalTime ?? false,
@@ -116,7 +107,6 @@ export function UserProfilePage() {
       values.nickname.trim() !== (user.nickname ?? '')
       || values.username.trim() !== (user.username ?? '')
       || values.gender.trim() !== (user.gender ?? '')
-      || values.language !== (resolveLocale(user.language) ?? user.language ?? '')
       || avatarUrl !== (user.avatarUrl ?? '')
       || backgroundUrl !== (user.backgroundUrl ?? '')
       || avatarCropped !== null
@@ -132,16 +122,6 @@ export function UserProfilePage() {
     return null
 
   const onSubmit = form.handleSubmit(async (values) => {
-    // check values nickname可为空
-    if (values.username.trim() === '') {
-      toast.error(t('nickname_and_username_cannot_be_empty'))
-      return
-    }
-    if (values.username.length < 1 || values.username.length > 20 || values.nickname.length > 20) {
-      toast.error(t('nickname_and_username_must_be_between', { min: 1, max: 20 }))
-      return
-    }
-
     if (!isProfileChanged()) {
       toast.warning(t('no_changes_made'))
       return
@@ -161,10 +141,9 @@ export function UserProfilePage() {
 
       await updateUser({
         id: user.id,
-        nickname: values.nickname,
-        username: values.username,
+        nickname: values.nickname.trim(),
+        username: values.username.trim(),
         gender: values.gender.trim(),
-        language: values.language,
         avatarUrl: nextAvatarUrl,
         backgroundUrl: nextBackgroundUrl,
         showIpLocation: values.showIpLocation,
@@ -173,11 +152,6 @@ export function UserProfilePage() {
         // 关闭时不再上报时区，后端会一并清空已保存的时区
         timeZone: values.showLocalTime ? values.timeZone : '',
       })
-      // 服务端按语言 Cookie 选界面语言（不再查当前用户），语言变更时先写 Cookie 再刷新页面
-      const prevLocale = resolveLocale(user.language) ?? user.language
-      const nextLocale = resolveLocale(values.language)
-      if (nextLocale)
-        writeLocaleCookie(nextLocale)
 
       setAvatarUrl(nextAvatarUrl)
       setBackgroundUrl(nextBackgroundUrl)
@@ -185,15 +159,14 @@ export function UserProfilePage() {
       setBackgroundCropped(null)
       form.reset({
         ...values,
+        nickname: values.nickname.trim(),
+        username: values.username.trim(),
         gender: values.gender.trim(),
         timeZone: values.showLocalTime ? values.timeZone : '',
       })
 
       toast.success(operationT('update_success'))
       await refresh()
-      if (nextLocale && nextLocale !== prevLocale) {
-        window.setTimeout(() => window.location.reload(), 400)
-      }
     }
     catch (error: unknown) {
       toast.error(`${t('failed_to_update_profile')}: ${errorMessageT(error)}`)
@@ -206,6 +179,15 @@ export function UserProfilePage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">{t('public_profile')}</CardTitle>
+            {isAdmin({ user }) && (
+              <CardDescription>
+                {t('owner_card_hint')}
+                {' '}
+                <Link href={`${consolePath.global}?tab=site#owner`} className="text-primary underline underline-offset-4 hover:opacity-80">
+                  {t('owner_card_hint_link')}
+                </Link>
+              </CardDescription>
+            )}
           </CardHeader>
           <CardContent className="grid gap-4">
             <div className="grid gap-4 sm:grid-cols-2">
@@ -276,6 +258,7 @@ export function UserProfilePage() {
               <FormField
                 control={form.control}
                 name="nickname"
+                rules={rules.nickname}
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>{t('nickname')}</FormLabel>
@@ -290,6 +273,7 @@ export function UserProfilePage() {
               <FormField
                 control={form.control}
                 name="username"
+                rules={rules.username}
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>{t('username')}</FormLabel>
@@ -321,34 +305,9 @@ export function UserProfilePage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">{operationT('setting')}</CardTitle>
+            <CardTitle className="text-base">{t('privacy_and_display')}</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4">
-            <FormField
-              control={form.control}
-              name="language"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('language')}</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder={t('select_language')} />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {Object.entries(LOCALES).map(([code, { name }]) => (
-                        <SelectItem key={code} value={code}>
-                          {name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
             <FormField
               control={form.control}
               name="showIpLocation"

@@ -5,7 +5,7 @@ import type { ContentMeta } from '@/hooks/use-content-editor'
 import type { AITaxonomyPayload } from '@/models/ai-write'
 import type { Category } from '@/models/category'
 import type { Label } from '@/models/label'
-import { FileTextIcon, FolderIcon, SendIcon, TypeIcon } from 'lucide-react'
+import { FileTextIcon, FolderIcon, ImageIcon, SendIcon, TypeIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useForm } from 'react-hook-form'
 import { InfoTooltip, LabelWithInfo } from '@/components/common/info-tooltip'
@@ -95,6 +95,7 @@ export function PostSettingsSheet({
   const errorDetailsT = useResponseErrorDetailsT()
   const siteTheme = resolveContentTheme(null, useSiteInfo().siteInfo.contentTheme)
   const form = useForm<PostSettingsValues>({ mode: 'onChange', defaultValues: toValues(meta) })
+  const hasBackgroundImage = Boolean(form.watch('backgroundImage')?.trim())
   // 表单里一项一行更好填，保存前再组装成后端要的背景对象；
   // onChange 只给「变了的那个字段」，所以其余子项从当前表单里取，避免互相覆盖
   useSyncSettingsForm(form, open, toValues(meta), (patch) => {
@@ -152,16 +153,14 @@ export function PostSettingsSheet({
               )}
             />
             <CoverField form={form} name="cover" label={postEditT('post_cover')} />
-            <CoverField
-              form={form}
-              name="backgroundImage"
-              label={postEditT('post_background_image')}
-              hint={postEditT('post_background_image_hint')}
-            />
-            <NumberField form={form} name="backgroundBlur" label={bgT('page_background_blur')} description={bgT('page_background_blur_desc')} min={0} max={40} />
-            <NumberField form={form} name="backgroundOpacity" label={bgT('page_background_opacity')} description={bgT('page_background_opacity_desc')} min={0} max={1} step={0.05} />
-            <NumberField form={form} name="backgroundVeil" label={bgT('page_background_veil')} description={bgT('page_background_veil_desc')} min={0} max={1} step={0.05} />
-            <ColorField form={form} name="backgroundVeilColor" label={bgT('page_background_veil_color')} description={bgT('page_background_veil_color_desc')} />
+          </SettingsSection>
+
+          <SettingsSection icon={FolderIcon} title={t('settings_classify')}>
+            {aiRecommend && (
+              <PostAITaxonomyRecommender postId={aiRecommend.postId} getPayload={aiRecommend.getPayload} />
+            )}
+            <PostCategorySelector />
+            <PostLabelSelector />
           </SettingsSection>
 
           <SettingsSection icon={TypeIcon} title={t('settings_typography')}>
@@ -187,12 +186,21 @@ export function PostSettingsSheet({
             />
           </SettingsSection>
 
-          <SettingsSection icon={FolderIcon} title={t('settings_classify')}>
-            {aiRecommend && (
-              <PostAITaxonomyRecommender postId={aiRecommend.postId} getPayload={aiRecommend.getPayload} />
+          <SettingsSection icon={ImageIcon} title={postEditT('post_background_section')}>
+            <CoverField
+              form={form}
+              name="backgroundImage"
+              label={postEditT('post_background_image')}
+              hint={postEditT('post_background_image_hint')}
+            />
+            {hasBackgroundImage && (
+              <>
+                <NumberField form={form} name="backgroundBlur" label={bgT('page_background_blur')} description={bgT('page_background_blur_desc')} min={0} max={40} />
+                <NumberField form={form} name="backgroundOpacity" label={bgT('page_background_opacity')} description={bgT('page_background_opacity_desc')} min={0} max={1} step={0.05} />
+                <NumberField form={form} name="backgroundVeil" label={bgT('page_background_veil')} description={bgT('page_background_veil_desc')} min={0} max={1} step={0.05} />
+                <ColorField form={form} name="backgroundVeilColor" label={bgT('page_background_veil_color')} description={bgT('page_background_veil_color_desc')} />
+              </>
             )}
-            <PostCategorySelector />
-            <PostLabelSelector />
           </SettingsSection>
 
           <SettingsSection icon={SendIcon} title={t('settings_publish')}>

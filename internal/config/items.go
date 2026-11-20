@@ -29,11 +29,10 @@ var NCMSongLevels = []string{"standard", "higher", "exhigh", "lossless", "hires"
 
 var tabs = []Tab{
 	{Key: "site", Title: "tab_site"},
+	{Key: "appearance", Title: "tab_appearance"},
 	{Key: "content", Title: "tab_content"},
-	{Key: "frontend", Title: "tab_frontend"},
 	{Key: "account", Title: "tab_account"},
 	{Key: "ai", Title: "tab_ai"},
-	{Key: "rss", Title: "tab_rss"},
 }
 
 // 站点内置的配色方案，对应前端 app/styles 下的主题文件
@@ -51,6 +50,7 @@ var aiThinkingModes = []Option{
 // 站点信息相关的默认值是开源项目的中性占位（站名、站长、图标、封面、页脚等），新站点在后台填写自己的信息；
 // 已保存过站点信息的站点不受默认值变化影响（升级前的默认值由迁移 2026111150 补进已保存的站点信息）
 var sections = []*Section{
+	// ---- 站点与站长 ----
 	{Tab: "site", Key: "site", Title: "section_site", Description: "section_site_desc", Items: []*Item{
 		{Key: "site_name", Type: TypeString, Label: "site_name", Default: "My Blog", siteInfoPath: path("metadata.name"), mirror: same},
 		{Key: "base_url", Type: TypeURL, Label: "base_url", Description: "base_url_desc", Default: constant.DefaultBaseUrl, Env: constant.EnvKeyBaseUrl, siteInfoPath: path("base_url"), mirror: same},
@@ -64,22 +64,38 @@ var sections = []*Section{
 		// 前台随机使用其中一张；RSS 的默认封面只支持单张，独立配置键只写第一张
 		{Key: "default_cover", Type: TypeImageList, Label: "default_covers", Description: "default_covers_desc", Default: []string{}, siteInfoPath: path("default_cover"), mirror: first},
 	}},
-	{Tab: "site", Key: "owner", Title: "section_owner", Items: []*Item{
+	{Tab: "site", Key: "owner", Title: "section_owner", Description: "section_owner_desc", Items: []*Item{
 		{Key: "owner_name", Type: TypeString, Label: "owner_name", Default: "Blogger", siteInfoPath: path("owner.name")},
 		{Key: "owner_motto", Type: TypeString, Label: "owner_motto", Default: "", siteInfoPath: path("owner.motto")},
 		{Key: "owner_description", Type: TypeText, Label: "owner_description", Wide: true, Default: "", siteInfoPath: path("owner.description")},
 		{Key: "owner_avatar", Type: TypeImage, Label: "owner_avatar", Default: "", siteInfoPath: path("owner.avatar")},
 		{Key: "owner_gravatar_email", Type: TypeEmail, Label: "owner_gravatar_email", Description: "owner_gravatar_email_desc", Default: "", siteInfoPath: path("owner.gravatar_email")},
+		{Key: "about_background", Type: TypeImage, Label: "about_background", Description: "empty_to_hide", Default: "", siteInfoPath: path("about_background")},
 		{Key: "owner_links", Type: TypeJSON, Widget: "owner_links", Label: "owner_links", Description: "owner_links_desc", Default: []OwnerLink{}, siteInfoPath: path("owner.links"), decode: decodeOwnerLinks},
 	}},
+	{Tab: "site", Key: "footer", Title: "section_footer", Items: []*Item{
+		{Key: "copyright", Type: TypeString, Label: "copyright", Placeholder: "CC BY-NC-SA 4.0", Default: "", siteInfoPath: path("copyright")},
+		{Key: "copyright_link", Type: TypeURL, Label: "copyright_link", Default: "", siteInfoPath: path("copyright_link")},
+		{Key: "footer_text", Type: TypeString, Label: "footer_text", Wide: true, Default: "", siteInfoPath: path("footer.text")},
+		{Key: "footer_links", Type: TypeLinkList, Label: "footer_links", Default: []map[string]any{}, siteInfoPath: path("footer.links")},
+	}},
+	{Tab: "site", Key: "rss", Title: "section_rss", Description: "section_rss_desc", Items: []*Item{
+		{Key: "site_title", Type: TypeString, Label: "rss_title", Default: ""},
+		{Key: "site_author", Type: TypeString, Label: "rss_author", Default: ""},
+		{Key: "site_copyright", Type: TypeString, Label: "rss_copyright", Default: ""},
+		{Key: "site_image", Type: TypeImage, Label: "rss_image", Default: ""},
+		{Key: "rss_limit", Type: TypeInt, Label: "rss_limit", Description: "rss_limit_desc", Min: num(1), Max: num(500), Default: constant.DefaultRssLimit, Env: constant.EnvKeyRssLimit},
+	}},
 
-	{Tab: "content", Key: "appearance", Title: "section_appearance", Widget: "theme_preview", Items: []*Item{
+	// ---- 外观与前台 ----
+	{Tab: "appearance", Key: "appearance", Title: "section_appearance", Widget: "theme_preview", Items: []*Item{
 		{Key: "color_schemes", Type: TypeStringList, Widget: "color_schemes", Label: "color_schemes", Description: "color_schemes_desc", Options: options(colorSchemes, ""), Default: []string{"blue", "green", "orange", "red", "rose", "pink", "violet", "yellow"}, siteInfoPath: path("color_schemes")},
 		{Key: "default_color_scheme", Type: TypeEnum, Widget: "color_scheme", Label: "default_color_scheme", Options: options(colorSchemes, ""), Default: "blue", siteInfoPath: path("default_color_scheme")},
 		{Key: "content_theme", Type: TypeEnum, Label: "content_theme", Description: "content_theme_desc", Options: options(ContentThemes, "content_theme_"), Default: ContentThemes[0], siteInfoPath: path("content_theme")},
 		{Key: "animation_duration_second", Type: TypeFloat, Label: "animation_duration", Description: "animation_duration_desc", Min: num(0), Max: num(3), Default: 0.618, siteInfoPath: path("animation_duration_second")},
+		{Key: "enable_third_party_script", Type: TypeBool, Label: "enable_third_party_script", Description: "enable_third_party_script_desc", Default: true, siteInfoPath: path("enable_third_party_script")},
 	}},
-	{Tab: "content", Key: "page_background", Title: "page_background", Items: []*Item{
+	{Tab: "appearance", Key: "page_background", Title: "page_background", Items: []*Item{
 		{Key: "page_background_image", Type: TypeImage, Label: "page_background_image", Description: "page_background_image_desc", Default: "", siteInfoPath: path("page_background.image")},
 		{Key: "page_background_decorations", Type: TypeBool, Label: "page_background_decorations", Description: "page_background_decorations_desc", Default: true, siteInfoPath: path("page_background.decorations")},
 		{Key: "page_background_blur", Type: TypeInt, Label: "page_background_blur", Description: "page_background_blur_desc", Min: num(0), Max: num(40), Default: 0, siteInfoPath: path("page_background.blur")},
@@ -87,56 +103,12 @@ var sections = []*Section{
 		{Key: "page_background_veil", Type: TypeFloat, Label: "page_background_veil", Description: "page_background_veil_desc", Min: num(0), Max: num(1), Step: 0.05, Default: 0.72, siteInfoPath: path("page_background.veil")},
 		{Key: "page_background_veil_color", Type: TypeColor, Label: "page_background_veil_color", Description: "page_background_veil_color_desc", Default: "", siteInfoPath: path("page_background.veil_color")},
 	}},
-	{Tab: "content", Key: "content", Title: "section_content", Items: []*Item{
-		{Key: "posts_per_page", Type: TypeInt, Label: "posts_per_page", Min: num(1), Max: num(100), Default: 10, siteInfoPath: path("posts_per_page")},
-		{Key: "comments_per_page", Type: TypeInt, Label: "comments_per_page", Min: num(1), Max: num(100), Default: 10, siteInfoPath: path("comments_per_page")},
-		{Key: "comment_max_length", Type: TypeInt, Label: "comment_max_length", Description: "comment_max_length_desc", Min: num(1), Max: num(CommentMaxLengthMax), Default: CommentMaxLengthDefault, siteInfoPath: path("comment_max_length")},
-		{Key: "comment_collapsed_lines", Type: TypeInt, Label: "comment_collapsed_lines", Description: "comment_collapsed_lines_desc", Min: num(1), Max: num(CommentCollapsedLinesMax), Default: CommentCollapsedLinesDefault, siteInfoPath: path("comment_collapsed_lines")},
-		{Key: "max_reply_depth", Type: TypeInt, Label: "max_reply_depth", Description: "max_reply_depth_desc", Min: num(1), Max: num(10), Default: constant.MaxReplyDepthDefault, Env: constant.EnvKeyMaxReplyDepth},
-		{Key: "revision_max_keep", Type: TypeInt, Label: "revision_max_keep", Description: "revision_max_keep_desc", Min: num(RevisionMaxKeepMin), Max: num(RevisionMaxKeepMax), Default: RevisionMaxKeepDefault},
-		// 站点地图协议单个文件最多 50000 条
-		{Key: "sitemap_limit", Type: TypeInt, Label: "sitemap_limit", Description: "sitemap_limit_desc", Min: num(1), Max: num(50000), Default: constant.DefaultSitemapLimit, Env: constant.EnvKeySitemapLimit},
-		{Key: "copyright", Type: TypeString, Label: "copyright", Placeholder: "CC BY-NC-SA 4.0", Default: "", siteInfoPath: path("copyright")},
-		{Key: "copyright_link", Type: TypeURL, Label: "copyright_link", Default: "", siteInfoPath: path("copyright_link")},
-	}},
-	// 互动功能（评论与点赞）：应对特定法规或审核场景可一键关闭全站互动，已有评论与点赞数据完整保留，重新开启即恢复展示
-	{Tab: "content", Key: "interaction", Title: "section_interaction", Description: "section_interaction_desc", Items: []*Item{
-		{Key: "enable_interaction", Type: TypeBool, Label: "enable_interaction", Description: "enable_interaction_desc", Default: true, Env: constant.EnvKeyEnableInteraction, siteInfoPath: path("interaction.enabled")},
-		{Key: "enable_comment", Type: TypeBool, Label: "enable_comment", Description: "enable_comment_desc", Default: true, Env: constant.EnvKeyEnableComment, ShowWhen: when("enable_interaction", "true"), siteInfoPath: path("interaction.comment")},
-		{Key: "enable_like", Type: TypeBool, Label: "enable_like", Description: "enable_like_desc", Default: true, Env: constant.EnvKeyEnableLike, ShowWhen: when("enable_interaction", "true"), siteInfoPath: path("interaction.like")},
-	}},
-	{Tab: "content", Key: "footer", Title: "section_footer", Items: []*Item{
-		{Key: "footer_text", Type: TypeString, Label: "footer_text", Wide: true, Default: "", siteInfoPath: path("footer.text")},
-		{Key: "footer_links", Type: TypeLinkList, Label: "footer_links", Default: []map[string]any{}, siteInfoPath: path("footer.links")},
-	}},
-	// 全站公开资源检索（Meilisearch）：只索引公开的文章、页面、评论与候选用户，支持拼音与首字母检索；未启用或不可用时自动回退数据库查询
-	{Tab: "content", Key: "search", Title: "section_search", Description: "section_search_desc", Widget: "search_test", Items: []*Item{
-		{Key: "meilisearch_enable", Type: TypeBool, Label: "meilisearch_enable", Description: "meilisearch_enable_desc", Default: false, Env: constant.EnvKeyMeilisearchEnable},
-		{Key: "meilisearch_url", Type: TypeURL, Label: "meilisearch_url", Description: "meilisearch_url_desc", Placeholder: "http://meilisearch:7700", Default: "", Env: constant.EnvKeyMeilisearchURL},
-		{Key: "meilisearch_api_key", Type: TypeSecret, Label: "meilisearch_api_key", Description: "meilisearch_api_key_desc", Wide: true, Default: "", Env: constant.EnvKeyMeilisearchAPIKey},
-		{Key: "meilisearch_index_prefix", Type: TypeString, Label: "meilisearch_index_prefix", Description: "meilisearch_index_prefix_desc", Placeholder: "neo_", Default: "neo_", Env: constant.EnvKeyMeilisearchIndexPrefix},
-	}},
-
-	{Tab: "frontend", Key: "personalize", Title: "section_personalize", Description: "section_personalize_desc", Items: []*Item{
-		{Key: "about_background", Type: TypeImage, Label: "about_background", Description: "empty_to_hide", Default: "", siteInfoPath: path("about_background")},
-		{Key: "enable_third_party_script", Type: TypeBool, Label: "enable_third_party_script", Description: "enable_third_party_script_desc", Default: true, siteInfoPath: path("enable_third_party_script")},
-	}},
-	{Tab: "frontend", Key: "sidebar", Title: "section_sidebar", Description: "section_sidebar_desc", Items: []*Item{
+	{Tab: "appearance", Key: "sidebar", Title: "section_sidebar", Description: "section_sidebar_desc", Items: []*Item{
 		// 未配置时前台按默认卡片展示（含旧的嵌入页面配置），由前端组件补全
 		{Key: "sidebar_cards", Type: TypeJSON, Widget: "sidebar_cards", Label: "sidebar_cards", Description: "sidebar_cards_desc", Default: nil, siteInfoPath: path("sidebar_cards")},
 	}},
-	{Tab: "frontend", Key: "music", Title: "section_music", Description: "section_music_desc", Items: []*Item{
-		// 歌单只来自网易云：填好 API 地址并选定歌单后前台才显示音乐播放器（站点信息的 music_enabled，见 controller/misc.go）
-		{Key: "ncm_api_base_url", Type: TypeURL, Label: "ncm_api_base_url", Description: "ncm_api_base_url_desc", Placeholder: "https://ncm-api.example.com", Default: ""},
-		{Key: "ncm_cookie", Type: TypeSecret, Label: "ncm_cookie", Description: "ncm_cookie_desc", Placeholder: "MUSIC_U=...", Wide: true, Default: ""},
-		// 用当前填写的 API 地址与 Cookie 读取账号歌单，选择其一作为博客歌单
-		{Key: "ncm_playlist_id", Type: TypeInt, Widget: "ncm_playlist", Label: "ncm_playlist", Description: "ncm_playlist_desc", Min: num(0), Default: 0},
-		{Key: "ncm_song_level", Type: TypeEnum, Label: "ncm_song_level", Description: "ncm_song_level_desc", Options: options(NCMSongLevels, "ncm_song_level_"), Default: "exhigh"},
-		// 自定义 TTML 歌词源，按顺序探测（见 ttml_sources.go）
-		{Key: "music_ttml_sources", Type: TypeJSON, Widget: "ttml_sources", Label: "music_ttml_sources", Description: "music_ttml_sources_desc", Placeholder: "https://cdn.example.com/lyrics/{song_id}.ttml", Default: []MusicTTMLSource{}, Env: constant.EnvKeyMusicTTMLURL, decode: decodeMusicTTMLSources},
-	}},
 	// 顶栏灵动岛（实验性）：顶栏标题区按当前情境显示的内容，各项可单独关闭；总开关关闭时标题区只显示站名
-	{Tab: "frontend", Key: "island", Title: "section_island", Description: "section_island_desc", Items: []*Item{
+	{Tab: "appearance", Key: "island", Title: "section_island", Description: "section_island_desc", Items: []*Item{
 		{Key: "island_enabled", Type: TypeBool, Label: "island_enabled", Description: "island_enabled_desc", Default: true, siteInfoPath: path("island.enabled")},
 		{Key: "island_expand", Type: TypeBool, Label: "island_expand", Description: "island_expand_desc", Default: true, ShowWhen: when("island_enabled", "true"), siteInfoPath: path("island.expand")},
 		{Key: "island_music", Type: TypeBool, Label: "island_music", Description: "island_music_desc", Default: true, ShowWhen: when("island_enabled", "true"), siteInfoPath: path("island.music")},
@@ -155,11 +127,47 @@ var sections = []*Section{
 		// 问候时附带访客所在城市的天气：按 IP 粗略定位（城市级，不保存）并多一次天气请求，默认关闭
 		{Key: "island_weather", Type: TypeBool, Label: "island_weather", Description: "island_weather_desc", Default: false, ShowWhen: when("island_enabled", "true"), siteInfoPath: path("island.weather")},
 	}},
-	{Tab: "frontend", Key: "weather", Title: "section_weather", Description: "section_weather_desc", Items: []*Item{
+	{Tab: "appearance", Key: "weather", Title: "section_weather", Description: "section_weather_desc", Items: []*Item{
 		{Key: "qweather_api_host", Type: TypeString, Label: "qweather_api_host", Description: "qweather_api_host_desc", Placeholder: "abc123xyz.re.qweatherapi.com", Default: ""},
 		{Key: "qweather_api_key", Type: TypeSecret, Label: "qweather_api_key", Description: "qweather_api_key_desc", Default: ""},
 	}},
+	{Tab: "appearance", Key: "music", Title: "section_music", Description: "section_music_desc", Widget: "music_links", Items: []*Item{
+		// 歌单只来自网易云：填好 API 地址并选定歌单后前台才显示音乐播放器（站点信息的 music_enabled，见 controller/misc.go）
+		{Key: "ncm_api_base_url", Type: TypeURL, Label: "ncm_api_base_url", Description: "ncm_api_base_url_desc", Placeholder: "https://ncm-api.example.com", Default: ""},
+		{Key: "ncm_cookie", Type: TypeSecret, Label: "ncm_cookie", Description: "ncm_cookie_desc", Placeholder: "MUSIC_U=...", Wide: true, Default: ""},
+		// 用当前填写的 API 地址与 Cookie 读取账号歌单，选择其一作为博客歌单
+		{Key: "ncm_playlist_id", Type: TypeInt, Widget: "ncm_playlist", Label: "ncm_playlist", Description: "ncm_playlist_desc", Min: num(0), Default: 0},
+		{Key: "ncm_song_level", Type: TypeEnum, Label: "ncm_song_level", Description: "ncm_song_level_desc", Options: options(NCMSongLevels, "ncm_song_level_"), Default: "exhigh"},
+		// 自定义 TTML 歌词源，按顺序探测（见 ttml_sources.go）
+		{Key: "music_ttml_sources", Type: TypeJSON, Widget: "ttml_sources", Label: "music_ttml_sources", Description: "music_ttml_sources_desc", Placeholder: "https://cdn.example.com/lyrics/{song_id}.ttml", Default: []MusicTTMLSource{}, Env: constant.EnvKeyMusicTTMLURL, decode: decodeMusicTTMLSources},
+	}},
 
+	// ---- 内容与互动 ----
+	{Tab: "content", Key: "content", Title: "section_content", Items: []*Item{
+		{Key: "posts_per_page", Type: TypeInt, Label: "posts_per_page", Min: num(1), Max: num(100), Default: 10, siteInfoPath: path("posts_per_page")},
+		{Key: "revision_max_keep", Type: TypeInt, Label: "revision_max_keep", Description: "revision_max_keep_desc", Min: num(RevisionMaxKeepMin), Max: num(RevisionMaxKeepMax), Default: RevisionMaxKeepDefault},
+		// 站点地图协议单个文件最多 50000 条
+		{Key: "sitemap_limit", Type: TypeInt, Label: "sitemap_limit", Description: "sitemap_limit_desc", Min: num(1), Max: num(50000), Default: constant.DefaultSitemapLimit, Env: constant.EnvKeySitemapLimit},
+	}},
+	// 互动功能（评论与点赞）：把总分开关与评论展示参数放在同一处，应对审核或调优时一屏改完
+	{Tab: "content", Key: "interaction", Title: "section_interaction", Description: "section_interaction_desc", Items: []*Item{
+		{Key: "enable_interaction", Type: TypeBool, Label: "enable_interaction", Description: "enable_interaction_desc", Default: true, Env: constant.EnvKeyEnableInteraction, siteInfoPath: path("interaction.enabled")},
+		{Key: "enable_comment", Type: TypeBool, Label: "enable_comment", Description: "enable_comment_desc", Default: true, Env: constant.EnvKeyEnableComment, ShowWhen: when("enable_interaction", "true"), siteInfoPath: path("interaction.comment")},
+		{Key: "enable_like", Type: TypeBool, Label: "enable_like", Description: "enable_like_desc", Default: true, Env: constant.EnvKeyEnableLike, ShowWhen: when("enable_interaction", "true"), siteInfoPath: path("interaction.like")},
+		{Key: "comments_per_page", Type: TypeInt, Label: "comments_per_page", Min: num(1), Max: num(100), Default: 10, siteInfoPath: path("comments_per_page")},
+		{Key: "comment_max_length", Type: TypeInt, Label: "comment_max_length", Description: "comment_max_length_desc", Min: num(1), Max: num(CommentMaxLengthMax), Default: CommentMaxLengthDefault, siteInfoPath: path("comment_max_length")},
+		{Key: "comment_collapsed_lines", Type: TypeInt, Label: "comment_collapsed_lines", Description: "comment_collapsed_lines_desc", Min: num(1), Max: num(CommentCollapsedLinesMax), Default: CommentCollapsedLinesDefault, siteInfoPath: path("comment_collapsed_lines")},
+		{Key: "max_reply_depth", Type: TypeInt, Label: "max_reply_depth", Description: "max_reply_depth_desc", Min: num(1), Max: num(10), Default: constant.MaxReplyDepthDefault, Env: constant.EnvKeyMaxReplyDepth},
+	}},
+	// 全站公开资源检索（Meilisearch）：只索引公开的文章、页面、评论与候选用户，支持拼音与首字母检索；未启用或不可用时自动回退数据库查询
+	{Tab: "content", Key: "search", Title: "section_search", Description: "section_search_desc", Widget: "search_test", Items: []*Item{
+		{Key: "meilisearch_enable", Type: TypeBool, Label: "meilisearch_enable", Description: "meilisearch_enable_desc", Default: false, Env: constant.EnvKeyMeilisearchEnable},
+		{Key: "meilisearch_url", Type: TypeURL, Label: "meilisearch_url", Description: "meilisearch_url_desc", Placeholder: "http://meilisearch:7700", Default: "", Env: constant.EnvKeyMeilisearchURL},
+		{Key: "meilisearch_api_key", Type: TypeSecret, Label: "meilisearch_api_key", Description: "meilisearch_api_key_desc", Wide: true, Default: "", Env: constant.EnvKeyMeilisearchAPIKey},
+		{Key: "meilisearch_index_prefix", Type: TypeString, Label: "meilisearch_index_prefix", Description: "meilisearch_index_prefix_desc", Placeholder: "neo_", Default: "neo_", Env: constant.EnvKeyMeilisearchIndexPrefix},
+	}},
+
+	// ---- 账号与通知 ----
 	{Tab: "account", Key: "account", Title: "section_account", Items: []*Item{
 		{Key: "enable_register", Type: TypeBool, Label: "enable_register", Description: "enable_register_desc", Default: false, Env: constant.EnvKeyEnableRegister},
 		{Key: "enable_register_from_oidc", Type: TypeBool, Label: "enable_register_from_oidc", Description: "enable_register_from_oidc_desc", Default: true, Env: constant.EnvKeyEnableRegisterFromOidc},
@@ -174,8 +182,8 @@ var sections = []*Section{
 	}},
 	{Tab: "account", Key: "captcha", Title: "section_captcha", Description: "section_captcha_desc", Items: []*Item{
 		{Key: "captcha_provider", Type: TypeEnum, Label: "captcha_provider", Options: options([]string{constant.CaptchaTypeDisable, constant.CaptchaTypeTurnstile, constant.CaptchaTypeHCaptcha, constant.CaptchaTypeReCaptcha}, "captcha_provider_"), Default: constant.CaptchaTypeDisable, Env: constant.EnvKeyCaptchaProvider},
-		{Key: "captcha_site_key", Type: TypeString, Label: "captcha_site_key", Description: "captcha_site_key_desc", Default: "", Env: constant.EnvKeyCaptchaSiteKey},
-		{Key: "captcha_secret_key", Type: TypeSecret, Label: "captcha_secret_key", Description: "captcha_secret_key_desc", Wide: true, Default: "", Env: constant.EnvKeyCaptchaSecreteKey},
+		{Key: "captcha_site_key", Type: TypeString, Label: "captcha_site_key", Description: "captcha_site_key_desc", Default: "", Env: constant.EnvKeyCaptchaSiteKey, ShowWhen: when("captcha_provider", constant.CaptchaTypeTurnstile, constant.CaptchaTypeHCaptcha, constant.CaptchaTypeReCaptcha)},
+		{Key: "captcha_secret_key", Type: TypeSecret, Label: "captcha_secret_key", Description: "captcha_secret_key_desc", Wide: true, Default: "", Env: constant.EnvKeyCaptchaSecreteKey, ShowWhen: when("captcha_provider", constant.CaptchaTypeTurnstile, constant.CaptchaTypeHCaptcha, constant.CaptchaTypeReCaptcha)},
 	}},
 	// 组内最前面是发送测试邮件的组件：用它确认当前填写的 SMTP 配置可用，不需要先保存
 	{Tab: "account", Key: "email", Title: "section_email", Description: "section_email_desc", Widget: "email_test", Items: []*Item{
@@ -187,22 +195,22 @@ var sections = []*Section{
 		{Key: "email_password", Type: TypeSecret, Label: "email_password", Description: "email_password_desc", Default: "", Env: constant.EnvKeyEmailPassword},
 		{Key: "email_address", Type: TypeEmail, Label: "email_address", Description: "email_address_desc", Placeholder: "noreply@example.com", Default: "", Env: constant.EnvKeyEmailAddress},
 	}},
-	// 站内互动通知：站内通知始终即时送达，这里的配置只影响邮件汇总（见 docs/notification-spec.md）
+	// 站内互动通知：站内通知始终即时送达，开启邮件通知后展开邮件汇总策略（见 docs/notification-spec.md）
 	{Tab: "account", Key: "notification", Title: "section_notification", Description: "section_notification_desc", Widget: "notification_test", Items: []*Item{
+		{Key: "notification_retention_days", Type: TypeInt, Label: "notification_retention_days", Description: "notification_retention_days_desc", Min: num(7), Max: num(3650), Default: 180},
+		{Key: "notification_thread_include_author", Type: TypeBool, Label: "notification_thread_include_author", Description: "notification_thread_include_author_desc", Default: true},
 		{Key: "notification_email_enable", Type: TypeBool, Label: "notification_email_enable", Description: "notification_email_enable_desc", Default: false},
 		// 重要类型同时是用户可选的「上限」：用户只能在这个集合里关，不能开站点没开的类型；点赞与线程活动永远只是附带，不进这个列表
 		{Key: "notification_email_types", Type: TypeStringList, Label: "notification_email_types", Description: "notification_email_types_desc", Options: []Option{
 			{Value: constant.NotificationTypeCommentCreated, Label: "notification_type_comment_created"},
 			{Value: constant.NotificationTypeCommentReplied, Label: "notification_type_comment_replied"},
 			{Value: constant.NotificationTypeCommentMentioned, Label: "notification_type_comment_mentioned"},
-		}, Default: []string{constant.NotificationTypeCommentCreated, constant.NotificationTypeCommentReplied, constant.NotificationTypeCommentMentioned}},
-		{Key: "notification_email_interval", Type: TypeInt, Label: "notification_email_interval", Description: "notification_email_interval_desc", Min: num(0), Max: num(1440), Default: 10},
-		{Key: "notification_email_attach_hours", Type: TypeInt, Label: "notification_email_attach_hours", Description: "notification_email_attach_hours_desc", Min: num(1), Max: num(720), Default: 24},
-		{Key: "notification_email_attach_max", Type: TypeInt, Label: "notification_email_attach_max", Description: "notification_email_attach_max_desc", Min: num(0), Max: num(50), Default: 5},
-		{Key: "notification_email_max_items", Type: TypeInt, Label: "notification_email_max_items", Description: "notification_email_max_items_desc", Min: num(1), Max: num(50), Default: 10},
-		{Key: "notification_email_hourly_limit", Type: TypeInt, Label: "notification_email_hourly_limit", Description: "notification_email_hourly_limit_desc", Min: num(1), Max: num(1000), Default: 20},
-		{Key: "notification_thread_include_author", Type: TypeBool, Label: "notification_thread_include_author", Description: "notification_thread_include_author_desc", Default: true},
-		{Key: "notification_retention_days", Type: TypeInt, Label: "notification_retention_days", Description: "notification_retention_days_desc", Min: num(7), Max: num(3650), Default: 180},
+		}, Default: []string{constant.NotificationTypeCommentCreated, constant.NotificationTypeCommentReplied, constant.NotificationTypeCommentMentioned}, ShowWhen: when("notification_email_enable", "true")},
+		{Key: "notification_email_interval", Type: TypeInt, Label: "notification_email_interval", Description: "notification_email_interval_desc", Min: num(0), Max: num(1440), Default: 10, ShowWhen: when("notification_email_enable", "true")},
+		{Key: "notification_email_attach_hours", Type: TypeInt, Label: "notification_email_attach_hours", Description: "notification_email_attach_hours_desc", Min: num(1), Max: num(720), Default: 24, ShowWhen: when("notification_email_enable", "true")},
+		{Key: "notification_email_attach_max", Type: TypeInt, Label: "notification_email_attach_max", Description: "notification_email_attach_max_desc", Min: num(0), Max: num(50), Default: 5, ShowWhen: when("notification_email_enable", "true")},
+		{Key: "notification_email_max_items", Type: TypeInt, Label: "notification_email_max_items", Description: "notification_email_max_items_desc", Min: num(1), Max: num(50), Default: 10, ShowWhen: when("notification_email_enable", "true")},
+		{Key: "notification_email_hourly_limit", Type: TypeInt, Label: "notification_email_hourly_limit", Description: "notification_email_hourly_limit_desc", Min: num(1), Max: num(1000), Default: 20, ShowWhen: when("notification_email_enable", "true")},
 	}},
 	{Tab: "account", Key: "visit", Title: "section_visit", Items: []*Item{
 		{Key: "visit_log_retention_days", Type: TypeInt, Label: "visit_log_retention_days", Description: "visit_log_retention_days_desc", Min: num(1), Max: num(3650), Default: 90},
@@ -213,6 +221,7 @@ var sections = []*Section{
 		{Key: "error_report_retention_days", Type: TypeInt, Label: "error_report_retention_days", Description: "error_report_retention_days_desc", Min: num(1), Max: num(365), Default: 30},
 	}},
 
+	// ---- AI ----
 	{Tab: "ai", Key: "ai", Title: "section_ai", Description: "section_ai_desc", Items: []*Item{
 		{Key: "ai_api_base_url", Type: TypeURL, Label: "ai_api_base_url", Description: "ai_api_base_url_desc", Placeholder: "https://api.openai.com/v1", Default: ""},
 		{Key: "ai_model", Type: TypeString, Label: "ai_model", Description: "ai_model_desc", Placeholder: "gpt-4o-mini / deepseek-chat", Default: ""},
@@ -222,53 +231,47 @@ var sections = []*Section{
 		{Key: "ai_summary_concurrency", Type: TypeInt, Label: "ai_summary_concurrency", Description: "ai_summary_concurrency_desc", Min: num(1), Max: num(100), Default: 3},
 		// 全站 AI 月度预算：摘要、写作、翻译、歌词标注等非 AI 用户的调用在本月全站用量（含 AI 用户）达到后被拒绝；默认 0 不限
 		{Key: "ai_monthly_token_budget", Type: TypeInt, Label: "ai_monthly_token_budget", Description: "ai_monthly_token_budget_desc", Min: num(0), Max: num(1e12), Default: 0},
-		{Key: "ai_writing_style", Type: TypeText, Label: "ai_writing_style", Description: "ai_writing_style_desc", PlaceholderKey: "ai_writing_style_placeholder", Rows: 6, Wide: true, Default: ""},
 	}},
-	// AI 思考强度：按任务独立控制 reasoning_effort / DeepSeek thinking；不支持的模型会自动降级重试
-	{Tab: "ai", Key: "ai_thinking", Title: "section_ai_thinking", Description: "section_ai_thinking_desc", Items: []*Item{
-		{Key: "ai_thinking_lyric_translation", Type: TypeEnum, Label: "ai_thinking_lyric_translation", Description: "ai_thinking_lyric_translation_desc", Options: aiThinkingModes, Default: ""},
-		{Key: "ai_thinking_lyric_annotation", Type: TypeEnum, Label: "ai_thinking_lyric_annotation", Description: "ai_thinking_lyric_annotation_desc", Options: aiThinkingModes, Default: "none"},
-		{Key: "ai_thinking_lyric_pronunciation", Type: TypeEnum, Label: "ai_thinking_lyric_pronunciation", Description: "ai_thinking_lyric_pronunciation_desc", Options: aiThinkingModes, Default: "none"},
-		{Key: "ai_thinking_writing", Type: TypeEnum, Label: "ai_thinking_writing", Description: "ai_thinking_writing_desc", Options: aiThinkingModes, Default: ""},
-		{Key: "ai_thinking_comment_translate", Type: TypeEnum, Label: "ai_thinking_comment_translate", Description: "ai_thinking_comment_translate_desc", Options: aiThinkingModes, Default: "low"},
-		{Key: "ai_thinking_comment_moderation", Type: TypeEnum, Label: "ai_thinking_comment_moderation", Description: "ai_thinking_comment_moderation_desc", Options: aiThinkingModes, Default: "none"},
-		{Key: "ai_thinking_summary", Type: TypeEnum, Label: "ai_thinking_summary", Description: "ai_thinking_summary_desc", Options: aiThinkingModes, Default: "none"},
+	{Tab: "ai", Key: "ai_writing", Title: "section_ai_writing", Description: "section_ai_writing_desc", Items: []*Item{
+		{Key: "ai_writing_style", Type: TypeText, Label: "ai_writing_style", Description: "ai_writing_style_desc", PlaceholderKey: "ai_writing_style_placeholder", Rows: 6, Wide: true, Default: ""},
 	}},
 	// 评论 AI 内容审查：先展示再异步后台审查（含 AI 用户），违规评论保留入库但仅后台管理员可见
 	{Tab: "ai", Key: "ai_moderation", Title: "section_ai_moderation", Description: "section_ai_moderation_desc", Items: []*Item{
 		{Key: "ai_comment_moderation_enabled", Type: TypeBool, Label: "ai_comment_moderation_enabled", Description: "ai_comment_moderation_enabled_desc", Default: true},
 		{Key: "ai_comment_moderation_prompt", Type: TypeText, Label: "ai_comment_moderation_prompt", Description: "ai_comment_moderation_prompt_desc", PlaceholderKey: "ai_comment_moderation_prompt_placeholder", Rows: 4, Wide: true, Default: "", ShowWhen: when("ai_comment_moderation_enabled", "true")},
 	}},
-	// AI 用户：由 Agent 驱动、与普通用户同权限的账号；模型使用上面的 AI 配置
-	{Tab: "ai", Key: "ai_agents", Title: "section_ai_agents", Description: "section_ai_agents_desc", Items: []*Item{
-		{Key: "ai_agents_enabled", Type: TypeBool, Label: "ai_agents_enabled", Description: "ai_agents_enabled_desc", Default: false},
-		{Key: "ai_agent_model_ambient", Type: TypeString, Label: "ai_agent_model_ambient", Description: "ai_agent_model_ambient_desc", Default: ""},
-		{Key: "ai_agent_model_expert", Type: TypeString, Label: "ai_agent_model_expert", Description: "ai_agent_model_expert_desc", Default: ""},
-		{Key: "ai_agents_llm_calls_per_hour", Type: TypeInt, Label: "ai_agents_llm_calls_per_hour", Description: "ai_agents_llm_calls_per_hour_desc", Min: num(1), Max: num(100000), Default: 200},
-		{Key: "ai_agents_monthly_token_budget", Type: TypeInt, Label: "ai_agents_monthly_token_budget", Description: "ai_agents_monthly_token_budget_desc", Min: num(0), Max: num(1e12), Default: 20000000},
-		{Key: "ai_agents_comments_per_day", Type: TypeInt, Label: "ai_agents_comments_per_day", Description: "ai_agents_comments_per_day_desc", Min: num(0), Max: num(100000), Default: 60},
-		{Key: "ai_agents_likes_per_day", Type: TypeInt, Label: "ai_agents_likes_per_day", Description: "ai_agents_likes_per_day_desc", Min: num(0), Max: num(1000000), Default: 600},
-		{Key: "ai_agents_comments_per_post", Type: TypeInt, Label: "ai_agents_comments_per_post", Description: "ai_agents_comments_per_post_desc", Min: num(0), Max: num(1000), Default: 3},
-		{Key: "ai_agents_ai_ratio", Type: TypeFloat, Label: "ai_agents_ai_ratio", Description: "ai_agents_ai_ratio_desc", Min: num(0), Max: num(100), Step: 0.5, Default: 2.0},
-		{Key: "ai_agents_replies_per_human_comment", Type: TypeInt, Label: "ai_agents_replies_per_human_comment", Description: "ai_agents_replies_per_human_comment_desc", Min: num(0), Max: num(100), Default: 2},
-		{Key: "ai_agents_publish_fanout", Type: TypeInt, Label: "ai_agents_publish_fanout", Description: "ai_agents_publish_fanout_desc", Min: num(0), Max: num(1000), Default: 8},
-		{Key: "ai_agents_quiet_hours", Type: TypeString, Label: "ai_agents_quiet_hours", Description: "ai_agents_quiet_hours_desc", Placeholder: "02:00-07:00", Default: ""},
-		{Key: "ai_agents_max_chain_depth", Type: TypeInt, Label: "ai_agents_max_chain_depth", Description: "ai_agents_max_chain_depth_desc", Min: num(1), Max: num(10), Default: 5},
-		{Key: "ai_agents_pair_exchanges", Type: TypeInt, Label: "ai_agents_pair_exchanges", Description: "ai_agents_pair_exchanges_desc", Min: num(0), Max: num(100), Default: 2},
-		{Key: "ai_agents_mentions_per_pair_per_day", Type: TypeInt, Label: "ai_agents_mentions_per_pair_per_day", Description: "ai_agents_mentions_per_pair_per_day_desc", Min: num(0), Max: num(1000), Default: 3},
-		{Key: "ai_agents_mentions_per_user_per_hour", Type: TypeInt, Label: "ai_agents_mentions_per_user_per_hour", Description: "ai_agents_mentions_per_user_per_hour_desc", Min: num(0), Max: num(10000), Default: 10},
-		{Key: "ai_agents_profile_self_edit", Type: TypeBool, Label: "ai_agents_profile_self_edit", Description: "ai_agents_profile_self_edit_desc", Default: true},
-		{Key: "ai_agents_memory_days_ambient", Type: TypeInt, Label: "ai_agents_memory_days_ambient", Description: "ai_agents_memory_days_ambient_desc", Min: num(1), Max: num(3650), Default: 30},
-		{Key: "ai_agents_memory_days_expert", Type: TypeInt, Label: "ai_agents_memory_days_expert", Description: "ai_agents_memory_days_expert_desc", Min: num(1), Max: num(3650), Default: 180},
-		{Key: "ai_agents_run_retention_days", Type: TypeInt, Label: "ai_agents_run_retention_days", Description: "ai_agents_run_retention_days_desc", Min: num(1), Max: num(3650), Default: 90},
+	// AI 思考强度：按任务独立控制 reasoning_effort / DeepSeek thinking；不支持的模型会自动降级重试
+	{Tab: "ai", Key: "ai_thinking", Title: "section_ai_thinking", Description: "section_ai_thinking_desc", Items: []*Item{
+		{Key: "ai_thinking_summary", Type: TypeEnum, Label: "ai_thinking_summary", Description: "ai_thinking_summary_desc", Options: aiThinkingModes, Default: "none"},
+		{Key: "ai_thinking_writing", Type: TypeEnum, Label: "ai_thinking_writing", Description: "ai_thinking_writing_desc", Options: aiThinkingModes, Default: ""},
+		{Key: "ai_thinking_comment_translate", Type: TypeEnum, Label: "ai_thinking_comment_translate", Description: "ai_thinking_comment_translate_desc", Options: aiThinkingModes, Default: "low"},
+		{Key: "ai_thinking_comment_moderation", Type: TypeEnum, Label: "ai_thinking_comment_moderation", Description: "ai_thinking_comment_moderation_desc", Options: aiThinkingModes, Default: "none"},
+		{Key: "ai_thinking_lyric_translation", Type: TypeEnum, Label: "ai_thinking_lyric_translation", Description: "ai_thinking_lyric_translation_desc", Options: aiThinkingModes, Default: ""},
+		{Key: "ai_thinking_lyric_annotation", Type: TypeEnum, Label: "ai_thinking_lyric_annotation", Description: "ai_thinking_lyric_annotation_desc", Options: aiThinkingModes, Default: "none"},
+		{Key: "ai_thinking_lyric_pronunciation", Type: TypeEnum, Label: "ai_thinking_lyric_pronunciation", Description: "ai_thinking_lyric_pronunciation_desc", Options: aiThinkingModes, Default: "none"},
 	}},
-
-	{Tab: "rss", Key: "rss", Title: "section_rss", Description: "section_rss_desc", Items: []*Item{
-		{Key: "site_title", Type: TypeString, Label: "rss_title", Default: ""},
-		{Key: "site_author", Type: TypeString, Label: "rss_author", Default: ""},
-		{Key: "site_copyright", Type: TypeString, Label: "rss_copyright", Default: ""},
-		{Key: "site_image", Type: TypeImage, Label: "rss_image", Default: ""},
-		{Key: "rss_limit", Type: TypeInt, Label: "rss_limit", Description: "rss_limit_desc", Min: num(1), Max: num(500), Default: constant.DefaultRssLimit, Env: constant.EnvKeyRssLimit},
+	// AI 用户：由 Agent 驱动、与普通用户同权限的账号；开启后展开细粒度配额与冷却设置
+	{Tab: "ai", Key: "ai_agents", Title: "section_ai_agents", Description: "section_ai_agents_desc", Widget: "ai_agents_link", Items: []*Item{
+		{Key: "ai_agents_enabled", Type: TypeBool, Label: "ai_agents_enabled", Description: "ai_agents_enabled_desc", Default: false},
+		{Key: "ai_agent_model_ambient", Type: TypeString, Label: "ai_agent_model_ambient", Description: "ai_agent_model_ambient_desc", Default: "", ShowWhen: when("ai_agents_enabled", "true")},
+		{Key: "ai_agent_model_expert", Type: TypeString, Label: "ai_agent_model_expert", Description: "ai_agent_model_expert_desc", Default: "", ShowWhen: when("ai_agents_enabled", "true")},
+		{Key: "ai_agents_llm_calls_per_hour", Type: TypeInt, Label: "ai_agents_llm_calls_per_hour", Description: "ai_agents_llm_calls_per_hour_desc", Min: num(1), Max: num(100000), Default: 200, ShowWhen: when("ai_agents_enabled", "true")},
+		{Key: "ai_agents_monthly_token_budget", Type: TypeInt, Label: "ai_agents_monthly_token_budget", Description: "ai_agents_monthly_token_budget_desc", Min: num(0), Max: num(1e12), Default: 20000000, ShowWhen: when("ai_agents_enabled", "true")},
+		{Key: "ai_agents_comments_per_day", Type: TypeInt, Label: "ai_agents_comments_per_day", Description: "ai_agents_comments_per_day_desc", Min: num(0), Max: num(100000), Default: 60, ShowWhen: when("ai_agents_enabled", "true")},
+		{Key: "ai_agents_likes_per_day", Type: TypeInt, Label: "ai_agents_likes_per_day", Description: "ai_agents_likes_per_day_desc", Min: num(0), Max: num(1000000), Default: 600, ShowWhen: when("ai_agents_enabled", "true")},
+		{Key: "ai_agents_comments_per_post", Type: TypeInt, Label: "ai_agents_comments_per_post", Description: "ai_agents_comments_per_post_desc", Min: num(0), Max: num(1000), Default: 3, ShowWhen: when("ai_agents_enabled", "true")},
+		{Key: "ai_agents_ai_ratio", Type: TypeFloat, Label: "ai_agents_ai_ratio", Description: "ai_agents_ai_ratio_desc", Min: num(0), Max: num(100), Step: 0.5, Default: 2.0, ShowWhen: when("ai_agents_enabled", "true")},
+		{Key: "ai_agents_replies_per_human_comment", Type: TypeInt, Label: "ai_agents_replies_per_human_comment", Description: "ai_agents_replies_per_human_comment_desc", Min: num(0), Max: num(100), Default: 2, ShowWhen: when("ai_agents_enabled", "true")},
+		{Key: "ai_agents_publish_fanout", Type: TypeInt, Label: "ai_agents_publish_fanout", Description: "ai_agents_publish_fanout_desc", Min: num(0), Max: num(1000), Default: 8, ShowWhen: when("ai_agents_enabled", "true")},
+		{Key: "ai_agents_quiet_hours", Type: TypeString, Label: "ai_agents_quiet_hours", Description: "ai_agents_quiet_hours_desc", Placeholder: "02:00-07:00", Default: "", ShowWhen: when("ai_agents_enabled", "true")},
+		{Key: "ai_agents_max_chain_depth", Type: TypeInt, Label: "ai_agents_max_chain_depth", Description: "ai_agents_max_chain_depth_desc", Min: num(1), Max: num(10), Default: 5, ShowWhen: when("ai_agents_enabled", "true")},
+		{Key: "ai_agents_pair_exchanges", Type: TypeInt, Label: "ai_agents_pair_exchanges", Description: "ai_agents_pair_exchanges_desc", Min: num(0), Max: num(100), Default: 2, ShowWhen: when("ai_agents_enabled", "true")},
+		{Key: "ai_agents_mentions_per_pair_per_day", Type: TypeInt, Label: "ai_agents_mentions_per_pair_per_day", Description: "ai_agents_mentions_per_pair_per_day_desc", Min: num(0), Max: num(1000), Default: 3, ShowWhen: when("ai_agents_enabled", "true")},
+		{Key: "ai_agents_mentions_per_user_per_hour", Type: TypeInt, Label: "ai_agents_mentions_per_user_per_hour", Description: "ai_agents_mentions_per_user_per_hour_desc", Min: num(0), Max: num(10000), Default: 10, ShowWhen: when("ai_agents_enabled", "true")},
+		{Key: "ai_agents_profile_self_edit", Type: TypeBool, Label: "ai_agents_profile_self_edit", Description: "ai_agents_profile_self_edit_desc", Default: true, ShowWhen: when("ai_agents_enabled", "true")},
+		{Key: "ai_agents_memory_days_ambient", Type: TypeInt, Label: "ai_agents_memory_days_ambient", Description: "ai_agents_memory_days_ambient_desc", Min: num(1), Max: num(3650), Default: 30, ShowWhen: when("ai_agents_enabled", "true")},
+		{Key: "ai_agents_memory_days_expert", Type: TypeInt, Label: "ai_agents_memory_days_expert", Description: "ai_agents_memory_days_expert_desc", Min: num(1), Max: num(3650), Default: 180, ShowWhen: when("ai_agents_enabled", "true")},
+		{Key: "ai_agents_run_retention_days", Type: TypeInt, Label: "ai_agents_run_retention_days", Description: "ai_agents_run_retention_days_desc", Min: num(1), Max: num(3650), Default: 90, ShowWhen: when("ai_agents_enabled", "true")},
 	}},
 }
 

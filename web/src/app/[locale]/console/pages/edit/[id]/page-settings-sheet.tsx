@@ -68,6 +68,7 @@ export function PageSettingsSheet({
   const pageT = useTranslations('Console.pages.meta')
   const errorDetailsT = useResponseErrorDetailsT()
   const form = useForm<PageSettingsValues>({ mode: 'onChange', defaultValues: toValues(meta) })
+  const showInNav = form.watch('showInNav')
   useSyncSettingsForm(form, open, toValues(meta), onChange)
 
   return (
@@ -116,7 +117,7 @@ export function PageSettingsSheet({
 
           <SettingsSection icon={CompassIcon} title={t('settings_nav')}>
             <SwitchField form={form} name="showInNav" label={pageT('show_in_nav')} description={t('show_in_nav_hint')} />
-            <NumberField form={form} name="navOrder" label={pageT('nav_order')} description={t('nav_order_hint')} />
+            {showInNav && <NumberField form={form} name="navOrder" label={pageT('nav_order')} description={t('nav_order_hint')} />}
           </SettingsSection>
 
           <SettingsSection icon={LayoutTemplateIcon} title={t('settings_layout')}>

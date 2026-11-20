@@ -10,6 +10,7 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { createPost, updatePost } from '@/api/post'
 import { AssetField } from '@/components/common/asset-picker'
+import { LabelWithInfo } from '@/components/common/info-tooltip'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -27,13 +28,19 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { useSiteInfo } from '@/contexts/site-info-context'
 import { useCommonT, useErrorMessageT, useOperationT, useResponseErrorDetailsT } from '@/hooks/use-translations'
 import { useRouter } from '@/i18n/navigation'
+import { CONTENT_THEMES, resolveContentTheme } from '@/lib/content-theme'
 import { getPostEditUrl } from '@/utils/common/route'
 import { AITitleSuggester } from './ai-title-suggester'
 import { PostAITaxonomyRecommender } from './post-ai-taxonomy-recommender'
 import { PostCategorySelector, PostLabelSelector } from './post-meta-category-and-label-selector'
+
+const FOLLOW_SITE_THEME = '__site__'
 
 interface PostMetaForm {
   title: string
@@ -42,6 +49,8 @@ interface PostMetaForm {
   category: Category | null
   labels: Label[]
   description: string
+  contentTheme: string
+  isPrivate: boolean
 }
 
 export function CreateOrUpdatePostMetaDialogWithoutButton({
@@ -60,6 +69,9 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
   const errorDetailsT = useResponseErrorDetailsT()
   const commonT = useCommonT()
   const t = useTranslations('Console.post_edit')
+  const editorT = useTranslations('Console.editor')
+  const globalT = useTranslations('Console.global')
+  const siteTheme = resolveContentTheme(null, useSiteInfo().siteInfo.contentTheme)
   const format = useFormatter()
   const router = useRouter()
   const form = useForm<PostMetaForm>({
@@ -77,7 +89,6 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
 
   const onSubmit: SubmitHandler<PostMetaForm> = async (data) => {
     if (post) {
-      // 更新文章元信息（不提交表单未暴露的 isPrivate，避免覆盖其他地方的修改）
       await updatePost({
         post: {
           id: post.id,
@@ -88,6 +99,8 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
           categoryId: data.category?.id ?? 0,
           description: data.description,
           labelIds: data.labels.map(l => l.id),
+          contentTheme: data.contentTheme,
+          isPrivate: data.isPrivate,
         },
       })
         .then(() => {
@@ -101,6 +114,8 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
               category: data.category,
               description: data.description,
               labels: data.labels,
+              contentTheme: data.contentTheme,
+              isPrivate: data.isPrivate,
               type: 'html',
             },
           })
@@ -120,7 +135,8 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
           categoryId: data.category?.id || null,
           description: data.description,
           labelIds: data.labels.map(l => l.id),
-          isPrivate: false,
+          contentTheme: data.contentTheme,
+          isPrivate: data.isPrivate,
           content: '',
           type: 'html',
         },
@@ -255,6 +271,40 @@ export function CreateOrUpdatePostMetaDialogWithoutButton({
 
             <PostLabelSelector />
 
+            <FormField
+              control={form.control}
+              name="contentTheme"
+              render={({ field }) => (
+                <FormItem>
+                  <LabelWithInfo info={editorT('content_theme_hint')}><FormLabel>{editorT('content_theme')}</FormLabel></LabelWithInfo>
+                  <Select value={field.value || FOLLOW_SITE_THEME} onValueChange={value => field.onChange(value === FOLLOW_SITE_THEME ? '' : value)}>
+                    <FormControl>
+                      <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value={FOLLOW_SITE_THEME}>{editorT('content_theme_follow_site', { theme: globalT(`content_theme_${siteTheme}`) })}</SelectItem>
+                      {CONTENT_THEMES.map(theme => (
+                        <SelectItem key={theme} value={theme}>{globalT(`content_theme_${theme}`)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="isPrivate"
+              render={({ field }) => (
+                <FormItem className="flex items-center justify-between gap-4 rounded-lg border p-3">
+                  <LabelWithInfo info={editorT('private_hint')}><FormLabel>{editorT('private')}</FormLabel></LabelWithInfo>
+                  <FormControl>
+                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
             <DialogFooter>
               <div className="flex gap-3">
                 <Button onClick={handleCancel} type="button" variant="outline">
@@ -282,6 +332,8 @@ function toFormValues(post: Post | null): PostMetaForm {
         category: post.category,
         labels: post.labels || [],
         description: post.description || '',
+        contentTheme: post.contentTheme || '',
+        isPrivate: Boolean(post.isPrivate),
       }
     : {
         title: '',
@@ -290,6 +342,8 @@ function toFormValues(post: Post | null): PostMetaForm {
         category: null,
         labels: [],
         description: '',
+        contentTheme: '',
+        isPrivate: false,
       }
 }
 
