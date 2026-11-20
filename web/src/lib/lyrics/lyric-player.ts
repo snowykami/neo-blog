@@ -73,10 +73,31 @@ export interface LyricPlayerDisplay {
   footerText: string
   // 无名合唱胶囊的兜底文案（多语言「合唱」 / Together）
   togetherLabel?: string
+  // 歌曲原文语种代码（映射为 BCP 47 lang 挂在 .lyric-main 上，统一跨浏览器中日韩异体字选形，不影响译文行）
+  songLang?: string | null
   // 强调特效（放大、辉光、波浪）；减少动态效果时始终关闭
   effects: boolean
   // HDR 高光：正在唱的字亮过 SDR 白（只在深色界面、屏幕支持 HDR 时开启，见 lib/hdr-color.ts）
   hdr: boolean
+}
+
+/** 将内部歌曲语种标识规范化为标准 HTML BCP 47 lang 属性值（多语混合或未知时返回空串，沿用页面根语言） */
+export function toLyricHtmlLang(songLang?: string | null): string {
+  const raw = songLang?.trim().toLowerCase().replace(/_/g, '-')
+  if (!raw || raw === 'other' || raw === 'und' || raw === 'zxx' || raw === 'mul' || raw === 'art' || raw === 'unknown' || raw === 'none')
+    return ''
+  if (raw === 'zh' || raw === 'zh-cn' || raw === 'zh-sg' || raw === 'zh-hans' || raw.startsWith('zh-hans-'))
+    return 'zh-Hans'
+  if (raw === 'zh-tw' || raw === 'zh-hant' || raw.startsWith('zh-hant-'))
+    return 'zh-Hant'
+  if (raw === 'zh-hk' || raw === 'zh-mo' || raw === 'yue' || raw.startsWith('yue-'))
+    return 'zh-HK'
+  if (raw === 'jp')
+    return 'ja'
+  if (raw === 'kr')
+    return 'ko'
+  const head = raw.split('-', 1)[0]
+  return /^[a-z]{2,3}$/.test(head) ? head : ''
 }
 
 interface WordView {
@@ -197,8 +218,9 @@ interface ItemView {
   hdrExitStart: number | null
   hdrExitFromSpot: boolean
   hdrExiting: boolean
-  // 普通词上浮退场：脱离激活态后在 WORD_LIFT_EXIT_MS 内平滑回落，避免行刚唱完时字瞬间向下跳回基线
+  // 普通词与强调词上浮退场：脱离激活态后在 220ms 内平滑回落，避免行刚唱完时字瞬间向下跳回基线
   liftExitStart: number | null
+  liftExiting: boolean
   mainOpacity: string
   // 多声部胶囊与色条的外层紧贴容器（包裹胶囊、竖条与正文），按需展开上方空间；竖条聚光灯下淡出，胶囊按 1/s 反向缩放
   vocal: HTMLElement | null
@@ -211,10 +233,8 @@ interface ItemView {
   pillVisible: boolean
 }
 
-// 字与字的错开比例、上浮提前开始的时长（参考 AMLL）；演出时长下限见 config.ts 的 LYRIC_EMPHASIS_MIN_MS
+// 字与字的错开比例；演出时长下限见 config.ts 的 LYRIC_EMPHASIS_MIN_MS
 const EMPHASIS_STAGGER_RATIO = 1 / 2.5
-const EMPHASIS_FLOAT_LEAD_MS = 400
-const EMPHASIS_FLOAT_STRETCH = 1.4
 
 // focus 在演出时长的多少比例内由模糊变清晰（shake 的抖动周期等随节奏变化的参数见 pace.ts）
 const EMPHASIS_FOCUS_CLEAR_RATIO = 0.6
@@ -1053,7 +1073,7 @@ export class LyricPlayer {
   }
 
   setDisplay(display: LyricPlayerDisplay) {
-    const { showTranslation, showRomanization, footerText, togetherLabel, effects, hdr } = this.display
+    const { showTranslation, showRomanization, footerText, togetherLabel, songLang, effects, hdr } = this.display
     this.display = display
     // HDR 高光开关时强调词的字从头重写样式（背景、辉光的画法不同）
     if ((effects && !display.effects) || display.hdr !== hdr)
@@ -1083,6 +1103,17 @@ export class LyricPlayer {
         view.el.querySelectorAll<HTMLElement>('.lyric-singer__label[data-together="1"]').forEach((label) => {
           label.textContent = nextTogether
         })
+      })
+    }
+    const nextHtmlLang = toLyricHtmlLang(display.songLang)
+    if (nextHtmlLang !== toLyricHtmlLang(songLang)) {
+      this.views.forEach((view) => {
+        if (!view.main)
+          return
+        if (nextHtmlLang)
+          view.main.lang = nextHtmlLang
+        else
+          view.main.removeAttribute('lang')
       })
     }
     // 逐字音译（注音行）随音译开关显示 / 隐藏
@@ -1183,6 +1214,7 @@ export class LyricPlayer {
         hdrExitFromSpot: false,
         hdrExiting: false,
         liftExitStart: null,
+        liftExiting: false,
         mainOpacity: '',
         vocal: null,
         edge: null,
@@ -1225,6 +1257,9 @@ export class LyricPlayer {
         el.dataset.start = String(line.start)
         const main = doc.createElement('span')
         main.className = 'lyric-main'
+        const htmlLang = toLyricHtmlLang(this.display.songLang)
+        if (htmlLang)
+          main.lang = htmlLang
         view.main = main
         if (lineTimed) {
           main.textContent = line.words.map(word => word.text).join('')
@@ -1729,6 +1764,8 @@ export class LyricPlayer {
   private clearHdrExit(view: ItemView) {
     view.hdrExitStart = null
     view.hdrExitFromSpot = false
+    view.liftExitStart = null
+    view.liftExiting = false
     if (view.hdrExiting) {
       view.hdrExiting = false
       view.el.classList.remove('lyric-line--hdr-exit')
@@ -2195,7 +2232,7 @@ export class LyricPlayer {
             view.singerPill.style.transform = nextSingerTransform
           }
         }
-        const lineNeedsDetail = detail || active !== view.active || hdrExiting || view.hdrExiting || liftExiting
+        const lineNeedsDetail = detail || active !== view.active || hdrExiting || view.hdrExiting || liftExiting || view.liftExiting
         if (!lineNeedsDetail)
           continue
         // 与下面的逐字样式在同一帧切换（HDR 高光的字色由类名决定，见 lyric-player.css）
@@ -2207,6 +2244,7 @@ export class LyricPlayer {
           view.hdrExiting = hdrExiting
           view.el.classList.toggle('lyric-line--hdr-exit', hdrExiting)
         }
+        view.liftExiting = liftExiting
         const linePeakGain = view.hdrExitFromSpot ? this.spotGain() : HDR_BRIGHTNESS.lyric
         if (!this.lyrics.wordTimed && view.main) {
           const endAlpha = hdrExitEndAlpha(alpha, linePeakGain)
@@ -2227,7 +2265,7 @@ export class LyricPlayer {
         this.paintWords(view, active, timeMs + LYRIC_ANIMATION_HEADSTART_MS, feather, wordDimAlpha, hdrExit, liftExitWeight)
         if (view.emphasis.length > 0) {
           if (this.display.effects && !this.reducedMotion)
-            this.paintEmphasis(view, active, timeMs, hdrExit, debrisReads)
+            this.paintEmphasis(view, active, timeMs, hdrExit, liftExitWeight, debrisReads)
           else
             this.resetEmphasis(view)
         }
@@ -2326,12 +2364,14 @@ export class LyricPlayer {
     const liftCurve = (p: number) => easeOut(p) + (bounceBell > 0 ? Math.sin(p * Math.PI) * bounceBell : 0)
     const effectsOn = this.display.effects && !this.reducedMotion
     const wordEndAlpha = hdrExit ? hdrExitEndAlpha(hdrExit.targetAlpha, hdrExit.lineGain) : 0
+    const exitWeight = hdrExit ? hdrExit.weight : liftExitWeight
     for (const word of view.words) {
       let mask = ''
       let maskPos = ''
       let opacity = ''
       let transform = ''
       const width = word.width - word.pad * 2
+      const outerLifts = !this.reducedMotion && word.lifts && (!word.emphasized || !effectsOn)
       if (active && width > 0) {
         const progress = getWordProgress(word.word.start, word.word.end, timeMs)
         if (progress <= 0) {
@@ -2348,24 +2388,20 @@ export class LyricPlayer {
             mask = `linear-gradient(90deg, #000 ${(x - feather).toFixed(1)}px, rgb(0 0 0 / ${dimAlpha}) ${x.toFixed(1)}px)`
           }
         }
-        if (!this.reducedMotion && progress > 0 && word.lifts && (!word.emphasized || !effectsOn))
+        if (outerLifts && progress > 0)
           transform = `translateY(${(-floatPx * liftCurve(progress)).toFixed(2)}px)`
       }
-      else if (hdrExit && !word.split) {
-        const progress = getWordProgress(word.word.start, word.word.end, timeMs)
-        const startAlpha = dimAlpha + (1 - dimAlpha) * progress
-        const nextAlpha = wordEndAlpha + (startAlpha - wordEndAlpha) * hdrExit.weight
-        opacity = nextAlpha < 0.9995 ? nextAlpha.toFixed(3) : ''
-        if (!this.reducedMotion && progress > 0 && word.lifts) {
-          const dy = -floatPx * liftCurve(progress) * hdrExit.weight
-          if (Math.abs(dy) >= 0.02)
-            transform = `translateY(${dy.toFixed(2)}px)`
+      else {
+        const progress = (hdrExit && !word.split) || (outerLifts && exitWeight > 0)
+          ? getWordProgress(word.word.start, word.word.end, timeMs)
+          : 0
+        if (hdrExit && !word.split) {
+          const startAlpha = dimAlpha + (1 - dimAlpha) * progress
+          const nextAlpha = wordEndAlpha + (startAlpha - wordEndAlpha) * hdrExit.weight
+          opacity = nextAlpha < 0.9995 ? nextAlpha.toFixed(3) : ''
         }
-      }
-      else if (liftExitWeight > 0 && !word.split && !this.reducedMotion && word.lifts && (!word.emphasized || !effectsOn)) {
-        const progress = getWordProgress(word.word.start, word.word.end, timeMs)
-        if (progress > 0) {
-          const dy = -floatPx * liftCurve(progress) * liftExitWeight
+        if (outerLifts && exitWeight > 0 && progress > 0) {
+          const dy = -floatPx * liftCurve(progress) * exitWeight
           if (Math.abs(dy) >= 0.02)
             transform = `translateY(${dy.toFixed(2)}px)`
         }
@@ -2415,9 +2451,18 @@ export class LyricPlayer {
     active: boolean,
     timeMs: number,
     hdrExit: { weight: number, targetAlpha: number, dimAlpha: number } | null = null,
+    liftExitWeight = 0,
     debrisReads: Map<HTMLElement, DebrisMeasured> | null = null,
   ) {
-    const bg = view.item.kind === 'line' && this.lyrics.lines[view.item.line]?.isBackground
+    const bg = view.item.kind === 'line' && Boolean(this.lyrics.lines[view.item.line]?.isBackground)
+    const motionSpec = this.lyrics.motion ? resolveMotionSprings(this.lyrics.motion) : null
+    const wordFloatEm = motionSpec ? motionSpec.wordFloatEm : LYRIC_WORD_FLOAT_EM
+    const bounceBell = motionSpec ? motionSpec.bounceBell : 0
+    // 强调词单字共享与普通词完全一致的演唱上浮基线（唱完后保持在同一上浮高度，直到整行结束随 liftExitWeight / hdrExit 平滑回落）
+    const floatPx = wordFloatEm * this.fontSize * (bg ? 2 : 1)
+    const charEmPx = this.fontSize * (bg ? 0.7 : 1)
+    const liftCurve = (p: number) => easeOut(p) + (bounceBell > 0 ? Math.sin(p * Math.PI) * bounceBell : 0)
+    const baseLiftWeight = active ? 1 : (hdrExit ? hdrExit.weight : liftExitWeight)
     // 聚光灯下的点题句：辉光与字的放大随聚光灯强度收敛（见 SPOTLIGHT_EMPHASIS_GLOW）
     const spot = this.views[this.spotView] === view ? this.spot : 0
     // HDR 高光：正在唱或处于 0.4s 退场窗口内的行里强调词的字由静态 HDR 素材绘制，退场期间不换素材、仅通过单字 opacity 平滑降到 SDR 亮度
@@ -2467,7 +2512,10 @@ export class LyricPlayer {
         if (hold && timeMs >= begin + duration / 2)
           v = Math.max(v, hold.release)
         const vibrato = hold?.amount ?? 0
-        const lift = Math.sin(Math.PI * Math.min(1, Math.max(0, (timeMs - begin + EMPHASIS_FLOAT_LEAD_MS) / (duration * EMPHASIS_FLOAT_STRETCH))))
+        const charProgress = getWordProgress(char.start, char.end, timeMs + LYRIC_ANIMATION_HEADSTART_MS)
+        const baseLiftPx = !isRuby && !this.reducedMotion && charProgress > 0 && baseLiftWeight > 0
+          ? -floatPx * liftCurve(charProgress) * baseLiftWeight
+          : 0
         let transform = ''
         let shadow = ''
         let color = ''
@@ -2528,12 +2576,14 @@ export class LyricPlayer {
             color = `color-mix(in srgb, ${tintColor} ${tintPct}%, currentColor)`
           }
         }
-        // factor 为 0 的组（唱得太快的标注短语）只保留颜色、字体与字形，不做动效；柔光与波浪由拍驱动，起落曲线之外也会动
+        // factor 为 0 的组（唱得太快的标注短语）只保留颜色、字体与字形（上浮已由 paintWords 统一驱动）；
+        // 非零强度强调组在已唱词基础高度 baseLiftPx 之上叠加各自的放大/波浪/抖动增量，唱完后平稳停留在同一上浮基线
         const rise = waves?.[i] ?? 0
-        if (f > 0 && (v > 0 || lift > 0 || (breath?.gate ?? 0) > 0 || rise > 0)) {
+        const hasBaseLift = Math.abs(baseLiftPx) >= 0.02
+        if (f > 0 && (hasBaseLift || v > 0 || (breath?.gate ?? 0) > 0 || rise > 0)) {
           let scale = 1
           let x = 0
-          let y = -lift * (bg ? 0.1 : 0.05)
+          let yEm = 0
           let glow = 0
           let radius = 0.3
           if (group.effect === 'swell') {
@@ -2541,7 +2591,7 @@ export class LyricPlayer {
             const k = v * (1 + rhythm.params.swell.gain * accent)
             scale = 1 + k * 0.14 * f
             x = -k * 0.03 * f * (count / 2 - i - 0.5)
-            y -= k * 0.025 * f
+            yEm -= k * 0.025 * f
             glow = v * (0.25 + 0.45 * f) * (1 + 0.4 * accent)
           }
           else if (group.effect === 'glow' && breath) {
@@ -2555,7 +2605,7 @@ export class LyricPlayer {
             const wobble = vibratoWave(timeMs, hold.onset, i, pace)
             scale = 1 + v * 0.14 * f + wobble * vibrato * 0.02 * f
             x = -v * 0.03 * f * (count / 2 - i - 0.5) + Math.cos(2 * Math.PI * PACE.vibratoHz[pace] * 2 * (timeMs - hold.onset) / 1000 + i) * vibrato * 0.008 * f
-            y -= v * 0.025 * f + wobble * vibrato * 0.035 * f
+            yEm -= v * 0.025 * f + wobble * vibrato * 0.035 * f
             glow = v * (0.25 + 0.45 * f) + vibrato * 0.12 * f
           }
           else if (group.effect === 'shake') {
@@ -2563,12 +2613,13 @@ export class LyricPlayer {
             const amp = v * (0.35 + 0.65 * kick)
             const phase = (timeMs - begin) / shakeCarrierMs(rhythm)
             x = Math.sin(phase * 2.3 + i * 1.7) * 0.035 * f * amp
-            y += Math.cos(phase * 1.9 + i * 1.3) * 0.025 * f * amp
+            yEm += Math.cos(phase * 1.9 + i * 1.3) * 0.025 * f * amp
             scale = 1 + amp * 0.06 * f
             glow = amp * (0.15 + 0.25 * f)
           }
           else if (group.effect === 'focus') {
             scale = 1 + v * 0.05 * f
+            yEm -= v * 0.015 * f
             glow = v * (0.2 + 0.3 * f)
             radius = 0.4
           }
@@ -2576,20 +2627,24 @@ export class LyricPlayer {
             // 心跳：整个词随双拍放大，左右的字向外轻推，辉光随拍闪
             scale = 1 + v * 0.04 * f + beat * 0.16 * f
             x = (i - (count - 1) / 2) * beat * 0.06 * f
+            yEm -= beat * 0.018 * f
             glow = v * (0.2 + 0.2 * f) + beat * (0.3 + 0.35 * f)
           }
           else if (group.effect === 'shimmer' || group.effect === 'dissolve' || group.effect === 'shatter') {
             scale = 1 + v * 0.04 * f
+            yEm -= v * 0.015 * f
             glow = shine == null ? v * (0.25 + 0.3 * f) : 0
           }
           else {
-            // 波浪：一拍内波峰从首字走到末字
-            y = -rise * (0.08 + 0.14 * f)
+            // 波浪：在演唱上浮基线上叠加一拍内从首字走到末字的波峰，波峰过后平稳停留在已唱上浮基线
+            yEm -= rise * (0.06 + 0.12 * f)
             scale = 1 + rise * 0.05 * f
           }
           scale = 1 + (scale - 1) * growScale
           glow *= glowScale
-          transform = `translate(${x.toFixed(3)}em, ${y.toFixed(3)}em) scale(${scale.toFixed(3)})`
+          const totalYPx = baseLiftPx + yEm * charEmPx
+          if (Math.abs(x) >= 0.001 || Math.abs(totalYPx) >= 0.02 || Math.abs(scale - 1) >= 0.001)
+            transform = `translate(${x.toFixed(3)}em, ${totalYPx.toFixed(2)}px) scale(${scale.toFixed(3)})`
           // 辉光强度按 4% 阶梯量化：减少不可见的细微变化触发移动端逐字高斯阴影重绘
           const glowPercent = Math.round(glow * 25) * 4
           if (glowPercent > 0)
@@ -2654,7 +2709,6 @@ export class LyricPlayer {
           }
         }
         if (hdrExit && usedHdrBg) {
-          const charProgress = getWordProgress(char.start, char.end, timeMs + LYRIC_ANIMATION_HEADSTART_MS)
           const startAlpha = hdrExit.dimAlpha + (1 - hdrExit.dimAlpha) * charProgress
           const exitAlpha = charEndAlpha + (startAlpha - charEndAlpha) * hdrExit.weight
           const combined = (opacity ? Number.parseFloat(opacity) : 1) * exitAlpha

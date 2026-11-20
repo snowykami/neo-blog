@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resolveMotionSprings } from './config'
-import { lineAppearance, LyricPlayer } from './lyric-player'
+import { lineAppearance, LyricPlayer, toLyricHtmlLang } from './lyric-player'
 
 const base = { inactiveAlpha: 0.35, blurFactor: 1, noBlur: false, spot: 0, spotted: false }
 
@@ -1141,6 +1141,139 @@ describe('振假名渲染与 HDR 跨行平滑退场', () => {
     expect(filterWrites).toBe(0)
     expect(Number.parseFloat(realStyle.opacity)).toBeCloseTo(0.24 / 0.35, 2)
 
+    ctx.cleanup()
+  })
+
+  it('同行内已唱完的强调特效词与普通已唱词保持相同上浮高度，不跌回未唱基线，切行时同步平滑回落', () => {
+    const parseWordY = (el: HTMLElement) => Number.parseFloat(/translateY\(([-\d.]+)px\)/.exec(el.style.transform)?.[1] ?? '0')
+    const parseCharY = (el: HTMLElement) => Number.parseFloat(/translate\([^,]+,\s*([-\d.]+)px\)/.exec(el.style.transform)?.[1] ?? '0')
+
+    const mixedLyrics: ResolvedLyrics = {
+      source: 'ttml-amll',
+      wordTimed: true,
+      instrumental: false,
+      motion: 'plush',
+      lines: [
+        {
+          words: [
+            { text: '我都会', start: 0, end: 600 },
+            { text: '百分之百', start: 600, end: 1400 },
+            { text: '在意', start: 3200, end: 3900 },
+          ],
+          romanizationWords: [
+            { text: 'wǒ dōu huì ', start: 0, end: 600, word: 0 },
+            { text: 'bǎi fēn zhī bǎi ', start: 600, end: 1400, word: 1 },
+            { text: 'zài yì', start: 3200, end: 3900, word: 2 },
+          ],
+          emphasis: [{ from: 1, to: 2, start: 600, end: 1400, factor: 1, effect: 'swell', color: 'rose' }],
+          start: 0,
+          end: 4000,
+          isDuet: false,
+          isBackground: false,
+        },
+        {
+          words: [{ text: '下一句', start: 4100, end: 5000 }],
+          start: 4100,
+          end: 5000,
+          isDuet: false,
+          isBackground: false,
+        },
+      ],
+    }
+
+    const ctx = mountPlayer(mixedLyrics)
+    ctx.container.querySelectorAll<HTMLElement>('.lyric-word').forEach((el) => {
+      Object.defineProperty(el, 'offsetWidth', { value: 48, configurable: true })
+    })
+    const line0 = ctx.container.querySelectorAll<HTMLElement>('.lyric-line')[0]
+    const units = Array.from(line0.querySelectorAll<HTMLElement>(':scope .lyric-unit'))
+    const plainWord0 = units[0].querySelector<HTMLElement>(':scope > .lyric-word')!
+    const emphasisChars = Array.from(units[1].querySelectorAll<HTMLElement>(':scope > .lyric-word--emphasis .lyric-char'))
+    const rubyEmphasisChars = Array.from(units[1].querySelectorAll<HTMLElement>('.lyric-ruby .lyric-char'))
+    const plainWord2 = units[2].querySelector<HTMLElement>(':scope > .lyric-word')!
+
+    // t=3.0s：「我都会」与强调词「百分之百」均已唱完且起落曲线结束，「在意」尚未开唱
+    ctx.step(3.0, 32)
+    const expectedFullLift = -1.6 // plush wordFloatEm=0.10 × 16px = -1.60px
+    expect(parseWordY(plainWord0)).toBeCloseTo(expectedFullLift, 2)
+    for (const ch of emphasisChars)
+      expect(parseCharY(ch)).toBeCloseTo(expectedFullLift, 2)
+    expect(plainWord2.style.transform).toBe('')
+    // 音译行保持平直基线不上浮，与前后普通音译严格齐平
+    for (const rch of rubyEmphasisChars)
+      expect(parseCharY(rch)).toBe(0)
+
+    // t=3.95s：整句全部唱完，普通词与强调词全部齐平在同一上浮高度
+    ctx.step(3.95, 50)
+    expect(parseWordY(plainWord0)).toBeCloseTo(expectedFullLift, 2)
+    expect(parseWordY(plainWord2)).toBeCloseTo(expectedFullLift, 2)
+    for (const ch of emphasisChars)
+      expect(parseCharY(ch)).toBeCloseTo(expectedFullLift, 2)
+
+    // t=4.20s：切到下一句，第 0 行进入 220ms 退场窗口（已过 100ms），普通词与强调词按完全相同的阻尼同步回落
+    ctx.step(4.2, 50)
+    ctx.step(4.25, 100)
+    const midLift = parseWordY(plainWord0)
+    expect(midLift).toBeLessThan(-0.1)
+    expect(midLift).toBeGreaterThan(expectedFullLift)
+    for (const ch of emphasisChars)
+      expect(parseCharY(ch)).toBeCloseTo(midLift, 2)
+
+    // 超过 220ms 退场结束：普通词与强调词的 transform 全部彻底归零清空
+    ctx.step(4.45, 200)
+    expect(plainWord0.style.transform).toBe('')
+    expect(plainWord2.style.transform).toBe('')
+    for (const ch of emphasisChars)
+      expect(ch.style.transform).toBe('')
+
+    ctx.cleanup()
+  })
+
+  it('跨浏览器字体对齐：艺术字体以自托管 WebFont 优先、关闭伪粗体合成，且歌曲语种仅绑定在原文 .lyric-main 不污染译文行', () => {
+    expect(toLyricHtmlLang('ja')).toBe('ja')
+    expect(toLyricHtmlLang('ko')).toBe('ko')
+    expect(toLyricHtmlLang('zh-cn')).toBe('zh-Hans')
+    expect(toLyricHtmlLang('zh-tw')).toBe('zh-Hant')
+    expect(toLyricHtmlLang('yue')).toBe('zh-HK')
+    expect(toLyricHtmlLang('mul')).toBe('')
+    expect(toLyricHtmlLang(null)).toBe('')
+
+    const css = readFileSync(resolve(__dirname, 'lyric-player.css'), 'utf8')
+    expect(css).toContain('-webkit-font-smoothing: antialiased')
+    expect(css).toContain('font-synthesis-weight: none')
+    expect(css).toContain('font-family: var(--lyric-wf-kai) \'Kaiti SC\'')
+    expect(css).toContain('font-family: var(--lyric-wf-song) \'Songti SC\'')
+    expect(css).toContain('font-family: var(--lyric-wf-xingkai) \'Xingkai SC\'')
+    expect(css).toContain('font-family: var(--lyric-wf-round) \'Yuanti SC\'')
+
+    const jpLyrics: ResolvedLyrics = {
+      source: 'ttml-amll',
+      wordTimed: true,
+      instrumental: false,
+      lines: [
+        {
+          words: [{ text: '直ぐに空へ', start: 0, end: 1500 }],
+          translation: '立刻向着天空',
+          start: 0,
+          end: 1500,
+          isDuet: false,
+          isBackground: false,
+        },
+      ],
+    }
+
+    const ctx = mountPlayer(jpLyrics)
+    ctx.player.setDisplay({ showTranslation: true, showRomanization: true, footerText: '', songLang: 'ja', effects: true, hdr: false })
+    const mainEl = ctx.container.querySelector<HTMLElement>('.lyric-main')!
+    const transEl = ctx.container.querySelector<HTMLElement>('.lyric-extra[data-kind="translation"]')!
+    expect(mainEl.getAttribute('lang')).toBe('ja')
+    expect(transEl.getAttribute('lang')).toBeNull()
+
+    ctx.player.setDisplay({ showTranslation: true, showRomanization: true, footerText: '', songLang: 'yue', effects: true, hdr: false })
+    expect(mainEl.getAttribute('lang')).toBe('zh-HK')
+
+    ctx.player.setDisplay({ showTranslation: true, showRomanization: true, footerText: '', songLang: null, effects: true, hdr: false })
+    expect(mainEl.getAttribute('lang')).toBeNull()
     ctx.cleanup()
   })
 })

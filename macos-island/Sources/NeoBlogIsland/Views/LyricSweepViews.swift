@@ -1428,11 +1428,13 @@ private struct RubyRomanGroupSweepView: View {
                             charSlices: slices,
                             lineEnd: lineEnd,
                             songFont: songFont,
+                            songMotion: nil,
                             fontSize: fontSize,
                             isBackground: isBackground,
                             hdrEnabled: hdrEnabled,
                             spotlightLevel: spotlightLevel,
                             activeBlend: activeBlend,
+                            allowsFloat: false,
                             allowsDebris: false,
                             rhythm: rhythm,
                             seekAtMs: seekAtMs,
@@ -1490,11 +1492,13 @@ private struct LyricWordUnitView: View {
                     charSlices: charSlices,
                     lineEnd: lineEnd,
                     songFont: songFont,
+                    songMotion: songMotion,
                     fontSize: fontSize,
                     isBackground: isBackground,
                     hdrEnabled: hdrEnabled,
                     spotlightLevel: spotlightLevel,
                     activeBlend: activeBlend,
+                    allowsFloat: true,
                     allowsDebris: true,
                     rhythm: rhythm,
                     seekAtMs: seekAtMs,
@@ -1565,11 +1569,13 @@ private struct EmphasizedWordSpanView: View {
     let charSlices: [LyricLineSweepView.CharSlice]
     let lineEnd: Double
     let songFont: String?
+    var songMotion: String? = nil
     let fontSize: CGFloat
     let isBackground: Bool
     let hdrEnabled: Bool
     let spotlightLevel: Double
     let activeBlend: Double
+    var allowsFloat: Bool = true
     let allowsDebris: Bool
     let rhythm: RhythmEngineContext
     let seekAtMs: Double
@@ -1638,6 +1644,7 @@ private struct EmphasizedWordSpanView: View {
                         riseVal: (waveVals != nil && gi < waveVals!.count) ? waveVals![gi] : 0,
                         kickVal: kickVal,
                         font: resolvedFont,
+                        songMotion: songMotion,
                         fontSize: fontSize,
                         isBackground: isBackground,
                         isItalic: isItalic,
@@ -1646,6 +1653,7 @@ private struct EmphasizedWordSpanView: View {
                         wordWipeStarted: wordWipeStarted,
                         spotlightLevel: spotlightLevel,
                         activeBlend: activeBlend,
+                        allowsFloat: allowsFloat,
                         rhythm: rhythm,
                         seekAtMs: seekAtMs,
                         debrisEngine: debrisEngine,
@@ -1668,6 +1676,7 @@ private struct EmphasizedWordSpanView: View {
                         riseVal: (waveVals != nil && gi < waveVals!.count) ? waveVals![gi] : 0,
                         kickVal: kickVal,
                         font: resolvedFont,
+                        songMotion: songMotion,
                         fontSize: fontSize,
                         isBackground: isBackground,
                         isItalic: isItalic,
@@ -1676,6 +1685,7 @@ private struct EmphasizedWordSpanView: View {
                         wordWipeStarted: wordWipeStarted,
                         spotlightLevel: spotlightLevel,
                         activeBlend: activeBlend,
+                        allowsFloat: allowsFloat,
                         rhythm: rhythm,
                         dissolveAmount: 0,
                         shatterCrack: 0,
@@ -1725,6 +1735,7 @@ private struct DebrisEmphasisCharWrapper: View {
     let riseVal: Double
     let kickVal: Double
     let font: Font
+    let songMotion: String?
     let fontSize: CGFloat
     let isBackground: Bool
     let isItalic: Bool
@@ -1733,6 +1744,7 @@ private struct DebrisEmphasisCharWrapper: View {
     let wordWipeStarted: Bool
     let spotlightLevel: Double
     let activeBlend: Double
+    let allowsFloat: Bool
     let rhythm: RhythmEngineContext
     let seekAtMs: Double
     let debrisEngine: DebrisEngine
@@ -1770,6 +1782,7 @@ private struct DebrisEmphasisCharWrapper: View {
             riseVal: riseVal,
             kickVal: kickVal,
             font: font,
+            songMotion: songMotion,
             fontSize: fontSize,
             isBackground: isBackground,
             isItalic: isItalic,
@@ -1778,6 +1791,7 @@ private struct DebrisEmphasisCharWrapper: View {
             wordWipeStarted: wordWipeStarted,
             spotlightLevel: spotlightLevel,
             activeBlend: activeBlend,
+            allowsFloat: allowsFloat,
             rhythm: rhythm,
             dissolveAmount: dissolveInfo.amount,
             shatterCrack: shatterInfo.crack,
@@ -1830,6 +1844,7 @@ private struct EmphasisCharGlyphView: View {
     let riseVal: Double
     let kickVal: Double
     let font: Font
+    let songMotion: String?
     let fontSize: CGFloat
     let isBackground: Bool
     let isItalic: Bool
@@ -1838,6 +1853,7 @@ private struct EmphasisCharGlyphView: View {
     let wordWipeStarted: Bool
     let spotlightLevel: Double
     let activeBlend: Double
+    let allowsFloat: Bool
     let rhythm: RhythmEngineContext
     let dissolveAmount: Double
     let shatterCrack: Double
@@ -1857,14 +1873,23 @@ private struct EmphasisCharGlyphView: View {
             ? max(baseV, holdState!.release)
             : baseV
         let vibrato = holdState?.amount ?? 0
-        let liftArg = min(1.0, max(0.0, (nowMs - begin + LyricSpecs.emphasisFloatLeadMs) / (duration * LyricSpecs.emphasisFloatStretch)))
-        let lift = sin(.pi * liftArg) * min(1.0, max(0.0, activeBlend * 1.85))
 
         let shiftedMs = nowMs + LyricSpecs.animationHeadstartMs
         let sliceDur = max(1, slice.end - slice.start)
         let wipeProgress = slice.end <= slice.start
             ? (shiftedMs >= slice.start ? 1.0 : 0.0)
             : min(1.0, max(0.0, (shiftedMs - slice.start) / sliceDur))
+
+        // 与 PlainWordSpanView 严格共享同一套演唱上浮基线：唱完后保持在同一上浮高度，直到整行结束随 activeBlend 同步回落
+        let liftBlend = min(1.0, max(0.0, activeBlend * 1.85))
+        let motionPreset = songMotion.flatMap(LyricMotionPreset.init(rawValue:))
+        let effWordFloatEm = motionPreset?.wordFloatEm ?? LyricSpecs.wordFloatEm
+        let effBounceBell = motionPreset?.bounceBell ?? 0.0
+        let floatPx = allowsFloat ? (effWordFloatEm * em * (isBackground ? 2.0 : 1.0)) : 0
+        let liftCurve = CubicBezier.easeOut.eval(wipeProgress) + (effBounceBell > 0 ? Foundation.sin(wipeProgress * .pi) * effBounceBell : 0.0)
+        let baseLiftPx = (allowsFloat && wipeProgress > 0 && liftBlend > 0)
+            ? (-floatPx * liftCurve * liftBlend)
+            : 0
 
         let holdRamp = min(1.0, wipeProgress * 1.35) * LyricSpecs.emphasisTintHold
         let rawTint: Double = (group.colorHex != nil && wipeProgress > 0)
@@ -1873,7 +1898,7 @@ private struct EmphasisCharGlyphView: View {
         let tint = rawTint * activeBlend
 
         let motion = computeMotion(
-            em: em, f: f, begin: begin, v: v, lift: lift, vibrato: vibrato,
+            em: em, f: f, begin: begin, v: v, baseLiftPx: baseLiftPx, vibrato: vibrato,
             dissolveAmount: dissolveAmount, crack: shatterCrack
         )
 
@@ -1975,12 +2000,12 @@ private struct EmphasisCharGlyphView: View {
         f: Double,
         begin: Double,
         v: Double,
-        lift: Double,
+        baseLiftPx: Double,
         vibrato: Double,
         dissolveAmount: Double,
         crack: Double
     ) -> CharMotion {
-        var m = CharMotion()
+        var m = CharMotion(dyPx: baseLiftPx)
 
         if group.effect == "focus" && f > 0 {
             let clear = min(1.0, max(0.0, (nowMs - begin) / max(1, duration * LyricSpecs.emphasisFocusClearRatio)))
@@ -1990,13 +2015,13 @@ private struct EmphasisCharGlyphView: View {
             m.blurPx = max(m.blurPx, dissolveAmount * 0.08 * em)
         }
 
-        guard f > 0 && (v > 0 || lift > 0 || (breathVal?.gate ?? 0) > 0 || riseVal > 0 || crack > 0 || dissolveAmount > 0) else {
+        guard f > 0 && (abs(baseLiftPx) >= 0.02 || v > 0 || (breathVal?.gate ?? 0) > 0 || riseVal > 0 || crack > 0 || dissolveAmount > 0) else {
             return m
         }
 
         var scale = 1.0
         var xEm = dissolveAmount * 0.15
-        var yEm = -lift * (isBackground ? 0.10 : 0.05)
+        var yEm = 0.0
         var glow = 0.0
         var radiusEm = 0.30
 
@@ -2034,16 +2059,19 @@ private struct EmphasisCharGlyphView: View {
 
         case "focus":
             scale = 1.0 + v * 0.05 * f
+            yEm -= v * 0.015 * f
             glow = v * (0.2 + 0.3 * f)
             radiusEm = 0.40
 
         case "heartbeat":
             scale = 1.0 + v * 0.04 * f + beatVal * 0.16 * f
             xEm += (Double(charIndex) - Double(count - 1) * 0.5) * beatVal * 0.06 * f
+            yEm -= beatVal * 0.018 * f
             glow = v * (0.2 + 0.2 * f) + beatVal * (0.3 + 0.35 * f)
 
         case "shimmer", "dissolve", "shatter":
             scale = 1.0 + v * 0.04 * f
+            yEm -= v * 0.015 * f
             glow = shineCenter == nil ? v * (0.25 + 0.3 * f) : 0
             if crack > 0 {
                 // 1:1 对齐 lyric-player.ts 碎前蓄力颤抖频率（~14.3Hz / ~17.5Hz），消除 60fps 下高频混叠乱跳
@@ -2052,7 +2080,7 @@ private struct EmphasisCharGlyphView: View {
             }
 
         case "wave":
-            yEm = -riseVal * (0.08 + 0.14 * f)
+            yEm -= riseVal * (0.06 + 0.12 * f)
             scale = 1.0 + riseVal * 0.04 * f
 
         default:
@@ -2069,7 +2097,7 @@ private struct EmphasisCharGlyphView: View {
 
         m.scale = scale
         m.dxPx = xEm * em
-        m.dyPx = yEm * em
+        m.dyPx = baseLiftPx + yEm * em
         m.glow = glow
         m.glowRadiusPx = radiusEm * em
         return m

@@ -28,7 +28,7 @@ export function MusicLyricStage({ className, compact = false, strip = false, the
   const t = useTranslations('MusicPlayer')
   const pageT = useTranslations('MusicPage')
   const hdr = useHdrEnabled() && !themed
-  const { lyrics, lyricStatus, showTranslation, showRomaji, showLyricEffects, isPlaying, getAudio, seek, play, refreshLyrics, lyricSourcesPending, currentTrack } = useMusic()
+  const { lyrics, lyricStatus, showTranslation, showRomaji, showLyricEffects, isPlaying, getAudio, seek, play, refreshLyrics, lyricSourcesPending, currentTrack, songLang } = useMusic()
   const clock = useMusicClockStore()
   const containerRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<LyricPlayer | null>(null)
@@ -94,8 +94,8 @@ export function MusicLyricStage({ className, compact = false, strip = false, the
   const togetherLabel = pageT('lyric_chorus_together')
   useEffect(() => {
     // 单行条只有一行高，不显示翻译与音译
-    playerRef.current?.setDisplay({ showTranslation: showTranslation && !strip, showRomanization: showRomaji && !strip, footerText, togetherLabel, effects: showLyricEffects, hdr })
-  }, [footerText, hasLines, hdr, showLyricEffects, showRomaji, showTranslation, strip, togetherLabel])
+    playerRef.current?.setDisplay({ showTranslation: showTranslation && !strip, showRomanization: showRomaji && !strip, footerText, togetherLabel, songLang, effects: showLyricEffects, hdr })
+  }, [footerText, hasLines, hdr, showLyricEffects, showRomaji, showTranslation, songLang, strip, togetherLabel])
 
   const colorStyle = themed ? { '--lyric-color': 'var(--foreground)' } as React.CSSProperties : undefined
   // 单行条：加载中留空，没有歌词时只注明纯音乐（不放重新获取的按钮）
