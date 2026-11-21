@@ -30,6 +30,12 @@ function isFullBleedConsolePath(pathname: string): boolean {
     || pathname.startsWith('/console/lyric-effects/')
 }
 
+/** 自带独立吸顶工具栏（EditorAppBar）的富文本编辑页：保持外层顶栏随滚动自然收起，避免双层顶栏叠放挤占写作视口 */
+function hasImmersiveEditorHeader(pathname: string): boolean {
+  return pathname.startsWith('/console/posts/edit/')
+    || pathname.startsWith('/console/pages/edit/')
+}
+
 function safeDecodeSegment(raw: string): string {
   try {
     return decodeURIComponent(raw)
@@ -170,10 +176,15 @@ function ConsoleShellInner({
       }
     >
       <SidebarAutoCloseOnRouteChange />
-      <AppSidebar variant="inset" activeId={activeId} setActiveId={setActiveId} />
+      <AppSidebar activeId={activeId} setActiveId={setActiveId} />
       {/* min-w-0：避免内容（如编辑器工具栏）的固有宽度撑破布局 */}
       <SidebarInset className="min-w-0">
-        <SiteHeader title={title} breadcrumbs={breadcrumbs} breadcrumbLabel={routeT('console')} />
+        <SiteHeader
+          title={title}
+          breadcrumbs={breadcrumbs}
+          breadcrumbLabel={routeT('console')}
+          sticky={!hasImmersiveEditorHeader(pathname)}
+        />
         {/* flex 列：编辑器等需要填满内容区高度的页面使用 flex-1；常规管理页居中限制最大版心宽度，2K/4K 大屏视线不横跳 */}
         <div
           className="flex min-w-0 flex-1 flex-col"

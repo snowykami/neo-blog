@@ -263,7 +263,7 @@ export function LyricEffectEditor() {
         {!data.annotation && !generating && <p className="text-sm text-muted-foreground">{t('no_annotation')}</p>}
         <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
           <LyricCanvas unique={unique} activeLine={activeLine} onActiveLineChange={setActiveLine} />
-          <aside className="grid gap-4 lg:sticky lg:top-4">
+          <aside className="grid gap-4 lg:sticky lg:top-[calc(var(--header-height)+1rem)]">
             <LineSettingsPanel key={activeLine} index={activeLine} line={unique[activeLine]} lyricLines={data.lines} sprites={data.annotation?.sprites} />
             <SongSettingsPanel unique={unique} />
             <EffectLegendPanel />

@@ -77,7 +77,7 @@ export function AIAgentDetailPage() {
             <TabsContent value="profile">
               <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
                 <AgentProfileForm key={agent.id} agent={agent} onSaved={setAgent} />
-                <div className="lg:sticky lg:top-4">
+                <div className="lg:sticky lg:top-[calc(var(--header-height)+1rem)]">
                   <DryRunCard agentId={agent.id} />
                 </div>
               </div>

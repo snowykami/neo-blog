@@ -54,7 +54,7 @@ export function NavUser() {
                 <span className="truncate font-medium">{formatDisplayName(user)}</span>
                 <span className="text-muted-foreground truncate text-xs">{user.email}</span>
               </div>
-              <EllipsisVertical className="ml-auto size-4" />
+              <EllipsisVertical strokeWidth={1.5} className="text-muted-foreground/70 ml-auto size-4" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent

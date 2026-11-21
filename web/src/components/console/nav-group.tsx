@@ -48,11 +48,10 @@ export function NavGroup({
                 id={`nav-item-${menu.id}`}
                 tooltip={consoleT(menu.title)}
                 isActive={activeId === menu.id}
-                // 菜单合并后项数较少，加高菜单项便于点击，图标与间距同步放大
-                className="h-10 gap-3 px-3 [&>svg]:size-[18px]"
+                className="h-9 gap-2.5 px-3 [&>svg]:size-[15px] [&>svg]:text-muted-foreground/70 hover:[&>svg]:text-muted-foreground data-[active=true]:[&>svg]:text-sidebar-accent-foreground/55"
               >
                 <Link href={first.url} onClick={() => setActiveId?.(menu.id)}>
-                  <menu.icon />
+                  <menu.icon strokeWidth={1.5} className="transition-colors" />
                   <span>{consoleT(menu.title)}</span>
                 </Link>
               </SidebarMenuButton>
