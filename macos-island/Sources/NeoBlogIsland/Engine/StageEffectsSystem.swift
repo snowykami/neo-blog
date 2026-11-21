@@ -714,7 +714,7 @@ final class StageParticlesEngine {
         case "sparks": return SceneMeta(rate: 9, defaultColors: ["#ffd977"], beatOctave: 1, beatRatio: 0.45)
         case "snow": return SceneMeta(rate: 14, defaultColors: ["#ffffff"])
         case "stars": return SceneMeta(rate: 7, defaultColors: ["#ffffff"])
-        case "bubbles": return SceneMeta(rate: 4, defaultColors: ["#c8ebff"])
+        case "bubbles": return SceneMeta(rate: 1.6, defaultColors: ["#c8ebff"], maxCount: 28)
         case "rain": return SceneMeta(rate: 45, defaultColors: ["#d2e1ff"])
         case "leaves": return SceneMeta(rate: 4, defaultColors: ["maple", "amber", "sunset"])
         case "fireflies": return SceneMeta(rate: 3, defaultColors: ["#d4f56a"])
@@ -785,7 +785,7 @@ final class StageParticlesEngine {
         case "stars":
             return SpawnedMotion(x: .random(in: 0...w), y: .random(in: 0...(h * 0.78)), vx: .random(in: -3...3), vy: .random(in: -2...2), size: .random(in: 0.8...2.4), life: .random(in: 3...6))
         case "bubbles":
-            return SpawnedMotion(x: .random(in: 0...w), y: h + 16, vx: 0, vy: .random(in: -45 ... -20), size: .random(in: 4...14))
+            return SpawnedMotion(x: .random(in: 0...w), y: h + 16, vx: 0, vy: .random(in: -45 ... -22), size: .random(in: 4...13), life: .random(in: 8...15))
         case "rain":
             return SpawnedMotion(x: .random(in: -80...w), y: -24, vx: 120, vy: .random(in: 650...900), size: .random(in: 12...24))
         case "leaves":
@@ -959,13 +959,13 @@ final class StageParticlesEngine {
         case "bubbles":
             let x = p.x + sin(p.age * 1.6 + p.seed) * 10
             let circle = Path(ellipseIn: CGRect(x: x - p.size, y: p.y - p.size, width: p.size * 2, height: p.size * 2))
-            ctx.stroke(circle, with: .color(color(p.rgb, alpha: 0.55 * alpha)), lineWidth: 1.1)
+            ctx.stroke(circle, with: .color(color(p.rgb, alpha: 0.42 * alpha)), lineWidth: 1.1)
             let hi = p.size * 0.22
             let hx = x - p.size * 0.35
             let hy = p.y - p.size * 0.35
             ctx.fill(
                 Path(ellipseIn: CGRect(x: hx - hi, y: hy - hi, width: hi * 2, height: hi * 2)),
-                with: .color(color(LyricColorPalette.mixWhite(p.rgb, t: 0.7), alpha: 0.35 * alpha))
+                with: .color(color(LyricColorPalette.mixWhite(p.rgb, t: 0.7), alpha: 0.28 * alpha))
             )
 
         case "rain":

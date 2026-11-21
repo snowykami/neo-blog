@@ -279,17 +279,18 @@ const SCENES: Record<LyricScene, SceneSpec> = {
     },
   },
   bubbles: {
-    rate: 4,
+    rate: 1.6,
+    max: 28,
     colors: ['#c8ebff'],
-    spawn: (w, h) => ({ x: rand(0, w), y: h + 20, vx: 0, vy: rand(-45, -20), size: rand(4, 14), rotation: 0, spin: 0, life: Infinity }),
+    spawn: (w, h) => ({ x: rand(0, w), y: h + 20, vx: 0, vy: rand(-45, -22), size: rand(4, 13), rotation: 0, spin: 0, life: rand(8, 15) }),
     draw: (ctx, p, alpha) => {
       const x = p.x + Math.sin(p.age * 1.6 + p.seed) * 10
-      ctx.strokeStyle = rgba(p.color, 0.55 * alpha)
-      ctx.lineWidth = 1.2
+      ctx.strokeStyle = rgba(p.color, 0.42 * alpha)
+      ctx.lineWidth = 1.1
       ctx.beginPath()
       ctx.arc(x, p.y, p.size, 0, TAU)
       ctx.stroke()
-      ctx.fillStyle = rgba(mixWhite(p.color, 0.7), 0.35 * alpha)
+      ctx.fillStyle = rgba(mixWhite(p.color, 0.7), 0.28 * alpha)
       ctx.beginPath()
       ctx.arc(x - p.size * 0.35, p.y - p.size * 0.35, p.size * 0.22, 0, TAU)
       ctx.fill()
