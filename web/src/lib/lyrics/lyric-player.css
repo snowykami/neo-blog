@@ -398,6 +398,32 @@
   font-family: 'Snell Roundhand', 'Apple Chancery', 'Segoe Script', var(--lyric-wf-script) 'PingFang SC', sans-serif;
 }
 
+/*
+ * Safari / WebKit 专项字体对齐（Chrome / Edge / Firefox 完全忽略此 @supports 块，100% 保持 Chrome 现状不动）：
+ * Safari 防指纹沙盒屏蔽 macOS AssetsV2 下的 Kaiti SC / Xingkai SC / STFangsong / Yuanti SC，
+ * 此处仅针对 WebKit 将兜底字库切换为与苹果原生字体同风格、原生 700 粗体且简繁日字符齐全的分片字库
+ */
+@supports (-apple-pay-button-style: inherit) {
+  .lyric-player:not(.lyric-player--no-webfonts) {
+    --lyric-wf-song: 'Noto Serif SC',;
+    --lyric-wf-kai: 'LXGW WenKai',;
+    --lyric-wf-xingkai: 'Ma Shan Zheng', 'LXGW WenKai',;
+    --lyric-wf-fangsong: 'Zhuque Fangsong',;
+    --lyric-wf-round: '975Maru SC',;
+    --lyric-wf-script: 'Dancing Script',;
+  }
+
+  .lyric-player[data-lyric-font='song'] .lyric-main,
+  .lyric-word[data-font='song'] {
+    font-family: 'Songti SC', STSong, var(--lyric-wf-song) 'Hiragino Mincho ProN', 'Source Han Serif SC', SimSun, serif;
+  }
+
+  .lyric-player[data-lyric-font='round'] .lyric-main,
+  .lyric-word[data-font='round'] {
+    font-family: 'Yuanti SC', var(--lyric-wf-round) 'Hiragino Maru Gothic ProN', 'Arial Rounded MT Bold', sans-serif;
+  }
+}
+
 /* 字形（来自歌词标注） */
 .lyric-word--bold {
   font-weight: 900;

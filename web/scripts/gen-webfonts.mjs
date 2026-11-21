@@ -30,29 +30,44 @@ export const WEBFONTS = {
 }
 
 /**
- * 只给歌词舞台用的额外字重：正文的宋体只带 400（加粗由浏览器合成），
- * 而歌词按 700 排版，单列一份 700 的 CSS 让歌词保持原有字形
+ * 只给歌词舞台用的额外字重与 Safari 兜底字库：
+ * - 正文的宋体只带 400（加粗由浏览器合成），而歌词按 700 排版，单列一份 700 的 CSS；
+ * - Safari 因防指纹沙盒屏蔽 macOS 本机 AssetsV2 目录下的楷体/圆体/仿宋/行楷，专供 Safari 按需加载同风格高字重分片字库
  */
 export const LYRIC_FONTS = {
   'noto-serif-sc-bold': { pkg: '@fontsource/noto-serif-sc', css: ['700.css'] },
+  'lxgw-wenkai-bold': { pkg: 'lxgw-wenkai-webfont', css: ['lxgwwenkai-bold.css'] },
+  '975-maru-sc-bold': { pkg: 'cn-fontsource-975-maru-sc-bold', css: ['font.css'], srcDir: '.', weight: 700 },
+  'zhuque-fangsong': { pkg: '@free-fonts/zhuque-fangsong', css: ['zhuque-fangsong.css'], srcDir: 'fonts' },
+  'ma-shan-zheng': { pkg: '@fontsource/ma-shan-zheng', css: ['400.css'], weight: 700 },
+  'dancing-script-bold': { pkg: '@fontsource/dancing-script', css: ['700.css'] },
 }
 
 const ALL_FONTS = { ...WEBFONTS, ...LYRIC_FONTS }
 
 const FONT_FACE = /@font-face\s*\{[^}]*\}/g
-const WOFF2_URL = /url\((['"]?)\.\/files\/([\w.-]+\.woff2)\1\)\s*format\((['"])woff2\3\)/
+const WOFF2_URL = /url\((['"]?)(?:\.\/)?(?:[\w-]+\/)?([\w.-]+\.woff2)\1\)/
 
 /** 改写一份字体包 CSS：src 只保留 woff2 并指向 public 下的副本；返回改写后的 CSS 与引用到的文件 */
-export function rewriteFontCss(css, baseUrl) {
+export function rewriteFontCss(css, baseUrl, options = {}) {
   const files = []
   const faces = (css.match(FONT_FACE) ?? []).map((face) => {
     const woff2 = face.match(WOFF2_URL)
     if (!woff2)
       return ''
     files.push(woff2[2])
-    return face
-      .replace(/src:[^;]*;/, `src: url(${baseUrl}/${woff2[2]}) format('woff2');`)
-      .replace(/font-display:[^;]*;/, 'font-display: swap;')
+    let next = face.replace(/src:[^;}]*;?/, `src: url(${baseUrl}/${woff2[2]}) format('woff2');`)
+    if (/font-display:[^;}]*;?/.test(next))
+      next = next.replace(/font-display:[^;}]*;?/, 'font-display: swap;')
+    else
+      next = next.replace(/\}$/, 'font-display: swap;}')
+    if (options.weight != null) {
+      if (/font-weight:[^;}]*;?/.test(next))
+        next = next.replace(/font-weight:[^;}]*;?/, `font-weight: ${options.weight};`)
+      else
+        next = next.replace(/\}$/, `font-weight: ${options.weight};}`)
+    }
+    return next
   })
   return { css: faces.filter(Boolean).join('\n'), files }
 }
@@ -75,15 +90,15 @@ function stamp() {
 function generate() {
   rmSync(outputDir, { recursive: true, force: true })
   let fileCount = 0
-  for (const [key, { pkg, css }] of Object.entries(ALL_FONTS)) {
+  for (const [key, { pkg, css, srcDir = 'files', weight }] of Object.entries(ALL_FONTS)) {
     const version = packageVersion(pkg)
     const baseUrl = `/fonts/${key}/${version}`
     const fileDir = join(outputDir, key, version)
     mkdirSync(fileDir, { recursive: true })
     const parts = css.map((name) => {
-      const result = rewriteFontCss(readFileSync(join(packageDir(pkg), name), 'utf8'), baseUrl)
+      const result = rewriteFontCss(readFileSync(join(packageDir(pkg), name), 'utf8'), baseUrl, { weight })
       for (const file of result.files)
-        copyFileSync(join(packageDir(pkg), 'files', file), join(fileDir, file))
+        copyFileSync(join(packageDir(pkg), srcDir, file), join(fileDir, file))
       fileCount += result.files.length
       return result.css
     })

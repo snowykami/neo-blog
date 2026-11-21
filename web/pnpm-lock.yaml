@@ -14,6 +14,9 @@ importers:
       '@fontsource/dancing-script':
         specifier: ^5.3.0
         version: 5.3.0
+      '@fontsource/ma-shan-zheng':
+        specifier: ^5.3.1
+        version: 5.3.1
       '@fontsource/noto-serif-sc':
         specifier: ^5.3.1
         version: 5.3.1
@@ -26,6 +29,9 @@ importers:
       '@fontsource/zhi-mang-xing':
         specifier: ^5.3.0
         version: 5.3.0
+      '@free-fonts/zhuque-fangsong':
+        specifier: ^1.0.0
+        version: 1.0.0
       '@hcaptcha/react-hcaptcha':
         specifier: ^2.2.0
         version: 2.2.0
@@ -197,6 +203,9 @@ importers:
       cmdk:
         specifier: ^1.1.1
         version: 1.1.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      cn-fontsource-975-maru-sc-bold:
+        specifier: ^1.0.1
+        version: 1.0.1
       deepmerge:
         specifier: ^4.3.1
         version: 4.3.1
@@ -228,6 +237,9 @@ importers:
         specifier: ^1.61.0
         version: 1.61.0(@types/react@19.3.0)(react@19.3.1)
       lxgw-wenkai-screen-webfont:
+        specifier: ^1.7.0
+        version: 1.7.0
+      lxgw-wenkai-webfont:
         specifier: ^1.7.0
         version: 1.7.0
       marked:
@@ -812,6 +824,9 @@ packages:
   '@fontsource/dancing-script@5.3.0':
     resolution: {integrity: sha512-/FFbz4ZCNN+eG2a6phkZB41iKmyCC6rq2blA/kG9OFeI3/tpzLNazND1bBdEnogLhpfg7o4NfauTbEEYSpSUGg==}
 
+  '@fontsource/ma-shan-zheng@5.3.1':
+    resolution: {integrity: sha512-cGGn7Yje2RSduXVxEk+rCfNZyD/T/7FMGj03LNPiK8TRL9Sing0tq1zJF3n+W29szPqgb2RNs5oIvmm+ikeI+Q==}
+
   '@fontsource/noto-serif-sc@5.3.1':
     resolution: {integrity: sha512-nIK2HyNGcUi2TGwIfrk2MItkh0O3Y5+TI8iPfPSzoNY6uyXYfQ9qqch8czk3aa1VhV4EU52uwCYCe1UDKJELpg==}
 
@@ -835,6 +850,9 @@ packages:
 
   '@formatjs/intl-localematcher@0.8.8':
     resolution: {integrity: sha512-pBr2hVKWvkHVnfXegW+53NT9U2uaVQCc+EgzLPCCwXqBA3nvM5fPbK9IcJlNjV+NMKGyZ2F3ZSG78iGdxAAqbA==}
+
+  '@free-fonts/zhuque-fangsong@1.0.0':
+    resolution: {integrity: sha512-XevMrKsZOM9yTey7Hah1eGNOArz7ouGNOR1yaNcjGA3h/sUPereBVHx/bP4HKhDSRpQAOM5gHqm7mwnLDKrSZA==}
 
   '@hcaptcha/react-hcaptcha@2.2.0':
     resolution: {integrity: sha512-/HrPgNLRrJziLrh2s+qFRO33ubBSuHn9sdNsQcP0wQElpORxlpR6wnq3X9j/bZGd+uQtYIvPl4QSU2la+Jl9Hg==}
@@ -2989,6 +3007,9 @@ packages:
       react: ^18 || ^19 || ^19.0.0-rc
       react-dom: ^18 || ^19 || ^19.0.0-rc
 
+  cn-fontsource-975-maru-sc-bold@1.0.1:
+    resolution: {integrity: sha512-F8WASSAd5KaqdicYhfa+p0XVaQTf5Z57527RME2mctSB3dlluLUQr4kxlo8B9qTaRbtx85vVLhJaaT2waqe9pg==}
+
   color-convert@2.0.1:
     resolution: {integrity: sha512-RRECPsj7iu/xb5oKYcsFHSppFNnsj/52OVTRKb4zP5onXwVF3zVmmToNcOfGC+CRDpfK/U584fMg38ZHCaElKQ==}
     engines: {node: '>=7.0.0'}
@@ -4156,6 +4177,9 @@ packages:
 
   lxgw-wenkai-screen-webfont@1.7.0:
     resolution: {integrity: sha512-xvfF4V26Mb335xKg3uxljz+V2nq4F5ek0ku9pmyKgT0Dzo/d2rHi7WpnqgvM9mlXAcAKOrxrcDmUZiIs/ZQ9bQ==}
+
+  lxgw-wenkai-webfont@1.7.0:
+    resolution: {integrity: sha512-kVJmT4xMAyOLhG6q0w63wJkVU7RP8UMQRGoAWj9tnpzL7sWFFYiEHBdUQyW9myqBQFa5SQfWfa2VLYF4IJBL5g==}
 
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
@@ -5880,6 +5904,8 @@ snapshots:
 
   '@fontsource/dancing-script@5.3.0': {}
 
+  '@fontsource/ma-shan-zheng@5.3.1': {}
+
   '@fontsource/noto-serif-sc@5.3.1': {}
 
   '@fontsource/zcool-kuaile@5.3.0': {}
@@ -5899,6 +5925,8 @@ snapshots:
   '@formatjs/intl-localematcher@0.8.8':
     dependencies:
       '@formatjs/fast-memoize': 3.1.5
+
+  '@free-fonts/zhuque-fangsong@1.0.0': {}
 
   '@hcaptcha/react-hcaptcha@2.2.0': {}
 
@@ -7915,6 +7943,8 @@ snapshots:
       - '@types/react'
       - '@types/react-dom'
 
+  cn-fontsource-975-maru-sc-bold@1.0.1: {}
+
   color-convert@2.0.1:
     dependencies:
       color-name: 1.1.4
@@ -9270,6 +9300,8 @@ snapshots:
       '@types/react': 19.3.0
 
   lxgw-wenkai-screen-webfont@1.7.0: {}
+
+  lxgw-wenkai-webfont@1.7.0: {}
 
   magic-string@0.30.21:
     dependencies:

@@ -18,6 +18,20 @@ export const LYRIC_FONT_STYLESHEETS = [
   '/fonts/dancing-script.css',
 ]
 
+/** Safari / WebKit 专项对齐兜底样式表（真 700 粗体圆黑/楷体/花体、传统朱雀仿宋与毛笔行楷；Chrome 不加载） */
+export const SAFARI_LYRIC_FONT_STYLESHEETS = [
+  '/fonts/noto-serif-sc-bold.css',
+  '/fonts/lxgw-wenkai-bold.css',
+  '/fonts/975-maru-sc-bold.css',
+  '/fonts/zhuque-fangsong.css',
+  '/fonts/ma-shan-zheng.css',
+  '/fonts/dancing-script-bold.css',
+]
+
+function isAppleWebKit(): boolean {
+  return typeof CSS !== 'undefined' && typeof CSS.supports === 'function' && CSS.supports('-apple-pay-button-style', 'inherit')
+}
+
 let injected = false
 
 /** 注入歌词字体样式表（幂等）。歌词舞台挂载时调用一次即可，后续命中浏览器缓存 */
@@ -25,7 +39,8 @@ export function loadLyricFonts() {
   if (injected || typeof document === 'undefined')
     return
   injected = true
-  for (const href of LYRIC_FONT_STYLESHEETS) {
+  const stylesheets = isAppleWebKit() ? SAFARI_LYRIC_FONT_STYLESHEETS : LYRIC_FONT_STYLESHEETS
+  for (const href of stylesheets) {
     const link = document.createElement('link')
     link.rel = 'stylesheet'
     link.href = href

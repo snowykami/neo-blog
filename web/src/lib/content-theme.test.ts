@@ -1,8 +1,9 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { rewriteFontCss, WEBFONTS } from '../../scripts/gen-webfonts.mjs'
+import { LYRIC_FONTS, rewriteFontCss, WEBFONTS } from '../../scripts/gen-webfonts.mjs'
 import { ALL_WEBFONTS, CONTENT_THEMES, contentWebFonts, resolveContentTheme, usedContentFonts } from './content-theme'
+import { LYRIC_FONT_STYLESHEETS, SAFARI_LYRIC_FONT_STYLESHEETS } from './lyrics/lyric-fonts'
 
 describe('内容主题', () => {
   it('与后端 config.ContentThemes 一致', () => {
@@ -32,6 +33,9 @@ describe('正文网页字体', () => {
 
   it('用到的网页字体都由 gen-webfonts 生成', () => {
     expect([...ALL_WEBFONTS].sort()).toEqual(Object.keys(WEBFONTS).sort())
+    const generated = new Set([...Object.keys(WEBFONTS), ...Object.keys(LYRIC_FONTS)].map(k => `/fonts/${k}.css`))
+    for (const href of [...LYRIC_FONT_STYLESHEETS, ...SAFARI_LYRIC_FONT_STYLESHEETS])
+      expect(generated.has(href)).toBe(true)
   })
 
   it('改写字体包 CSS：只保留 woff2 并指向 public 下的副本', () => {

@@ -1229,15 +1229,21 @@ describe('振假名渲染与 HDR 跨行平滑退场', () => {
     ctx.cleanup()
   })
 
-  it('歌词字体保持 Chrome 原生系统字体优先与饱满 700 字重，Safari/移动端走自托管 WebFont 回退', () => {
+  it('歌词字体保持 Chrome 原生系统字体优先与饱满 700 字重，Safari 仅在 @supports 隔离块中升级同风格高字重兜底', () => {
     const css = readFileSync(resolve(__dirname, 'lyric-player.css'), 'utf8')
-    expect(css).not.toContain('-webkit-font-smoothing: antialiased')
-    expect(css).not.toContain('font-synthesis-weight: none')
-    expect(css).toContain('font-weight: 700;')
-    expect(css).toContain('font-family: \'Songti SC\', STSong, var(--lyric-wf-song)')
-    expect(css).toContain('font-family: \'Kaiti SC\', STKaiti, KaiTi, var(--lyric-wf-kai)')
-    expect(css).toContain('font-family: \'Xingkai SC\', STXingkai, var(--lyric-wf-xingkai)')
-    expect(css).toContain('font-family: \'Yuanti SC\', var(--lyric-wf-round)')
+    const [baseCss, safariCss = ''] = css.split('@supports (-apple-pay-button-style: inherit)')
+    expect(baseCss).not.toContain('-webkit-font-smoothing: antialiased')
+    expect(baseCss).not.toContain('font-synthesis-weight: none')
+    expect(baseCss).toContain('font-weight: 700;')
+    expect(baseCss).toContain('font-family: \'Songti SC\', STSong, var(--lyric-wf-song)')
+    expect(baseCss).toContain('font-family: \'Kaiti SC\', STKaiti, KaiTi, var(--lyric-wf-kai)')
+    expect(baseCss).toContain('font-family: \'Xingkai SC\', STXingkai, var(--lyric-wf-xingkai)')
+    expect(baseCss).toContain('font-family: \'Yuanti SC\', var(--lyric-wf-round)')
+    expect(baseCss).toContain('--lyric-wf-round: \'ZCOOL KuaiLe\',;')
+    expect(safariCss).toContain('--lyric-wf-kai: \'LXGW WenKai\',;')
+    expect(safariCss).toContain('--lyric-wf-round: \'975Maru SC\',;')
+    expect(safariCss).toContain('--lyric-wf-fangsong: \'Zhuque Fangsong\',;')
+    expect(safariCss).toContain('--lyric-wf-xingkai: \'Ma Shan Zheng\', \'LXGW WenKai\',;')
   })
 
   it('由虚到实（focus）在 HDR 下随单字自身演唱时段实时对焦并点亮 HDR，不在整词唱完后滞后逐字跳变', () => {
