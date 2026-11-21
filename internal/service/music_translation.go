@@ -121,16 +121,17 @@ type lyricTranslationLineTask struct {
 
 // lyricTranslationInput 完成解析、语言检测与过滤后可供缓存查询或 AI 生成的任务描述
 type lyricTranslationInput struct {
-	Track         *dto.MusicTrackDto
-	Source        string
-	TargetLang    string
-	LyricHash     string
-	OrigLang      string
-	RefLang       string
-	NativeTarget  bool
-	SameLanguage  bool
-	ClassicalMode bool
-	Tasks         []lyricTranslationLineTask
+	Track            *dto.MusicTrackDto
+	Source           string
+	TargetLang       string
+	LyricHash        string
+	OrigLang         string
+	RefLang          string
+	NativeTarget     bool
+	SameLanguage     bool
+	ClassicalMode    bool
+	ClassicalChinese bool
+	Tasks            []lyricTranslationLineTask
 }
 
 // GetLyricTranslations 获取指定歌曲、歌词来源、目标语言的 AI 翻译；尚未生成时开启后台任务并返回 pending
@@ -876,7 +877,8 @@ func (a *lyricTranslationService) generateStream(
 	}
 
 	keepTargetRef := blueprint != nil && blueprint.NeedsReferenceTranslation
-	system := buildLyricTranslationSystemPromptWithBlueprint(input.TargetLang, input.ClassicalMode, blueprint)
+	classicalChinese := input.ClassicalChinese || (blueprint != nil && blueprint.SongLang == "lzh")
+	system := buildLyricTranslationSystemPromptFull(input.TargetLang, input.ClassicalMode, classicalChinese, blueprint)
 	baseUser := buildLyricTranslationUserPromptWithOptions(input, input.Tasks, keepTargetRef)
 	posByIndex := make(map[int]int, len(input.Tasks))
 	for pos, task := range input.Tasks {
@@ -1041,10 +1043,14 @@ func finalizeSingleLineTranslation(task lyricTranslationLineTask, raw, targetLan
 }
 
 func buildLyricTranslationSystemPrompt(targetLang string, classicalMode bool) string {
-	return buildLyricTranslationSystemPromptWithBlueprint(targetLang, classicalMode, nil)
+	return buildLyricTranslationSystemPromptFull(targetLang, classicalMode, classicalMode, nil)
 }
 
 func buildLyricTranslationSystemPromptWithBlueprint(targetLang string, classicalMode bool, blueprint *lyricDirectorAnalysis) string {
+	return buildLyricTranslationSystemPromptFull(targetLang, classicalMode, classicalMode || (blueprint != nil && blueprint.SongLang == "lzh"), blueprint)
+}
+
+func buildLyricTranslationSystemPromptFull(targetLang string, classicalMode, classicalChinese bool, blueprint *lyricDirectorAnalysis) string {
 	targetDesc := lyricTranslateLanguages[targetLang]
 	var b strings.Builder
 	b.WriteString("You are an accomplished literary music lyric translator.\n")
@@ -1070,9 +1076,19 @@ func buildLyricTranslationSystemPromptWithBlueprint(targetLang string, classical
 	}
 	b.WriteString("=== CORE FOUNDATION RULES ===\n")
 	b.WriteString("1. Pursue \"信、达、雅\" (faithfulness, fluency, and poetic elegance) infused with the song's emotion, persona, and expressive tone.\n")
-	b.WriteString("2. Metonymy Preservation: NEVER translate cultural metonyms literally into absurd objects (strictly follow the director's cultural notes above when present, and decode classical idioms/allusions by real contextual meaning).\n")
-	b.WriteString("   - Expressive cultural flavor (apply by analogy): When an iconic emotional or cultural keyword would lose its charm if flattened (e.g., Japanese \"かわい\" / \"かわいい\" in a cute character song translated into English as \"kawaii (cute)\"), you may keep the standout original/romanized keyword paired with a tiny 1–3 word parenthetical gloss in targetLang so readers feel both the original vibe and exact meaning. Use this sparingly and tastefully only where it truly shines.\n")
-	b.WriteString("   - Selective difficult-term notes: For deep local cultural allusions, historical titles, classical references (e.g., allusions in Classical Chinese poems like 琵琶行 translated for foreign listeners), or obscure concepts hard to grasp directly, you may add a concise parenthetical gloss (within 2–5 words) ONLY on the first occurrence of genuinely difficult terms — skip common words and never write lengthy footnotes.\n")
+	b.WriteString("2. Metonymy Preservation & Audience-Aware Allusion Glossing:\n")
+	b.WriteString("   - Pure lexical idioms where literal word-by-word translation produces absurd objects (e.g. 青丝 -> \"jet-black hair\", NEVER \"green silk thread\"; 阿姨 in Tang music-quarters context -> \"foster madam\", NEVER \"aunt\") MUST be translated by their true contextual meaning, following the director's cultural notes.\n")
+	switch targetLang {
+	case "en":
+		b.WriteString("   - Historical/classical allusions, metonymic place names, official titles, and symbolic cultural terms (e.g., allusions in Classical Chinese poems like 琵琶行: 五陵, 虾蟆陵, 教坊, 善才, 秋娘, 缠头, 司马, 青衫): You MAY preserve the literal poetic image or romanized proper name to retain authentic classical flavor, PROVIDED you pair its FIRST occurrence with a concise 2–5 word parenthetical gloss. Because native English listeners lack Classical Chinese context, bare literal calques like \"the Five Tombs\" or \"the Five Mausoleums\" for 五陵 sound like literal graves, and bare \"blue robe\" for 青衫 misses official demotion — you MUST gloss them on first occurrence (e.g., \"the Five Tombs (Chang'an's wealthy quarter)\" or \"Wuling (wealthy capital district)\", \"blue robe (humble official's attire)\", \"Sima (exiled sub-prefect)\").\n")
+	case "ja":
+		b.WriteString("   - Historical/classical allusions & cultural references (e.g., Classical Chinese poems like 琵琶行): Where shared Sino-Japanese Kanji compounds already convey the meaning naturally (e.g., \"五陵の貴公子\"), keep phrasing concise without redundant glosses; add a brief 2–5 word parenthetical gloss ONLY on the first occurrence of genuinely obscure archaic institutions or customs (e.g., \"纏頭（芸妓への贈り物）\", \"青衫（下級官吏の衣）\").\n")
+	case "ko":
+		b.WriteString("   - Historical/classical allusions & cultural references (e.g., Classical Chinese poems like 琵琶行): Because Hangul hides underlying Hanja characters, when preserving a classical allusion or proper name whose meaning is opaque in Hangul, add a concise 2–4 word parenthetical gloss ONLY on its first occurrence.\n")
+	default:
+		b.WriteString("   - Selective difficult-term notes: For deep local cultural allusions, historical titles, classical references, or obscure concepts hard to grasp directly, you may add a concise parenthetical gloss (within 2–5 words) ONLY on the first occurrence of genuinely difficult terms.\n")
+	}
+	b.WriteString("   - Expressive cultural flavor (apply by analogy): When an iconic emotional or subcultural keyword would lose its charm if flattened (e.g., Japanese \"かわい\" / \"かわいい\" in a cute character song translated into English as \"kawaii (cute)\"), you may keep the standout original/romanized keyword paired with a tiny 1–3 word parenthetical gloss in targetLang. Skip common words and NEVER write lengthy footnotes.\n")
 	switch targetLang {
 	case "zh-tw":
 		b.WriteString("3. Genre Adaptation & CRITICAL zh-tw Fidelity: Honor both the baseline genre norms and any director custom craft skills above, while writing authentic, idiomatic Taiwanese Traditional Chinese (台灣繁體中文與台灣地道書面用語，如台灣習慣詞彙與語氣). Do NOT perform mechanical Simplified-to-Traditional character substitution, and avoid Mainland or Hong Kong Cantonese-specific phrasing.\n")
@@ -1115,10 +1131,18 @@ func buildLyricTranslationSystemPromptWithBlueprint(targetLang string, classical
 		b.WriteString("   - Lines mixing a foreign semantic phrase WITH inline scat/onomatopoeia vocables (e.g. \"人は猫dala-da-da-da\" or \"收到总部命令 beep-beep\") -> translate ONLY the semantic part into natural English and preserve the inline scat/onomatopoeia intact in place (e.g. \"People are cats dala-da-da-da\", \"Orders received from HQ beep-beep\"). Lines already in English -> return \"\".\n")
 	}
 	b.WriteString("   - Other bilingual hooks/phrases -> translate where it aids understanding; return \"\" only if keeping the original phrase unchanged clearly reads better.\n")
-	b.WriteString("8. Proper nouns: Real or fictional place names, games/anime/media (e.g. 《原神》 -> \"Genshin Impact\"), famous historical or modern figures, books, and song titles MUST use standard recognized official translations in targetLang (respecting regional and script conventions of targetLang); fall back to semantic translation or phonetic transliteration only when no official/recognized name exists.\n")
+	b.WriteString("8. Proper nouns: Real or fictional place names, games/anime/media (e.g. 《原神》 -> \"Genshin Impact\"), famous historical or modern figures, books, and song titles MUST use standard recognized official translations in targetLang (respecting regional and script conventions of targetLang); fall back to semantic translation or phonetic transliteration only when no official/recognized name exists. However, when a historical place name or title functions as a Classical Chinese cultural allusion/metonym whose literal English name is opaque or misleading (such as 五陵 -> \"the Five Tombs\"), ALWAYS pair its first occurrence with a concise parenthetical gloss per Rule 2 rather than leaving a bare misleading literal noun.\n")
 	step := 9
 	if classicalMode {
 		b.WriteString(fmt.Sprintf("%d. CLASSICAL CHINESE -> MODERN VERNACULAR MODE (古文转白话): This song contains Classical Chinese (文言文 / 古诗词 / 古风文言句). For every line written in Classical Chinese or archaic poetic diction, translate it into concise, graceful, poetic modern Chinese vernacular (%s) suited for lyric subtitles. Do NOT leave Classical Chinese lines untranslated; however, return \"\" for lines that are already plain modern Chinese, and return \"\" for immediate short echo fragments that merely repeat a few trailing syllables of the preceding classical line without adding new meaning.\n", step, targetDesc))
+		step++
+	} else if classicalChinese && targetLang != "zh" && targetLang != "zh-tw" && targetLang != "zh-hk" {
+		b.WriteString(fmt.Sprintf("%d. CLASSICAL CHINESE FOREIGN TRANSLATION & GLOSSING MODE (古诗文外译与括号释义): This song contains Classical Chinese (文言文 / 古诗词 / 古风文言句). Consult both the Stage 1 cultural notes and any modern Chinese vernacular \"ref\" (when provided) to grasp the exact real-world meaning of every classical allusion before translating into %s. Preserve poetic cadence and classical imagery (literal poetic translation or romanization is welcome),", step, targetDesc))
+		if targetLang == "en" {
+			b.WriteString(" and because native English speakers do not know Classical Chinese historical metonyms, you MUST include a concise 2–5 word parenthetical explanation on the FIRST occurrence of every opaque or misleading literal allusion (e.g. \"Five Tombs (Chang'an's wealthy quarter)\" or \"Wuling (wealthy capital district)\" for 五陵, \"blue robe (humble official's attire)\" for 青衫, \"silk gifts\" or \"head-silks (gifts for performers)\" for 缠头) — NEVER leave bare \"Five Tombs\" / \"Five Mausoleums\" unexplained.\n")
+		} else {
+			b.WriteString(" adding brief first-occurrence parenthetical explanations only for archaic institutions or allusions that native readers of targetLang cannot infer directly from standard vocabulary.\n")
+		}
 		step++
 	}
 	b.WriteString(fmt.Sprintf("%d. Hint/credit lines (items with \"hint\": true, such as \"词作者：XXX\", \"曲作者：XXX\", \"作词：XXX\") -> translate the role label and artist/creator name concisely into targetLang ONLY when an established/confident localized form exists (for creator names, use only publicly recognized names or keep the original name; NEVER invent translations). Return \"\" if uncertain or already in targetLang.\n", step))
@@ -1334,19 +1358,22 @@ func (s *MusicService) buildTranslationInputFromExtracted(
 
 	origLang := detectLyricTextLang(vocalTexts, "")
 	sameLanguage := songAlreadyInTargetLang(vocalTexts, targetLang)
-	classicalMode := (targetLang == "zh" || targetLang == "zh-tw" || targetLang == "zh-hk") && !sameLanguage && songHasClassicalChinese(vocalTexts)
+	hasClassical := songHasClassicalChinese(vocalTexts)
+	classicalMode := (targetLang == "zh" || targetLang == "zh-tw" || targetLang == "zh-hk") && !sameLanguage && hasClassical
+	classicalForeign := !classicalMode && !sameLanguage && hasClassical && targetLang != "zh" && targetLang != "zh-tw" && targetLang != "zh-hk"
 
 	return &lyricTranslationInput{
-		Track:         track,
-		Source:        resolvedSource,
-		TargetLang:    targetLang,
-		LyricHash:     computeLyricTranslationHash(resolvedSource, extracted, refLang, refTexts, classicalMode, tasks),
-		OrigLang:      origLang,
-		RefLang:       refLang,
-		NativeTarget:  nativeTarget,
-		SameLanguage:  sameLanguage,
-		ClassicalMode: classicalMode,
-		Tasks:         tasks,
+		Track:            track,
+		Source:           resolvedSource,
+		TargetLang:       targetLang,
+		LyricHash:        computeLyricTranslationHash(resolvedSource, extracted, refLang, refTexts, classicalMode, classicalForeign, tasks),
+		OrigLang:         origLang,
+		RefLang:          refLang,
+		NativeTarget:     nativeTarget,
+		SameLanguage:     sameLanguage,
+		ClassicalMode:    classicalMode,
+		ClassicalChinese: hasClassical,
+		Tasks:            tasks,
 	}
 }
 
@@ -1359,7 +1386,7 @@ func (s *MusicService) extractTranslationInput(ctx context.Context, track *dto.M
 	return s.buildTranslationInputFromExtracted(ctx, track, resolvedSource, extracted, snapshot, targetLang), nil
 }
 
-func computeLyricTranslationHash(source string, extracted []lyricTranslationExtracted, refLang string, refTexts []string, classicalMode bool, tasks []lyricTranslationLineTask) string {
+func computeLyricTranslationHash(source string, extracted []lyricTranslationExtracted, refLang string, refTexts []string, classicalMode, classicalForeign bool, tasks []lyricTranslationLineTask) string {
 	var b strings.Builder
 	b.WriteString("v2\n")
 	b.WriteString(source)
@@ -1367,6 +1394,8 @@ func computeLyricTranslationHash(source string, extracted []lyricTranslationExtr
 	b.WriteString(refLang)
 	if classicalMode {
 		b.WriteString("\nclassical")
+	} else if classicalForeign {
+		b.WriteString("\nclassical-gloss-v2")
 	}
 	for _, task := range tasks {
 		if task.Hint {

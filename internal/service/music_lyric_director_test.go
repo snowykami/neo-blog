@@ -779,3 +779,118 @@ func TestSongDisplayLangResolutionAndValidation(t *testing.T) {
 		t.Fatalf("from director = %+v, err=%v", fromDirector, svcerr)
 	}
 }
+
+func TestClassicalChineseAllusionGlossingAndSelectiveHashBump(t *testing.T) {
+	// 1. 验证 Stage 1 导演提示词明确要求古诗文标注 'lzh' 并抽取跨文化借代义项与受众差异化注释技巧
+	if !strings.Contains(lyricDirectorSystemPrompt, "Tang/Song poems") || !strings.Contains(lyricDirectorSystemPrompt, "audience-aware allusion-glossing skill") {
+		t.Fatalf("lyricDirectorSystemPrompt missing classical allusion glossing rules:\n%s", lyricDirectorSystemPrompt)
+	}
+
+	// 2. 验证古文歌曲在英文目标下开启「保留古典意象 + 首现括号释义」专项规则，而日文与中文各自匹配受众习惯
+	blueprint := &lyricDirectorAnalysis{
+		SongLang: "lzh",
+		Genre:    "classical_poetry",
+		Mood:     "elegiac",
+		CulturalNotes: []lyricCulturalNote{
+			{Term: "五陵", MetonymyMeaning: "Chang'an's wealthy noble quarter"},
+		},
+	}
+	enSys := buildLyricTranslationSystemPromptFull("en", false, true, blueprint)
+	for _, want := range []string{
+		"CLASSICAL CHINESE FOREIGN TRANSLATION & GLOSSING MODE",
+		"Five Tombs (Chang'an's wealthy quarter)",
+		"NEVER leave bare \"Five Tombs\" / \"Five Mausoleums\" unexplained",
+		"pair its first occurrence with a concise parenthetical gloss per Rule 2",
+	} {
+		if !strings.Contains(enSys, want) {
+			t.Fatalf("English classical prompt missing %q:\n%s", want, enSys)
+		}
+	}
+
+	jaSys := buildLyricTranslationSystemPromptFull("ja", false, true, blueprint)
+	if !strings.Contains(jaSys, "CLASSICAL CHINESE FOREIGN TRANSLATION & GLOSSING MODE") || !strings.Contains(jaSys, "五陵の貴公子") {
+		t.Fatalf("Japanese classical prompt missing Sinosphere guidance:\n%s", jaSys)
+	}
+
+	zhSys := buildLyricTranslationSystemPromptFull("zh", true, true, blueprint)
+	if !strings.Contains(zhSys, "CLASSICAL CHINESE -> MODERN VERNACULAR MODE") || strings.Contains(zhSys, "CLASSICAL CHINESE FOREIGN TRANSLATION & GLOSSING MODE") {
+		t.Fatalf("Chinese vernacular prompt should only enable modern vernacular mode:\n%s", zhSys)
+	}
+
+	// 3. 验证端到端：古诗《琵琶行》译为 en 时注入 CLASSICAL CHINESE FOREIGN TRANSLATION & GLOSSING MODE，且仅外语古文哈希包含 classical-gloss-v2
+	track := dto.MusicTrackDto{
+		ID:      606,
+		Name:    "琵琶行",
+		Artists: []string{"奇然", "沈谧仁"},
+	}
+	setupMusicTranslationEnv(t, []dto.MusicTrackDto{track})
+	stubLyricSources(t, map[string]lyricSourceResult{
+		"ncm": {
+			data: &dto.MusicLyricDto{
+				Lrc:    lyricPart("[00:01.00]曲罢曾教善才服\n[00:03.00]妆成每被秋娘妒\n[00:05.00]五陵年少争缠头\n[00:09.00]江州司马青衫湿\n"),
+				Tlyric: lyricPart("[00:01.00]一曲弹罢曾令琵琶名师叹服\n[00:03.00]妆成总被名伎秋娘嫉妒\n[00:05.00]豪门贵公子争相献上重赏\n[00:09.00]江州司马的青衫早已被泪水浸湿\n"),
+			},
+			outcome: lyricOutcomeHit,
+		},
+	})
+
+	var capturedEnSystem atomic.Value
+	_, _, wait := stubLyricDirectorAndTranslation(
+		t,
+		func(_, _ string) (string, error) {
+			return `{
+  "song_lang": "lzh",
+  "genre": "classical_poetry",
+  "mood": "wistful",
+  "cultural_notes": [{"term": "五陵", "metonymy_meaning": "Chang'an's wealthy noble quarter"}],
+  "custom_style_skills": ["Add concise first-occurrence parenthetical glosses in English for opaque Tang allusions"],
+  "translation_directive": "Poetic imagery with brief glosses for Western listeners",
+  "visual_theme": "autumn river mist"
+}`, nil
+		},
+		func(system, _ string) (string, error) {
+			capturedEnSystem.Store(system)
+			return `{"i":1,"t":"When a piece ended, even master lute-players yielded."}` + "\n" +
+				`{"i":2,"t":"Adorned, she stirred the envy of Qiu Niang (famed capital courtesan)."}` + "\n" +
+				`{"i":3,"t":"Young gallants of the Five Tombs (Chang'an's wealthy quarter) vied with silk gifts."}` + "\n" +
+				`{"i":4,"t":"The Sima (exiled sub-prefect) of Jiangzhou, my blue robe (humble official's attire) soaked."}`, nil
+		},
+	)
+
+	s := NewMusicService()
+	ctx := context.Background()
+	enInp, svcerr := s.extractTranslationInput(ctx, &track, "ncm-lrc", "en")
+	if svcerr != nil || !enInp.ClassicalChinese || enInp.ClassicalMode {
+		t.Fatalf("enInp = %+v, err=%v", enInp, svcerr)
+	}
+	// 验证与未开启古文外译注释时的旧哈希不同，而现代流行歌不受影响
+	legacyEnHash := computeLyricTranslationHash(enInp.Source, []lyricTranslationExtracted{
+		{Start: 1000, Text: "曲罢曾教善才服", BuiltInByLang: map[string]string{"": "一曲弹罢曾令琵琶名师叹服"}},
+		{Start: 3000, Text: "妆成每被秋娘妒", BuiltInByLang: map[string]string{"": "妆成总被名伎秋娘嫉妒"}},
+		{Start: 5000, Text: "五陵年少争缠头", BuiltInByLang: map[string]string{"": "豪门贵公子争相献上重赏"}},
+		{Start: 9000, Text: "江州司马青衫湿", BuiltInByLang: map[string]string{"": "江州司马的青衫早已被泪水浸湿"}},
+	}, enInp.RefLang, []string{
+		"一曲弹罢曾令琵琶名师叹服",
+		"妆成总被名伎秋娘嫉妒",
+		"豪门贵公子争相献上重赏",
+		"江州司马的青衫早已被泪水浸湿",
+	}, false, false, enInp.Tasks)
+	if enInp.LyricHash == legacyEnHash {
+		t.Fatal("classical foreign translation hash should bump to invalidate bare literal cached translations")
+	}
+
+	res, svcerr := s.GetLyricTranslations(ctx, 606, "ncm-lrc", "en")
+	if svcerr != nil || res.Status != lyricTranslationStatusPending {
+		t.Fatalf("GetLyricTranslations(en) = %+v, err=%v", res, svcerr)
+	}
+	wait()
+
+	gotSys, _ := capturedEnSystem.Load().(string)
+	if !strings.Contains(gotSys, "CLASSICAL CHINESE FOREIGN TRANSLATION & GLOSSING MODE") {
+		t.Fatalf("Stage 2 system prompt missing classical foreign glossing mode:\n%s", gotSys)
+	}
+	ready, svcerr := s.GetLyricTranslations(ctx, 606, "ncm-lrc", "en")
+	if svcerr != nil || len(ready.Lines) != 4 || !strings.Contains(ready.Lines[2].Translation, "(Chang'an's wealthy quarter)") {
+		t.Fatalf("ready lines = %+v, err=%v", ready, svcerr)
+	}
+}

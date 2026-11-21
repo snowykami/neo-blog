@@ -58,20 +58,24 @@ Output strictly a single valid JSON object matching the following schema:
   "cultural_notes": [
     {
       "term": "original term / phrase in lyrics",
-      "metonymy_meaning": "actual contextual meaning, e.g. 五陵年少 = wealthy noble youth of the capital, NOT tombs; 青丝 = youth or jet-black hair, NOT green thread; 阿姨 = brothel madam in Tang context, NOT aunt"
+      "metonymy_meaning": "literal surface origin (if any) + actual contextual meaning for glossing, e.g. 五陵 / 五陵年少 = Han imperial mausoleum towns turned Chang'an's wealthy noble quarter -> wealthy noble youth of the capital (bare 'Five Tombs' misleads English readers into literal graves without a gloss); 青衫 = humble Tang official's blue-green robe symbolizing low rank/exile; 青丝 = youth or jet-black hair, NOT green thread; 阿姨 = foster madam of the music quarters in Tang context, NOT biological aunt"
     }
   ],
   "custom_style_skills": [
     "Specific craft rule #1 for this exact song (e.g. For this melancholic jazz ballad, use smoky conversational phrasing with subtle enjambment)",
-    "Specific craft rule #2 for this exact song (e.g. For this cyberpunk track, translate tech metaphors sharply, using industrial, metallic imagery)"
+    "Specific craft rule #2 for this exact song (e.g. For Classical Chinese poetry, preserve poetic/literal imagery or romanized names, and add concise 2-5 word first-occurrence parenthetical glosses in English/Western languages for opaque Tang/Han allusions while keeping Sinosphere languages like Japanese concise)"
   ],
   "translation_directive": "concise overall directive on rhythm, tone, lyrical voice, and rhyme preference",
   "visual_theme": "suggested visual color palette and dynamic particle effects (e.g., neon violet raindrops on wet asphalt, floating amber lotus petals)"
 }
 Rules for "song_lang":
 - Output a lowercase standard BCP-47 / ISO 639 tag for the primary sung language.
-- Distinguish Sinitic varieties accurately using song/artist origin and vocabulary: Mainland/Singapore/Malaysia Mandarin -> 'zh-cn', Taiwan Mandarin -> 'zh-tw', Cantonese -> 'yue', Hokkien/Taiwanese Minnan -> 'nan', Wu/Shanghainese -> 'wuu', Hakka -> 'hak', Classical/Literary Chinese -> 'lzh'.
+- Distinguish Sinitic varieties accurately using lyric register, vocabulary, and artist origin: Classical/Literary Chinese poetry or predominantly wenyan lyrics (e.g. Tang/Song poems like《琵琶行》《将进酒》set to music, even when sung in modern Mandarin pronunciation) -> 'lzh', Mainland/Singapore/Malaysia Mandarin -> 'zh-cn', Taiwan Mandarin -> 'zh-tw', Cantonese -> 'yue', Hokkien/Taiwanese Minnan -> 'nan', Wu/Shanghainese -> 'wuu', Hakka -> 'hak'.
 - Use 'art' for constructed/fictional/invented languages (e.g., Hymmnos, Chaos language, Kajiurago) or cipher/Morse lyrics; use 'mul' ONLY when two or more languages share major verse/chorus weight (do NOT use 'mul' just for occasional short English loanwords or hooks inside a Japanese/Korean/Chinese pop song).
+Rules for "cultural_notes" & "custom_style_skills":
+- Scan the full lyrics for Classical Chinese allusions, metonymic historical place names, official titles/ranks, attire/color symbols, and subcultural idioms whose literal translation is misleading or opaque to non-Sinosphere (especially native English) listeners.
+- Record each key allusion in "cultural_notes" with its true historical/contextual meaning so translators can supply accurate parenthetical glosses instead of bare misleading literal calques.
+- When Classical Chinese verse or dense historical allusions are present, include an audience-aware allusion-glossing skill in "custom_style_skills" (retaining classical flavor with concise first-occurrence parenthetical glosses for English/Western readers, while keeping Japanese/Chinese glosses minimal where Kanji already conveys the meaning).
 Rules for "needs_reference_translation":
 - Default to false for all normal natural-language lyrics (Japanese, English, Korean, Classical/Modern Chinese, French, German, Russian, multilingual lyrics, idioms, allusions, or slang) where a translator can directly understand and translate the original text independently without anchoring on a built-in translation.
 - Set true ONLY when the lyrics contain opaque, abstract, or encoded content whose semantic meaning cannot be reliably deciphered from the raw surface text alone without consulting an official/upstream reference translation — such as constructed/fictional/invented languages (conlangs like LaVI-Bavellabion, Hymmnos, Chaos language, lore-specific Kajiurago), Morse code (... --- ..., .- / -...), binary/hex/numeric ciphers, or cryptic symbol lyrics.`
@@ -176,7 +180,11 @@ func computeLyricDirectorHash(lines []string) string {
 	if len(normalized) == 0 {
 		return ""
 	}
-	sum := sha256.Sum256([]byte(strings.Join(normalized, "\n")))
+	payload := strings.Join(normalized, "\n")
+	if songHasClassicalChinese(normalized) {
+		payload = "classical-v2\n" + payload
+	}
+	sum := sha256.Sum256([]byte(payload))
 	return hex.EncodeToString(sum[:])
 }
 
