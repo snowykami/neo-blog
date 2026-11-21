@@ -1,6 +1,6 @@
 'use client'
 import { useTranslations } from 'next-intl'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { uploadFile } from '@/api/file'
@@ -9,9 +9,9 @@ import { AssetField } from '@/components/common/asset-picker'
 import { ImageAvatar } from '@/components/common/avatar'
 import { ImageCropper } from '@/components/common/image-cropper'
 import { TimeZoneCombobox } from '@/components/common/time-zone-combobox'
+import { FormFloatingSaveBar } from '@/components/console/common/floating-save-bar'
 import { useUserFieldRules } from '@/components/console/users/user-profile-fields'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Form,
@@ -24,7 +24,6 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
 import { GenderInput } from '@/components/user/gender-input'
 import { useAuth } from '@/contexts/auth-context'
@@ -98,6 +97,26 @@ export function UserProfilePage() {
   const [backgroundCropped, setBackgroundCropped] = useState<File | null>(null)
   const avatarCroppedUrl = useObjectUrl(avatarCropped)
   const backgroundCroppedUrl = useObjectUrl(backgroundCropped)
+  const initializedUserIdRef = useRef<number | null>(user?.id ?? null)
+
+  useEffect(() => {
+    if (!user || initializedUserIdRef.current === user.id)
+      return
+    initializedUserIdRef.current = user.id
+    form.reset({
+      nickname: user.nickname ?? '',
+      username: user.username ?? '',
+      gender: user.gender ?? '',
+      showIpLocation: user.showIpLocation ?? true,
+      showLikes: user.showLikes ?? false,
+      showLocalTime: user.showLocalTime ?? false,
+      timeZone: user.timeZone ?? '',
+    })
+    setAvatarUrl(user.avatarUrl ?? '')
+    setBackgroundUrl(user.backgroundUrl ?? '')
+    setAvatarCropped(null)
+    setBackgroundCropped(null)
+  }, [form, user])
 
   const isProfileChanged = (): boolean => {
     if (!user)
@@ -121,9 +140,31 @@ export function UserProfilePage() {
   if (!user)
     return null
 
+  const mediaDirty = avatarUrl !== (user.avatarUrl ?? '')
+    || backgroundUrl !== (user.backgroundUrl ?? '')
+    || avatarCropped !== null
+    || backgroundCropped !== null
+
+  const handleReset = () => {
+    form.reset({
+      nickname: user.nickname ?? '',
+      username: user.username ?? '',
+      gender: user.gender ?? '',
+      showIpLocation: user.showIpLocation ?? true,
+      showLikes: user.showLikes ?? false,
+      showLocalTime: user.showLocalTime ?? false,
+      timeZone: user.timeZone ?? '',
+    })
+    setAvatarUrl(user.avatarUrl ?? '')
+    setBackgroundUrl(user.backgroundUrl ?? '')
+    setAvatarCropped(null)
+    setBackgroundCropped(null)
+  }
+
   const onSubmit = form.handleSubmit(async (values) => {
     if (!isProfileChanged()) {
-      toast.warning(t('no_changes_made'))
+      handleReset()
+      toast.info(t('no_changes_made'))
       return
     }
 
@@ -382,12 +423,7 @@ export function UserProfilePage() {
           </CardContent>
         </Card>
 
-        <div className="flex justify-end">
-          <Button type="submit" disabled={form.formState.isSubmitting}>
-            {form.formState.isSubmitting && <Spinner />}
-            {t('update_profile')}
-          </Button>
-        </div>
+        <FormFloatingSaveBar extraDirty={mediaDirty} onReset={handleReset} />
       </form>
     </Form>
   )

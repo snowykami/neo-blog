@@ -12,6 +12,7 @@ import { toast } from 'sonner'
 import { getConfigSchema, saveConfig } from '@/api/admin'
 import { getSiteInfo } from '@/api/misc'
 import { defaultSidebarCards } from '@/components/blog-sidebar/sidebar-cards'
+import { FormFloatingSaveBar } from '@/components/console/common/floating-save-bar'
 import { ThemePackPreviewField } from '@/components/console/theme-pack-preview'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -217,7 +218,7 @@ export function SettingsForm({ advanced }: { advanced: React.ReactNode }) {
                 </TabsContent>
               )
             })}
-            <FloatingSaveBar
+            <FormFloatingSaveBar
               saving={saving}
               dirtyFieldsRef={dirtyFieldsRef}
               onReset={() => form.reset()}
@@ -247,43 +248,6 @@ function TabDirtyDot({
   if (!hasDirty)
     return null
   return <span role="img" aria-label={label} className="size-1.5 rounded-full bg-primary" />
-}
-
-/** 浮动保存栏：局部订阅 isDirty / dirtyFields，仅在存在未保存更改或正在保存时浮起 */
-function FloatingSaveBar({
-  saving,
-  dirtyFieldsRef,
-  onReset,
-}: {
-  saving: boolean
-  dirtyFieldsRef: React.RefObject<Record<string, unknown>>
-  onReset: () => void
-}) {
-  const t = useTranslations('Console.global')
-  const operationT = useOperationT()
-  const { control } = useFormContext<ConfigValues>()
-  const { isDirty, dirtyFields } = useFormState({ control })
-  dirtyFieldsRef.current = dirtyFields as Record<string, unknown>
-
-  if (!isDirty && !saving)
-    return null
-
-  return (
-    <div className="sticky bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-20 mx-auto flex w-full max-w-lg items-center justify-between gap-3 rounded-full border border-primary/25 bg-card/90 px-4 py-2 shadow-lg backdrop-blur-md animate-in duration-200 fade-in slide-in-from-bottom-2">
-      <div className="flex min-w-0 items-center gap-2 text-xs sm:text-sm">
-        <span aria-hidden className="size-2 shrink-0 animate-pulse rounded-full bg-primary" />
-        <span className="truncate font-medium text-foreground">{t('unsaved_changes')}</span>
-      </div>
-      <div className="flex shrink-0 items-center gap-2">
-        <Button type="button" size="sm" variant="outline" className="rounded-full" disabled={saving} onClick={onReset}>
-          {t('reset')}
-        </Button>
-        <Button type="submit" size="sm" className="rounded-full" disabled={saving}>
-          {saving ? t('saving') : operationT('save')}
-        </Button>
-      </div>
-    </div>
-  )
 }
 
 function ConditionalVisibleField({

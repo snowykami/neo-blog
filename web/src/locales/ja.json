@@ -3615,7 +3615,10 @@
     "remove_named": "「{name}」を削除",
     "more": "その他の操作",
     "operation_failed": "操作に失敗しました",
-    "delete_confirm_title": "「{name}」を削除しますか？"
+    "delete_confirm_title": "「{name}」を削除しますか？",
+    "unsaved_changes": "未保存の変更があります",
+    "discard_changes": "変更を破棄",
+    "saving": "保存中…"
   },
   "Metrics": {
     "comment_count": "コメント数",

@@ -1,11 +1,13 @@
 'use client'
 
+import type { SaveCoordinator } from '@/components/console/common/floating-save-bar'
 import { useTranslations } from 'next-intl'
 import * as React from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { getAIWritingHabit, updateAIWritingHabit } from '@/api/ai-prompt'
 import { InfoTooltip } from '@/components/common/info-tooltip'
+import { useBindSaveCoordinator } from '@/components/console/common/floating-save-bar'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Textarea } from '@/components/ui/textarea'
@@ -20,7 +22,10 @@ interface HabitFormValues {
 }
 
 /** 当前用户的 AI 写作语言习惯：AI 帮写、润色与 MCP 外部写作时参考；编辑器指令管理弹窗与个性化设置页共用 */
-export function AIWritingHabitForm({ className }: { className?: string }) {
+export function AIWritingHabitForm({ className, coordinator }: {
+  className?: string
+  coordinator?: SaveCoordinator
+}) {
   const t = useTranslations('Console.editor.ai.habit')
   const errorMessageT = useErrorMessageT()
   // 加载成功前不允许保存，避免用空内容覆盖已有的习惯
@@ -47,16 +52,30 @@ export function AIWritingHabitForm({ className }: { className?: string }) {
     }
   }, [form, t, errorMessageT])
 
-  const onSubmit = async (values: HabitFormValues) => {
+  const saveHabitValues = async (values: HabitFormValues, silentSuccess: boolean) => {
+    if (status !== 'ready')
+      return 'noop' as const
     try {
       const res = await updateAIWritingHabit(values.habit.trim())
       form.reset({ habit: res.data?.habit ?? '' })
-      toast.success(t('saved'))
+      if (!silentSuccess)
+        toast.success(t('saved'))
+      return 'saved' as const
     }
     catch (error) {
       toast.error(`${t('save_failed')}: ${errorMessageT(error)}`)
+      return 'error' as const
     }
   }
+
+  const onSubmit = async (values: HabitFormValues) => {
+    await saveHabitValues(values, false)
+  }
+
+  useBindSaveCoordinator(coordinator, form, {
+    saveDisabled: status !== 'ready',
+    onSaveValues: values => saveHabitValues(values, true),
+  })
 
   return (
     <Form {...form}>
@@ -80,11 +99,13 @@ export function AIWritingHabitForm({ className }: { className?: string }) {
             </FormItem>
           )}
         />
-        <div className="flex justify-end gap-3">
-          <Button type="submit" disabled={status !== 'ready' || !form.formState.isDirty || form.formState.isSubmitting}>
-            {t('save')}
-          </Button>
-        </div>
+        {!coordinator && (
+          <div className="flex justify-end gap-3">
+            <Button type="submit" disabled={status !== 'ready' || !form.formState.isDirty || form.formState.isSubmitting}>
+              {t('save')}
+            </Button>
+          </div>
+        )}
       </form>
     </Form>
   )

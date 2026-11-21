@@ -2,13 +2,14 @@
 
 import type { Control, FieldPathByValue } from 'react-hook-form'
 import type { AIAgent, AIAgentProfile, AIAgentSelfEditField, AIAgentTier, AIAgentTrigger } from '@/models/ai-agent'
-import { Bot, Brain, Check, ChevronsUpDown, Clock, Gauge, Loader2, Shield, SlidersHorizontal, Wand } from 'lucide-react'
+import { Bot, Brain, Check, ChevronsUpDown, Clock, Gauge, Shield, SlidersHorizontal, Wand } from 'lucide-react'
 import { useLocale } from 'next-intl'
 import { useMemo, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 import { updateAIAgent } from '@/api/ai-agent'
 import { TimeZoneCombobox } from '@/components/common/time-zone-combobox'
+import { FormFloatingSaveBar } from '@/components/console/common/floating-save-bar'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -683,17 +684,7 @@ export function AgentProfileForm({ agent, onSaved }: { agent: AIAgent, onSaved: 
           </div>
         </Section>
 
-        {/* 保存栏：滚动时固定在底部 */}
-        <div className="sticky bottom-0 z-10 flex items-center justify-end gap-3 border-t bg-background/90 py-3 backdrop-blur">
-          {form.formState.isDirty && <span className="text-sm text-muted-foreground">{t('profile.unsaved')}</span>}
-          <Button type="button" variant="outline" disabled={!form.formState.isDirty || form.formState.isSubmitting} onClick={() => form.reset()}>
-            {operationT('reset')}
-          </Button>
-          <Button type="submit" disabled={!form.formState.isDirty || form.formState.isSubmitting}>
-            {form.formState.isSubmitting && <Loader2 className="animate-spin" />}
-            {operationT('save')}
-          </Button>
-        </div>
+        <FormFloatingSaveBar onReset={() => form.reset()} />
       </form>
     </Form>
   )

@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { getNotificationPreferences } from '@/api/notification'
 import { updateUser } from '@/api/user'
 import { ColorSchemeSelector } from '@/components/console/common/color-scheme-selector'
+import { FloatingSaveBar, useSaveCoordinator } from '@/components/console/common/floating-save-bar'
 import { DesktopIslandSettingsForm } from '@/components/console/user-preference/desktop-island-settings-form'
 import { NotificationPreferencesForm } from '@/components/notification/notification-preferences-form'
 import { AIWritingHabitForm } from '@/components/tiptap-editor/ai-writing-habit-form'
@@ -39,6 +40,13 @@ export function UserPreferencePage() {
   const [savingLang, setSavingLang] = useState(false)
   const [notifPrefs, setNotifPrefs] = useState<NotificationPreferences | null>(null)
   const [notifLoading, setNotifLoading] = useState(true)
+  const saveCtrl = useSaveCoordinator()
+
+  const handleSaveAll = async () => {
+    const { savedCount, hasInvalid, hasError } = await saveCtrl.saveAll()
+    if (savedCount > 0 && !hasInvalid && !hasError)
+      toast.success(operationT('save_success'))
+  }
 
   // 记录首次同步，避免未设过主题色的用户刚打开页面时弹出「更新成功」提示
   const hadInitialColorRef = useRef(Boolean(user?.preferredColor))
@@ -165,7 +173,7 @@ export function UserPreferencePage() {
       {notifLoading
         ? <Skeleton className="h-44 w-full rounded-xl" />
         : notifPrefs
-          ? <NotificationPreferencesForm initial={notifPrefs} />
+          ? <NotificationPreferencesForm initial={notifPrefs} coordinator={saveCtrl.coordinator} />
           : (
               <Card>
                 <CardHeader>
@@ -180,7 +188,7 @@ export function UserPreferencePage() {
               </Card>
             )}
 
-      {siteInfo.musicEnabled && <DesktopIslandSettingsForm />}
+      {siteInfo.musicEnabled && <DesktopIslandSettingsForm coordinator={saveCtrl.coordinator} />}
 
       {/* AI 写作只对编辑者与管理员开放 */}
       {user && isEditor({ user }) && (
@@ -189,10 +197,17 @@ export function UserPreferencePage() {
             <CardTitle className="text-base">{t('ai_writing')}</CardTitle>
           </CardHeader>
           <CardContent>
-            <AIWritingHabitForm />
+            <AIWritingHabitForm coordinator={saveCtrl.coordinator} />
           </CardContent>
         </Card>
       )}
+
+      <FloatingSaveBar
+        dirty={saveCtrl.dirty}
+        saving={saveCtrl.saving}
+        onReset={saveCtrl.resetAll}
+        onSave={() => void handleSaveAll()}
+      />
     </div>
   )
 }

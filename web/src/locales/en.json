@@ -3615,7 +3615,10 @@
     "remove_named": "Remove \"{name}\"",
     "more": "More actions",
     "operation_failed": "Operation failed",
-    "delete_confirm_title": "Delete \"{name}\"?"
+    "delete_confirm_title": "Delete \"{name}\"?",
+    "unsaved_changes": "You have unsaved changes",
+    "discard_changes": "Discard changes",
+    "saving": "Saving…"
   },
   "Metrics": {
     "comment_count": "Comments",

@@ -3756,7 +3756,10 @@
     "remove_named": "移除「{name}」",
     "more": "更多操作",
     "operation_failed": "操作失败",
-    "delete_confirm_title": "删除「{name}」？"
+    "delete_confirm_title": "删除「{name}」？",
+    "unsaved_changes": "有未保存的修改",
+    "discard_changes": "撤销修改",
+    "saving": "保存中…"
   },
   "Metrics": {
     "comment_count": "评论数",

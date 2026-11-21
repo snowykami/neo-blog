@@ -3615,7 +3615,10 @@
     "remove_named": "‘{name}’ 제거",
     "more": "더 많은 작업",
     "operation_failed": "작업에 실패했습니다",
-    "delete_confirm_title": "\"{name}\"을(를) 삭제할까요?"
+    "delete_confirm_title": "\"{name}\"을(를) 삭제할까요?",
+    "unsaved_changes": "저장하지 않은 변경 사항이 있습니다",
+    "discard_changes": "변경 취소",
+    "saving": "저장 중…"
   },
   "Metrics": {
     "comment_count": "댓글",

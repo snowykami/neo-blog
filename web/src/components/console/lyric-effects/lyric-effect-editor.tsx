@@ -5,7 +5,7 @@ import type { AnnotationForm } from '@/lib/lyrics/annotation-edit'
 import type { MusicSong } from '@/models/music'
 import type { BaseResponseError } from '@/models/resp'
 import { isAxiosError } from 'axios'
-import { ArrowLeftIcon, EyeIcon, RefreshCwIcon, SaveIcon } from 'lucide-react'
+import { ArrowLeftIcon, EyeIcon, RefreshCwIcon } from 'lucide-react'
 import { useFormatter, useNow, useTranslations } from 'next-intl'
 import { useParams } from 'next/navigation'
 import * as React from 'react'
@@ -13,6 +13,7 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { fetchLyricAnnotationEditor, getMusicSong, refreshLyricAnnotations, saveLyricAnnotations } from '@/api/music'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
+import { FormFloatingSaveBar } from '@/components/console/common/floating-save-bar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Form } from '@/components/ui/form'
@@ -53,7 +54,7 @@ export function LyricEffectEditor() {
   const [activeLine, setActiveLine] = React.useState(0)
   const [regenerating, setRegenerating] = React.useState(false)
   const form = useForm<AnnotationForm>({ defaultValues: EMPTY_FORM })
-  const { isDirty, isSubmitting } = form.formState
+  const { isDirty } = form.formState
   const dirtyRef = React.useRef(isDirty)
   dirtyRef.current = isDirty
   const unique = React.useMemo(() => uniqueLyricLines(data?.lines ?? []), [data?.lines])
@@ -254,10 +255,6 @@ export function LyricEffectEditor() {
                 {t('regenerate')}
               </Button>
             </ConfirmDialog>
-            <Button type="submit" size="sm" disabled={!isDirty || isSubmitting || generating}>
-              <SaveIcon className="size-4" />
-              {t('save')}
-            </Button>
           </div>
         </header>
         {!data.annotation && !generating && <p className="text-sm text-muted-foreground">{t('no_annotation')}</p>}
@@ -269,6 +266,7 @@ export function LyricEffectEditor() {
             <EffectLegendPanel />
           </aside>
         </div>
+        <FormFloatingSaveBar saveDisabled={generating} onReset={() => form.reset()} />
       </form>
     </Form>
   )

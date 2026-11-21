@@ -1,5 +1,6 @@
 'use client'
 
+import type { SaveCoordinator } from '@/components/console/common/floating-save-bar'
 import type { NotificationPreferences, NotificationType } from '@/models/notification'
 import { Loader2 } from 'lucide-react'
 import { useTranslations } from 'next-intl'
@@ -7,6 +8,7 @@ import { useEffect, useState } from 'react'
 import { FormProvider, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { unsubscribeAllNotifications, updateNotificationPreferences } from '@/api/notification'
+import { useBindSaveCoordinator } from '@/components/console/common/floating-save-bar'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { FormControl, FormField, FormItem, FormLabel } from '@/components/ui/form'
@@ -36,10 +38,11 @@ interface PreferencesFormValues {
  * 通知偏好表单：站内三个开关 + AI 互动 + 邮件总开关 + 一键关闭邮件。
  * 站点没开放的类型不显示（用户只能关不能开），邮件开关受站点总开关与白名单约束
  */
-export function NotificationPreferencesForm({ initial, token }: {
+export function NotificationPreferencesForm({ initial, token, coordinator }: {
   initial: NotificationPreferences
   // 邮件里的免登录凭据：带 token 时保存请求也带上它
   token?: string
+  coordinator?: SaveCoordinator
 }) {
   const t = useTranslations('NotificationSettings')
   const errorMessageT = useErrorMessageT()
@@ -61,7 +64,7 @@ export function NotificationPreferencesForm({ initial, token }: {
   // 站点没开邮件时整块邮件设置都不显示，只留一句说明
   const emailAvailable = preferences.siteEmailEnabled && emailTypes.length > 0
 
-  const submit = async (values: PreferencesFormValues) => {
+  const saveValues = async (values: PreferencesFormValues, silentSuccess: boolean) => {
     setSaving(true)
     try {
       const inapp = INAPP_GROUPS.filter(group => values[group.key as 'comment' | 'reply' | 'like' | 'mention'])
@@ -76,15 +79,27 @@ export function NotificationPreferencesForm({ initial, token }: {
       })
       setPreferences(res.data)
       form.reset(toFormValues(res.data))
-      toast.success(t('saved'))
+      if (!silentSuccess)
+        toast.success(t('saved'))
+      return 'saved' as const
     }
     catch (error) {
       toast.error(`${t('save_failed')}: ${errorMessageT(error)}`)
+      return 'error' as const
     }
     finally {
       setSaving(false)
     }
   }
+
+  const submit = async (values: PreferencesFormValues) => {
+    await saveValues(values, false)
+  }
+
+  useBindSaveCoordinator(coordinator, form, {
+    saving,
+    onSaveValues: values => saveValues(values, true),
+  })
 
   const unsubscribeAll = async () => {
     setSaving(true)
@@ -198,12 +213,14 @@ export function NotificationPreferencesForm({ initial, token }: {
           )}
         </Card>
 
-        <div>
-          <Button type="submit" disabled={saving}>
-            {saving && <Loader2 className="animate-spin" />}
-            {t('save')}
-          </Button>
-        </div>
+        {!coordinator && (
+          <div>
+            <Button type="submit" disabled={saving}>
+              {saving && <Loader2 className="animate-spin" />}
+              {t('save')}
+            </Button>
+          </div>
+        )}
       </form>
     </FormProvider>
   )

@@ -1,11 +1,13 @@
 'use client'
 
+import type { SaveCoordinator } from '@/components/console/common/floating-save-bar'
 import type { DesktopIslandFormMode, DesktopIslandPreferences } from '@/hooks/use-desktop-island-pref'
 import { DownloadIcon, ExternalLinkIcon, RefreshCwIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
+import { useBindSaveCoordinator } from '@/components/console/common/floating-save-bar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -87,7 +89,10 @@ const BEHAVIOR_SWITCH_ITEMS: {
 const NIGHTLY_DMG_URL = 'https://github.com/snowykami/neo-blog/releases/download/island-nightly/NeoBlogIsland-universal.dmg'
 const RELEASES_PAGE_URL = 'https://github.com/snowykami/neo-blog/releases'
 
-export function DesktopIslandSettingsForm({ className }: { className?: string }) {
+export function DesktopIslandSettingsForm({ className, coordinator }: {
+  className?: string
+  coordinator?: SaveCoordinator
+}) {
   const t = useTranslations('Console.user_preference')
   const prefs = useDesktopIslandPrefs()
   const { status } = useDesktopIslandRuntime()
@@ -102,16 +107,27 @@ export function DesktopIslandSettingsForm({ className }: { className?: string })
     form.reset({ port: String(prefs.port) })
   }, [form, prefs.port])
 
-  const onSavePort = (values: PortFormValues) => {
+  const savePortValues = (values: PortFormValues, silentSuccess: boolean) => {
     const parsed = Number(values.port.trim())
     if (!Number.isInteger(parsed) || parsed < 1024 || parsed > 65535) {
       form.setError('port', { message: t('desktop_island.port_invalid') })
-      return
+      return 'invalid' as const
     }
     updateDesktopIslandPrefs({ port: parsed })
+    form.reset({ port: String(parsed) })
     requestDesktopIslandReconnect()
-    toast.success(t('desktop_island.port_saved'))
+    if (!silentSuccess)
+      toast.success(t('desktop_island.port_saved'))
+    return 'saved' as const
   }
+
+  const onSavePort = (values: PortFormValues) => {
+    savePortValues(values, false)
+  }
+
+  useBindSaveCoordinator(coordinator, form, {
+    onSaveValues: values => savePortValues(values, true),
+  })
 
   const statusBadgeVariant = status === 'connected'
     ? 'default'
@@ -187,9 +203,11 @@ export function DesktopIslandSettingsForm({ className }: { className?: string })
                           className="font-mono"
                         />
                       </FormControl>
-                      <Button type="submit" variant="secondary" disabled={!form.formState.isDirty}>
-                        {t('desktop_island.port_save')}
-                      </Button>
+                      {!coordinator && (
+                        <Button type="submit" variant="secondary" disabled={!form.formState.isDirty}>
+                          {t('desktop_island.port_save')}
+                        </Button>
+                      )}
                     </div>
                     <FormDescription>{t('desktop_island.port_desc')}</FormDescription>
                     <FormMessage />
