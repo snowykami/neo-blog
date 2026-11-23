@@ -2791,4 +2791,54 @@ struct BridgeAndEngineTests {
         #expect(extBundle.lines[1].plainText == "后唱但写在第一段")
         #expect(extBundle.lines[1].align == "right" && extBundle.lines[1].isDuet == true && extBundle.lines[1].singerName == "主唱B")
     }
+
+    @Test("外语多音节与跨词粘连音节读音对齐：整词 IPA 与法语连诵自动拆回实际歌词音节，且词内连写判定准确")
+    func foreignSubSyllablePronunciationAlignment() {
+        let enWords: [LyricWordPayload] = [
+            LyricWordPayload(text: "The ", start: 1000, end: 1300),
+            LyricWordPayload(text: "whi", start: 1300, end: 1500),
+            LyricWordPayload(text: "s", start: 1500, end: 1600),
+            LyricWordPayload(text: "per", start: 1600, end: 1900),
+            LyricWordPayload(text: "s and ", start: 1900, end: 2300),
+            LyricWordPayload(text: "se", start: 2300, end: 2700),
+            LyricWordPayload(text: "crets ", start: 2700, end: 3200),
+            LyricWordPayload(text: "they'd ", start: 3200, end: 3600),
+            LyricWordPayload(text: "keep", start: 3600, end: 4000)
+        ]
+        let enAligned = RomanizationAligner.sanitizeForPayload(
+            RomanizationAligner.buildRomanWordsFromAiTokens(
+                words: enWords,
+                tokens: nil,
+                fallbackPronunciation: "ðə ˈwɪspərz ænd ˈsikrɪts ðeɪd kip"
+            ) ?? []
+        )
+        #expect(enAligned.map(\.text) == ["ðə", "ˈwɪ", "s", "pər", "z ænd", "ˈsi", "krɪts", "ðeɪd", "kip"])
+        #expect(enAligned.map(\.word) == [0, 1, 2, 3, 4, 5, 6, 7, 8])
+
+        let frWords: [LyricWordPayload] = [
+            LyricWordPayload(text: "Non, ", start: 1000, end: 1400),
+            LyricWordPayload(text: "le ", start: 1400, end: 1600),
+            LyricWordPayload(text: "g", start: 1600, end: 1750),
+            LyricWordPayload(text: "rand ", start: 1750, end: 2000),
+            LyricWordPayload(text: "amo", start: 2000, end: 2300),
+            LyricWordPayload(text: "ur ", start: 2300, end: 2600),
+            LyricWordPayload(text: "ne ", start: 2600, end: 2800),
+            LyricWordPayload(text: "su", start: 2800, end: 3000),
+            LyricWordPayload(text: "ffit ", start: 3000, end: 3300),
+            LyricWordPayload(text: "pas.", start: 3300, end: 3700)
+        ]
+        let frAligned = RomanizationAligner.sanitizeForPayload(
+            RomanizationAligner.buildRomanWordsFromAiTokens(
+                words: frWords,
+                tokens: nil,
+                fallbackPronunciation: "nɔ̃ lə ɡʁɑ̃.t‿a.muʁ nə sy.fi pa"
+            ) ?? []
+        )
+        #expect(frAligned.map(\.text) == ["nɔ̃", "lə", "ɡ", "ʁɑ̃t", "a", "muʁ", "nə", "sy", "fi", "pa"])
+        #expect(frAligned.map(\.word) == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+
+        #expect(RomanizationAligner.isIntraWordJoin(prevText: "whi", curText: "s") == true)
+        #expect(RomanizationAligner.isIntraWordJoin(prevText: "The ", curText: "whi") == false)
+        #expect(RomanizationAligner.isIntraWordJoin(prevText: "五", curText: "陵") == false)
+    }
 }

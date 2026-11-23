@@ -45,6 +45,8 @@ export interface RubyMetrics {
   charWidth: number
   firstWidth: number
   rubyWidth: number
+  // 是否与前一个注音单元同属一个未断开的外语多音节单词内部（词内采用紧凑防撞间距，避免把单词撑裂）
+  intraWord?: boolean
 }
 
 export interface RubyPlacement {
@@ -70,7 +72,8 @@ export function placeRuby(units: RubyMetrics[], gap: number): RubyPlacement[] {
     }
     const offset = (unit.charWidth - unit.firstWidth) / 2
     const start = unit.left + pushed + offset
-    const shift = Math.max(0, previousEnd + gap - start)
+    const effectiveGap = unit.intraWord ? gap * 0.15 : gap
+    const shift = Math.max(0, previousEnd + effectiveGap - start)
     pushed += shift
     previousEnd = start + shift + unit.rubyWidth
     return { shift, offset }

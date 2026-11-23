@@ -659,7 +659,7 @@ struct BeatBarsView: View {
 
 enum LyricWordSlotRole: Equatable {
     case auto
-    case main(unitIndex: Int)
+    case main(unitIndex: Int, intraWord: Bool = false)
     case furigana(unitIndex: Int)
     case ruby(unitIndex: Int, firstPartRatio: CGFloat)
 }
@@ -734,6 +734,7 @@ struct WrappingWordFlowLayout: Layout {
     private struct MeasuredUnit {
         var mainSubIdx: Int = -1
         var mainSize: CGSize = .zero
+        var intraWord: Bool = false
         var furiSubIdx: Int? = nil
         var furiSize: CGSize? = nil
         var rubySubIdx: Int? = nil
@@ -779,13 +780,14 @@ struct WrappingWordFlowLayout: Layout {
                 orderedUnitIds.append(uid)
                 unitMap[uid] = MeasuredUnit(mainSubIdx: sIdx, mainSize: sz)
 
-            case .main(let uid):
+            case .main(let uid, let intra):
                 if unitMap[uid] == nil {
                     orderedUnitIds.append(uid)
                     unitMap[uid] = MeasuredUnit()
                 }
                 unitMap[uid]?.mainSubIdx = sIdx
                 unitMap[uid]?.mainSize = sz
+                unitMap[uid]?.intraWord = intra
 
             case .furigana(let uid):
                 if unitMap[uid] == nil {
@@ -817,7 +819,7 @@ struct WrappingWordFlowLayout: Layout {
         var previousRubyEnd: CGFloat = -.infinity
         var rowMaxRight: CGFloat = 0
 
-        func evaluatePlacement(for u: MeasuredUnit, at curX: CGFloat, prevRubyEnd: CGFloat) -> (placed: PlacedUnit, nextCursorX: CGFloat, nextRubyEnd: CGFloat, rightExtent: CGFloat) {
+        func evaluatePlacement(for u: MeasuredUnit, at curX: CGFloat, prevRubyEnd: CGFloat, useIntraGap: Bool) -> (placed: PlacedUnit, nextCursorX: CGFloat, nextRubyEnd: CGFloat, rightExtent: CGFloat) {
             let charW = u.mainSize.width
             let furiW = u.furiSize?.width ?? 0
             let furiPad = u.furiSize != nil ? max(0, (furiW - charW) * 0.5) : 0
@@ -831,8 +833,9 @@ struct WrappingWordFlowLayout: Layout {
                 let firstW = rSize.width * u.firstPartRatio
                 let offset = (charW - firstW) * 0.5
                 let rawStart = curX + furiPad + offset
-                // 对齐 ruby-layout.ts placeRuby：首音拍居中于底字，与前一段音译距离小于 rubyGap 时整体右推，且不越过行首左界
-                shift = max(0, max(-rawStart, prevRubyEnd + rubyGap - rawStart))
+                let effectiveGap = useIntraGap ? rubyGap * 0.15 : rubyGap
+                // 对齐 ruby-layout.ts placeRuby：首音拍居中于底字，词内子音节采用紧凑间距避免撑裂单词
+                shift = max(0, max(-rawStart, prevRubyEnd + effectiveGap - rawStart))
                 rubyX = curX + shift + furiPad + offset
                 rubyRight = rubyX + rSize.width
                 nextRuby = rubyRight
@@ -858,19 +861,35 @@ struct WrappingWordFlowLayout: Layout {
             return (placed, nextCur, nextRuby, extent)
         }
 
+        // 将同属一个未断开外语多音节单词内部的连续子音节归为整词串，防止在词中腰斩断行（如 beneath 断成 benea / th）
+        var wordRuns: [[MeasuredUnit]] = []
         for u in units {
-            var candidate = evaluatePlacement(for: u, at: cursorX, prevRubyEnd: previousRubyEnd)
-            if !rows[rows.count - 1].placements.isEmpty && candidate.rightExtent > maxWidth + 0.5 {
-                rows[rows.count - 1].width = rowMaxRight
-                rows.append(Row())
-                cursorX = 0
-                previousRubyEnd = -.infinity
-                rowMaxRight = 0
-                candidate = evaluatePlacement(for: u, at: 0, prevRubyEnd: -.infinity)
+            if u.intraWord, !wordRuns.isEmpty {
+                wordRuns[wordRuns.count - 1].append(u)
+            } else {
+                wordRuns.append([u])
             }
+        }
 
+        func evaluateRun(_ run: [MeasuredUnit], startX: CGFloat, startPrevRubyEnd: CGFloat) -> (placements: [PlacedUnit], nextCursorX: CGFloat, nextRubyEnd: CGFloat, maxExtent: CGFloat) {
+            var curX = startX
+            var prevRuby = startPrevRubyEnd
+            var maxExt: CGFloat = 0
+            var list: [PlacedUnit] = []
+            list.reserveCapacity(run.count)
+            for (idxInRun, u) in run.enumerated() {
+                let cand = evaluatePlacement(for: u, at: curX, prevRubyEnd: prevRuby, useIntraGap: idxInRun > 0 && u.intraWord)
+                list.append(cand.placed)
+                curX = cand.nextCursorX
+                prevRuby = cand.nextRubyEnd
+                maxExt = max(maxExt, cand.rightExtent)
+            }
+            return (list, curX, prevRuby, maxExt)
+        }
+
+        func appendUnitToRow(_ u: MeasuredUnit, placed: PlacedUnit, nextCur: CGFloat, nextRuby: CGFloat, extent: CGFloat) {
             let rIdx = rows.count - 1
-            rows[rIdx].placements.append(candidate.placed)
+            rows[rIdx].placements.append(placed)
             rows[rIdx].mainBand = max(rows[rIdx].mainBand, u.mainSize.height)
             if let fSize = u.furiSize, fSize.height > 0 {
                 rows[rIdx].topBand = max(rows[rIdx].topBand, fSize.height + 1.0)
@@ -878,9 +897,53 @@ struct WrappingWordFlowLayout: Layout {
             if let rSize = u.rubySize, rSize.height > 0 {
                 rows[rIdx].bottomBand = max(rows[rIdx].bottomBand, rSize.height + 1.0)
             }
-            cursorX = candidate.nextCursorX
-            previousRubyEnd = candidate.nextRubyEnd
-            rowMaxRight = max(rowMaxRight, candidate.rightExtent)
+            cursorX = nextCur
+            previousRubyEnd = nextRuby
+            rowMaxRight = max(rowMaxRight, extent)
+            rows[rIdx].width = rowMaxRight
+        }
+
+        for run in wordRuns {
+            var runCandidate = evaluateRun(run, startX: cursorX, startPrevRubyEnd: previousRubyEnd)
+            if !rows[rows.count - 1].placements.isEmpty && runCandidate.maxExtent > maxWidth + 0.5 {
+                rows[rows.count - 1].width = rowMaxRight
+                rows.append(Row())
+                cursorX = 0
+                previousRubyEnd = -.infinity
+                rowMaxRight = 0
+                runCandidate = evaluateRun(run, startX: 0, startPrevRubyEnd: -.infinity)
+            }
+            // 极端兜底：单个超长词本身超过整行宽度时退回逐音节换行
+            if run.count > 1 && runCandidate.maxExtent > maxWidth + 0.5 {
+                for (idxInRun, u) in run.enumerated() {
+                    var cand = evaluatePlacement(for: u, at: cursorX, prevRubyEnd: previousRubyEnd, useIntraGap: idxInRun > 0 && u.intraWord && cursorX > 0)
+                    if !rows[rows.count - 1].placements.isEmpty && cand.rightExtent > maxWidth + 0.5 {
+                        rows[rows.count - 1].width = rowMaxRight
+                        rows.append(Row())
+                        cursorX = 0
+                        previousRubyEnd = -.infinity
+                        rowMaxRight = 0
+                        cand = evaluatePlacement(for: u, at: 0, prevRubyEnd: -.infinity, useIntraGap: false)
+                    }
+                    appendUnitToRow(u, placed: cand.placed, nextCur: cand.nextCursorX, nextRuby: cand.nextRubyEnd, extent: cand.rightExtent)
+                }
+                continue
+            }
+
+            let rIdx = rows.count - 1
+            for (idxInRun, u) in run.enumerated() {
+                rows[rIdx].placements.append(runCandidate.placements[idxInRun])
+                rows[rIdx].mainBand = max(rows[rIdx].mainBand, u.mainSize.height)
+                if let fSize = u.furiSize, fSize.height > 0 {
+                    rows[rIdx].topBand = max(rows[rIdx].topBand, fSize.height + 1.0)
+                }
+                if let rSize = u.rubySize, rSize.height > 0 {
+                    rows[rIdx].bottomBand = max(rows[rIdx].bottomBand, rSize.height + 1.0)
+                }
+            }
+            cursorX = runCandidate.nextCursorX
+            previousRubyEnd = runCandidate.nextRubyEnd
+            rowMaxRight = max(rowMaxRight, runCandidate.maxExtent)
             rows[rIdx].width = rowMaxRight
         }
 
@@ -1007,9 +1070,10 @@ struct StaticStageLyricLineView: View {
                     let baseWordText = Text(word.text).font(wordFont)
                     let styledWordText = wordItalic ? baseWordText.italic() : baseWordText
 
+                    let isIntra = wIdx > 0 && RomanizationAligner.isIntraWordJoin(prevText: line.words[wIdx - 1].text, curText: word.text)
                     styledWordText
                         .foregroundStyle(.white.opacity(baseAlpha))
-                        .lyricWordSlotRole(.main(unitIndex: wIdx))
+                        .lyricWordSlotRole(.main(unitIndex: wIdx, intraWord: isIntra))
 
                     if let furiList = word.ruby, !furiList.isEmpty {
                         Text(furiList.map(\.text).joined())
@@ -1108,7 +1172,7 @@ struct LyricLineSweepView: View {
                             debrisEngine: debrisEngine,
                             nowMs: nowMs
                         )
-                        .lyricWordSlotRole(.main(unitIndex: unit.wordIndex))
+                        .lyricWordSlotRole(.main(unitIndex: unit.wordIndex, intraWord: unit.intraWord))
 
                         if !unit.furigana.isEmpty {
                             FuriganaGroupSweepView(
@@ -1197,6 +1261,7 @@ struct LyricLineSweepView: View {
         }
         let id: String
         let wordIndex: Int
+        let intraWord: Bool
         let kind: Kind
         let furigana: [FuriganaItem]
         let romanParts: [RomanPartUnit]
@@ -1240,6 +1305,7 @@ struct LyricLineSweepView: View {
                 return WordUnit(
                     id: "\(prefix)-p-\(idx)",
                     wordIndex: idx,
+                    intraWord: idx > 0 && RomanizationAligner.isIntraWordJoin(prevText: line.words[idx - 1].text, curText: w.text),
                     kind: .plain(w),
                     furigana: makeFurigana(for: idx, word: w),
                     romanParts: romanUnits,
@@ -1319,6 +1385,7 @@ struct LyricLineSweepView: View {
                         WordUnit(
                             id: "\(prefix)-e\(gIdx)-w\(wIdx)",
                             wordIndex: wIdx,
+                            intraWord: wIdx > 0 && RomanizationAligner.isIntraWordJoin(prevText: line.words[wIdx - 1].text, curText: w.text),
                             kind: .emphasized(group, w, max(1, totalChars), slices),
                             furigana: makeFurigana(for: wIdx, word: w),
                             romanParts: romanUnits,
@@ -1340,6 +1407,7 @@ struct LyricLineSweepView: View {
                     WordUnit(
                         id: "\(prefix)-p-\(i)",
                         wordIndex: i,
+                        intraWord: i > 0 && RomanizationAligner.isIntraWordJoin(prevText: line.words[i - 1].text, curText: w.text),
                         kind: .plain(w),
                         furigana: makeFurigana(for: i, word: w),
                         romanParts: romanUnits,

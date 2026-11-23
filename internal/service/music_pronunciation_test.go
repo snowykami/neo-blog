@@ -414,3 +414,76 @@ func TestStreamLyricPronunciationsSingleProducerAndReplay(t *testing.T) {
 		t.Fatalf("unexpected c2 replay/lines: replay=%+v lines=%+v", replay, c2Lines)
 	}
 }
+
+func TestPronunciationSyllableSpanAlignmentAndTargetedRetry(t *testing.T) {
+	tracks := []dto.MusicTrackDto{
+		{ID: 807, Name: "希望有羽毛和翅膀", Artists: []string{"知更鸟", "HOYO-MiX", "Chevy"}},
+	}
+	setupMusicTranslationEnv(t, tracks)
+
+	ttml := `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata"><body><div>` +
+		`<p begin="00:01.000" end="00:04.000"><span begin="00:01.000" end="00:01.300">The</span> <span begin="00:01.300" end="00:01.500">whi</span><span begin="00:01.500" end="00:01.600">s</span><span begin="00:01.600" end="00:01.900">per</span><span begin="00:01.900" end="00:02.300">s and</span> <span begin="00:02.300" end="00:02.700">se</span><span begin="00:02.700" end="00:03.200">crets</span> <span begin="00:03.200" end="00:03.600">they'd</span> <span begin="00:03.600" end="00:04.000">keep</span></p>` +
+		`<p begin="00:05.000" end="00:08.000"><span begin="00:05.000" end="00:05.500">Non,</span> <span begin="00:05.500" end="00:05.800">le</span> <span begin="00:05.800" end="00:06.000">g</span><span begin="00:06.000" end="00:06.300">rand</span> <span begin="00:06.300" end="00:06.600">amo</span><span begin="00:06.600" end="00:07.000">ur</span> <span begin="00:07.000" end="00:07.300">ne</span> <span begin="00:07.300" end="00:07.600">su</span><span begin="00:07.600" end="00:07.800">ffit</span> <span begin="00:07.800" end="00:08.000">pas.</span></p>` +
+		`<p begin="00:09.000" end="00:12.000"><span begin="00:09.000" end="00:09.400">Break</span> <span begin="00:09.400" end="00:09.800">be</span><span begin="00:09.800" end="00:10.300">nea</span><span begin="00:10.300" end="00:10.600">th</span> <span begin="00:10.600" end="00:11.200">dou</span><span begin="00:11.200" end="00:12.000">x</span></p>` +
+		`</div></body></tt>`
+
+	stubLyricSources(t, map[string]lyricSourceResult{
+		"ttml": {
+			data:    &dto.MusicTTMLDto{Source: "amll", TTML: ttml},
+			outcome: lyricOutcomeHit,
+		},
+	})
+
+	var prompts []string
+	var attempt atomic.Int32
+	calls, wait := stubLyricPronunciationService(t, func(_, user string) (string, error) {
+		prompts = append(prompts, user)
+		if attempt.Add(1) == 1 {
+			// 第 1、2 句仅返回整词级音标（含法语连诵 ‿ 与音节符 .），应由规则引擎直接拆回逐音节槽位；
+			// 第 3 句故意返回词数对不上的残缺音标，触发仅包含 i=3 的局部音节重试
+			return `{"i":1,"lang":"en","pronunciation":"ðə ˈwɪspərz ænd ˈsikrɪts ðeɪd kip"}` + "\n" +
+				`{"i":2,"lang":"other","pronunciation":"nɔ̃ lə ɡʁɑ̃.t‿a.muʁ nə sy.fi pa"}` + "\n" +
+				`{"i":3,"lang":"en","pronunciation":"breɪk","tokens":["breɪk"]}` + "\n", nil
+		}
+		return `{"i":3,"lang":"en","tokens":["breɪk","bɪ","ˈni","θ","du",""],"pronunciation":"breɪk bɪˈniθ du"}` + "\n", nil
+	})
+
+	s := NewMusicService()
+	ctx := context.Background()
+
+	first, svcerr := s.GetLyricPronunciations(ctx, 807, "ttml-amll")
+	if svcerr != nil || first.Status != "pending" {
+		t.Fatalf("first get 807 = %+v, err=%v", first, svcerr)
+	}
+	wait()
+
+	if calls.Load() != 2 || len(prompts) != 2 {
+		t.Fatalf("expected 2 LLM calls (1 targeted syllable retry), got %d", calls.Load())
+	}
+	if !strings.Contains(prompts[0], `"syllable_map":"The whi·s·per·[s and] se·crets they'd keep"`) {
+		t.Fatalf("expected syllable_map hint in first prompt: %s", prompts[0])
+	}
+	if strings.Contains(prompts[1], "whispers") || !strings.Contains(prompts[1], `"i":3`) {
+		t.Fatalf("targeted retry should only resend mismatched line i=3, got: %s", prompts[1])
+	}
+
+	ready, svcerr := s.GetLyricPronunciations(ctx, 807, "ttml-amll")
+	if svcerr != nil || ready.Status != "ready" || len(ready.Lines) != 3 {
+		t.Fatalf("ready 807 = %+v, err=%v", ready, svcerr)
+	}
+
+	// 第 1 句：9 个 TTML span（含跨词粘连 "s and" -> "z ænd"）全部精确对齐
+	wantL1 := []string{"ðə", "ˈwɪ", "s", "pər", "z ænd", "ˈsi", "krɪts", "ðeɪd", "kip"}
+	if strings.Join(ready.Lines[0].Tokens, "|") != strings.Join(wantL1, "|") {
+		t.Fatalf("line 1 tokens = %#v, want %#v", ready.Lines[0].Tokens, wantL1)
+	}
+	// 第 2 句：10 个法语 TTML span（拆解 ɡʁɑ̃.t‿a.muʁ 连诵与 sy.fi 音节）
+	if len(ready.Lines[1].Tokens) != 10 || ready.Lines[1].Tokens[7] != "sy" || ready.Lines[1].Tokens[8] != "fi" {
+		t.Fatalf("line 2 tokens = %#v", ready.Lines[1].Tokens)
+	}
+	// 第 3 句：经局部重试后补齐 6 个音节槽位（含法语静音词尾 x -> ""）
+	wantL3 := []string{"breɪk", "bɪ", "ˈni", "θ", "du", ""}
+	if strings.Join(ready.Lines[2].Tokens, "|") != strings.Join(wantL3, "|") {
+		t.Fatalf("line 3 tokens = %#v, want %#v", ready.Lines[2].Tokens, wantL3)
+	}
+}

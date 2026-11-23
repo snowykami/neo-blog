@@ -50,4 +50,13 @@ describe('注音行', () => {
     ], 4)
     expect(placed.map(item => item.shift)).toEqual([0, 27, 0, 0])
   })
+
+  it('词内连续子音节使用紧凑防撞间距，避免将同一个外语多音节词撑裂', () => {
+    const intra = placeRuby([
+      { left: 0, top: 0, charWidth: 16, firstWidth: 15, rubyWidth: 15 },
+      { left: 16, top: 0, charWidth: 16, firstWidth: 12, rubyWidth: 12, intraWord: true },
+    ], 6)
+    // 词内间距仅 6 * 0.15 = 0.9px，首段右缘 15.5 + 0.9 = 16.4 < 次段起始 18，无需额外推开词内字母
+    expect(intra[1].shift).toBe(0)
+  })
 })

@@ -101,6 +101,7 @@ interface WordView {
 /** 注音单元（底字上方可选振假名、下方可选逐字音译）：排版见 layoutRubyUnits 与 ruby-layout.ts 的 placeRuby */
 interface RubyUnitView {
   el: HTMLElement
+  wordIndex: number
   furigana: HTMLElement | null
   furiganaParts: { el: HTMLElement, text: string }[]
   ruby: HTMLElement | null
@@ -504,6 +505,15 @@ function textWidth(el: HTMLElement, text: string): number | null {
 
 // 同一排相邻两段音译的最小间距（音译字号的倍数）
 const RUBY_GAP_EM = 0.35
+const CJK_SYLLABLE_RE = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
+
+function isIntraWordJoin(prevText: string, curText: string): boolean {
+  if (!prevText || !curText)
+    return false
+  if (/\s$/.test(prevText) || /^\s/.test(curText))
+    return false
+  return !CJK_SYLLABLE_RE.test(prevText) && !CJK_SYLLABLE_RE.test(curText)
+}
 
 /**
  * 排版一行的注音单元（上方日文振假名 + 下方逐字音译）：
@@ -542,14 +552,19 @@ function layoutRubyUnits(units: RubyUnitView[], showRomanization: boolean) {
     .filter((item): item is { unit: RubyUnitView & { ruby: HTMLElement }, index: number } => item.unit.ruby != null && item.unit.parts.length > 0)
   if (romanItems.length === 0)
     return
-  const metrics: RubyMetrics[] = romanItems.map(({ unit }) => {
+  const metrics: RubyMetrics[] = romanItems.map(({ unit }, k) => {
     const firstWidth = textWidth(unit.parts[0].el, unit.parts[0].text) ?? 0
+    const prevUnit = k > 0 ? romanItems[k - 1].unit : null
+    const intraWord = prevUnit != null
+      && unit.wordIndex === prevUnit.wordIndex + 1
+      && isIntraWordJoin(prevUnit.wordText, unit.wordText)
     return {
       left: unit.el.offsetLeft,
       top: unit.el.offsetTop,
       charWidth: textWidth(unit.word, unit.wordText) ?? unit.word.offsetWidth,
       firstWidth,
       rubyWidth: unit.parts.reduce((sum, part, i) => sum + (i === 0 ? firstWidth : textWidth(part.el, part.text) ?? 0), 0),
+      intraWord,
     }
   })
   const gap = RUBY_GAP_EM * (Number.parseFloat(getComputedStyle(romanItems[0].unit.ruby).fontSize) || 10)
@@ -1384,22 +1399,44 @@ export class LyricPlayer {
    * 组成注音单元（单元记入 units，测量时排版，见 layoutRubyUnits），振假名各假名与音译各分段均作为可擦除的词返回，按各自时间逐段擦除。
    * emphasisOf 返回某个音节所在强调组的音译部分（不强调时为 null），注在强调音节下的音译段拆成单字放入其中，并带上该组的字体与字形
    */
+  private appendGroupedWordNodes(main: HTMLElement, nodes: HTMLElement[], wordTexts: string[]) {
+    const doc = this.container.ownerDocument
+    let i = 0
+    while (i < nodes.length) {
+      let end = i + 1
+      while (end < nodes.length && isIntraWordJoin(wordTexts[end - 1], wordTexts[end]))
+        end++
+      if (end - i >= 2) {
+        const groupEl = doc.createElement('span')
+        groupEl.className = 'lyric-word-group'
+        groupEl.append(...nodes.slice(i, end))
+        main.append(groupEl)
+      }
+      else {
+        main.append(nodes[i])
+      }
+      i = end
+    }
+  }
+
   private buildWords(main: HTMLElement, line: ResolvedLyrics['lines'][number], mainWords: WordView[], units: RubyUnitView[], emphasisOf: (index: number) => EmphasisView | null): WordView[] {
     const doc = this.container.ownerDocument
     const parts = line.romanizationWords ?? []
     const hasFurigana = !this.options.strip && line.words.some(word => (word.ruby?.length ?? 0) > 0)
+    const wordTexts = mainWords.map(w => w.word.text)
     if (parts.length === 0 && !hasFurigana) {
-      main.append(...mainWords.map(word => word.el))
+      this.appendGroupedWordNodes(main, mainWords.map(word => word.el), wordTexts)
       return []
     }
     // 每个字一个注音单元：上方可选振假名、下方可选逐字音译（音译显示时去掉标点与空白，见 ruby-layout.ts）
     const groups = new Map(rubyGroups(parts).map(group => [group.word, group.parts]))
     const extraWords: WordView[] = []
+    const topLevelNodes: HTMLElement[] = []
     mainWords.forEach((mainWord, index) => {
       const furiganaList = !this.options.strip ? mainWord.word.ruby : undefined
       const group = groups.get(index)
       if ((!furiganaList || furiganaList.length === 0) && !group) {
-        main.append(mainWord.el)
+        topLevelNodes.push(mainWord.el)
         return
       }
       const unitEl = doc.createElement('span')
@@ -1441,9 +1478,10 @@ export class LyricPlayer {
         }
         unitEl.append(ruby)
       }
-      main.append(unitEl)
-      units.push({ el: unitEl, furigana: furiganaEl, furiganaParts, ruby, word: mainWord.el, wordText: mainWord.word.text, parts: unitParts })
+      topLevelNodes.push(unitEl)
+      units.push({ el: unitEl, wordIndex: index, furigana: furiganaEl, furiganaParts, ruby, word: mainWord.el, wordText: mainWord.word.text, parts: unitParts })
     })
+    this.appendGroupedWordNodes(main, topLevelNodes, wordTexts)
     return extraWords
   }
 

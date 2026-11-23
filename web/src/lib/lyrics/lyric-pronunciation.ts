@@ -35,7 +35,40 @@ const JYUTPING_RE = /\b[a-z]{1,6}[1-6]\b/
 const CANTONESE_PARTICLES_RE = /[嘅咗喺冇係唔啲嚟咁乜咩仲畀揾搵睇佢哋]/
 const HOKKIEN_MARKERS_RE = /[袂毋𨑨迌佇囥]|啥物|歹势|歹勢|仝款|按怎|家己|佗位|叨位/u
 const KANA_OR_HANGUL_RE = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
+const ANY_CJK_RE = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
 const OTHER_NON_LATIN_RE = /[\p{Script=Cyrillic}\p{Script=Arabic}\p{Script=Devanagari}\p{Script=Thai}\p{Script=Greek}\p{Script=Hebrew}]/u
+function isLiaisonTieChar(ch: string): boolean {
+  return ch === '‿' || ch === '\u0361' || ch === '\u035C'
+}
+
+function hasLiaisonTie(text: string): boolean {
+  for (const ch of text) {
+    if (isLiaisonTieChar(ch))
+      return true
+  }
+  return false
+}
+
+function splitOnLiaisonTie(text: string): string[] {
+  const out: string[] = []
+  let cur = ''
+  for (const ch of text) {
+    if (isLiaisonTieChar(ch)) {
+      out.push(cur)
+      cur = ''
+    }
+    else {
+      cur += ch
+    }
+  }
+  out.push(cur)
+  return out
+}
+const SOURCE_VOWEL_RE = /[aeiouyàáâãäåæèéêëìíîïòóôõöøœùúûüÿ]/i
+const PHONETIC_VOWEL_RE = /[aeiouyàáâãäåæèéêëìíîïòóôõöøœùúûüÿɑɒɔəɚɛɜɝɪɨʊʉʌɯɤɐɶʏ]/i
+const COMBINING_OR_MOD_RE = /^[\p{M}ːˑ˞ʰʷʲ]$/u
+const SILENT_TAIL_SET = new Set(['e', 'es', 's', 'x', 'z', 't', 'd', 'p', 'ts', 'ds'])
+const EDGE_STRIP_RE = /^(?:[\s\p{P}]|(?!\u02D9)\p{S})+|(?:[\s\p{P}]|(?!\u02D9)\p{S})+$/gu
 const SHORT_FILLER_LATIN_WORDS = new Set([
   'oh',
   'ooh',
@@ -110,11 +143,293 @@ export function extractPronounceableWordIndices(words: LyricWord[]): number[] {
   return indices
 }
 
+interface SurfaceWordFragment {
+  wordIdx: number
+  text: string
+  lowerLetters: string
+  weight: number
+  hasVowel: boolean
+}
+
+interface SurfaceWordGroup {
+  joinedText: string
+  fragments: SurfaceWordFragment[]
+}
+
+function stripPronEdge(raw: string): string {
+  return raw.replace(EDGE_STRIP_RE, '')
+}
+
+function splitPhonemeClusters(raw: string): string[] {
+  const chars = [...raw]
+  const clusters: string[] = []
+  let prefix = ''
+  let i = 0
+  while (i < chars.length) {
+    const ch = chars[i]
+    if (ch === '.' || /\s/.test(ch)) {
+      i++
+      continue
+    }
+    if (ch === 'ˈ' || ch === 'ˌ' || ch === '\'') {
+      prefix += ch
+      i++
+      continue
+    }
+    let cluster = prefix + ch
+    prefix = ''
+    i++
+    while (i < chars.length) {
+      const next = chars[i]
+      if (COMBINING_OR_MOD_RE.test(next) || isLiaisonTieChar(next)) {
+        cluster += next
+        i++
+        if (isLiaisonTieChar(next) && i < chars.length) {
+          cluster += chars[i]
+          i++
+        }
+        continue
+      }
+      break
+    }
+    clusters.push(cluster)
+  }
+  if (prefix && clusters.length > 0)
+    clusters[clusters.length - 1] += prefix
+  return clusters
+}
+
+function endsWithVowelSound(text: string): boolean {
+  let lastBase = ''
+  for (const ch of text) {
+    if (COMBINING_OR_MOD_RE.test(ch))
+      continue
+    lastBase = ch
+  }
+  return Boolean(lastBase && PHONETIC_VOWEL_RE.test(lastBase))
+}
+
+function distributeUnitsAcrossFragments(units: string[], frags: SurfaceWordFragment[], sep: string): string[] {
+  const n = units.length
+  const k = frags.length
+  const totalW = frags.reduce((sum, f) => sum + f.weight, 0) || k
+  const out = Array.from<string>({ length: k }).fill('')
+  let cursor = 0
+  let cumW = 0
+
+  const sliceHasVowel = (from: number, to: number) => {
+    for (let u = from; u < to; u++) {
+      if (PHONETIC_VOWEL_RE.test(units[u]))
+        return true
+    }
+    return false
+  }
+
+  for (let j = 0; j < k - 1; j++) {
+    cumW += frags[j].weight
+    const minEnd = Math.min(cursor + 1, n - (k - 1 - j))
+    const maxEnd = n - (k - 1 - j)
+    const ideal = Math.round((n * cumW) / totalW)
+    let end = Math.min(Math.max(ideal, minEnd), maxEnd)
+
+    if (sep === '') {
+      if (!frags[j].hasVowel && !sliceHasVowel(cursor, minEnd)) {
+        end = minEnd
+      }
+      else {
+        if (frags[j].hasVowel && !sliceHasVowel(cursor, end) && end < maxEnd && PHONETIC_VOWEL_RE.test(units[end]))
+          end++
+        const remWeight = totalW - cumW
+        if (!frags[j + 1].hasVowel && (n - end) < remWeight && end > minEnd && sliceHasVowel(cursor, end - 1) && !PHONETIC_VOWEL_RE.test(units[end - 1]))
+          end--
+        if (end > minEnd && units[end - 1].startsWith('ˈ') && !PHONETIC_VOWEL_RE.test(units[end - 1]) && end < maxEnd) {
+          if (sliceHasVowel(cursor, end - 1))
+            end--
+          else
+            end++
+        }
+      }
+    }
+
+    out[j] = units.slice(cursor, end).join(sep)
+    cursor = end
+  }
+  out[k - 1] = units.slice(cursor).join(sep)
+  return out
+}
+
+function splitPronUnitAcrossFragments(pronUnit: string, frags: SurfaceWordFragment[]): string[] {
+  const k = frags.length
+  if (k === 0)
+    return []
+  if (k === 1)
+    return [stripPronEdge(pronUnit)]
+
+  if (pronUnit.includes('.')) {
+    const dotParts = pronUnit.split('.').map(stripPronEdge).filter(Boolean)
+    if (dotParts.length > 0 && dotParts.every(dp => PHONETIC_VOWEL_RE.test(dp))) {
+      if (dotParts.length === k)
+        return dotParts
+      if (dotParts.length > k)
+        return distributeUnitsAcrossFragments(dotParts, frags, '.')
+    }
+  }
+
+  const cleaned = stripPronEdge(pronUnit)
+  if (k === 2 && frags[0].weight >= 2 && SILENT_TAIL_SET.has(frags[1].lowerLetters) && endsWithVowelSound(cleaned))
+    return [cleaned, '']
+
+  const clusters = splitPhonemeClusters(cleaned)
+  if (clusters.length === 0)
+    return Array.from<string>({ length: k }).fill('')
+  if (clusters.length <= k)
+    return Array.from({ length: k }, (_, i) => clusters[i] ?? '')
+  return distributeUnitsAcrossFragments(clusters, frags, '')
+}
+
+function buildSurfaceWordGroups(words: LyricWord[]): SurfaceWordGroup[] {
+  const groups: SurfaceWordGroup[] = []
+  let curFrags: SurfaceWordFragment[] = []
+  let curJoined = ''
+  let prevChunk = ''
+  let prevEndedSpace = true
+
+  const flush = () => {
+    if (curFrags.length > 0) {
+      groups.push({ joinedText: curJoined, fragments: curFrags })
+      curFrags = []
+      curJoined = ''
+    }
+  }
+
+  words.forEach((word, wordIdx) => {
+    const raw = word.text
+    if (!raw)
+      return
+    if (!raw.trim()) {
+      prevEndedSpace = true
+      return
+    }
+    let lastEnd = 0
+    for (const match of raw.matchAll(/\S+/g)) {
+      const matchIndex = match.index ?? 0
+      if (matchIndex > lastEnd)
+        prevEndedSpace = true
+      const chunk = match[0]
+      const endPos = matchIndex + chunk.length
+      const trailSpace = endPos < raw.length && /\s/.test(raw.slice(endPos))
+      lastEnd = endPos
+
+      if (!hasPronounceableChar(chunk)) {
+        if (trailSpace)
+          prevEndedSpace = true
+        continue
+      }
+
+      const canContinue = !prevEndedSpace && curFrags.length > 0 && !ANY_CJK_RE.test(prevChunk) && !ANY_CJK_RE.test(chunk)
+      if (!canContinue)
+        flush()
+
+      const letters = ([...chunk].filter(c => PRONOUNCEABLE_RE.test(c)).join('')).toLowerCase()
+      curJoined += chunk
+      curFrags.push({
+        wordIdx,
+        text: chunk,
+        lowerLetters: letters,
+        weight: Math.max(1, [...letters].length),
+        hasVowel: SOURCE_VOWEL_RE.test(chunk),
+      })
+      prevChunk = chunk
+      prevEndedSpace = trailSpace
+    }
+    if (lastEnd < raw.length && /\s/.test(raw.slice(lastEnd)))
+      prevEndedSpace = true
+  })
+  flush()
+  return groups
+}
+
+function alignWordsBySurfaceWordGroups(
+  words: LyricWord[],
+  tokens: string[] | undefined,
+  fallback: string,
+): LyricRomanWord[] | null {
+  const surfaceWords = buildSurfaceWordGroups(words)
+  const target = surfaceWords.length
+  if (target === 0)
+    return null
+
+  const cleanUnits = (arr: string[]) => arr.map(stripPronEdge).filter(Boolean)
+  let pronUnits: string[] | null = null
+
+  if (tokens && tokens.length > 0) {
+    const cleaned = cleanUnits(tokens)
+    if (cleaned.length === target)
+      pronUnits = cleaned
+  }
+  if (!pronUnits) {
+    const wsUnits = cleanUnits(fallback.split(/\s+/))
+    if (wsUnits.length === target) {
+      pronUnits = wsUnits
+    }
+    else if (wsUnits.length > 0 && wsUnits.length < target && hasLiaisonTie(fallback)) {
+      const expanded: string[] = []
+      for (let i = 0; i < wsUnits.length; i++) {
+        const unit = wsUnits[i]
+        const curIdx = expanded.length
+        const remFields = wsUnits.length - i - 1
+        const remNeeded = target - curIdx
+        if (curIdx < target && remNeeded > remFields + 1 && hasLiaisonTie(unit) && !surfaceWords[curIdx].joinedText.includes('-')) {
+          for (const sub of splitOnLiaisonTie(unit)) {
+            const c = stripPronEdge(sub)
+            if (c)
+              expanded.push(c)
+          }
+        }
+        else {
+          expanded.push(unit)
+        }
+      }
+      if (expanded.length === target)
+        pronUnits = expanded
+    }
+  }
+
+  if (!pronUnits || pronUnits.length !== target)
+    return null
+
+  const byWordIdx = new Map<number, string[]>()
+  surfaceWords.forEach((sw, idx) => {
+    const pieces = splitPronUnitAcrossFragments(pronUnits![idx], sw.fragments)
+    sw.fragments.forEach((frag, fIdx) => {
+      const piece = pieces[fIdx]?.trim()
+      if (!piece)
+        return
+      const list = byWordIdx.get(frag.wordIdx)
+      if (list)
+        list.push(piece)
+      else
+        byWordIdx.set(frag.wordIdx, [piece])
+    })
+  })
+
+  const orderedEntries = [...byWordIdx.entries()].sort(([a], [b]) => a - b)
+  if (orderedEntries.length === 0)
+    return null
+  return orderedEntries.map(([wordIdx, pieces], idx) => ({
+    text: pieces.join(' ') + (idx < orderedEntries.length - 1 ? ' ' : ''),
+    start: words[wordIdx].start,
+    end: words[wordIdx].end,
+    word: wordIdx,
+  }))
+}
+
 /**
  * 将 AI 返回的逐词读音 tokens 对齐为前端逐字擦除所需的 LyricRomanWord[]：
  * 1. tokens 数量与可发音词元数量严格一致时，一一对应绑定每个 LyricWord 的起止时间
  * 2. 若未提供严格 1-to-1 tokens 且原文全为汉字，按汉字总数与空格分隔音节数尝试均分时间 span 后复用 romanWordsFromSpans
- * 3. 若仍无法严格对齐，最后尝试原生 alignRomanization（日文假名/单字拼音场景），失败则返回 null 整行回退显示
+ * 3. 若词源按多音节/跨词切分而读音按自然词返回（含法语连诵 ‿ 与音节符 .），按自然词边界归组后再拆回实际歌词音节
+ * 4. 若仍无法严格对齐，最后尝试原生 alignRomanization（日文假名/单字拼音场景），失败则返回 null 整行回退显示
  */
 export function buildRomanWordsFromAiTokens(
   words: LyricWord[],
@@ -190,6 +505,10 @@ export function buildRomanWordsFromAiTokens(
         }
       }
     }
+
+    const surfaceAligned = alignWordsBySurfaceWordGroups(words, tokens, fallback)
+    if (surfaceAligned && surfaceAligned.length > 0)
+      return surfaceAligned
   }
 
   return alignRomanization(fallback, words)

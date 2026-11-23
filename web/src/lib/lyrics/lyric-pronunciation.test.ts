@@ -39,6 +39,66 @@ describe('aI 歌词读音对齐与同语言显隐', () => {
       ['jiāng', 0],
       ['shuǐ', 1],
     ])
+
+    // 英语多音节词与跨词粘连 span（《希望有羽毛和翅膀》The whi+s+per+[s and] se+crets they'd keep）：整词级音标自动拆回实际音节
+    const enSubSyllables = [
+      { text: 'The ', start: 1000, end: 1300 },
+      { text: 'whi', start: 1300, end: 1500 },
+      { text: 's', start: 1500, end: 1600 },
+      { text: 'per', start: 1600, end: 1900 },
+      { text: 's and ', start: 1900, end: 2300 },
+      { text: 'se', start: 2300, end: 2700 },
+      { text: 'crets ', start: 2700, end: 3200 },
+      { text: 'they\'d ', start: 3200, end: 3600 },
+      { text: 'keep', start: 3600, end: 4000 },
+    ]
+    const enAligned = buildRomanWordsFromAiTokens(
+      enSubSyllables,
+      undefined,
+      'ðə ˈwɪspərz ænd ˈsikrɪts ðeɪd kip',
+    )
+    expect(enAligned?.map(item => [item.text.trim(), item.word])).toEqual([
+      ['ðə', 0],
+      ['ˈwɪ', 1],
+      ['s', 2],
+      ['pər', 3],
+      ['z ænd', 4],
+      ['ˈsi', 5],
+      ['krɪts', 6],
+      ['ðeɪd', 7],
+      ['kip', 8],
+    ])
+
+    // 法语连诵弧 ‿ 与音节分隔点 .（《轻涟》Non, le g+rand amo+ur ne su+ffit pas. & 静音词尾 dou+x）
+    const frSubSyllables = [
+      { text: 'Non, ', start: 1000, end: 1400 },
+      { text: 'le ', start: 1400, end: 1600 },
+      { text: 'g', start: 1600, end: 1750 },
+      { text: 'rand ', start: 1750, end: 2000 },
+      { text: 'amo', start: 2000, end: 2300 },
+      { text: 'ur ', start: 2300, end: 2600 },
+      { text: 'ne ', start: 2600, end: 2800 },
+      { text: 'su', start: 2800, end: 3000 },
+      { text: 'ffit ', start: 3000, end: 3300 },
+      { text: 'pas.', start: 3300, end: 3700 },
+    ]
+    const frAligned = buildRomanWordsFromAiTokens(
+      frSubSyllables,
+      undefined,
+      'nɔ̃ lə ɡʁɑ̃.t‿a.muʁ nə sy.fi pa',
+    )
+    expect(frAligned?.map(item => [item.text.trim(), item.word])).toEqual([
+      ['nɔ̃', 0],
+      ['lə', 1],
+      ['ɡ', 2],
+      ['ʁɑ̃t', 3],
+      ['a', 4],
+      ['muʁ', 5],
+      ['nə', 6],
+      ['sy', 7],
+      ['fi', 8],
+      ['pa', 9],
+    ])
   })
 
   it('同语言读音自动隐藏与混合语种保留规则', () => {

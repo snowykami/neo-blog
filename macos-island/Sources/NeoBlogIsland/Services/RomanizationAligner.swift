@@ -70,7 +70,7 @@ enum RomanizationAligner {
             guard line.romanizationWords.isEmpty,
                   let roma = line.romanization,
                   !roma.isEmpty,
-                  let aligned = alignRomanization(roma, words: line.words) else {
+                  let aligned = buildRomanWordsFromAiTokens(words: line.words, tokens: nil, fallbackPronunciation: roma) else {
                 return line
             }
             let sanitized = sanitizeForPayload(aligned)
@@ -273,9 +273,389 @@ enum RomanizationAligner {
                     }
                 }
             }
+
+            if let surfaceAligned = alignWordsBySurfaceWordGroups(words: words, tokens: tokens, fallback: fallback),
+               !surfaceAligned.isEmpty {
+                return surfaceAligned
+            }
         }
 
         return alignRomanization(fallback, words: words)
+    }
+
+    /// 判断相邻两个词元是否同属一个未断开的外语多音节单词内部（1:1 对齐 lyric-player.ts `isIntraWordJoin`）
+    static func isIntraWordJoin(prevText: String, curText: String) -> Bool {
+        guard !prevText.isEmpty, !curText.isEmpty else { return false }
+        if let prevLast = prevText.unicodeScalars.last, prevLast.properties.isWhitespace { return false }
+        if let curFirst = curText.unicodeScalars.first, curFirst.properties.isWhitespace { return false }
+        return !containsCJK(prevText) && !containsCJK(curText)
+    }
+
+    private struct SurfaceWordFragment {
+        let wordIdx: Int
+        let text: String
+        let lowerLetters: String
+        let weight: Int
+        let hasVowel: Bool
+    }
+
+    private struct SurfaceWordGroup {
+        let joinedText: String
+        let fragments: [SurfaceWordFragment]
+    }
+
+    private static let silentTailSet: Set<String> = ["e", "es", "s", "x", "z", "t", "d", "p", "ts", "ds"]
+
+    private static func isLiaisonTieScalar(_ u: UnicodeScalar) -> Bool {
+        u.value == 0x203F || u.value == 0x0361 || u.value == 0x035C
+    }
+
+    private static func isSourceVowelScalar(_ u: UnicodeScalar) -> Bool {
+        guard let lower = String(u).lowercased().unicodeScalars.first else { return false }
+        switch lower {
+        case "a", "e", "i", "o", "u", "y",
+             "à", "á", "â", "ã", "ä", "å", "æ",
+             "è", "é", "ê", "ë",
+             "ì", "í", "î", "ï",
+             "ò", "ó", "ô", "õ", "ö", "ø", "œ",
+             "ù", "ú", "û", "ü", "ÿ":
+            return true
+        default:
+            return false
+        }
+    }
+
+    private static func isPhoneticVowelScalar(_ u: UnicodeScalar) -> Bool {
+        if isSourceVowelScalar(u) { return true }
+        switch u {
+        case "ɑ", "ɒ", "ɔ", "ə", "ɚ", "ɛ", "ɜ", "ɝ", "ɪ", "ɨ", "ʊ", "ʉ", "ʌ", "ɯ", "ɤ", "ɐ", "ɶ", "ʏ", "ø", "œ":
+            return true
+        default:
+            return false
+        }
+    }
+
+    private static func isCombiningOrPhoneticModScalar(_ u: UnicodeScalar) -> Bool {
+        switch u.properties.generalCategory {
+        case .nonspacingMark, .spacingMark, .enclosingMark:
+            return true
+        default:
+            return u == "ː" || u == "ˑ" || u == "˞" || u == "ʰ" || u == "ʷ" || u == "ʲ"
+        }
+    }
+
+    private static func stripPronEdgeForAlign(_ raw: String) -> String {
+        var scalars = Substring(raw).unicodeScalars
+        let isStrip: (UnicodeScalar) -> Bool = { u in
+            if u.value == 0x02D9 || u == "ˈ" || u == "ˌ" { return false }
+            return isEdgeStrippableScalar(u)
+        }
+        while let f = scalars.first, isStrip(f) { scalars.removeFirst() }
+        while let l = scalars.last, isStrip(l) { scalars.removeLast() }
+        return String(scalars)
+    }
+
+    private static func unitHasPhoneticVowel(_ text: String) -> Bool {
+        text.unicodeScalars.contains(where: isPhoneticVowelScalar)
+    }
+
+    private static func endsWithPhoneticVowel(_ text: String) -> Bool {
+        var lastBase: UnicodeScalar? = nil
+        for u in text.unicodeScalars where !isCombiningOrPhoneticModScalar(u) {
+            lastBase = u
+        }
+        guard let lastBase else { return false }
+        return isPhoneticVowelScalar(lastBase)
+    }
+
+    private static func splitPhonemeClusters(_ raw: String) -> [String] {
+        let scalars = Array(raw.unicodeScalars)
+        var clusters: [String] = []
+        var prefix = ""
+        var i = 0
+        while i < scalars.count {
+            let u = scalars[i]
+            if u == "." || u.properties.isWhitespace {
+                i += 1
+                continue
+            }
+            if u == "ˈ" || u == "ˌ" || u == "'" {
+                prefix.unicodeScalars.append(u)
+                i += 1
+                continue
+            }
+            var cluster = prefix
+            prefix = ""
+            cluster.unicodeScalars.append(u)
+            i += 1
+            while i < scalars.count {
+                let nu = scalars[i]
+                if isCombiningOrPhoneticModScalar(nu) || isLiaisonTieScalar(nu) {
+                    cluster.unicodeScalars.append(nu)
+                    i += 1
+                    if isLiaisonTieScalar(nu) && i < scalars.count {
+                        cluster.unicodeScalars.append(scalars[i])
+                        i += 1
+                    }
+                    continue
+                }
+                break
+            }
+            clusters.append(cluster)
+        }
+        if !prefix.isEmpty, !clusters.isEmpty {
+            clusters[clusters.count - 1] += prefix
+        }
+        return clusters
+    }
+
+    private static func distributeUnitsAcrossFragments(_ units: [String], frags: [SurfaceWordFragment], sep: String) -> [String] {
+        let n = units.count
+        let k = frags.count
+        let sumW = frags.reduce(0) { $0 + $1.weight }
+        let totalW = sumW > 0 ? sumW : k
+        var out = Array(repeating: "", count: k)
+        var cursor = 0
+        var cumW = 0
+
+        func sliceHasVowel(_ from: Int, _ to: Int) -> Bool {
+            guard from < to else { return false }
+            return units[from..<to].contains(where: unitHasPhoneticVowel)
+        }
+
+        for j in 0..<(k - 1) {
+            cumW += frags[j].weight
+            let maxEnd = n - (k - 1 - j)
+            let minEnd = min(cursor + 1, maxEnd)
+            let ideal = Int((Double(n * cumW) / Double(totalW)).rounded())
+            var end = min(max(ideal, minEnd), maxEnd)
+
+            if sep.isEmpty {
+                if !frags[j].hasVowel && !sliceHasVowel(cursor, minEnd) {
+                    end = minEnd
+                } else {
+                    if frags[j].hasVowel && !sliceHasVowel(cursor, end) && end < maxEnd && unitHasPhoneticVowel(units[end]) {
+                        end += 1
+                    }
+                    let remWeight = totalW - cumW
+                    if !frags[j + 1].hasVowel && (n - end) < remWeight && end > minEnd && sliceHasVowel(cursor, end - 1) && !unitHasPhoneticVowel(units[end - 1]) {
+                        end -= 1
+                    }
+                    if end > minEnd && units[end - 1].hasPrefix("ˈ") && !unitHasPhoneticVowel(units[end - 1]) && end < maxEnd {
+                        if sliceHasVowel(cursor, end - 1) {
+                            end -= 1
+                        } else {
+                            end += 1
+                        }
+                    }
+                }
+            }
+
+            out[j] = units[cursor..<end].joined(separator: sep)
+            cursor = end
+        }
+        out[k - 1] = units[cursor...].joined(separator: sep)
+        return out
+    }
+
+    private static func splitPronUnitAcrossFragments(_ pronUnit: String, frags: [SurfaceWordFragment]) -> [String] {
+        let k = frags.count
+        guard k > 0 else { return [] }
+        if k == 1 {
+            return [stripPronEdgeForAlign(pronUnit)]
+        }
+
+        if pronUnit.contains(".") {
+            let dotParts = pronUnit.split(separator: ".", omittingEmptySubsequences: true)
+                .map { stripPronEdgeForAlign(String($0)) }
+                .filter { !$0.isEmpty }
+            if !dotParts.isEmpty && dotParts.allSatisfy(unitHasPhoneticVowel) {
+                if dotParts.count == k {
+                    return dotParts
+                }
+                if dotParts.count > k {
+                    return distributeUnitsAcrossFragments(dotParts, frags: frags, sep: ".")
+                }
+            }
+        }
+
+        let cleaned = stripPronEdgeForAlign(pronUnit)
+        if k == 2 && frags[0].weight >= 2 && silentTailSet.contains(frags[1].lowerLetters) && endsWithPhoneticVowel(cleaned) {
+            return [cleaned, ""]
+        }
+
+        let clusters = splitPhonemeClusters(cleaned)
+        if clusters.isEmpty {
+            return Array(repeating: "", count: k)
+        }
+        if clusters.count <= k {
+            return (0..<k).map { $0 < clusters.count ? clusters[$0] : "" }
+        }
+        return distributeUnitsAcrossFragments(clusters, frags: frags, sep: "")
+    }
+
+    private static func buildSurfaceWordGroups(_ words: [LyricWordPayload]) -> [SurfaceWordGroup] {
+        var groups: [SurfaceWordGroup] = []
+        var curFrags: [SurfaceWordFragment] = []
+        var curJoined = ""
+        var prevChunk = ""
+        var prevEndedSpace = true
+
+        func flush() {
+            if !curFrags.isEmpty {
+                groups.append(SurfaceWordGroup(joinedText: curJoined, fragments: curFrags))
+                curFrags = []
+                curJoined = ""
+            }
+        }
+
+        for (wordIdx, word) in words.enumerated() {
+            let raw = word.text
+            if raw.isEmpty { continue }
+            if raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                prevEndedSpace = true
+                continue
+            }
+
+            let scalars = Array(raw.unicodeScalars)
+            var idx = 0
+            while idx < scalars.count {
+                if scalars[idx].properties.isWhitespace {
+                    prevEndedSpace = true
+                    while idx < scalars.count && scalars[idx].properties.isWhitespace {
+                        idx += 1
+                    }
+                    continue
+                }
+                let start = idx
+                while idx < scalars.count && !scalars[idx].properties.isWhitespace {
+                    idx += 1
+                }
+                var chunkStr = ""
+                for u in scalars[start..<idx] {
+                    chunkStr.unicodeScalars.append(u)
+                }
+                let trailSpace = idx < scalars.count && scalars[idx].properties.isWhitespace
+
+                if !hasPronounceableChar(chunkStr) {
+                    if trailSpace {
+                        prevEndedSpace = true
+                    }
+                    continue
+                }
+
+                let canContinue = !prevEndedSpace && !curFrags.isEmpty && !containsCJK(prevChunk) && !containsCJK(chunkStr)
+                if !canContinue {
+                    flush()
+                }
+
+                var lowerLetters = ""
+                var letterCount = 0
+                var hasVowel = false
+                for ch in chunkStr {
+                    let s = String(ch)
+                    if hasPronounceableChar(s) {
+                        lowerLetters += s.lowercased()
+                        letterCount += 1
+                        if s.unicodeScalars.contains(where: isSourceVowelScalar) {
+                            hasVowel = true
+                        }
+                    }
+                }
+
+                curJoined += chunkStr
+                curFrags.append(
+                    SurfaceWordFragment(
+                        wordIdx: wordIdx,
+                        text: chunkStr,
+                        lowerLetters: lowerLetters,
+                        weight: max(1, letterCount),
+                        hasVowel: hasVowel
+                    )
+                )
+                prevChunk = chunkStr
+                prevEndedSpace = trailSpace
+            }
+        }
+        flush()
+        return groups
+    }
+
+    private static func alignWordsBySurfaceWordGroups(
+        words: [LyricWordPayload],
+        tokens: [String]?,
+        fallback: String
+    ) -> [LyricRomanWordPayload]? {
+        let surfaceWords = buildSurfaceWordGroups(words)
+        let target = surfaceWords.count
+        guard target > 0 else { return nil }
+
+        let cleanUnits: ([String]) -> [String] = { arr in
+            arr.map(stripPronEdgeForAlign).filter { !$0.isEmpty }
+        }
+
+        var pronUnits: [String]? = nil
+        if let tokens, !tokens.isEmpty {
+            let cleaned = cleanUnits(tokens)
+            if cleaned.count == target {
+                pronUnits = cleaned
+            }
+        }
+        if pronUnits == nil {
+            let wsUnits = cleanUnits(fallback.components(separatedBy: .whitespacesAndNewlines))
+            if wsUnits.count == target {
+                pronUnits = wsUnits
+            } else if !wsUnits.isEmpty && wsUnits.count < target && fallback.unicodeScalars.contains(where: isLiaisonTieScalar) {
+                var expanded: [String] = []
+                for (i, unit) in wsUnits.enumerated() {
+                    let curIdx = expanded.count
+                    let remFields = wsUnits.count - i - 1
+                    let remNeeded = target - curIdx
+                    if curIdx < target && remNeeded > remFields + 1 && unit.unicodeScalars.contains(where: isLiaisonTieScalar) && !surfaceWords[curIdx].joinedText.contains("-") {
+                        let subParts = unit.unicodeScalars.split(whereSeparator: isLiaisonTieScalar).map { String($0) }
+                        for sub in subParts {
+                            let c = stripPronEdgeForAlign(sub)
+                            if !c.isEmpty {
+                                expanded.append(c)
+                            }
+                        }
+                    } else {
+                        expanded.append(unit)
+                    }
+                }
+                if expanded.count == target {
+                    pronUnits = expanded
+                }
+            }
+        }
+
+        guard let resolvedUnits = pronUnits, resolvedUnits.count == target else {
+            return nil
+        }
+
+        var byWordIdx: [Int: [String]] = [:]
+        for (idx, sw) in surfaceWords.enumerated() {
+            let pieces = splitPronUnitAcrossFragments(resolvedUnits[idx], frags: sw.fragments)
+            for (fIdx, frag) in sw.fragments.enumerated() where fIdx < pieces.count {
+                let piece = pieces[fIdx].trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !piece.isEmpty else { continue }
+                byWordIdx[frag.wordIdx, default: []].append(piece)
+            }
+        }
+
+        let sortedKeys = byWordIdx.keys.sorted()
+        guard !sortedKeys.isEmpty else { return nil }
+        return sortedKeys.enumerated().compactMap { idx, wIdx in
+            guard let pieces = byWordIdx[wIdx], !pieces.isEmpty else { return nil }
+            let w = words[wIdx]
+            let suffix = idx < sortedKeys.count - 1 ? " " : ""
+            return LyricRomanWordPayload(
+                text: pieces.joined(separator: " ") + suffix,
+                start: w.start,
+                end: w.end,
+                word: wIdx
+            )
+        }
     }
 
     static func extractPronounceableWordIndices(_ words: [LyricWordPayload]) -> [Int] {
