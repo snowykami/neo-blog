@@ -691,10 +691,11 @@ private struct LyricStageRow: View {
                 .fill(Color.white.opacity(isHovered ? 0.06 : 0))
         )
         .overlay(alignment: line.align == "right" ? .topTrailing : (line.align == "center" ? .top : .topLeading)) {
-            if placed.pillOpen > 0.01 {
+            let effectiveSingerName = line.resolvedSingerName(showTranslation: showTranslation)
+            if placed.pillOpen > 0.01 && ((effectiveSingerName?.isEmpty == false) || line.singerDotOnly) {
                 SingerPillBadgeView(
                     dots: item.singerDots,
-                    singerName: line.singerName,
+                    singerName: effectiveSingerName,
                     dotOnly: line.singerDotOnly
                 )
                 .opacity(placed.pillOpen)

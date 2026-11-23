@@ -57,7 +57,7 @@ final class StageSpringEngine {
                 } else {
                     self.scale = DampedSpring(initial: LyricSpecs.inactiveScale, params: LyricSpecs.scaleSpring)
                     self.expand = nil
-                    let hasPill = ((item.line.singerName?.isEmpty == false) || item.line.singerDotOnly) && !item.singerDots.isEmpty
+                    let hasPill = ((item.line.singerName?.isEmpty == false) || (item.line.singerBaseName?.isEmpty == false) || item.line.singerDotOnly) && !item.singerDots.isEmpty
                     self.pillExpand = hasPill ? DampedSpring(initial: 0, params: LyricSpecs.positionSpring) : nil
                 }
             case .interlude:
@@ -348,7 +348,8 @@ final class StageSpringEngine {
                     lineRenderActiveFlags[i] = activeLineSet.contains(idx) || isFocusLine
 
                     let pillVis: Bool = {
-                        guard node.pillExpand != nil else { return false }
+                        let hasPillNow = ((line.resolvedSingerName(showTranslation: showTranslation)?.isEmpty == false) || line.singerDotOnly) && !item.singerDots.isEmpty
+                        guard node.pillExpand != nil && hasPillNow else { return false }
                         if !activeLineSet.isEmpty {
                             return activeLineSet.contains(idx)
                         }

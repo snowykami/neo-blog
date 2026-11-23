@@ -481,6 +481,7 @@ struct LyricLinePayload: Codable, Equatable, Sendable {
     let chorusStart: Bool
     let edgeColors: [String]?
     let singerName: String?
+    let singerBaseName: String?
     let singerDotOnly: Bool
     let translation: String?
     let secondaryTranslation: String?
@@ -508,6 +509,7 @@ struct LyricLinePayload: Codable, Equatable, Sendable {
         case chorusStart = "chorus_start"
         case edgeColors = "edge_colors"
         case singerName = "singer_name"
+        case singerBaseName = "singer_base_name"
         case singerDotOnly = "singer_dot_only"
         case moodHex = "mood_hex"
         case sceneColorHex = "scene_color_hex"
@@ -526,6 +528,7 @@ struct LyricLinePayload: Codable, Equatable, Sendable {
         chorusStart: Bool = false,
         edgeColors: [String]? = nil,
         singerName: String? = nil,
+        singerBaseName: String? = nil,
         singerDotOnly: Bool = false,
         translation: String? = nil,
         secondaryTranslation: String? = nil,
@@ -549,6 +552,7 @@ struct LyricLinePayload: Codable, Equatable, Sendable {
         self.chorusStart = chorusStart
         self.edgeColors = edgeColors
         self.singerName = singerName
+        self.singerBaseName = singerBaseName
         self.singerDotOnly = singerDotOnly
         self.translation = translation
         self.secondaryTranslation = secondaryTranslation
@@ -577,6 +581,7 @@ struct LyricLinePayload: Codable, Equatable, Sendable {
         chorusStart = try c.decodeIfPresent(Bool.self, forKey: .chorusStart) ?? false
         edgeColors = try c.decodeIfPresent([String].self, forKey: .edgeColors)
         singerName = try c.decodeIfPresent(String.self, forKey: .singerName)
+        singerBaseName = try c.decodeIfPresent(String.self, forKey: .singerBaseName)
         singerDotOnly = try c.decodeIfPresent(Bool.self, forKey: .singerDotOnly) ?? false
         translation = try c.decodeIfPresent(String.self, forKey: .translation)
         secondaryTranslation = try c.decodeIfPresent(String.self, forKey: .secondaryTranslation)
@@ -591,6 +596,13 @@ struct LyricLinePayload: Codable, Equatable, Sendable {
         emphasis = try c.decodeIfPresent([LyricEmphasisPayload].self, forKey: .emphasis) ?? []
         plainText = decodedWords.map(\.text).joined()
         hasFurigana = decodedWords.contains { ($0.ruby?.isEmpty == false) }
+    }
+
+    func resolvedSingerName(showTranslation: Bool) -> String? {
+        guard !showTranslation, let base = singerBaseName else {
+            return singerName
+        }
+        return base.isEmpty ? nil : base
     }
 
     func emphasisForWord(at wordIndex: Int) -> LyricEmphasisPayload? {

@@ -15,6 +15,7 @@ enum StandaloneSongResolver {
         let translationsGenerating: Bool
         let pronunciationsGenerating: Bool
         let motionGenerating: Bool
+        let singersGenerating: Bool
     }
 
     private struct APIEnvelope<T: Decodable>: Decodable {
@@ -217,6 +218,9 @@ enum StandaloneSongResolver {
 
     private struct BackendSingersDTO: Decodable {
         let status: String?
+        let stale: Bool?
+        let manual: Bool?
+        let translation_pending: Bool?
         let source: String?
         let singers: [BackendSingerItemDTO]?
         let translated_names: [String: String]?
@@ -519,9 +523,10 @@ enum StandaloneSongResolver {
                 reload: true
             )
             : nil
+        let singersLangQuery = preferences.showTranslation ? "lang=\(primarySlot.lang)&" : ""
         async let singersFetch: BackendSingersDTO? = needSingers
             ? await getData(
-                url: URL(string: "\(base)/api/v1/music/song/\(id)/lyric/singers?lang=\(primarySlot.lang)&source=\(sourceParam)"),
+                url: URL(string: "\(base)/api/v1/music/song/\(id)/lyric/singers?\(singersLangQuery)source=\(sourceParam)"),
                 reload: true
             )
             : nil
@@ -563,6 +568,7 @@ enum StandaloneSongResolver {
             base: parsed,
             annotations: matchedAnnotations,
             overrideMotion: resolvedMotion,
+            showTranslation: preferences.showTranslation,
             primarySlot: primarySlot,
             primaryTranslations: primaryTrans,
             secondarySlot: secondarySlot,
@@ -607,6 +613,9 @@ enum StandaloneSongResolver {
             || (motionResp?.stale == true)
             || (matchedAnnotations?.status == "pending")
             || (matchedAnnotations?.stale == true)
+        let singersPending = (singers?.status == "pending")
+            || (singers?.stale == true)
+            || (preferences.showTranslation && singers?.translation_pending == true)
 
         return ResolvedBundle(
             track: track,
@@ -618,7 +627,8 @@ enum StandaloneSongResolver {
             availableTranslationLangs: availableLangs,
             translationsGenerating: transPending,
             pronunciationsGenerating: romaPending,
-            motionGenerating: motionPending
+            motionGenerating: motionPending,
+            singersGenerating: singersPending
         )
     }
 
@@ -778,22 +788,26 @@ enum StandaloneSongResolver {
         primaryTranslationsJSON: Data? = nil,
         secondarySlot: TranslationSelectionItem? = nil,
         secondaryTranslationsJSON: Data? = nil,
-        pronunciationsJSON: Data? = nil
+        pronunciationsJSON: Data? = nil,
+        singersJSON: Data? = nil,
+        showTranslation: Bool = true
     ) -> LyricsBundlePayload {
         let base = enrichNativeRomanizationWords(parseTTML(xml: xml, source: "ttml-amll", sourceName: nil))
         let annotations = annotationsJSON.flatMap { try? JSONDecoder().decode(BackendAnnotationsDTO.self, from: $0) }
         let primaryTrans = primaryTranslationsJSON.flatMap { try? JSONDecoder().decode(BackendTranslationsDTO.self, from: $0) }
         let secondaryTrans = secondaryTranslationsJSON.flatMap { try? JSONDecoder().decode(BackendTranslationsDTO.self, from: $0) }
         let pronunciations = pronunciationsJSON.flatMap { try? JSONDecoder().decode(BackendPronunciationsDTO.self, from: $0) }
+        let singers = singersJSON.flatMap { try? JSONDecoder().decode(BackendSingersDTO.self, from: $0) }
         return applyOverlays(
             base: base,
             annotations: annotations,
+            showTranslation: showTranslation,
             primarySlot: primarySlot,
             primaryTranslations: primaryTrans,
             secondarySlot: secondarySlot,
             secondaryTranslations: secondaryTrans,
             pronunciations: pronunciations,
-            singers: nil
+            singers: singers
         )
     }
 
@@ -802,22 +816,26 @@ enum StandaloneSongResolver {
         ncmJSON: Data? = nil,
         pin: String? = nil,
         offsets: [String: Double]? = nil,
-        pronunciationsJSON: Data? = nil
+        pronunciationsJSON: Data? = nil,
+        singersJSON: Data? = nil,
+        showTranslation: Bool = true
     ) -> LyricsBundlePayload {
         let cache = cacheJSON.flatMap { try? JSONDecoder().decode(BackendLyricCacheDTO.self, from: $0) }
         let ncm = ncmJSON.flatMap { try? JSONDecoder().decode(BackendNCMLyricDTO.self, from: $0) } ?? cache?.ncm
         let settings = (pin != nil || offsets != nil) ? BackendLyricSettingsDTO(offsets: offsets, pin: pin) : nil
         let base = buildBaseLyrics(cache: cache, ncmFallback: ncm, settings: settings)
         let pronunciations = pronunciationsJSON.flatMap { try? JSONDecoder().decode(BackendPronunciationsDTO.self, from: $0) }
+        let singers = singersJSON.flatMap { try? JSONDecoder().decode(BackendSingersDTO.self, from: $0) }
         return applyOverlays(
             base: base,
             annotations: nil,
+            showTranslation: showTranslation,
             primarySlot: TranslationSelectionItem(lang: "zh", preferNative: false),
             primaryTranslations: nil,
             secondarySlot: nil,
             secondaryTranslations: nil,
             pronunciations: pronunciations,
-            singers: nil
+            singers: singers
         )
     }
 
@@ -827,12 +845,40 @@ enum StandaloneSongResolver {
 
     // MARK: - 基础歌词源选择与解析（TTML / YRC / QRC / LRC）
 
+    private struct TTMLContainerAttrs {
+        let tag: String
+        let hasAgentsAttr: Bool
+        let agentsVal: String?
+        let agentVal: String?
+        let positionVal: String?
+    }
+
+    private struct TTMLDeclaredAgent {
+        var id: String
+        var type: String
+        var name: String?
+        var colorHex: String?
+        var position: String?
+        var members: [String]
+    }
+
+    private struct ResolvedTTMLAgent {
+        var id: String
+        var name: String?
+        var baseName: String?
+        var hex: String
+        var hasCustomColorHex: Bool
+        var isGroup: Bool
+        var members: [String]
+    }
+
     private struct MutableLine {
         var start: Double
         var end: Double
         var isDuet: Bool = false
         var isBackground: Bool = false
         var align: String = "left"
+        var hasResolvedAlign: Bool = false
         var owner: Int = -1
         var paragraphStart: Bool = false
         var backgroundPosition: String? = nil
@@ -840,6 +886,7 @@ enum StandaloneSongResolver {
         var agentId: String? = nil
         var edgeColors: [String]? = nil
         var singerName: String? = nil
+        var singerBaseName: String? = nil
         var singerDotOnly: Bool = false
         var translation: String? = nil
         var translationsByLang: [String: String] = [:]
@@ -852,6 +899,15 @@ enum StandaloneSongResolver {
         var sceneLines: Int? = nil
         var words: [LyricWordPayload]
         var emphasis: [LyricEmphasisPayload] = []
+        // TTML 声部与摆位原始上下文（供整曲收敛阶段 1:1 对齐 parse-ttml.ts buildAgentResolver）
+        var ttmlParagraphOrder: Int = -1
+        var ttmlKey: String? = nil
+        var ttmlAncestry: [TTMLContainerAttrs] = []
+        var ttmlPromotedBg: Bool = false
+        var ttmlBgHasAgentsAttr: Bool = false
+        var ttmlBgAgentVal: String? = nil
+        var ttmlBgRawAgentAttr: String? = nil
+        var ttmlBgPositionVal: String? = nil
 
         var plainText: String {
             words.map(\.text).joined().trimmingCharacters(in: .whitespacesAndNewlines)
@@ -864,7 +920,7 @@ enum StandaloneSongResolver {
         var wordSynced: Bool
         var instrumental: Bool
         var lines: [MutableLine]
-        var ttmlAgents: [String: (name: String?, isGroup: Bool, members: [String])] = [:]
+        var ttmlAgents: [ResolvedTTMLAgent] = []
     }
 
     private static func buildBaseLyrics(
@@ -1315,7 +1371,648 @@ enum StandaloneSongResolver {
         return prefixes.contains { text.hasPrefix($0) && (text.contains(":") || text.contains("：")) }
     }
 
-    // MARK: - TTML XML 解析器（支持多歌手 agent、振假名 ruby 与 x-bg 背景和声）
+    // MARK: - TTML XML 解析器（支持多歌手 agent、摆位分离、振假名 ruby 与 x-bg 背景和声，1:1 对齐 parse-ttml.ts）
+
+    private static let defaultSoloColors: [String] = [
+        "sky", "rose", "jade", "amber", "violet", "lake", "coral", "starry-blue"
+    ]
+    private static let defaultGroupColor: String = "lavender"
+
+    private static func isConventionalGroupId(_ id: String) -> Bool {
+        let lower = id.lowercased()
+        return lower == "v1000" || lower == "v2000"
+    }
+
+    private static func parseDeclaredPosition(_ raw: String?) -> String? {
+        guard let v = raw?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(), !v.isEmpty else {
+            return nil
+        }
+        switch v {
+        case "primary", "left": return "left"
+        case "secondary", "right": return "right"
+        case "duet", "center": return "center"
+        default: return nil
+        }
+    }
+
+    private static func parseHexColor(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+        var hex = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if hex.hasPrefix("#") {
+            hex.removeFirst()
+        }
+        let lower = hex.lowercased()
+        guard [3, 4, 6, 8].contains(lower.count),
+              lower.allSatisfy({ ("0"..."9").contains($0) || ("a"..."f").contains($0) }) else {
+            return nil
+        }
+        if lower.count <= 4 {
+            let chars = Array(lower)
+            return "#\(chars[0])\(chars[0])\(chars[1])\(chars[1])\(chars[2])\(chars[2])"
+        }
+        return "#" + String(lower.prefix(6))
+    }
+
+    private struct StarryExtColorDTO: Decodable {
+        let hexString: String?
+
+        private struct RGBObj: Decodable {
+            let hex: String?
+            let red: Double?
+            let green: Double?
+            let blue: Double?
+        }
+
+        init(from decoder: Decoder) throws {
+            if let single = try? decoder.singleValueContainer(),
+               let str = try? single.decode(String.self) {
+                hexString = StandaloneSongResolver.parseHexColor(str)
+                return
+            }
+            if let obj = try? RGBObj(from: decoder) {
+                if let h = StandaloneSongResolver.parseHexColor(obj.hex) {
+                    hexString = h
+                    return
+                }
+                if let r = obj.red, let g = obj.green, let b = obj.blue {
+                    let clamp = { (n: Double) -> Int in
+                        guard n.isFinite else { return 0 }
+                        return Int(min(255.0, max(0.0, n.rounded())))
+                    }
+                    hexString = String(format: "#%02x%02x%02x", clamp(r), clamp(g), clamp(b))
+                    return
+                }
+            }
+            hexString = nil
+        }
+    }
+
+    private struct StarryExtPayloadDTO: Decodable {
+        struct AgentEntry: Decodable {
+            struct NameEntry: Decodable {
+                let text: String?
+                let kind: String?
+            }
+            let id: String?
+            let kind: String?
+            let names: [NameEntry]?
+            let color: StarryExtColorDTO?
+            let memberIDs: [String]?
+        }
+        struct LineEntry: Decodable {
+            struct BgEntry: Decodable {
+                let agentIDs: [String]?
+            }
+            let key: String?
+            let singer: String?
+            let agentIDs: [String]?
+            let background: BgEntry?
+        }
+        let version: Int?
+        let agents: [AgentEntry]?
+        let lines: [LineEntry]?
+    }
+
+    private struct StarryExtResolved {
+        let agents: [TTMLDeclaredAgent]
+        let linesByKey: [String: (position: String?, hasAgentAttr: Bool, agentAttr: String?, hasBgAgentAttr: Bool, bgAgentAttr: String?)]
+    }
+
+    private static func decodeStarryExtensions(_ encoded: String?) -> StarryExtResolved? {
+        guard let encoded = encoded?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !encoded.isEmpty,
+              let data = Data(base64Encoded: encoded, options: .ignoreUnknownCharacters),
+              let payload = try? JSONDecoder().decode(StarryExtPayloadDTO.self, from: data),
+              payload.version == 1 else {
+            return nil
+        }
+        let agents: [TTMLDeclaredAgent] = (payload.agents ?? []).compactMap { entry in
+            let id = entry.id?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !id.isEmpty else { return nil }
+            let names = entry.names ?? []
+            let full = names.first(where: { $0.kind == "full" && ($0.text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false) })
+                ?? names.first(where: { $0.text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false })
+            let type = entry.kind?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let resolvedType = (type?.isEmpty == false) ? type! : "person"
+            let members: [String] = resolvedType == "group"
+                ? (entry.memberIDs ?? []).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+                : []
+            let nameText = full?.text?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return TTMLDeclaredAgent(
+                id: id,
+                type: resolvedType,
+                name: (nameText?.isEmpty == false) ? nameText : nil,
+                colorHex: entry.color?.hexString,
+                position: nil,
+                members: members
+            )
+        }
+        var linesByKey: [String: (position: String?, hasAgentAttr: Bool, agentAttr: String?, hasBgAgentAttr: Bool, bgAgentAttr: String?)] = [:]
+        for line in payload.lines ?? [] {
+            guard let key = line.key?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !key.isEmpty,
+                  linesByKey[key] == nil else {
+                continue
+            }
+            let joinedMain = line.agentIDs?.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }.joined(separator: " ")
+            let joinedBg = line.background?.agentIDs?.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }.joined(separator: " ")
+            linesByKey[key] = (
+                position: parseDeclaredPosition(line.singer),
+                hasAgentAttr: line.agentIDs != nil,
+                agentAttr: (joinedMain?.isEmpty == false) ? joinedMain : nil,
+                hasBgAgentAttr: line.background?.agentIDs != nil,
+                bgAgentAttr: (joinedBg?.isEmpty == false) ? joinedBg : nil
+            )
+        }
+        return StarryExtResolved(agents: agents, linesByKey: linesByKey)
+    }
+
+    private static func deduplicatedOrder(_ items: [String]) -> [String] {
+        var seen = Set<String>()
+        var out: [String] = []
+        for item in items where !item.isEmpty && seen.insert(item).inserted {
+            out.append(item)
+        }
+        return out
+    }
+
+    private static func computeBackgroundOwners(_ lines: [MutableLine]) -> [Int: Int] {
+        func findForward(from idx: Int) -> Int? {
+            guard idx + 1 < lines.count else { return nil }
+            for j in (idx + 1)..<lines.count where !lines[j].isBackground {
+                return j
+            }
+            return nil
+        }
+        func findBackward(from idx: Int) -> Int? {
+            guard idx > 0 else { return nil }
+            for j in stride(from: idx - 1, through: 0, by: -1) where !lines[j].isBackground {
+                return j
+            }
+            return nil
+        }
+        var owners: [Int: Int] = [:]
+        for i in lines.indices where lines[i].isBackground {
+            let owner: Int?
+            if lines[i].backgroundPosition == "above" {
+                owner = findForward(from: i) ?? findBackward(from: i)
+            } else {
+                owner = findBackward(from: i) ?? findForward(from: i)
+            }
+            if let owner {
+                owners[i] = owner
+            }
+        }
+        return owners
+    }
+
+    /// 1:1 对齐 web/src/lib/lyrics/parse-ttml.ts `buildAgentResolver` + `finalize`：
+    /// 支持 ttd:position / ttd:agents / ttv:color / ttv:members / starry:extensions:v1、摆位载体剥离、
+    /// 第 1 独唱居左其余独唱居右（含 type="other"）、多声部居中合唱与 x-bg 背景人声独立站位/主行继承。
+    private static func resolveTTMLAgentsAndPositions(
+        rawLines: [MutableLine],
+        xmlDeclared: [TTMLDeclaredAgent],
+        hasNativeStarryExtensions: Bool,
+        starryExtensionsEncoded: String?,
+        anyPHasAgentsOrPosition: Bool
+    ) -> (lines: [MutableLine], agents: [ResolvedTTMLAgent]) {
+        var lines = rawLines
+        guard !lines.isEmpty else { return (lines, []) }
+
+        let starryExt = hasNativeStarryExtensions ? nil : decodeStarryExtensions(starryExtensionsEncoded)
+        let declaredList: [TTMLDeclaredAgent] = {
+            guard let extAgents = starryExt?.agents, !extAgents.isEmpty else { return xmlDeclared }
+            let extIds = Set(extAgents.map(\.id))
+            return extAgents + xmlDeclared.filter { !extIds.contains($0.id) }
+        }()
+
+        var declaredMap: [String: TTMLDeclaredAgent] = [:]
+        for agent in declaredList where declaredMap[agent.id] == nil {
+            declaredMap[agent.id] = agent
+        }
+
+        let hasPerformerDecl = declaredList.contains {
+            $0.position == nil || $0.name != nil || $0.colorHex != nil || !$0.members.isEmpty
+        }
+        let carrierIds = Set(
+            declaredList
+                .filter { $0.position != nil && $0.name == nil && $0.colorHex == nil && $0.members.isEmpty && hasPerformerDecl }
+                .map(\.id)
+        )
+        let hasSeparatedPositions = starryExt != nil
+            || declaredList.contains { $0.position != nil }
+            || anyPHasAgentsOrPosition
+
+        var declaredSoloRank: [String: Int] = [:]
+        for agent in declaredList where !carrierIds.contains(agent.id) && agent.type != "group" && declaredSoloRank[agent.id] == nil {
+            declaredSoloRank[agent.id] = declaredSoloRank.count
+        }
+        let groups = Set(
+            declaredList
+                .filter { !carrierIds.contains($0.id) && $0.type == "group" }
+                .map(\.id)
+        )
+
+        var appearanceOrder: [String: Int] = [:]
+        var resolvedAgentOrder: [String] = []
+        var resolvedAgents: [String: ResolvedTTMLAgent] = [:]
+
+        func ensureSolo(_ id: String) -> (singer: String, id: String) {
+            let seenIdx: Int
+            if let existingIdx = appearanceOrder[id] {
+                seenIdx = existingIdx
+            } else {
+                seenIdx = appearanceOrder.count
+                appearanceOrder[id] = seenIdx
+            }
+            let tentativeIdx = declaredSoloRank[id] ?? seenIdx
+            let declared = declaredMap[id]
+            if resolvedAgents[id] == nil {
+                let colorName = defaultSoloColors[tentativeIdx % defaultSoloColors.count]
+                resolvedAgentOrder.append(id)
+                resolvedAgents[id] = ResolvedTTMLAgent(
+                    id: id,
+                    name: declared?.name,
+                    baseName: declared?.name,
+                    hex: LyricColorPalette.resolveHex(colorName),
+                    hasCustomColorHex: false,
+                    isGroup: false,
+                    members: []
+                )
+            }
+            let singer = declared?.type == "other"
+                ? "secondary"
+                : (tentativeIdx == 0 ? "primary" : "secondary")
+            return (singer: singer, id: id)
+        }
+
+        func resolveAgent(_ agentAttr: String?) -> (singer: String, agent: String?) {
+            let rawTokens = (agentAttr ?? "").split(whereSeparator: \.isWhitespace).map(String.init)
+            let ids = deduplicatedOrder(rawTokens).filter { !carrierIds.contains($0) }
+            if ids.isEmpty {
+                return (singer: "primary", agent: nil)
+            }
+            if ids.count > 1 || ids.contains(where: { groups.contains($0) || isConventionalGroupId($0) }) {
+                let groupId = ids.count == 1 ? ids[0] : ids.joined(separator: "+")
+                if resolvedAgents[groupId] == nil {
+                    let singleDeclared = ids.count == 1 ? declaredMap[ids[0]] : nil
+                    let rawMembers = ids.count > 1 ? ids : (singleDeclared?.members ?? [])
+                    let members = deduplicatedOrder(rawMembers)
+                        .filter { !groups.contains($0) && !isConventionalGroupId($0) && !carrierIds.contains($0) }
+                        .map { ensureSolo($0).id }
+                    resolvedAgentOrder.append(groupId)
+                    resolvedAgents[groupId] = ResolvedTTMLAgent(
+                        id: groupId,
+                        name: singleDeclared?.name,
+                        baseName: singleDeclared?.name,
+                        hex: LyricColorPalette.resolveHex(defaultGroupColor),
+                        hasCustomColorHex: false,
+                        isGroup: true,
+                        members: members
+                    )
+                }
+                return (singer: "duet", agent: groupId)
+            }
+            let solo = ensureSolo(ids[0])
+            return (singer: solo.singer, agent: solo.id)
+        }
+
+        func resolveInheritedVocalAttr(_ ancestry: [TTMLContainerAttrs]) -> String? {
+            for item in ancestry.reversed() {
+                if item.hasAgentsAttr {
+                    let v = item.agentsVal?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                    return v.isEmpty ? nil : v
+                }
+                if let val = item.agentVal?.trimmingCharacters(in: .whitespacesAndNewlines), !val.isEmpty {
+                    return val
+                }
+                if item.tag == "body" || item.tag == "tt" {
+                    break
+                }
+            }
+            return nil
+        }
+
+        func resolvePosition(_ ancestry: [TTMLContainerAttrs]) -> String? {
+            for item in ancestry.reversed() {
+                if let explicitPos = item.positionVal {
+                    return explicitPos
+                }
+                if let rawAgent = item.agentVal?.trimmingCharacters(in: .whitespacesAndNewlines), !rawAgent.isEmpty {
+                    let agentIds = rawAgent.split(whereSeparator: \.isWhitespace).map(String.init)
+                    if agentIds.count == 1, let declaredPos = declaredMap[agentIds[0]]?.position {
+                        return declaredPos
+                    }
+                }
+                if item.tag == "body" || item.tag == "tt" {
+                    break
+                }
+            }
+            return nil
+        }
+
+        func resolveBgPosition(
+            bgPositionVal: String?,
+            bgRawAgentAttr: String?,
+            bgAgentVal: String?,
+            bgHasAgentsAttr: Bool
+        ) -> String? {
+            if let explicitPos = bgPositionVal {
+                return explicitPos
+            }
+            if let rawAgent = bgRawAgentAttr?.trimmingCharacters(in: .whitespacesAndNewlines), !rawAgent.isEmpty {
+                let agentIds = rawAgent.split(whereSeparator: \.isWhitespace).map(String.init)
+                if agentIds.count == 1, let declaredPos = declaredMap[agentIds[0]]?.position {
+                    return declaredPos
+                }
+            }
+            if !hasSeparatedPositions, let agent = bgAgentVal, !bgHasAgentsAttr {
+                let ids = deduplicatedOrder(agent.split(whereSeparator: \.isWhitespace).map(String.init))
+                    .filter { !carrierIds.contains($0) }
+                if !ids.isEmpty, ids.allSatisfy({ id in
+                    let d = declaredMap[id]
+                    return d?.name == nil && d?.colorHex == nil && (d?.members.isEmpty ?? true)
+                }) {
+                    if ids.count > 1 || ids.contains(where: { groups.contains($0) || isConventionalGroupId($0) }) {
+                        return "center"
+                    }
+                    let solo = ensureSolo(ids[0])
+                    return solo.singer == "secondary" ? "right" : "left"
+                }
+            }
+            return nil
+        }
+
+        // 按 <p> 原始顺序先解析主唱再解析同段 x-bg（即便 x-bg 因早于主唱起唱排在数组前面），确保首次出场顺序与前端完全一致
+        var indicesByParagraph: [Int: (main: Int?, bg: Int?)] = [:]
+        var paragraphOrderList: [Int] = []
+        for idx in lines.indices {
+            let pOrd = lines[idx].ttmlParagraphOrder
+            if indicesByParagraph[pOrd] == nil {
+                paragraphOrderList.append(pOrd)
+                indicesByParagraph[pOrd] = (main: nil, bg: nil)
+            }
+            if lines[idx].isBackground {
+                indicesByParagraph[pOrd]?.bg = idx
+            } else {
+                indicesByParagraph[pOrd]?.main = idx
+            }
+        }
+
+        var lineExplicitAligns = Array<String?>(repeating: nil, count: lines.count)
+
+        for pOrd in paragraphOrderList {
+            guard let pair = indicesByParagraph[pOrd] else { continue }
+            var mainAgentResult: (singer: String, agent: String?) = (singer: "primary", agent: nil)
+
+            if let mIdx = pair.main {
+                let mLine = lines[mIdx]
+                let extLine = mLine.ttmlKey.flatMap { starryExt?.linesByKey[$0] }
+                var bgAgentVal = mLine.ttmlBgAgentVal
+                var bgHasAgentsAttr = mLine.ttmlBgHasAgentsAttr
+                if mLine.ttmlPromotedBg, let ext = extLine, ext.hasBgAgentAttr {
+                    bgAgentVal = ext.bgAgentAttr
+                    bgHasAgentsAttr = true
+                }
+                let mainVocalAttr: String? = {
+                    if mLine.ttmlPromotedBg, let promotedAgent = bgAgentVal, !promotedAgent.isEmpty {
+                        return promotedAgent
+                    }
+                    if let ext = extLine, ext.hasAgentAttr {
+                        return ext.agentAttr
+                    }
+                    return resolveInheritedVocalAttr(mLine.ttmlAncestry)
+                }()
+                mainAgentResult = resolveAgent(mainVocalAttr)
+                let promotedPos = mLine.ttmlPromotedBg
+                    ? resolveBgPosition(
+                        bgPositionVal: mLine.ttmlBgPositionVal,
+                        bgRawAgentAttr: mLine.ttmlBgRawAgentAttr,
+                        bgAgentVal: bgAgentVal,
+                        bgHasAgentsAttr: bgHasAgentsAttr
+                    )
+                    : nil
+                let explicitAlign = promotedPos ?? extLine?.position ?? resolvePosition(mLine.ttmlAncestry)
+                let toLineAlign: String? = (explicitAlign == "right")
+                    ? "right"
+                    : (mainAgentResult.singer == "duet" ? "center" : explicitAlign)
+                lines[mIdx].agentId = mainAgentResult.agent
+                lineExplicitAligns[mIdx] = toLineAlign
+            }
+
+            if let bIdx = pair.bg {
+                let bLine = lines[bIdx]
+                let extLine = bLine.ttmlKey.flatMap { starryExt?.linesByKey[$0] }
+                var bgAgentVal = bLine.ttmlBgAgentVal
+                var bgHasAgentsAttr = bLine.ttmlBgHasAgentsAttr
+                if let ext = extLine, ext.hasBgAgentAttr {
+                    bgAgentVal = ext.bgAgentAttr
+                    bgHasAgentsAttr = true
+                }
+                let bgAgentResult: (singer: String, agent: String?) = {
+                    if bgHasAgentsAttr {
+                        return resolveAgent(bgAgentVal)
+                    }
+                    if let bgAgentVal, !bgAgentVal.isEmpty {
+                        return resolveAgent(bgAgentVal)
+                    }
+                    return mainAgentResult
+                }()
+                let bgExplicitAlign = resolveBgPosition(
+                    bgPositionVal: bLine.ttmlBgPositionVal,
+                    bgRawAgentAttr: bLine.ttmlBgRawAgentAttr,
+                    bgAgentVal: bgAgentVal,
+                    bgHasAgentsAttr: bgHasAgentsAttr
+                )
+                lines[bIdx].agentId = bgAgentResult.agent
+                lineExplicitAligns[bIdx] = bgExplicitAlign
+            }
+        }
+
+        // 对齐 preprocessLyricLines：按主唱行起始时间稳定升序重排（同段 above/below 背景行随所属主唱行一并移动），首段第一句主唱行不留段落间距
+        let preSortOwners = computeBackgroundOwners(lines)
+        struct PreSortGroup {
+            var origIdx: Int
+            var main: MutableLine
+            var mainExplicitAlign: String?
+            var above: [(line: MutableLine, explicitAlign: String?)] = []
+            var below: [(line: MutableLine, explicitAlign: String?)] = []
+        }
+        var groupByMainIdx: [Int: Int] = [:]
+        var groupsList: [PreSortGroup] = []
+        for idx in lines.indices where !lines[idx].isBackground {
+            groupByMainIdx[idx] = groupsList.count
+            groupsList.append(PreSortGroup(origIdx: idx, main: lines[idx], mainExplicitAlign: lineExplicitAligns[idx]))
+        }
+        if !groupsList.isEmpty {
+            for idx in lines.indices where lines[idx].isBackground {
+                guard let ownerIdx = preSortOwners[idx], let gPos = groupByMainIdx[ownerIdx] else { continue }
+                let isAbove = lines[idx].backgroundPosition == "above"
+                    || (lines[idx].backgroundPosition == nil && idx < ownerIdx)
+                var bgCopy = lines[idx]
+                bgCopy.backgroundPosition = isAbove ? "above" : "below"
+                if isAbove {
+                    groupsList[gPos].above.append((bgCopy, lineExplicitAligns[idx]))
+                } else {
+                    groupsList[gPos].below.append((bgCopy, lineExplicitAligns[idx]))
+                }
+            }
+            groupsList.sort { a, b in
+                if a.main.start != b.main.start { return a.main.start < b.main.start }
+                return a.origIdx < b.origIdx
+            }
+            groupsList[0].main.paragraphStart = false
+            var reorderedLines: [MutableLine] = []
+            var reorderedAligns: [String?] = []
+            reorderedLines.reserveCapacity(lines.count)
+            reorderedAligns.reserveCapacity(lines.count)
+            for g in groupsList {
+                for ab in g.above {
+                    reorderedLines.append(ab.line)
+                    reorderedAligns.append(ab.explicitAlign)
+                }
+                reorderedLines.append(g.main)
+                reorderedAligns.append(g.mainExplicitAlign)
+                for bl in g.below {
+                    reorderedLines.append(bl.line)
+                    reorderedAligns.append(bl.explicitAlign)
+                }
+            }
+            lines = reorderedLines
+            lineExplicitAligns = reorderedAligns
+        }
+
+        func finalizeBackgroundAligns() {
+            let owners = computeBackgroundOwners(lines)
+            for i in lines.indices where lines[i].isBackground {
+                let ownerIdx = owners[i]
+                lines[i].owner = ownerIdx ?? -1
+                let ownerAlign = ownerIdx.flatMap { lines.indices.contains($0) ? lines[$0].align : nil }
+                let resolved = lineExplicitAligns[i] ?? ownerAlign ?? "left"
+                lines[i].align = resolved
+                lines[i].isDuet = (resolved == "right")
+                lines[i].hasResolvedAlign = true
+            }
+        }
+
+        var usedIds = Set(lines.compactMap(\.agentId))
+        if usedIds.isEmpty {
+            for i in lines.indices where !lines[i].isBackground {
+                let resolved = lineExplicitAligns[i] ?? "left"
+                lines[i].align = resolved
+                lines[i].isDuet = (resolved == "right")
+                lines[i].hasResolvedAlign = true
+            }
+            finalizeBackgroundAligns()
+            return (lines, [])
+        }
+
+        for id in Array(usedIds) {
+            for memberId in resolvedAgents[id]?.members ?? [] {
+                usedIds.insert(memberId)
+            }
+        }
+
+        var usedSolos: [String] = []
+        var hasGroup = false
+        for id in resolvedAgentOrder where usedIds.contains(id) {
+            guard let agent = resolvedAgents[id] else { continue }
+            if agent.isGroup {
+                hasGroup = true
+            } else {
+                usedSolos.append(id)
+            }
+        }
+
+        let hasImplicitPrimary = lines.contains { !$0.isBackground && $0.agentId == nil }
+        let singleSoloId = usedSolos.count == 1 ? usedSolos[0] : nil
+        let singleSoloIsSecondary = singleSoloId.map { sid in
+            let decl = declaredMap[sid]
+            return decl?.type == "other"
+                || decl?.position == "right"
+                || (declaredSoloRank[sid] ?? 0) > 0
+        } ?? false
+
+        if usedSolos.count <= 1 && !hasGroup && !(hasImplicitPrimary && singleSoloIsSecondary) {
+            for i in lines.indices {
+                lines[i].agentId = nil
+                if !lines[i].isBackground {
+                    let resolved = lineExplicitAligns[i] ?? "left"
+                    lines[i].align = resolved
+                    lines[i].isDuet = (resolved == "right")
+                    lines[i].hasResolvedAlign = true
+                }
+            }
+            finalizeBackgroundAligns()
+            return (lines, [])
+        }
+
+        usedSolos.sort { a, b in
+            let ra = declaredSoloRank[a] ?? Int.max
+            let rb = declaredSoloRank[b] ?? Int.max
+            if ra != rb { return ra < rb }
+            return (appearanceOrder[a] ?? 0) < (appearanceOrder[b] ?? 0)
+        }
+        var finalSoloIdx: [String: Int] = [:]
+        for (idx, id) in usedSolos.enumerated() {
+            finalSoloIdx[id] = idx
+        }
+
+        var finalAgents: [ResolvedTTMLAgent] = []
+        var finalAgentMap: [String: ResolvedTTMLAgent] = [:]
+        for id in resolvedAgentOrder where usedIds.contains(id) {
+            guard var agent = resolvedAgents[id] else { continue }
+            let declared = declaredMap[id]
+            if let soloIdx = finalSoloIdx[id] {
+                if let customHex = declared?.colorHex {
+                    agent.hex = customHex
+                    agent.hasCustomColorHex = true
+                } else {
+                    agent.hex = LyricColorPalette.resolveHex(defaultSoloColors[soloIdx % defaultSoloColors.count])
+                }
+            } else if let customHex = declared?.colorHex {
+                agent.hex = customHex
+                agent.hasCustomColorHex = true
+            }
+            finalAgents.append(agent)
+            finalAgentMap[id] = agent
+        }
+
+        var soloDefaultAlign: [String: String] = [:]
+        for id in usedSolos {
+            let declared = declaredMap[id]
+            if let pos = declared?.position {
+                soloDefaultAlign[id] = pos
+            } else if declared?.type == "other" {
+                soloDefaultAlign[id] = "right"
+            } else {
+                let rank = declaredSoloRank[id] ?? finalSoloIdx[id] ?? 0
+                soloDefaultAlign[id] = (rank == 0) ? "left" : "right"
+            }
+        }
+
+        for i in lines.indices where !lines[i].isBackground {
+            guard let aid = lines[i].agentId, let agent = finalAgentMap[aid] else {
+                let resolved = lineExplicitAligns[i] ?? "left"
+                lines[i].align = resolved
+                lines[i].isDuet = (resolved == "right")
+                lines[i].hasResolvedAlign = true
+                continue
+            }
+            let resolved: String
+            if agent.isGroup {
+                resolved = (lineExplicitAligns[i] == "right") ? "right" : "center"
+            } else {
+                resolved = lineExplicitAligns[i] ?? soloDefaultAlign[agent.id] ?? "left"
+            }
+            lines[i].align = resolved
+            lines[i].isDuet = (resolved == "right")
+            lines[i].hasResolvedAlign = true
+        }
+
+        finalizeBackgroundAligns()
+        return (lines, finalAgents)
+    }
 
     private static func parseTTML(xml: String, source: String, sourceName: String?) -> BaseParsedLyrics {
         guard let data = xml.data(using: .utf8) else {
@@ -1328,48 +2025,46 @@ enum StandaloneSongResolver {
         _ = parser.parse()
 
         let wordSynced = sax.lines.contains { $0.words.count > 1 || ($0.words.first.map { $0.end > $0.start } ?? false) }
-        // 对齐 web/src/lib/lyrics/parse-ttml.ts L500-510：独唱曲目虽常声明单个 ttm:agent="v1"，不应启用多声部色条与胶囊
-        var parsedLines = sax.lines
-        var parsedAgents = sax.agents
-        let usedAgents = Set(parsedLines.filter { !$0.isBackground }.compactMap(\.agentId))
-        let usedSolos = usedAgents.filter { !(parsedAgents[$0]?.isGroup ?? ($0 == "v1000")) }
-        let hasGroup = usedAgents.contains { parsedAgents[$0]?.isGroup ?? ($0 == "v1000") }
-        let hasImplicitPrimary = parsedLines.contains { !$0.isBackground && $0.agentId == nil }
-        let declaredSoloOrder = parsedAgents.keys.filter { !(parsedAgents[$0]?.isGroup ?? ($0 == "v1000")) }.sorted()
-        let singleSoloIsSecondary = usedSolos.count == 1
-            && ((declaredSoloOrder.firstIndex(of: usedSolos.first!) ?? 0) > 0)
-        if usedSolos.count <= 1 && !hasGroup && !(hasImplicitPrimary && singleSoloIsSecondary) {
-            for i in parsedLines.indices {
-                parsedLines[i].agentId = nil
-            }
-            parsedAgents.removeAll()
-        }
+        let finalized = resolveTTMLAgentsAndPositions(
+            rawLines: sax.lines,
+            xmlDeclared: sax.declaredAgents,
+            hasNativeStarryExtensions: sax.hasNativeStarryExtensions,
+            starryExtensionsEncoded: sax.starryExtensionsEncoded,
+            anyPHasAgentsOrPosition: sax.anyPHasAgentsOrPosition
+        )
 
         return BaseParsedLyrics(
             source: source,
             sourceName: sourceName,
             wordSynced: wordSynced,
             instrumental: false,
-            lines: parsedLines,
-            ttmlAgents: parsedAgents
+            lines: finalized.lines,
+            ttmlAgents: finalized.agents
         )
     }
 
     private final class TTMLSAXHandler: NSObject, XMLParserDelegate {
-        var agents: [String: (name: String?, isGroup: Bool, members: [String])] = [:]
+        var declaredAgents: [TTMLDeclaredAgent] = []
+        var hasNativeStarryExtensions = false
+        var starryExtensionsEncoded: String? = nil
+        var anyPHasAgentsOrPosition = false
         var lines: [MutableLine] = []
 
-        private var currentAgentId: String?
-        private var currentAgentType: String?
+        private var currentAgent: TTMLDeclaredAgent? = nil
+        private var currentAgentFullName: String? = nil
+        private var currentAgentFirstName: String? = nil
+        private var currentNameType: String? = nil
         private var capturingAgentName = false
         private var agentNameBuf = ""
 
+        private var ancestryStack: [TTMLContainerAttrs] = []
+        private var paragraphCounter = 0
         private var nextDivStartsParagraph = false
         private var inP = false
         private var pKey: String? = nil
         private var pStart: Double = 0
         private var pEnd: Double = 0
-        private var pAgent: String?
+        private var pAncestry: [TTMLContainerAttrs] = []
         private var pParagraphStart = false
 
         private struct KeyedRomanEntry {
@@ -1438,7 +2133,10 @@ enum StandaloneSongResolver {
         private var inBgSpan = false
         private var bgStart: Double = 0
         private var bgEnd: Double = 0
-        private var bgAgent: String? = nil
+        private var bgHasAgentsAttr = false
+        private var bgAgentVal: String? = nil
+        private var bgRawAgentAttr: String? = nil
+        private var bgPositionVal: String? = nil
         private var bgWords: [LyricWordPayload] = []
         private var bgPendingSpace = false
         private var bgTransBuf = ""
@@ -1631,6 +2329,38 @@ enum StandaloneSongResolver {
             }
         }
 
+        private static func localAttr(_ dict: [String: String], _ localName: String) -> String? {
+            if let direct = dict[localName] {
+                return direct
+            }
+            for (k, v) in dict where k != "xmlns" && !k.hasPrefix("xmlns:") {
+                if k.split(separator: ":").last == Substring(localName) {
+                    return v
+                }
+            }
+            return nil
+        }
+
+        private static func hasLocalAttr(_ dict: [String: String], _ localName: String) -> Bool {
+            if dict[localName] != nil {
+                return true
+            }
+            return dict.keys.contains { k in
+                k != "xmlns" && !k.hasPrefix("xmlns:") && k.split(separator: ":").last == Substring(localName)
+            }
+        }
+
+        private static func makeContainerAttrs(tag: String, dict: [String: String]) -> TTMLContainerAttrs {
+            let hasAgents = hasLocalAttr(dict, "agents")
+            return TTMLContainerAttrs(
+                tag: tag,
+                hasAgentsAttr: hasAgents,
+                agentsVal: hasAgents ? localAttr(dict, "agents") : nil,
+                agentVal: localAttr(dict, "agent"),
+                positionVal: StandaloneSongResolver.parseDeclaredPosition(localAttr(dict, "position"))
+            )
+        }
+
         func parser(
             _ parser: XMLParser,
             didStartElement elementName: String,
@@ -1639,23 +2369,63 @@ enum StandaloneSongResolver {
             attributes attributeDict: [String: String] = [:]
         ) {
             let local = elementName.components(separatedBy: ":").last ?? elementName
+            if !hasNativeStarryExtensions {
+                if local == "tt", attributeDict.contains(where: { $0.key.hasPrefix("xmlns:") && $0.value.hasPrefix("urn:ttml:extensions:") }) {
+                    hasNativeStarryExtensions = true
+                } else if Self.hasLocalAttr(attributeDict, "position")
+                            || Self.hasLocalAttr(attributeDict, "agents")
+                            || Self.hasLocalAttr(attributeDict, "color")
+                            || Self.hasLocalAttr(attributeDict, "members")
+                            || Self.hasLocalAttr(attributeDict, "rubyGroup") {
+                    hasNativeStarryExtensions = true
+                }
+            }
+
             switch local {
+            case "tt", "body":
+                ancestryStack.append(Self.makeContainerAttrs(tag: local, dict: attributeDict))
+
+            case "meta":
+                if Self.localAttr(attributeDict, "key") == "starry:extensions:v1",
+                   let val = Self.localAttr(attributeDict, "value")?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !val.isEmpty {
+                    starryExtensionsEncoded = val
+                }
+
             case "agent":
-                currentAgentId = attributeDict["xml:id"] ?? attributeDict["id"]
-                currentAgentType = attributeDict["type"]
+                let rawId = (Self.localAttr(attributeDict, "id") ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                let rawType = (Self.localAttr(attributeDict, "type") ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                let members = (Self.localAttr(attributeDict, "members") ?? "")
+                    .split(whereSeparator: \.isWhitespace)
+                    .map(String.init)
+                    .filter { !$0.isEmpty }
+                currentAgent = rawId.isEmpty
+                    ? nil
+                    : TTMLDeclaredAgent(
+                        id: rawId,
+                        type: rawType.isEmpty ? "person" : rawType,
+                        name: nil,
+                        colorHex: StandaloneSongResolver.parseHexColor(Self.localAttr(attributeDict, "color")),
+                        position: StandaloneSongResolver.parseDeclaredPosition(Self.localAttr(attributeDict, "position")),
+                        members: members
+                    )
+                currentAgentFullName = nil
+                currentAgentFirstName = nil
+                currentNameType = nil
                 agentNameBuf = ""
 
-            case "name" where currentAgentId != nil:
+            case "name" where currentAgent != nil:
                 capturingAgentName = true
+                currentNameType = Self.localAttr(attributeDict, "type")?.trimmingCharacters(in: .whitespacesAndNewlines)
                 agentNameBuf = ""
 
             case "transliteration":
                 inTransliterationBlock = true
-                let rawLang = (attributeDict["xml:lang"] ?? attributeDict["lang"] ?? "").lowercased()
+                let rawLang = (Self.localAttr(attributeDict, "lang") ?? "").lowercased()
                 translitBlockIsLatn = rawLang.hasSuffix("-latn") || rawLang == "latn"
 
             case "text" where inTransliterationBlock:
-                currentTranslitKey = attributeDict["for"]
+                currentTranslitKey = Self.localAttr(attributeDict, "for")
                 translitFullBuf = ""
                 translitMainBuf = ""
                 translitMainSpans = []
@@ -1668,9 +2438,9 @@ enum StandaloneSongResolver {
                 translitSpanDepth = 0
 
             case "span" where currentTranslitKey != nil && !inP:
-                let role = attributeDict["ttm:role"] ?? attributeDict["role"] ?? ""
-                let sStart = Self.parseTTMLTime(attributeDict["begin"])
-                let sEnd = Self.parseTTMLTime(attributeDict["end"])
+                let role = Self.localAttr(attributeDict, "role") ?? ""
+                let sStart = Self.parseTTMLTime(Self.localAttr(attributeDict, "begin"))
+                let sEnd = Self.parseTTMLTime(Self.localAttr(attributeDict, "end"))
                 translitSpanDepth += 1
                 if !translitInBg && translitSpanDepth == 1 && role == "x-bg" {
                     translitInBg = true
@@ -1682,16 +2452,20 @@ enum StandaloneSongResolver {
                 }
 
             case "div":
+                ancestryStack.append(Self.makeContainerAttrs(tag: "div", dict: attributeDict))
                 if !lines.isEmpty {
                     nextDivStartsParagraph = true
                 }
 
             case "p":
                 inP = true
-                pKey = attributeDict["itunes:key"] ?? attributeDict["key"]
-                pStart = Self.parseTTMLTime(attributeDict["begin"]) ?? 0
-                pEnd = Self.parseTTMLTime(attributeDict["end"]) ?? pStart
-                pAgent = attributeDict["ttm:agent"] ?? attributeDict["agent"]
+                pKey = Self.localAttr(attributeDict, "key")
+                pStart = Self.parseTTMLTime(Self.localAttr(attributeDict, "begin")) ?? 0
+                pEnd = Self.parseTTMLTime(Self.localAttr(attributeDict, "end")) ?? pStart
+                if Self.hasLocalAttr(attributeDict, "agents") || Self.hasLocalAttr(attributeDict, "position") {
+                    anyPHasAgentsOrPosition = true
+                }
+                pAncestry = ancestryStack + [Self.makeContainerAttrs(tag: "p", dict: attributeDict)]
                 pParagraphStart = nextDivStartsParagraph
                 nextDivStartsParagraph = false
                 mainWords = []
@@ -1701,7 +2475,10 @@ enum StandaloneSongResolver {
                 mainRomaBuf = ""
                 mainRomaSpans = []
                 mainRomaCaptured = false
-                bgAgent = nil
+                bgHasAgentsAttr = false
+                bgAgentVal = nil
+                bgRawAgentAttr = nil
+                bgPositionVal = nil
                 bgWords = []
                 bgPendingSpace = false
                 bgTransBuf = ""
@@ -1716,12 +2493,12 @@ enum StandaloneSongResolver {
                 activePieceStack = []
 
             case "span" where inP:
-                let role = attributeDict["ttm:role"] ?? attributeDict["role"] ?? ""
-                let rubyRole = attributeDict["tts:ruby"] ?? attributeDict["ruby"] ?? ""
-                let rawLang = attributeDict["xml:lang"] ?? attributeDict["lang"]
+                let role = Self.localAttr(attributeDict, "role") ?? ""
+                let rubyRole = Self.localAttr(attributeDict, "ruby") ?? ""
+                let rawLang = Self.localAttr(attributeDict, "lang")
                 let normLang = Self.normalizeLangTag(rawLang)
-                let spanStart = Self.parseTTMLTime(attributeDict["begin"])
-                let spanEnd = Self.parseTTMLTime(attributeDict["end"])
+                let spanStart = Self.parseTTMLTime(Self.localAttr(attributeDict, "begin"))
+                let spanEnd = Self.parseTTMLTime(Self.localAttr(attributeDict, "end"))
 
                 var pushedWord = false
                 var pushedRubyContainer = false
@@ -1733,8 +2510,23 @@ enum StandaloneSongResolver {
                     inBgSpan = true
                     bgStart = spanStart ?? pStart
                     bgEnd = spanEnd ?? pEnd
-                    if let explicitBgAgent = attributeDict["ttm:agent"] ?? attributeDict["agent"], !explicitBgAgent.isEmpty {
-                        bgAgent = explicitBgAgent
+                    let spanHasAgents = Self.hasLocalAttr(attributeDict, "agents")
+                    let spanAgentVal = spanHasAgents
+                        ? Self.localAttr(attributeDict, "agents")?.trimmingCharacters(in: .whitespacesAndNewlines)
+                        : Self.localAttr(attributeDict, "agent")?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if spanHasAgents {
+                        bgHasAgentsAttr = true
+                    }
+                    if bgAgentVal == nil, let spanAgentVal, !spanAgentVal.isEmpty {
+                        bgAgentVal = spanAgentVal
+                    }
+                    if bgRawAgentAttr == nil,
+                       let rawAg = Self.localAttr(attributeDict, "agent")?.trimmingCharacters(in: .whitespacesAndNewlines),
+                       !rawAg.isEmpty {
+                        bgRawAgentAttr = rawAg
+                    }
+                    if bgPositionVal == nil {
+                        bgPositionVal = StandaloneSongResolver.parseDeclaredPosition(Self.localAttr(attributeDict, "position"))
                     }
                 } else if isInsideRomanSpan {
                     let alreadyCaptured = inBgSpan ? bgRomaCaptured : mainRomaCaptured
@@ -1899,20 +2691,34 @@ enum StandaloneSongResolver {
         ) {
             let local = elementName.components(separatedBy: ":").last ?? elementName
             switch local {
+            case "tt", "body", "div":
+                if let last = ancestryStack.last, last.tag == local {
+                    _ = ancestryStack.popLast()
+                }
+
             case "name" where capturingAgentName:
                 capturingAgentName = false
+                let trimmed = agentNameBuf.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    if currentNameType == "full" && currentAgentFullName == nil {
+                        currentAgentFullName = trimmed
+                    }
+                    if currentAgentFirstName == nil {
+                        currentAgentFirstName = trimmed
+                    }
+                }
+                currentNameType = nil
 
             case "agent":
-                if let aid = currentAgentId {
-                    let trimmed = agentNameBuf.trimmingCharacters(in: .whitespacesAndNewlines)
-                    agents[aid] = (
-                        name: trimmed.isEmpty ? nil : trimmed,
-                        isGroup: currentAgentType == "group" || aid == "v1000",
-                        members: []
-                    )
+                if var agent = currentAgent {
+                    agent.name = currentAgentFullName ?? currentAgentFirstName
+                    declaredAgents.append(agent)
                 }
-                currentAgentId = nil
-                currentAgentType = nil
+                capturingAgentName = false
+                currentNameType = nil
+                currentAgent = nil
+                currentAgentFullName = nil
+                currentAgentFirstName = nil
 
             case "span" where currentTranslitKey != nil && !inP:
                 if let active = translitActiveSpan,
@@ -2024,7 +2830,9 @@ enum StandaloneSongResolver {
                     flushWordFrame(leftover)
                 }
 
-                if let key = pKey, let keyed = transliterationsByKey[key] {
+                let currentPKey = pKey?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let normalizedPKey = (currentPKey?.isEmpty == false) ? currentPKey : nil
+                if let key = normalizedPKey, let keyed = transliterationsByKey[key] {
                     if Self.collapseWhitespace(mainRomaBuf).isEmpty && !keyed.mainText.isEmpty {
                         mainRomaBuf = keyed.mainText
                         mainRomaSpans = keyed.mainSpans
@@ -2036,30 +2844,40 @@ enum StandaloneSongResolver {
                 }
                 pKey = nil
 
-                // 整段 <p> 仅有 <span ttm:role="x-bg"> 而无主唱正文时，按 parse-ttml.ts 规则提升为主行而非作为孤儿副行
-                var effectiveMainWords = mainWords
-                var effectiveBgWords = bgWords
-                var effectiveMainAgent = pAgent
+                // 整段 <p> 仅有 <span ttm:role="x-bg"> 而无主唱正文时，按 parse-ttml.ts 规则提升为主行而非作为孤儿副行；全空白词列表视为空
+                var effectiveMainWords = mainWords.contains(where: { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
+                    ? mainWords
+                    : []
+                var effectiveBgWords = bgWords.contains(where: { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
+                    ? bgWords
+                    : []
                 var effectiveMainTransBuf = mainTransBuf
                 var effectiveMainTransByLang = mainTransByLang
                 var effectiveMainRomaBuf = mainRomaBuf
                 var effectiveMainRomaSpans = mainRomaSpans
+                var wasPromotedBg = false
 
                 if effectiveMainWords.isEmpty && !effectiveBgWords.isEmpty {
-                    effectiveMainWords = Self.trimWrappingParens(effectiveBgWords)
+                    let promoted = Self.trimWrappingParens(effectiveBgWords)
                     effectiveBgWords = []
-                    effectiveMainAgent = bgAgent ?? pAgent
-                    if effectiveMainTransBuf.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        effectiveMainTransBuf = bgTransBuf
-                    }
-                    for (k, v) in bgTransByLang {
-                        effectiveMainTransByLang[k] = v
-                    }
-                    if Self.collapseWhitespace(effectiveMainRomaBuf).isEmpty {
-                        effectiveMainRomaBuf = bgRomaBuf
-                        effectiveMainRomaSpans = bgRomaSpans
+                    if promoted.contains(where: { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+                        wasPromotedBg = true
+                        effectiveMainWords = promoted
+                        if effectiveMainTransBuf.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            effectiveMainTransBuf = bgTransBuf
+                        }
+                        for (k, v) in bgTransByLang {
+                            effectiveMainTransByLang[k] = v
+                        }
+                        if Self.collapseWhitespace(effectiveMainRomaBuf).isEmpty {
+                            effectiveMainRomaBuf = bgRomaBuf
+                            effectiveMainRomaSpans = bgRomaSpans
+                        }
                     }
                 }
+
+                let pOrd = paragraphCounter
+                paragraphCounter += 1
 
                 var builtMain: MutableLine? = nil
                 if !effectiveMainWords.isEmpty {
@@ -2081,19 +2899,26 @@ enum StandaloneSongResolver {
                         start: start,
                         end: end,
                         paragraphStart: pParagraphStart,
-                        agentId: effectiveMainAgent,
                         translation: trans?.isEmpty == false ? trans : nil,
                         translationsByLang: cleanedLangMap,
                         romanization: roma.isEmpty ? nil : roma,
                         romanizationWords: mainRomaWords,
-                        words: effectiveMainWords
+                        words: effectiveMainWords,
+                        ttmlParagraphOrder: pOrd,
+                        ttmlKey: normalizedPKey,
+                        ttmlAncestry: pAncestry,
+                        ttmlPromotedBg: wasPromotedBg,
+                        ttmlBgHasAgentsAttr: wasPromotedBg ? bgHasAgentsAttr : false,
+                        ttmlBgAgentVal: wasPromotedBg ? bgAgentVal : nil,
+                        ttmlBgRawAgentAttr: wasPromotedBg ? bgRawAgentAttr : nil,
+                        ttmlBgPositionVal: wasPromotedBg ? bgPositionVal : nil
                     )
                 }
 
                 var builtBg: MutableLine? = nil
                 if !effectiveBgWords.isEmpty {
                     let cleanedBg = Self.trimWrappingParens(effectiveBgWords)
-                    if !cleanedBg.isEmpty {
+                    if cleanedBg.contains(where: { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
                         let bStart = cleanedBg.first?.start ?? bgStart
                         let bEnd = max(bgEnd, cleanedBg.last?.end ?? bStart)
                         let cleanedBgLangMap = bgTransByLang.reduce(into: [String: String]()) { acc, kv in
@@ -2112,13 +2937,18 @@ enum StandaloneSongResolver {
                             start: bStart,
                             end: bEnd,
                             isBackground: true,
-                            align: builtMain?.align ?? "left",
-                            agentId: bgAgent ?? effectiveMainAgent,
                             translation: bTrans?.isEmpty == false ? bTrans : nil,
                             translationsByLang: cleanedBgLangMap,
                             romanization: bRoma.isEmpty ? nil : bRoma,
                             romanizationWords: bgRomaWords,
-                            words: cleanedBg
+                            words: cleanedBg,
+                            ttmlParagraphOrder: pOrd,
+                            ttmlKey: normalizedPKey,
+                            ttmlAncestry: pAncestry,
+                            ttmlBgHasAgentsAttr: bgHasAgentsAttr,
+                            ttmlBgAgentVal: bgAgentVal,
+                            ttmlBgRawAgentAttr: bgRawAgentAttr,
+                            ttmlBgPositionVal: bgPositionVal
                         )
                     }
                 }
@@ -2138,6 +2968,8 @@ enum StandaloneSongResolver {
                     }
                 } else if let mainLine = builtMain {
                     lines.append(mainLine)
+                } else if pParagraphStart {
+                    nextDivStartsParagraph = true
                 }
 
             default:
@@ -2211,10 +3043,33 @@ enum StandaloneSongResolver {
 
     // MARK: - 叠加 AI 强调标注、多语言翻译、音译、歌手分轨与间奏生成
 
+    /// 1:1 对齐 web/src/lib/lyrics/apply-singers.ts `formatSingerDisplayName`
+    private static func formatSingerDisplayName(baseName: String?, translatedName: String?) -> String? {
+        let base = baseName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let tr = translatedName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if base.isEmpty {
+            return tr.isEmpty ? nil : tr
+        }
+        if tr.isEmpty {
+            return base
+        }
+        let normBase = normalizeMatchText(base)
+        let normTr = normalizeMatchText(tr)
+        if normTr.isEmpty || normTr == normBase || normBase.contains(normTr) {
+            return base
+        }
+        return "\(base) (\(tr))"
+    }
+
+    private static func isValidLyricAlign(_ raw: String?) -> Bool {
+        raw == "left" || raw == "right" || raw == "center"
+    }
+
     private static func applyOverlays(
         base: BaseParsedLyrics,
         annotations: BackendAnnotationsDTO?,
         overrideMotion: String? = nil,
+        showTranslation: Bool = true,
         primarySlot: TranslationSelectionItem,
         primaryTranslations: BackendTranslationsDTO?,
         secondarySlot: TranslationSelectionItem?,
@@ -2239,127 +3094,246 @@ enum StandaloneSongResolver {
 
         var lines = base.lines
 
-        // 1. 歌手分轨与颜色条（TTML 原生 agent + 后端 singers 标注）
-        let defaultPalette = ["sky", "rose", "mint", "amber", "lavender", "coral"]
-        var agentMeta: [String: (name: String?, hex: String, align: String, isGroup: Bool, members: [String])] = [:]
-        var soloOrder: [String] = []
+        // 1. 歌手分轨、摆位保护与颜色条（1:1 对齐 emphasis.ts -> apply-singers.ts -> desktop-island-bridge.tsx serializeLyrics）
+        var agentOrder: [String] = base.ttmlAgents.map(\.id)
+        var agentMap: [String: ResolvedTTMLAgent] = Dictionary(
+            uniqueKeysWithValues: base.ttmlAgents.map { ($0.id, $0) }
+        )
 
-        for (idx, kv) in base.ttmlAgents.sorted(by: { $0.key < $1.key }).enumerated() {
-            let colorName = defaultPalette[idx % defaultPalette.count]
-            let isGroup = kv.value.isGroup
-            if !isGroup { soloOrder.append(kv.key) }
-            let align = isGroup ? "center" : (soloOrder.count % 2 == 0 ? "right" : "left")
-            agentMeta[kv.key] = (
-                name: kv.value.name,
-                hex: LyricColorPalette.resolveHex(colorName),
-                align: align,
-                isGroup: isGroup,
-                members: kv.value.members
-            )
-        }
-
-        // 先合并 annotations.singers（仅在 TTML 已存在多声部 ttm:agent 时补充声部名与配色，对齐 emphasis.ts），再由独立 /lyric/singers 覆盖精调
-        if !base.ttmlAgents.isEmpty,
+        // 1a. 合并 annotations.singers（1:1 对齐 emphasis.ts mergeLyricAgents）：
+        // 仅在逐字多声部歌词未声明原生 ttv:color 时协调声部调色盘，绝不自动注入或覆盖歌手名称，也不篡改每行原生 align
+        if base.wordSynced,
+           !agentMap.isEmpty,
            let ann = annotations,
            ann.source == nil || ann.source?.isEmpty == true || ann.source == base.source,
            let annSingers = ann.singers {
-            for (idx, item) in annSingers.enumerated() {
-                guard agentMeta[item.id] != nil else { continue }
-                let isGroup = item.role == "group" || item.id == "v1000"
-                if !isGroup && !soloOrder.contains(item.id) {
-                    soloOrder.append(item.id)
+            for item in annSingers {
+                guard var existing = agentMap[item.id] else { continue }
+                if !existing.hasCustomColorHex,
+                   let aiColor = item.color?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   let mappedHex = LyricColorPalette.map[aiColor] {
+                    existing.hex = mappedHex
                 }
-                let displayName = (item.name?.isEmpty == false ? item.name : nil) ?? agentMeta[item.id]?.name
-                let hex = item.color.map(LyricColorPalette.resolveHex)
-                    ?? agentMeta[item.id]?.hex
-                    ?? LyricColorPalette.resolveHex(defaultPalette[idx % defaultPalette.count])
-                let align = item.align
-                    ?? agentMeta[item.id]?.align
-                    ?? (isGroup ? "center" : (soloOrder.firstIndex(of: item.id).map { $0 % 2 == 1 ? "right" : "left" } ?? "left"))
-                agentMeta[item.id] = (
-                    name: displayName,
-                    hex: hex,
-                    align: align,
-                    isGroup: isGroup,
-                    members: item.members ?? agentMeta[item.id]?.members ?? []
-                )
+                agentMap[item.id] = existing
             }
         }
 
+        // 1b. 合并 /lyric/singers（对齐 apply-singers.ts：非 manual 覆盖时严格保护 TTML 原生行级 align）
         if let sData = singers,
            sData.status == "ready" || sData.status == nil,
-           sData.source == nil || sData.source?.isEmpty == true || sData.source == base.source,
-           let sItems = sData.singers {
-            for (idx, item) in sItems.enumerated() {
-                let isGroup = item.role == "group" || item.id == "v1000"
-                if !isGroup && !soloOrder.contains(item.id) {
-                    soloOrder.append(item.id)
+           sData.source == nil || sData.source?.isEmpty == true || sData.source == base.source {
+            let sItems = sData.singers ?? []
+            let sLines = sData.lines ?? []
+            let manualOverride = (sData.manual == true) && !sItems.isEmpty && !sLines.isEmpty
+            let translatedNames = showTranslation ? sData.translated_names : nil
+
+            var nextOrder: [String] = []
+            var nextMap: [String: ResolvedTTMLAgent] = [:]
+            var alignByAgent: [String: String] = [:]
+
+            if !manualOverride {
+                for id in agentOrder {
+                    guard var existing = agentMap[id] else { continue }
+                    existing.name = formatSingerDisplayName(baseName: existing.baseName, translatedName: translatedNames?[id])
+                    nextOrder.append(id)
+                    nextMap[id] = existing
                 }
-                let translated = sData.translated_names?[item.id]
-                let displayName = (translated?.isEmpty == false ? translated : item.name) ?? agentMeta[item.id]?.name
-                let hex = item.color.map(LyricColorPalette.resolveHex) ?? agentMeta[item.id]?.hex ?? LyricColorPalette.resolveHex(defaultPalette[idx % defaultPalette.count])
-                let align = item.align ?? agentMeta[item.id]?.align ?? (isGroup ? "center" : (idx % 2 == 1 ? "right" : "left"))
-                agentMeta[item.id] = (
-                    name: displayName,
-                    hex: hex,
-                    align: align,
-                    isGroup: isGroup,
-                    members: item.members ?? []
-                )
             }
-            if let sLines = sData.lines {
+
+            for item in sItems {
+                let id = item.id.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !id.isEmpty else { continue }
+                let rawExisting = agentMap[id]
+                let existing = manualOverride ? nil : (nextMap[id] ?? rawExisting)
+                let trimmedItemName = item.name?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let nonEmptyItemName = (trimmedItemName?.isEmpty == false) ? trimmedItemName : nil
+                let baseName = manualOverride
+                    ? (nonEmptyItemName ?? rawExisting?.baseName)
+                    : (rawExisting?.baseName ?? nonEmptyItemName)
+                let displayName = formatSingerDisplayName(baseName: baseName, translatedName: translatedNames?[id])
+                let isGroup = existing?.isGroup ?? (item.role == "group")
+                let trimmedColor = item.color?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let hex: String = {
+                    if let existing {
+                        return existing.hex
+                    }
+                    if let c = trimmedColor, let mappedHex = LyricColorPalette.map[c] {
+                        return mappedHex
+                    }
+                    return LyricColorPalette.resolveHex(isGroup ? defaultGroupColor : "sky")
+                }()
+                let members: [String] = {
+                    if let existing, !existing.members.isEmpty {
+                        return existing.members
+                    }
+                    return (item.members ?? []).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+                }()
+
+                if nextMap[id] == nil {
+                    nextOrder.append(id)
+                }
+                nextMap[id] = ResolvedTTMLAgent(
+                    id: id,
+                    name: displayName,
+                    baseName: baseName,
+                    hex: hex,
+                    hasCustomColorHex: existing?.hasCustomColorHex ?? false,
+                    isGroup: isGroup,
+                    members: members
+                )
+                if let itemAlign = item.align?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   isValidLyricAlign(itemAlign) {
+                    alignByAgent[id] = itemAlign
+                }
+            }
+
+            if !nextMap.isEmpty {
+                let hasNativePositioning = !manualOverride && (
+                    !agentMap.isEmpty
+                        || lines.contains { $0.align == "right" || $0.align == "center" || $0.isDuet }
+                )
+
+                var lineLookup: [String: String] = [:]
+                for line in sLines where !line.agent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    let key = "\(line.bg ?? false):\(line.occurrence):\(normalizeMatchText(line.text))"
+                    lineLookup[key] = line.agent.trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+
                 var mainOcc: [String: Int] = [:]
                 var bgOcc: [String: Int] = [:]
+                let originalResolvedFlags = lines.map(\.hasResolvedAlign)
+
                 for i in lines.indices {
+                    let bg = lines[i].isBackground
                     let norm = normalizeMatchText(lines[i].plainText)
-                    let occ: Int
-                    if lines[i].isBackground {
-                        occ = bgOcc[norm, default: 0]
-                        bgOcc[norm] = occ + 1
-                    } else {
-                        occ = mainOcc[norm, default: 0]
-                        mainOcc[norm] = occ + 1
+                    let occ = bg ? bgOcc[norm, default: 0] : mainOcc[norm, default: 0]
+                    if bg { bgOcc[norm] = occ + 1 } else { mainOcc[norm] = occ + 1 }
+
+                    if hasNativePositioning && lines[i].hasResolvedAlign {
+                        continue
                     }
-                    if let matched = sLines.first(where: {
-                        ($0.bg ?? false) == lines[i].isBackground && $0.occurrence == occ && normalizeMatchText($0.text) == norm
-                    }) {
-                        lines[i].agentId = matched.agent
+
+                    let matchedAgent = lineLookup["\(bg):\(occ):\(norm)"]
+                    let fallbackAgent = manualOverride ? nil : lines[i].agentId
+                    let chosenAgent: String? = {
+                        if let m = matchedAgent, nextMap[m] != nil { return m }
+                        if let f = fallbackAgent, nextMap[f] != nil { return f }
+                        return nil
+                    }()
+
+                    guard let agentId = chosenAgent, let agentInfo = nextMap[agentId] else {
+                        if manualOverride {
+                            lines[i].agentId = nil
+                            if !bg {
+                                lines[i].align = "left"
+                                lines[i].isDuet = false
+                                lines[i].hasResolvedAlign = true
+                            }
+                        }
+                        continue
+                    }
+
+                    if bg {
+                        lines[i].agentId = agentId
+                        continue
+                    }
+
+                    let explicitAlign = alignByAgent[agentId]
+                    let baseAlign: String? = manualOverride ? nil : (lines[i].hasResolvedAlign ? lines[i].align : nil)
+                    let nextAlign: String
+                    if agentInfo.isGroup {
+                        nextAlign = (baseAlign == "right") ? "right" : (baseAlign ?? explicitAlign ?? "center")
+                    } else {
+                        nextAlign = baseAlign ?? explicitAlign ?? "left"
+                    }
+                    lines[i].agentId = agentId
+                    lines[i].align = nextAlign
+                    lines[i].isDuet = (nextAlign == "right")
+                    lines[i].hasResolvedAlign = true
+                }
+
+                if !sLines.isEmpty && lines.contains(where: \.isBackground) {
+                    let owners = computeBackgroundOwners(lines)
+                    for i in lines.indices where lines[i].isBackground {
+                        if hasNativePositioning && originalResolvedFlags[i] {
+                            continue
+                        }
+                        guard let ownerIdx = owners[i], lines.indices.contains(ownerIdx) else { continue }
+                        let owner = lines[ownerIdx]
+                        let ownerAlign = owner.align
+                        lines[i].owner = ownerIdx
+                        lines[i].agentId = lines[i].agentId ?? owner.agentId
+                        lines[i].align = ownerAlign
+                        lines[i].isDuet = (ownerAlign == "right")
+                        lines[i].hasResolvedAlign = true
                     }
                 }
+
+                agentOrder = nextOrder
+                agentMap = nextMap
             }
         }
 
-        let soloCount = soloOrder.count
+        // 1c. 序列化每行最终 owner、align、edgeColors、singerName 与 singerDotOnly（1:1 对齐 desktop-island-bridge.tsx serializeLyrics）
+        let owners = computeBackgroundOwners(lines)
+        let soloAgents = agentOrder.compactMap { agentMap[$0] }.filter { !$0.isGroup }
+        let soloCount = soloAgents.count
+
         for i in lines.indices {
-            if let aid = lines[i].agentId, let meta = agentMeta[aid] {
-                if !lines[i].isBackground {
-                    lines[i].align = meta.align
-                    lines[i].isDuet = (meta.align == "right")
-                }
-                if meta.isGroup {
-                    let memberHexes = meta.members.compactMap { agentMeta[$0]?.hex }
-                    if memberHexes.count >= 2 {
-                        lines[i].edgeColors = Array(memberHexes.prefix(6))
-                    } else {
-                        let c1 = soloOrder.first.flatMap { agentMeta[$0]?.hex } ?? meta.hex
-                        let c2 = soloOrder.dropFirst().first.flatMap { agentMeta[$0]?.hex } ?? meta.hex
-                        lines[i].edgeColors = [c1, c2]
-                    }
-                    if !lines[i].isBackground {
-                        lines[i].singerName = meta.name ?? "合唱"
-                    }
+            if lines[i].isBackground {
+                let ownerIdx = owners[i]
+                lines[i].owner = ownerIdx ?? -1
+                if !lines[i].hasResolvedAlign && !lines[i].isDuet,
+                   let ownerIdx, lines.indices.contains(ownerIdx) {
+                    lines[i].align = lines[ownerIdx].align
+                    lines[i].isDuet = (lines[i].align == "right")
                 } else {
-                    lines[i].edgeColors = [meta.hex]
-                    if !lines[i].isBackground {
-                        if let name = meta.name, !name.isEmpty {
-                            lines[i].singerName = name
-                        } else if soloCount > 2 {
-                            lines[i].singerDotOnly = true
-                        }
+                    lines[i].isDuet = (lines[i].align == "right")
+                }
+            } else {
+                lines[i].isDuet = (lines[i].align == "right")
+            }
+
+            guard let aid = lines[i].agentId, let agent = agentMap[aid] else {
+                continue
+            }
+
+            if agent.isGroup {
+                let memberHexes = deduplicatedOrder(agent.members).compactMap { agentMap[$0]?.hex }
+                if memberHexes.count >= 2 {
+                    lines[i].edgeColors = Array(memberHexes.prefix(6))
+                } else {
+                    let c1 = soloAgents.first?.hex ?? agent.hex
+                    let c2 = soloAgents.dropFirst().first?.hex ?? agent.hex
+                    lines[i].edgeColors = [c1, c2]
+                }
+                if !lines[i].isBackground {
+                    let members = agent.members
+                    if let name = agent.name, !name.isEmpty {
+                        lines[i].singerName = name
+                    } else if members.count >= 2 && members.allSatisfy({ agentMap[$0]?.name?.isEmpty == false }) {
+                        lines[i].singerName = members.compactMap { agentMap[$0]?.name }.joined(separator: " · ")
+                    } else {
+                        lines[i].singerName = "合唱"
+                    }
+                    if let bName = agent.baseName, !bName.isEmpty {
+                        lines[i].singerBaseName = bName
+                    } else if members.count >= 2 && members.allSatisfy({ agentMap[$0]?.baseName?.isEmpty == false }) {
+                        lines[i].singerBaseName = members.compactMap { agentMap[$0]?.baseName }.joined(separator: " · ")
+                    } else {
+                        lines[i].singerBaseName = "合唱"
                     }
                 }
-            } else if lines[i].isBackground, lines[i].owner >= 0, lines.indices.contains(lines[i].owner) {
-                lines[i].align = lines[lines[i].owner].align
+            } else {
+                lines[i].edgeColors = [agent.hex]
+                if !lines[i].isBackground {
+                    if let name = agent.name, !name.isEmpty {
+                        lines[i].singerName = name
+                        lines[i].singerBaseName = agent.baseName ?? ""
+                    } else if soloCount > 2 {
+                        lines[i].singerDotOnly = true
+                    }
+                }
             }
         }
 
@@ -2543,6 +3517,7 @@ enum StandaloneSongResolver {
                 chorusStart: l.chorusStart,
                 edgeColors: l.edgeColors,
                 singerName: l.singerName,
+                singerBaseName: l.singerBaseName,
                 singerDotOnly: l.singerDotOnly,
                 translation: l.translation,
                 secondaryTranslation: l.secondaryTranslation,
@@ -2897,12 +3872,22 @@ enum StandaloneSongResolver {
         return raw
     }
 
+    /// 1:1 对齐 strip-credits.ts `normalizeForMatch` 与后端 `normalizeMatchText`：小写并剥离空白、标点（\p{P}）与符号（\p{S}），不做 NFKC 兼容分解
     private static func normalizeMatchText(_ text: String) -> String {
-        text.precomposedStringWithCompatibilityMapping
-            .lowercased()
-            .unicodeScalars
-            .filter { !CharacterSet.whitespacesAndNewlines.contains($0) && !CharacterSet.punctuationCharacters.contains($0) }
-            .map(String.init)
-            .joined()
+        var out = String.UnicodeScalarView()
+        for scalar in text.lowercased().unicodeScalars {
+            let props = scalar.properties
+            if props.isWhitespace { continue }
+            switch props.generalCategory {
+            case .connectorPunctuation, .dashPunctuation, .openPunctuation, .closePunctuation,
+                 .initialPunctuation, .finalPunctuation, .otherPunctuation,
+                 .mathSymbol, .currencySymbol, .modifierSymbol, .otherSymbol,
+                 .spaceSeparator, .lineSeparator, .paragraphSeparator:
+                continue
+            default:
+                out.append(scalar)
+            }
+        }
+        return String(out)
     }
 }

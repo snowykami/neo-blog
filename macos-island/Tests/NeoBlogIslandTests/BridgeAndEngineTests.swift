@@ -1264,7 +1264,9 @@ struct BridgeAndEngineTests {
         #expect(dualBundle.intro == "夏夜的序曲")
         #expect(dualBundle.lines.count == 3)
         #expect(dualBundle.lines[2].plainText == "Hello world")
-        #expect(dualBundle.lines[2].singerName == "泷奈")
+        // 对齐 emphasis.ts mergeLyricAgents：annotations.singers 仅协调未声明 ttv:color 的声部调色盘，不向匿名 TTML 注入臆测歌手名
+        #expect(dualBundle.lines[2].singerName == nil)
+        #expect(dualBundle.lines[2].edgeColors == ["#74c0fc"])
 
         // 1.5) 独唱曲目虽标有单个 ttm:agent="v1"，不开启多声部色条与胶囊；且原生支持 W3C TTML2 tts:ruby="container" 振假名而不污染正文
         let soloTTML2 = """
@@ -1288,7 +1290,8 @@ struct BridgeAndEngineTests {
         let mainLine = dualBundle.lines[0]
         #expect(mainLine.isBackground == false)
         #expect(mainLine.plainText == "花火が咲く")
-        #expect(mainLine.singerName == "千束")
+        #expect(mainLine.singerName == nil)
+        #expect(mainLine.edgeColors == ["#ff9f80"])
         #expect(mainLine.translation == "AI：绚烂烟花盛开")
         #expect(mainLine.secondaryTranslation == "烟火绽放")
         #expect(mainLine.words.first?.ruby?.isEmpty == false)
@@ -2568,5 +2571,224 @@ struct BridgeAndEngineTests {
         t0 = t0.addingTimeInterval(0.12)
         compactSim.stepSimulation(size: compactSize, date: t0, timeMs: 26520, scene: fwScene, isPlaying: true, rhythm: fireworkBeats)
         #expect(compactSim.particleCount(for: "fireworks") == 2)
+    }
+
+    @Test("独立歌词解析器：1:1 对齐前端 StarryPlayer 摆位分离、三人及以上右对齐、背景行继承与 singers 合并保护")
+    func standaloneLyricAlignmentMatchesFrontend() {
+        // 1) StarryPlayer 导出格式（同《琵琶行》：v1_2/v2_2/v1000 为摆位载体，真实歌手写在 ttd:agents，含第 3 位独唱 v3 与原生 ttv:color）
+        let pipaTTML = """
+        <tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata" xmlns:ttd="urn:ttml:extensions:duet" xmlns:ttv="urn:ttml:extensions:vocal" xmlns:itunes="http://music.apple.com/lyric-ttml-internal">
+          <head><metadata>
+            <ttm:agent type="person" xml:id="v1_2" ttd:position="primary"/>
+            <ttm:agent type="other" xml:id="v2_2" ttd:position="secondary"/>
+            <ttm:agent type="group" xml:id="v1000" ttd:position="duet"/>
+            <ttm:agent type="person" xml:id="v1"><ttm:name type="full">奇然</ttm:name></ttm:agent>
+            <ttm:agent type="other" xml:id="v2"><ttm:name type="full">沈谧仁</ttm:name></ttm:agent>
+            <ttm:agent type="person" xml:id="v3" ttv:color="#D9695B"><ttm:name type="full">念白</ttm:name></ttm:agent>
+          </metadata></head>
+          <body><div>
+            <p begin="00:01.000" end="00:03.000" ttm:agent="v1_2" ttd:agents="v1" itunes:key="L1">
+              <span begin="00:01.000" end="00:03.000">五陵年少争缠头</span>
+            </p>
+            <p begin="00:04.000" end="00:06.000" ttm:agent="v2_2" ttd:agents="v2" itunes:key="L2">
+              <span begin="00:04.000" end="00:06.000">一曲红绡不知数</span>
+              <span ttm:role="x-bg" begin="00:05.000" end="00:06.500"><span begin="00:05.000" end="00:06.500">(回响)</span></span>
+            </p>
+            <p begin="00:07.000" end="00:09.000" ttd:agents="v3" itunes:key="L3">
+              <span begin="00:07.000" end="00:09.000">同是天涯沦落人</span>
+            </p>
+            <p begin="00:10.000" end="00:12.000" ttm:agent="v1000" ttd:agents="v1 v2" itunes:key="L4">
+              <span begin="00:10.000" end="00:12.000">相逢何必曾相识</span>
+            </p>
+          </div></body>
+        </tt>
+        """
+        // 非 manual 的 /lyric/singers 返回歌手英文译名与冲突的 align="right"，不得覆盖 TTML 原生行级摆位
+        let singersJSON = Data("""
+        {
+          "status": "ready",
+          "manual": false,
+          "singers": [
+            { "id": "v1", "name": "奇然", "align": "right" },
+            { "id": "v2", "name": "沈谧仁", "align": "left" },
+            { "id": "v3", "name": "念白", "color": "sky", "align": "left" }
+          ],
+          "translated_names": { "v1": "Qiran", "v2": "Shen Miren" },
+          "lines": [
+            { "text": "五陵年少争缠头", "occurrence": 0, "bg": false, "agent": "v2" }
+          ]
+        }
+        """.utf8)
+        let annotationsJSON = Data("""
+        {
+          "status": "ready",
+          "singers": [
+            { "id": "v3", "name": "覆盖名", "color": "mint" }
+          ]
+        }
+        """.utf8)
+
+        let bundle = StandaloneSongResolver.parseTTMLForTesting(
+            xml: pipaTTML,
+            annotationsJSON: annotationsJSON,
+            singersJSON: singersJSON,
+            showTranslation: true
+        )
+        #expect(bundle.lines.count == 5)
+        // L1: v1_2(primary) + v1 -> 左对齐，不被字典序或非 manual singers 翻到右边；译名格式化为「原名 (译名)」
+        #expect(bundle.lines[0].align == "left")
+        #expect(bundle.lines[0].isDuet == false)
+        #expect(bundle.lines[0].singerName == "奇然 (Qiran)")
+        // L2: v2_2(secondary) + v2 -> 右对齐；其下属 x-bg 背景行继承主行右对齐与 isDuet=true
+        #expect(bundle.lines[1].align == "right")
+        #expect(bundle.lines[1].isDuet == true)
+        #expect(bundle.lines[1].singerName == "沈谧仁 (Shen Miren)")
+        #expect(bundle.lines[2].isBackground == true)
+        #expect(bundle.lines[2].align == "right")
+        #expect(bundle.lines[2].isDuet == true)
+        // L3: 第 3 位独唱 v3（rank=2 != 0）默认居右，且保留原生 ttv:color="#d9695b" 与原名「念白」
+        #expect(bundle.lines[3].align == "right")
+        #expect(bundle.lines[3].isDuet == true)
+        #expect(bundle.lines[3].singerName == "念白")
+        #expect(bundle.lines[3].edgeColors == ["#d9695b"])
+        // L4: 多声部 v1 v2 -> 居中合唱，成员名以 · 拼接
+        #expect(bundle.lines[4].align == "center")
+        #expect(bundle.lines[4].isDuet == false)
+        #expect(bundle.lines[4].singerName == "奇然 (Qiran) · 沈谧仁 (Shen Miren)")
+
+        // 实时切换翻译开关（showTranslation: true -> false）时，已缓存行无需重拉网络即可立即剥离括号译名
+        #expect(bundle.lines[0].resolvedSingerName(showTranslation: true) == "奇然 (Qiran)")
+        #expect(bundle.lines[0].resolvedSingerName(showTranslation: false) == "奇然")
+        #expect(bundle.lines[4].resolvedSingerName(showTranslation: false) == "奇然 · 沈谧仁")
+
+        // 关闭翻译开关解析时，不附加歌手括号译名
+        let noTransBundle = StandaloneSongResolver.parseTTMLForTesting(
+            xml: pipaTTML,
+            singersJSON: singersJSON,
+            showTranslation: false
+        )
+        #expect(noTransBundle.lines[0].singerName == "奇然")
+
+        // manual=true 的人工校对 /lyric/singers 允许覆盖 TTML 原生行级摆位与歌手名
+        let manualSingersJSON = Data("""
+        {
+          "status": "ready",
+          "manual": true,
+          "singers": [
+            { "id": "v2", "name": "人工右声部", "role": "person", "color": "jade", "align": "right" }
+          ],
+          "lines": [
+            { "text": "五陵年少争缠头", "occurrence": 0, "bg": false, "agent": "v2" }
+          ]
+        }
+        """.utf8)
+        let manualBundle = StandaloneSongResolver.parseTTMLForTesting(
+            xml: pipaTTML,
+            singersJSON: manualSingersJSON,
+            showTranslation: true
+        )
+        #expect(manualBundle.lines[0].align == "right")
+        #expect(manualBundle.lines[0].isDuet == true)
+        #expect(manualBundle.lines[0].singerName == "人工右声部")
+        // manual 覆盖未命中的行回退为无声部默认左对齐
+        #expect(manualBundle.lines[1].align == "left" && manualBundle.lines[1].isDuet == false && manualBundle.lines[1].singerName == nil)
+
+        // 2) AMLL 匿名对唱：未在 <head> 声明 agent，直接在 <p> 与 <span ttm:role="x-bg"> 标注 v1 / v2
+        let anonymousDuetTTML = """
+        <tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata">
+          <body><div>
+            <p begin="00:01.000" end="00:03.000" ttm:agent="v1">
+              <span begin="00:01.000" end="00:03.000">Lead vocal</span>
+              <span ttm:role="x-bg" ttm:agent="v2" begin="00:02.000" end="00:03.500"><span begin="00:02.000" end="00:03.500">(Answer)</span></span>
+            </p>
+            <p begin="00:04.000" end="00:06.000" ttm:agent="v2">
+              <span begin="00:04.000" end="00:06.000">Second vocal</span>
+            </p>
+          </div></body>
+        </tt>
+        """
+        let anonBundle = StandaloneSongResolver.parseTTMLForTesting(xml: anonymousDuetTTML)
+        #expect(anonBundle.lines.count == 3)
+        #expect(anonBundle.lines[0].align == "left" && anonBundle.lines[0].isDuet == false)
+        // x-bg 显式标注匿名 v2 时独立右对齐
+        #expect(anonBundle.lines[1].isBackground == true && anonBundle.lines[1].align == "right" && anonBundle.lines[1].isDuet == true)
+        #expect(anonBundle.lines[2].align == "right" && anonBundle.lines[2].isDuet == true)
+
+        // 3) 平台 LRC 歌词叠加 AI /lyric/singers 分轨（含 ♪/~ 符号归一化匹配）：正确赋予左右/居中对齐
+        let lrcNCM = Data("""
+        {
+          "lrc": { "lyric": "[00:01.00]♪ 男声第一句 ~\\n[00:04.00]女声第二句 +\\n[00:07.00]双人合唱句" }
+        }
+        """.utf8)
+        let lrcSingers = Data("""
+        {
+          "status": "ready",
+          "singers": [
+            { "id": "v1", "name": "Aiobahn +81", "role": "person", "color": "sky", "align": "left" },
+            { "id": "v2", "name": "女歌手", "role": "person", "color": "rose", "align": "right" },
+            { "id": "v1000", "name": "合唱", "role": "group", "color": "lavender", "align": "center", "members": ["v1", "v2"] }
+          ],
+          "translated_names": { "v1": "Aiobahn 81" },
+          "lines": [
+            { "text": "男声第一句", "occurrence": 0, "bg": false, "agent": "v1" },
+            { "text": "女声第二句", "occurrence": 0, "bg": false, "agent": "v2" },
+            { "text": "双人合唱句", "occurrence": 0, "bg": false, "agent": "v1000" }
+          ]
+        }
+        """.utf8)
+        let lrcBundle = StandaloneSongResolver.buildBaseLyricsForTesting(
+            cacheJSON: nil,
+            ncmJSON: lrcNCM,
+            singersJSON: lrcSingers
+        )
+        #expect(lrcBundle.lines.count == 3)
+        // Aiobahn +81 剥离 + 号后包含 Aiobahn 81，不重复拼接括号译名
+        #expect(lrcBundle.lines[0].align == "left" && lrcBundle.lines[0].isDuet == false && lrcBundle.lines[0].singerName == "Aiobahn +81")
+        #expect(lrcBundle.lines[1].align == "right" && lrcBundle.lines[1].isDuet == true && lrcBundle.lines[1].singerName == "女歌手")
+        #expect(lrcBundle.lines[2].align == "center" && lrcBundle.lines[2].isDuet == false && lrcBundle.lines[2].singerName == "合唱")
+
+        // 4) starry:extensions:v1 Base64（含换行空白与超界浮点 RGB 防御）及跨 <div> 乱序 <p> 按起始时间稳定升序重排
+        let extJson = """
+        {
+          "version": 1,
+          "agents": [
+            { "id": "s1", "kind": "person", "names": [{ "text": "主唱A", "kind": "full" }], "color": { "red": 1e30, "green": -20, "blue": 128 } },
+            { "id": "s2", "kind": "person", "names": [{ "text": "主唱B", "kind": "full" }] }
+          ],
+          "lines": [
+            { "key": "K1", "singer": "primary", "agentIDs": ["s1"] },
+            { "key": "K2", "singer": "secondary", "agentIDs": ["s2"] }
+          ]
+        }
+        """
+        let rawB64 = Data(extJson.utf8).base64EncodedString()
+        let wrappedB64 = stride(from: 0, to: rawB64.count, by: 32).map { i -> String in
+            let start = rawB64.index(rawB64.startIndex, offsetBy: i)
+            let end = rawB64.index(start, offsetBy: min(32, rawB64.count - i))
+            return String(rawB64[start..<end])
+        }.joined(separator: "\n  ")
+        let starryExtTTML = """
+        <tt xmlns="http://www.w3.org/ns/ttml" xmlns:amll="http://www.example.com/ns/amll" xmlns:itunes="http://music.apple.com/lyric-ttml-internal">
+          <head><metadata>
+            <amll:meta key="starry:extensions:v1" value="\(wrappedB64)"/>
+          </metadata></head>
+          <body>
+            <div>
+              <p begin="00:05.000" end="00:07.000" itunes:key="K2"><span begin="00:05.000" end="00:07.000">后唱但写在第一段</span></p>
+            </div>
+            <div>
+              <p begin="00:01.000" end="00:03.000" itunes:key="K1"><span begin="00:01.000" end="00:03.000">先唱但写在第二段</span></p>
+            </div>
+          </body>
+        </tt>
+        """
+        let extBundle = StandaloneSongResolver.parseTTMLForTesting(xml: starryExtTTML)
+        #expect(extBundle.lines.count == 2)
+        // 按起始时间升序重排后 K1(00:01) 在前且首行 paragraphStart=false，超界 RGB 安全截断为 #ff0080
+        #expect(extBundle.lines[0].plainText == "先唱但写在第二段")
+        #expect(extBundle.lines[0].paragraphStart == false)
+        #expect(extBundle.lines[0].align == "left" && extBundle.lines[0].singerName == "主唱A" && extBundle.lines[0].edgeColors == ["#ff0080"])
+        #expect(extBundle.lines[1].plainText == "后唱但写在第一段")
+        #expect(extBundle.lines[1].align == "right" && extBundle.lines[1].isDuet == true && extBundle.lines[1].singerName == "主唱B")
     }
 }

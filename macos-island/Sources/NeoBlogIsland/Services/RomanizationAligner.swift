@@ -88,6 +88,7 @@ enum RomanizationAligner {
                 chorusStart: line.chorusStart,
                 edgeColors: line.edgeColors,
                 singerName: line.singerName,
+                singerBaseName: line.singerBaseName,
                 singerDotOnly: line.singerDotOnly,
                 translation: line.translation,
                 secondaryTranslation: line.secondaryTranslation,
