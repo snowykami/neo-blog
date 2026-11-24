@@ -1,11 +1,13 @@
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
-import { getLocale, getTranslations } from 'next-intl/server'
+import { getTranslations, setRequestLocale } from 'next-intl/server'
 import { cacheLife, cacheTag } from 'next/cache'
+import { locale as rootLocale } from 'next/root-params'
 import { getPublicConfig } from '@/api/misc'
 import { getCachedSiteInfo } from '@/api/misc.server'
 import { SiteShell } from '@/components/layout/site-shell'
 import { localeAlternates } from '@/i18n/alternates'
+import { resolveRouteLocale } from '@/i18n/routing'
 import { CacheTag, skipBackendAtBuild } from '@/lib/cache-tags'
 import { mainPath } from '@/utils/common/route'
 import '@/app/styles/prose.css'
@@ -29,8 +31,10 @@ const SECTIONS: { key: string, body?: boolean, items?: readonly string[], note?:
 ]
 
 export async function generateMetadata(): Promise<Metadata> {
+  const locale = resolveRouteLocale(await rootLocale())
+  setRequestLocale(locale)
   const routeT = await getTranslations('Route')
-  return { title: routeT('privacy_policy'), alternates: localeAlternates(mainPath.privacy, await getLocale()) }
+  return { title: routeT('privacy_policy'), alternates: localeAlternates(mainPath.privacy, locale) }
 }
 
 // 访问记录与错误报告的保留天数来自全局配置（跨请求缓存，站点配置变化时 site 标签失效），配置值非法时使用默认值
@@ -52,6 +56,8 @@ async function getRetentionDays() {
 }
 
 export default async function PrivacyPage() {
+  const locale = resolveRouteLocale(await rootLocale())
+  setRequestLocale(locale)
   skipBackendAtBuild()
   const [t, routeT, siteInfo, { days, errorDays }] = await Promise.all([
     getTranslations('Privacy'),

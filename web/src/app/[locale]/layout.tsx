@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from 'next'
 import nodeProcess from 'node:process'
 import { hasLocale } from 'next-intl'
+import { setRequestLocale } from 'next-intl/server'
 import { notFound } from 'next/navigation'
+import { locale as rootLocale } from 'next/root-params'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { getCachedSiteInfo } from '@/api/misc.server'
 import { LoginDialogProvider } from '@/components/auth/login-dialog'
@@ -40,9 +42,13 @@ export const viewport: Viewport = {
 
 // 构建期只返回占位参数（不是任何语言，下面直接 404）：Cache Components 要求根参数至少有一个值，但镜像构建连不上后端，
 // 预渲染只能把兜底内容固化进页面。真实语言的页面在第一次被访问时用真实的后端数据生成并缓存（见 lib/cache-tags.ts 的 BUILD_PLACEHOLDER_PARAM）；
-// 取数失败时直接抛错（见 api/misc.server.ts），错误页不进缓存，已有的页面继续提供
+// 取数失败时直接抛错（见 api/misc.server.ts），错误页不进缓存，已有的页面继续提供。
+// 开发态返回全部真实语言，避免 next dev 将 [locale] 视为未知 fallback 参数导致根布局与主布局 params 阻塞静态外壳校验
 export function generateStaticParams() {
-  return [{ locale: BUILD_PLACEHOLDER_PARAM }]
+  // eslint-disable-next-line node/prefer-global/process
+  if ((nodeProcess.env.NEXT_PHASE ?? process.env.NEXT_PHASE) === 'phase-production-build')
+    return [{ locale: BUILD_PLACEHOLDER_PARAM }]
+  return routing.locales.map(locale => ({ locale }))
 }
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -61,19 +67,18 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function RootLayout({
   children,
-  params,
 }: Readonly<{
   children: React.ReactNode
-  params: Promise<{ locale: string }>
 }>) {
   // 根布局对所有人输出同一份外壳：不读 Cookie、不查当前用户。
   // 登录状态、配色偏好、时区都在浏览器里补（见 AuthProvider、themeInitScript、ClientI18nProvider）；
   // 节日 / 季节性主题只按日期计算且跨请求缓存，用户关闭主题的偏好、管理员的预览主题在客户端处理
-  // 界面语言来自 URL（[locale] 段，见 i18n/request.ts 与 proxy.ts）。不认识的语言段按 404 处理：
+  // 界面语言来自 URL（[locale] 根参数，见 i18n/request.ts 与 proxy.ts）。不认识的语言段按 404 处理：
   // 前台地址都经 proxy 改写过，走到这里的只有 proxy 不处理的地址（/foo.png、/api/不存在），只返回 404 状态与空白页
-  const { locale } = await params
+  const locale = await rootLocale()
   if (!hasLocale(routing.locales, locale))
     notFound()
+  setRequestLocale(locale)
   const [siteInfo, theme] = await Promise.all([getCachedSiteInfo(), getActiveTheme()])
   const imageOptimizeHosts = getServerImageOptimizeHosts()
   // 运行时环境变量优先；若未设置则回退到构建时内联的 NEXT_PUBLIC_ENABLE_TELEMETRY，默认开启

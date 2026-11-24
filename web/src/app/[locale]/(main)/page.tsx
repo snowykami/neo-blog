@@ -3,8 +3,9 @@ import type { WebSite, WithContext } from 'schema-dts'
 import type { BlogHomeInitialData } from './blog-home-query'
 import type { OrderBy } from '@/models/common'
 import type { Post } from '@/models/post'
-import { getLocale, getTranslations } from 'next-intl/server'
+import { getTranslations, setRequestLocale } from 'next-intl/server'
 import { cacheLife, cacheTag } from 'next/cache'
+import { locale as rootLocale } from 'next/root-params'
 import { Suspense } from 'react'
 import { getCachedSiteInfo } from '@/api/misc.server'
 import { listPosts } from '@/api/post'
@@ -16,16 +17,19 @@ import { BlogSidebarSkeleton } from '@/components/blog-sidebar/sidebar-skeleton'
 import { SiteShell } from '@/components/layout/site-shell'
 import { Skeleton } from '@/components/ui/skeleton'
 import { localeAlternates } from '@/i18n/alternates'
-import { localizePath } from '@/i18n/routing'
+import { localizePath, resolveRouteLocale } from '@/i18n/routing'
 import { CacheTag, skipBackendAtBuild } from '@/lib/cache-tags'
 import { absoluteSiteUrl, getSiteMetadataIcons, safeMetadataBase } from '@/utils/common/siteinfo'
 import BlogHome from './blog-home'
 import { blogHomeQueryKey, parseHomeTab } from './blog-home-query'
 
 export async function generateMetadata(): Promise<Metadata> {
-  const siteInfo = await getCachedSiteInfo()
-  const routeT = await getTranslations('Route')
-  const locale = await getLocale()
+  const locale = resolveRouteLocale(await rootLocale())
+  setRequestLocale(locale)
+  const [siteInfo, routeT] = await Promise.all([
+    getCachedSiteInfo(),
+    getTranslations('Route'),
+  ])
   return {
     title: routeT('homepage'),
     description: siteInfo.metadata.description,

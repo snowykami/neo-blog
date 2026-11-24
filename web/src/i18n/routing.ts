@@ -58,6 +58,11 @@ export function localizePath(href: string, locale: string): string {
   return href === '/' || /^\/[?#]/.test(href) ? `${prefix}${href.slice(1)}` : `${prefix}${href}`
 }
 
+/** 归一化路由参数中的 [locale] 段（构建期占位符 `_` 或未知语言同步回退至默认语言） */
+export function resolveRouteLocale(locale?: string): string {
+  return locale && ROUTING_LOCALES.includes(locale) ? locale : ROUTING_DEFAULT_LOCALE
+}
+
 /**
  * 拆出地址里的语言前缀：/zh-tw/p/x → { locale: 'zh-TW', pathname: '/p/x' }；没有前缀时 locale 为 undefined。
  * 前缀不区分大小写，内部路径写法（/zh-TW）也能识别

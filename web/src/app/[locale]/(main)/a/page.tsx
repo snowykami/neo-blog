@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import type { ArchiveGroup } from './archive'
 import type { Post } from '@/models/post'
 import process from 'node:process'
-import { getLocale, getTranslations } from 'next-intl/server'
+import { getTranslations, setRequestLocale } from 'next-intl/server'
 import { cacheLife, cacheTag } from 'next/cache'
 import { Suspense } from 'react'
 import { listPosts } from '@/api/post'
@@ -11,6 +11,7 @@ import { BlogSidebarSkeleton } from '@/components/blog-sidebar/sidebar-skeleton'
 import { SiteShell } from '@/components/layout/site-shell'
 import { Skeleton } from '@/components/ui/skeleton'
 import { localeAlternates } from '@/i18n/alternates'
+import { resolveRouteLocale } from '@/i18n/routing'
 import { CacheTag, skipBackendAtBuild } from '@/lib/cache-tags'
 import { OrderBy } from '@/models/common'
 import { getPostUrl, mainPath } from '@/utils/common/route'
@@ -19,9 +20,11 @@ import { Archive } from './archive'
 // 归档日期按站点时区计算，与后端容器的 TZ 保持一致；在服务端算好再传给客户端，避免水合时因时区不同而错位
 const ARCHIVE_TIME_ZONE = process.env.TZ || 'Asia/Chongqing'
 
-export async function generateMetadata(): Promise<Metadata> {
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const locale = resolveRouteLocale((await params).locale)
+  setRequestLocale(locale)
   const routeT = await getTranslations('Route')
-  return { title: routeT('archive'), alternates: localeAlternates(mainPath.archive, await getLocale()) }
+  return { title: routeT('archive'), alternates: localeAlternates(mainPath.archive, locale) }
 }
 
 function getDateParts(date: string) {

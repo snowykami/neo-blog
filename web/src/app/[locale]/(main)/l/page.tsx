@@ -1,19 +1,23 @@
 import type { Metadata } from 'next'
 import type { Label } from '@/models/label'
-import { getLocale, getTranslations } from 'next-intl/server'
+import { getTranslations, setRequestLocale } from 'next-intl/server'
 import { cacheLife, cacheTag } from 'next/cache'
+import { locale as rootLocale } from 'next/root-params'
 import { getLabels } from '@/api/label'
 import BlogSidebar from '@/components/blog-sidebar'
 import { getCachedSidebarData } from '@/components/blog-sidebar/sidebar-data'
 import { SectionTitle, SiteShell } from '@/components/layout/site-shell'
 import { localeAlternates } from '@/i18n/alternates'
 import { Link } from '@/i18n/navigation'
+import { resolveRouteLocale } from '@/i18n/routing'
 import { CacheTag, skipBackendAtBuild } from '@/lib/cache-tags'
 import { getLabelUrl, mainPath } from '@/utils/common/route'
 
 export async function generateMetadata(): Promise<Metadata> {
+  const locale = resolveRouteLocale(await rootLocale())
+  setRequestLocale(locale)
   const t = await getTranslations('Route')
-  return { title: t('label'), alternates: localeAlternates(mainPath.label, await getLocale()) }
+  return { title: t('label'), alternates: localeAlternates(mainPath.label, locale) }
 }
 
 // 标签列表跨请求缓存，文章、标签变化时 posts 标签失效；取不到时抛错（不缓存）
@@ -25,6 +29,8 @@ async function loadLabels(): Promise<Label[]> {
 }
 
 export default async function LabelPage() {
+  const locale = resolveRouteLocale(await rootLocale())
+  setRequestLocale(locale)
   // 取不到时抛错，不把空列表缓存成页面：错误时 Next 继续提供上一份成功生成的页面（见 api/misc.server.ts）
   skipBackendAtBuild()
   const [rawLabels, sidebarData] = await Promise.all([

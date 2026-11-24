@@ -60,18 +60,20 @@ export default (phase: string): NextConfig => {
     partialPrefetching: true,
     // 'use cache' 的缓存时长（秒）。stale 是浏览器路由缓存的时长，至少 300 的内容才会进 App Shell（见 cacheLife 文档的 Prerendering behavior）；
     // expire 不小于 300 才会被预渲染，不超过 expireTime。revalidate 只是兜底：后端修改会按缓存标签版本号让条目立即失效（见 cache-handler.mjs）。
-    // 开发模式下保留档位定义（确保根布局无 Suspense 的静态外壳预渲染校验与类型生成与生产一致），靠下面的 cacheMaxMemorySize: 0 让每次请求后台刷新
+    // 开发模式下保留 stale 档位与不低于 300 秒的 expire（确保静态外壳与局部预取校验同生产完全一致），并将 revalidate 与 expire 对齐为 300 秒：
+    // 规避 Next 16.4 开发态后台 stale-while-revalidate 重验证覆写当前请求 ResumeDataCache 未决流、导致静态外壳校验误报未缓存数据的问题
+    // （开发时按住 Shift 刷新发送 Cache-Control: no-cache 仍会走前台同步重生成立即拿新数据）
     cacheLife: {
-      // 站点配置、分类 / 标签列表、首页与归档的默认列表：所有页面的外壳都用到，30 秒后按 stale-while-revalidate 在后台刷新（同改前根布局的 revalidate = 30）
-      site: { stale: 300, revalidate: 30, expire: 3600 },
+      // 站点配置、分类 / 标签列表、首页与归档的默认列表：所有页面的外壳都用到，生产环境 30 秒后按 stale-while-revalidate 在后台刷新
+      site: { stale: 300, revalidate: isDev ? 300 : 30, expire: isDev ? 300 : 3600 },
       // 按地址取的单条内容（文章、页面、用户）：浏览器缓存 60 秒（同改前 staleTimes.static），不进 App Shell，悬停时按链接预取
-      detail: { stale: 60, revalidate: 60, expire: 3600 },
-      // 节日 / 季节主题：只按日期变化，10 分钟算一次（浏览器挂载后按本机日期复核，见 themes/active-theme.server.ts）
-      theme: { stale: 300, revalidate: 600, expire: 3600 },
+      detail: { stale: 60, revalidate: isDev ? 300 : 60, expire: isDev ? 300 : 3600 },
+      // 节日 / 季节主题：只按日期变化，生产环境 10 分钟算一次（浏览器挂载后按本机日期复核，见 themes/active-theme.server.ts）
+      theme: { stale: 300, revalidate: isDev ? 300 : 600, expire: isDev ? 300 : 3600 },
     },
-    // 开发模式下置 0：关闭页面缓存内存池，并触发 Next 内置 'use cache' 的开发态每次请求刷新分支；
-    // 同时不挂载自定义 Redis / 文件缓存处理器，避免开发时连 Redis、轮询标签或被 Next 的 dev tiered 内存层挡住失效
-    cacheMaxMemorySize: isDev ? 0 : undefined,
+    // 开发模式下不挂载自定义 Redis / 文件缓存处理器，避免开发时连 Redis、轮询标签或被 Next 的 dev tiered 内存层挡住失效；
+    // 注意：不在开发态设置 cacheMaxMemorySize: 0，否则 Next 16.4 的 use-cache 每次请求后台重验证会覆写当前请求的
+    // ResumeDataCache 未决流，导致静态外壳与即时导航校验误报 RootLayout / MainLayout 未缓存数据
     // 'use cache' 的存储：配置 REDIS_URL 时存 Redis、多个副本共用，否则在进程内存里；失效同样按后端的缓存标签版本号（见 use-cache-handler.mjs）
     cacheHandlers: isDev
       ? undefined

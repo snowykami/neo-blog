@@ -1,20 +1,26 @@
 import type { Metadata } from 'next'
 import { FolderIcon } from 'lucide-react'
-import { getLocale, getTranslations } from 'next-intl/server'
+import { getTranslations, setRequestLocale } from 'next-intl/server'
+import { locale as rootLocale } from 'next/root-params'
 import BlogSidebar from '@/components/blog-sidebar'
 import { getCachedSidebarData } from '@/components/blog-sidebar/sidebar-data'
 import { SectionTitle, SiteShell } from '@/components/layout/site-shell'
 import { localeAlternates } from '@/i18n/alternates'
 import { Link } from '@/i18n/navigation'
+import { resolveRouteLocale } from '@/i18n/routing'
 import { getCategoryUrl, mainPath } from '@/utils/common/route'
 import { getCachedCategories } from './[slug]/category-data'
 
 export async function generateMetadata(): Promise<Metadata> {
+  const locale = resolveRouteLocale(await rootLocale())
+  setRequestLocale(locale)
   const t = await getTranslations('Public')
-  return { title: t('categories'), alternates: localeAlternates(mainPath.category, await getLocale()) }
+  return { title: t('categories'), alternates: localeAlternates(mainPath.category, locale) }
 }
 
 export default async function CategoryPage() {
+  const locale = resolveRouteLocale(await rootLocale())
+  setRequestLocale(locale)
   // 分类列表跨请求缓存（与分类页共用）；取不到时抛错，不把空列表缓存成页面：错误时 Next 继续提供上一份成功生成的页面（见 api/misc.server.ts）
   const [categories, sidebarData] = await Promise.all([
     getCachedCategories(),

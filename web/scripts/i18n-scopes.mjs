@@ -311,26 +311,29 @@ export type I18nScope = keyof typeof SCOPES
 
 function scopeLayoutSource(dir) {
   const key = scopeKey(dir)
+  const isConsole = dir.startsWith('console/')
+  const hasLoading = !isConsole && existsSync(join(APP_ROOT, dir, 'loading.tsx'))
   // 后台按请求渲染、不做即时导航校验（见 app/[locale]/console/layout.tsx），下面各层同样声明，否则开发时每个后台页面都提示「无法校验」
-  const instant = dir.startsWith('console/')
+  const instant = isConsole
     ? `
 // 后台按请求渲染，不做即时导航校验（见 app/[locale]/console/layout.tsx）
 export const instant = false
 `
     : ''
+  const loadingImport = hasLoading ? `\nimport Loading from './loading'` : ''
+  const fallbackProp = hasLoading ? ' fallback={<Loading />}' : ''
   return `// 由 pnpm i18n:scopes 生成，请勿手改
 // 只为这一层子树准备它用到的文案，避免整份语言表随页面下发（见 src/components/i18n-scope.tsx）
-import { I18nScope as I18nScopeProvider } from '@/components/i18n-scope'
+import { ScopedI18n } from '@/components/i18n-scope'${loadingImport}
 ${instant}
-export default async function Layout({
+export default function Layout({
   children,
   params,
 }: {
   children: React.ReactNode
   params: Promise<{ locale: string }>
 }) {
-  const { locale } = await params
-  return <I18nScopeProvider scope="${key}" locale={locale}>{children}</I18nScopeProvider>
+  return <ScopedI18n scope="${key}" params={params}${fallbackProp}>{children}</ScopedI18n>
 }
 `
 }

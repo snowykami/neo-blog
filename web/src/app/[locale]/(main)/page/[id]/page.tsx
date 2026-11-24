@@ -1,14 +1,17 @@
 import type { Metadata } from 'next'
 import type { PageModel } from '@/models/page'
-import { getLocale } from 'next-intl/server'
+import { hasLocale } from 'next-intl'
+import { setRequestLocale } from 'next-intl/server'
 import { cacheLife, cacheTag } from 'next/cache'
 import { notFound } from 'next/navigation'
-import { cache } from 'react'
+import { cache, Suspense } from 'react'
 import { getPageById } from '@/api/page'
 import { localeAlternates } from '@/i18n/alternates'
+import { routing } from '@/i18n/routing'
 import { BUILD_PLACEHOLDER_PARAM, CacheTag, skipBackendAtBuild } from '@/lib/cache-tags'
 import { isNotFoundLikeError } from '@/utils/common/error'
 import { getPageUrl } from '@/utils/common/route'
+import CustomPageLoading from './loading'
 import { PageView } from './page-view'
 
 // 跨请求缓存（按 id / slug 分条，各语言共用）：页面按地址缓存，按链接预取与重新生成先读这里；页面增删改时 pages 标签失效。
@@ -41,13 +44,18 @@ export function generateStaticParams() {
   return [{ id: BUILD_PLACEHOLDER_PARAM }]
 }
 
+function resolveLocale(raw: string) {
+  return hasLocale(routing.locales, raw) ? raw : routing.defaultLocale
+}
+
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<{ id: string }>
+  params: Promise<{ locale: string, id: string }>
 }): Promise<Metadata> {
-  const { id } = await params
-  const [page, locale] = await Promise.all([getCachedPage(id).catch(() => null), getLocale()])
+  const { locale: rawLocale, id } = await params
+  const locale = resolveLocale(rawLocale)
+  const page = await getCachedPage(id).catch(() => null)
   if (!page)
     return {}
   return {
@@ -58,14 +66,27 @@ export async function generateMetadata({
   }
 }
 
-export default async function Page({
+async function CustomPageContent({
   params,
 }: {
-  params: Promise<{ id: string }>
+  params: Promise<{ locale: string, id: string }>
 }) {
-  const { id } = await params
+  const { locale: rawLocale, id } = await params
+  setRequestLocale(resolveLocale(rawLocale))
   const page = await getCachedPage(id)
   if (!page)
     notFound()
   return <PageView page={page} />
+}
+
+export default function Page({
+  params,
+}: {
+  params: Promise<{ locale: string, id: string }>
+}) {
+  return (
+    <Suspense fallback={<CustomPageLoading />}>
+      <CustomPageContent params={params} />
+    </Suspense>
+  )
 }

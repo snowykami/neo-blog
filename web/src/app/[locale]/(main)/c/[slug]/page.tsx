@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
-import { getLocale, getTranslations } from 'next-intl/server'
+import { hasLocale } from 'next-intl'
+import { getTranslations, setRequestLocale } from 'next-intl/server'
 import { Suspense } from 'react'
 import { PostList } from '@/components/blog-home/post-list'
 import BlogSidebar from '@/components/blog-sidebar'
@@ -15,38 +16,50 @@ import {
 } from '@/components/ui/pagination'
 import { localeAlternates } from '@/i18n/alternates'
 import { Link } from '@/i18n/navigation'
+import { routing } from '@/i18n/routing'
 import { BUILD_PLACEHOLDER_PARAM } from '@/lib/cache-tags'
 import { getCategoryUrl } from '@/utils/common/route'
 import { CATEGORY_PAGE_SIZE, findCategoryOr404, listCategoryPosts } from './category-data'
+import CategoryLoading from './loading'
+
+function resolveLocale(raw: string) {
+  return hasLocale(routing.locales, raw) ? raw : routing.defaultLocale
+}
 
 // 分类页按地址缓存（每个分类、每种语言一份）：构建时只预渲染占位参数（见 lib/cache-tags.ts 的 BUILD_PLACEHOLDER_PARAM），
-// 第一次被访问时生成；读 ?page= 的文章列表在页面缓存里留成 Suspense 骨架，按请求补上（第一页取自取数缓存，见 category-data.ts）
+// 第一次被访问时生成；读 params / ?page= 的部分包在 Suspense 骨架内按需流式补上
 export function generateStaticParams() {
   return [{ slug: BUILD_PLACEHOLDER_PARAM }]
 }
 
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
-  const { slug } = await params
+export async function generateMetadata({ params }: { params: Promise<{ locale: string, slug: string }> }): Promise<Metadata> {
+  const { locale: rawLocale, slug } = await params
+  const locale = resolveLocale(rawLocale)
+  setRequestLocale(locale)
   // 与页面共用同一次分类列表读取；不存在的分类由页面判定 404
-  const category = await findCategoryOr404(slug)
-  const archiveT = await getTranslations('Archive')
+  const [category, archiveT] = await Promise.all([
+    findCategoryOr404(slug),
+    getTranslations('Archive'),
+  ])
   return {
     title: archiveT('filter_category', { name: category?.name || slug }),
     description: category?.description || undefined,
-    alternates: category ? localeAlternates(getCategoryUrl(category), await getLocale()) : undefined,
+    alternates: category ? localeAlternates(getCategoryUrl(category), locale) : undefined,
   }
 }
 
-export default async function CategoryDetailPage({
+async function CategoryDetailContent({
   params,
   searchParams,
 }: {
-  params: Promise<{ slug: string }>
+  params: Promise<{ locale: string, slug: string }>
   searchParams: Promise<{ page?: string }>
 }) {
-  // 地址参数只在页面里读（loading.tsx 的骨架里面）：layout 与骨架属于所有分类页共用的 App Shell。
+  // 地址参数只在 Suspense 内的异步子组件里读：外层骨架属于所有分类页共用的 App Shell。
   // 先判定分类是否存在、再读 ?page=：不存在时生成页面的过程中就 404，状态码才是真正的 404
-  const { slug } = await params
+  const { locale: rawLocale, slug } = await params
+  const locale = resolveLocale(rawLocale)
+  setRequestLocale(locale)
   const [category, sidebarData, archiveT] = await Promise.all([
     findCategoryOr404(slug),
     getCachedSidebarData(),
@@ -69,9 +82,23 @@ export default async function CategoryDetailPage({
         {category?.description && <p className="pl-4 text-sm text-muted-foreground">{category.description}</p>}
       </div>
       <Suspense fallback={<PostList posts={[]} isLoading />}>
-        <CategoryPosts slug={slug} baseUrl={category ? getCategoryUrl(category) : `/c/${encodeURIComponent(slug)}`} searchParams={searchParams} />
+        <CategoryPosts locale={locale} slug={slug} baseUrl={category ? getCategoryUrl(category) : `/c/${encodeURIComponent(slug)}`} searchParams={searchParams} />
       </Suspense>
     </SiteShell>
+  )
+}
+
+export default function CategoryDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ locale: string, slug: string }>
+  searchParams: Promise<{ page?: string }>
+}) {
+  return (
+    <Suspense fallback={<CategoryLoading />}>
+      <CategoryDetailContent params={params} searchParams={searchParams} />
+    </Suspense>
   )
 }
 
@@ -110,7 +137,8 @@ function buildPageItems(currentPage: number, totalPages: number): (number | 'ell
 }
 
 // 读 ?page= 的部分：按请求渲染，第一页取自取数缓存
-async function CategoryPosts({ slug, baseUrl, searchParams }: { slug: string, baseUrl: string, searchParams: Promise<{ page?: string }> }) {
+async function CategoryPosts({ locale, slug, baseUrl, searchParams }: { locale: string, slug: string, baseUrl: string, searchParams: Promise<{ page?: string }> }) {
+  setRequestLocale(locale)
   const { page: pageParam } = await searchParams
   const rawPage = readPage(pageParam)
   const [paginationT, { posts, total }] = await Promise.all([

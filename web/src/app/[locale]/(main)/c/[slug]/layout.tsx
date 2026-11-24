@@ -1,14 +1,14 @@
 // 由 pnpm i18n:scopes 生成，请勿手改
 // 只为这一层子树准备它用到的文案，避免整份语言表随页面下发（见 src/components/i18n-scope.tsx）
-import { I18nScope as I18nScopeProvider } from '@/components/i18n-scope'
+import { ScopedI18n } from '@/components/i18n-scope'
+import Loading from './loading'
 
-export default async function Layout({
+export default function Layout({
   children,
   params,
 }: {
   children: React.ReactNode
   params: Promise<{ locale: string }>
 }) {
-  const { locale } = await params
-  return <I18nScopeProvider scope="(main)/c/[slug]" locale={locale}>{children}</I18nScopeProvider>
+  return <ScopedI18n scope="(main)/c/[slug]" params={params} fallback={<Loading />}>{children}</ScopedI18n>
 }
