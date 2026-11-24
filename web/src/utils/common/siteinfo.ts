@@ -76,6 +76,7 @@ export interface SiteInfo {
   metadata: {
     name: string
     icon: string
+    iconRadius?: number
     description: string
   }
   keywords?: string[]
@@ -129,6 +130,7 @@ export const fallbackSiteInfo: SiteInfo = {
   metadata: {
     name: 'My Blog',
     icon: '',
+    iconRadius: 22,
     description: 'A neo blog system',
   },
   keywords: [],
@@ -249,4 +251,49 @@ export function absolutizeHtmlUrls(html: string, baseUrl?: string): string {
   if (!safeMetadataBase(baseUrl))
     return html
   return html.replace(ROOT_RELATIVE_ATTR, (_, prefix: string, quote: string, url: string) => `${prefix}${quote}${absoluteSiteUrl(url, baseUrl)}${quote}`)
+}
+
+export const DEFAULT_SITE_ICON_RADIUS = 22
+
+/** 归一化站点图标圆角百分比（0–50，0 为直角，50 为正圆） */
+export function normalizeSiteIconRadius(radius?: number | null): number {
+  if (typeof radius !== 'number' || Number.isNaN(radius))
+    return DEFAULT_SITE_ICON_RADIUS
+  return Math.min(50, Math.max(0, Math.round(radius)))
+}
+
+/** 站点图标地址的轻量 FNV-1a 32 位指纹，用于构造不可变缓存 URL */
+export function siteIconVersionHash(icon: string): string {
+  let hash = 0x811C9DC5
+  for (let i = 0; i < icon.length; i++) {
+    hash ^= icon.charCodeAt(i)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  return (hash >>> 0).toString(36)
+}
+
+/**
+ * 生成浏览器标签栏 Favicon 地址：
+ * - 未配置图标时返回 undefined（浏览器回退至 /favicon.ico）
+ * - 圆角为 0% 时直出原图标地址，不经过额外路由
+ * - 圆角 > 0% 时指向 /api/site-icon 强缓存裁剪路由，附带圆角与源地址指纹，后台修改后自动换 URL 刷新
+ */
+export function getSiteFaviconUrl(siteInfo?: Pick<SiteInfo, 'metadata'> | null): string | undefined {
+  const icon = siteInfo?.metadata?.icon?.trim()
+  if (!icon)
+    return undefined
+  const radius = normalizeSiteIconRadius(siteInfo?.metadata?.iconRadius)
+  if (radius <= 0)
+    return icon
+  return `/api/site-icon?r=${radius}&v=${siteIconVersionHash(icon)}`
+}
+
+/** 生成 Next.js Metadata 的 icons 字段 */
+export function getSiteMetadataIcons(siteInfo?: Pick<SiteInfo, 'metadata'> | null) {
+  const url = getSiteFaviconUrl(siteInfo)
+  if (!url)
+    return undefined
+  return url.startsWith('/api/site-icon')
+    ? [{ rel: 'icon', url, type: 'image/png', sizes: '64x64' }]
+    : [{ rel: 'icon', url }]
 }

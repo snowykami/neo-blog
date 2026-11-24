@@ -1175,6 +1175,8 @@
       "section_visit": "방문자 기록",
       "site_description": "사이트 설명",
       "site_icon": "사이트 아이콘",
+      "site_icon_radius": "사이트 아이콘 둥근 모서리",
+      "site_icon_radius_desc": "브라우저 탭 파비콘과 상단 바 아이콘의 모서리 둥글기 비율(0% 직각, 22% 둥근 사각형, 50% 원형)",
       "site_name": "사이트 이름",
       "unsaved_changes": "저장하지 않은 변경 사항이 있습니다",
       "verify_code_cool_down": "인증 코드 발송 간격",

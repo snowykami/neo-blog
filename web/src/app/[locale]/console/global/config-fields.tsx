@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 import { clearMusicTTMLCache, listNCMPlaylists } from '@/api/music'
 import { AssetField } from '@/components/common/asset-picker'
 import { LabelWithInfo } from '@/components/common/info-tooltip'
+import { SafeImage } from '@/components/common/safe-image'
 import { ColorField } from '@/components/console/common/color-field'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -18,12 +19,14 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Slider } from '@/components/ui/slider'
 import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useColorSchemeName } from '@/hooks/use-color-scheme-name'
 import { useErrorMessageT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
+import { DEFAULT_SITE_ICON_RADIUS, normalizeSiteIconRadius } from '@/utils/common/siteinfo'
 import { OwnerLinksField } from './owner-links-field'
 import { SidebarCardsField } from './sidebar-cards-field'
 
@@ -67,6 +70,8 @@ export function ConfigField({ item }: { item: ConfigItem }) {
       return <NCMPlaylistField {...props} />
     case 'ttml_sources':
       return <TTMLSourcesField {...props} />
+    case 'site_icon_radius':
+      return <SiteIconRadiusField {...props} />
   }
   switch (item.type) {
     case 'bool':
@@ -375,6 +380,80 @@ function ImageField({ item, label, description }: FieldProps) {
           </FormControl>
         </FormItem>
       )}
+    />
+  )
+}
+
+function SiteIconRadiusField({ item, label, description }: FieldProps) {
+  const t = useTranslations('Console.global')
+  const { control } = useFormContext<ConfigValues>()
+  const siteIcon = (useWatch({ control, name: 'site_icon' }) as string | undefined)?.trim()
+  const siteName = (useWatch({ control, name: 'site_name' }) as string | undefined)?.trim()
+  const min = item.min ?? 0
+  const max = item.max ?? 50
+  const validate = (value: unknown) => {
+    const n = typeof value === 'number' ? value : Number.NaN
+    if (Number.isNaN(n) || !Number.isInteger(n))
+      return t('invalid_number')
+    if (n < min || n > max)
+      return t('value_out_of_range', { min, max })
+    return true
+  }
+
+  return (
+    <FormField
+      control={control}
+      name={item.key}
+      rules={{ validate }}
+      render={({ field }) => {
+        const current = typeof field.value === 'number' && !Number.isNaN(field.value)
+          ? normalizeSiteIconRadius(field.value)
+          : DEFAULT_SITE_ICON_RADIUS
+        return (
+          <FormItem className="md:col-span-2">
+            <FieldLabel label={label} description={description} />
+            <div className="flex flex-wrap items-center gap-4">
+              <Slider
+                min={min}
+                max={max}
+                step={1}
+                value={[current]}
+                onValueChange={vals => field.onChange(vals[0] ?? current)}
+                className="min-w-40 flex-1"
+              />
+              <div className="relative w-24 shrink-0">
+                <FormControl>
+                  <Input
+                    type="number"
+                    min={min}
+                    max={max}
+                    step={1}
+                    value={(field.value as number) ?? ''}
+                    onChange={e => field.onChange(e.target.value === '' ? '' : Number(e.target.value))}
+                    onBlur={field.onBlur}
+                    className="pr-7 tabular-nums"
+                  />
+                </FormControl>
+                <span aria-hidden className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+              </div>
+              {siteIcon && (
+                <div aria-hidden className="flex shrink-0 items-center gap-2 rounded-lg border bg-muted/40 px-2.5 py-1.5 text-xs text-foreground/80">
+                  <SafeImage
+                    src={siteIcon}
+                    alt=""
+                    width={20}
+                    height={20}
+                    style={{ borderRadius: `${current}%` }}
+                    className="size-4 shrink-0 object-cover"
+                  />
+                  <span className="max-w-28 truncate font-medium">{siteName || 'My Blog'}</span>
+                </div>
+              )}
+            </div>
+            <FormMessage />
+          </FormItem>
+        )
+      }}
     />
   )
 }

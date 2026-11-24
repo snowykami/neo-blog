@@ -313,6 +313,8 @@
     "sidebar_cards_desc",
     "site_description",
     "site_icon",
+    "site_icon_radius",
+    "site_icon_radius_desc",
     "site_language",
     "site_language_desc",
     "site_language_en-us",

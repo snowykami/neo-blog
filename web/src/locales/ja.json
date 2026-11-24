@@ -1175,6 +1175,8 @@
       "section_visit": "訪問者記録",
       "site_description": "サイトの説明",
       "site_icon": "サイトアイコン",
+      "site_icon_radius": "サイトアイコンの角丸",
+      "site_icon_radius_desc": "ブラウザタブのファビコンと上部ナビのアイコンの角丸割合（0% 直角、22% 角丸四角、50% 正円）",
       "site_name": "サイト名",
       "unsaved_changes": "未保存の変更があります",
       "verify_code_cool_down": "認証コードの送信間隔",

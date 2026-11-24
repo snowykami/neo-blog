@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { absoluteSiteUrl, absolutizeHtmlUrls, fallbackSiteInfo, isCommentEnabled, isInteractionEnabled, isLikeEnabled } from './siteinfo'
+import {
+  absoluteSiteUrl,
+  absolutizeHtmlUrls,
+  DEFAULT_SITE_ICON_RADIUS,
+  fallbackSiteInfo,
+  getSiteFaviconUrl,
+  getSiteMetadataIcons,
+  isCommentEnabled,
+  isInteractionEnabled,
+  isLikeEnabled,
+  normalizeSiteIconRadius,
+} from './siteinfo'
 
 describe('absoluteSiteUrl', () => {
   it('站内相对地址按站点地址补成绝对地址', () => {
@@ -64,5 +75,34 @@ describe('interaction siteInfo switches', () => {
     expect(isCommentEnabled(masterOff)).toBe(false)
     expect(isLikeEnabled(masterOff)).toBe(false)
     expect(isInteractionEnabled(masterOff)).toBe(false)
+  })
+})
+
+describe('site icon radius & favicon URL', () => {
+  it('normalizes icon radius into 0..50 integer with default fallback', () => {
+    expect(normalizeSiteIconRadius(undefined)).toBe(DEFAULT_SITE_ICON_RADIUS)
+    expect(normalizeSiteIconRadius(null)).toBe(DEFAULT_SITE_ICON_RADIUS)
+    expect(normalizeSiteIconRadius(Number.NaN)).toBe(DEFAULT_SITE_ICON_RADIUS)
+    expect(normalizeSiteIconRadius(-5)).toBe(0)
+    expect(normalizeSiteIconRadius(0)).toBe(0)
+    expect(normalizeSiteIconRadius(24.6)).toBe(25)
+    expect(normalizeSiteIconRadius(80)).toBe(50)
+  })
+
+  it('returns raw icon when radius is 0 and cached route URL when radius > 0', () => {
+    expect(getSiteFaviconUrl({ metadata: { name: 'Blog', icon: '', description: '' } })).toBeUndefined()
+    expect(getSiteFaviconUrl({ metadata: { name: 'Blog', icon: '/api/v1/file/f/1', iconRadius: 0, description: '' } })).toBe('/api/v1/file/f/1')
+
+    const url22 = getSiteFaviconUrl({ metadata: { name: 'Blog', icon: '/api/v1/file/f/1', iconRadius: 22, description: '' } })
+    const url50 = getSiteFaviconUrl({ metadata: { name: 'Blog', icon: '/api/v1/file/f/1', iconRadius: 50, description: '' } })
+    const urlOtherIcon = getSiteFaviconUrl({ metadata: { name: 'Blog', icon: '/api/v1/file/f/2', iconRadius: 22, description: '' } })
+
+    expect(url22).toMatch(/^\/api\/site-icon\?r=22&v=[0-9a-z]+$/)
+    expect(url50).toMatch(/^\/api\/site-icon\?r=50&v=[0-9a-z]+$/)
+    expect(url22).not.toBe(urlOtherIcon)
+
+    expect(getSiteMetadataIcons({ metadata: { name: 'Blog', icon: '/api/v1/file/f/1', iconRadius: 22, description: '' } })).toEqual([
+      { rel: 'icon', url: url22, type: 'image/png', sizes: '64x64' },
+    ])
   })
 })

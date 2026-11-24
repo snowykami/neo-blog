@@ -26,7 +26,7 @@ import { themeAttributes, themeCssVars } from '@/themes'
 import { getActiveTheme } from '@/themes/active-theme.server'
 import { themeInitScript } from '@/themes/init-script'
 import { getServerImageOptimizeHosts } from '@/utils/common/image.server'
-import { safeMetadataBase } from '@/utils/common/siteinfo'
+import { getSiteMetadataIcons, safeMetadataBase } from '@/utils/common/siteinfo'
 // 代码字体通过 globals.css 引入 src/fonts/fonts.css，无衬线正文字体在 @theme 中使用系统原生西文与中文回退栈
 import '@/app/globals.css'
 
@@ -54,8 +54,8 @@ export async function generateMetadata(): Promise<Metadata> {
       default: siteInfo.metadata.name,
       template: `%s - ${siteInfo.metadata.name}`,
     },
-    // 没有配置站点图标时不输出 icon 链接，浏览器使用 /favicon.ico
-    icons: siteInfo.metadata.icon ? [{ rel: 'icon', url: siteInfo.metadata.icon }] : undefined,
+    // 没有配置站点图标时不输出 icon 链接，浏览器使用 /favicon.ico；圆角 > 0% 时指向强缓存裁剪路由
+    icons: getSiteMetadataIcons(siteInfo),
   }
 }
 

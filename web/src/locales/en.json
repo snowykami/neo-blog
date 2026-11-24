@@ -1175,6 +1175,8 @@
       "section_visit": "Visitor log",
       "site_description": "Site description",
       "site_icon": "Site icon",
+      "site_icon_radius": "Site icon corner radius",
+      "site_icon_radius_desc": "Corner radius percentage for the browser tab favicon and navbar logo (0% square, 22% rounded square, 50% circle)",
       "site_name": "Site name",
       "unsaved_changes": "You have unsaved changes",
       "verify_code_cool_down": "Verification code cooldown",

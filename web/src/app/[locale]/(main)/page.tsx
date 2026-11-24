@@ -18,7 +18,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { localeAlternates } from '@/i18n/alternates'
 import { localizePath } from '@/i18n/routing'
 import { CacheTag, skipBackendAtBuild } from '@/lib/cache-tags'
-import { absoluteSiteUrl, safeMetadataBase } from '@/utils/common/siteinfo'
+import { absoluteSiteUrl, getSiteMetadataIcons, safeMetadataBase } from '@/utils/common/siteinfo'
 import BlogHome from './blog-home'
 import { blogHomeQueryKey, parseHomeTab } from './blog-home-query'
 
@@ -30,8 +30,8 @@ export async function generateMetadata(): Promise<Metadata> {
     title: routeT('homepage'),
     description: siteInfo.metadata.description,
     metadataBase: safeMetadataBase(siteInfo?.baseUrl),
-    // 没有配置站点图标时不输出 icon 链接，浏览器使用 /favicon.ico
-    icons: siteInfo.metadata.icon ? [{ rel: 'icon', url: siteInfo.metadata.icon }] : undefined,
+    // 没有配置站点图标时不输出 icon 链接，浏览器使用 /favicon.ico；圆角 > 0% 时指向强缓存裁剪路由
+    icons: getSiteMetadataIcons(siteInfo),
     keywords: siteInfo.keywords,
     openGraph: {
       title: `${routeT('homepage')} - ${siteInfo.metadata.name}`,

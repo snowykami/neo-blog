@@ -1175,6 +1175,8 @@
       "section_visit": "訪客紀錄",
       "site_description": "站點描述",
       "site_icon": "站點圖示",
+      "site_icon_radius": "站點圖示圓角",
+      "site_icon_radius_desc": "瀏覽器分頁列 Favicon 與頂欄圖示的圓角百分比（0% 為直角，22% 為圓角方形，50% 為正圓）",
       "site_name": "站點名稱",
       "unsaved_changes": "有未儲存的修改",
       "verify_code_cool_down": "驗證碼發送間隔",

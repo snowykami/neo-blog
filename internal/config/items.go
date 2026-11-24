@@ -60,6 +60,7 @@ var sections = []*Section{
 		// 取值与界面支持的语言对应（zh / zh-tw / ja / en / ko）
 		{Key: "default_language", Type: TypeEnum, Label: "site_language", Description: "site_language_desc", Options: options([]string{"zh-cn", "zh-tw", "en-us", "ja-jp", "ko-kr"}, "site_language_"), Default: "zh-cn"},
 		{Key: "site_icon", Type: TypeImage, Label: "site_icon", Default: "", siteInfoPath: path("metadata.icon"), mirror: same},
+		{Key: "site_icon_radius", Type: TypeInt, Widget: "site_icon_radius", Label: "site_icon_radius", Description: "site_icon_radius_desc", Min: num(0), Max: num(50), Wide: true, Default: 22, siteInfoPath: path("metadata.icon_radius")},
 		{Key: "keywords", Type: TypeStringList, Label: "keywords", PlaceholderKey: "keyword_placeholder", Default: []string{}, siteInfoPath: path("keywords")},
 		// 前台随机使用其中一张；RSS 的默认封面只支持单张，独立配置键只写第一张
 		{Key: "default_cover", Type: TypeImageList, Label: "default_covers", Description: "default_covers_desc", Default: []string{}, siteInfoPath: path("default_cover"), mirror: first},

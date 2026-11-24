@@ -1175,6 +1175,8 @@
       "section_visit": "访客记录",
       "site_description": "站点描述",
       "site_icon": "站点图标",
+      "site_icon_radius": "站点图标圆角",
+      "site_icon_radius_desc": "浏览器标签栏 Favicon 与顶栏图标的圆角百分比（0% 为直角，22% 为圆角方形，50% 为正圆）",
       "site_name": "站点名称",
       "unsaved_changes": "有未保存的修改",
       "verify_code_cool_down": "验证码发送间隔",
