@@ -85,18 +85,6 @@ export async function PostContinuation({ neighbors }: { neighbors: PostNeighbors
                     index >= 2 && 'hidden sm:flex',
                   )}
                 >
-                  {item.cover && (
-                    <div className="relative size-18 shrink-0 overflow-hidden rounded-lg bg-muted">
-                      <SafeImage
-                        src={item.cover}
-                        alt=""
-                        fill
-                        sizes="72px"
-                        quality={60}
-                        className="object-cover transition-transform duration-300 group-hover:scale-105"
-                      />
-                    </div>
-                  )}
                   <div className="flex min-w-0 flex-1 flex-col justify-between gap-1.5">
                     <div className="space-y-1">
                       <h3 className="relative line-clamp-2 pl-3 text-sm leading-5 font-semibold text-foreground/90 transition-colors duration-150 before:pointer-events-none before:absolute before:top-[3px] before:left-0 before:h-3.5 before:w-1 before:rounded-full before:bg-primary group-hover:text-primary">
@@ -121,6 +109,18 @@ export async function PostContinuation({ neighbors }: { neighbors: PostNeighbors
                       )}
                     </div>
                   </div>
+                  {item.cover && (
+                    <div className="relative size-18 shrink-0 overflow-hidden rounded-lg bg-muted">
+                      <SafeImage
+                        src={item.cover}
+                        alt=""
+                        fill
+                        sizes="72px"
+                        quality={60}
+                        className="object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
+                    </div>
+                  )}
                 </Link>
               )
             })}
