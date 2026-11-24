@@ -73,13 +73,17 @@ export async function PostContinuation({ neighbors }: { neighbors: PostNeighbors
             <h2 className="text-base font-semibold text-foreground/90">{t('related_posts')}</h2>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {related.map((item) => {
+            {related.map((item, index) => {
               const summary = neighborSummary(item)
               return (
                 <Link
                   key={item.id}
                   href={getPostUrl({ post: item })}
-                  className="group flex gap-3.5 rounded-xl border border-border/50 bg-background/40 p-3.5 transition-colors hover:border-primary/30 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className={cn(
+                    'group flex gap-3.5 rounded-xl border border-border/50 bg-background/40 p-3.5 transition-colors duration-150 hover:border-primary/30 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    // 移动端单列纵向堆叠时仅展示前 2 篇，避免文末过长；平板及以上保持 2×2 双列网格
+                    index >= 2 && 'hidden sm:flex',
+                  )}
                 >
                   {item.cover && (
                     <div className="relative size-18 shrink-0 overflow-hidden rounded-lg bg-muted">
@@ -95,7 +99,7 @@ export async function PostContinuation({ neighbors }: { neighbors: PostNeighbors
                   )}
                   <div className="flex min-w-0 flex-1 flex-col justify-between gap-1.5">
                     <div className="space-y-1">
-                      <h3 className="line-clamp-2 text-sm font-medium text-foreground/90 transition-colors group-hover:text-primary">
+                      <h3 className="relative line-clamp-2 pl-3 text-sm leading-5 font-semibold text-foreground/90 transition-colors duration-150 before:pointer-events-none before:absolute before:top-[3px] before:left-0 before:h-3.5 before:w-1 before:rounded-full before:bg-primary group-hover:text-primary">
                         {item.title || t('untitled')}
                       </h3>
                       {summary && (
