@@ -4,6 +4,7 @@ import type { Post } from '@/models/post'
 import process from 'node:process'
 import { getTranslations, setRequestLocale } from 'next-intl/server'
 import { cacheLife, cacheTag } from 'next/cache'
+import { locale as rootLocale } from 'next/root-params'
 import { Suspense } from 'react'
 import { listPosts } from '@/api/post'
 import { getCachedSidebarData } from '@/components/blog-sidebar/sidebar-data'
@@ -20,8 +21,8 @@ import { Archive } from './archive'
 // 归档日期按站点时区计算，与后端容器的 TZ 保持一致；在服务端算好再传给客户端，避免水合时因时区不同而错位
 const ARCHIVE_TIME_ZONE = process.env.TZ || 'Asia/Chongqing'
 
-export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
-  const locale = resolveRouteLocale((await params).locale)
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = resolveRouteLocale(await rootLocale())
   setRequestLocale(locale)
   const routeT = await getTranslations('Route')
   return { title: routeT('archive'), alternates: localeAlternates(mainPath.archive, locale) }
@@ -70,9 +71,10 @@ async function loadAllPosts(): Promise<Post[]> {
 
 // 读地址查询参数的部分：放在 Suspense 里按请求渲染，外面的部分属于归档页的 App Shell
 async function ArchiveContent({ searchParams }: { searchParams: Promise<{ label?: string, category?: string }> }) {
+  // 构建期占位预渲染在触碰 searchParams 前先短路退出，保留该路由的 ShouldAttemptStaticPrefetch 提示位
+  skipBackendAtBuild()
   // 支持 ?label=xxx / ?category=xxx 只看某个标签或分类的归档
   const { label = '', category = '' } = await searchParams
-  skipBackendAtBuild()
   const [posts, sidebarData] = await Promise.all([
     (label || category ? fetchArchivePosts(label, category) : loadAllPosts()).catch(() => []),
     getCachedSidebarData(),

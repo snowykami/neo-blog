@@ -7,10 +7,8 @@ export const instant = false
 
 export default function Layout({
   children,
-  params,
 }: {
   children: React.ReactNode
-  params: Promise<{ locale: string }>
 }) {
-  return <ScopedI18n scope="console/notification-deliveries" params={params}>{children}</ScopedI18n>
+  return <ScopedI18n scope="console/notification-deliveries">{children}</ScopedI18n>
 }

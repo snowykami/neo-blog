@@ -4,10 +4,8 @@ import { ScopedI18n } from '@/components/i18n-scope'
 
 export default function Layout({
   children,
-  params,
 }: {
   children: React.ReactNode
-  params: Promise<{ locale: string }>
 }) {
-  return <ScopedI18n scope="(main)/random" params={params}>{children}</ScopedI18n>
+  return <ScopedI18n scope="(main)/random">{children}</ScopedI18n>
 }

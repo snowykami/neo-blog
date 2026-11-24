@@ -146,7 +146,7 @@ export function PostListItem({ post, showAuthor = true, pinned = false, highligh
                 fill
                 quality={60}
                 className="object-cover"
-                sizes="(max-width: 768px) 100vw, 320px"
+                sizes="(max-width: 767px) 100vw, 320px"
                 preload={priority}
                 loading={priority ? 'eager' : undefined}
                 fetchPriority={priority ? 'high' : undefined}

@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
-import { hasLocale } from 'next-intl'
 import { getTranslations, setRequestLocale } from 'next-intl/server'
 import { Suspense } from 'react'
 import { PostList } from '@/components/blog-home/post-list'
@@ -16,27 +15,22 @@ import {
 } from '@/components/ui/pagination'
 import { localeAlternates } from '@/i18n/alternates'
 import { Link } from '@/i18n/navigation'
-import { routing } from '@/i18n/routing'
+import { resolveRouteLocale } from '@/i18n/routing'
 import { BUILD_PLACEHOLDER_PARAM } from '@/lib/cache-tags'
 import { getCategoryUrl } from '@/utils/common/route'
 import { CATEGORY_PAGE_SIZE, findCategoryOr404, listCategoryPosts } from './category-data'
-import CategoryLoading from './loading'
-
-function resolveLocale(raw: string) {
-  return hasLocale(routing.locales, raw) ? raw : routing.defaultLocale
-}
 
 // 分类页按地址缓存（每个分类、每种语言一份）：构建时只预渲染占位参数（见 lib/cache-tags.ts 的 BUILD_PLACEHOLDER_PARAM），
-// 第一次被访问时生成；读 params / ?page= 的部分包在 Suspense 骨架内按需流式补上
+// 第一次被访问时生成；段级骨架由同目录 loading.tsx 提供，读 ?page= 的部分包在内部 Suspense 里按请求流式补上
 export function generateStaticParams() {
   return [{ slug: BUILD_PLACEHOLDER_PARAM }]
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string, slug: string }> }): Promise<Metadata> {
   const { locale: rawLocale, slug } = await params
-  const locale = resolveLocale(rawLocale)
+  const locale = resolveRouteLocale(rawLocale)
   setRequestLocale(locale)
-  // 与页面共用同一次分类列表读取；不存在的分类由页面判定 404
+  // 与页面共用同一次分类列表读取；不存在的分类判定 404
   const [category, archiveT] = await Promise.all([
     findCategoryOr404(slug),
     getTranslations('Archive'),
@@ -48,17 +42,17 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   }
 }
 
-async function CategoryDetailContent({
+export default async function CategoryDetailPage({
   params,
   searchParams,
 }: {
   params: Promise<{ locale: string, slug: string }>
   searchParams: Promise<{ page?: string }>
 }) {
-  // 地址参数只在 Suspense 内的异步子组件里读：外层骨架属于所有分类页共用的 App Shell。
-  // 先判定分类是否存在、再读 ?page=：不存在时生成页面的过程中就 404，状态码才是真正的 404
+  // 段级骨架由同目录 loading.tsx 提供（属于所有分类页共用的 App Shell）；
+  // 先判定分类是否存在、再在内部 Suspense 读 ?page=：不存在时生成页面的过程中就 404，状态码才是真正的 404
   const { locale: rawLocale, slug } = await params
-  const locale = resolveLocale(rawLocale)
+  const locale = resolveRouteLocale(rawLocale)
   setRequestLocale(locale)
   const [category, sidebarData, archiveT] = await Promise.all([
     findCategoryOr404(slug),
@@ -85,20 +79,6 @@ async function CategoryDetailContent({
         <CategoryPosts locale={locale} slug={slug} baseUrl={category ? getCategoryUrl(category) : `/c/${encodeURIComponent(slug)}`} searchParams={searchParams} />
       </Suspense>
     </SiteShell>
-  )
-}
-
-export default function CategoryDetailPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ locale: string, slug: string }>
-  searchParams: Promise<{ page?: string }>
-}) {
-  return (
-    <Suspense fallback={<CategoryLoading />}>
-      <CategoryDetailContent params={params} searchParams={searchParams} />
-    </Suspense>
   )
 }
 

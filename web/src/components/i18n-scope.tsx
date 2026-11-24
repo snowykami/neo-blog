@@ -2,7 +2,6 @@ import type { AbstractIntlMessages } from 'next-intl'
 import type { I18nScope as I18nScopeKey } from '@/locales/scopes.generated'
 import { hasLocale } from 'next-intl'
 import { locale as rootLocale } from 'next/root-params'
-import { Suspense } from 'react'
 import { ClientI18nProvider } from '@/components/i18n-scope.client'
 import { routing } from '@/i18n/routing'
 import { getScopeOwnMessages } from '@/locales/scoped-messages'
@@ -45,45 +44,22 @@ export function I18nScope({
   )
 }
 
-async function ScopedI18nInner({
+/**
+ * 子目录 layout 专用的异步语言作用域包装：
+ * 通过 `next/root-params` 读取根 `[locale]` 参数，避免含动态子段（如 `/p/[id]`、`/c/[slug]`、`/u/[username]`）的
+ * 子 layout 因读取合并后的 `params` 被推迟至运行时 URL 阶段，也无需额外包裹 `<Suspense>` 重复序列化骨架屏
+ */
+export async function ScopedI18n({
   scope,
-  params: _params,
   children,
 }: {
   scope: I18nScopeKey
-  params?: Promise<{ locale: string }>
   children: React.ReactNode
 }) {
-  // 通过 next/root-params 读取根 [locale] 参数，避免子动态段（如 [id]、[slug]、[username]）将合并后的 params 推迟至运行时 URL 阶段
   const locale = await rootLocale()
   return (
     <I18nScope scope={scope} locale={locale}>
       {children}
     </I18nScope>
-  )
-}
-
-/**
- * 子目录 layout 专用的异步参数包装：将语言参数读取隔离在 `<Suspense>` 内，
- * 避免含动态段（如 /p/[id]、/c/[slug]、/u/[username]）的子 layout 在 `<Suspense>` 之外读取 URL 数据；
- * 动态路由可传入自身骨架组件作为 `fallback`，确保即时导航过渡平滑无闪烁
- */
-export function ScopedI18n({
-  scope,
-  params,
-  fallback = null,
-  children,
-}: {
-  scope: I18nScopeKey
-  params?: Promise<{ locale: string }>
-  fallback?: React.ReactNode
-  children: React.ReactNode
-}) {
-  return (
-    <Suspense fallback={fallback}>
-      <ScopedI18nInner scope={scope} params={params}>
-        {children}
-      </ScopedI18nInner>
-    </Suspense>
   )
 }

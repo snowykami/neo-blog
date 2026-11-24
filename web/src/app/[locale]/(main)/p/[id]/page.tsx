@@ -1,12 +1,10 @@
 import type { Metadata } from 'next'
 import type { Article, WithContext } from 'schema-dts'
 import type { Post } from '@/models/post'
-import { hasLocale } from 'next-intl'
 import { getTranslations, setRequestLocale } from 'next-intl/server'
-import { Suspense } from 'react'
 import { getCachedSiteInfo } from '@/api/misc.server'
 import { localeAlternates } from '@/i18n/alternates'
-import { localizePath, routing } from '@/i18n/routing'
+import { localizePath, resolveRouteLocale } from '@/i18n/routing'
 import { BUILD_PLACEHOLDER_PARAM } from '@/lib/cache-tags'
 import { stripInlineMarkdown } from '@/utils/common/inline-markdown'
 import { getPostShareImageUrl, getPostUrl, getUserUrl } from '@/utils/common/route'
@@ -14,7 +12,6 @@ import { absoluteSiteUrl, safeMetadataBase } from '@/utils/common/siteinfo'
 import { htmlToText } from '@/utils/common/string'
 import { formatDisplayName as formatFullName } from '@/utils/common/username'
 import { BlogPost } from './blog-post'
-import PostLoading from './loading'
 import { getCanonicalPost } from './post-data'
 
 // metaDescription 页面描述（meta / Open Graph / 结构化数据）：作者填写的描述优先，其次是正文的纯文本摘要，取前 160 字；
@@ -28,14 +25,10 @@ interface Props {
   params: Promise<{ locale: string, id: string }>
 }
 
-function resolveLocale(raw: string) {
-  return hasLocale(routing.locales, raw) ? raw : routing.defaultLocale
-}
-
 // 文章页按地址缓存：构建时只预渲染占位参数（见 lib/cache-tags.ts 的 BUILD_PLACEHOLDER_PARAM），每篇文章（每种语言）在第一次被访问时
 // 整页生成，之后文档请求与悬停时的按链接预取都直接用缓存。后台修改文章 / 分类 / 标签、站点配置后，posts / site 标签失效
 // （见 lib/cache-tags.ts），下次访问重新生成；slug 跳转（308）同样被缓存，改 slug 时一并失效；不存在的文章（404）不缓存，每次向后端确认。
-// 地址参数只在 Suspense 内的异步组件里读：外层骨架不依赖地址，属于所有文章共用的 App Shell，键盘 / 轻点的点击立刻出骨架。
+// 段级骨架由同目录 loading.tsx 提供（属于所有文章共用的 App Shell），键盘 / 轻点的点击立刻出骨架。
 // 浏览量、点赞数是快照，浏览器进入页面后另取最新值
 export function generateStaticParams() {
   return [{ id: BUILD_PLACEHOLDER_PARAM }]
@@ -43,12 +36,12 @@ export function generateStaticParams() {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { locale: rawLocale, id } = await params
-  const locale = resolveLocale(rawLocale)
+  const locale = resolveRouteLocale(rawLocale)
   setRequestLocale(locale)
   // 与页面共用同一次文章读取（post-data.ts 的 React cache）；浏览量由前台访问上报计数，与此无关
   // 文章与站点信息并行取（都已跨请求缓存）；设置请求级 locale 避免触发 headers()。404 与 slug 跳转与页面同样判定
   const [post, siteInfo, t] = await Promise.all([
-    getCanonicalPost(id),
+    getCanonicalPost(id, locale),
     getCachedSiteInfo(),
     getTranslations('Common'),
   ])
@@ -98,12 +91,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
-async function PostContent({ params }: Props) {
+export default async function PostPage({ params }: Props) {
   const { locale: rawLocale, id } = await params
-  const locale = resolveLocale(rawLocale)
+  const locale = resolveRouteLocale(rawLocale)
   setRequestLocale(locale)
   // 不存在 → 404，用 id 访问有 slug 的文章 → 308（见 post-data.ts）；之后拿到的一定是规范地址上的公开文章
-  const [post, siteInfo] = await Promise.all([getCanonicalPost(id), getCachedSiteInfo()])
+  const [post, siteInfo] = await Promise.all([getCanonicalPost(id, locale), getCachedSiteInfo()])
 
   const jsonLd: WithContext<Article> = {
     '@context': 'https://schema.org',
@@ -148,13 +141,5 @@ async function PostContent({ params }: Props) {
         }}
       />
     </div>
-  )
-}
-
-export default function PostPage({ params }: Props) {
-  return (
-    <Suspense fallback={<PostLoading />}>
-      <PostContent params={params} />
-    </Suspense>
   )
 }

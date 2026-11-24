@@ -1,5 +1,4 @@
 import type { Post, PostNeighbors } from '@/models/post'
-import { getLocale } from 'next-intl/server'
 import { cacheLife, cacheTag } from 'next/cache'
 import { notFound } from 'next/navigation'
 import { cache } from 'react'
@@ -41,12 +40,12 @@ const getCachedPost = cache((id: string) => {
  * （根参数 [locale] 不在构建期生成，见 lib/cache-tags.ts 的 BUILD_PLACEHOLDER_PARAM），生成期间的 notFound() / permanentRedirect()
  * 会设置状态码；生成好的 308 按地址缓存，404 不缓存（见 web/cache-handler.mjs）
  */
-export async function getCanonicalPost(id: string): Promise<Post> {
+export async function getCanonicalPost(id: string, locale: string): Promise<Post> {
   const post = await getCachedPost(id)
   if (!post)
     notFound()
   if (post.slug && post.slug !== id)
-    permanentRedirect({ href: getPostUrl({ post }), locale: await getLocale() })
+    permanentRedirect({ href: getPostUrl({ post }), locale })
   return post
 }
 
