@@ -5,6 +5,13 @@ import { I18nScope as I18nScopeProvider } from '@/components/i18n-scope'
 // 后台按请求渲染，不做即时导航校验（见 app/[locale]/console/layout.tsx）
 export const instant = false
 
-export default function Layout({ children }: { children: React.ReactNode }) {
-  return <I18nScopeProvider scope="console/posts/edit/[id]">{children}</I18nScopeProvider>
+export default async function Layout({
+  children,
+  params,
+}: {
+  children: React.ReactNode
+  params: Promise<{ locale: string }>
+}) {
+  const { locale } = await params
+  return <I18nScopeProvider scope="console/posts/edit/[id]" locale={locale}>{children}</I18nScopeProvider>
 }

@@ -11,13 +11,15 @@ export const instant = false
 
 export default async function ConsoleLayout({
   children,
+  params,
 }: Readonly<{
   children: React.ReactNode
+  params: Promise<{ locale: string }>
 }>) {
   await connection()
-  const authSeed = await getConsoleAuthSeedServer()
+  const [{ locale }, authSeed] = await Promise.all([params, getConsoleAuthSeedServer()])
   return (
-    <I18nScope scope="console">
+    <I18nScope scope="console" locale={locale}>
       <ConsoleShell initialAuth={authSeed}>{children}</ConsoleShell>
     </I18nScope>
   )

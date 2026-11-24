@@ -15,7 +15,7 @@ export default function GlobalNotFound() {
   return (
     <html lang={routing.defaultLocale} className="h-full">
       <body className="flex min-h-full flex-col font-sans">
-        <I18nScope scope="root">
+        <I18nScope scope="root" locale={routing.defaultLocale}>
           <NotFound />
         </I18nScope>
       </body>
