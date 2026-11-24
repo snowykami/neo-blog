@@ -74,6 +74,7 @@ export async function PostContinuation({ neighbors }: { neighbors: PostNeighbors
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {related.map((item, index) => {
+              const title = item.title || t('untitled')
               const summary = neighborSummary(item)
               return (
                 <Link
@@ -87,8 +88,11 @@ export async function PostContinuation({ neighbors }: { neighbors: PostNeighbors
                 >
                   <div className="flex min-w-0 flex-1 flex-col justify-between gap-1.5">
                     <div className="space-y-1">
-                      <h3 className="relative line-clamp-2 pl-3 text-sm leading-5 font-semibold text-foreground/90 transition-colors duration-150 before:pointer-events-none before:absolute before:top-[3px] before:left-0 before:h-3.5 before:w-1 before:rounded-full before:bg-primary group-hover:text-primary">
-                        {item.title || t('untitled')}
+                      <h3
+                        title={title}
+                        className="relative truncate pl-3 text-sm leading-5 font-semibold text-foreground/90 transition-colors duration-150 before:pointer-events-none before:absolute before:top-[3px] before:left-0 before:h-3.5 before:w-1 before:rounded-full before:bg-primary group-hover:text-primary"
+                      >
+                        {title}
                       </h3>
                       {summary && (
                         <p className="line-clamp-1 text-xs text-muted-foreground">
@@ -110,7 +114,7 @@ export async function PostContinuation({ neighbors }: { neighbors: PostNeighbors
                     </div>
                   </div>
                   {item.cover && (
-                    <div className="relative size-18 shrink-0 overflow-hidden rounded-lg bg-muted">
+                    <div className="relative size-18 shrink-0 self-center overflow-hidden rounded-lg bg-muted">
                       <SafeImage
                         src={item.cover}
                         alt=""
