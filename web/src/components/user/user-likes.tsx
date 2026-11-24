@@ -70,7 +70,7 @@ function UserLikeItem({ like }: { like: UserLike }) {
         </span>
       </div>
       {isComment && (
-        <p className="rounded-xl bg-foreground/[.03] px-4 py-2 break-words whitespace-pre-wrap text-foreground/75">
+        <p className="rounded-md bg-foreground/[.03] px-4 py-2 break-words whitespace-pre-wrap text-foreground/75">
           {like.content}
         </p>
       )}

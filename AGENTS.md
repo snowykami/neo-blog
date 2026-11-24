@@ -215,6 +215,8 @@ pnpm dlx shadcn@latest add <comp>
 
 风格相近的页面和组件，尽量复用相同或相似的 Tailwind 类名组合。
 
+- **同心圆角法则（Concentric Border Radius）**：当内外两层圆角容器嵌套（尤其是拐角处两条圆弧本身共用圆心，如卡片角落内嵌的封面图、纵向操作色块、横幅等）时，在能遵守的情况下优先满足 `R_outer = R_inner + d`（外层圆角 = 内层圆角 + 内外间距 `d`），保持拐角内外弧线等距顺滑。结合本项目圆角 token（`rounded-2xl` = `16px`、`--radius-xl` = `14px`、`--radius-lg` = `10px`、`--radius-md` = `8px`、`--radius-sm` = `6px`）：例如外层卡片为 `rounded-2xl`（`16px`）、内距为 `8px`（`p-2` / `inset-2` / `m-2`）时，内嵌块取 `rounded-md` 或 `rounded-[8px]`；若 `d >= R_outer`，内层保留小圆角（如 `rounded-sm` / `rounded-md`），严禁出现内层圆角接近或大于外层圆角导致拐角鼓包。
+
 ### macOS 原生灵动岛（`macos-island/`）
 
 改动 `macos-island/` 或网页音乐灵动岛时，优先激活 `swiftui-expert-skill` 与 `macos-patterns` 技能，并严格遵守以下实战铁律：

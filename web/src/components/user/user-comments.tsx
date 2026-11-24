@@ -68,7 +68,7 @@ function UserCommentItem({ comment }: { comment: UserComment }) {
         )}
       </div>
       {comment.content.trim() && (
-        <p className="rounded-xl bg-foreground/[.03] px-4 py-2 break-words whitespace-pre-wrap text-foreground/75">
+        <p className="rounded-md bg-foreground/[.03] px-4 py-2 break-words whitespace-pre-wrap text-foreground/75">
           {/* 与文章评论区一致：超过配置行数先折叠 */}
           <CommentText content={comment.content} lines={collapsedLines} />
         </p>
@@ -101,7 +101,7 @@ function UserCommentItemSkeleton() {
         <Skeleton className="h-4 w-24" />
         <Skeleton className="h-3 w-16" />
       </div>
-      <Skeleton className="h-10 w-full rounded-xl" />
+      <Skeleton className="h-10 w-full rounded-md" />
       <Skeleton className="h-4 w-48" />
     </div>
   )
