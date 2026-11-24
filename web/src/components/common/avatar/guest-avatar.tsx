@@ -1,14 +1,20 @@
 import { cn } from '@/lib/utils'
 
 /**
- * 游客头像：柔和底色 + 实心人像剪影，用于未登录时的评论框等位置（替代线条较粗的 CircleUser 图标）
+ * 游客头像：柔和底色 + 视觉居中的圆角实心人像剪影，用于未登录时的评论框等位置
  */
 export function GuestAvatar({ className }: { className?: string }) {
   return (
-    <span aria-hidden className={cn('grid size-10 shrink-0 place-items-center overflow-hidden rounded-full bg-linear-to-br from-muted to-border text-muted-foreground', className)}>
-      <svg viewBox="0 0 24 24" className="mt-[18%] size-[62%] fill-current opacity-55">
-        <circle cx="12" cy="7.5" r="4.5" />
-        <path d="M3 22c0-5 4-8.5 9-8.5s9 3.5 9 8.5z" />
+    <span
+      aria-hidden
+      className={cn(
+        'inline-flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br from-muted to-border/85 text-muted-foreground ring-1 ring-foreground/6 ring-inset',
+        className,
+      )}
+    >
+      <svg viewBox="0 0 24 24" className="size-[60%] fill-current opacity-60">
+        <circle cx="12" cy="7.5" r="4.25" />
+        <path d="M4 19.2c0-3.4 3.58-5.7 8-5.7s8 2.3 8 5.7c0 1-.8 1.8-1.8 1.8H5.8c-1 0-1.8-.8-1.8-1.8Z" />
       </svg>
     </span>
   )
