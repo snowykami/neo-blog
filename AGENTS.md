@@ -215,7 +215,7 @@ pnpm dlx shadcn@latest add <comp>
 
 风格相近的页面和组件，尽量复用相同或相似的 Tailwind 类名组合。
 
-- **同心圆角法则（Concentric Border Radius）**：当内外两层圆角容器嵌套（尤其是拐角处两条圆弧本身共用圆心，如卡片角落内嵌的封面图、纵向操作色块、横幅等）时，在能遵守的情况下优先满足 `R_outer = R_inner + d`（外层圆角 = 内层圆角 + 内外间距 `d`），保持拐角内外弧线等距顺滑。结合本项目圆角 token（`rounded-2xl` = `16px`、`--radius-xl` = `14px`、`--radius-lg` = `10px`、`--radius-md` = `8px`、`--radius-sm` = `6px`）：例如外层卡片为 `rounded-2xl`（`16px`）、内距为 `8px`（`p-2` / `inset-2` / `m-2`）时，内嵌块取 `rounded-md` 或 `rounded-[8px]`；若 `d >= R_outer`，内层保留小圆角（如 `rounded-sm` / `rounded-md`），严禁出现内层圆角接近或大于外层圆角导致拐角鼓包。
+- **同心圆角法则（Concentric Border Radius）**：当内外两层紧凑贴边圆角容器嵌套（尤其是内距较小 `d <= 8px` 且拐角处两条圆弧共用圆心的控件槽、内嵌面板等）时，在观感自然的前提下参考 `R_outer = R_inner + d`（如外框 `rounded-2xl` = `16px`、内距 `8px` 时内层取 `rounded-md` = `8px`）；但对于留有充足呼吸边距（`d >= 12px`）的独立视觉媒体块（如文章列表卡片封面缩略图、右侧进入色块），优先保证视觉柔和度（如使用 `rounded-xl`），不必机械压小图片圆角。
 
 ### macOS 原生灵动岛（`macos-island/`）
 

@@ -63,8 +63,8 @@ export function PostListItem({ post, showAuthor = true, pinned = false, highligh
     <article className="group relative flex flex-col-reverse md:flex-col">
       <div
         className={cn(
-          'relative px-5 pt-5 pb-4 md:pt-6 md:pr-4 md:pb-5 md:pl-9',
-          hasCover ? 'md:w-[calc(72%-0.5rem)]' : 'md:w-[calc(100%-3.25rem-0.5rem)]',
+          'relative px-5 pt-5 pb-4 md:pt-6 md:pb-5 md:pl-9',
+          hasCover ? 'md:w-[calc(72%-1.5rem)] md:pr-5' : 'md:w-[calc(100%-3.25rem-1.25rem)] md:pr-4',
         )}
       >
         {/* 前台列表只有公开文章（私密文章只在后台可见），只需要置顶徽标 */}
@@ -133,12 +133,12 @@ export function PostListItem({ post, showAuthor = true, pinned = false, highligh
         </div>
       </div>
 
-      {/* 右侧视觉槽位：外框 rounded-2xl (16px) = 内距 8px (inset-2 / m-2) + 内块圆角 8px (rounded-md)，保持同心圆角 */}
+      {/* 右侧视觉槽位：有封面时展示宽松内距的大圆角缩略图，无封面时桌面端展示同列对齐的纵向进入色块 */}
       {hasCover
         ? (
             <div
               aria-hidden
-              className="pointer-events-none relative mx-2 mt-2 -mb-1 h-[19vh] min-h-32 overflow-hidden rounded-md transition-transform duration-150 group-has-[[data-post-link]:active]:scale-[.98] md:absolute md:inset-y-2 md:right-2 md:m-0 md:h-auto md:w-[28%]"
+              className="pointer-events-none relative mx-3.5 mt-3.5 -mb-0.5 h-[19vh] min-h-32 overflow-hidden rounded-xl transition-transform duration-150 group-has-[[data-post-link]:active]:scale-[.98] md:absolute md:inset-y-3.5 md:right-3.5 md:m-0 md:h-auto md:w-[28%]"
             >
               <SafeImage
                 src={post.cover}
@@ -160,7 +160,7 @@ export function PostListItem({ post, showAuthor = true, pinned = false, highligh
         : (
             <div
               aria-hidden
-              className="pointer-events-none hidden items-center justify-center rounded-md bg-secondary text-secondary-foreground transition-[background-color,color,transform] duration-150 group-has-[[data-post-link]:hover]:bg-[color-mix(in_oklch,var(--primary)_14%,var(--secondary))] group-has-[[data-post-link]:hover]:text-primary group-has-[[data-post-link]:active]:scale-95 md:absolute md:inset-y-2 md:right-2 md:flex md:w-[3.25rem]"
+              className="pointer-events-none hidden items-center justify-center rounded-xl bg-secondary text-secondary-foreground transition-[background-color,color,transform] duration-150 group-has-[[data-post-link]:hover]:bg-[color-mix(in_oklch,var(--primary)_14%,var(--secondary))] group-has-[[data-post-link]:hover]:text-primary group-has-[[data-post-link]:active]:scale-95 md:absolute md:inset-y-3.5 md:right-3.5 md:flex md:w-[3.25rem]"
             >
               <ChevronRightIcon className="size-7 transition-transform duration-150 group-has-[[data-post-link]:hover]:translate-x-0.5" />
             </div>
@@ -172,7 +172,7 @@ export function PostListItem({ post, showAuthor = true, pinned = false, highligh
 export function PostListItemSkeleton({ showAuthor = true }: { showAuthor?: boolean }) {
   return (
     <div className="relative">
-      <div className="px-5 pt-5 pb-4 md:w-[calc(100%-3.25rem-0.5rem)] md:pt-6 md:pr-4 md:pb-5 md:pl-9">
+      <div className="px-5 pt-5 pb-4 md:w-[calc(100%-3.25rem-1.25rem)] md:pt-6 md:pr-4 md:pb-5 md:pl-9">
         <Skeleton className="mb-3 h-7 w-3/5 md:h-8" />
         <div className="mb-3 flex flex-wrap items-center gap-3.5">
           {showAuthor && (
@@ -194,7 +194,7 @@ export function PostListItemSkeleton({ showAuthor = true }: { showAuthor?: boole
         <Skeleton className="mb-3 h-4 w-2/3" />
         <Skeleton className="h-3.5 w-28" />
       </div>
-      <Skeleton className="hidden rounded-md md:absolute md:inset-y-2 md:right-2 md:block md:w-[3.25rem]" />
+      <Skeleton className="hidden rounded-xl md:absolute md:inset-y-3.5 md:right-3.5 md:block md:w-[3.25rem]" />
     </div>
   )
 }
