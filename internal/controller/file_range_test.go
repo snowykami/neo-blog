@@ -25,3 +25,33 @@ func TestParseByteRange(t *testing.T) {
 		}
 	}
 }
+
+func TestSniffAndGetContentType(t *testing.T) {
+	fc := NewFileController()
+	if got := fc.getContentType("favicon.ico"); got != "image/x-icon" {
+		t.Fatalf("getContentType(favicon.ico) = %q, want image/x-icon", got)
+	}
+	if got := fc.getContentType("cover.avif"); got != "image/avif" {
+		t.Fatalf("getContentType(cover.avif) = %q, want image/avif", got)
+	}
+
+	// ftypmif1 带 avif 兼容品牌 → image/avif；仅含 heic 品牌 → 不误判为 image/avif
+	mif1Avif := []byte("\x00\x00\x00\x18ftypmif1\x00\x00\x00\x00mif1avif")
+	if got := sniffFileContentType(mif1Avif); got != "image/avif" {
+		t.Fatalf("sniffFileContentType(mif1+avif) = %q, want image/avif", got)
+	}
+	mif1Heic := []byte("\x00\x00\x00\x18ftypmif1\x00\x00\x00\x00mif1heic")
+	if got := sniffFileContentType(mif1Heic); got == "image/avif" {
+		t.Fatalf("sniffFileContentType(mif1+heic) should not be image/avif")
+	}
+
+	// 真实 ICO 魔数嗅探为 image/x-icon，而伪装成 .ico 的 HTML 嗅探为 text/html
+	realIco := []byte{0x00, 0x00, 0x01, 0x00, 0x01, 0x00}
+	if got := sniffFileContentType(realIco); got != "image/x-icon" {
+		t.Fatalf("sniffFileContentType(realIco) = %q, want image/x-icon", got)
+	}
+	fakeIcoHtml := []byte("<!DOCTYPE html><script>alert(1)</script>")
+	if got := sniffFileContentType(fakeIcoHtml); got != "text/html" {
+		t.Fatalf("sniffFileContentType(fakeIcoHtml) = %q, want text/html", got)
+	}
+}

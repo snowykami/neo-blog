@@ -257,7 +257,7 @@ export const DEFAULT_SITE_ICON_RADIUS = 22
 
 /** 归一化站点图标圆角百分比（0–50，0 为直角，50 为正圆） */
 export function normalizeSiteIconRadius(radius?: number | null): number {
-  if (typeof radius !== 'number' || Number.isNaN(radius))
+  if (typeof radius !== 'number' || !Number.isFinite(radius))
     return DEFAULT_SITE_ICON_RADIUS
   return Math.min(50, Math.max(0, Math.round(radius)))
 }

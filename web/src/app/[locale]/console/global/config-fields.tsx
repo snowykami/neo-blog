@@ -406,7 +406,7 @@ function SiteIconRadiusField({ item, label, description }: FieldProps) {
       name={item.key}
       rules={{ validate }}
       render={({ field }) => {
-        const current = typeof field.value === 'number' && !Number.isNaN(field.value)
+        const current = typeof field.value === 'number' && Number.isFinite(field.value)
           ? normalizeSiteIconRadius(field.value)
           : DEFAULT_SITE_ICON_RADIUS
         return (
@@ -414,6 +414,7 @@ function SiteIconRadiusField({ item, label, description }: FieldProps) {
             <FieldLabel label={label} description={description} />
             <div className="flex flex-wrap items-center gap-4">
               <Slider
+                aria-label={label}
                 min={min}
                 max={max}
                 step={1}

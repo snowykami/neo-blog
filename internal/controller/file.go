@@ -48,9 +48,33 @@ var allowedUserImageMimeTypes = []string{
 	"image/avif",
 }
 
+func isAvifFtypBox(head []byte) bool {
+	if len(head) < 12 || string(head[4:8]) != "ftyp" {
+		return false
+	}
+	major := string(head[8:12])
+	if major == "avif" || major == "avis" {
+		return true
+	}
+	if major != "mif1" || len(head) < 20 {
+		return false
+	}
+	limit := min(len(head), 64)
+	if boxSize := int(uint32(head[0])<<24 | uint32(head[1])<<16 | uint32(head[2])<<8 | uint32(head[3])); boxSize >= 16 && boxSize < limit {
+		limit = boxSize
+	}
+	for offset := 16; offset+4 <= limit; offset += 4 {
+		brand := string(head[offset : offset+4])
+		if brand == "avif" || brand == "avis" {
+			return true
+		}
+	}
+	return false
+}
+
 func sniffFileContentType(head []byte) string {
-	// ISO BMFF AVIF 魔数（4..12 字节为 ftypavif / ftypavis）
-	if len(head) >= 12 && string(head[4:8]) == "ftyp" && (string(head[8:12]) == "avif" || string(head[8:12]) == "avis") {
+	// ISO BMFF AVIF 魔数（主品牌 avif / avis，或 mif1 兼容品牌列表含 avif / avis）
+	if isAvifFtypBox(head) {
 		return "image/avif"
 	}
 	sniffed := http.DetectContentType(head)
@@ -136,8 +160,8 @@ func (f *FileController) UploadFileStream(ctx context.Context, c *app.RequestCon
 			return
 		}
 		mimeType = sniffed
-	} else if utils.DirectSafeContentType(mimeType) && strings.HasPrefix(mimeType, "image/") && !slices.Contains(allowedUserImageMimeTypes, sniffed) && mimeType != "image/x-icon" {
-		// 编辑或管理员上传的文件若声称为可直连光栅图片，但魔数实际为 HTML/XML/脚本等，回退为嗅探出的真实类型走隔离响应头
+	} else if utils.DirectSafeContentType(mimeType) && strings.HasPrefix(mimeType, "image/") && !slices.Contains(allowedUserImageMimeTypes, sniffed) && !(mimeType == "image/x-icon" && (sniffed == "image/x-icon" || sniffed == "image/vnd.microsoft.icon")) {
+		// 编辑或管理员上传的文件若声称为可直连光栅图片（含 .ico），但魔数实际为 HTML/XML/脚本等，回退为嗅探出的真实类型走隔离响应头
 		mimeType = sniffed
 	}
 	if _, err := src.Seek(0, io.SeekStart); err != nil {
@@ -510,6 +534,8 @@ func (f *FileController) getContentType(filename string) string {
 		".png":  "image/png",
 		".gif":  "image/gif",
 		".webp": "image/webp",
+		".avif": "image/avif",
+		".ico":  "image/x-icon",
 		".svg":  "image/svg+xml",
 		".mp4":  "video/mp4",
 		".webm": "video/webm",

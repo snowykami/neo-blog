@@ -83,6 +83,8 @@ describe('site icon radius & favicon URL', () => {
     expect(normalizeSiteIconRadius(undefined)).toBe(DEFAULT_SITE_ICON_RADIUS)
     expect(normalizeSiteIconRadius(null)).toBe(DEFAULT_SITE_ICON_RADIUS)
     expect(normalizeSiteIconRadius(Number.NaN)).toBe(DEFAULT_SITE_ICON_RADIUS)
+    expect(normalizeSiteIconRadius(Number.POSITIVE_INFINITY)).toBe(DEFAULT_SITE_ICON_RADIUS)
+    expect(normalizeSiteIconRadius(Number.NEGATIVE_INFINITY)).toBe(DEFAULT_SITE_ICON_RADIUS)
     expect(normalizeSiteIconRadius(-5)).toBe(0)
     expect(normalizeSiteIconRadius(0)).toBe(0)
     expect(normalizeSiteIconRadius(24.6)).toBe(25)
