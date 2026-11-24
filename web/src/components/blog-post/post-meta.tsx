@@ -26,9 +26,9 @@ export { PostMetaItem }
  */
 
 // 元信息中的链接：位于整卡链接（stretched link）之上，需提升层级。
-// 文字只有约 20px 高，用透明伪元素把热区上下各扩 4px、左右各扩 4px（视觉不变），达到 WCAG 2.2 的 24px；
-// 点偏了会落到整卡链接上直接进入文章，所以热区要够大，相邻标签之间也留出间距（见下方 gap-y-2）
-const metaLinkClass = 'relative z-10 rounded-sm transition-colors after:absolute after:-inset-x-1 after:-inset-y-1 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+// 用负外边距抵消内边距，悬停时呈现 Fuwari 同款柔和圆角底块（仅颜色过渡，不触发布局重排），
+// 同时配合透明伪元素把热区扩至 ≥ 24px（WCAG 2.2），避免点偏误触整卡链接
+const metaLinkClass = 'relative z-10 -mx-1.5 -my-0.5 rounded-md px-1.5 py-0.5 transition-colors duration-150 after:absolute after:-inset-y-0.5 after:inset-x-0 hover:bg-secondary hover:text-primary active:bg-primary/12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 /** 头像 + 昵称的作者项（列表），整体链接到作者主页 */
 function PostAuthorAvatarItem({ user, compact = false }: { user: Post['user'], compact?: boolean }) {
@@ -59,6 +59,7 @@ export function PostMeta({
   authorAvatar = false,
   showUpdated = false,
   compact = false,
+  maxLabels,
   className,
 }: {
   post: Post
@@ -70,18 +71,25 @@ export function PostMeta({
   showUpdated?: boolean
   /** 列表紧凑样式 */
   compact?: boolean
+  /** 最多展示多少个标签（超出显示 +N，列表卡片防刷屏） */
+  maxLabels?: number
   className?: string
 }) {
   const t = useTranslations()
   const labels = post.labels ?? []
+  const labelLimit = maxLabels ?? (compact ? 3 : undefined)
+  const visibleLabels = labelLimit === undefined ? labels : labels.slice(0, labelLimit)
+  const hiddenLabelCount = labels.length - visibleLabels.length
 
   return (
-    <div className={cn('flex flex-wrap items-center', compact ? 'gap-x-3 gap-y-1.5' : 'gap-x-4 gap-y-2', className)}>
+    <div className={cn('flex flex-wrap items-center', compact ? 'gap-x-3 gap-y-1.5' : 'gap-x-3.5 gap-y-2', className)}>
       {showAuthor && authorAvatar && <PostAuthorAvatarItem user={post.user} compact={compact} />}
       {showAuthor && !authorAvatar && (
         <PostMetaItem icon={PenLineIcon} label={t('Copyright.author')} compact={compact}>
-          <Link href={getUserUrl(post.user, 'posts')} className={cn(metaLinkClass, 'block max-w-[16ch] truncate')}>
-            {post.user.nickname || post.user.username || t('Common.unknown_author')}
+          <Link href={getUserUrl(post.user, 'posts')} className={cn(metaLinkClass, 'block')}>
+            <span className="block max-w-[16ch] truncate">
+              {post.user.nickname || post.user.username || t('Common.unknown_author')}
+            </span>
           </Link>
         </PostMetaItem>
       )}
@@ -90,8 +98,8 @@ export function PostMeta({
       <PostMetaItem icon={FolderIcon} label={t('Route.category')} compact={compact}>
         {post.category
           ? (
-              <Link href={getCategoryUrl(post.category)} className={cn(metaLinkClass, 'block max-w-[16ch] truncate')}>
-                {post.category.name}
+              <Link href={getCategoryUrl(post.category)} className={cn(metaLinkClass, 'block')}>
+                <span className="block max-w-[16ch] truncate">{post.category.name}</span>
               </Link>
             )
           : <span className="block max-w-[16ch] truncate">{t('Common.uncategorized')}</span>}
@@ -101,7 +109,7 @@ export function PostMeta({
           {/* 多个标签用 / 分隔 */}
           {/* gap-y-2：手机上换行后上下两行标签的热区不重叠 */}
           <span className="flex flex-wrap items-center gap-y-2">
-            {(compact ? labels.slice(0, 3) : labels).map((label, index) => (
+            {visibleLabels.map((label, index) => (
               <Fragment key={label.id}>
                 {index > 0 && <span aria-hidden className="mx-1.5 text-foreground/30">/</span>}
                 {/* 标签页是带 ?label= 的首页：进入视口只预取首页的 App Shell（与其他首页链接共用一份，点击立刻出骨架）；
@@ -111,10 +119,10 @@ export function PostMeta({
                 </Link>
               </Fragment>
             ))}
-            {compact && labels.length > 3 && (
+            {hiddenLabelCount > 0 && (
               <span aria-hidden className="ml-1.5 text-foreground/45 tabular-nums">
                 +
-                {labels.length - 3}
+                {hiddenLabelCount}
               </span>
             )}
           </span>

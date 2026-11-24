@@ -21,7 +21,7 @@ export function PostMetaItem({
       {compact
         ? <Icon aria-hidden className="mr-1.5 size-3.5 shrink-0 text-muted-foreground/80" />
         : (
-            <span aria-hidden className="mr-2 flex size-7 shrink-0 items-center justify-center rounded-md bg-secondary text-secondary-foreground">
+            <span aria-hidden className="mr-2 flex size-7 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
               <Icon className="size-4" />
             </span>
           )}
