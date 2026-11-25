@@ -3,11 +3,14 @@ package v1
 import (
 	"context"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/service"
+	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/resps"
 )
 
@@ -23,7 +26,7 @@ func NewFriendController() *FriendController {
 
 func setPublicFriendCORSHeaders(c *app.RequestContext) {
 	c.Header("Access-Control-Allow-Origin", "*")
-	c.Header("Access-Control-Allow-Methods", "GET, OPTIONS")
+	c.Header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
 	c.Header("Access-Control-Allow-Headers", "Authorization, Content-Type")
 }
 
@@ -41,6 +44,84 @@ func (f *FriendController) ListPublic(ctx context.Context, c *app.RequestContext
 		return
 	}
 	resps.Ok(c, resps.Success, resp)
+}
+
+// ifNoneMatchHits 兼容前置压缩层（Next.js / Nginx / CDN）自动附加 W/ 弱校验前缀及多值列表的 ETag 匹配
+func ifNoneMatchHits(headerVal, etag string) bool {
+	if headerVal == "" || etag == "" {
+		return false
+	}
+	cleanTarget := strings.TrimPrefix(strings.TrimSpace(etag), "W/")
+	for _, rawPart := range strings.Split(headerVal, ",") {
+		part := strings.TrimSpace(rawPart)
+		if part == "*" {
+			return true
+		}
+		if strings.TrimPrefix(part, "W/") == cleanTarget {
+			return true
+		}
+	}
+	return false
+}
+
+func (f *FriendController) GetAvatar(ctx context.Context, c *app.RequestContext) {
+	id := ctxutils.GetIDParam(c).Uint
+	hash := c.Param("hash")
+	res, svcerr := f.service.GetFriendAvatarThumbnail(ctx, id, hash)
+	if svcerr != nil {
+		// 鉴权拦截或记录不存在统一禁公共缓存，防止前置 CDN 对未审核/私密分组友链造成负缓存投毒
+		c.Header("Cache-Control", "private, no-store")
+		c.Header("Vary", "Authorization, Cookie")
+		resps.Error(c, svcerr)
+		return
+	}
+	if res.IsPublicCache || res.ViaAPIToken {
+		setPublicFriendCORSHeaders(c)
+	}
+	if !res.IsPublicCache {
+		c.Header("Vary", "Authorization, Cookie")
+	}
+	if res.Unavailable {
+		if res.IsPublicCache {
+			c.Header("Cache-Control", "public, max-age=120")
+		} else {
+			c.Header("Cache-Control", "private, no-store")
+		}
+		resps.Error(c, errs.NewNotFound("friend_avatar_unavailable"))
+		return
+	}
+
+	if res.RedirectURL != "" {
+		if res.IsPublicCache {
+			c.Header("Cache-Control", "public, max-age=300")
+		} else {
+			c.Header("Cache-Control", "no-store")
+		}
+		c.Redirect(http.StatusFound, []byte(res.RedirectURL))
+		return
+	}
+
+	if res.IsPublicCache {
+		c.Header("Cache-Control", "public, max-age=86400")
+	} else {
+		c.Header("Cache-Control", "private, max-age=3600")
+	}
+	c.Header("ETag", res.ETag)
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Header("Content-Disposition", "inline; filename=\"avatar\"")
+	c.Header("Content-Security-Policy", "default-src 'none'; sandbox")
+
+	if ifNoneMatchHits(string(c.GetHeader("If-None-Match")), res.ETag) {
+		c.SetStatusCode(http.StatusNotModified)
+		return
+	}
+	c.Header("Content-Length", strconv.Itoa(len(res.Data)))
+	if string(c.Method()) == http.MethodHead {
+		c.Header("Content-Type", res.ContentType)
+		c.Status(http.StatusOK)
+		return
+	}
+	c.Data(http.StatusOK, res.ContentType, res.Data)
 }
 
 func (f *FriendController) ListMine(ctx context.Context, c *app.RequestContext) {

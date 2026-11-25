@@ -388,6 +388,7 @@ var fileLinkColumns = []struct {
 	{&model.Comment{}, []string{"content"}},
 	{&model.ContentRevision{}, []string{"content", "meta"}},
 	{&model.OidcConfig{}, []string{"icon"}},
+	{&model.FriendLink{}, []string{"avatar"}},
 }
 
 // fileLinkBatchSize 改写文本列时每批读取的行数

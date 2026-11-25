@@ -12,6 +12,7 @@ export interface FriendCardItem {
   name: string
   url: string
   avatar: string
+  avatarUrl?: string
   description: string
   colorKey: FriendColorKey | string
   healthStatus?: FriendHealthStatus
@@ -86,14 +87,12 @@ function FriendProbeSignal({
     )
   }
 
-  let filledBars = 0
+  let filledBars = 1
   if (healthStatus === 'healthy') {
-    if (latencyMs > 0 && latencyMs < 1000)
+    if (latencyMs >= 0 && latencyMs < 1000)
       filledBars = 3
     else if (latencyMs < 2000)
       filledBars = 2
-    else if (latencyMs < 3000)
-      filledBars = 1
   }
 
   const label = latencyMs > 0
@@ -130,11 +129,15 @@ export function FriendCard({
     '--fl-c': String(palette.c),
   } as CSSProperties
 
+  const primaryAvatar = item.avatarUrl || item.avatar || undefined
+  const backupAvatar = item.avatarUrl && item.avatarUrl !== item.avatar ? item.avatar : undefined
+
   const content = (
     <>
       <span className="cf-friends-avatar hidden" data-src={item.avatar} aria-hidden />
       <ImageAvatar
-        src={item.avatar || undefined}
+        src={primaryAvatar}
+        fallbackSrc={backupAvatar}
         alt=""
         fallback={initial}
         sizes="48px"
@@ -146,11 +149,11 @@ export function FriendCard({
         fallbackClassName="text-sm font-bold text-white"
         fallbackStyle={{ backgroundColor: 'var(--fl-avatar-bg)' }}
       />
-      <div className="min-w-0 flex-1 pr-4">
+      <div className="min-w-0 flex-1 pr-4 whitespace-normal">
         <div className="cf-friends-name truncate text-sm leading-snug font-semibold">
           {item.name || t('preview_default_name')}
         </div>
-        <div className="mt-0.5 line-clamp-2 text-xs leading-snug text-(--fl-desc)">
+        <div className="mt-0.5 line-clamp-2 text-xs leading-snug wrap-anywhere text-(--fl-desc)">
           {item.description || t('no_description')}
         </div>
       </div>
@@ -159,7 +162,7 @@ export function FriendCard({
   )
 
   const baseClass = cn(
-    'friend-card-adaptive cf-friends-link group/fcard relative flex min-h-[74px] items-center gap-3 overflow-hidden rounded-xl px-3.5 py-3 text-left transition-[transform,background-color,box-shadow] duration-150',
+    'friend-card-adaptive cf-friends-link group/fcard relative flex min-h-[74px] min-w-0 items-center gap-3 overflow-hidden rounded-xl px-3.5 py-3 text-left transition-[transform,background-color,box-shadow] duration-150',
     interactive && 'hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
     className,
   )

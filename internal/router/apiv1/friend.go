@@ -15,6 +15,9 @@ func registerFriendRoutes(group *route.RouterGroup) {
 	{
 		publicGroup.OPTIONS("", friendController.OptionsPublic)
 		publicGroup.GET("", middleware.UseAuth(false, constant.ScopeFriendsRead), friendController.ListPublic)
+		publicGroup.OPTIONS("/avatar/:id/:hash", friendController.OptionsPublic)
+		publicGroup.HEAD("/avatar/:id/:hash", middleware.UseAuth(false, constant.ScopeFriendsRead), friendController.GetAvatar)
+		publicGroup.GET("/avatar/:id/:hash", middleware.UseAuth(false, constant.ScopeFriendsRead), friendController.GetAvatar)
 	}
 
 	// 登录用户的自助申请、AI 自动填写与名下友链管理

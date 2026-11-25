@@ -46,7 +46,7 @@ export function GuestLoginInvite({
         <p className="font-semibold">{title}</p>
         {description && <p className="text-sm text-muted-foreground">{description}</p>}
       </div>
-      <div className="flex w-full items-center gap-2 sm:w-auto">
+      <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
         <OidcProviderButtons
           providers={providers}
           redirectBack={pathname}

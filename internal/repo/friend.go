@@ -135,6 +135,11 @@ func (r *friendRepo) UpdateLinkColumns(id uint, updates map[string]any) error {
 	return GetDB().Model(&model.FriendLink{}).Where("id = ?", id).Updates(updates).Error
 }
 
+// UpdateLinkProbeColumns 仅在目标友链地址未发生变更时写回拨测结果，避免旧地址慢速拨测覆盖已修改的新地址状态
+func (r *friendRepo) UpdateLinkProbeColumns(id uint, expectedURL string, updates map[string]any) error {
+	return GetDB().Model(&model.FriendLink{}).Where("id = ? AND url = ?", id, expectedURL).Updates(updates).Error
+}
+
 func (r *friendRepo) DeleteLink(id uint) error {
 	return GetDB().Delete(&model.FriendLink{}, id).Error
 }

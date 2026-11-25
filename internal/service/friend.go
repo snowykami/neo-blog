@@ -24,6 +24,7 @@ import (
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/sharedstate"
+	"github.com/snowykami/neo-blog/pkg/utils"
 	"gorm.io/gorm"
 )
 
@@ -51,13 +52,13 @@ func NewFriendService() *FriendService {
 	return &FriendService{}
 }
 
-// normalizeFriendSiteURL 校验并规范化友链站点地址，同时生成用于防重的 normalized_host（host + 非根路径，忽略末尾斜杠与 www. 前缀）
+// normalizeFriendSiteURL 校验并规范化友链站点地址（严格限制公网 80/443），同时生成用于防重的 normalized_host
 func normalizeFriendSiteURL(raw string) (cleanURL string, normalizedHost string, parsed *url.URL, svcerr *errs.ServiceError) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" || len(trimmed) > 512 {
 		return "", "", nil, errs.NewBadRequest("invalid_friend_url")
 	}
-	_, u, err := NormalizeLinkPreviewURL(trimmed)
+	_, u, err := NormalizeFriendOutboundURL(trimmed)
 	if err != nil || u == nil {
 		return "", "", nil, errs.NewBadRequest("invalid_friend_url")
 	}
@@ -95,9 +96,25 @@ func normalizeOptionalHTTPURL(raw string, errCode string) (string, *errs.Service
 	if len(trimmed) > 512 {
 		return "", errs.NewBadRequest(errCode)
 	}
-	normStr, _, err := NormalizeLinkPreviewURL(trimmed)
+	normStr, _, err := NormalizeFriendOutboundURL(trimmed)
 	if err != nil {
 		return "", errs.NewBadRequest(errCode)
+	}
+	return normStr, nil
+}
+
+func normalizeFriendAvatarField(raw string) (string, *errs.ServiceError) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" || len(trimmed) > 512 {
+		return "", errs.NewBadRequest("invalid_friend_avatar")
+	}
+	// 支持站内上传图片（经 UseFileLinks 还原后的稳定相对路径 /api/v1/file/f/...）与站点图标
+	if model.IsSafeInternalAvatarPath(trimmed) {
+		return trimmed, nil
+	}
+	normStr, _, err := NormalizeFriendOutboundURL(trimmed)
+	if err != nil || normStr == "" {
+		return "", errs.NewBadRequest("invalid_friend_avatar")
 	}
 	return normStr, nil
 }
@@ -176,9 +193,14 @@ func (s *FriendService) ListPublicFriends(ctx context.Context, groupSlug string)
 	if err != nil {
 		return nil, errs.Internal("failed_to_get_target", err).WithResource("friend_link")
 	}
+	baseURL := strings.TrimRight(tools.GetBaseUrl(), "/")
 	byGroup := make(map[uint][]dto.FriendLinkPublicDto, len(groups))
 	for i := range links {
 		pub := links[i].ToPublicDto()
+		// 公开接口若使用站内相对路径且尚未被可直连对象存储改写，补齐站点域名方便外部聚合爬虫跨站引用
+		if baseURL != "" && strings.HasPrefix(pub.Avatar, "/") && !strings.HasPrefix(pub.Avatar, "//") {
+			pub.Avatar = baseURL + pub.Avatar
+		}
 		byGroup[links[i].GroupID] = append(byGroup[links[i].GroupID], pub)
 	}
 	outGroups := make([]dto.FriendGroupPublicDto, 0, len(groups))
@@ -281,7 +303,14 @@ func (s *FriendService) AutofillFriendLink(ctx context.Context, req *dto.FriendA
 		rem = nextRem
 	}
 
-	preview, fetchErr := fetchLinkPreview(ctx, parsedURL, cleanURL, "zh-CN,zh;q=0.9,en;q=0.8")
+	preview, fetchErr := fetchLinkPreviewWithTransport(
+		ctx,
+		parsedURL,
+		cleanURL,
+		"zh-CN,zh;q=0.9,en;q=0.8",
+		friendOutboundRoundTripper,
+		NormalizeFriendOutboundURL,
+	)
 	fallbackHost := strings.TrimPrefix(parsedURL.Hostname(), "www.")
 	name := fallbackHost
 	desc := ""
@@ -401,7 +430,7 @@ func validateFriendLinkFields(name, rawURL, rawAvatar, desc, rawBacklink, rawCol
 	if errURL != nil {
 		return "", "", "", "", "", "", "", errURL
 	}
-	cleanAvatar, errURL = normalizeOptionalHTTPURL(rawAvatar, "invalid_friend_avatar")
+	cleanAvatar, errURL = normalizeFriendAvatarField(rawAvatar)
 	if errURL != nil || cleanAvatar == "" {
 		return "", "", "", "", "", "", "", errs.NewBadRequest("invalid_friend_avatar")
 	}
@@ -427,6 +456,9 @@ func (s *FriendService) CreateMyFriendLink(ctx context.Context, req *dto.UpsertM
 		return nil, errs.NewForbidden("permission_denied")
 	}
 	isAdminUser := currentUser.Role == constant.RoleAdmin
+	if !isAdminUser && !utils.AllowRequest(fmt.Sprintf("friend_write_user:%d", currentUser.ID), 10, 10*time.Minute) {
+		return nil, errs.NewTooManyRequests("too_many_requests")
+	}
 	grp, svcerr := resolveTargetGroupForUser(req.GroupID, isAdminUser)
 	if svcerr != nil {
 		return nil, svcerr
@@ -500,6 +532,9 @@ func (s *FriendService) UpdateMyFriendLink(ctx context.Context, id uint, req *dt
 		return nil, errs.NewForbidden("permission_denied")
 	}
 	isAdminUser := currentUser.Role == constant.RoleAdmin
+	if !isAdminUser && !utils.AllowRequest(fmt.Sprintf("friend_write_user:%d", currentUser.ID), 10, 10*time.Minute) {
+		return nil, errs.NewTooManyRequests("too_many_requests")
+	}
 
 	unlock, err := sharedstate.Lock(ctx, friendApplyLockKey, friendApplyLockTTL)
 	if err != nil {
@@ -537,6 +572,7 @@ func (s *FriendService) UpdateMyFriendLink(ctx context.Context, id uint, req *dt
 		}
 	}
 
+	oldAvatar := link.Avatar
 	status, reviewNote, shouldRunAI := decideSubmissionReviewMode(currentUser)
 	link.GroupID = grp.ID
 	link.Name = cleanName
@@ -551,6 +587,9 @@ func (s *FriendService) UpdateMyFriendLink(ctx context.Context, id uint, req *dt
 
 	if err := repo.Friend.SaveLink(link); err != nil {
 		return nil, errs.Internal("failed_to_update_target", err).WithResource("friend_link")
+	}
+	if oldAvatar != "" && (oldAvatar != cleanAvatar || status != model.FriendStatusApproved) {
+		EvictFriendAvatarCache(oldAvatar)
 	}
 
 	if shouldRunAI {
@@ -584,6 +623,7 @@ func (s *FriendService) DeleteMyFriendLink(ctx context.Context, id uint) *errs.S
 	if err := repo.Friend.DeleteLink(link.ID); err != nil {
 		return errs.Internal("failed_to_delete_target", err).WithResource("friend_link")
 	}
+	EvictFriendAvatarCache(link.Avatar)
 	return nil
 }
 
@@ -882,6 +922,8 @@ func (s *FriendService) AdminUpdateLink(ctx context.Context, id uint, req *dto.A
 		}
 	}
 
+	oldAvatar := link.Avatar
+	avatarChanged := cleanAvatar != oldAvatar
 	urlChanged := cleanURL != link.URL || cleanBacklink != link.BacklinkURL || grp.ID != link.GroupID
 	link.GroupID = grp.ID
 	link.Name = cleanName
@@ -898,11 +940,26 @@ func (s *FriendService) AdminUpdateLink(ctx context.Context, id uint, req *dto.A
 	if err := repo.Friend.SaveLink(link); err != nil {
 		return nil, errs.Internal("failed_to_update_target", err).WithResource("friend_link")
 	}
+	if oldAvatar != "" && (avatarChanged || link.Status != model.FriendStatusApproved) {
+		EvictFriendAvatarCache(oldAvatar)
+	}
 	if urlChanged {
 		EnqueueFriendProbe(link.ID)
+	} else if avatarChanged && link.Status == model.FriendStatusApproved {
+		enqueueWarmFriendAvatar(cleanAvatar)
 	}
 	out := link.ToAdminDto()
 	return &out, nil
+}
+
+func enqueueWarmFriendAvatar(rawAvatar string) {
+	friendBackgroundWG.Add(1)
+	go func(av string) {
+		defer friendBackgroundWG.Done()
+		wCtx, cancel := context.WithTimeout(context.Background(), friendAvatarFetchTimeout)
+		defer cancel()
+		WarmFriendAvatarCache(wCtx, av)
+	}(rawAvatar)
 }
 
 func (s *FriendService) AdminReviewLink(ctx context.Context, id uint, req *dto.AdminReviewFriendLinkReq) (*dto.FriendLinkAdminDto, *errs.ServiceError) {
@@ -930,6 +987,11 @@ func (s *FriendService) AdminReviewLink(ctx context.Context, id uint, req *dto.A
 	link.ReviewNote = clipRunes(req.ReviewNote, friendReviewNoteMaxRunes)
 	if err := repo.Friend.SaveLink(link); err != nil {
 		return nil, errs.Internal("failed_to_update_target", err).WithResource("friend_link")
+	}
+	if link.Status == model.FriendStatusApproved {
+		enqueueWarmFriendAvatar(link.Avatar)
+	} else {
+		EvictFriendAvatarCache(link.Avatar)
 	}
 	out := link.ToAdminDto()
 	return &out, nil
@@ -1001,8 +1063,12 @@ func (s *FriendService) AdminDeleteLink(ctx context.Context, id uint) *errs.Serv
 	if _, svcerr := requireAdminUser(ctx); svcerr != nil {
 		return svcerr
 	}
+	link, _ := repo.Friend.GetLink(id)
 	if err := repo.Friend.DeleteLink(id); err != nil {
 		return errs.Internal("failed_to_delete_target", err).WithResource("friend_link")
+	}
+	if link != nil {
+		EvictFriendAvatarCache(link.Avatar)
 	}
 	return nil
 }

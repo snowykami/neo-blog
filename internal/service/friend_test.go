@@ -40,6 +40,7 @@ func setupFriendTest(t *testing.T) (user, otherUser, editor, admin *model.User) 
 			t.Fatalf("create user: %v", err)
 		}
 	}
+	t.Cleanup(WaitForFriendBackgroundTasks)
 	return users[0], users[1], users[2], users[3]
 }
 

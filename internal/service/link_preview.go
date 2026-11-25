@@ -499,6 +499,17 @@ var linkPreviewTransport = utils.NewSafeTransport(utils.SafeTransportOptions{
 var linkPreviewRoundTripper http.RoundTripper = linkPreviewTransport
 
 func fetchLinkPreview(ctx context.Context, target *url.URL, requestedURL, acceptLanguage string) (*dto.LinkPreviewDto, error) {
+	return fetchLinkPreviewWithTransport(ctx, target, requestedURL, acceptLanguage, linkPreviewRoundTripper, NormalizeLinkPreviewURL)
+}
+
+func fetchLinkPreviewWithTransport(
+	ctx context.Context,
+	target *url.URL,
+	requestedURL string,
+	acceptLanguage string,
+	rt http.RoundTripper,
+	normFn func(string) (string, *url.URL, error),
+) (*dto.LinkPreviewDto, error) {
 	ctx, cancel := context.WithTimeout(ctx, linkPreviewTimeout)
 	defer cancel()
 
@@ -514,7 +525,7 @@ func fetchLinkPreview(ctx context.Context, target *url.URL, requestedURL, accept
 		req.Header.Set("Accept-Encoding", "gzip, deflate")
 		req.Header.Set("Upgrade-Insecure-Requests", "1")
 
-		resp, err := linkPreviewRoundTripper.RoundTrip(req)
+		resp, err := rt.RoundTrip(req)
 		if err != nil {
 			return nil, err
 		}
@@ -531,7 +542,7 @@ func fetchLinkPreview(ctx context.Context, target *url.URL, requestedURL, accept
 			if err != nil {
 				return nil, err
 			}
-			_, nextNorm, err := NormalizeLinkPreviewURL(nextRaw.String())
+			_, nextNorm, err := normFn(nextRaw.String())
 			if err != nil {
 				return nil, err
 			}

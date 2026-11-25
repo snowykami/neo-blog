@@ -68,12 +68,38 @@ export function pickFriendColorFromSeed(seed: string): FriendColorKey {
   return FRIEND_PALETTE_32[hash % FRIEND_PALETTE_32.length].key
 }
 
+/**
+ * 表单实时预览门控：仅当输入已是完整 http(s) 域名地址或合法的站内文件相对路径时才渲染预览头像，
+ * 避免敲击键盘过程中对半截字符串连续发起无效图片请求
+ */
+export function isPreviewableAvatarUrl(raw?: string | null): boolean {
+  const trimmed = raw?.trim() ?? ''
+  if (!trimmed)
+    return false
+  if (trimmed.startsWith('/')) {
+    return /^(?:\/api\/v1\/file\/f\/\d+(?:\/[^\s\\?#]*)?|\/api\/site-icon)(?:[?#][^\s\\]*)?$/.test(trimmed)
+      && !trimmed.includes('..')
+  }
+  if (!/^https?:\/\/[^\s/]+/i.test(trimmed))
+    return false
+  try {
+    const parsed = new URL(trimmed)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')
+      return false
+    return parsed.hostname === 'localhost' || parsed.hostname.includes('.') || parsed.hostname.includes(':')
+  }
+  catch {
+    return false
+  }
+}
+
 export interface FriendLinkPublic {
   id: number
   groupId: number
   name: string
   url: string
   avatar: string
+  avatarUrl?: string
   description: string
   colorKey: FriendColorKey
   sortOrder: number
@@ -109,6 +135,7 @@ export interface FriendLinkMine {
   name: string
   url: string
   avatar: string
+  avatarUrl?: string
   description: string
   colorKey: FriendColorKey
   backlinkUrl: string
@@ -170,6 +197,7 @@ export interface FriendLinkAdmin {
   name: string
   url: string
   avatar: string
+  avatarUrl?: string
   description: string
   colorKey: FriendColorKey
   backlinkUrl: string

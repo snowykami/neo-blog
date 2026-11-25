@@ -107,7 +107,7 @@ export function OidcProviderButtons({
   }
 
   return (
-    <div className={cn(variant === 'icon' ? 'flex items-center gap-2' : 'grid gap-2', className)}>
+    <div className={cn(variant === 'icon' ? 'flex flex-wrap items-center gap-2' : 'grid gap-2', className)}>
       {providers.map((provider) => {
         const label = t('login_with', { name: provider.displayName })
         // nofollow：避免搜索引擎顺着链接反复发起登录

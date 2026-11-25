@@ -123,4 +123,18 @@ describe('image-avatar 服务端直出 <img>', () => {
     expect(renderWithSizes('128px')).toContain('q=75')
     expect(renderWithSizes('48px', 75)).toContain('q=75')
   })
+
+  it('友链缩略图接口 /api/v1/friends/avatar/ 保持直连，避免被 /_next/image 二次代理或拦截 .ico/.svg', () => {
+    const html = renderToStaticMarkup(
+      React.createElement(ImageAvatar, {
+        src: '/api/v1/friends/avatar/12/a1b2c3d4e5f60708',
+        fallbackSrc: 'https://nextjs.org/favicon.ico',
+        alt: 'Next.js',
+        fallback: 'N',
+        sizes: '48px',
+      }),
+    )
+    expect(html).toContain('src="/api/v1/friends/avatar/12/a1b2c3d4e5f60708"')
+    expect(html).not.toContain('/_next/image')
+  })
 })

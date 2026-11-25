@@ -1,6 +1,10 @@
 package model
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -165,6 +169,59 @@ type FriendLink struct {
 	LastCheckedAt  *time.Time
 }
 
+// IsSafeInternalAvatarPath 校验是否为安全的站内头像相对路径（严格防 // 与 /\ 开放重定向、路径穿越及控制字符）
+func IsSafeInternalAvatarPath(raw string) bool {
+	if len(raw) < 2 || len(raw) > 512 || raw[0] != '/' || raw[1] == '/' {
+		return false
+	}
+	if strings.ContainsAny(raw, "\\ \t\r\n") || strings.Contains(raw, "..") {
+		return false
+	}
+	for i := 0; i < len(raw); i++ {
+		if raw[i] < 0x20 || raw[i] == 0x7f {
+			return false
+		}
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "" || u.Host != "" || u.User != nil || !strings.HasPrefix(u.Path, "/") {
+		return false
+	}
+	return strings.HasPrefix(u.Path, "/api/v1/file/f/") || u.Path == "/api/site-icon"
+}
+
+func isExternalSVGAvatarURL(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+	return strings.HasSuffix(strings.ToLower(u.Path), ".svg")
+}
+
+// FriendAvatarHash 计算原始头像 URL 的 16 位小写十六进制短指纹，用于构造缓存路径
+func FriendAvatarHash(rawAvatar string) string {
+	trimmed := strings.TrimSpace(rawAvatar)
+	if trimmed == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(trimmed))
+	return hex.EncodeToString(sum[:8])
+}
+
+// AvatarCacheURL 返回前端渲染使用的站内头像缩略图缓存路径；站内文件与外站 .svg 保持直连
+func (l *FriendLink) AvatarCacheURL() string {
+	trimmed := strings.TrimSpace(l.Avatar)
+	if trimmed == "" || l.ID == 0 {
+		return ""
+	}
+	if IsSafeInternalAvatarPath(trimmed) || isExternalSVGAvatarURL(trimmed) {
+		return trimmed
+	}
+	if strings.HasPrefix(trimmed, "/") {
+		return ""
+	}
+	return fmt.Sprintf("/api/v1/friends/avatar/%d/%s", l.ID, FriendAvatarHash(trimmed))
+}
+
 func (l *FriendLink) ToPublicDto() dto.FriendLinkPublicDto {
 	return dto.FriendLinkPublicDto{
 		ID:           l.ID,
@@ -172,6 +229,7 @@ func (l *FriendLink) ToPublicDto() dto.FriendLinkPublicDto {
 		Name:         l.Name,
 		URL:          l.URL,
 		Avatar:       l.Avatar,
+		AvatarURL:    l.AvatarCacheURL(),
 		Description:  l.Description,
 		ColorKey:     NormalizeFriendColorKey(l.ColorKey),
 		SortOrder:    l.SortOrder,
@@ -187,6 +245,7 @@ func (l *FriendLink) ToMineDto() dto.FriendLinkMineDto {
 		Name:         l.Name,
 		URL:          l.URL,
 		Avatar:       l.Avatar,
+		AvatarURL:    l.AvatarCacheURL(),
 		Description:  l.Description,
 		ColorKey:     NormalizeFriendColorKey(l.ColorKey),
 		BacklinkURL:  l.BacklinkURL,
@@ -221,6 +280,7 @@ func (l *FriendLink) ToAdminDto() dto.FriendLinkAdminDto {
 		Name:           l.Name,
 		URL:            l.URL,
 		Avatar:         l.Avatar,
+		AvatarURL:      l.AvatarCacheURL(),
 		Description:    l.Description,
 		ColorKey:       NormalizeFriendColorKey(l.ColorKey),
 		BacklinkURL:    l.BacklinkURL,

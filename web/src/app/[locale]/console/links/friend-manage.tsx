@@ -92,9 +92,9 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/contexts/auth-context'
-import { useDebouncedState } from '@/hooks/use-debounce'
+import { useDebouncedState, useDebouncedValue } from '@/hooks/use-debounce'
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
-import { FRIEND_GROUP_PRESETS, FRIEND_STATUSES } from '@/models/friend'
+import { FRIEND_GROUP_PRESETS, FRIEND_STATUSES, isPreviewableAvatarUrl } from '@/models/friend'
 import { isAdmin } from '@/utils/common/permission'
 
 const PAGE_SIZE = 20
@@ -156,6 +156,7 @@ export function FriendManage() {
   const [linkDialogOpen, setLinkDialogOpen] = useState(false)
   const [editingLink, setEditingLink] = useState<FriendLinkAdmin | null>(null)
   const [autofilling, setAutofilling] = useState(false)
+  const [immediateDialogAvatar, setImmediateDialogAvatar] = useState('')
 
   // 驳回说明弹窗
   const [rejectTarget, setRejectTarget] = useState<FriendLinkAdmin | null>(null)
@@ -307,6 +308,7 @@ export function FriendManage() {
 
   const openCreateLinkDialog = () => {
     setEditingLink(null)
+    setImmediateDialogAvatar('')
     linkForm.reset({
       groupId: groups[0]?.id ? String(groups[0].id) : '',
       url: '',
@@ -324,6 +326,7 @@ export function FriendManage() {
 
   const openEditLinkDialog = (item: FriendLinkAdmin) => {
     setEditingLink(item)
+    setImmediateDialogAvatar(item.avatar.trim())
     linkForm.reset({
       groupId: String(item.groupId),
       url: item.url,
@@ -353,8 +356,10 @@ export function FriendManage() {
         linkForm.setValue('url', data.url, { shouldValidate: true })
       if (data.name)
         linkForm.setValue('name', data.name, { shouldValidate: true })
-      if (data.avatar)
+      if (data.avatar) {
+        setImmediateDialogAvatar(data.avatar.trim())
         linkForm.setValue('avatar', data.avatar, { shouldValidate: true })
+      }
       if (data.description)
         linkForm.setValue('description', data.description)
       if (data.colorKey)
@@ -593,6 +598,20 @@ export function FriendManage() {
     }
   }
 
+  const watchedLink = linkForm.watch()
+  const watchedPreset = groupForm.watch('presetKey')
+  const debouncedLinkAvatar = useDebouncedValue(watchedLink.avatar, 300)
+  const rawWatchedLinkAvatar = watchedLink.avatar.trim()
+  const effectiveDialogAvatar = !rawWatchedLinkAvatar
+    ? ''
+    : (rawWatchedLinkAvatar === editingLink?.avatar || rawWatchedLinkAvatar === immediateDialogAvatar)
+        ? rawWatchedLinkAvatar
+        : debouncedLinkAvatar.trim()
+  const previewLinkAvatar = isPreviewableAvatarUrl(effectiveDialogAvatar) ? effectiveDialogAvatar : ''
+  const previewLinkAvatarUrl = previewLinkAvatar && editingLink && previewLinkAvatar === editingLink.avatar
+    ? editingLink.avatarUrl
+    : undefined
+
   if (user && !userIsAdmin) {
     return (
       <div className="rounded-xl border bg-card p-10">
@@ -603,11 +622,8 @@ export function FriendManage() {
     )
   }
 
-  const watchedLink = linkForm.watch()
-  const watchedPreset = groupForm.watch('presetKey')
-
   return (
-    <div className="grid gap-4">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
       {/* 顶部说明与操作区 */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <p className="max-w-2xl text-sm text-muted-foreground">{t('description')}</p>
@@ -639,8 +655,8 @@ export function FriendManage() {
       </div>
 
       {/* 主视图切换：全部友链与审核 / 分组管理与排序联动 */}
-      <Tabs value={mainTab} onValueChange={v => setMainTab(v as 'links' | 'groups')} className="grid gap-4">
-        <TabsList variant="underline" className="w-full justify-start">
+      <Tabs value={mainTab} onValueChange={v => setMainTab(v as 'links' | 'groups')} className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
+        <TabsList variant="underline" className="w-full max-w-full min-w-0 justify-start">
           <TabsTrigger value="links" className="flex-none px-3">
             <span>{t('tab_links')}</span>
             {pendingReviewCount > 0 && (
@@ -656,25 +672,26 @@ export function FriendManage() {
         </TabsList>
 
         {/* Tab 1: 友链列表与审核工作台 */}
-        <TabsContent value="links" className="grid gap-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+        <TabsContent value="links" className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
             <Tabs
               value={statusFilter}
               onValueChange={(val) => {
                 setStatusFilter(val)
                 setPage(1)
               }}
+              className="max-w-full min-w-0"
             >
-              <TabsList>
-                <TabsTrigger value="all">{t('filter_all')}</TabsTrigger>
-                <TabsTrigger value="pre_approved">{friendT('status_pre_approved')}</TabsTrigger>
-                <TabsTrigger value="pending">{friendT('status_pending')}</TabsTrigger>
-                <TabsTrigger value="approved">{friendT('status_approved')}</TabsTrigger>
-                <TabsTrigger value="rejected">{friendT('status_rejected')}</TabsTrigger>
+              <TabsList className="max-w-full justify-start overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <TabsTrigger value="all" className="flex-none">{t('filter_all')}</TabsTrigger>
+                <TabsTrigger value="pre_approved" className="flex-none">{friendT('status_pre_approved')}</TabsTrigger>
+                <TabsTrigger value="pending" className="flex-none">{friendT('status_pending')}</TabsTrigger>
+                <TabsTrigger value="approved" className="flex-none">{friendT('status_approved')}</TabsTrigger>
+                <TabsTrigger value="rejected" className="flex-none">{friendT('status_rejected')}</TabsTrigger>
               </TabsList>
             </Tabs>
 
-            <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex w-full min-w-0 flex-wrap items-center gap-2.5 sm:w-auto">
               <Select
                 value={groupFilter}
                 onValueChange={(val) => {
@@ -682,7 +699,7 @@ export function FriendManage() {
                   setPage(1)
                 }}
               >
-                <SelectTrigger className="w-44">
+                <SelectTrigger className="w-full sm:w-44">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -695,7 +712,7 @@ export function FriendManage() {
                 </SelectContent>
               </Select>
 
-              <div className="relative w-60">
+              <div className="relative w-full sm:w-60">
                 <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   value={keyword}
@@ -754,6 +771,7 @@ export function FriendManage() {
                               name: item.name,
                               url: item.url,
                               avatar: item.avatar,
+                              avatarUrl: item.avatarUrl,
                               description: item.description,
                               colorKey: item.colorKey,
                               healthStatus: item.healthStatus,
@@ -809,11 +827,11 @@ export function FriendManage() {
                         </div>
                       </TableCell>
 
-                      <TableCell>
+                      <TableCell className="whitespace-normal">
                         <div className="grid gap-1">
                           <div>{renderStatusBadge(item.status)}</div>
                           {item.reviewNote && (
-                            <p className="line-clamp-2 max-w-[240px] text-xs text-muted-foreground">
+                            <p className="line-clamp-2 max-w-[240px] text-xs wrap-anywhere text-muted-foreground">
                               {item.reviewNote}
                             </p>
                           )}
@@ -827,6 +845,7 @@ export function FriendManage() {
                               type="button"
                               variant="outline"
                               size="sm"
+                              className="hidden sm:inline-flex"
                               onClick={() => handleQuickReview(item, 'approved', item.reviewNote)}
                             >
                               <CheckIcon className="size-3.5 text-emerald-600" />
@@ -940,15 +959,15 @@ export function FriendManage() {
                         className="-ml-1"
                       />
 
-                      <div className="min-w-[180px] flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm font-medium">
+                      <div className="min-w-0 basis-44 flex-1">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
+                          <span className="text-sm font-medium wrap-anywhere">
                             {presetT.groupName(group.presetKey, group.name)}
                           </span>
                           <Badge variant="outline" className="font-mono text-[11px]">
                             {group.presetKey}
                           </Badge>
-                          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
+                          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs break-all text-muted-foreground">
                             ?group=
                             {group.slug}
                           </code>
@@ -956,7 +975,7 @@ export function FriendManage() {
                             {group.linkCount}
                           </Badge>
                         </div>
-                        <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
+                        <p className="mt-0.5 line-clamp-1 text-xs wrap-anywhere text-muted-foreground">
                           {presetT.groupDescription(group.presetKey, group.description)}
                         </p>
                       </div>
@@ -1030,30 +1049,31 @@ export function FriendManage() {
 
       {/* 新建 / 编辑友链弹窗 */}
       <Dialog open={linkDialogOpen} onOpenChange={setLinkDialogOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{editingLink ? t('edit_link_title') : t('add_link')}</DialogTitle>
+            <DialogTitle className="wrap-anywhere">{editingLink ? t('edit_link_title') : t('add_link')}</DialogTitle>
             <DialogDescription>{t('link_dialog_desc')}</DialogDescription>
           </DialogHeader>
 
           <Form {...linkForm}>
-            <form className="grid gap-4" onSubmit={linkForm.handleSubmit(onSubmitLink)}>
+            <form className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4" onSubmit={linkForm.handleSubmit(onSubmitLink)}>
               <FormField
                 control={linkForm.control}
                 name="url"
                 rules={{ validate: v => v.trim() !== '' || friendT('field_url_required') }}
                 render={({ field }) => (
-                  <FormItem className="grid gap-2">
+                  <FormItem className="grid min-w-0 gap-2">
                     <FormLabel>{friendT('field_url')}</FormLabel>
-                    <div className="flex gap-2">
+                    <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
                       <FormControl>
-                        <Input {...field} type="url" placeholder="https://example.com" />
+                        <Input {...field} type="text" inputMode="url" maxLength={512} placeholder="https://example.com" />
                       </FormControl>
                       <Button
                         type="button"
                         variant="secondary"
                         disabled={autofilling}
                         onClick={handleDialogAutofill}
+                        className="shrink-0"
                       >
                         {autofilling
                           ? <Loader2Icon className="size-4 animate-spin" />
@@ -1066,16 +1086,16 @@ export function FriendManage() {
                 )}
               />
 
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2">
                 <FormField
                   control={linkForm.control}
                   name="name"
                   rules={{ validate: v => v.trim() !== '' || friendT('field_name_required') }}
                   render={({ field }) => (
-                    <FormItem className="grid gap-2">
+                    <FormItem className="grid min-w-0 gap-2">
                       <FormLabel>{friendT('field_name')}</FormLabel>
                       <FormControl>
-                        <Input {...field} maxLength={80} />
+                        <Input {...field} maxLength={64} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -1086,11 +1106,11 @@ export function FriendManage() {
                   control={linkForm.control}
                   name="groupId"
                   render={({ field }) => (
-                    <FormItem className="grid gap-2">
+                    <FormItem className="grid min-w-0 gap-2">
                       <FormLabel>{friendT('field_group')}</FormLabel>
                       <Select value={field.value} onValueChange={field.onChange}>
                         <FormControl>
-                          <SelectTrigger className="w-full">
+                          <SelectTrigger className="w-full min-w-0">
                             <SelectValue />
                           </SelectTrigger>
                         </FormControl>
@@ -1108,16 +1128,16 @@ export function FriendManage() {
                 />
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2">
                 <FormField
                   control={linkForm.control}
                   name="avatar"
                   rules={{ validate: v => v.trim() !== '' || friendT('field_avatar_required') }}
                   render={({ field }) => (
-                    <FormItem className="grid gap-2">
+                    <FormItem className="grid min-w-0 gap-2">
                       <FormLabel>{friendT('field_avatar')}</FormLabel>
                       <FormControl>
-                        <Input {...field} type="url" placeholder="https://example.com/avatar.png" />
+                        <Input {...field} type="text" inputMode="url" maxLength={512} placeholder="https://example.com/avatar.png" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -1128,10 +1148,10 @@ export function FriendManage() {
                   control={linkForm.control}
                   name="backlinkUrl"
                   render={({ field }) => (
-                    <FormItem className="grid gap-2">
+                    <FormItem className="grid min-w-0 gap-2">
                       <FormLabel>{friendT('field_backlink_url')}</FormLabel>
                       <FormControl>
-                        <Input {...field} type="url" placeholder="https://example.com/links" />
+                        <Input {...field} type="text" inputMode="url" maxLength={512} placeholder="https://example.com/links" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -1143,10 +1163,10 @@ export function FriendManage() {
                 control={linkForm.control}
                 name="description"
                 render={({ field }) => (
-                  <FormItem className="grid gap-2">
+                  <FormItem className="grid min-w-0 gap-2">
                     <FormLabel>{friendT('field_description')}</FormLabel>
                     <FormControl>
-                      <Textarea {...field} rows={2} maxLength={240} />
+                      <Textarea {...field} rows={2} maxLength={200} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -1204,10 +1224,10 @@ export function FriendManage() {
                 control={linkForm.control}
                 name="reviewNote"
                 render={({ field }) => (
-                  <FormItem className="grid gap-2">
+                  <FormItem className="grid min-w-0 gap-2">
                     <FormLabel>{t('field_review_note')}</FormLabel>
                     <FormControl>
-                      <Input {...field} maxLength={255} placeholder={t('field_review_note_placeholder')} />
+                      <Input {...field} maxLength={500} placeholder={t('field_review_note_placeholder')} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -1218,7 +1238,7 @@ export function FriendManage() {
                 control={linkForm.control}
                 name="colorKey"
                 render={({ field }) => (
-                  <FormItem className="grid gap-2">
+                  <FormItem className="grid min-w-0 gap-2">
                     <FormLabel>{friendT('field_color')}</FormLabel>
                     <FormControl>
                       <FriendColorPicker
@@ -1232,15 +1252,16 @@ export function FriendManage() {
                 )}
               />
 
-              <div className="grid gap-2">
+              <div className="grid min-w-0 gap-2">
                 <span className="text-xs font-medium text-muted-foreground">{friendT('live_preview')}</span>
-                <div className="max-w-sm">
+                <div className="max-w-sm min-w-0">
                   <FriendCard
                     interactive={false}
                     item={{
                       name: watchedLink.name,
                       url: watchedLink.url || 'https://example.com',
-                      avatar: watchedLink.avatar,
+                      avatar: previewLinkAvatar,
+                      avatarUrl: previewLinkAvatarUrl,
                       description: watchedLink.description,
                       colorKey: watchedLink.colorKey,
                       healthStatus: 'healthy',
@@ -1269,19 +1290,19 @@ export function FriendManage() {
       <Dialog open={rejectTarget !== null} onOpenChange={open => !open && setRejectTarget(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{t('reject_dialog_title', { name: rejectTarget?.name || '' })}</DialogTitle>
+            <DialogTitle className="wrap-anywhere">{t('reject_dialog_title', { name: rejectTarget?.name || '' })}</DialogTitle>
             <DialogDescription>{t('reject_dialog_desc')}</DialogDescription>
           </DialogHeader>
           <Form {...rejectForm}>
-            <form className="grid gap-4" onSubmit={rejectForm.handleSubmit(onSubmitReject)}>
+            <form className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4" onSubmit={rejectForm.handleSubmit(onSubmitReject)}>
               <FormField
                 control={rejectForm.control}
                 name="reviewNote"
                 render={({ field }) => (
-                  <FormItem className="grid gap-2">
+                  <FormItem className="grid min-w-0 gap-2">
                     <FormLabel>{t('field_review_note')}</FormLabel>
                     <FormControl>
-                      <Textarea {...field} rows={3} maxLength={255} placeholder={t('reject_note_placeholder')} />
+                      <Textarea {...field} rows={3} maxLength={500} placeholder={t('reject_note_placeholder')} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -1311,7 +1332,7 @@ export function FriendManage() {
           </DialogHeader>
 
           <Form {...groupForm}>
-            <form className="grid gap-4" onSubmit={groupForm.handleSubmit(onSubmitGroup)}>
+            <form className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4" onSubmit={groupForm.handleSubmit(onSubmitGroup)}>
               <FormField
                 control={groupForm.control}
                 name="presetKey"
@@ -1346,7 +1367,7 @@ export function FriendManage() {
                 )}
               />
 
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2">
                 <FormField
                   control={groupForm.control}
                   name="name"
@@ -1354,12 +1375,12 @@ export function FriendManage() {
                     validate: v => watchedPreset !== 'custom' || v.trim() !== '' || t('group_name_required'),
                   }}
                   render={({ field }) => (
-                    <FormItem className="grid gap-2">
+                    <FormItem className="grid min-w-0 gap-2">
                       <FormLabel>{t('col_group_name')}</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
-                          maxLength={80}
+                          maxLength={64}
                           placeholder={watchedPreset === 'custom' ? t('custom_group_name_placeholder') : t('preset_name_optional')}
                         />
                       </FormControl>
@@ -1372,10 +1393,10 @@ export function FriendManage() {
                   control={groupForm.control}
                   name="slug"
                   rules={{
-                    validate: v => /^[a-z0-9][a-z0-9_-]*$/.test(v.trim()) || t('group_slug_invalid'),
+                    validate: v => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(v.trim().toLowerCase()) || t('group_slug_invalid'),
                   }}
                   render={({ field }) => (
-                    <FormItem className="grid gap-2">
+                    <FormItem className="grid min-w-0 gap-2">
                       <FormLabel>{t('col_slug')}</FormLabel>
                       <FormControl>
                         <Input {...field} maxLength={64} placeholder="my-friends" />
@@ -1390,13 +1411,13 @@ export function FriendManage() {
                 control={groupForm.control}
                 name="description"
                 render={({ field }) => (
-                  <FormItem className="grid gap-2">
+                  <FormItem className="grid min-w-0 gap-2">
                     <FormLabel>{friendT('field_description')}</FormLabel>
                     <FormControl>
                       <Textarea
                         {...field}
                         rows={2}
-                        maxLength={240}
+                        maxLength={255}
                         placeholder={t('group_desc_placeholder')}
                       />
                     </FormControl>
@@ -1456,13 +1477,13 @@ export function FriendManage() {
       <Dialog open={transferTarget !== null} onOpenChange={open => !open && setTransferTarget(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{t('transfer_dialog_title', { name: transferTarget?.name || '' })}</DialogTitle>
+            <DialogTitle className="wrap-anywhere">{t('transfer_dialog_title', { name: transferTarget?.name || '' })}</DialogTitle>
             <DialogDescription>{t('transfer_dialog_desc')}</DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-3">
-            <div className="flex items-center justify-between gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-xs">
-              <span className="text-muted-foreground">
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-xs">
+              <span className="min-w-0 truncate text-muted-foreground">
                 {t('transfer_current_owner', {
                   owner: transferTarget?.user?.username ? `@${transferTarget.user.username}` : t('submitter_system'),
                 })}
@@ -1472,7 +1493,7 @@ export function FriendManage() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="h-7 px-2 text-xs"
+                  className="h-7 shrink-0 px-2 text-xs"
                   disabled={transferring}
                   onClick={() => handleTransferOwner(0)}
                 >
@@ -1481,7 +1502,7 @@ export function FriendManage() {
               )}
             </div>
 
-            <div className="relative">
+            <div className="relative min-w-0">
               <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={userKeyword}
@@ -1491,7 +1512,7 @@ export function FriendManage() {
               />
             </div>
 
-            <div className="grid max-h-60 gap-1 overflow-y-auto">
+            <div className="grid max-h-60 min-w-0 grid-cols-[minmax(0,1fr)] gap-1 overflow-y-auto">
               {usersLoading && candidateUsers.length === 0
                 ? (
                     <div className="grid gap-1.5 py-2">

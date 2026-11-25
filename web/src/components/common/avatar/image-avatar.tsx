@@ -8,6 +8,8 @@ import { defaultAvatarQuality } from '@/utils/common/image'
 
 export interface ImageAvatarProps {
   src?: string | null
+  // 主图加载失败时自动尝试的备用地址（例如后端缩略缓存被上游风控拦截时回退浏览器直连原图）
+  fallbackSrc?: string | null
   alt?: string
   // 图片缺失或加载失败时显示的内容（首字母、图标等）
   fallback?: React.ReactNode
@@ -35,19 +37,29 @@ type LoadStatus = 'loading' | 'loaded' | 'error'
  * 站内图片按 sizes 取缩小后的尺寸。不用 Radix Avatar：它要等水合后在 effect 里预加载成功才挂上 \<img\>，
  * 头像（尤其是首屏侧栏的站长头像）要等整页脚本下载、执行完才开始加载
  */
-export function ImageAvatar({ src, alt = '', fallback, className, imageClassName, fallbackClassName, fallbackStyle, fallbackDelayMs, sizes = '128px', eager, quality }: ImageAvatarProps) {
-  // 记录对应的地址，地址变化时自动回到加载中
-  const [state, setState] = useState<{ src?: string | null, status: LoadStatus }>({ src, status: 'loading' })
-  const status: LoadStatus = !src ? 'error' : state.src === src ? state.status : 'loading'
+export function ImageAvatar({ src, fallbackSrc, alt = '', fallback, className, imageClassName, fallbackClassName, fallbackStyle, fallbackDelayMs, sizes = '128px', eager, quality }: ImageAvatarProps) {
+  const candidates = [src, fallbackSrc].filter((item, index, list): item is string =>
+    !!item && list.indexOf(item) === index)
+  const candidateKey = candidates.join('\n')
+  // 记录当前候选链的失败级数与加载完成态，地址变化时自动重置
+  const [state, setState] = useState<{ key: string, failedCount: number, loaded: boolean }>({
+    key: candidateKey,
+    failedCount: 0,
+    loaded: false,
+  })
+  const failedCount = state.key === candidateKey ? state.failedCount : 0
+  const loaded = state.key === candidateKey ? state.loaded : false
+  const activeSrc = candidates[failedCount]
+  const status: LoadStatus = !activeSrc ? 'error' : loaded ? 'loaded' : 'loading'
   const [delayPassed, setDelayPassed] = useState(!fallbackDelayMs)
   useEffect(() => {
-    if (!fallbackDelayMs || !src)
+    if (!fallbackDelayMs || !activeSrc)
       return
     setDelayPassed(false)
     const timer = window.setTimeout(setDelayPassed, fallbackDelayMs, true)
     return () => window.clearTimeout(timer)
-  }, [fallbackDelayMs, src])
-  const showFallback = status === 'error' || (status === 'loading' && delayPassed)
+  }, [fallbackDelayMs, activeSrc])
+  const showFallback = status === 'error' || (status === 'loading' && (failedCount > 0 || delayPassed))
 
   return (
     <span data-slot="avatar" className={cn('relative flex size-8 shrink-0 overflow-hidden rounded-full', className)}>
@@ -60,9 +72,10 @@ export function ImageAvatar({ src, alt = '', fallback, className, imageClassName
           {fallback}
         </span>
       )}
-      {src && status !== 'error' && (
+      {activeSrc && (
         <SafeImage
-          src={src}
+          key={activeSrc}
+          src={activeSrc}
           alt={alt}
           fill
           sizes={sizes}
@@ -73,9 +86,31 @@ export function ImageAvatar({ src, alt = '', fallback, className, imageClassName
           data-slot="avatar-image"
           // text-transparent：水合前就加载失败时不露出替代文字（水合后换成兜底内容）
           className={cn('aspect-square size-full object-cover text-transparent', imageClassName)}
-          // 加载失败的图片在水合前就「加载完」时，next/image 也会按加载成功回调，这里按图片实际尺寸再判断一次
-          onLoad={event => setState({ src, status: event.currentTarget.naturalWidth > 0 ? 'loaded' : 'error' })}
-          onError={() => setState({ src, status: 'error' })}
+          // 水合前就结束的图片由 next/image 重放回调：有固有尺寸直接标记成功；naturalWidth === 0 时用 img.decode() 区分合法无宽高 SVG 与水合前 404 坏图
+          onLoad={(event) => {
+            const imgEl = event.currentTarget
+            if (imgEl.naturalWidth > 0) {
+              setState({ key: candidateKey, failedCount, loaded: true })
+              return
+            }
+            if (typeof imgEl.decode === 'function') {
+              imgEl.decode().then(
+                () => {
+                  setState(prev => (prev.key === candidateKey && prev.failedCount === failedCount)
+                    ? { key: candidateKey, failedCount, loaded: true }
+                    : prev)
+                },
+                () => {
+                  setState(prev => (prev.key === candidateKey && prev.failedCount === failedCount)
+                    ? { key: candidateKey, failedCount: failedCount + 1, loaded: false }
+                    : prev)
+                },
+              )
+              return
+            }
+            setState({ key: candidateKey, failedCount: failedCount + 1, loaded: false })
+          }}
+          onError={() => setState({ key: candidateKey, failedCount: failedCount + 1, loaded: false })}
         />
       )}
     </span>

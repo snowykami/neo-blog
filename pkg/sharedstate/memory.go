@@ -8,7 +8,10 @@ import (
 )
 
 // memoryMaxItems 进程内存储的条目上限：满时先清理过期项，仍满则随机淘汰
-const memoryMaxItems = 100000
+const (
+	memoryMaxItems       = 100000
+	memoryMaxAvatarItems = 1024 // 单机内存模式下友链缩略图最多保留 1024 条（上限约 64 MiB），防止挤占业务内存
+)
 
 type memoryItem struct {
 	value    string
@@ -52,6 +55,7 @@ func (m *memoryStore) getLocked(key string, now time.Time) (memoryItem, bool) {
 func isProtectedMemoryKey(key string) bool {
 	return strings.HasPrefix(key, "lock:") ||
 		strings.HasPrefix(key, "lease") ||
+		strings.HasPrefix(key, "rate_limit:") ||
 		strings.HasPrefix(key, "task_round:") ||
 		strings.HasPrefix(key, "storage_migration:") ||
 		strings.HasPrefix(key, "ai_summary:") ||
@@ -60,13 +64,43 @@ func isProtectedMemoryKey(key string) bool {
 }
 
 func (m *memoryStore) putLocked(key string, item memoryItem, now time.Time) {
+	if _, exists := m.items[key]; !exists && strings.HasPrefix(key, "friend_avatar:") {
+		avatarCount := 0
+		for k, v := range m.items {
+			if strings.HasPrefix(k, "friend_avatar:") {
+				if v.expired(now) {
+					delete(m.items, k)
+				} else {
+					avatarCount++
+				}
+			}
+		}
+		for k := range m.items {
+			if avatarCount < memoryMaxAvatarItems {
+				break
+			}
+			if strings.HasPrefix(k, "friend_avatar:") {
+				delete(m.items, k)
+				avatarCount--
+			}
+		}
+	}
 	if _, exists := m.items[key]; !exists && len(m.items) >= memoryMaxItems {
 		for k, v := range m.items {
 			if v.expired(now) {
 				delete(m.items, k)
 			}
 		}
-		// 优先淘汰非锁/租约的普通缓存与限流计数，防止写满时误删互斥锁与任务令牌
+		// 先淘汰大体积友链头像缓存，再淘汰普通缓存，绝不误删锁、租约与限流计数
+		for k := range m.items {
+			if len(m.items) < memoryMaxItems {
+				break
+			}
+			if strings.HasPrefix(k, "friend_avatar:") {
+				delete(m.items, k)
+			}
+		}
+		// 优先淘汰非锁/租约的普通缓存，防止写满时误删互斥锁、限流计数与任务令牌
 		for k := range m.items {
 			if len(m.items) < memoryMaxItems {
 				break

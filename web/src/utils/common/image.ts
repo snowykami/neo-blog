@@ -79,6 +79,9 @@ export function shouldOptimize(src: ImageProps['src'] | null | undefined, hosts?
     return true
   if (UNOPTIMIZABLE_IMAGE_RE.test(src))
     return false
+  // 友链头像小图已由后端按展示尺寸（96×96）裁剪并缓存至 Redis，且可能返回 .ico / .svg，直连该站内接口即可避免二次转码或格式报错
+  if (src.startsWith('/api/v1/friends/avatar/'))
+    return false
   if (src.startsWith('/'))
     return !src.startsWith('//')
   try {

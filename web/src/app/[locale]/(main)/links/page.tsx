@@ -55,14 +55,14 @@ async function FriendsContent() {
 function FriendsSkeleton() {
   return (
     <SiteShell skeleton sidebar={<BlogSidebarSkeleton />}>
-      <div className="grid gap-4" aria-busy="true">
-        <div className="surface-card grid gap-3 rounded-2xl bg-card p-5 md:p-6">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4" aria-busy="true">
+        <div className="surface-card grid min-w-0 gap-3 rounded-2xl bg-card p-4 sm:p-5 md:p-6">
           <Skeleton className="h-7 w-40" />
           <Skeleton className="h-4 w-72 max-w-full" />
         </div>
-        <div className="surface-card grid gap-4 rounded-2xl bg-card p-5 md:p-6">
+        <div className="surface-card grid min-w-0 gap-4 rounded-2xl bg-card p-4 sm:p-5 md:p-6">
           <Skeleton className="h-6 w-28" />
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }, (_, i) => (
               <Skeleton key={i} className="h-[74px] w-full rounded-xl" />
             ))}

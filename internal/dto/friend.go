@@ -35,6 +35,7 @@ type FriendLinkPublicDto struct {
 	Name         string `json:"name"`
 	URL          string `json:"url"`
 	Avatar       string `json:"avatar"`
+	AvatarURL    string `json:"avatar_url"`
 	Description  string `json:"description"`
 	ColorKey     string `json:"color_key"`
 	SortOrder    int    `json:"sort_order"`
@@ -49,6 +50,7 @@ type FriendLinkMineDto struct {
 	Name         string    `json:"name"`
 	URL          string    `json:"url"`
 	Avatar       string    `json:"avatar"`
+	AvatarURL    string    `json:"avatar_url"`
 	Description  string    `json:"description"`
 	ColorKey     string    `json:"color_key"`
 	BacklinkURL  string    `json:"backlink_url"`
@@ -69,6 +71,7 @@ type FriendLinkAdminDto struct {
 	Name           string         `json:"name"`
 	URL            string         `json:"url"`
 	Avatar         string         `json:"avatar"`
+	AvatarURL      string         `json:"avatar_url"`
 	Description    string         `json:"description"`
 	ColorKey       string         `json:"color_key"`
 	BacklinkURL    string         `json:"backlink_url"`
