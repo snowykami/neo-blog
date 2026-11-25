@@ -135,6 +135,8 @@ func main() {
 	tasks.StartNotificationCleanup()
 	// 公开搜索索引启动检查与定期轻量对账（未启用 Meilisearch 时为空操作）
 	tasks.StartSearchSync()
+	// 定期拨测已公开友链的可达性与延迟
+	tasks.StartFriendLinksProbe()
 
 	err = router.Run(ctx)
 	service.FlushPostViewCounts()

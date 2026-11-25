@@ -11,7 +11,7 @@ const LoginDialogModal = dynamic(
 )
 
 /** 触发快捷登录的操作，决定弹窗里的提示文案 */
-export type LoginReason = 'like' | 'reply' | 'comment'
+export type LoginReason = 'like' | 'reply' | 'comment' | 'friend_link'
 
 /** 弹窗的两个视图：登录（含第三方登录）与注册 */
 export type AuthDialogMode = 'login' | 'register'

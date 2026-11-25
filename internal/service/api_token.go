@@ -48,7 +48,7 @@ func RoleAllowsScope(role constant.Role, scope string) bool {
 		return true
 	case constant.ScopePostsWrite, constant.ScopePostsPublish:
 		return role == constant.RoleAdmin || role == constant.RoleEditor
-	case constant.ScopeAIAgentsRead, constant.ScopeAIAgentsWrite:
+	case constant.ScopeAIAgentsRead, constant.ScopeAIAgentsWrite, constant.ScopeFriendsRead, constant.ScopeFriendsWrite:
 		return role == constant.RoleAdmin
 	case constant.ScopeCommentsWrite, constant.ScopeLikesWrite, constant.ScopeProfileWrite:
 		// 普通用户在网页上本来就能评论、点赞、改资料；这些范围只授予执行中的 AI 用户运行

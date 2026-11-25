@@ -32,9 +32,10 @@ var redisKeyGroups = map[string]string{
 	"session_touch": "sessions", "session_ip": "sessions",
 	"rate_limit": "rate_limits", "global_search": "rate_limits",
 	"lock": "locks", "task_round": "locks", "storage_migration": "locks", "search_reindex": "locks", "search_settings": "locks",
-	"ai": "ai", "ai_call": "ai", "ai_summary": "ai", "lyric_annotation": "ai",
+	"ai": "ai", "ai_call": "ai", "ai_summary": "ai", "lyric_annotation": "ai", "friend_autofill": "ai",
 	"runtime_metrics": "metrics", "fe_runtime_metrics": "metrics", "dependency_metrics": "metrics", "search_stats": "metrics",
 	"oidc_state": "auth", "verify_email": "auth", "verify_email_ip": "auth",
+	"friend_review": "locks",
 }
 
 // redisCounters Redis 自启动以来的累计计数

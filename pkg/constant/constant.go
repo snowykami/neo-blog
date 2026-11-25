@@ -156,10 +156,13 @@ const (
 
 	ScopeAIAgentsRead  = "ai_agents:read"  // 查找、读取 AI 用户的资料、性格档案与运行记录（仅管理员）
 	ScopeAIAgentsWrite = "ai_agents:write" // 按导入文件新建或更新 AI 用户、试运行（仅管理员）
+
+	ScopeFriendsRead  = "friends:read"  // 跨站读取友链（含非公开私有分组，仅管理员）
+	ScopeFriendsWrite = "friends:write" // 管理友链与分组（仅管理员）
 )
 
 // APITokenScopes 全部可选的 API Token 权限范围
-var APITokenScopes = []string{ScopePostsRead, ScopePostsWrite, ScopePostsPublish, ScopeFilesWrite, ScopeAIAgentsRead, ScopeAIAgentsWrite}
+var APITokenScopes = []string{ScopePostsRead, ScopePostsWrite, ScopePostsPublish, ScopeFilesWrite, ScopeAIAgentsRead, ScopeAIAgentsWrite, ScopeFriendsRead, ScopeFriendsWrite}
 
 // AI 用户：由 Agent 驱动、与普通用户同权限的账号（users.is_ai = true）
 const (
@@ -210,6 +213,7 @@ const (
 	LLMPurposeWriting           = "writing"            // 编辑器 AI 写作（帮写 / 润色）
 	LLMPurposeTranslation       = "translation"        // 评论翻译
 	LLMPurposeCommentModeration = "comment_moderation" // 评论 AI 内容审查（含二阶错误归因）
+	LLMPurposeFriendLink        = "friend_link"        // 友链 AI 自动填写与初审
 	LLMPurposeLyricAnnotation   = "lyric_annotation"   // 歌词标注
 	LLMPurposeAIAgent           = "ai_agent"           // AI 用户的运行（worker 调用）
 	LLMPurposeAIAgentMemory     = "ai_agent_memory"    // AI 用户的记忆整理（后台任务）
@@ -219,7 +223,7 @@ const (
 
 // LLMPurposes 全部用途，用量统计按此顺序输出
 var LLMPurposes = []string{
-	LLMPurposeSummary, LLMPurposeWriting, LLMPurposeTranslation, LLMPurposeCommentModeration, LLMPurposeLyricAnnotation,
+	LLMPurposeSummary, LLMPurposeWriting, LLMPurposeTranslation, LLMPurposeCommentModeration, LLMPurposeFriendLink, LLMPurposeLyricAnnotation,
 	LLMPurposeAIAgent, LLMPurposeAIAgentMemory, LLMPurposeAIAgentPersona, LLMPurposeOther,
 }
 

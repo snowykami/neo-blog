@@ -1,7 +1,7 @@
 // 全站模型调用用量（后台「系统运行」页的 AI 用量卡片）
 
 // 调用用途：与后端 constant.LLMPurpose* 一致
-export const AI_USAGE_PURPOSES = ['summary', 'writing', 'translation', 'comment_moderation', 'lyric_annotation', 'ai_agent', 'ai_agent_memory', 'ai_agent_persona', 'other'] as const
+export const AI_USAGE_PURPOSES = ['summary', 'writing', 'translation', 'comment_moderation', 'friend_link', 'lyric_annotation', 'ai_agent', 'ai_agent_memory', 'ai_agent_persona', 'other'] as const
 export type AIUsagePurpose = (typeof AI_USAGE_PURPOSES)[number]
 
 export interface AIUsagePurposeTotal {

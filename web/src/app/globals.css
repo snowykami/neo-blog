@@ -157,10 +157,7 @@
   --secondary-active: oklch(0.86 calc(0.02 + var(--chroma) * 0.18) var(--hue));
   --primary-soft: oklch(var(--primary-l) var(--chroma) var(--hue) / 0.12);
   --primary-active: oklch(var(--primary-l) var(--chroma) var(--hue) / 0.8);
-  --post-title-fg: oklch(0.305 0.018 var(--hue));
   --post-summary-fg: oklch(0.445 0.015 var(--hue));
-  --post-subtle-fg: oklch(0.63 0.012 var(--hue));
-  --post-divider-fg: oklch(0.78 0.008 var(--hue));
 
   /* 前台卡片表面层次：1px 极淡中性内沿描边 + 单层柔光微阴影（收敛模糊半径与层数，降低多卡片滚动光栅化开销） */
   --surface-shadow:
@@ -205,10 +202,7 @@
   --secondary-active: oklch(0.35 calc(0.028 + var(--chroma) * 0.18) var(--hue));
   --primary-soft: oklch(var(--primary-l-dark) var(--chroma) var(--hue) / 0.15);
   --primary-active: oklch(var(--primary-l-dark) var(--chroma) var(--hue) / 0.8);
-  --post-title-fg: oklch(0.875 0.01 var(--hue));
   --post-summary-fg: oklch(0.78 0.012 var(--hue));
-  --post-subtle-fg: oklch(0.58 0.014 var(--hue));
-  --post-divider-fg: oklch(0.46 0.014 var(--hue));
 
   /* 深色前台卡片：1px 微弱内沿高光环 + 柔和暗部投影 */
   --surface-shadow:
@@ -243,10 +237,7 @@ html[data-console],
   --sidebar-foreground: var(--foreground);
   --sidebar-border: var(--border);
   --card-pinned: oklch(0.985 0.002 260);
-  --post-title-fg: oklch(0.28 0.006 260);
   --post-summary-fg: oklch(0.43 0.007 260);
-  --post-subtle-fg: oklch(0.62 0.006 260);
-  --post-divider-fg: oklch(0.78 0.004 260);
 }
 
 html.dark[data-console],
@@ -267,10 +258,7 @@ html.dark[data-console],
   --sidebar-foreground: var(--foreground);
   --sidebar-border: var(--border);
   --card-pinned: oklch(0.215 0.005 260);
-  --post-title-fg: oklch(0.89 0.004 260);
   --post-summary-fg: oklch(0.78 0.005 260);
-  --post-subtle-fg: oklch(0.57 0.005 260);
-  --post-divider-fg: oklch(0.44 0.005 260);
 }
 
 html[data-console] body {
@@ -354,6 +342,41 @@ html[data-theme] .bg-primary {
 .post-title-peer:active ~ .post-enter-slot {
   background-color: var(--secondary-active);
   color: var(--primary);
+}
+
+/* 友链卡片（清透双态 32 色）：按预设色的色相 --fl-h 与彩度 --fl-c 在亮/暗模式下分别派生柔和底色与高对比前景，保证全色域对比度 ≥ 5.5:1 */
+.friend-card-adaptive {
+  background-color: oklch(0.958 calc(var(--fl-c, 0.14) * 0.26) var(--fl-h, 235));
+  box-shadow:
+    inset 0 0 0 1px oklch(0.86 calc(var(--fl-c, 0.14) * 0.42) var(--fl-h, 235) / 0.72),
+    0 2px 8px -2px oklch(0.35 calc(var(--fl-c, 0.14) * 0.3) var(--fl-h, 235) / 0.08);
+  color: oklch(0.24 calc(var(--fl-c, 0.14) * 0.3) var(--fl-h, 235));
+  --fl-desc: oklch(0.45 calc(var(--fl-c, 0.14) * 0.2) var(--fl-h, 235));
+  --fl-sig: oklch(0.42 calc(var(--fl-c, 0.14) * 0.45) var(--fl-h, 235));
+  --fl-avatar-bg: oklch(0.56 max(var(--fl-c, 0.14), 0.08) var(--fl-h, 235));
+}
+
+@media (hover: hover) {
+  .friend-card-adaptive:hover {
+    background-color: oklch(0.935 calc(var(--fl-c, 0.14) * 0.34) var(--fl-h, 235));
+  }
+}
+
+.dark .friend-card-adaptive {
+  background-color: oklch(0.255 calc(var(--fl-c, 0.14) * 0.32) var(--fl-h, 235));
+  box-shadow:
+    inset 0 0 0 1px oklch(0.48 calc(var(--fl-c, 0.14) * 0.48) var(--fl-h, 235) / 0.42),
+    0 4px 12px -3px rgba(0, 0, 0, 0.34);
+  color: oklch(0.94 calc(var(--fl-c, 0.14) * 0.12) var(--fl-h, 235));
+  --fl-desc: oklch(0.75 calc(var(--fl-c, 0.14) * 0.14) var(--fl-h, 235));
+  --fl-sig: oklch(0.78 calc(var(--fl-c, 0.14) * 0.42) var(--fl-h, 235));
+  --fl-avatar-bg: oklch(0.48 max(var(--fl-c, 0.14), 0.08) var(--fl-h, 235));
+}
+
+@media (hover: hover) {
+  .dark .friend-card-adaptive:hover {
+    background-color: oklch(0.285 calc(var(--fl-c, 0.14) * 0.38) var(--fl-h, 235));
+  }
 }
 
 /* 隐藏滚动条但保留滚动能力（用于目录等局部滚动区域） */

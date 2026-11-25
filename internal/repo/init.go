@@ -319,6 +319,8 @@ var models = []any{
 	&model.EditSession{},
 	&model.ErrorEvent{},
 	&model.ErrorIssue{},
+	&model.FriendGroup{},
+	&model.FriendLink{},
 	&model.InteractionEvent{},
 	&model.Label{},
 	&model.Like{},
@@ -356,7 +358,10 @@ func migrate() error {
 	if err := runMigrations(); err != nil {
 		return err
 	}
-	return seedDefaultAIPrompts()
+	if err := seedDefaultAIPrompts(); err != nil {
+		return err
+	}
+	return seedDefaultFriendGroups()
 }
 
 // createQueryIndexes 为常用查询补充组合索引（gorm.Model 内的字段无法通过标签声明组合索引）
@@ -391,6 +396,8 @@ func createQueryIndexesWithDB(tx *gorm.DB) error {
 		"CREATE INDEX IF NOT EXISTS idx_post_labels_label_post ON post_labels (label_id, post_id)",
 		// 通知：未读徽标与未读列表（read_at 为 NULL 时的等值查询走索引前缀）
 		"CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications (user_id, read_at, id)",
+		// 友链：按分组与审核状态查询公开列表并按权重排序
+		"CREATE INDEX IF NOT EXISTS idx_friend_links_group_status_sort ON friend_links (group_id, status, sort_order, id)",
 	}
 	for _, sql := range indexes {
 		if err := tx.Exec(sql).Error; err != nil {

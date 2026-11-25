@@ -1,12 +1,11 @@
 import type { CommentAttachment, CommentMention } from '@/models/comment'
 import type { UserBrief } from '@/models/user'
-import { AtSign, Loader2, Lock, LogIn, Monitor, X } from 'lucide-react'
+import { AtSign, Loader2, Lock, Monitor, X } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useId, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { toast } from 'sonner'
-import { useLoginDialog } from '@/components/auth/login-dialog'
-import { OidcProviderButtons, useOidcProviders } from '@/components/auth/oidc-providers'
-import { GuestAvatar, UserAvatar } from '@/components/common/avatar'
+import { GuestLoginInvite } from '@/components/auth/guest-login-invite'
+import { UserAvatar } from '@/components/common/avatar'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
@@ -16,7 +15,7 @@ import { Toggle } from '@/components/ui/toggle'
 import { useAuth } from '@/contexts/auth-context'
 import { pastedFilesOf, withPastedFileNames } from '@/hooks/use-clipboard-file-paste'
 import { useOperationT } from '@/hooks/use-translations'
-import { Link, usePathname } from '@/i18n/navigation'
+import { Link } from '@/i18n/navigation'
 import { isComposingKey } from '@/lib/ime'
 import { cn } from '@/lib/utils'
 import { highlightMentions, mentionsUser } from '@/utils/common/mention'
@@ -401,37 +400,14 @@ export interface CommentSubmitPayload {
   mentionUserIds: number[]
 }
 
-// 未登录时的登录邀请：后台已启用的第三方登录与快捷登录按钮，不再显示游客用不了的输入框和选项
+// 未登录时的登录邀请：复用通用 GuestLoginInvite 组件
 function GuestInvite() {
   const t = useTranslations('Comment')
-  const operationT = useOperationT()
-  const openLogin = useLoginDialog()
-  const pathname = usePathname()
-  const { refresh } = useAuth()
-  // 读取失败时只显示登录按钮
-  const { providers } = useOidcProviders()
-
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-dashed border-primary/30 bg-primary/5 p-4 fade-in-up sm:flex-nowrap">
-      <GuestAvatar />
-      <div className="min-w-0 flex-1">
-        <p className="font-semibold">{t('guest_title')}</p>
-        <p className="text-sm text-muted-foreground">{t('guest_desc')}</p>
-      </div>
-      <div className="flex w-full items-center gap-2 sm:w-auto">
-        {/* 第三方登录在小窗里完成，本页不离开（见 components/auth/oidc-popup.ts） */}
-        <OidcProviderButtons
-          providers={providers}
-          redirectBack={pathname}
-          variant="icon"
-          mode="popup"
-          onLoggedIn={() => refresh()}
-        />
-        <Button type="button" className="flex-1 sm:flex-none" onClick={() => openLogin({ reason: 'comment' })}>
-          <LogIn />
-          {operationT('login')}
-        </Button>
-      </div>
-    </div>
+    <GuestLoginInvite
+      title={t('guest_title')}
+      description={t('guest_desc')}
+      reason="comment"
+    />
   )
 }

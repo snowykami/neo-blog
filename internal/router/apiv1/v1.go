@@ -10,6 +10,7 @@ func RegisterRoutes(h *server.Hertz) {
 		registerCommentRoutes(apiV1Group)
 		registerAdminRoutes(apiV1Group)
 		registerFileRoutes(apiV1Group)
+		registerFriendRoutes(apiV1Group)
 		registerLabelRoutes(apiV1Group)
 		registerLikeRoutes(apiV1Group)
 		registerMCPRoutes(apiV1Group)

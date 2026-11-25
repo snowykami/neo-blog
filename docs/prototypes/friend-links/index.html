@@ -1,0 +1,1886 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>友链系统 (/friends & /console/friends) · 交互原型</title>
+<style>
+  /* ==========================================================================
+   * 1. 设计 Token（严格对齐 web/src/app/globals.css 三档文字色与表面阴影）
+   * ======================================================================== */
+  :root {
+    --hue: 250;
+    --chroma: 0.14;
+    --primary-l: 0.55;
+    --radius: 0.625rem;
+    color-scheme: light;
+
+    --background: oklch(0.96 0.01 var(--hue));
+    --foreground: oklch(0.22 0.02 var(--hue));
+    --card: oklch(1 0 0);
+    --card-foreground: var(--foreground);
+    --primary: oklch(var(--primary-l) var(--chroma) var(--hue));
+    --primary-foreground: oklch(0.98 0.01 var(--hue));
+    --primary-soft: oklch(var(--primary-l) var(--chroma) var(--hue) / 0.12);
+    --secondary: oklch(0.95 0.025 var(--hue));
+    --secondary-foreground: oklch(0.45 var(--chroma) var(--hue));
+    --muted: oklch(0.95 0.01 var(--hue));
+    --muted-foreground: oklch(0.5 0.02 var(--hue));
+    --post-summary-fg: oklch(0.445 0.015 var(--hue));
+    --border: oklch(0.9 0.01 var(--hue));
+    --surface-shadow: 0px 0px 0px 1px rgba(15, 23, 42, 0.05), 0px 4px 12px -2px rgba(15, 23, 42, 0.06);
+
+    --ok-fg: oklch(0.46 0.14 152);
+    --ok-bg: oklch(0.95 0.04 152);
+    --warn-fg: oklch(0.50 0.14 75);
+    --warn-bg: oklch(0.96 0.04 80);
+    --err-fg: oklch(0.52 0.18 25);
+    --err-bg: oklch(0.95 0.035 25);
+  }
+
+  html.dark {
+    color-scheme: dark;
+    --background: oklch(0.16 0.014 var(--hue));
+    --foreground: oklch(0.93 0.01 var(--hue));
+    --card: oklch(0.23 0.015 var(--hue));
+    --card-foreground: var(--foreground);
+    --primary: oklch(0.75 var(--chroma) var(--hue));
+    --primary-foreground: oklch(0.2 0.03 var(--hue));
+    --primary-soft: oklch(0.75 var(--chroma) var(--hue) / 0.15);
+    --secondary: oklch(0.33 0.035 var(--hue));
+    --secondary-foreground: oklch(0.85 0.08 var(--hue));
+    --muted: oklch(0.27 0.015 var(--hue));
+    --muted-foreground: oklch(0.7 0.015 var(--hue));
+    --post-summary-fg: oklch(0.78 0.012 var(--hue));
+    --border: oklch(1 0 0 / 10%);
+    --surface-shadow: 0px 0px 0px 1px rgba(255, 255, 255, 0.065), 0px 6px 16px -4px rgba(0, 0, 0, 0.36);
+
+    --ok-fg: oklch(0.78 0.13 152);
+    --ok-bg: oklch(0.28 0.05 152);
+    --warn-fg: oklch(0.82 0.13 80);
+    --warn-bg: oklch(0.29 0.05 80);
+    --err-fg: oklch(0.78 0.15 25);
+    --err-bg: oklch(0.28 0.05 25);
+  }
+
+  /* 后台控制台视图解耦高彩度底色（对齐 html[data-console]） */
+  body[data-surface="console"] {
+    --background: oklch(0.965 0.002 260);
+    --foreground: oklch(0.2 0.006 260);
+    --card: oklch(1 0 0);
+    --muted: oklch(0.945 0.003 260);
+    --muted-foreground: oklch(0.48 0.008 260);
+    --border: oklch(0.905 0.003 260);
+  }
+  html.dark body[data-surface="console"] {
+    --background: oklch(0.145 0.004 260);
+    --foreground: oklch(0.94 0.004 260);
+    --card: oklch(0.195 0.005 260);
+    --muted: oklch(0.24 0.005 260);
+    --muted-foreground: oklch(0.68 0.006 260);
+    --border: oklch(1 0 0 / 9%);
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--background);
+    color: var(--foreground);
+    font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  .num { font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted-foreground); }
+
+  /* ==========================================================================
+   * 2. 顶部原型调试控制台（切换前后台、亮暗、色板渲染方案、16/32色、i18n、登录态）
+   * ======================================================================== */
+  .proto-bar {
+    position: sticky;
+    top: 0;
+    z-index: 60;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 14px;
+    padding: 9px 20px;
+    background: color-mix(in oklch, var(--card) 88%, transparent);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    font-size: 12.5px;
+  }
+  .proto-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    font-size: 13.5px;
+    margin-right: 4px;
+  }
+  .proto-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 99px;
+    background: var(--primary);
+  }
+  .proto-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .proto-group > span {
+    color: var(--muted-foreground);
+    font-size: 12px;
+  }
+  .seg {
+    display: inline-flex;
+    padding: 2px;
+    gap: 2px;
+    border-radius: 8px;
+    background: color-mix(in oklch, var(--foreground) 6%, transparent);
+  }
+  .seg button {
+    border: 0;
+    background: transparent;
+    padding: 3px 9px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted-foreground);
+    transition: background-color .15s, color .15s;
+    white-space: nowrap;
+  }
+  .seg button:hover { color: var(--foreground); }
+  .seg button[aria-pressed="true"] {
+    background: var(--card);
+    color: var(--foreground);
+    box-shadow: 0 1px 2px rgba(0,0,0,.08);
+  }
+  .proto-spacer { flex: 1; min-width: 8px; }
+
+  /* ==========================================================================
+   * 3. 1:1 复刻 shadcn TabsList variant="underline"（对齐截图 概览 | 访客统计 | 访客记录）
+   * ======================================================================== */
+  .underline-tabs-wrap {
+    position: sticky;
+    top: 47px;
+    z-index: 40;
+    background: color-mix(in oklch, var(--background) 88%, transparent);
+    backdrop-filter: blur(12px);
+    padding-top: 6px;
+    margin-bottom: 6px;
+  }
+  .underline-tabs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 40px;
+    border-bottom: 1px solid color-mix(in oklch, var(--foreground) 10%, transparent);
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 1px;
+    scrollbar-width: none;
+  }
+  .underline-tabs::-webkit-scrollbar { display: none; }
+  .u-tab {
+    position: relative;
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 100%;
+    margin-bottom: -1px;
+    padding: 4px 12px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: color-mix(in oklch, var(--foreground) 60%, transparent);
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: color .15s, border-color .15s;
+  }
+  .u-tab:hover { color: var(--foreground); }
+  .u-tab[aria-selected="true"] {
+    color: var(--foreground);
+    border-bottom-color: var(--primary);
+    font-weight: 600;
+  }
+  .u-tab svg { width: 16px; height: 16px; flex: none; }
+  .u-tab .tab-count {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted-foreground);
+    margin-left: 1px;
+  }
+  .u-tab .tab-alert {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 99px;
+    font-size: 11px;
+    font-weight: 600;
+    background: var(--warn-bg);
+    color: var(--warn-fg);
+  }
+
+  /* ==========================================================================
+   * 4. 页面主体容器与通用 Surface Card
+   * ======================================================================== */
+  .shell {
+    max-width: 1020px;
+    margin: 0 auto;
+    padding: 24px 20px 72px;
+  }
+  .surface-card {
+    background: var(--card);
+    border-radius: 16px;
+    box-shadow: var(--surface-shadow);
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 34px;
+    padding: 0 13px;
+    border-radius: 9px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--foreground);
+    font-size: 13px;
+    font-weight: 500;
+    transition: background-color .15s, border-color .15s, color .15s;
+    white-space: nowrap;
+  }
+  .btn:hover { background: var(--muted); }
+  .btn svg { width: 15px; height: 15px; }
+  .btn-primary {
+    background: var(--primary);
+    color: var(--primary-foreground);
+    border-color: transparent;
+  }
+  .btn-primary:hover { opacity: 0.92; background: var(--primary); }
+  .btn-secondary {
+    background: var(--secondary);
+    color: var(--secondary-foreground);
+    border-color: transparent;
+  }
+  .btn-secondary:hover { opacity: 0.88; background: var(--secondary); }
+  .btn-sm { height: 28px; padding: 0 9px; font-size: 12px; border-radius: 7px; }
+  .btn-ghost { border-color: transparent; background: transparent; color: var(--muted-foreground); }
+  .btn-ghost:hover { background: var(--muted); color: var(--foreground); }
+
+  /* ==========================================================================
+   * 5. 前台 /friends 页头、分组区块与借鉴 Aria 的染色友链卡片
+   * ======================================================================== */
+  .friends-hero {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 14px;
+  }
+  .friends-hero h1 {
+    margin: 0;
+    font-size: 26px;
+    line-height: 1.25;
+    font-weight: 750;
+    letter-spacing: -0.02em;
+  }
+  .friends-hero p {
+    margin: 5px 0 0;
+    font-size: 14px;
+    color: var(--muted-foreground);
+  }
+  .hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .groups-stack {
+    display: grid;
+    gap: 28px;
+    margin-top: 18px;
+  }
+  .group-section {
+    scroll-margin-top: 102px; /* 预留原型顶栏 + 吸顶 underline 标签栏高度 */
+    display: grid;
+    gap: 12px;
+  }
+  .group-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .group-title-wrap {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .group-title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .group-title::before {
+    content: "";
+    width: 4px;
+    height: 16px;
+    border-radius: 4px;
+    background: var(--primary);
+  }
+  .group-count {
+    font-size: 12px;
+    color: var(--muted-foreground);
+  }
+  .group-desc {
+    margin: 0;
+    font-size: 13px;
+    color: var(--muted-foreground);
+  }
+
+  .flink-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
+    gap: 12px;
+  }
+
+  /* 友链卡片（3 种色彩渲染策略实时对比） */
+  .flink-card {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 13px 14px;
+    border-radius: 14px;
+    text-decoration: none;
+    transition: transform .16s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow .16s ease, background-color .16s ease;
+    overflow: hidden;
+    min-height: 74px;
+  }
+  .flink-card:hover {
+    transform: translateY(-2px);
+  }
+
+  /* 策略 A（默认推荐）：OKLCH 亮/暗双态自适应清透卡片 —— 全 32 色保证 >= 5.8:1 对比度 */
+  body[data-color-mode="adaptive-soft"] .flink-card {
+    background: oklch(0.958 calc(var(--fl-c) * 0.26) var(--fl-h));
+    box-shadow: inset 0 0 0 1px oklch(0.86 calc(var(--fl-c) * 0.42) var(--fl-h) / 0.72), 0 2px 8px -2px oklch(0.35 calc(var(--fl-c) * 0.3) var(--fl-h) / 0.08);
+    color: oklch(0.24 calc(var(--fl-c) * 0.30) var(--fl-h));
+    --fl-desc: oklch(0.45 calc(var(--fl-c) * 0.20) var(--fl-h));
+    --fl-sig: oklch(0.42 calc(var(--fl-c) * 0.45) var(--fl-h));
+  }
+  body[data-color-mode="adaptive-soft"] .flink-card:hover {
+    background: oklch(0.935 calc(var(--fl-c) * 0.34) var(--fl-h));
+  }
+  html.dark body[data-color-mode="adaptive-soft"] .flink-card {
+    background: oklch(0.255 calc(var(--fl-c) * 0.32) var(--fl-h));
+    box-shadow: inset 0 0 0 1px oklch(0.48 calc(var(--fl-c) * 0.48) var(--fl-h) / 0.42), 0 4px 12px -3px rgba(0,0,0,.34);
+    color: oklch(0.94 calc(var(--fl-c) * 0.12) var(--fl-h));
+    --fl-desc: oklch(0.75 calc(var(--fl-c) * 0.14) var(--fl-h));
+    --fl-sig: oklch(0.78 calc(var(--fl-c) * 0.42) var(--fl-h));
+  }
+  html.dark body[data-color-mode="adaptive-soft"] .flink-card:hover {
+    background: oklch(0.285 calc(var(--fl-c) * 0.38) var(--fl-h));
+  }
+
+  /* 策略 B：Aria 风格鲜明色块（但按亮/暗收敛 OKLCH 明度上限，避免柠檬黄/冰蓝白字看不清） */
+  body[data-color-mode="adaptive-vivid"] .flink-card {
+    background: oklch(0.53 calc(var(--fl-c) * 0.88) var(--fl-h));
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.18), 0 4px 12px -3px oklch(0.45 var(--fl-c) var(--fl-h) / 0.32);
+    color: #ffffff;
+    --fl-desc: rgba(255, 255, 255, 0.86);
+    --fl-sig: rgba(255, 255, 255, 0.92);
+  }
+  html.dark body[data-color-mode="adaptive-vivid"] .flink-card {
+    background: oklch(0.39 calc(var(--fl-c) * 0.76) var(--fl-h));
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.14), 0 6px 14px -4px rgba(0,0,0,0.45);
+    color: oklch(0.97 0.02 var(--fl-h));
+    --fl-desc: rgba(255, 255, 255, 0.80);
+    --fl-sig: rgba(255, 255, 255, 0.90);
+  }
+
+  /* 策略 C（对照组）：单 HEX 不区分亮暗直接 color-mix 75%（复现 Aria 原生写法在高亮色值上的可读性隐患） */
+  body[data-color-mode="raw-single"] .flink-card {
+    background: color-mix(in srgb, var(--fl-hex) 78%, transparent);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.2);
+    color: #ffffff;
+    --fl-desc: rgba(255, 255, 255, 0.85);
+    --fl-sig: rgba(255, 255, 255, 0.92);
+  }
+
+  .flink-avatar {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    flex: none;
+    display: grid;
+    place-items: center;
+    font-weight: 700;
+    font-size: 16px;
+    color: #fff;
+    background: oklch(0.54 var(--fl-c) var(--fl-h));
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.45);
+    transition: transform .2s ease;
+    overflow: hidden;
+  }
+  html.dark .flink-avatar {
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.16);
+  }
+  .flink-card:hover .flink-avatar { transform: scale(1.05); }
+
+  .flink-body {
+    min-width: 0;
+    flex: 1;
+    padding-right: 18px;
+  }
+  .flink-name {
+    font-size: 14px;
+    font-weight: 650;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .flink-desc {
+    margin-top: 3px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--fl-desc);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* 右上角 5 档服务端拨测信号格 */
+  .flink-signal {
+    position: absolute;
+    top: 10px;
+    right: 11px;
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 1.5px;
+    height: 12px;
+    color: var(--fl-sig);
+    opacity: 0.88;
+  }
+  .flink-signal .bar {
+    width: 2.5px;
+    border-radius: 1px;
+    border: 1px solid currentColor;
+  }
+  .flink-signal .bar.b1 { height: 5px; }
+  .flink-signal .bar.b2 { height: 8.5px; }
+  .flink-signal .bar.b3 { height: 12px; }
+  .flink-signal .bar.filled { background: currentColor; }
+  .flink-signal.down {
+    color: var(--err-fg);
+    font-weight: 700;
+    font-size: 13px;
+    line-height: 1;
+    align-items: center;
+  }
+  body[data-color-mode="adaptive-vivid"] .flink-signal.down,
+  body[data-color-mode="raw-single"] .flink-signal.down {
+    color: #ffd2d2;
+  }
+
+  /* ==========================================================================
+   * 6. 本站友链信息复制区 & 抽离复用的 GuestLoginInvite + 我的友链面板
+   * ======================================================================== */
+  .bottom-grid {
+    display: grid;
+    gap: 18px;
+    margin-top: 34px;
+  }
+  .panel {
+    padding: 20px 22px;
+  }
+  .panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .panel-head h2 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+  }
+  .code-box {
+    position: relative;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: var(--muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: var(--post-summary-fg);
+  }
+
+  /* 1:1 复刻 web/src/components/auth/guest-login-invite.tsx */
+  .guest-login-invite {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    border-radius: 12px;
+    border: 1px dashed color-mix(in oklch, var(--primary) 34%, transparent);
+    background: color-mix(in oklch, var(--primary) 5%, transparent);
+    padding: 16px;
+  }
+  .guest-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: color-mix(in oklch, var(--foreground) 8%, transparent);
+    color: var(--muted-foreground);
+    display: grid;
+    place-items: center;
+    flex: none;
+  }
+  .guest-info { min-width: 0; flex: 1; }
+  .guest-info .g-title { margin: 0; font-weight: 600; font-size: 14px; }
+  .guest-info .g-desc { margin: 2px 0 0; font-size: 13px; color: var(--muted-foreground); }
+  .oidc-round {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--card);
+    display: inline-grid;
+    place-items: center;
+    transition: transform .15s, border-color .15s;
+  }
+  .oidc-round:hover { transform: translateY(-1px); border-color: var(--primary); }
+
+  /* 已登录：我的友链列表 + 申请/修改表单 */
+  .my-links-list {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .my-link-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 14px;
+    padding: 10px 12px;
+    border-radius: 11px;
+    border: 1px solid var(--border);
+    background: color-mix(in oklch, var(--muted) 45%, transparent);
+  }
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .status-pill.approved { background: var(--ok-bg); color: var(--ok-fg); }
+  .status-pill.pre_approved { background: var(--warn-bg); color: var(--warn-fg); }
+  .status-pill.pending { background: var(--primary-soft); color: var(--primary); }
+  .status-pill.rejected { background: var(--err-bg); color: var(--err-fg); }
+
+  .apply-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(240px, 0.85fr);
+    gap: 20px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+  @media (max-width: 760px) {
+    .apply-layout { grid-template-columns: 1fr; }
+  }
+  .form-grid { display: grid; gap: 12px; }
+  .field { display: grid; gap: 5px; }
+  .field label { font-size: 12.5px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; }
+  .input-row { display: flex; gap: 8px; }
+  .inp {
+    width: 100%;
+    height: 36px;
+    padding: 0 11px;
+    border-radius: 9px;
+    border: 1px solid var(--border);
+    background: var(--background);
+    font-size: 13.5px;
+    outline: none;
+  }
+  .inp:focus { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-soft); }
+  textarea.inp { height: auto; padding: 8px 11px; resize: vertical; }
+
+  /* 16 / 32 预设色板网格 */
+  .swatch-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(26px, 1fr));
+    gap: 6px;
+    padding: 8px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--background);
+  }
+  .swatch {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+    border: 2px solid transparent;
+    padding: 0;
+    position: relative;
+    transition: transform .12s;
+  }
+  .swatch:hover { transform: scale(1.12); }
+  .swatch[aria-checked="true"] {
+    border-color: var(--foreground);
+    box-shadow: 0 0 0 2px var(--card);
+    transform: scale(1.1);
+  }
+
+  /* ==========================================================================
+   * 7. 后台管理 /console/friends 表格与分组排序
+   * ======================================================================== */
+  .console-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+  }
+  .console-header h1 { margin: 0; font-size: 22px; font-weight: 700; }
+  .filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin: 14px 0;
+  }
+  .table-card { overflow-x: auto; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  th, td {
+    padding: 11px 13px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  th {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted-foreground);
+    background: color-mix(in oklch, var(--muted) 55%, transparent);
+    white-space: nowrap;
+  }
+  tr:last-child td { border-bottom: 0; }
+  .ai-note {
+    font-size: 12px;
+    color: var(--muted-foreground);
+    max-width: 240px;
+    line-height: 1.45;
+  }
+  .group-manage-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .group-manage-row:last-child { border-bottom: 0; }
+
+  .toast {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 90;
+    padding: 10px 15px;
+    border-radius: 10px;
+    background: var(--foreground);
+    color: var(--background);
+    font-size: 13px;
+    font-weight: 500;
+    box-shadow: 0 8px 24px rgba(0,0,0,.22);
+    opacity: 0;
+    transform: translateY(8px);
+    pointer-events: none;
+    transition: opacity .2s, transform .2s;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body data-surface="frontend" data-color-mode="adaptive-soft">
+
+  <!-- 顶部原型实验控制栏 -->
+  <header class="proto-bar">
+    <div class="proto-brand">
+      <span class="proto-dot"></span>
+      <span>友链系统原型</span>
+    </div>
+
+    <div class="proto-group">
+      <span>页面</span>
+      <div class="seg" id="surfaceSeg">
+        <button type="button" data-val="frontend" aria-pressed="true">前台 /friends</button>
+        <button type="button" data-val="console" aria-pressed="false">后台 /console/friends</button>
+        <button type="button" data-val="palette-lab" aria-pressed="false">色板亮暗测试台</button>
+      </div>
+    </div>
+
+    <div class="proto-group">
+      <span>主题</span>
+      <div class="seg" id="themeSeg">
+        <button type="button" data-val="light" aria-pressed="true">☀ 浅色</button>
+        <button type="button" data-val="dark" aria-pressed="false">☾ 深色</button>
+      </div>
+    </div>
+
+    <div class="proto-group">
+      <span>卡片色彩策略</span>
+      <div class="seg" id="colorModeSeg">
+        <button type="button" data-val="adaptive-soft" aria-pressed="true" title="OKLCH 亮浅底深字 / 暗深底亮字，全色域对比度 ≥ 5.8:1">清透双态 (推荐)</button>
+        <button type="button" data-val="adaptive-vivid" aria-pressed="false" title="Aria 风格鲜明色块，但按亮暗收敛明度上限保证白字清晰">鲜明双态</button>
+        <button type="button" data-val="raw-single" aria-pressed="false" title="对照组：单色值直混 78%，可观察柠檬黄/冰蓝在浅色下白字发虚">单色直混对照</button>
+      </div>
+    </div>
+
+    <div class="proto-group">
+      <span>预设色板</span>
+      <div class="seg" id="paletteSizeSeg">
+        <button type="button" data-val="16" aria-pressed="false">16 色精选</button>
+        <button type="button" data-val="32" aria-pressed="true">32 色全色域</button>
+      </div>
+    </div>
+
+    <div class="proto-group">
+      <span>i18n</span>
+      <div class="seg" id="langSeg">
+        <button type="button" data-val="zh" aria-pressed="true">简中</button>
+        <button type="button" data-val="en" aria-pressed="false">EN</button>
+        <button type="button" data-val="ja" aria-pressed="false">日本語</button>
+      </div>
+    </div>
+
+    <div class="proto-spacer"></div>
+
+    <div class="proto-group" id="authSimWrap">
+      <span>模拟身份</span>
+      <div class="seg" id="authSeg">
+        <button type="button" data-val="guest" aria-pressed="true">未登录访客</button>
+        <button type="button" data-val="user" aria-pressed="false">已登录用户 (2/5)</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==================== 视图 1：前台 /friends 页面 ==================== -->
+  <main class="shell" id="viewFrontend">
+    <div class="friends-hero">
+      <div>
+        <h1 id="feTitle">友情链接</h1>
+        <p id="feSubtitle">海内存知己，天涯若比邻 · 点击分组平滑定位，服务端每 6 小时自动拨测可达性</p>
+      </div>
+      <div class="hero-actions">
+        <button type="button" class="btn" id="btnRandomVisit">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="m15 15 6 6"/><path d="M4 4 9 9"/></svg>
+          <span id="lblRandom">随机串门</span>
+        </button>
+        <a href="#friend-manage-anchor" class="btn btn-primary" style="text-decoration:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+          <span id="lblApplyJump">申请 / 管理友链</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- 吸顶 Underline 分组导航条（最左「全部」，切换仅平滑上下滚动定位，不隐藏其他分组） -->
+    <div class="underline-tabs-wrap">
+      <div class="underline-tabs" role="tablist" id="feGroupTabs"></div>
+    </div>
+
+    <!-- 全部分组同页顺排容器（顺序严格跟随上方 Tab 左右顺序） -->
+    <div class="groups-stack" id="feGroupsContainer"></div>
+
+    <!-- 本站信息一键复制 + 登录引导 / 我的友链管理 -->
+    <div class="bottom-grid" id="friend-manage-anchor" style="scroll-margin-top:102px">
+      <section class="surface-card panel">
+        <div class="panel-head">
+          <h2 id="lblMySiteInfo">本站友链信息</h2>
+          <div style="display:flex;gap:6px;align-items:center">
+            <div class="seg" id="copyFormatSeg">
+              <button type="button" data-fmt="text" aria-pressed="true">TEXT</button>
+              <button type="button" data-fmt="json" aria-pressed="false">JSON</button>
+              <button type="button" data-fmt="yaml" aria-pressed="false">YAML</button>
+              <button type="button" data-fmt="html" aria-pressed="false">HTML</button>
+            </div>
+            <button type="button" class="btn btn-sm" id="btnCopySiteInfo">复制</button>
+          </div>
+        </div>
+        <div class="code-box" id="siteInfoCode"></div>
+      </section>
+
+      <section class="surface-card panel">
+        <div class="panel-head">
+          <div>
+            <h2 id="lblApplySection">申请与管理我的友链</h2>
+            <p class="muted" style="margin:3px 0 0;font-size:12.5px" id="lblApplyRule">普通用户最多可添加 5 个站点（删除后恢复额度），新建与每次修改均经 AI 初筛后上线</p>
+          </div>
+          <span class="status-pill pending num" id="quotaBadge" hidden>已用 2 / 5</span>
+        </div>
+
+        <!-- 未登录态：直接复用抽离自评论区的 GuestLoginInvite 组件 -->
+        <div class="guest-login-invite" id="guestInviteBox">
+          <div class="guest-avatar">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </div>
+          <div class="guest-info">
+            <p class="g-title" id="guestTitle">登录后申请或管理友链</p>
+            <p class="g-desc" id="guestDesc">推荐使用 GitHub / 轻雪小窗一键登录，免收邮件验证码，随时修改站点信息</p>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <button type="button" class="oidc-round" title="GitHub 小窗登录（模拟）" onclick="simulateLogin('GitHub')">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56v-2.01c-3.2.7-3.88-1.39-3.88-1.39-.52-1.33-1.28-1.68-1.28-1.68-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.76 2.7 1.25 3.36.96.1-.75.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.1 11.1 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"/></svg>
+            </button>
+            <button type="button" class="oidc-round" title="Liteyuki OIDC 小窗登录（模拟）" onclick="simulateLogin('Liteyuki')" style="color:var(--primary)">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>
+            </button>
+            <button type="button" class="btn btn-primary" onclick="simulateLogin('邮箱账号')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+              <span>登录</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 已登录态：名下友链列表 + AI 自动填写表单 -->
+        <div id="userManageBox" hidden>
+          <div class="my-links-list" id="myLinksList"></div>
+
+          <div class="apply-layout">
+            <form class="form-grid" id="applyForm">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+                <strong id="formModeTitle" style="font-size:14.5px">添加新友链</strong>
+                <button type="button" class="btn btn-sm btn-ghost" id="btnCancelEdit" hidden>取消编辑 · 切换回新增</button>
+              </div>
+
+              <div class="field">
+                <label>
+                  <span>网站地址 *</span>
+                  <span class="muted num" style="font-weight:400;font-size:12px" id="aiAutofillQuota">AI 自动填表今日剩余 9 / 10 次</span>
+                </label>
+                <div class="input-row">
+                  <input class="inp" id="inpUrl" type="url" placeholder="https://example.com" required>
+                  <button type="button" class="btn btn-secondary" id="btnAiAutofill">
+                    <span>✨ AI 自动填写</span>
+                  </button>
+                </div>
+              </div>
+
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                <div class="field">
+                  <label><span>站点名称 *</span></label>
+                  <input class="inp" id="inpName" type="text" maxlength="40" placeholder="例如：星野的笔记" required>
+                </div>
+                <div class="field">
+                  <label><span>意向分组</span></label>
+                  <select class="inp" id="inpGroup"></select>
+                </div>
+              </div>
+
+              <div class="field">
+                <label><span>头像链接 *</span></label>
+                <input class="inp" id="inpAvatar" type="url" placeholder="https://example.com/avatar.png" required>
+              </div>
+
+              <div class="field">
+                <label><span>一句话简介</span></label>
+                <input class="inp" id="inpDesc" type="text" maxlength="120" placeholder="记录后端架构与生活随想">
+              </div>
+
+              <div class="field">
+                <label><span>反链页面地址（选填，留空自动探测 /friends）</span></label>
+                <input class="inp" id="inpBacklink" type="url" placeholder="https://example.com/friends">
+              </div>
+
+              <div class="field">
+                <label>
+                  <span>卡片主题色（预设色板）</span>
+                  <button type="button" class="btn btn-sm btn-ghost" id="btnAutoColor" style="height:22px;padding:0 6px">🎲 按站名匹配推荐色</button>
+                </label>
+                <div class="swatch-grid" id="formSwatches" role="radiogroup"></div>
+              </div>
+
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding-top:4px">
+                <span class="muted num" style="font-size:12px" id="aiReviewQuotaHint">AI 自动审核今日剩余 4 / 5 次（超额自动转人工复核）</span>
+                <button type="submit" class="btn btn-primary" id="btnSubmitLink">提交并触发 AI 审核</button>
+              </div>
+            </form>
+
+            <!-- 右侧实时卡片预览 + 快捷粘贴解析 -->
+            <div style="display:grid;gap:14px;align-content:start">
+              <div class="field">
+                <label><span>实时卡片效果预览</span><span class="muted" style="font-weight:400;font-size:12px" id="previewColorLabel">sky</span></label>
+                <div id="livePreviewMount"></div>
+              </div>
+
+              <div class="field">
+                <label>
+                  <span>粘贴文本快速拆解</span>
+                  <button type="button" class="btn btn-sm btn-ghost" id="btnParsePaste" style="height:22px;padding:0 6px">识别填入</button>
+                </label>
+                <textarea class="inp" id="inpPasteRaw" rows="4" placeholder="支持直接粘贴博友信息：&#10;名称：凛冬将至&#10;链接：https://rin.dev&#10;简介：Rust 与分布式存储笔记"></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- ==================== 视图 2：后台 /console/friends 管理页 ==================== -->
+  <main class="shell" id="viewConsole" hidden>
+    <div class="console-header">
+      <div>
+        <h1>友链管理</h1>
+        <p class="muted" style="margin:3px 0 0;font-size:13px">管理员最高权限：复核 AI 预通过队列、直接增改免审友链、调整预设国际化分组顺序与跨站 API 分组</p>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button type="button" class="btn" id="btnRunProbeAll">↻ 立即全量拨测</button>
+        <button type="button" class="btn btn-primary" id="btnAdminQuickAdd">+ 管理员直接添加（免审）</button>
+      </div>
+    </div>
+
+    <div class="underline-tabs" role="tablist" id="consoleTabs" style="margin-bottom:16px">
+      <button type="button" class="u-tab" data-ctab="links" aria-selected="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        <span>全部友链与审核</span>
+        <span class="tab-alert num" id="consolePendingCount">2</span>
+      </button>
+      <button type="button" class="u-tab" data-ctab="groups" aria-selected="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        <span>分组管理与前台排序联动</span>
+      </button>
+    </div>
+
+    <!-- 后台子页 1：友链审核与列表 -->
+    <section id="consolePaneLinks">
+      <div class="filter-bar">
+        <div class="seg" id="consoleStatusFilter">
+          <button type="button" data-st="all" aria-pressed="true">全部</button>
+          <button type="button" data-st="pre_approved" aria-pressed="false">待人工复核 (预通过)</button>
+          <button type="button" data-st="approved" aria-pressed="false">已公开</button>
+          <button type="button" data-st="rejected" aria-pressed="false">已驳回</button>
+        </div>
+        <span class="muted" style="font-size:12.5px">提示：在此通过或驳回后，切回「前台 /friends」可实时看到变化</span>
+      </div>
+
+      <div class="surface-card table-card">
+        <table>
+          <thead>
+            <tr>
+              <th>站点卡片预览</th>
+              <th>分组</th>
+              <th>提交人</th>
+              <th>双维拨测 (延迟 / 反链)</th>
+              <th>审核状态 & AI 初筛备注</th>
+              <th style="text-align:right">管理员操作</th>
+            </tr>
+          </thead>
+          <tbody id="consoleLinksTbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 后台子页 2：分组排序与预设 i18n 管理 -->
+    <section id="consolePaneGroups" hidden>
+      <div class="surface-card" style="margin-bottom:14px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <span style="font-size:13px">调整下方分组上下顺序后，前台 `/friends` 顶部的 <strong>underline 标签栏左右顺序</strong> 与 <strong>区块上下顺序</strong> 会同步更新；设为「仅 API 私有」的分组可通过 `APIToken (friends:read)` 给外部网站拉取。</span>
+        <button type="button" class="btn btn-sm btn-secondary" id="btnAddPresetGroup">+ 新增预设/自定义分组</button>
+      </div>
+      <div class="surface-card" id="consoleGroupsList"></div>
+    </section>
+  </main>
+
+  <!-- ==================== 视图 3：16 / 32 色板亮暗对比度全景测试台 ==================== -->
+  <main class="shell" id="viewPaletteLab" hidden>
+    <div class="friends-hero">
+      <div>
+        <h1>预设色板亮 / 暗主题实测矩阵</h1>
+        <p>右上角直接切换「☀ 浅色 / ☾ 深色」与「清透双态 / 鲜明双态 / 单色直混对照」，直观检验 16 色与 32 色全色域的可读性</p>
+      </div>
+    </div>
+    <div class="flink-grid" id="paletteLabGrid"></div>
+  </main>
+
+  <div class="toast" id="toastEl"></div>
+
+<script>
+  /* ==========================================================================
+   * 数据层：32 色全色域语义色板（含 16 色精选子集标记）+ 预设分组 i18n 字典
+   * ======================================================================== */
+  const PALETTE_32 = [
+    { key: 'crimson',        zh: '绯红',   hex: '#ff5c6c', h: 16,  c: 0.19, core16: true },
+    { key: 'rose',           zh: '玫瑰红', hex: '#ff6f91', h: 4,   c: 0.18, core16: false },
+    { key: 'cherry-blossom', zh: '樱花粉', hex: '#ffb3c8', h: 352, c: 0.14, core16: true },
+    { key: 'bauhinia',       zh: '紫荆红', hex: '#e86fb0', h: 336, c: 0.17, core16: false },
+    { key: 'peach',          zh: '蜜桃粉', hex: '#ffa8a0', h: 24,  c: 0.14, core16: false },
+    { key: 'flame',          zh: '火焰橙', hex: '#ff6a3d', h: 34,  c: 0.19, core16: true },
+    { key: 'maple',          zh: '枫叶橙', hex: '#ff7f3f', h: 44,  c: 0.18, core16: false },
+    { key: 'coral',          zh: '珊瑚橙', hex: '#ff9f80', h: 38,  c: 0.14, core16: false },
+    { key: 'amber',          zh: '琥珀金', hex: '#ffb347', h: 68,  c: 0.16, core16: true },
+    { key: 'gold',           zh: '鎏金',   hex: '#f5c542', h: 84,  c: 0.16, core16: false },
+    { key: 'sunshine',       zh: '暖阳黄', hex: '#ffd54f', h: 90,  c: 0.15, core16: true },
+    { key: 'lemon',          zh: '柠檬黄', hex: '#fff176', h: 102, c: 0.14, core16: false },
+    { key: 'candlelight',    zh: '烛光暖', hex: '#ffe0a3', h: 78,  c: 0.11, core16: false },
+    { key: 'lime',           zh: '青柠绿', hex: '#b8e968', h: 124, c: 0.16, core16: true },
+    { key: 'spring-green',   zh: '嫩芽绿', hex: '#a5e887', h: 136, c: 0.14, core16: false },
+    { key: 'forest',         zh: '森林绿', hex: '#5fd38d', h: 152, c: 0.15, core16: true },
+    { key: 'emerald',        zh: '祖母绿', hex: '#34c77b', h: 158, c: 0.16, core16: false },
+    { key: 'jade',           zh: '翡翠青', hex: '#3fcf9e', h: 168, c: 0.14, core16: true },
+    { key: 'mint',           zh: '薄荷青', hex: '#8ef0c8', h: 165, c: 0.12, core16: false },
+    { key: 'aurora',         zh: '极光青', hex: '#6effd0', h: 172, c: 0.14, core16: false },
+    { key: 'lake',           zh: '湖水青', hex: '#4fd1d9', h: 196, c: 0.13, core16: true },
+    { key: 'cyan',           zh: '晴空青', hex: '#38bdf8', h: 215, c: 0.15, core16: false },
+    { key: 'sky',            zh: '天空蓝', hex: '#74c0fc', h: 235, c: 0.14, core16: true },
+    { key: 'ocean',          zh: '海洋蓝', hex: '#3d9df5', h: 248, c: 0.17, core16: true },
+    { key: 'ice',            zh: '冰晶蓝', hex: '#b5e8ff', h: 224, c: 0.10, core16: false },
+    { key: 'starry-blue',    zh: '星空蓝', hex: '#6c8cff', h: 266, c: 0.17, core16: true },
+    { key: 'midnight',       zh: '午夜靛', hex: '#7b83eb', h: 274, c: 0.15, core16: false },
+    { key: 'lavender',       zh: '薰衣草', hex: '#c3a6ff', h: 294, c: 0.15, core16: true },
+    { key: 'violet',         zh: '罗兰紫', hex: '#a77bff', h: 298, c: 0.18, core16: true },
+    { key: 'twilight',       zh: '暮光紫', hex: '#b388eb', h: 306, c: 0.15, core16: false },
+    { key: 'wisteria',       zh: '紫藤粉', hex: '#d4a5f5', h: 318, c: 0.14, core16: true },
+    { key: 'rain',           zh: '雨幕灰蓝', hex: '#9bb7d4', h: 240, c: 0.05, core16: true }
+  ];
+
+  const I18N = {
+    zh: {
+      title: '友情链接',
+      subtitle: '海内存知己，天涯若比邻 · 点击分组平滑滚动定位，服务端每 6 小时自动拨测可达性',
+      random: '随机串门',
+      applyJump: '申请 / 管理友链',
+      all: '全部',
+      countUnit: '位朋友',
+      mySiteInfo: '本站友链信息',
+      applySection: '申请与管理我的友链',
+      guestTitle: '登录后申请或管理友链',
+      guestDesc: '推荐使用 GitHub / 轻雪小窗一键登录，免收邮件验证码，随时修改站点信息',
+      presets: {
+        friends:  { name: '朋友',     desc: '常来常往、互相串门熟悉的朋友们' },
+        seniors:  { name: '大佬',     desc: '值得反复品读学习的技术前辈与灵感来源' },
+        official: { name: '官方网站', desc: '本博客构建所依赖的开源框架与组织主页' },
+        projects: { name: '开源项目', desc: '朋友们维护的有趣工具、主题与自托管服务' },
+        others:   { name: '其他链接', desc: '更多跨越山海的独立博客角落' }
+      }
+    },
+    en: {
+      title: 'Friend Links',
+      subtitle: 'Neighbors across the web · Click tabs to smooth-scroll to each group; probed every 6h server-side',
+      random: 'Random Visit',
+      applyJump: 'Apply / Manage',
+      all: 'All',
+      countUnit: 'sites',
+      mySiteInfo: 'My Blog Info',
+      applySection: 'Apply & Manage My Links',
+      guestTitle: 'Sign in to apply or manage links',
+      guestDesc: 'One-click popup sign-in via GitHub or Liteyuki — zero email quota needed',
+      presets: {
+        friends:  { name: 'Friends',        desc: 'Close friends and blogs we visit all the time' },
+        seniors:  { name: 'Inspirations',   desc: ' inspiring engineers, designers, and writers' },
+        official: { name: 'Official Sites', desc: 'Foundational frameworks and organization portals' },
+        projects: { name: 'Open Source',    desc: 'Crafted tools and self-hosted projects by friends' },
+        others:   { name: 'Other Links',    desc: 'More independent corners across the internet' }
+      }
+    },
+    ja: {
+      title: '相互リンク',
+      subtitle: 'インターネットの隣人たち · タブで各グループへスムーズ移動（6時間ごとに自動死活監視）',
+      random: 'ランダム訪問',
+      applyJump: '申請・管理',
+      all: 'すべて',
+      countUnit: 'サイト',
+      mySiteInfo: '当サイトの情報',
+      applySection: 'リンクの申請・マイリンク管理',
+      guestTitle: 'ログインして相互リンクを申請・管理',
+      guestDesc: 'GitHub / Liteyuki ポップアップ認証に対応（メール認証不要・ページ遷移なし）',
+      presets: {
+        friends:  { name: 'フレンド',       desc: 'いつも仲良く交流しているお友達のブログ' },
+        seniors:  { name: '憧れの先輩',     desc: '技術や表現で多くの刺激をいただいている方々' },
+        official: { name: '公式サイト',     desc: '当ブログを支えるフレームワークとコミュニティ' },
+        projects: { name: 'オープンソース', desc: '友人たちが開発している素敵なツールやプロジェクト' },
+        others:   { name: 'その他のリンク', desc: '個性豊かな個人サイト・ブログ' }
+      }
+    }
+  };
+
+  const GROUP_ICONS = {
+    all:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>',
+    friends:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>',
+    seniors:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+    official: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
+    projects: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>',
+    others:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>',
+    custom:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9h16"/><path d="M4 15h16"/><path d="M10 3 8 21"/><path d="M16 3 14 21"/></svg>'
+  };
+
+  let state = {
+    surface: 'frontend',
+    lang: 'zh',
+    paletteSize: 32,
+    isLoggedIn: false,
+    currentUser: 'chisato_dev',
+    selectedColorKey: 'sky',
+    editingId: null,
+    autofillLeft: 9,
+    aiReviewLeft: 4,
+    consoleFilter: 'all',
+    copyFmt: 'text',
+    activeScrollGroup: 'all',
+    groups: [
+      { id: 1, preset: 'friends',  slug: 'friends',  customName: '', isPublic: true,  skipBacklink: false },
+      { id: 2, preset: 'seniors',  slug: 'seniors',  customName: '', isPublic: true,  skipBacklink: true },
+      { id: 3, preset: 'official', slug: 'official', customName: '', isPublic: true,  skipBacklink: true },
+      { id: 4, preset: 'projects', slug: 'projects', customName: '', isPublic: true,  skipBacklink: false },
+      { id: 5, preset: 'others',   slug: 'others',   customName: '', isPublic: true,  skipBacklink: false },
+      { id: 6, preset: 'custom',   slug: 'internal-partners', customName: '轻雪内部站点 (私有API组)', isPublic: false, skipBacklink: true }
+    ],
+    links: [
+      { id: 101, groupId: 1, name: 'Ariasakaの小窝', url: 'https://blog.yaria.top', desc: '人有悲欢离合，月有阴晴圆缺', colorKey: 'cherry-blossom', latency: 140, health: 'healthy', backlink: 'verified', status: 'approved', owner: 'ariasaka', note: 'AI 初审通过：内容活跃，已检测到反链' },
+      { id: 102, groupId: 1, name: '轻雪工作室召唤中心', url: 'https://liteyuki.org', desc: 'Liteyuki Lab · 探索轻量而温暖的开源数字体验', colorKey: 'sky', latency: 80, health: 'healthy', backlink: 'verified', status: 'approved', owner: 'snowykami', note: '管理员直添' },
+      { id: 103, groupId: 1, name: '久留美的交易笔记', url: 'https://kurumi.moe', desc: '前端动效、着色器与日常碎碎念', colorKey: 'rose', latency: 320, health: 'healthy', backlink: 'verified', status: 'approved', owner: 'chisato_dev', note: 'AI 初审通过：独立个人博客，反链正常' },
+      { id: 104, groupId: 1, name: '星野琉璃', url: 'https://ruri.ink', desc: '写点 Go、编译原理和胶片摄影', colorKey: 'lavender', latency: 1380, health: 'healthy', backlink: 'verified', status: 'approved', owner: 'ruri', note: 'AI 初审通过' },
+      { id: 105, groupId: 1, name: '薄荷糖的夏夜', url: 'https://mintnight.cc', desc: '全栈踩坑记录与音乐播放器折腾日记', colorKey: 'jade', latency: 620, health: 'healthy', backlink: 'verified', status: 'approved', owner: 'mint', note: 'AI 初审通过' },
+      { id: 106, groupId: 1, name: '雨雪冰屋', url: 'https://icyhouse.me', desc: '托管在北欧小鸡上的慢速手记', colorKey: 'rain', latency: 4120, health: 'slow', backlink: 'verified', status: 'approved', owner: 'icy', note: 'AI 初审通过（跨境节点响应偏慢）' },
+
+      { id: 201, groupId: 2, name: 'Anthony Fu', url: 'https://antfu.me', desc: 'Fanatical open sourcerer · Vue / Vite / UnoCSS', colorKey: 'amber', latency: 210, health: 'healthy', backlink: 'skipped', status: 'approved', owner: 'admin', note: '单向推荐豁免反链' },
+      { id: 202, groupId: 2, name: 'Innei 静かな森', url: 'https://innei.in', desc: '致虚极，守静笃 · Shiro 主题作者', colorKey: 'ocean', latency: 450, health: 'healthy', backlink: 'skipped', status: 'approved', owner: 'admin', note: '单向推荐豁免反链' },
+      { id: 203, groupId: 2, name: 'DIYGOD', url: 'https://diygod.cc', desc: '写代码是热爱，写到世界充满爱', colorKey: 'flame', latency: 530, health: 'healthy', backlink: 'skipped', status: 'approved', owner: 'admin', note: '单向推荐豁免反链' },
+      { id: 204, groupId: 2, name: 'Fuwari Demo', url: 'https://fuwari.vercel.app', desc: 'Astro 静态博客主题灵感参考', colorKey: 'violet', latency: 1190, health: 'healthy', backlink: 'skipped', status: 'approved', owner: 'admin', note: '单向推荐豁免反链' },
+
+      { id: 301, groupId: 3, name: 'Next.js', url: 'https://nextjs.org', desc: 'The React Framework for the Web', colorKey: 'starry-blue', latency: 110, health: 'healthy', backlink: 'skipped', status: 'approved', owner: 'admin', note: '官方站点' },
+      { id: 302, groupId: 3, name: 'CloudWeGo Hertz', url: 'https://www.cloudwego.io', desc: '高性能高扩展性 Go HTTP 框架', colorKey: 'lake', latency: 90, health: 'healthy', backlink: 'skipped', status: 'approved', owner: 'admin', note: '官方站点' },
+      { id: 303, groupId: 3, name: 'Tailwind CSS', url: 'https://tailwindcss.com', desc: 'Rapidly build modern websites without leaving HTML', colorKey: 'cyan', latency: 170, health: 'healthy', backlink: 'skipped', status: 'approved', owner: 'admin', note: '官方站点' },
+
+      { id: 401, groupId: 4, name: 'AMLL TTML DB', url: 'https://github.com/amll-dev/amll-ttml-db', desc: 'Apple Music 风格逐字歌词社区仓库', colorKey: 'crimson', latency: 760, health: 'healthy', backlink: 'verified', status: 'approved', owner: 'admin', note: '开源生态' },
+      { id: 402, groupId: 4, name: 'Shadcn UI', url: 'https://ui.shadcn.com', desc: 'Beautifully designed components built with Radix & Tailwind', colorKey: 'forest', latency: 290, health: 'healthy', backlink: 'skipped', status: 'approved', owner: 'admin', note: '开源生态' },
+
+      { id: 501, groupId: 5, name: '南风知我意', url: 'https://nanfeng.blog', desc: '大学生活与算法竞赛题解归档', colorKey: 'sunshine', latency: 2340, health: 'healthy', backlink: 'verified', status: 'approved', owner: 'nanfeng', note: 'AI 初审通过' },
+      { id: 502, groupId: 5, name: 'Silvaire 旧站', url: 'https://old.silvaire.xyz', desc: '域名迁移中的旧博客归档（连续 3 次拨测超时示例）', colorKey: 'wisteria', latency: 0, health: 'unreachable', backlink: 'missing', status: 'approved', owner: 'silvaire', note: '连续 3 次连接超时，标记为不可达' },
+
+      // 待人工复核（预通过）示例 —— 包含当前模拟登录用户的第 2 个站点
+      { id: 601, groupId: 4, name: 'Chisato Status 探针', url: 'https://status.chisato.dev', desc: '个人自建服务状态监控面板', colorKey: 'lime', latency: 260, health: 'healthy', backlink: 'missing', status: 'pre_approved', owner: 'chisato_dev', note: 'AI 预通过：站点可正常访问且无违规，但属于状态页且暂未在 /friends 检测到反链，请管理员人工确认' },
+      { id: 602, groupId: 5, name: 'Momo 的新花园', url: 'https://momo-note.vercel.app', desc: '刚搭建两天的个人周记小站', colorKey: 'peach', latency: 890, health: 'healthy', backlink: 'verified', status: 'pre_approved', owner: 'momo', note: 'AI 预通过：已检测到本站反链，但全站文章仅 1 篇且使用 vercel.app 免费域名，建议管理员复核' }
+    ]
+  };
+
+  function getPaletteObj(key) {
+    return PALETTE_32.find(c => c.key === key) || PALETTE_32[22];
+  }
+
+  function activePaletteList() {
+    return state.paletteSize === 16 ? PALETTE_32.filter(c => c.core16) : PALETTE_32;
+  }
+
+  function groupDisplay(g) {
+    const dict = I18N[state.lang];
+    if (g.preset !== 'custom' && dict.presets[g.preset]) {
+      return dict.presets[g.preset];
+    }
+    return { name: g.customName || g.slug, desc: '自定义友链分组' };
+  }
+
+  function renderSignalHtml(link) {
+    if (link.health === 'unreachable') {
+      return `<span class="flink-signal down" title="不可达（连续 3 次拨测失败）">×</span>`;
+    }
+    const ms = link.latency || 120;
+    let filled = 0;
+    if (ms < 1000) filled = 3;
+    else if (ms < 2000) filled = 2;
+    else if (ms < 3000) filled = 1;
+    else filled = 0;
+    return `
+      <span class="flink-signal" title="服务端拨测延迟: ${ms}ms">
+        <i class="bar b1 ${filled >= 1 ? 'filled' : ''}"></i>
+        <i class="bar b2 ${filled >= 2 ? 'filled' : ''}"></i>
+        <i class="bar b3 ${filled >= 3 ? 'filled' : ''}"></i>
+      </span>`;
+  }
+
+  function renderCardHtml(link) {
+    const col = getPaletteObj(link.colorKey);
+    const initial = (link.name || '?').trim().slice(0, 1).toUpperCase();
+    return `
+      <a class="flink-card cf-friends-link"
+         href="${escapeHtml(link.url)}"
+         target="_blank"
+         rel="noopener noreferrer"
+         onclick="event.preventDefault(); toast('模拟新窗口打开：' + '${escapeHtml(link.url)}')"
+         style="--fl-h:${col.h}; --fl-c:${col.c}; --fl-hex:${col.hex}">
+        <div class="flink-avatar">${escapeHtml(initial)}</div>
+        <div class="flink-body">
+          <div class="flink-name cf-friends-name">${escapeHtml(link.name)}</div>
+          <div class="flink-desc">${escapeHtml(link.desc || '暂无简介')}</div>
+        </div>
+        ${renderSignalHtml(link)}
+      </a>`;
+  }
+
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, ch => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[ch]));
+  }
+
+  /* ==========================================================================
+   * 渲染前台 /friends：吸顶 Underline 锚点标签栏 + 全分组顺排 + ScrollSpy
+   * ======================================================================== */
+  function renderFrontend() {
+    const dict = I18N[state.lang];
+    document.getElementById('feTitle').textContent = dict.title;
+    document.getElementById('feSubtitle').textContent = dict.subtitle;
+    document.getElementById('lblRandom').textContent = dict.random;
+    document.getElementById('lblApplyJump').textContent = dict.applyJump;
+    document.getElementById('lblMySiteInfo').textContent = dict.mySiteInfo;
+    document.getElementById('lblApplySection').textContent = dict.applySection;
+    document.getElementById('guestTitle').textContent = dict.guestTitle;
+    document.getElementById('guestDesc').textContent = dict.guestDesc;
+
+    const publicGroups = state.groups.filter(g => g.isPublic);
+    const approvedLinks = state.links.filter(l => l.status === 'approved');
+
+    // 1. 顶部 Underline 标签栏（最左为「全部」，之后按 publicGroups 顺序排列）
+    const tabsEl = document.getElementById('feGroupTabs');
+    let totalPublicApproved = 0;
+    const groupCounts = new Map();
+    for (const g of publicGroups) {
+      const cnt = approvedLinks.filter(l => l.groupId === g.id).length;
+      groupCounts.set(g.id, cnt);
+      totalPublicApproved += cnt;
+    }
+
+    let tabsHtml = `
+      <button type="button" class="u-tab" role="tab" data-scroll-target="all" aria-selected="${state.activeScrollGroup === 'all'}">
+        ${GROUP_ICONS.all}
+        <span>${dict.all}</span>
+        <span class="tab-count num">${totalPublicApproved}</span>
+      </button>`;
+
+    for (const g of publicGroups) {
+      const info = groupDisplay(g);
+      const icon = GROUP_ICONS[g.preset] || GROUP_ICONS.custom;
+      const cnt = groupCounts.get(g.id) || 0;
+      tabsHtml += `
+        <button type="button" class="u-tab" role="tab" data-scroll-target="group-${g.slug}" aria-selected="${state.activeScrollGroup === 'group-' + g.slug}">
+          ${icon}
+          <span>${escapeHtml(info.name)}</span>
+          <span class="tab-count num">${cnt}</span>
+        </button>`;
+    }
+    tabsEl.innerHTML = tabsHtml;
+
+    // 绑定点击锚点平滑滚动（所有分组均在同一页，不隐藏任何分组）
+    tabsEl.querySelectorAll('.u-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const target = btn.dataset.scrollTarget;
+        state.activeScrollGroup = target;
+        updateActiveTabHighlight();
+        if (target === 'all') {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+          const sec = document.getElementById(target);
+          if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    });
+
+    // 2. 按相同顺序渲染全部公开分组区块
+    const stackEl = document.getElementById('feGroupsContainer');
+    stackEl.innerHTML = publicGroups.map(g => {
+      const info = groupDisplay(g);
+      const items = approvedLinks.filter(l => l.groupId === g.id);
+      return `
+        <section class="group-section" id="group-${g.slug}">
+          <div class="group-head">
+            <div class="group-title-wrap">
+              <h2 class="group-title">${escapeHtml(info.name)}</h2>
+              <span class="group-count num">${items.length} ${dict.countUnit}</span>
+            </div>
+            <p class="group-desc">${escapeHtml(info.desc)}</p>
+          </div>
+          <div class="flink-grid">
+            ${items.map(renderCardHtml).join('')}
+          </div>
+        </section>`;
+    }).join('');
+
+    // 3. 分组下拉框
+    const sel = document.getElementById('inpGroup');
+    const prevVal = sel.value;
+    sel.innerHTML = publicGroups.map(g => `<option value="${g.id}">${escapeHtml(groupDisplay(g).name)}</option>`).join('');
+    if (prevVal && [...sel.options].some(o => o.value === prevVal)) sel.value = prevVal;
+
+    renderCopyCode();
+    renderAuthAndMyLinks();
+    renderSwatches();
+    renderLivePreview();
+  }
+
+  function updateActiveTabHighlight() {
+    document.querySelectorAll('#feGroupTabs .u-tab').forEach(btn => {
+      btn.setAttribute('aria-selected', String(btn.dataset.scrollTarget === state.activeScrollGroup));
+    });
+  }
+
+  // 页面滚动时自动高亮当前视口所在的分组 Tab（ScrollSpy）
+  window.addEventListener('scroll', () => {
+    if (state.surface !== 'frontend') return;
+    if (window.scrollY < 110) {
+      if (state.activeScrollGroup !== 'all') {
+        state.activeScrollGroup = 'all';
+        updateActiveTabHighlight();
+      }
+      return;
+    }
+    const sections = [...document.querySelectorAll('#feGroupsContainer .group-section')];
+    let current = 'all';
+    for (const sec of sections) {
+      const rect = sec.getBoundingClientRect();
+      if (rect.top <= 150) current = sec.id;
+    }
+    if (current !== state.activeScrollGroup) {
+      state.activeScrollGroup = current;
+      updateActiveTabHighlight();
+    }
+  }, { passive: true });
+
+  /* ==========================================================================
+   * 本站信息多格式复制 & 登录态 / 我的友链（5 个配额 + 修改重审）
+   * ======================================================================== */
+  function renderCopyCode() {
+    const snippets = {
+      text: `名称：远野千束的博客 (Neo-Blog)\n链接：https://blog.liteyuki.org\n头像：https://blog.liteyuki.org/avatar.webp\n简介：记录系统架构、歌词律动与创造的乐趣`,
+      json: `{\n  "name": "远野千束的博客",\n  "url": "https://blog.liteyuki.org",\n  "avatar": "https://blog.liteyuki.org/avatar.webp",\n  "description": "记录系统架构、歌词律动与创造的乐趣",\n  "color_key": "sky"\n}`,
+      yaml: `- name: 远野千束的博客\n  link: https://blog.liteyuki.org\n  avatar: https://blog.liteyuki.org/avatar.webp\n  descr: 记录系统架构、歌词律动与创造的乐趣`,
+      html: `<a href="https://blog.liteyuki.org" target="_blank">远野千束的博客</a>`
+    };
+    document.getElementById('siteInfoCode').textContent = snippets[state.copyFmt];
+  }
+
+  function renderAuthAndMyLinks() {
+    const guestBox = document.getElementById('guestInviteBox');
+    const userBox = document.getElementById('userManageBox');
+    const quotaBadge = document.getElementById('quotaBadge');
+
+    guestBox.hidden = state.isLoggedIn;
+    userBox.hidden = !state.isLoggedIn;
+    quotaBadge.hidden = !state.isLoggedIn;
+
+    if (!state.isLoggedIn) return;
+
+    const myLinks = state.links.filter(l => l.owner === state.currentUser);
+    quotaBadge.textContent = `已用 ${myLinks.length} / 5`;
+
+    const statusLabel = {
+      approved: ['approved', '● 已公开展示'],
+      pre_approved: ['pre_approved', '◐ 预通过 · 待管理员复核'],
+      pending: ['pending', '◌ AI 审核中...'],
+      rejected: ['rejected', '× 已驳回']
+    };
+
+    const listEl = document.getElementById('myLinksList');
+    listEl.innerHTML = myLinks.map(l => {
+      const [cls, txt] = statusLabel[l.status] || statusLabel.pending;
+      const col = getPaletteObj(l.colorKey);
+      return `
+        <div class="my-link-row">
+          <span style="width:12px;height:12px;border-radius:4px;background:${col.hex};flex:none"></span>
+          <strong style="font-size:13.5px">${escapeHtml(l.name)}</strong>
+          <span class="muted" style="font-size:12.5px">${escapeHtml(l.url)}</span>
+          <span class="status-pill ${cls}">${txt}</span>
+          <span class="muted" style="font-size:12px;flex:1;min-width:160px">${escapeHtml(l.note || '')}</span>
+          <div style="display:flex;gap:6px">
+            <button type="button" class="btn btn-sm" onclick="startEditMyLink(${l.id})">修改 (需重审)</button>
+            <button type="button" class="btn btn-sm btn-ghost" onclick="deleteMyLink(${l.id})">删除</button>
+          </div>
+        </div>`;
+    }).join('');
+
+    document.getElementById('aiAutofillQuota').textContent = `AI 自动填表今日剩余 ${state.autofillLeft} / 10 次`;
+    document.getElementById('aiReviewQuotaHint').textContent = `AI 自动审核今日剩余 ${state.aiReviewLeft} / 5 次（超额自动转预通过人工复核）`;
+  }
+
+  function renderSwatches() {
+    const list = activePaletteList();
+    if (!list.some(c => c.key === state.selectedColorKey)) {
+      state.selectedColorKey = list[0].key;
+    }
+    const wrap = document.getElementById('formSwatches');
+    wrap.innerHTML = list.map(c => `
+      <button type="button"
+              class="swatch"
+              role="radio"
+              title="${c.zh} (${c.key})"
+              aria-checked="${c.key === state.selectedColorKey}"
+              style="background:${c.hex}"
+              onclick="selectSwatch('${c.key}')"></button>
+    `).join('');
+    const cur = getPaletteObj(state.selectedColorKey);
+    document.getElementById('previewColorLabel').textContent = `${cur.zh} · ${cur.key}`;
+  }
+
+  function selectSwatch(key) {
+    state.selectedColorKey = key;
+    renderSwatches();
+    renderLivePreview();
+  }
+
+  function renderLivePreview() {
+    const previewLink = {
+      name: document.getElementById('inpName').value.trim() || '示例博客名称',
+      url: document.getElementById('inpUrl').value.trim() || 'https://example.com',
+      desc: document.getElementById('inpDesc').value.trim() || '在这里实时预览亮色 / 深色主题下的卡片视觉表现',
+      colorKey: state.selectedColorKey,
+      latency: 120,
+      health: 'healthy'
+    };
+    document.getElementById('livePreviewMount').innerHTML = renderCardHtml(previewLink);
+  }
+
+  window.simulateLogin = function(provider) {
+    state.isLoggedIn = true;
+    syncSeg('#authSeg', 'user');
+    renderFrontend();
+    toast(`已通过 ${provider} 登录（未消耗邮件额度）`);
+  };
+
+  window.startEditMyLink = function(id) {
+    const item = state.links.find(l => l.id === id);
+    if (!item) return;
+    state.editingId = id;
+    document.getElementById('formModeTitle').textContent = `修改友链：${item.name}（提交后将重新触发审核）`;
+    document.getElementById('btnCancelEdit').hidden = false;
+    document.getElementById('inpUrl').value = item.url;
+    document.getElementById('inpName').value = item.name;
+    document.getElementById('inpAvatar').value = 'https://avatar.example.com/icon.png';
+    document.getElementById('inpDesc').value = item.desc;
+    document.getElementById('inpGroup').value = String(item.groupId);
+    state.selectedColorKey = item.colorKey;
+    renderSwatches();
+    renderLivePreview();
+  };
+
+  window.deleteMyLink = function(id) {
+    state.links = state.links.filter(l => l.id !== id);
+    if (state.editingId === id) resetApplyForm();
+    renderAll();
+    toast('已删除友链，名额已立即恢复');
+  };
+
+  function resetApplyForm() {
+    state.editingId = null;
+    document.getElementById('formModeTitle').textContent = '添加新友链';
+    document.getElementById('btnCancelEdit').hidden = true;
+    document.getElementById('applyForm').reset();
+    renderLivePreview();
+  }
+
+  /* ==========================================================================
+   * 渲染后台 /console/friends 与 32 色亮暗对比实验室
+   * ======================================================================== */
+  function renderConsole() {
+    const pendingCnt = state.links.filter(l => l.status === 'pre_approved' || l.status === 'pending').length;
+    document.getElementById('consolePendingCount').textContent = String(pendingCnt);
+
+    const filtered = state.links.filter(l => state.consoleFilter === 'all' ? true : l.status === state.consoleFilter);
+    const tbody = document.getElementById('consoleLinksTbody');
+
+    const backlinkBadge = {
+      verified: '<span style="color:var(--ok-fg);font-weight:600">✓ 已检测到反链</span>',
+      missing:  '<span style="color:var(--warn-fg);font-weight:600">! 未检测到反链</span>',
+      skipped:  '<span class="muted">单向豁免</span>'
+    };
+    const stMap = {
+      approved: ['approved', '已公开'],
+      pre_approved: ['pre_approved', '预通过·待复核'],
+      pending: ['pending', 'AI 审核中'],
+      rejected: ['rejected', '已驳回']
+    };
+
+    tbody.innerHTML = filtered.map(l => {
+      const grp = state.groups.find(g => g.id === l.groupId);
+      const grpName = grp ? groupDisplay(grp).name : '-';
+      const [cls, stTxt] = stMap[l.status] || stMap.pending;
+      const latTxt = l.health === 'unreachable' ? '<span style="color:var(--err-fg)">× 不可达</span>' : `<span class="num">${l.latency}ms</span>`;
+      return `
+        <tr>
+          <td style="min-width:230px;max-width:260px">${renderCardHtml(l)}</td>
+          <td>${escapeHtml(grpName)}${grp && !grp.isPublic ? ' <span class="muted">(私有)</span>' : ''}</td>
+          <td class="num">@${escapeHtml(l.owner)}</td>
+          <td>
+            <div>延迟：${latTxt}</div>
+            <div style="font-size:12px;margin-top:2px">${backlinkBadge[l.backlink] || '-'}</div>
+          </td>
+          <td>
+            <span class="status-pill ${cls}">${stTxt}</span>
+            <div class="ai-note" style="margin-top:4px">${escapeHtml(l.note || '')}</div>
+          </td>
+          <td style="text-align:right;white-space:nowrap">
+            ${l.status !== 'approved' ? `<button type="button" class="btn btn-sm btn-primary" onclick="adminSetStatus(${l.id}, 'approved')">通过</button>` : ''}
+            ${l.status !== 'pre_approved' ? `<button type="button" class="btn btn-sm" onclick="adminSetStatus(${l.id}, 'pre_approved')">转待复核</button>` : ''}
+            ${l.status !== 'rejected' ? `<button type="button" class="btn btn-sm btn-ghost" onclick="adminSetStatus(${l.id}, 'rejected')">驳回</button>` : ''}
+          </td>
+        </tr>`;
+    }).join('');
+
+    // 分组排序管理列表
+    const gList = document.getElementById('consoleGroupsList');
+    gList.innerHTML = state.groups.map((g, idx) => {
+      const cnt = state.links.filter(l => l.groupId === g.id).length;
+      return `
+        <div class="group-manage-row">
+          <div style="display:flex;gap:4px">
+            <button type="button" class="btn btn-sm" ${idx === 0 ? 'disabled' : ''} onclick="moveGroup(${idx}, -1)" title="上移（前台 Tab 左移）">↑</button>
+            <button type="button" class="btn btn-sm" ${idx === state.groups.length - 1 ? 'disabled' : ''} onclick="moveGroup(${idx}, 1)" title="下移（前台 Tab 右移）">↓</button>
+          </div>
+          <div style="min-width:180px">
+            <strong>${escapeHtml(groupDisplay(g).name)}</strong>
+            <span class="muted" style="font-size:12px;margin-left:6px">#${escapeHtml(g.slug)}</span>
+          </div>
+          <span class="status-pill ${g.preset === 'custom' ? 'pending' : 'approved'}">${g.preset === 'custom' ? '自定义名称' : '预设多语言 (' + g.preset + ')'}</span>
+          <span class="muted num" style="font-size:12.5px">${cnt} 条友链</span>
+          <div style="flex:1"></div>
+          <label style="font-size:12.5px;display:inline-flex;align-items:center;gap:5px;cursor:pointer">
+            <input type="checkbox" ${g.isPublic ? 'checked' : ''} onchange="toggleGroupProp(${g.id}, 'isPublic', this.checked)">
+            前台公开展示
+          </label>
+          <label style="font-size:12.5px;display:inline-flex;align-items:center;gap:5px;cursor:pointer">
+            <input type="checkbox" ${g.skipBacklink ? 'checked' : ''} onchange="toggleGroupProp(${g.id}, 'skipBacklink', this.checked)">
+            跳过反链巡检
+          </label>
+        </div>`;
+    }).join('');
+  }
+
+  function renderPaletteLab() {
+    const list = activePaletteList();
+    document.getElementById('paletteLabGrid').innerHTML = list.map((c, idx) => renderCardHtml({
+      name: `${idx + 1}. ${c.zh} (${c.key})`,
+      url: `https://${c.key}.example.com`,
+      desc: `H=${c.h}° C=${c.c} · 切换右上角亮/暗与双态策略检验对比度`,
+      colorKey: c.key,
+      latency: (idx % 5 === 4) ? 3400 : (idx * 370) % 2600 + 60,
+      health: idx === 31 ? 'unreachable' : 'healthy'
+    })).join('');
+  }
+
+  window.adminSetStatus = function(id, nextStatus) {
+    const item = state.links.find(l => l.id === id);
+    if (!item) return;
+    item.status = nextStatus;
+    item.note = nextStatus === 'approved' ? '管理员人工复核通过' : (nextStatus === 'rejected' ? '管理员人工驳回' : '管理员转入待复核');
+    renderAll();
+    toast(`已更新「${item.name}」状态为 ${nextStatus}`);
+  };
+
+  window.moveGroup = function(idx, delta) {
+    const next = idx + delta;
+    if (next < 0 || next >= state.groups.length) return;
+    const copy = [...state.groups];
+    [copy[idx], copy[next]] = [copy[next], copy[idx]];
+    state.groups = copy;
+    renderAll();
+    toast('分组顺序已更新，切回前台 /friends 查看顶部 Tab 同步变化');
+  };
+
+  window.toggleGroupProp = function(id, prop, val) {
+    const g = state.groups.find(x => x.id === id);
+    if (g) { g[prop] = val; renderAll(); }
+  };
+
+  /* ==========================================================================
+   * 交互事件绑定
+   * ======================================================================== */
+  function bindSeg(selector, onPick) {
+    const root = document.querySelector(selector);
+    root.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        root.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
+        onPick(btn);
+      });
+    });
+  }
+  function syncSeg(selector, val) {
+    document.querySelectorAll(`${selector} button`).forEach(b => {
+      b.setAttribute('aria-pressed', String(b.dataset.val === val));
+    });
+  }
+
+  bindSeg('#surfaceSeg', btn => {
+    state.surface = btn.dataset.val;
+    document.body.dataset.surface = state.surface === 'console' ? 'console' : 'frontend';
+    document.getElementById('viewFrontend').hidden = state.surface !== 'frontend';
+    document.getElementById('viewConsole').hidden = state.surface !== 'console';
+    document.getElementById('viewPaletteLab').hidden = state.surface !== 'palette-lab';
+    document.getElementById('authSimWrap').hidden = state.surface !== 'frontend';
+    renderAll();
+  });
+
+  bindSeg('#themeSeg', btn => {
+    document.documentElement.classList.toggle('dark', btn.dataset.val === 'dark');
+  });
+
+  bindSeg('#colorModeSeg', btn => {
+    document.body.dataset.colorMode = btn.dataset.val;
+  });
+
+  bindSeg('#paletteSizeSeg', btn => {
+    state.paletteSize = Number(btn.dataset.val);
+    renderSwatches();
+    renderLivePreview();
+    renderPaletteLab();
+  });
+
+  bindSeg('#langSeg', btn => {
+    state.lang = btn.dataset.val;
+    renderAll();
+  });
+
+  bindSeg('#authSeg', btn => {
+    state.isLoggedIn = btn.dataset.val === 'user';
+    renderFrontend();
+  });
+
+  bindSeg('#copyFormatSeg', btn => {
+    state.copyFmt = btn.dataset.fmt;
+    renderCopyCode();
+  });
+
+  bindSeg('#consoleStatusFilter', btn => {
+    state.consoleFilter = btn.dataset.st;
+    renderConsole();
+  });
+
+  document.querySelectorAll('#consoleTabs .u-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('#consoleTabs .u-tab').forEach(t => t.setAttribute('aria-selected', String(t === tab)));
+      const key = tab.dataset.ctab;
+      document.getElementById('consolePaneLinks').hidden = key !== 'links';
+      document.getElementById('consolePaneGroups').hidden = key !== 'groups';
+    });
+  });
+
+  document.getElementById('btnCopySiteInfo').addEventListener('click', () => {
+    navigator.clipboard?.writeText(document.getElementById('siteInfoCode').textContent);
+    toast('已复制本站友链信息');
+  });
+
+  document.getElementById('btnRandomVisit').addEventListener('click', () => {
+    const candidates = state.links.filter(l => l.status === 'approved' && l.health !== 'unreachable');
+    const pick = candidates[Math.floor(Math.random() * candidates.length)];
+    if (pick) toast(`🎲 随机串门命中：${pick.name} (${pick.url})`);
+  });
+
+  document.getElementById('btnCancelEdit').addEventListener('click', resetApplyForm);
+
+  ['inpName', 'inpUrl', 'inpDesc'].forEach(id => {
+    document.getElementById(id).addEventListener('input', renderLivePreview);
+  });
+
+  document.getElementById('btnAutoColor').addEventListener('click', () => {
+    const list = activePaletteList();
+    const seed = (document.getElementById('inpName').value || String(Date.now()));
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+    selectSwatch(list[hash % list.length].key);
+  });
+
+  document.getElementById('btnParsePaste').addEventListener('click', () => {
+    const raw = document.getElementById('inpPasteRaw').value;
+    if (!raw.trim()) {
+      document.getElementById('inpPasteRaw').value = '名称：凛冬将至\n链接：https://rin.dev\n头像：https://rin.dev/avatar.png\n简介：Rust 与分布式存储笔记';
+    }
+    const txt = document.getElementById('inpPasteRaw').value;
+    const mName = txt.match(/(?:名称|name)\s*[:：]\s*(.+)/i);
+    const mUrl  = txt.match(/(?:链接|网址|url|link)\s*[:：]\s*(https?:\/\/\S+)/i);
+    const mAva  = txt.match(/(?:头像|avatar)\s*[:：]\s*(https?:\/\/\S+)/i);
+    const mDesc = txt.match(/(?:简介|描述|desc|descr)\s*[:：]\s*(.+)/i);
+    if (mName) document.getElementById('inpName').value = mName[1].trim();
+    if (mUrl)  document.getElementById('inpUrl').value = mUrl[1].trim();
+    if (mAva)  document.getElementById('inpAvatar').value = mAva[1].trim();
+    if (mDesc) document.getElementById('inpDesc').value = mDesc[1].trim();
+    renderLivePreview();
+    toast('已从粘贴文本提取填入');
+  });
+
+  document.getElementById('btnAiAutofill').addEventListener('click', () => {
+    if (state.autofillLeft <= 0) return toast('今日 AI 自动填表次数已达上限 (10/10)');
+    const urlInput = document.getElementById('inpUrl');
+    if (!urlInput.value.trim()) urlInput.value = 'https://sora-lab.jp';
+    state.autofillLeft -= 1;
+    let host = 'sora-lab';
+    try { host = new URL(urlInput.value).hostname.replace(/^www\./, ''); } catch {}
+    document.getElementById('inpName').value = `${host.split('.')[0]} の技术手记`;
+    document.getElementById('inpAvatar').value = `https://${host}/favicon.png`;
+    document.getElementById('inpDesc').value = `由 AI 抓取网页元信息提炼：专注于系统工程、图形渲染与独立创作的个人博客`;
+    selectSwatch('aurora');
+    renderAuthAndMyLinks();
+    renderLivePreview();
+    toast('✨ AI 已自动抓取站点信息并提炼填入');
+  });
+
+  document.getElementById('applyForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const myLinks = state.links.filter(l => l.owner === state.currentUser);
+    if (!state.editingId && myLinks.length >= 5) {
+      return toast('每个普通用户最多添加 5 个站点，请先删除旧站点再试');
+    }
+    const url = document.getElementById('inpUrl').value.trim();
+    const name = document.getElementById('inpName').value.trim();
+    const desc = document.getElementById('inpDesc').value.trim();
+    const groupId = Number(document.getElementById('inpGroup').value) || 1;
+    const backlink = document.getElementById('inpBacklink').value.trim();
+
+    const useAiQuota = state.aiReviewLeft > 0;
+    if (useAiQuota) state.aiReviewLeft -= 1;
+
+    if (state.editingId) {
+      const target = state.links.find(l => l.id === state.editingId);
+      if (target) {
+        target.url = url;
+        target.name = name;
+        target.desc = desc;
+        target.groupId = groupId;
+        target.colorKey = state.selectedColorKey;
+        target.status = useAiQuota ? 'pending' : 'pre_approved';
+        target.note = useAiQuota ? '修改已提交，AI 正在重新初审...' : '今日 AI 审核额度已满，自动转为预通过待人工复核';
+        simulateAsyncAiDecision(target, Boolean(backlink), useAiQuota);
+      }
+    } else {
+      const created = {
+        id: Date.now(),
+        groupId,
+        name,
+        url,
+        desc,
+        colorKey: state.selectedColorKey,
+        latency: 180,
+        health: 'healthy',
+        backlink: backlink ? 'verified' : 'missing',
+        status: useAiQuota ? 'pending' : 'pre_approved',
+        owner: state.currentUser,
+        note: useAiQuota ? 'AI 正在抓取目标页面并审核...' : '今日 AI 审核额度已用完，自动降级为预通过待管理员复核'
+      };
+      state.links.unshift(created);
+      simulateAsyncAiDecision(created, Boolean(backlink), useAiQuota);
+    }
+    resetApplyForm();
+    renderAll();
+  });
+
+  function simulateAsyncAiDecision(item, hasBacklink, hadQuota) {
+    if (!hadQuota) {
+      toast('今日 AI 审核次数已满，已自动置为「预通过」等待管理员复核');
+      return;
+    }
+    toast('已提交，AI 正在初审...');
+    setTimeout(() => {
+      if (hasBacklink) {
+        item.status = 'approved';
+        item.backlink = 'verified';
+        item.note = 'AI 审核通过：站点可达、内容健康且已检测到反链';
+        toast(`🎉 AI 审核通过：「${item.name}」已公开展示`);
+      } else {
+        item.status = 'pre_approved';
+        item.backlink = 'missing';
+        item.note = 'AI 预通过：博客内容合规，但未填写或未检测到反链，请管理员复核';
+        toast(`「${item.name}」AI 判定为预通过，可在后台一键复核通过`);
+      }
+      renderAll();
+    }, 1100);
+  }
+
+  document.getElementById('btnAdminQuickAdd').addEventListener('click', () => {
+    state.links.unshift({
+      id: Date.now(),
+      groupId: 1,
+      name: '管理员直添示例站',
+      url: 'https://friend.liteyuki.org',
+      desc: '管理员后台直接录入，免 AI 审核立即上线',
+      colorKey: 'jade',
+      latency: 90,
+      health: 'healthy',
+      backlink: 'verified',
+      status: 'approved',
+      owner: 'admin',
+      note: '管理员直添免审'
+    });
+    renderAll();
+    toast('管理员已直接添加并公开展示');
+  });
+
+  document.getElementById('btnRunProbeAll').addEventListener('click', () => {
+    state.links.forEach(l => {
+      if (l.health !== 'unreachable') {
+        l.latency = Math.max(40, Math.round((l.latency + (Math.random() * 160 - 80)) / 10) * 10);
+      }
+    });
+    renderAll();
+    toast('已完成全量服务端存活与反链模拟拨测');
+  });
+
+  document.getElementById('btnAddPresetGroup').addEventListener('click', () => {
+    const slug = 'tech-' + (state.groups.length + 1);
+    state.groups.push({
+      id: Date.now(),
+      preset: 'custom',
+      slug,
+      customName: '技术社区与组织',
+      isPublic: true,
+      skipBacklink: false
+    });
+    renderAll();
+    toast('已新增分组，前台顶部 Tab 已同步追加');
+  });
+
+  let toastTimer = 0;
+  function toast(msg) {
+    const el = document.getElementById('toastEl');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
+  }
+
+  function renderAll() {
+    renderFrontend();
+    renderConsole();
+    renderPaletteLab();
+  }
+
+  renderAll();
+</script>
+</body>
+</html>

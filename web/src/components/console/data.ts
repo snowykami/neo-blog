@@ -11,6 +11,7 @@ import {
   Folder,
   Footprints,
   Gauge,
+  Handshake,
   IdCard,
   KeyRound,
   ListTree,
@@ -59,6 +60,7 @@ const pages: SidebarItem = { id: 'pages', title: 'pages.title', url: consolePath
 const categories: SidebarItem = { id: 'categories', title: 'categories.title', url: consolePath.category, icon: ChartBarStackedIcon, permission: isEditor }
 const labels: SidebarItem = { id: 'labels', title: 'labels.title', url: consolePath.label, icon: TagsIcon, permission: isEditor }
 const comments: SidebarItem = { id: 'comments', title: 'comments.title', url: consolePath.comment, icon: MessageCircle, permission: isAdmin }
+const friends: SidebarItem = { id: 'friends', title: 'friends.title', url: consolePath.friend, icon: Handshake, permission: isAdmin }
 // 歌词特效（AI 歌词标注的查看与手动编辑）：标注对所有读者生效，限管理员
 const lyricEffects: SidebarItem = { id: 'lyric_effects', title: 'lyric_effects.title', url: consolePath.lyricEffect, icon: AudioLines, permission: isAdmin }
 const files: SidebarItem = { id: 'files', title: 'files.title', tabTitle: 'menu.files', url: consolePath.file, icon: Folder, permission: () => true }
@@ -86,6 +88,7 @@ export const sidebarData: {
     { id: 'content', title: 'menu.content', icon: Newspaper, items: [posts, pages] },
     { id: 'taxonomy', title: 'menu.taxonomy', icon: TagsIcon, items: [categories, labels] },
     { id: 'comments', title: 'comments.title', icon: MessageCircle, items: [comments] },
+    { id: 'friends', title: 'friends.title', icon: Handshake, items: [friends] },
     { id: 'music', title: 'menu.music', icon: AudioLines, items: [lyricEffects] },
     { id: 'files', title: 'files.title', icon: Folder, items: [files, storages] },
   ],
