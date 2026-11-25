@@ -91,7 +91,7 @@ const MemoPostListItem = memo(({
       )}
 
       {/* 标题：桌面端左侧主色竖条采用脱离文档流的 static-position 绝对定位（h2 保持 static 定位），避免长连续词在行内块后断行孤立竖条，且仅用 opacity 过渡箭头 */}
-      <h2 className="post-title-peer mb-3 text-xl leading-snug font-bold tracking-tight wrap-break-word text-(--post-title-fg) before:pointer-events-none before:absolute before:mt-1.5 before:-ml-4.5 before:hidden before:h-5 before:w-1 before:rounded-md before:bg-primary md:text-2xl md:leading-8 md:before:block">
+      <h2 className="post-title-peer mb-3 text-xl leading-snug font-bold tracking-tight wrap-break-word text-card-foreground before:pointer-events-none before:absolute before:mt-1.5 before:-ml-4.5 before:hidden before:h-5 before:w-1 before:rounded-md before:bg-primary md:text-2xl md:leading-8 md:before:block">
         <Link
           href={url}
           className="group/link rounded-sm transition-colors duration-150 outline-none after:absolute after:inset-0 after:z-0 after:rounded-2xl hover:text-primary focus-visible:text-primary focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset active:text-(--primary-active)"
@@ -110,13 +110,13 @@ const MemoPostListItem = memo(({
       {summary && (
         // 最多 2 行，建立「标题 → 色块元信息 → 摘要 → 轻指标」四拍扫读节奏；max-h 兜底
         // 关闭 text-autospace：Safari 默认开启而 Chrome 不开启，保持一致，也避免其影响截断
-        <p className="mb-3 line-clamp-2 max-h-[2lh] pr-2 text-sm leading-relaxed text-(--post-summary-fg) md:text-[0.9375rem] [text-autospace:no-autospace]">
+        <p className="mb-3 line-clamp-2 max-h-[2lh] pr-2 text-sm leading-relaxed text-(--post-summary-fg) [text-autospace:no-autospace]">
           <Highlighted text={summary} terms={effectiveHighlight} />
         </p>
       )}
 
-      {/* 底部轻指标行：与 Fuwari 字数栏同位置，复用已有列表字段而不额外拉取全文 */}
-      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-(--post-subtle-fg) tabular-nums">
+      {/* 底部轻指标行：收敛至全站统一的 text-muted-foreground + text-xs，靠字号与字重建立第四级节奏并满足 WCAG AA 对比度 */}
+      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground tabular-nums">
         <span className="inline-flex items-center gap-1">
           <ViewIcon className="size-3.5" />
           <span className="sr-only">{t('Metrics.view_count')}</span>
@@ -124,7 +124,7 @@ const MemoPostListItem = memo(({
         </span>
         {likeEnabled && (
           <>
-            <span aria-hidden className="text-(--post-divider-fg)">|</span>
+            <span aria-hidden className="text-border">|</span>
             <span className="inline-flex items-center gap-1">
               <LikeIcon className="size-3.5" />
               <span className="sr-only">{t('Metrics.like_count')}</span>
@@ -134,7 +134,7 @@ const MemoPostListItem = memo(({
         )}
         {commentEnabled && (
           <>
-            <span aria-hidden className="text-(--post-divider-fg)">|</span>
+            <span aria-hidden className="text-border">|</span>
             <span className="inline-flex items-center gap-1">
               <CommentIcon className="size-3.5" />
               <span className="sr-only">{t('Metrics.comment_count')}</span>

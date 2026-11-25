@@ -111,7 +111,7 @@ export function PostMeta({
           <span className="flex flex-wrap items-center gap-y-2">
             {visibleLabels.map((label, index) => (
               <Fragment key={label.id}>
-                {index > 0 && <span aria-hidden className="mx-1.5 text-(--post-divider-fg)">/</span>}
+                {index > 0 && <span aria-hidden className="mx-1.5 text-border">/</span>}
                 {/* 标签页是带 ?label= 的首页：进入视口只预取首页的 App Shell（与其他首页链接共用一份，点击立刻出骨架）；
                     悬停不升级为按链接预取（带筛选的列表不进取数缓存，每次悬停都要打后端） */}
                 <Link href={getLabelUrl(label)} unstable_dynamicOnHover={false} className={metaLinkClass}>
@@ -120,7 +120,7 @@ export function PostMeta({
               </Fragment>
             ))}
             {hiddenLabelCount > 0 && (
-              <span aria-hidden className="ml-1.5 text-(--post-subtle-fg) tabular-nums">
+              <span aria-hidden className="ml-1.5 text-xs font-normal text-muted-foreground tabular-nums">
                 +
                 {hiddenLabelCount}
               </span>
