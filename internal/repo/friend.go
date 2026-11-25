@@ -52,7 +52,7 @@ func (r *friendRepo) DeleteGroup(id uint) error {
 func (r *friendRepo) ReorderGroups(ids []uint) error {
 	return GetDB().Transaction(func(tx *gorm.DB) error {
 		for i, id := range ids {
-			if err := tx.Model(&model.FriendGroup{}).Where("id = ?", id).Update("sort_order", (i+1)*10).Error; err != nil {
+			if err := tx.Model(&model.FriendGroup{}).Where("id = ?", id).UpdateColumn("sort_order", (i+1)*10).Error; err != nil {
 				return err
 			}
 		}
@@ -86,17 +86,76 @@ func (r *friendRepo) CountLinksInGroup(groupID uint) (int64, error) {
 	return count, err
 }
 
-// ListApprovedByGroupIDs 按分组 ID 集合查询所有已通过审核的友链
-func (r *friendRepo) ListApprovedByGroupIDs(groupIDs []uint) ([]model.FriendLink, error) {
+// ListApprovedByGroupIDs 按分组 ID 集合与排序策略查询所有已通过审核的友链
+func (r *friendRepo) ListApprovedByGroupIDs(groupIDs []uint, sortMode string) ([]model.FriendLink, error) {
 	if len(groupIDs) == 0 {
 		return []model.FriendLink{}, nil
+	}
+	orderExpr := "sort_order ASC, id ASC"
+	if sortMode == model.FriendSortModeActivity {
+		// 预留 RSS 更新活动排序槽位：后续接入 RSS 聚合字段后按最近更新时间降序排列，当前回退默认拖拽顺序
+		orderExpr = "sort_order ASC, id ASC"
 	}
 	var links []model.FriendLink
 	err := GetDB().Model(&model.FriendLink{}).
 		Where("group_id IN ? AND status = ?", groupIDs, model.FriendStatusApproved).
+		Order(orderExpr).
+		Find(&links).Error
+	return links, err
+}
+
+// ListLinksForSort 查询后台拖拽排序工作台所需的全部非驳回友链（严格按前台一致的 sort_order ASC, id ASC 排列）
+func (r *friendRepo) ListLinksForSort() ([]model.FriendLink, error) {
+	var links []model.FriendLink
+	err := GetDB().Model(&model.FriendLink{}).
+		Preload("User").
+		Where("status IN ?", []string{model.FriendStatusApproved, model.FriendStatusPreApproved, model.FriendStatusPending}).
 		Order("sort_order ASC, id ASC").
 		Find(&links).Error
 	return links, err
+}
+
+// ListGroupLinkIDsOrdered 按当前展示顺序返回指定分组下全部友链 ID（含已驳回记录，用于重排时校验归属并保持尾部顺序稳定）
+func (r *friendRepo) ListGroupLinkIDsOrdered(groupID uint) ([]uint, error) {
+	var ids []uint
+	err := GetDB().Model(&model.FriendLink{}).
+		Where("group_id = ?", groupID).
+		Order("sort_order ASC, id ASC").
+		Pluck("id", &ids).Error
+	return ids, err
+}
+
+// NextLinkSortOrder 计算指定分组内新增或迁入友链的末尾排序权重（取当前非负最大 sort_order + 10，防溢出）
+func (r *friendRepo) NextLinkSortOrder(groupID uint) (int, error) {
+	var maxOrder int
+	err := GetDB().Model(&model.FriendLink{}).
+		Where("group_id = ?", groupID).
+		Select("COALESCE(MAX(sort_order), 0)").
+		Scan(&maxOrder).Error
+	if err != nil {
+		return 0, err
+	}
+	if maxOrder < 0 {
+		maxOrder = 0
+	}
+	if maxOrder > 1_000_000_000 {
+		return maxOrder, nil
+	}
+	return maxOrder + 10, nil
+}
+
+// ReorderLinksInGroup 在单事务中按给定顺序重写指定分组内友链的 sort_order（保留原有 updated_at）
+func (r *friendRepo) ReorderLinksInGroup(groupID uint, orderedIDs []uint) error {
+	return GetDB().Transaction(func(tx *gorm.DB) error {
+		for i, id := range orderedIDs {
+			if err := tx.Model(&model.FriendLink{}).
+				Where("id = ? AND group_id = ?", id, groupID).
+				UpdateColumn("sort_order", (i+1)*10).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func (r *friendRepo) ListByUser(userID uint) ([]model.FriendLink, error) {

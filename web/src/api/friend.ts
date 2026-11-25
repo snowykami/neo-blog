@@ -1,4 +1,5 @@
 import type {
+  AdminFriendSortOverview,
   AdminListFriendLinksData,
   AdminReviewFriendLinkPayload,
   AdminUpsertFriendGroupPayload,
@@ -7,6 +8,7 @@ import type {
   FriendGroupAdmin,
   FriendLinkAdmin,
   FriendLinkMine,
+  FriendSortMode,
   MyFriendLinksData,
   PublicFriendsData,
   UpsertMyFriendLinkPayload,
@@ -14,9 +16,14 @@ import type {
 import type { BaseResponse } from '@/models/resp'
 import axiosClient from './client'
 
-export async function getPublicFriends(group?: string): Promise<BaseResponse<PublicFriendsData>> {
+export async function getPublicFriends(group?: string, sort?: FriendSortMode): Promise<BaseResponse<PublicFriendsData>> {
+  const params: Record<string, string> = {}
+  if (group)
+    params.group = group
+  if (sort)
+    params.sort = sort
   const res = await axiosClient.get<BaseResponse<PublicFriendsData>>('/friends', {
-    params: group ? { group } : undefined,
+    params: Object.keys(params).length > 0 ? params : undefined,
   })
   return res.data
 }
@@ -67,6 +74,21 @@ export async function adminUpdateFriendGroup(id: number, payload: AdminUpsertFri
 
 export async function adminReorderFriendGroups(ids: number[]): Promise<BaseResponse<null>> {
   const res = await axiosClient.put<BaseResponse<null>>('/admin/friends/groups/reorder', { ids })
+  return res.data
+}
+
+export async function adminGetFriendSortOverview(): Promise<BaseResponse<AdminFriendSortOverview>> {
+  const res = await axiosClient.get<BaseResponse<AdminFriendSortOverview>>('/admin/friends/sort')
+  return res.data
+}
+
+export async function adminUpdateFriendSortMode(sortMode: FriendSortMode): Promise<BaseResponse<{ sortMode: FriendSortMode }>> {
+  const res = await axiosClient.put<BaseResponse<{ sortMode: FriendSortMode }>>('/admin/friends/sort-mode', { sortMode })
+  return res.data
+}
+
+export async function adminReorderFriendLinks(groupId: number, ids: number[]): Promise<BaseResponse<null>> {
+  const res = await axiosClient.put<BaseResponse<null>>('/admin/friends/links/reorder', { groupId, ids })
   return res.data
 }
 

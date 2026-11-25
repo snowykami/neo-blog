@@ -42,6 +42,10 @@ const (
 	friendReviewNoteMaxRunes = 500
 	friendGroupDescMaxRunes  = 255
 	friendSlugMaxRunes       = 64
+
+	friendSortModeKVKey  = "friend_sort_mode"
+	friendMaxReorderSize = 1000
+	friendSortOrderLimit = 1_000_000
 )
 
 var friendSlugPattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
@@ -173,13 +177,39 @@ func buildSiteCardDto() dto.FriendSiteCardDto {
 	}
 }
 
+func resolveEffectiveFriendSortMode(raw string) string {
+	mode := model.NormalizeFriendSortMode(raw)
+	if mode == model.FriendSortModeActivity {
+		// RSS 更新频次排序尚未接入，统一回退为已生效的手动排序，确保返回 sort_mode 与实际排序一致
+		return model.FriendSortModeManual
+	}
+	return mode
+}
+
+func validateFriendSortOrderRange(order int) *errs.ServiceError {
+	if order < -friendSortOrderLimit || order > friendSortOrderLimit {
+		return errs.NewBadRequest("invalid_friend_sort_order")
+	}
+	return nil
+}
+
+// GetFriendSortMode 读取全站配置的友链默认排序方式（默认 manual）
+func GetFriendSortMode() string {
+	raw := repo.KV.GetStringWithoutErr(friendSortModeKVKey, model.FriendSortModeManual)
+	return resolveEffectiveFriendSortMode(raw)
+}
+
 // ListPublicFriends 公开友链列表；仅管理员或携带 friends:read Scope 的 API Token 可按 ?group=slug 读取非公开分组
-func (s *FriendService) ListPublicFriends(ctx context.Context, groupSlug string) (*dto.PublicFriendsResp, *errs.ServiceError) {
+func (s *FriendService) ListPublicFriends(ctx context.Context, groupSlug string, requestedSort ...string) (*dto.PublicFriendsResp, *errs.ServiceError) {
 	canReadPrivate := ctxutils.HasAPITokenScope(ctx, constant.ScopeFriendsRead)
 	if !canReadPrivate {
 		if u, ok := ctxutils.GetCurrentUser(ctx); ok && u.Role == constant.RoleAdmin {
 			canReadPrivate = true
 		}
+	}
+	sortMode := GetFriendSortMode()
+	if len(requestedSort) > 0 && strings.TrimSpace(requestedSort[0]) != "" {
+		sortMode = resolveEffectiveFriendSortMode(requestedSort[0])
 	}
 	groups, err := repo.Friend.ListGroups(!canReadPrivate, strings.TrimSpace(groupSlug))
 	if err != nil {
@@ -189,7 +219,7 @@ func (s *FriendService) ListPublicFriends(ctx context.Context, groupSlug string)
 	for _, g := range groups {
 		groupIDs = append(groupIDs, g.ID)
 	}
-	links, err := repo.Friend.ListApprovedByGroupIDs(groupIDs)
+	links, err := repo.Friend.ListApprovedByGroupIDs(groupIDs, sortMode)
 	if err != nil {
 		return nil, errs.Internal("failed_to_get_target", err).WithResource("friend_link")
 	}
@@ -208,6 +238,7 @@ func (s *FriendService) ListPublicFriends(ctx context.Context, groupSlug string)
 		outGroups = append(outGroups, groups[i].ToPublicDto(byGroup[groups[i].ID]))
 	}
 	return &dto.PublicFriendsResp{
+		SortMode: sortMode,
 		Groups:   outGroups,
 		SiteInfo: buildSiteCardDto(),
 	}, nil
@@ -459,10 +490,6 @@ func (s *FriendService) CreateMyFriendLink(ctx context.Context, req *dto.UpsertM
 	if !isAdminUser && !utils.AllowRequest(fmt.Sprintf("friend_write_user:%d", currentUser.ID), 10, 10*time.Minute) {
 		return nil, errs.NewTooManyRequests("too_many_requests")
 	}
-	grp, svcerr := resolveTargetGroupForUser(req.GroupID, isAdminUser)
-	if svcerr != nil {
-		return nil, svcerr
-	}
 	cleanName, cleanURL, normHost, cleanAvatar, cleanDesc, cleanBacklink, colorKey, svcerr := validateFriendLinkFields(
 		req.Name, req.URL, req.Avatar, req.Description, req.BacklinkURL, req.ColorKey,
 	)
@@ -475,6 +502,11 @@ func (s *FriendService) CreateMyFriendLink(ctx context.Context, req *dto.UpsertM
 		return nil, errs.Internal("failed_to_lock", err)
 	}
 	defer unlock()
+
+	grp, svcerr := resolveTargetGroupForUser(req.GroupID, isAdminUser)
+	if svcerr != nil {
+		return nil, svcerr
+	}
 
 	if !isAdminUser {
 		cnt, err := repo.Friend.CountByUser(currentUser.ID)
@@ -492,6 +524,10 @@ func (s *FriendService) CreateMyFriendLink(ctx context.Context, req *dto.UpsertM
 		return nil, errs.Internal("failed_to_get_target", err).WithResource("friend_link")
 	}
 
+	nextOrder, err := repo.Friend.NextLinkSortOrder(grp.ID)
+	if err != nil {
+		return nil, errs.Internal("failed_to_get_target", err).WithResource("friend_link")
+	}
 	status, reviewNote, shouldRunAI := decideSubmissionReviewMode(currentUser)
 	ownerID := currentUser.ID
 	link := &model.FriendLink{
@@ -504,6 +540,7 @@ func (s *FriendService) CreateMyFriendLink(ctx context.Context, req *dto.UpsertM
 		Description:    cleanDesc,
 		ColorKey:       colorKey,
 		BacklinkURL:    cleanBacklink,
+		SortOrder:      nextOrder,
 		Status:         status,
 		ReviewNote:     reviewNote,
 		HealthStatus:   model.FriendHealthUnknown,
@@ -573,7 +610,15 @@ func (s *FriendService) UpdateMyFriendLink(ctx context.Context, id uint, req *dt
 	}
 
 	oldAvatar := link.Avatar
+	wasRejected := link.Status == model.FriendStatusRejected
 	status, reviewNote, shouldRunAI := decideSubmissionReviewMode(currentUser)
+	if grp.ID != link.GroupID || (wasRejected && status != model.FriendStatusRejected) {
+		nextOrder, orderErr := repo.Friend.NextLinkSortOrder(grp.ID)
+		if orderErr != nil {
+			return nil, errs.Internal("failed_to_get_target", orderErr).WithResource("friend_link")
+		}
+		link.SortOrder = nextOrder
+	}
 	link.GroupID = grp.ID
 	link.Name = cleanName
 	link.URL = cleanURL
@@ -706,6 +751,15 @@ func (s *FriendService) AdminCreateGroup(ctx context.Context, req *dto.AdminUpse
 	if svcerr != nil {
 		return nil, svcerr
 	}
+	if svcerr := validateFriendSortOrderRange(req.SortOrder); svcerr != nil {
+		return nil, svcerr
+	}
+	unlock, err := sharedstate.Lock(ctx, friendApplyLockKey, friendApplyLockTTL)
+	if err != nil {
+		return nil, errs.Internal("failed_to_lock", err)
+	}
+	defer unlock()
+
 	if existing, err := repo.Friend.GetGroupBySlug(slug); err == nil && existing != nil {
 		return nil, errs.NewConflict("friend_group_slug_exists")
 	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -715,7 +769,17 @@ func (s *FriendService) AdminCreateGroup(ctx context.Context, req *dto.AdminUpse
 	sortOrder := req.SortOrder
 	if sortOrder <= 0 {
 		groups, _ := repo.Friend.ListGroups(false, "")
-		sortOrder = (len(groups) + 1) * 10
+		maxOrder := 0
+		for _, g := range groups {
+			if g.SortOrder > maxOrder {
+				maxOrder = g.SortOrder
+			}
+		}
+		if maxOrder > 1_000_000_000 {
+			sortOrder = maxOrder
+		} else {
+			sortOrder = maxOrder + 10
+		}
 	}
 	grp := &model.FriendGroup{
 		PresetKey:         presetKey,
@@ -737,6 +801,15 @@ func (s *FriendService) AdminUpdateGroup(ctx context.Context, id uint, req *dto.
 	if _, svcerr := requireAdminUser(ctx); svcerr != nil {
 		return nil, svcerr
 	}
+	if svcerr := validateFriendSortOrderRange(req.SortOrder); svcerr != nil {
+		return nil, svcerr
+	}
+	unlock, err := sharedstate.Lock(ctx, friendApplyLockKey, friendApplyLockTTL)
+	if err != nil {
+		return nil, errs.Internal("failed_to_lock", err)
+	}
+	defer unlock()
+
 	grp, err := repo.Friend.GetGroup(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -779,8 +852,171 @@ func (s *FriendService) AdminReorderGroups(ctx context.Context, req *dto.AdminRe
 	if len(req.IDs) == 0 {
 		return nil
 	}
-	if err := repo.Friend.ReorderGroups(req.IDs); err != nil {
+	if len(req.IDs) > friendMaxReorderSize {
+		return errs.NewBadRequest("invalid_friend_reorder_ids")
+	}
+	unlock, err := sharedstate.Lock(ctx, friendApplyLockKey, friendApplyLockTTL)
+	if err != nil {
+		return errs.Internal("failed_to_lock", err)
+	}
+	defer unlock()
+
+	groups, err := repo.Friend.ListGroups(false, "")
+	if err != nil {
+		return errs.Internal("failed_to_get_target", err).WithResource("friend_group")
+	}
+	existingSet := make(map[uint]struct{}, len(groups))
+	for _, g := range groups {
+		existingSet[g.ID] = struct{}{}
+	}
+	seen := make(map[uint]struct{}, len(req.IDs))
+	finalIDs := make([]uint, 0, len(groups))
+	for _, id := range req.IDs {
+		if id == 0 {
+			return errs.NewBadRequest("invalid_friend_reorder_ids")
+		}
+		if _, dup := seen[id]; dup {
+			return errs.NewBadRequest("invalid_friend_reorder_ids")
+		}
+		if _, ok := existingSet[id]; !ok {
+			return errs.NewBadRequest("invalid_friend_reorder_ids")
+		}
+		seen[id] = struct{}{}
+		finalIDs = append(finalIDs, id)
+	}
+	for _, g := range groups {
+		if _, included := seen[g.ID]; !included {
+			finalIDs = append(finalIDs, g.ID)
+		}
+	}
+	if err := repo.Friend.ReorderGroups(finalIDs); err != nil {
 		return errs.Internal("failed_to_update_target", err).WithResource("friend_group")
+	}
+	return nil
+}
+
+// AdminGetSortOverview 获取后台友链拖拽排序工作台视图（当前默认排序策略 + 各分组有序友链列表）
+func (s *FriendService) AdminGetSortOverview(ctx context.Context) (*dto.AdminFriendSortOverviewResp, *errs.ServiceError) {
+	if _, svcerr := requireAdminUser(ctx); svcerr != nil {
+		return nil, svcerr
+	}
+	groups, err := repo.Friend.ListGroups(false, "")
+	if err != nil {
+		return nil, errs.Internal("failed_to_get_target", err).WithResource("friend_group")
+	}
+	counts, err := repo.Friend.CountLinksByGroup()
+	if err != nil {
+		return nil, errs.Internal("failed_to_get_target", err).WithResource("friend_link")
+	}
+	links, err := repo.Friend.ListLinksForSort()
+	if err != nil {
+		return nil, errs.Internal("failed_to_get_target", err).WithResource("friend_link")
+	}
+	byGroup := make(map[uint][]dto.FriendLinkAdminDto, len(groups))
+	for i := range links {
+		byGroup[links[i].GroupID] = append(byGroup[links[i].GroupID], links[i].ToAdminDto())
+	}
+	outGroups := make([]dto.FriendGroupSortDto, 0, len(groups))
+	for _, g := range groups {
+		groupLinks := byGroup[g.ID]
+		if groupLinks == nil {
+			groupLinks = []dto.FriendLinkAdminDto{}
+		}
+		outGroups = append(outGroups, dto.FriendGroupSortDto{
+			Group: g.ToAdminDto(counts[g.ID]),
+			Links: groupLinks,
+		})
+	}
+	return &dto.AdminFriendSortOverviewResp{
+		SortMode: GetFriendSortMode(),
+		Groups:   outGroups,
+	}, nil
+}
+
+// AdminUpdateSortMode 更新全站默认友链排序模式（activity 更新频次排序预留待接入 RSS 后开放）
+func (s *FriendService) AdminUpdateSortMode(ctx context.Context, req *dto.AdminUpdateFriendSortModeReq) (string, *errs.ServiceError) {
+	if _, svcerr := requireAdminUser(ctx); svcerr != nil {
+		return "", svcerr
+	}
+	mode := strings.TrimSpace(strings.ToLower(req.SortMode))
+	switch mode {
+	case model.FriendSortModeManual:
+		unlock, err := sharedstate.Lock(ctx, friendApplyLockKey, friendApplyLockTTL)
+		if err != nil {
+			return "", errs.Internal("failed_to_lock", err)
+		}
+		defer unlock()
+		if err := repo.KV.SetKV(friendSortModeKVKey, model.FriendSortModeManual); err != nil {
+			return "", errs.Internal("failed_to_update_target", err)
+		}
+		return model.FriendSortModeManual, nil
+	case model.FriendSortModeActivity:
+		return "", errs.NewBadRequest("friend_sort_activity_pending_rss")
+	default:
+		return "", errs.NewBadRequest("invalid_friend_sort_mode")
+	}
+}
+
+// AdminReorderLinks 拖拽重排指定分组内的友链展示顺序（校验归属一致性并保留并发新提交友链在末尾）
+func (s *FriendService) AdminReorderLinks(ctx context.Context, req *dto.AdminReorderFriendLinksReq) *errs.ServiceError {
+	if _, svcerr := requireAdminUser(ctx); svcerr != nil {
+		return svcerr
+	}
+	if req.GroupID == 0 {
+		return errs.NewBadRequest("friend_group_not_found")
+	}
+	if len(req.IDs) == 0 {
+		return nil
+	}
+	if len(req.IDs) > friendMaxReorderSize {
+		return errs.NewBadRequest("invalid_friend_reorder_ids")
+	}
+	unlock, err := sharedstate.Lock(ctx, friendApplyLockKey, friendApplyLockTTL)
+	if err != nil {
+		return errs.Internal("failed_to_lock", err)
+	}
+	defer unlock()
+
+	if _, err := repo.Friend.GetGroup(req.GroupID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errs.NewNotFound("friend_group_not_found")
+		}
+		return errs.Internal("failed_to_get_target", err).WithResource("friend_group")
+	}
+
+	existingIDs, err := repo.Friend.ListGroupLinkIDsOrdered(req.GroupID)
+	if err != nil {
+		return errs.Internal("failed_to_get_target", err).WithResource("friend_link")
+	}
+	existingSet := make(map[uint]struct{}, len(existingIDs))
+	for _, id := range existingIDs {
+		existingSet[id] = struct{}{}
+	}
+
+	seen := make(map[uint]struct{}, len(req.IDs))
+	finalIDs := make([]uint, 0, len(existingIDs))
+	for _, id := range req.IDs {
+		if id == 0 {
+			return errs.NewBadRequest("invalid_friend_reorder_ids")
+		}
+		if _, dup := seen[id]; dup {
+			return errs.NewBadRequest("invalid_friend_reorder_ids")
+		}
+		if _, ok := existingSet[id]; !ok {
+			return errs.NewBadRequest("invalid_friend_reorder_ids")
+		}
+		seen[id] = struct{}{}
+		finalIDs = append(finalIDs, id)
+	}
+	// 将未包含在本次拖拽列表中的同组记录（如已驳回记录或刚并发提交的新申请）按原有相对顺序追加在末尾
+	for _, id := range existingIDs {
+		if _, included := seen[id]; !included {
+			finalIDs = append(finalIDs, id)
+		}
+	}
+
+	if err := repo.Friend.ReorderLinksInGroup(req.GroupID, finalIDs); err != nil {
+		return errs.Internal("failed_to_update_target", err).WithResource("friend_link")
 	}
 	return nil
 }
@@ -789,6 +1025,12 @@ func (s *FriendService) AdminDeleteGroup(ctx context.Context, id uint) *errs.Ser
 	if _, svcerr := requireAdminUser(ctx); svcerr != nil {
 		return svcerr
 	}
+	unlock, err := sharedstate.Lock(ctx, friendApplyLockKey, friendApplyLockTTL)
+	if err != nil {
+		return errs.Internal("failed_to_lock", err)
+	}
+	defer unlock()
+
 	cnt, err := repo.Friend.CountLinksInGroup(id)
 	if err != nil {
 		return errs.Internal("failed_to_get_target", err).WithResource("friend_group")
@@ -839,9 +1081,10 @@ func (s *FriendService) AdminCreateLink(ctx context.Context, req *dto.AdminUpser
 	if _, svcerr := requireAdminUser(ctx); svcerr != nil {
 		return nil, svcerr
 	}
-	grp, svcerr := resolveTargetGroupForUser(req.GroupID, true)
-	if svcerr != nil {
-		return nil, svcerr
+	if req.SortOrder != nil {
+		if svcerr := validateFriendSortOrderRange(*req.SortOrder); svcerr != nil {
+			return nil, svcerr
+		}
 	}
 	cleanName, cleanURL, normHost, cleanAvatar, cleanDesc, cleanBacklink, colorKey, svcerr := validateFriendLinkFields(
 		req.Name, req.URL, req.Avatar, req.Description, req.BacklinkURL, req.ColorKey,
@@ -856,12 +1099,27 @@ func (s *FriendService) AdminCreateLink(ctx context.Context, req *dto.AdminUpser
 	}
 	defer unlock()
 
+	grp, svcerr := resolveTargetGroupForUser(req.GroupID, true)
+	if svcerr != nil {
+		return nil, svcerr
+	}
+
 	if existing, err := repo.Friend.GetByNormalizedHost(normHost); err == nil && existing != nil {
 		return nil, errs.NewConflict("friend_url_exists")
 	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, errs.Internal("failed_to_get_target", err).WithResource("friend_link")
 	}
 
+	sortOrder := 0
+	if req.SortOrder != nil {
+		sortOrder = *req.SortOrder
+	} else {
+		nextOrder, orderErr := repo.Friend.NextLinkSortOrder(grp.ID)
+		if orderErr != nil {
+			return nil, errs.Internal("failed_to_get_target", orderErr).WithResource("friend_link")
+		}
+		sortOrder = nextOrder
+	}
 	// 管理员后台直接创建的友链默认设为站长托管（UserID=nil），后续可随时按需转移给已注册用户管理
 	link := &model.FriendLink{
 		UserID:         nil,
@@ -873,7 +1131,7 @@ func (s *FriendService) AdminCreateLink(ctx context.Context, req *dto.AdminUpser
 		Description:    cleanDesc,
 		ColorKey:       colorKey,
 		BacklinkURL:    cleanBacklink,
-		SortOrder:      req.SortOrder,
+		SortOrder:      sortOrder,
 		Status:         normalizeAdminStatus(req.Status),
 		ReviewNote:     clipRunes(req.ReviewNote, friendReviewNoteMaxRunes),
 		HealthStatus:   model.FriendHealthUnknown,
@@ -890,6 +1148,11 @@ func (s *FriendService) AdminCreateLink(ctx context.Context, req *dto.AdminUpser
 func (s *FriendService) AdminUpdateLink(ctx context.Context, id uint, req *dto.AdminUpsertFriendLinkReq) (*dto.FriendLinkAdminDto, *errs.ServiceError) {
 	if _, svcerr := requireAdminUser(ctx); svcerr != nil {
 		return nil, svcerr
+	}
+	if req.SortOrder != nil {
+		if svcerr := validateFriendSortOrderRange(*req.SortOrder); svcerr != nil {
+			return nil, svcerr
+		}
 	}
 	unlock, err := sharedstate.Lock(ctx, friendApplyLockKey, friendApplyLockTTL)
 	if err != nil {
@@ -923,8 +1186,20 @@ func (s *FriendService) AdminUpdateLink(ctx context.Context, id uint, req *dto.A
 	}
 
 	oldAvatar := link.Avatar
+	wasRejected := link.Status == model.FriendStatusRejected
+	nextStatus := normalizeAdminStatus(req.Status)
 	avatarChanged := cleanAvatar != oldAvatar
-	urlChanged := cleanURL != link.URL || cleanBacklink != link.BacklinkURL || grp.ID != link.GroupID
+	groupChanged := grp.ID != link.GroupID
+	urlChanged := cleanURL != link.URL || cleanBacklink != link.BacklinkURL || groupChanged
+	if req.SortOrder != nil {
+		link.SortOrder = *req.SortOrder
+	} else if groupChanged || (wasRejected && nextStatus != model.FriendStatusRejected) {
+		nextOrder, orderErr := repo.Friend.NextLinkSortOrder(grp.ID)
+		if orderErr != nil {
+			return nil, errs.Internal("failed_to_get_target", orderErr).WithResource("friend_link")
+		}
+		link.SortOrder = nextOrder
+	}
 	link.GroupID = grp.ID
 	link.Name = cleanName
 	link.URL = cleanURL
@@ -933,8 +1208,7 @@ func (s *FriendService) AdminUpdateLink(ctx context.Context, id uint, req *dto.A
 	link.Description = cleanDesc
 	link.ColorKey = colorKey
 	link.BacklinkURL = cleanBacklink
-	link.SortOrder = req.SortOrder
-	link.Status = normalizeAdminStatus(req.Status)
+	link.Status = nextStatus
 	link.ReviewNote = clipRunes(req.ReviewNote, friendReviewNoteMaxRunes)
 
 	if err := repo.Friend.SaveLink(link); err != nil {
@@ -966,6 +1240,12 @@ func (s *FriendService) AdminReviewLink(ctx context.Context, id uint, req *dto.A
 	if _, svcerr := requireAdminUser(ctx); svcerr != nil {
 		return nil, svcerr
 	}
+	unlock, lockErr := sharedstate.Lock(ctx, friendApplyLockKey, friendApplyLockTTL)
+	if lockErr != nil {
+		return nil, errs.Internal("failed_to_lock", lockErr)
+	}
+	defer unlock()
+
 	link, err := repo.Friend.GetLink(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -973,17 +1253,28 @@ func (s *FriendService) AdminReviewLink(ctx context.Context, id uint, req *dto.A
 		}
 		return nil, errs.Internal("failed_to_get_target", err).WithResource("friend_link")
 	}
-	if !slices.Contains(model.FriendStatuses, strings.TrimSpace(req.Status)) {
+	nextStatus := strings.TrimSpace(req.Status)
+	if !slices.Contains(model.FriendStatuses, nextStatus) {
 		return nil, errs.NewBadRequest("invalid_friend_status")
 	}
+	wasRejected := link.Status == model.FriendStatusRejected
+	targetGroupID := link.GroupID
 	if req.GroupID != nil && *req.GroupID > 0 {
 		grp, svcerr := resolveTargetGroupForUser(*req.GroupID, true)
 		if svcerr != nil {
 			return nil, svcerr
 		}
-		link.GroupID = grp.ID
+		targetGroupID = grp.ID
 	}
-	link.Status = strings.TrimSpace(req.Status)
+	if targetGroupID != link.GroupID || (wasRejected && nextStatus != model.FriendStatusRejected) {
+		nextOrder, orderErr := repo.Friend.NextLinkSortOrder(targetGroupID)
+		if orderErr != nil {
+			return nil, errs.Internal("failed_to_get_target", orderErr).WithResource("friend_link")
+		}
+		link.SortOrder = nextOrder
+	}
+	link.GroupID = targetGroupID
+	link.Status = nextStatus
 	link.ReviewNote = clipRunes(req.ReviewNote, friendReviewNoteMaxRunes)
 	if err := repo.Friend.SaveLink(link); err != nil {
 		return nil, errs.Internal("failed_to_update_target", err).WithResource("friend_link")

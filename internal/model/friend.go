@@ -67,7 +67,24 @@ const (
 	FriendBacklinkVerified  = "verified"
 	FriendBacklinkMissing   = "missing"
 	FriendBacklinkSkipped   = "skipped"
+
+	// 友链前台展示排序方式
+	FriendSortModeManual   = "manual"   // 手动默认排序：按各分组内拖拽调整的 sort_order 升序展示
+	FriendSortModeActivity = "activity" // 更新频次排序：预留接入友链 RSS 聚合后按最近发文活跃度排序
 )
+
+var FriendSortModes = []string{
+	FriendSortModeManual,
+	FriendSortModeActivity,
+}
+
+func NormalizeFriendSortMode(raw string) string {
+	v := strings.TrimSpace(strings.ToLower(raw))
+	if slices.Contains(FriendSortModes, v) {
+		return v
+	}
+	return FriendSortModeManual
+}
 
 // FriendColorKeys 32 色全色域预设语义色板键（与前端 LYRIC_COLORS / FRIEND_PALETTE_32 保持 1:1 对齐）
 var FriendColorKeys = []string{

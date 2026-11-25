@@ -39,8 +39,12 @@ func registerFriendRoutes(group *route.RouterGroup) {
 		adminGroup.PUT("/groups/:id", friendController.AdminUpdateGroup)
 		adminGroup.DELETE("/groups/:id", friendController.AdminDeleteGroup)
 
+		adminGroup.GET("/sort", friendController.AdminGetSortOverview)
+		adminGroup.PUT("/sort-mode", friendController.AdminUpdateSortMode)
+
 		adminGroup.GET("/links", friendController.AdminListLinks)
 		adminGroup.POST("/links", friendController.AdminCreateLink)
+		adminGroup.PUT("/links/reorder", friendController.AdminReorderLinks)
 		adminGroup.PUT("/links/:id", friendController.AdminUpdateLink)
 		adminGroup.POST("/links/:id/review", friendController.AdminReviewLink)
 		adminGroup.PUT("/links/:id/transfer", friendController.AdminTransferLink)

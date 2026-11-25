@@ -5,25 +5,31 @@ import type {
   FriendColorKey,
   FriendGroupAdmin,
   FriendGroupPresetKey,
+  FriendGroupSortItem,
   FriendHealthStatus,
   FriendLinkAdmin,
+  FriendSortMode,
   FriendStatus,
 } from '@/models/friend'
 import type { User } from '@/models/user'
 import {
   ArrowDownIcon,
+  ArrowUpDownIcon,
   ArrowUpIcon,
+  ArrowUpToLineIcon,
   CheckIcon,
   ClockIcon,
   ExternalLinkIcon,
   EyeOffIcon,
   FolderPlusIcon,
+  ListOrderedIcon,
   Loader2Icon,
   MoreHorizontalIcon,
   PencilIcon,
   PlusIcon,
   RadioIcon,
   RefreshCwIcon,
+  RssIcon,
   SearchIcon,
   SparklesIcon,
   Trash2Icon,
@@ -31,7 +37,7 @@ import {
   XCircleIcon,
 } from 'lucide-react'
 import { useFormatter, useTranslations } from 'next-intl'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { listUsers } from '@/api/admin'
@@ -40,18 +46,21 @@ import {
   adminCreateFriendLink,
   adminDeleteFriendGroup,
   adminDeleteFriendLink,
+  adminGetFriendSortOverview,
   adminListFriendGroups,
   adminListFriendLinks,
   adminProbeAllFriendLinks,
   adminProbeFriendLink,
   adminReorderFriendGroups,
+  adminReorderFriendLinks,
   adminReviewFriendLink,
   adminTransferFriendLink,
   adminUpdateFriendGroup,
   adminUpdateFriendLink,
+  adminUpdateFriendSortMode,
   autofillFriendLink,
 } from '@/api/friend'
-import { UserAvatar } from '@/components/common/avatar'
+import { ImageAvatar, UserAvatar } from '@/components/common/avatar'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { PaginationController } from '@/components/common/pagination'
 import { SortableDragHandle, SortableList } from '@/components/common/sortable-list'
@@ -94,7 +103,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/contexts/auth-context'
 import { useDebouncedState, useDebouncedValue } from '@/hooks/use-debounce'
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
-import { FRIEND_GROUP_PRESETS, FRIEND_STATUSES, isPreviewableAvatarUrl } from '@/models/friend'
+import { cn } from '@/lib/utils'
+import { FRIEND_GROUP_PRESETS, FRIEND_STATUSES, isPreviewableAvatarUrl, resolveFriendPalette } from '@/models/friend'
 import { isAdmin } from '@/utils/common/permission'
 
 const PAGE_SIZE = 20
@@ -107,7 +117,6 @@ interface AdminLinkFormValues {
   description: string
   backlinkUrl: string
   colorKey: FriendColorKey
-  sortOrder: string
   status: FriendStatus
   reviewNote: string
 }
@@ -134,7 +143,7 @@ export function FriendManage() {
   const presetT = useFriendPresetTranslator()
   const { user } = useAuth()
 
-  const [mainTab, setMainTab] = useState<'links' | 'groups'>('links')
+  const [mainTab, setMainTab] = useState<'links' | 'sort' | 'groups'>('links')
   const [groups, setGroups] = useState<FriendGroupAdmin[]>([])
   const [groupsLoading, setGroupsLoading] = useState(true)
 
@@ -142,6 +151,16 @@ export function FriendManage() {
   const [total, setTotal] = useState(0)
   const [pendingReviewCount, setPendingReviewCount] = useState(0)
   const [linksLoading, setLinksLoading] = useState(true)
+
+  // 友链默认排序策略与分组内拖拽排序状态
+  const [sortMode, setSortMode] = useState<FriendSortMode>('manual')
+  const [savingSortMode, setSavingSortMode] = useState(false)
+  const [sortGroups, setSortGroups] = useState<FriendGroupSortItem[]>([])
+  const [sortLoading, setSortLoading] = useState(true)
+  const [activeSortGroupId, setActiveSortGroupId] = useState<number | null>(null)
+  const [reorderingLinks, setReorderingLinks] = useState(false)
+  const groupReqSeqRef = useRef(0)
+  const sortReqSeqRef = useRef(0)
 
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [groupFilter, setGroupFilter] = useState<string>('all')
@@ -185,19 +204,25 @@ export function FriendManage() {
     return map
   }, [groups])
 
-  const fetchGroups = useCallback(async () => {
+  const fetchGroups = useCallback(async (opts?: { silent?: boolean, suppressErrorToast?: boolean }) => {
     if (!userIsAdmin)
       return
-    setGroupsLoading(true)
+    const seq = ++groupReqSeqRef.current
+    if (!opts?.silent)
+      setGroupsLoading(true)
     try {
       const res = await adminListFriendGroups()
+      if (seq !== groupReqSeqRef.current)
+        return
       setGroups(res.data.groups || [])
     }
     catch (err) {
-      toast.error(errorMessageT(err))
+      if (seq === groupReqSeqRef.current && !opts?.suppressErrorToast)
+        toast.error(errorMessageT(err))
     }
     finally {
-      setGroupsLoading(false)
+      if (seq === groupReqSeqRef.current)
+        setGroupsLoading(false)
     }
   }, [errorMessageT, userIsAdmin])
 
@@ -225,6 +250,35 @@ export function FriendManage() {
     }
   }, [debouncedKeyword, errorMessageT, groupFilter, page, statusFilter, userIsAdmin])
 
+  const fetchSortOverview = useCallback(async (opts?: { silent?: boolean, suppressErrorToast?: boolean }) => {
+    if (!userIsAdmin)
+      return
+    const seq = ++sortReqSeqRef.current
+    if (!opts?.silent)
+      setSortLoading(true)
+    try {
+      const res = await adminGetFriendSortOverview()
+      if (seq !== sortReqSeqRef.current)
+        return
+      const nextGroups = res.data.groups || []
+      setSortMode(res.data.sortMode || 'manual')
+      setSortGroups(nextGroups)
+      setActiveSortGroupId((prev) => {
+        if (prev !== null && nextGroups.some(item => item.group.id === prev))
+          return prev
+        return nextGroups[0]?.group.id ?? null
+      })
+    }
+    catch (err) {
+      if (seq === sortReqSeqRef.current && !opts?.suppressErrorToast)
+        toast.error(errorMessageT(err))
+    }
+    finally {
+      if (seq === sortReqSeqRef.current)
+        setSortLoading(false)
+    }
+  }, [errorMessageT, userIsAdmin])
+
   useEffect(() => {
     fetchGroups()
   }, [fetchGroups])
@@ -232,6 +286,10 @@ export function FriendManage() {
   useEffect(() => {
     fetchLinks()
   }, [fetchLinks])
+
+  useEffect(() => {
+    fetchSortOverview()
+  }, [fetchSortOverview])
 
   useEffect(() => {
     if (!transferTarget || !userIsAdmin)
@@ -265,6 +323,10 @@ export function FriendManage() {
     try {
       const res = await adminTransferFriendLink(transferTarget.id, targetUserId)
       setLinks(prev => prev.map(item => (item.id === transferTarget.id ? res.data : item)))
+      setSortGroups(prev => prev.map(g => ({
+        ...g,
+        links: g.links.map(item => (item.id === transferTarget.id ? res.data : item)),
+      })))
       toast.success(t('transfer_success'))
       setTransferTarget(null)
     }
@@ -285,7 +347,6 @@ export function FriendManage() {
       description: '',
       backlinkUrl: '',
       colorKey: 'sky',
-      sortOrder: '0',
       status: 'approved',
       reviewNote: '',
     },
@@ -309,15 +370,17 @@ export function FriendManage() {
   const openCreateLinkDialog = () => {
     setEditingLink(null)
     setImmediateDialogAvatar('')
+    const preferredGroupId = mainTab === 'sort' && activeSortGroupId && groups.some(g => g.id === activeSortGroupId)
+      ? activeSortGroupId
+      : groups[0]?.id
     linkForm.reset({
-      groupId: groups[0]?.id ? String(groups[0].id) : '',
+      groupId: preferredGroupId ? String(preferredGroupId) : '',
       url: '',
       name: '',
       avatar: '',
       description: '',
       backlinkUrl: '',
       colorKey: 'sky',
-      sortOrder: '0',
       status: 'approved',
       reviewNote: '',
     })
@@ -335,7 +398,6 @@ export function FriendManage() {
       description: item.description,
       backlinkUrl: item.backlinkUrl || '',
       colorKey: item.colorKey || 'sky',
-      sortOrder: String(item.sortOrder ?? 0),
       status: item.status,
       reviewNote: item.reviewNote || '',
     })
@@ -383,7 +445,6 @@ export function FriendManage() {
       description: values.description.trim(),
       backlinkUrl: values.backlinkUrl.trim(),
       colorKey: values.colorKey,
-      sortOrder: Number(values.sortOrder) || 0,
       status: values.status,
       reviewNote: values.reviewNote.trim(),
     }
@@ -397,7 +458,7 @@ export function FriendManage() {
         toast.success(operationT('create_success'))
       }
       setLinkDialogOpen(false)
-      await Promise.all([fetchLinks(), fetchGroups()])
+      await Promise.all([fetchLinks(), fetchGroups(), fetchSortOverview({ silent: true })])
     }
     catch (err) {
       toast.error(errorMessageT(err))
@@ -408,7 +469,7 @@ export function FriendManage() {
     try {
       await adminReviewFriendLink(item.id, { status, reviewNote })
       toast.success(t('review_updated'))
-      await fetchLinks()
+      await Promise.all([fetchLinks(), fetchGroups(), fetchSortOverview({ silent: true })])
     }
     catch (err) {
       toast.error(errorMessageT(err))
@@ -425,7 +486,7 @@ export function FriendManage() {
       })
       toast.success(t('review_updated'))
       setRejectTarget(null)
-      await fetchLinks()
+      await Promise.all([fetchLinks(), fetchGroups(), fetchSortOverview({ silent: true })])
     }
     catch (err) {
       toast.error(errorMessageT(err))
@@ -437,6 +498,10 @@ export function FriendManage() {
     try {
       const res = await adminProbeFriendLink(id)
       setLinks(prev => prev.map(item => (item.id === id ? res.data : item)))
+      setSortGroups(prev => prev.map(g => ({
+        ...g,
+        links: g.links.map(item => (item.id === id ? res.data : item)),
+      })))
       toast.success(t('probe_single_done'))
     }
     catch (err) {
@@ -507,7 +572,7 @@ export function FriendManage() {
         toast.success(operationT('create_success'))
       }
       setGroupDialogOpen(false)
-      await fetchGroups()
+      await Promise.all([fetchGroups(), fetchSortOverview({ silent: true })])
     }
     catch (err) {
       toast.error(errorMessageT(err))
@@ -528,7 +593,7 @@ export function FriendManage() {
         isPublic: patch.isPublic ?? group.isPublic,
         skipBacklinkCheck: patch.skipBacklinkCheck ?? group.skipBacklinkCheck,
       })
-      await fetchGroups()
+      await Promise.all([fetchGroups(), fetchSortOverview({ silent: true })])
     }
     catch (err) {
       toast.error(errorMessageT(err))
@@ -536,16 +601,39 @@ export function FriendManage() {
   }
 
   const persistGroupOrder = async (next: FriendGroupAdmin[]) => {
+    if (reordering)
+      return
+    const prevGroups = groups
+    const prevSortGroups = sortGroups
+    groupReqSeqRef.current++
+    sortReqSeqRef.current++
     setGroups(next)
+    setSortGroups((prev) => {
+      const byId = new Map(prev.map(item => [item.group.id, item]))
+      const reordered: FriendGroupSortItem[] = []
+      for (const grp of next) {
+        const matched = byId.get(grp.id)
+        if (matched)
+          reordered.push({ ...matched, group: grp })
+      }
+      for (const item of prev) {
+        if (!next.some(g => g.id === item.group.id))
+          reordered.push(item)
+      }
+      return reordered
+    })
     setReordering(true)
     try {
       await adminReorderFriendGroups(next.map(item => item.id))
       toast.success(t('reorder_saved'))
-      await fetchGroups()
+      await Promise.all([fetchGroups({ silent: true }), fetchSortOverview({ silent: true })])
     }
     catch (err) {
+      setGroups(prevGroups)
+      setSortGroups(prevSortGroups)
       toast.error(errorMessageT(err))
-      await fetchGroups()
+      void fetchGroups({ silent: true, suppressErrorToast: true })
+      void fetchSortOverview({ silent: true, suppressErrorToast: true })
     }
     finally {
       setReordering(false)
@@ -561,6 +649,76 @@ export function FriendManage() {
     next.splice(target, 0, moved)
     await persistGroupOrder(next)
   }
+
+  const handleChangeSortMode = async (nextMode: FriendSortMode) => {
+    if (nextMode === sortMode || savingSortMode)
+      return
+    setSavingSortMode(true)
+    try {
+      const res = await adminUpdateFriendSortMode(nextMode)
+      sortReqSeqRef.current++
+      setSortMode(res.data.sortMode)
+      toast.success(t('sort_mode_saved'))
+    }
+    catch (err) {
+      toast.error(errorMessageT(err))
+    }
+    finally {
+      setSavingSortMode(false)
+    }
+  }
+
+  const persistLinkOrder = async (groupId: number, nextLinks: FriendLinkAdmin[]) => {
+    if (reorderingLinks)
+      return
+    const prevSortGroups = sortGroups
+    sortReqSeqRef.current++
+    setSortGroups(prev => prev.map(item => (item.group.id === groupId ? { ...item, links: nextLinks } : item)))
+    setReorderingLinks(true)
+    try {
+      await adminReorderFriendLinks(groupId, nextLinks.map(item => item.id))
+      toast.success(t('links_reorder_saved'))
+      await Promise.all([fetchSortOverview({ silent: true }), fetchLinks()])
+    }
+    catch (err) {
+      setSortGroups(prevSortGroups)
+      toast.error(errorMessageT(err))
+      void fetchSortOverview({ silent: true, suppressErrorToast: true })
+    }
+    finally {
+      setReorderingLinks(false)
+    }
+  }
+
+  const handleSwitchMainTab = (nextTab: 'links' | 'sort' | 'groups') => {
+    setMainTab(nextTab)
+    if (nextTab === 'sort' && !reorderingLinks)
+      void fetchSortOverview({ silent: sortGroups.length > 0 })
+  }
+
+  const handleMoveLinkToIndex = async (
+    groupId: number,
+    groupLinks: FriendLinkAdmin[],
+    fromIndex: number,
+    toIndex: number,
+  ) => {
+    if (reorderingLinks || fromIndex < 0 || toIndex < 0 || fromIndex >= groupLinks.length || toIndex >= groupLinks.length || fromIndex === toIndex)
+      return
+    const next = [...groupLinks]
+    const [moved] = next.splice(fromIndex, 1)
+    next.splice(toIndex, 0, moved)
+    await persistLinkOrder(groupId, next)
+  }
+
+  const activeSortGroup = useMemo(
+    () => sortGroups.find(item => item.group.id === activeSortGroupId) ?? sortGroups[0] ?? null,
+    [activeSortGroupId, sortGroups],
+  )
+
+  const totalSortableLinks = useMemo(
+    () => sortGroups.reduce((acc, item) => acc + item.links.length, 0),
+    [sortGroups],
+  )
 
   const renderStatusBadge = (status: FriendStatus) => {
     switch (status) {
@@ -654,9 +812,9 @@ export function FriendManage() {
         </div>
       </div>
 
-      {/* 主视图切换：全部友链与审核 / 分组管理与排序联动 */}
-      <Tabs value={mainTab} onValueChange={v => setMainTab(v as 'links' | 'groups')} className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
-        <TabsList variant="underline" className="w-full max-w-full min-w-0 justify-start">
+      {/* 主视图切换：全部友链与审核 / 友链排序 / 分组管理与排序联动 */}
+      <Tabs value={mainTab} onValueChange={v => handleSwitchMainTab(v as 'links' | 'sort' | 'groups')} className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
+        <TabsList variant="underline" className="w-full max-w-full min-w-0 justify-start overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <TabsTrigger value="links" className="flex-none px-3">
             <span>{t('tab_links')}</span>
             {pendingReviewCount > 0 && (
@@ -664,6 +822,10 @@ export function FriendManage() {
                 {pendingReviewCount}
               </Badge>
             )}
+          </TabsTrigger>
+          <TabsTrigger value="sort" className="flex-none px-3">
+            <span>{t('tab_sort')}</span>
+            <span className="text-xs text-muted-foreground tabular-nums">{totalSortableLinks}</span>
           </TabsTrigger>
           <TabsTrigger value="groups" className="flex-none px-3">
             <span>{t('tab_groups')}</span>
@@ -801,9 +963,19 @@ export function FriendManage() {
                               </Badge>
                             )}
                           </div>
-                          <span className="text-xs text-muted-foreground tabular-nums">
-                            {t('sort_order_value', { order: item.sortOrder })}
-                          </span>
+                          {item.status !== 'rejected' && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveSortGroupId(item.groupId)
+                                handleSwitchMainTab('sort')
+                              }}
+                              className="inline-flex w-fit items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-primary"
+                            >
+                              <ArrowUpDownIcon className="size-3" />
+                              <span>{t('action_jump_sort')}</span>
+                            </button>
+                          )}
                         </div>
                       </TableCell>
 
@@ -855,7 +1027,7 @@ export function FriendManage() {
 
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button type="button" variant="ghost" size="icon" className="size-8">
+                              <Button type="button" variant="ghost" size="icon" className="size-8" aria-label={t('col_actions')}>
                                 <MoreHorizontalIcon className="size-4" />
                               </Button>
                             </DropdownMenuTrigger>
@@ -930,8 +1102,262 @@ export function FriendManage() {
           />
         </TabsContent>
 
-        {/* Tab 2: 分组管理与前台顺序联动 */}
-        <TabsContent value="groups" className="grid gap-4">
+        {/* Tab 2: 友链默认排序策略与分组内拖拽排序 */}
+        <TabsContent value="sort" className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
+          {/* 卡片 1：前台默认排序方式 */}
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 rounded-xl border bg-card p-4 shadow-[0_1px_1px_-0.5px_rgba(0,0,0,0.035),0_3px_8px_-2px_rgba(0,0,0,0.035)] dark:shadow-none">
+            <div className="grid min-w-0 gap-1">
+              <h3 className="text-sm font-semibold">{t('sort_mode_title')}</h3>
+              <p className="text-xs leading-relaxed text-muted-foreground">{t('sort_mode_desc')}</p>
+            </div>
+
+            <div role="group" aria-label={t('sort_mode_title')} className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                aria-pressed={sortMode === 'manual'}
+                disabled={savingSortMode}
+                onClick={() => handleChangeSortMode('manual')}
+                className={cn(
+                  'flex min-w-0 flex-col items-start gap-1.5 rounded-xl border p-3.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60',
+                  sortMode === 'manual'
+                    ? 'border-primary/60 bg-primary/[0.04] ring-1 ring-primary/25'
+                    : 'bg-background/60 hover:bg-muted/50',
+                )}
+              >
+                <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-2">
+                  <span className="inline-flex min-w-0 items-center gap-2 text-sm font-medium">
+                    <ListOrderedIcon className="size-4 shrink-0 text-primary" aria-hidden />
+                    <span className="wrap-anywhere">{t('sort_mode_manual')}</span>
+                  </span>
+                  {sortMode === 'manual' && (
+                    <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                      <CheckIcon className="size-3" aria-hidden />
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs leading-relaxed wrap-anywhere text-muted-foreground">
+                  {t('sort_mode_manual_desc')}
+                </p>
+              </button>
+
+              <button
+                type="button"
+                aria-pressed={sortMode === 'activity'}
+                disabled
+                aria-disabled="true"
+                className={cn(
+                  'flex min-w-0 cursor-not-allowed flex-col items-start gap-1.5 rounded-xl border border-dashed bg-muted/25 p-3.5 text-left opacity-80',
+                  sortMode === 'activity' && 'border-primary/60 bg-primary/[0.04] ring-1 ring-primary/25',
+                )}
+              >
+                <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-2">
+                  <span className="inline-flex min-w-0 items-center gap-2 text-sm font-medium text-foreground/85">
+                    <RssIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                    <span className="wrap-anywhere">{t('sort_mode_activity')}</span>
+                  </span>
+                  <Badge variant="secondary" className="shrink-0 text-[11px]">
+                    {t('sort_mode_pending_rss_badge')}
+                  </Badge>
+                </div>
+                <p className="text-xs leading-relaxed wrap-anywhere text-muted-foreground">
+                  {t('sort_mode_activity_desc')}
+                </p>
+              </button>
+            </div>
+          </div>
+
+          {/* 卡片 2：分组内友链拖拽排序 */}
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3.5 rounded-xl border bg-card p-4 shadow-[0_1px_1px_-0.5px_rgba(0,0,0,0.035),0_3px_8px_-2px_rgba(0,0,0,0.035)] dark:shadow-none">
+            <div className="grid min-w-0 gap-1">
+              <h3 className="text-sm font-semibold">{t('links_sort_title')}</h3>
+              <p className="text-xs leading-relaxed text-muted-foreground">{t('links_sort_desc')}</p>
+            </div>
+
+            {sortLoading && sortGroups.length === 0
+              ? (
+                  <div className="grid gap-2">
+                    <Skeleton className="h-9 w-72 max-w-full rounded-lg" />
+                    {Array.from({ length: 4 }, (_, i) => (
+                      <Skeleton key={`s-skel-${i}`} className="h-14 w-full rounded-xl" />
+                    ))}
+                  </div>
+                )
+              : sortGroups.length === 0
+                ? (
+                    <div className="rounded-xl border border-dashed py-10">
+                      <Empty>
+                        <EmptyDescription>{t('links_sort_no_groups')}</EmptyDescription>
+                      </Empty>
+                    </div>
+                  )
+                : (
+                    <>
+                      {activeSortGroup && (
+                        <Tabs
+                          value={String(activeSortGroup.group.id)}
+                          onValueChange={val => setActiveSortGroupId(Number(val))}
+                          className="max-w-full min-w-0"
+                        >
+                          <TabsList className="max-w-full justify-start overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                            {sortGroups.map((groupItem) => {
+                              const grp = groupItem.group
+                              return (
+                                <TabsTrigger key={grp.id} value={String(grp.id)} className="flex-none gap-1.5">
+                                  <span className="max-w-48 truncate">{presetT.groupName(grp.presetKey, grp.name)}</span>
+                                  {!grp.isPublic && (
+                                    <>
+                                      <EyeOffIcon className="size-3 shrink-0 opacity-75" aria-hidden />
+                                      <span className="sr-only">{t('private_badge')}</span>
+                                    </>
+                                  )}
+                                  <span className="text-xs text-muted-foreground tabular-nums">
+                                    {groupItem.links.length}
+                                  </span>
+                                </TabsTrigger>
+                              )
+                            })}
+                          </TabsList>
+                        </Tabs>
+                      )}
+
+                      {!activeSortGroup || activeSortGroup.links.length === 0
+                        ? (
+                            <div className="rounded-xl border border-dashed py-10">
+                              <Empty>
+                                <EmptyDescription>{t('links_sort_empty')}</EmptyDescription>
+                              </Empty>
+                            </div>
+                          )
+                        : (
+                            <SortableList
+                              key={activeSortGroup.group.id}
+                              items={activeSortGroup.links}
+                              getId={item => item.id}
+                              disabled={reorderingLinks}
+                              onReorder={next => void persistLinkOrder(activeSortGroup.group.id, next)}
+                              renderItem={(item, idx, dragCtx) => {
+                                const palette = resolveFriendPalette(item.colorKey)
+                                const primaryAvatar = item.avatarUrl || item.avatar || undefined
+                                const backupAvatar = item.avatarUrl && item.avatarUrl !== item.avatar ? item.avatar : undefined
+                                const initial = (item.name || '?').trim().slice(0, 1).toUpperCase()
+                                return (
+                                  <div
+                                    className={cn(
+                                      'flex min-w-0 flex-wrap items-center gap-2.5 rounded-xl border bg-background/60 px-3 py-2.5 transition-colors sm:flex-nowrap',
+                                      dragCtx.isDragging && 'border-primary/40 bg-card',
+                                    )}
+                                  >
+                                    <div className="flex min-w-0 basis-60 flex-1 items-center gap-2.5">
+                                      <SortableDragHandle
+                                        ctx={dragCtx}
+                                        disabled={activeSortGroup.links.length <= 1 || reorderingLinks}
+                                        label={t('drag_handle_label')}
+                                        className="-ml-1"
+                                      />
+
+                                      <span className="min-w-6 shrink-0 px-0.5 text-center font-mono text-xs text-muted-foreground tabular-nums">
+                                        #
+                                        {idx + 1}
+                                      </span>
+
+                                      <ImageAvatar
+                                        src={primaryAvatar}
+                                        fallbackSrc={backupAvatar}
+                                        alt=""
+                                        fallback={initial}
+                                        sizes="36px"
+                                        fallbackDelayMs={150}
+                                        className="size-9 shrink-0 ring-1 ring-border/60"
+                                        fallbackClassName="text-xs font-bold text-white"
+                                        fallbackStyle={{ backgroundColor: `oklch(0.54 ${Math.max(palette.c, 0.08)} ${palette.h})` }}
+                                      />
+
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                                          <span className="inline-flex max-w-full min-w-0 items-center gap-1.5">
+                                            <span
+                                              className="size-2 shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/15"
+                                              style={{ backgroundColor: palette.hex }}
+                                              aria-hidden
+                                            />
+                                            <span className="truncate text-sm font-medium">{item.name}</span>
+                                          </span>
+                                          {item.status !== 'approved' && renderStatusBadge(item.status)}
+                                        </div>
+                                        <div className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+                                          <span className="truncate font-mono">{item.url}</span>
+                                          {item.description && (
+                                            <span className="hidden truncate sm:inline">
+                                              ·
+                                              {' '}
+                                              {item.description}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-0.5">
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="size-8 sm:size-7"
+                                        title={t('action_move_top')}
+                                        aria-label={t('action_move_top')}
+                                        disabled={idx === 0 || reorderingLinks}
+                                        onClick={() => handleMoveLinkToIndex(activeSortGroup.group.id, activeSortGroup.links, idx, 0)}
+                                      >
+                                        <ArrowUpToLineIcon className="size-3.5" />
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="size-8 sm:size-7"
+                                        title={t('action_move_up')}
+                                        aria-label={t('action_move_up')}
+                                        disabled={idx === 0 || reorderingLinks}
+                                        onClick={() => handleMoveLinkToIndex(activeSortGroup.group.id, activeSortGroup.links, idx, idx - 1)}
+                                      >
+                                        <ArrowUpIcon className="size-3.5" />
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="size-8 sm:size-7"
+                                        title={t('action_move_down')}
+                                        aria-label={t('action_move_down')}
+                                        disabled={idx === activeSortGroup.links.length - 1 || reorderingLinks}
+                                        onClick={() => handleMoveLinkToIndex(activeSortGroup.group.id, activeSortGroup.links, idx, idx + 1)}
+                                      >
+                                        <ArrowDownIcon className="size-3.5" />
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="size-8 sm:size-7"
+                                        title={operationT('edit')}
+                                        aria-label={operationT('edit')}
+                                        onClick={() => openEditLinkDialog(item)}
+                                      >
+                                        <PencilIcon className="size-3.5" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )
+                              }}
+                            />
+                          )}
+                    </>
+                  )}
+          </div>
+        </TabsContent>
+
+        {/* Tab 3: 分组管理与前台顺序联动 */}
+        <TabsContent value="groups" className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
           <div className="rounded-xl border bg-muted/30 px-4 py-3 text-xs leading-relaxed text-muted-foreground">
             {t('groups_order_hint')}
           </div>
@@ -955,7 +1381,7 @@ export function FriendManage() {
                       <SortableDragHandle
                         ctx={dragCtx}
                         disabled={groups.length <= 1 || reordering}
-                        label={t('col_order')}
+                        label={t('drag_handle_label')}
                         className="-ml-1"
                       />
 
@@ -1002,7 +1428,9 @@ export function FriendManage() {
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="size-7"
+                            className="size-8 sm:size-7"
+                            title={t('action_move_up')}
+                            aria-label={t('action_move_up')}
                             disabled={idx === 0 || reordering}
                             onClick={() => handleMoveGroup(idx, -1)}
                           >
@@ -1012,7 +1440,9 @@ export function FriendManage() {
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="size-7"
+                            className="size-8 sm:size-7"
+                            title={t('action_move_down')}
+                            aria-label={t('action_move_down')}
                             disabled={idx === groups.length - 1 || reordering}
                             onClick={() => handleMoveGroup(idx, 1)}
                           >
@@ -1173,52 +1603,36 @@ export function FriendManage() {
                 )}
               />
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <FormField
-                  control={linkForm.control}
-                  name="status"
-                  render={({ field }) => (
-                    <FormItem className="grid gap-2">
-                      <FormLabel>{t('field_status')}</FormLabel>
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {FRIEND_STATUSES.map(st => (
-                            <SelectItem key={st} value={st}>
-                              {st === 'approved'
-                                ? friendT('status_approved')
-                                : st === 'pre_approved'
-                                  ? friendT('status_pre_approved')
-                                  : st === 'rejected'
-                                    ? friendT('status_rejected')
-                                    : friendT('status_pending')}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={linkForm.control}
-                  name="sortOrder"
-                  render={({ field }) => (
-                    <FormItem className="grid gap-2">
-                      <FormLabel>{t('field_sort_order')}</FormLabel>
+              <FormField
+                control={linkForm.control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem className="grid min-w-0 gap-2">
+                    <FormLabel>{t('field_status')}</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
                       <FormControl>
-                        <Input {...field} type="number" />
+                        <SelectTrigger className="w-full min-w-0">
+                          <SelectValue />
+                        </SelectTrigger>
                       </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+                      <SelectContent>
+                        {FRIEND_STATUSES.map(st => (
+                          <SelectItem key={st} value={st}>
+                            {st === 'approved'
+                              ? friendT('status_approved')
+                              : st === 'pre_approved'
+                                ? friendT('status_pre_approved')
+                                : st === 'rejected'
+                                  ? friendT('status_rejected')
+                                  : friendT('status_pending')}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <FormField
                 control={linkForm.control}
@@ -1576,7 +1990,7 @@ export function FriendManage() {
           await adminDeleteFriendLink(deleteLinkTarget.id)
           toast.success(operationT('delete_success'))
           setDeleteLinkTarget(null)
-          await Promise.all([fetchLinks(), fetchGroups()])
+          await Promise.all([fetchLinks(), fetchGroups(), fetchSortOverview({ silent: true })])
         }}
       />
 
@@ -1593,7 +2007,7 @@ export function FriendManage() {
           await adminDeleteFriendGroup(deleteGroupTarget.id)
           toast.success(operationT('delete_success'))
           setDeleteGroupTarget(null)
-          await fetchGroups()
+          await Promise.all([fetchGroups(), fetchSortOverview({ silent: true })])
         }}
       />
     </div>

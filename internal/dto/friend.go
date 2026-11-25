@@ -97,6 +97,7 @@ type FriendSiteCardDto struct {
 
 // PublicFriendsResp 前台 / 跨站开放接口返回结构
 type PublicFriendsResp struct {
+	SortMode string                 `json:"sort_mode"`
 	Groups   []FriendGroupPublicDto `json:"groups"`
 	SiteInfo FriendSiteCardDto      `json:"site_info"`
 }
@@ -178,9 +179,32 @@ type AdminUpsertFriendLinkReq struct {
 	Description string `json:"description"`
 	ColorKey    string `json:"color_key"`
 	BacklinkURL string `json:"backlink_url"`
-	SortOrder   int    `json:"sort_order"`
+	SortOrder   *int   `json:"sort_order,omitempty"`
 	Status      string `json:"status"`
 	ReviewNote  string `json:"review_note"`
+}
+
+// FriendGroupSortDto 后台友链可视化拖拽排序视图中的分组及组内有序友链
+type FriendGroupSortDto struct {
+	Group FriendGroupAdminDto  `json:"group"`
+	Links []FriendLinkAdminDto `json:"links"`
+}
+
+// AdminFriendSortOverviewResp 后台友链排序工作台返回数据
+type AdminFriendSortOverviewResp struct {
+	SortMode string               `json:"sort_mode"`
+	Groups   []FriendGroupSortDto `json:"groups"`
+}
+
+// AdminReorderFriendLinksReq 管理员拖拽调整指定分组内友链顺序请求
+type AdminReorderFriendLinksReq struct {
+	GroupID uint   `json:"group_id"`
+	IDs     []uint `json:"ids"`
+}
+
+// AdminUpdateFriendSortModeReq 管理员切换友链默认展示排序模式请求
+type AdminUpdateFriendSortModeReq struct {
+	SortMode string `json:"sort_mode"`
 }
 
 // AdminReviewFriendLinkReq 管理员快捷审核友链请求

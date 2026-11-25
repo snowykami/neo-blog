@@ -38,7 +38,8 @@ func (f *FriendController) OptionsPublic(ctx context.Context, c *app.RequestCont
 func (f *FriendController) ListPublic(ctx context.Context, c *app.RequestContext) {
 	setPublicFriendCORSHeaders(c)
 	groupSlug := c.Query("group")
-	resp, svcerr := f.service.ListPublicFriends(ctx, groupSlug)
+	sortMode := c.Query("sort")
+	resp, svcerr := f.service.ListPublicFriends(ctx, groupSlug, sortMode)
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return
@@ -234,6 +235,42 @@ func (f *FriendController) AdminReorderGroups(ctx context.Context, c *app.Reques
 		return
 	}
 	if svcerr := f.service.AdminReorderGroups(ctx, req); svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, nil)
+}
+
+func (f *FriendController) AdminGetSortOverview(ctx context.Context, c *app.RequestContext) {
+	resp, svcerr := f.service.AdminGetSortOverview(ctx)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, resp)
+}
+
+func (f *FriendController) AdminUpdateSortMode(ctx context.Context, c *app.RequestContext) {
+	req := &dto.AdminUpdateFriendSortModeReq{}
+	if err := c.BindAndValidate(req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	mode, svcerr := f.service.AdminUpdateSortMode(ctx, req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, map[string]any{"sort_mode": mode})
+}
+
+func (f *FriendController) AdminReorderLinks(ctx context.Context, c *app.RequestContext) {
+	req := &dto.AdminReorderFriendLinksReq{}
+	if err := c.BindAndValidate(req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	if svcerr := f.service.AdminReorderLinks(ctx, req); svcerr != nil {
 		resps.Error(c, svcerr)
 		return
 	}

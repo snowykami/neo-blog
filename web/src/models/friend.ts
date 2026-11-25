@@ -6,6 +6,9 @@ export type FriendGroupPresetKey = (typeof FRIEND_GROUP_PRESETS)[number]
 export const FRIEND_STATUSES = ['pending', 'pre_approved', 'approved', 'rejected'] as const
 export type FriendStatus = (typeof FRIEND_STATUSES)[number]
 
+export const FRIEND_SORT_MODES = ['manual', 'activity'] as const
+export type FriendSortMode = (typeof FRIEND_SORT_MODES)[number]
+
 export type FriendHealthStatus = 'unknown' | 'healthy' | 'slow' | 'unreachable'
 export type FriendBacklinkStatus = 'unchecked' | 'verified' | 'missing' | 'skipped'
 
@@ -125,6 +128,7 @@ export interface FriendSiteCard {
 }
 
 export interface PublicFriendsData {
+  sortMode?: FriendSortMode
   groups: FriendGroupPublic[]
   siteInfo: FriendSiteCard
 }
@@ -237,9 +241,19 @@ export interface AdminUpsertFriendLinkPayload {
   description: string
   colorKey: FriendColorKey
   backlinkUrl: string
-  sortOrder: number
+  sortOrder?: number
   status: FriendStatus
   reviewNote: string
+}
+
+export interface FriendGroupSortItem {
+  group: FriendGroupAdmin
+  links: FriendLinkAdmin[]
+}
+
+export interface AdminFriendSortOverview {
+  sortMode: FriendSortMode
+  groups: FriendGroupSortItem[]
 }
 
 export interface AdminReviewFriendLinkPayload {
