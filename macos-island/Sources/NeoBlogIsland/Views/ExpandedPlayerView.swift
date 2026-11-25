@@ -607,19 +607,13 @@ private struct LyricStageRow: View {
 
         // 已逐字对齐的音译由行内 .lyric-ruby 在每个音节正下方渲染并同步擦除，不再重复渲染整行音译（对齐 lyric-player.ts 1242）
         let showWholeLineRomaji = showRomaji && line.romanizationWords.isEmpty
+        let hasEdgeBar = (line.edgeColors?.isEmpty == false)
+        let pillOverlayAlign: Alignment = line.align == "right" ? .topTrailing : (line.align == "center" ? .top : .topLeading)
+        let pillFrameAlign: Alignment = line.align == "right" ? .trailing : (line.align == "center" ? .center : .leading)
+        let pillScaleAnchor: UnitPoint = line.align == "right" ? .bottomTrailing : (line.align == "center" ? .bottom : .bottomLeading)
 
         VStack(alignment: hAlign, spacing: 2.5) {
-            HStack(alignment: .center, spacing: 5) {
-                if let edgeHexes = line.edgeColors, !edgeHexes.isEmpty {
-                    let activeEdgeOpacity = (1.0 - 0.5 * rowSpotLevel) * 0.96
-                    SingerEdgeBarView(
-                        edgeHexes: edgeHexes,
-                        fontSize: mainFontSize,
-                        isBackground: line.isBackground,
-                        opacity: 0.55 + (activeEdgeOpacity - 0.55) * activeBlend
-                    )
-                }
-
+            Group {
                 if useSweepRenderer {
                     LyricLineSweepView(
                         line: line,
@@ -656,6 +650,21 @@ private struct LyricStageRow: View {
                     )
                 }
             }
+            .padding(.leading, hasEdgeBar ? 7 : 0)
+            .overlay(alignment: .leading) {
+                if let edgeHexes = line.edgeColors, !edgeHexes.isEmpty {
+                    let activeEdgeOpacity = (1.0 - 0.5 * rowSpotLevel) * 0.96
+                    SingerEdgeBarView(
+                        edgeHexes: edgeHexes,
+                        fontSize: mainFontSize,
+                        isBackground: line.isBackground,
+                        opacity: 0.55 + (activeEdgeOpacity - 0.55) * activeBlend,
+                        stretchesHeight: true
+                    )
+                    .padding(.vertical, mainFontSize * 0.12)
+                    .allowsHitTesting(false)
+                }
+            }
 
             if showWholeLineRomaji, let roma = line.romanization, !roma.isEmpty {
                 let inactiveRoma = 0.24 * inactiveDimScale
@@ -685,12 +694,7 @@ private struct LyricStageRow: View {
             }
         }
         .padding(.vertical, 3)
-        .padding(.horizontal, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.white.opacity(isHovered ? 0.06 : 0))
-        )
-        .overlay(alignment: line.align == "right" ? .topTrailing : (line.align == "center" ? .top : .topLeading)) {
+        .overlay(alignment: pillOverlayAlign) {
             let effectiveSingerName = line.resolvedSingerName(showTranslation: showTranslation)
             if placed.pillOpen > 0.01 && ((effectiveSingerName?.isEmpty == false) || line.singerDotOnly) {
                 SingerPillBadgeView(
@@ -698,12 +702,19 @@ private struct LyricStageRow: View {
                     singerName: effectiveSingerName,
                     dotOnly: line.singerDotOnly
                 )
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(width: max(60, slotMaxWidth - 12), alignment: pillFrameAlign)
                 .opacity(placed.pillOpen)
-                .scaleEffect((placed.scale > 1.001 ? (1.0 / placed.scale) : 1.0) * CGFloat(0.92 + 0.08 * placed.pillOpen), anchor: .bottom)
+                .scaleEffect((placed.scale > 1.001 ? (1.0 / placed.scale) : 1.0) * CGFloat(0.92 + 0.08 * placed.pillOpen), anchor: pillScaleAnchor)
                 .offset(y: -17 + CGFloat(1.0 - placed.pillOpen) * 4.0)
                 .allowsHitTesting(false)
             }
         }
+        .padding(.horizontal, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.white.opacity(isHovered ? 0.06 : 0))
+        )
         .frame(maxWidth: slotMaxWidth, alignment: frameAlign)
         .frame(width: stageWidth, alignment: frameAlign)
         // 先在未缩放坐标系测量正文自然高度回传给弹簧引擎，再施加缩放与弹簧纵向位移

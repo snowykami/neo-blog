@@ -175,16 +175,33 @@ function serializeLyrics(lyrics: ResolvedLyrics) {
       : getLyricLineAlign(line)
     const agent = line.agent && lyrics.agents ? lyrics.agents[line.agent] : undefined
     let singerName: string | null = null
+    let singerBaseName: string | null = null
     let singerDotOnly = false
     if (!line.isBackground && agent) {
-      if (agent.name) {
-        singerName = agent.name
-      }
-      else if (agent.isGroup && lyrics.agents) {
+      if (agent.isGroup && lyrics.agents) {
         const members = agent.members ?? []
-        singerName = members.length >= 2 && members.every(id => Boolean(lyrics.agents?.[id]?.name))
-          ? members.map(id => lyrics.agents![id]!.name!).join(' · ')
-          : '合唱'
+        if (agent.name) {
+          singerName = agent.name
+        }
+        else {
+          singerName = members.length >= 2 && members.every(id => Boolean(lyrics.agents?.[id]?.name))
+            ? members.map(id => lyrics.agents![id]!.name!).join(' · ')
+            : '合唱'
+        }
+        const rawGroupBase = agent.baseName ?? agent.name
+        if (rawGroupBase) {
+          singerBaseName = rawGroupBase
+        }
+        else if (members.length >= 2 && members.every(id => Boolean(lyrics.agents?.[id]?.baseName ?? lyrics.agents?.[id]?.name))) {
+          singerBaseName = members.map(id => (lyrics.agents![id]!.baseName ?? lyrics.agents![id]!.name)!).join(' · ')
+        }
+        else {
+          singerBaseName = '合唱'
+        }
+      }
+      else if (agent.name) {
+        singerName = agent.name
+        singerBaseName = agent.baseName ?? agent.name
       }
       else if (soloCount > 2) {
         singerDotOnly = true
@@ -211,6 +228,7 @@ function serializeLyrics(lyrics: ResolvedLyrics) {
       chorus_start: Boolean(line.chorusStart),
       edge_colors: resolveLineEdgeColors(line.agent, lyrics.agents, soloAgents),
       singer_name: singerName,
+      singer_base_name: singerBaseName,
       singer_dot_only: singerDotOnly,
       translation: line.translation ?? null,
       secondary_translation: line.secondaryTranslation ?? null,

@@ -2841,4 +2841,122 @@ struct BridgeAndEngineTests {
         #expect(RomanizationAligner.isIntraWordJoin(prevText: "The ", curText: "whi") == false)
         #expect(RomanizationAligner.isIntraWordJoin(prevText: "五", curText: "陵") == false)
     }
+
+    @MainActor
+    @Test("渐进式歌手归属到达：同一曲目首帧无歌手信息、次帧异步补齐歌手胶囊后弹簧正常展开")
+    func progressiveSingerPillHydrationInStageSpringEngine() throws {
+        let store = IslandStore(startNetworkServices: false)
+        let clientId = UUID()
+        let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+
+        // 首帧：基础歌词先到（无 edge_colors / singer_name），模拟 /lyric/singers 尚未返回
+        store.ingestTestPayload(Data("""
+        {
+          "type": "media",
+          "origin": "https://blog.example.com",
+          "track": { "id": 302, "name": "ときめきポポロン♪", "artists": ["チマメ隊"], "duration_ms": 257000 },
+          "lyrics": {
+            "source": "ttml-amll",
+            "word_synced": true,
+            "instrumental": false,
+            "lines": [
+              {
+                "start": 24000,
+                "end": 28000,
+                "words": [{"text": "ラッキーポイントいっぱいでプリーズ", "start": 24000, "end": 28000}]
+              },
+              {
+                "start": 28500,
+                "end": 32000,
+                "words": [{"text": "ハートもふもふ", "start": 28500, "end": 32000}]
+              }
+            ]
+          }
+        }
+        """.utf8), clientId: clientId, origin: "https://blog.example.com")
+        store.ingestTestPayload(Data("""
+        {
+          "type": "state",
+          "origin": "https://blog.example.com",
+          "visible": true,
+          "has_played": true,
+          "show_playing": true,
+          "is_playing": true,
+          "track_id": 302,
+          "duration_ms": 257000,
+          "position_ms": 25000,
+          "anchor_ms": \(t0.timeIntervalSince1970 * 1000.0)
+        }
+        """.utf8), clientId: clientId, origin: "https://blog.example.com")
+
+        let initialTState = store.timelineState(at: 25000)
+        let initialPlaced = store.stageSpringEngine.stepLayout(
+            entries: store.stageEntries,
+            lines: store.lyrics.lines,
+            stageHeight: 165,
+            showRomaji: true,
+            showTranslation: true,
+            date: t0,
+            nowMs: 25000,
+            tState: initialTState,
+            spot: nil
+        )
+        #expect(initialPlaced.first?.isSingerPillVisible == false)
+        #expect(initialPlaced.first?.pillOpen == 0)
+
+        // 次帧：同一首歌（id=302）异步补齐 edge_colors 与 singer_name（不触发 resetStageVisualEngines）
+        let prevWakeRev = store.stageSpringEngine.wakeRevision
+        store.ingestTestPayload(Data("""
+        {
+          "type": "media",
+          "origin": "https://blog.example.com",
+          "track": { "id": 302, "name": "ときめきポポロン♪", "artists": ["チマメ隊"], "duration_ms": 257000 },
+          "lyrics": {
+            "source": "ttml-amll",
+            "word_synced": true,
+            "instrumental": false,
+            "lines": [
+              {
+                "start": 24000,
+                "end": 28000,
+                "edge_colors": ["#60a5fa", "#facc15", "#fb923c"],
+                "singer_name": "合唱",
+                "singer_base_name": "合唱",
+                "words": [{"text": "ラッキーポイントいっぱいでプリーズ", "start": 24000, "end": 28000}]
+              },
+              {
+                "start": 28500,
+                "end": 32000,
+                "edge_colors": ["#60a5fa"],
+                "singer_name": "チノ (智乃)",
+                "singer_base_name": "チノ",
+                "words": [{"text": "ハートもふもふ", "start": 28500, "end": 32000}]
+              }
+            ]
+          }
+        }
+        """.utf8), clientId: clientId, origin: "https://blog.example.com")
+        #expect(store.stageSpringEngine.wakeRevision > prevWakeRev)
+        #expect(store.lyrics.lines[1].resolvedSingerName(showTranslation: true) == "チノ (智乃)")
+        #expect(store.lyrics.lines[1].resolvedSingerName(showTranslation: false) == "チノ")
+
+        var placedAfter = initialPlaced
+        var curDate = t0
+        for _ in 0..<45 {
+            curDate = curDate.addingTimeInterval(1.0 / 60.0)
+            placedAfter = store.stageSpringEngine.stepLayout(
+                entries: store.stageEntries,
+                lines: store.lyrics.lines,
+                stageHeight: 165,
+                showRomaji: true,
+                showTranslation: true,
+                date: curDate,
+                nowMs: 25200,
+                tState: store.timelineState(at: 25200),
+                spot: nil
+            )
+        }
+        #expect(placedAfter.first?.isSingerPillVisible == true)
+        #expect((placedAfter.first?.pillOpen ?? 0) > 0.95)
+    }
 }

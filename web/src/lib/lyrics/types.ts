@@ -25,6 +25,8 @@ export interface LyricAgent {
   id: string
   // 显示名称：TTML <ttm:name> 优先，否则回退 AI 标注推断名；未提供时为 undefined
   name?: string
+  // 未拼接译名前的原语种名称（仅在与 name 不同时记录，供桌面端离线快照切换译文开关时回退；空串表示仅有译名无原名）
+  baseName?: string
   // 分配的 32 色主题色名（用于边缘光丝、切换胶囊圆点、舞台方向性洗光与默认行级微光）
   color: LyricColor
   // TTML 原生 ttv:color 自定义十六进制色（#rrggbb）；存在时优先用于边缘光丝、切换胶囊圆点与默认行级微光

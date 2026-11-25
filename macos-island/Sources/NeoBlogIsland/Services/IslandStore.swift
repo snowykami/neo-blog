@@ -396,6 +396,7 @@ final class IslandStore {
         let built = StageTimelineEngine.buildStageArtifacts(from: nextLyrics, trackId: trackId)
         indexedLines = built.indexedLines
         stageEntries = built.stageEntries
+        stageSpringEngine.notifyLyricsUpdated()
     }
 
     func resetStageVisualEngines() {

@@ -69,6 +69,7 @@ function sameAgentRecord(a?: Record<string, LyricAgent>, b?: Record<string, Lyri
     if (
       left.id !== right.id
       || left.name !== right.name
+      || left.baseName !== right.baseName
       || left.color !== right.color
       || left.colorHex !== right.colorHex
       || left.isGroup !== right.isGroup
@@ -111,10 +112,20 @@ export function applyLyricSingers(
 
   if (lyrics.agents && !manualOverride) {
     for (const [id, existing] of Object.entries(lyrics.agents)) {
-      const displayName = formatSingerDisplayName(existing.name, translatedNames?.[id])
-      nextAgents[id] = displayName === existing.name
+      const rawBase = (existing.baseName ?? existing.name ?? '').trim()
+      const displayName = formatSingerDisplayName(rawBase, translatedNames?.[id])
+      const nextBaseName = displayName && rawBase !== displayName ? rawBase : undefined
+      nextAgents[id] = displayName === existing.name && nextBaseName === existing.baseName
         ? existing
-        : { ...existing, ...(displayName && { name: displayName }) }
+        : {
+            id: existing.id,
+            ...(displayName && { name: displayName }),
+            ...(nextBaseName !== undefined && { baseName: nextBaseName }),
+            color: existing.color,
+            ...(existing.colorHex && { colorHex: existing.colorHex }),
+            ...(existing.isGroup && { isGroup: true }),
+            ...(existing.members && { members: existing.members }),
+          }
     }
   }
 
@@ -123,10 +134,11 @@ export function applyLyricSingers(
       continue
     const rawExisting = lyrics.agents?.[item.id]
     const existing = manualOverride ? undefined : (nextAgents[item.id] ?? rawExisting)
-    const baseName = manualOverride
-      ? (item.name?.trim() || rawExisting?.name)
-      : (rawExisting?.name || item.name?.trim())
+    const baseName = (manualOverride
+      ? (item.name?.trim() || rawExisting?.baseName || rawExisting?.name)
+      : (rawExisting?.baseName || rawExisting?.name || item.name?.trim()))?.trim() ?? ''
     const displayName = formatSingerDisplayName(baseName, translatedNames?.[item.id])
+    const nextBaseName = displayName && baseName !== displayName ? baseName : undefined
     const isGroup = existing?.isGroup ?? (item.role === 'group' ? true : undefined)
     const color: LyricColor = existing?.color
       ?? (isLyricColor(item.color) ? item.color : (isGroup ? 'lavender' : 'sky'))
@@ -135,6 +147,7 @@ export function applyLyricSingers(
     nextAgents[item.id] = {
       id: item.id,
       ...(displayName && { name: displayName }),
+      ...(nextBaseName !== undefined && { baseName: nextBaseName }),
       color,
       ...(existing?.colorHex && { colorHex: existing.colorHex }),
       ...(isGroup && { isGroup: true }),

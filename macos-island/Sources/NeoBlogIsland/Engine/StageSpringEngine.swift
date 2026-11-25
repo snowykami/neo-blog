@@ -39,7 +39,7 @@ final class StageSpringEngine {
         let rot: DampedSpring
         let scale: DampedSpring
         let expand: DampedSpring?
-        let pillExpand: DampedSpring?
+        var pillExpand: DampedSpring?
         var wasActive: Bool = false
         var exitLinear: Double = 0.0
         var blurProgress: Double = 1.0
@@ -57,8 +57,9 @@ final class StageSpringEngine {
                 } else {
                     self.scale = DampedSpring(initial: LyricSpecs.inactiveScale, params: LyricSpecs.scaleSpring)
                     self.expand = nil
-                    let hasPill = ((item.line.singerName?.isEmpty == false) || (item.line.singerBaseName?.isEmpty == false) || item.line.singerDotOnly) && !item.singerDots.isEmpty
-                    self.pillExpand = hasPill ? DampedSpring(initial: 0, params: LyricSpecs.positionSpring) : nil
+                    self.pillExpand = StageSpringEngine.itemSupportsSingerPill(item)
+                        ? DampedSpring(initial: 0, params: LyricSpecs.positionSpring)
+                        : nil
                 }
             case .interlude:
                 self.scale = DampedSpring(initial: 1.0, params: LyricSpecs.scaleSpring)
@@ -125,6 +126,17 @@ final class StageSpringEngine {
     func invalidateHeights() {
         measuredHeights.removeAll()
         wake()
+    }
+
+    func notifyLyricsUpdated() {
+        wake()
+    }
+
+    nonisolated private static func itemSupportsSingerPill(_ item: IndexedLyricLine) -> Bool {
+        guard !item.line.isBackground, !item.singerDots.isEmpty else { return false }
+        return (item.line.singerName?.isEmpty == false)
+            || (item.line.singerBaseName?.isEmpty == false)
+            || item.line.singerDotOnly
     }
 
     func reportHeight(id: String, height: CGFloat) {
@@ -295,6 +307,12 @@ final class StageSpringEngine {
         entryNodes.reserveCapacity(entries.count)
         for e in entries {
             if let existing = nodes[e.id] {
+                // 歌词首帧先到、异步 /lyric/singers 后到时，同一曲目行 ID 与总条目数不变，需按需补建歌手胶囊弹簧
+                if existing.pillExpand == nil,
+                   case .line(let item) = e,
+                   Self.itemSupportsSingerPill(item) {
+                    existing.pillExpand = DampedSpring(initial: 0, params: motionSprings.position)
+                }
                 existing.y.setParams(motionSprings.position)
                 existing.x.setParams(motionSprings.position)
                 existing.rot.setParams(motionSprings.position)

@@ -231,14 +231,16 @@ describe('独立演唱者声部与曲名歌手译名格式化', () => {
     }
 
     const withTrans = applyLyricSingers(base, singersData, true)
-    expect(withTrans.agents?.v1).toMatchObject({ id: 'v1', name: '周杰伦 (Jay Chou)', color: 'sky', colorHex: '#123456' })
-    expect(withTrans.agents?.v2).toMatchObject({ id: 'v2', name: '梁心颐 (Lara Veronin)', color: 'cherry-blossom' })
+    expect(withTrans.agents?.v1).toMatchObject({ id: 'v1', name: '周杰伦 (Jay Chou)', baseName: '周杰伦', color: 'sky', colorHex: '#123456' })
+    expect(withTrans.agents?.v2).toMatchObject({ id: 'v2', name: '梁心颐 (Lara Veronin)', baseName: '梁心颐', color: 'cherry-blossom' })
     expect(withTrans.lines[1]).toMatchObject({ agent: 'v2', align: 'right', isDuet: true })
     expect(withTrans.lines[2]).toMatchObject({ agent: 'v2', align: 'right', isDuet: true })
 
     const withoutTrans = applyLyricSingers(base, singersData, false)
     expect(withoutTrans.agents?.v1.name).toBe('周杰伦')
+    expect(withoutTrans.agents?.v1.baseName).toBeUndefined()
     expect(withoutTrans.agents?.v2.name).toBe('梁心颐')
+    expect(withoutTrans.agents?.v2.baseName).toBeUndefined()
 
     const unnamedDuetTtml = parseTtml(`<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata">
 <head><metadata>

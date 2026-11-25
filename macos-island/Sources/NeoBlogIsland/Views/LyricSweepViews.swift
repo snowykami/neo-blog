@@ -548,10 +548,10 @@ struct SingerEdgeBarView: View {
     let fontSize: CGFloat
     let isBackground: Bool
     let opacity: Double
+    var stretchesHeight: Bool = false
 
     var body: some View {
-        let barWidth: CGFloat = isBackground ? 2.2 : 3.0
-        let barHeight: CGFloat = fontSize * 1.0
+        let barWidth: CGFloat = isBackground ? 2.25 : 3.0
         Group {
             if edgeHexes.count <= 1 {
                 Capsule(style: .continuous)
@@ -565,7 +565,9 @@ struct SingerEdgeBarView: View {
                 .clipShape(Capsule(style: .continuous))
             }
         }
-        .frame(width: barWidth, height: barHeight)
+        .frame(width: barWidth)
+        .frame(maxHeight: stretchesHeight ? .infinity : nil)
+        .frame(height: stretchesHeight ? nil : fontSize * 1.0)
         .opacity(opacity)
     }
 }
