@@ -64,7 +64,12 @@ function isPreview(page: PageModel) {
 }
 
 function isFriendsLinkPage(page: PageModel) {
-  return page.kind === 'link' && (page.linkUrl === mainPath.friends || page.linkUrl.startsWith(`${mainPath.friends}?`))
+  return page.kind === 'link' && (
+    page.linkUrl === mainPath.friends
+    || page.linkUrl.startsWith(`${mainPath.friends}?`)
+    || page.linkUrl === '/friends'
+    || page.linkUrl.startsWith('/friends?')
+  )
 }
 
 // 列表为空时的固定引用：onPageChange 的 useCallback 依赖 pages

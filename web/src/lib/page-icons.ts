@@ -113,7 +113,7 @@ export function resolvePageNavIcon(page: {
   const isLink = page.kind === 'link' && !!page.linkUrl
   if (isLink) {
     const cleanLink = (page.linkUrl || '').trim()
-    if (cleanLink === '/friends' || cleanLink.startsWith('/friends?'))
+    if (cleanLink === '/links' || cleanLink.startsWith('/links?') || cleanLink === '/friends' || cleanLink.startsWith('/friends?'))
       return HandshakeIcon
     if (cleanLink === '/music' || cleanLink.startsWith('/music?'))
       return MusicIcon

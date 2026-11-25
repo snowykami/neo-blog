@@ -882,7 +882,7 @@ export function FriendsDirectory({ initialData }: { initialData: PublicFriendsDa
                             <FormItem className="grid gap-2">
                               <FormLabel>{t('field_backlink_url')}</FormLabel>
                               <FormControl>
-                                <Input {...field} type="url" placeholder="https://example.com/friends" />
+                                <Input {...field} type="url" placeholder="https://example.com/links" />
                               </FormControl>
                               <FormMessage />
                             </FormItem>

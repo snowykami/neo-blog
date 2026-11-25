@@ -128,7 +128,7 @@ func TestPageIconAndReorderNavPages(t *testing.T) {
 	showInNav := true
 	isPrivate := false
 	linkKind := model.PageKindLink
-	friendsLink := "/friends"
+	friendsLink := "/links"
 	musicLink := "/music"
 	handshakeIcon := "handshake"
 	musicIcon := "music"

@@ -51,11 +51,11 @@ export const SCOPES = {
   ],
   '(main)/c/[slug]': [
   ],
-  '(main)/friends': [
-    'Friends',
-  ],
   '(main)/l': [
     'Archive',
+  ],
+  '(main)/links': [
+    'Friends',
   ],
   '(main)/notification-settings': [
     'NotificationSettings',
@@ -196,11 +196,6 @@ export const SCOPES = {
     'Metrics',
     'Order',
   ],
-  'console/friends': [
-    'Components',
-    'Console.friends',
-    'Friends',
-  ],
   'console/global': [
     'AssetPicker',
     'CodeBlock',
@@ -215,6 +210,11 @@ export const SCOPES = {
   'console/labels': [
     'Console.categories',
     'Console.labels',
+  ],
+  'console/links': [
+    'Components',
+    'Console.friends',
+    'Friends',
   ],
   'console/lyric-effects': [
     'Components',
@@ -368,8 +368,8 @@ export const SCOPE_PARENT: Record<keyof typeof SCOPES, keyof typeof SCOPES | nul
   '(main)/a': '(main)',
   '(main)/c': '(main)',
   '(main)/c/[slug]': '(main)/c',
-  '(main)/friends': '(main)',
   '(main)/l': '(main)',
+  '(main)/links': '(main)',
   '(main)/notification-settings': '(main)',
   '(main)/notifications': '(main)',
   '(main)/p/[id]': '(main)',
@@ -391,9 +391,9 @@ export const SCOPE_PARENT: Record<keyof typeof SCOPES, keyof typeof SCOPES | nul
   'console/errors': 'console',
   'console/errors/[id]': 'console/errors',
   'console/files': 'console',
-  'console/friends': 'console',
   'console/global': 'console',
   'console/labels': 'console',
+  'console/links': 'console',
   'console/lyric-effects': 'console',
   'console/lyric-effects/[id]': 'console/lyric-effects',
   'console/notification-deliveries': 'console',

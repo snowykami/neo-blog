@@ -1131,7 +1131,7 @@ export function FriendManage() {
                     <FormItem className="grid gap-2">
                       <FormLabel>{friendT('field_backlink_url')}</FormLabel>
                       <FormControl>
-                        <Input {...field} type="url" placeholder="https://example.com/friends" />
+                        <Input {...field} type="url" placeholder="https://example.com/links" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

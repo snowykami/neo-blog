@@ -297,7 +297,7 @@ export function PageMetaDialog({
                         </Button>
                       </div>
                     </div>
-                    <FormControl><Input {...field} placeholder="/friends" autoComplete="off" spellCheck={false} className="font-mono text-[13.5px]" /></FormControl>
+                    <FormControl><Input {...field} placeholder="/links" autoComplete="off" spellCheck={false} className="font-mono text-[13.5px]" /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
