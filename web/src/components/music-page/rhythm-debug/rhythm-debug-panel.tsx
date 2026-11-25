@@ -521,6 +521,45 @@ export default function RhythmDebugPanel({ onClose }: { onClose: () => void }) {
           )}
         </section>
 
+        <section className="grid gap-1.5 border-t border-white/10 pt-3">
+          <div className="flex items-baseline justify-between gap-3">
+            <h3 className="text-xs font-semibold text-white/80">{t('current')}</h3>
+            <span ref={liveRef} className="font-mono text-xs text-white/70 tabular-nums" />
+          </div>
+          <p className="text-sm">
+            {focus.lyricEffect && !RHYTHM_EFFECTS.has(focus.lyricEffect)
+              ? t('not_rhythmic', { effect: effectName(focus.lyricEffect) })
+              : focus.group
+                ? (
+                    <>
+                      <span style={{ color: COLORS[focus.effect] }}>{effectName(focus.effect)}</span>
+                      <span className="text-white/70">{`「${focus.text}」`}</span>
+                    </>
+                  )
+                : focus.interlude ? t('current_interlude') : t('current_background')}
+          </p>
+          <div className="rounded-lg bg-white/5 px-2">
+            <Tex tex={formulas.simple} />
+          </div>
+          <Collapsible open={expanded} onOpenChange={setExpanded}>
+            <CollapsibleTrigger className="flex items-center gap-1 text-xs text-white/70 hover:text-white">
+              <ChevronDownIcon aria-hidden className={`size-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+              {expanded ? t('formula_collapse') : t('formula_expand')}
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-2 grid gap-2">
+              {SECTIONS.map((section) => {
+                const item = formulas.full.find(entry => entry.section === section)
+                return item && (
+                  <div key={section} className="grid gap-0.5">
+                    <span className="text-[11px] text-white/50">{t(`sections.${section}`)}</span>
+                    <div className="rounded-lg bg-white/5 px-2"><Tex tex={item.tex} /></div>
+                  </div>
+                )
+              })}
+            </CollapsibleContent>
+          </Collapsible>
+        </section>
+
         <section className="grid gap-2 border-t border-white/10 pt-3 text-xs">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h3 className="text-xs font-semibold text-white/80">{t('motion_title')}</h3>
@@ -578,46 +617,7 @@ export default function RhythmDebugPanel({ onClose }: { onClose: () => void }) {
           <p className="text-[11px] text-white/50">{t('motion_chart_hint')}</p>
         </section>
 
-        <section className="grid gap-1.5">
-          <div className="flex items-baseline justify-between gap-3">
-            <h3 className="text-xs font-semibold text-white/80">{t('current')}</h3>
-            <span ref={liveRef} className="font-mono text-xs text-white/70 tabular-nums" />
-          </div>
-          <p className="text-sm">
-            {focus.lyricEffect && !RHYTHM_EFFECTS.has(focus.lyricEffect)
-              ? t('not_rhythmic', { effect: effectName(focus.lyricEffect) })
-              : focus.group
-                ? (
-                    <>
-                      <span style={{ color: COLORS[focus.effect] }}>{effectName(focus.effect)}</span>
-                      <span className="text-white/70">{`「${focus.text}」`}</span>
-                    </>
-                  )
-                : focus.interlude ? t('current_interlude') : t('current_background')}
-          </p>
-          <div className="rounded-lg bg-white/5 px-2">
-            <Tex tex={formulas.simple} />
-          </div>
-          <Collapsible open={expanded} onOpenChange={setExpanded}>
-            <CollapsibleTrigger className="flex items-center gap-1 text-xs text-white/70 hover:text-white">
-              <ChevronDownIcon aria-hidden className={`size-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`} />
-              {expanded ? t('formula_collapse') : t('formula_expand')}
-            </CollapsibleTrigger>
-            <CollapsibleContent className="mt-2 grid gap-2">
-              {SECTIONS.map((section) => {
-                const item = formulas.full.find(entry => entry.section === section)
-                return item && (
-                  <div key={section} className="grid gap-0.5">
-                    <span className="text-[11px] text-white/50">{t(`sections.${section}`)}</span>
-                    <div className="rounded-lg bg-white/5 px-2"><Tex tex={item.tex} /></div>
-                  </div>
-                )
-              })}
-            </CollapsibleContent>
-          </Collapsible>
-        </section>
-
-        <section className="grid gap-1">
+        <section className="grid gap-1 border-t border-white/10 pt-3">
           <h3 className="text-xs font-semibold text-white/80">{t('chart_input')}</h3>
           <canvas ref={inputRef} className="h-20 w-full rounded-lg bg-white/5" />
           <p className="text-[11px] text-white/50">{t('chart_input_hint')}</p>
