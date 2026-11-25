@@ -113,3 +113,16 @@ func (p *pageType) ListMine(ctx context.Context, c *app.RequestContext) {
 	}
 	resps.Ok(c, resps.Success, utils.H{"pages": pages, "total": total})
 }
+
+func (p *pageType) ReorderNav(ctx context.Context, c *app.RequestContext) {
+	var req dto.ReorderPageNavReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	if svcerr := p.service.ReorderNavPages(ctx, &req); svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, nil)
+}

@@ -24,6 +24,7 @@ func registerPageRoutes(group *route.RouterGroup) {
 		postGroup.POST("/p", controller.Page.Create)
 		postGroup.PUT("/p/:id", controller.Page.Update)
 		postGroup.DELETE("/p/:id", controller.Page.Delete)
+		postGroup.PUT("/nav-order", controller.Page.ReorderNav)
 		// 编辑会话：同时只允许最新打开编辑页的会话保存正文
 		postGroup.POST("/p/:id/edit-session", controller.EditSession.Acquire(constant.TargetTypePage))
 		postGroup.GET("/p/:id/edit-session", controller.EditSession.Current(constant.TargetTypePage))

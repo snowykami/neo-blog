@@ -51,7 +51,7 @@ export function MobileNavSheet({ items, open, setOpen, triggerRef }: {
                     className={linkClass(item.href)}
                     onClick={() => setOpen(false)}
                   >
-                    <item.icon aria-hidden className="size-5" />
+                    {item.icon && <item.icon aria-hidden className="size-5" />}
                     {item.label ?? routeT(item.title)}
                   </Link>
                 )
@@ -68,7 +68,7 @@ export function MobileNavSheet({ items, open, setOpen, triggerRef }: {
                           className={linkClass(child.href)}
                           onClick={() => setOpen(false)}
                         >
-                          <child.icon aria-hidden className="size-5" />
+                          {child.icon && <child.icon aria-hidden className="size-5" />}
                           <span className="truncate">{child.label ?? routeT(child.title)}</span>
                         </NavItemLink>
                       ))}

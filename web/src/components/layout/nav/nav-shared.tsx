@@ -11,7 +11,7 @@ export interface NavLinkItem {
   title: string
   label?: string
   href: string
-  icon: LucideIcon
+  icon?: LucideIcon | null
   // 站外链接：新窗口打开
   external?: boolean
 }

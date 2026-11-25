@@ -57,9 +57,10 @@ export async function listMyPages({
   desc = true,
   query = '',
   noContent = false,
-}: { query?: string, noContent?: boolean } & PaginationParams): Promise<BaseResponse<{ pages: PageModel[], total: number }>> {
+  onlyNav = false,
+}: { query?: string, noContent?: boolean, onlyNav?: boolean } & PaginationParams): Promise<BaseResponse<{ pages: PageModel[], total: number }>> {
   const res = await axiosClient.get('/page/mine', {
-    params: { page, size, orderBy, desc, query, noContent },
+    params: { page, size, orderBy, desc, query, noContent, onlyNav },
   })
   return res.data
 }
@@ -86,6 +87,11 @@ export async function updatePage({
 
 export async function deletePage({ id }: { id: number }): Promise<BaseResponse<null>> {
   const res = await axiosClient.delete(`/page/p/${id}`)
+  return res.data
+}
+
+export async function reorderNavPages(ids: number[]): Promise<BaseResponse<null>> {
+  const res = await axiosClient.put('/page/nav-order', { ids })
   return res.data
 }
 

@@ -2,6 +2,7 @@
 
 import type { SubmitHandler } from 'react-hook-form'
 import type { PageHtmlSizeMode, PageKind, PageLayout, PageModel } from '@/models/page'
+import { HandshakeIcon, MusicIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
@@ -9,6 +10,7 @@ import { toast } from 'sonner'
 import { createPage, updatePage } from '@/api/page'
 import { AssetField } from '@/components/common/asset-picker'
 import { LabelWithInfo } from '@/components/common/info-tooltip'
+import { PageIconPicker } from '@/components/common/page-icon-picker'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -34,7 +36,7 @@ import { useErrorMessageT, useOperationT, useResponseErrorDetailsT } from '@/hoo
 import { useRouter } from '@/i18n/navigation'
 import { PAGE_HTML_SIZE_MODES, PAGE_KINDS, PAGE_LAYOUTS } from '@/models/page'
 import { isAdmin } from '@/utils/common/permission'
-import { getPageEditUrl } from '@/utils/common/route'
+import { getPageEditUrl, mainPath } from '@/utils/common/route'
 
 interface PageMetaForm {
   title: string
@@ -43,7 +45,7 @@ interface PageMetaForm {
   description: string
   isPrivate: boolean
   showInNav: boolean
-  navOrder: number
+  icon: string
   layout: PageLayout
   kind: PageKind
   linkUrl: string
@@ -90,6 +92,7 @@ export function PageMetaDialog({
   const errorMessageT = useErrorMessageT()
   const errorDetailsT = useResponseErrorDetailsT()
   const t = useTranslations('Console.pages.meta')
+  const routeT = useTranslations('Route')
   const editorT = useTranslations('Console.editor')
   const router = useRouter()
   const { user } = useAuth()
@@ -97,6 +100,7 @@ export function PageMetaDialog({
     defaultValues: toFormValues(page),
   })
   const kind = form.watch('kind')
+  const linkUrl = form.watch('linkUrl')
   const isLink = kind === 'link'
   const isHtml = kind === 'html'
   const htmlSizeMode = form.watch('htmlSizeMode')
@@ -113,9 +117,27 @@ export function PageMetaDialog({
       form.reset(toFormValues(latestRef.current))
   }, [open, form])
 
+  const applyBuiltInPreset = (preset: 'friends' | 'music') => {
+    if (preset === 'friends') {
+      form.setValue('kind', 'link')
+      if (!form.getValues('title').trim())
+        form.setValue('title', routeT('friends'), { shouldValidate: true })
+      form.setValue('linkUrl', mainPath.friends, { shouldValidate: true })
+      form.setValue('icon', 'handshake')
+      form.setValue('showInNav', true)
+    }
+    else {
+      form.setValue('kind', 'link')
+      if (!form.getValues('title').trim())
+        form.setValue('title', routeT('music'), { shouldValidate: true })
+      form.setValue('linkUrl', '/music', { shouldValidate: true })
+      form.setValue('icon', 'music')
+      form.setValue('showInNav', true)
+    }
+  }
+
   const onSubmit: SubmitHandler<PageMetaForm> = async (formData) => {
-    // 数字输入框的值为字符串，提交前统一转换
-    const data = { ...formData, navOrder: Number(formData.navOrder) || 0, htmlHeight: Number(formData.htmlHeight) || 0 }
+    const data = { ...formData, htmlHeight: Number(formData.htmlHeight) || 0 }
     if (page) {
       await updatePage({
         page: {
@@ -186,25 +208,40 @@ export function PageMetaDialog({
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="kind"
-              render={({ field }) => (
-                <FormItem>
-                  <LabelWithInfo info={t('kind_hint')}><FormLabel>{t('kind')}</FormLabel></LabelWithInfo>
-                  <Select value={field.value} onValueChange={field.onChange}>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="kind"
+                render={({ field }) => (
+                  <FormItem>
+                    <LabelWithInfo info={t('kind_hint')}><FormLabel>{t('kind')}</FormLabel></LabelWithInfo>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {kinds.map(item => (
+                          <SelectItem key={item} value={item}>{t(`kind_${item}`)}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="icon"
+                render={({ field }) => (
+                  <FormItem>
+                    <LabelWithInfo info={t('icon_hint')}><FormLabel>{t('icon')}</FormLabel></LabelWithInfo>
                     <FormControl>
-                      <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                      <PageIconPicker value={field.value} kind={kind} linkUrl={linkUrl} onChange={field.onChange} />
                     </FormControl>
-                    <SelectContent>
-                      {kinds.map(item => (
-                        <SelectItem key={item} value={item}>{t(`kind_${item}`)}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </FormItem>
-              )}
-            />
+                  </FormItem>
+                )}
+              />
+            </div>
+
             {/* 链接页面通过导航跳转到它的地址，没有自己的访问路径：不需要 slug（新建时由后端生成内部 slug） */}
             {!isLink && (
               <FormField
@@ -234,9 +271,33 @@ export function PageMetaDialog({
                 name="linkUrl"
                 rules={{ validate: value => isValidPageLink(value) || t('link_invalid') }}
                 render={({ field }) => (
-                  <FormItem>
-                    <LabelWithInfo info={t('link_hint')}><FormLabel>{t('link_url')}</FormLabel></LabelWithInfo>
-                    <FormControl><Input {...field} placeholder="/music" autoComplete="off" spellCheck={false} className="font-mono text-[13.5px]" /></FormControl>
+                  <FormItem className="grid gap-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <LabelWithInfo info={t('link_hint')}><FormLabel>{t('link_url')}</FormLabel></LabelWithInfo>
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-6 px-2 text-xs"
+                          onClick={() => applyBuiltInPreset('friends')}
+                        >
+                          <HandshakeIcon className="size-3" />
+                          {routeT('friends')}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-6 px-2 text-xs"
+                          onClick={() => applyBuiltInPreset('music')}
+                        >
+                          <MusicIcon className="size-3" />
+                          {routeT('music')}
+                        </Button>
+                      </div>
+                    </div>
+                    <FormControl><Input {...field} placeholder="/friends" autoComplete="off" spellCheck={false} className="font-mono text-[13.5px]" /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -364,23 +425,16 @@ export function PageMetaDialog({
                 name="showInNav"
                 render={({ field }) => (
                   <FormItem className="flex items-center justify-between gap-4 rounded-lg border p-3">
-                    <LabelWithInfo info={editorT('show_in_nav_hint')}><FormLabel>{t('show_in_nav')}</FormLabel></LabelWithInfo>
+                    <div className="grid gap-0.5">
+                      <LabelWithInfo info={editorT('show_in_nav_hint')}><FormLabel>{t('show_in_nav')}</FormLabel></LabelWithInfo>
+                      {showInNav && (
+                        <span className="text-xs text-muted-foreground">{t('nav_order_drag_hint')}</span>
+                      )}
+                    </div>
                     <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
                   </FormItem>
                 )}
               />
-              {showInNav && (
-                <FormField
-                  control={form.control}
-                  name="navOrder"
-                  render={({ field }) => (
-                    <FormItem>
-                      <LabelWithInfo info={editorT('nav_order_hint')}><FormLabel>{t('nav_order')}</FormLabel></LabelWithInfo>
-                      <FormControl><Input type="number" {...field} /></FormControl>
-                    </FormItem>
-                  )}
-                />
-              )}
               <FormField
                 control={form.control}
                 name="isPrivate"
@@ -428,7 +482,7 @@ function toFormValues(page: PageModel | null): PageMetaForm {
         description: page.description || '',
         isPrivate: page.isPrivate,
         showInNav: page.showInNav,
-        navOrder: page.navOrder || 0,
+        icon: page.icon || '',
         layout: page.layout === 'wide' ? 'wide' : 'reading',
         kind: PAGE_KINDS.includes(page.kind) ? page.kind : 'content',
         linkUrl: page.linkUrl || '',
@@ -444,7 +498,7 @@ function toFormValues(page: PageModel | null): PageMetaForm {
         description: '',
         isPrivate: false,
         showInNav: false,
-        navOrder: 0,
+        icon: '',
         layout: 'reading',
         kind: 'content',
         linkUrl: '',

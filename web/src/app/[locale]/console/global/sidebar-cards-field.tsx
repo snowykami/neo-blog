@@ -2,14 +2,16 @@
 
 import type { LucideIcon } from 'lucide-react'
 import type { SidebarCardConfig, SidebarPresetCard } from '@/components/blog-sidebar/sidebar-cards'
+import type { SortableItemRenderContext } from '@/components/common/sortable-list'
 import { AppWindowIcon, ArrowDownIcon, ArrowUpIcon, ClockIcon, FlameIcon, PlusIcon, PuzzleIcon, Settings2Icon, TagsIcon, Trash2Icon, UserRoundIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { parseAsString, useQueryState } from 'nuqs'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useFormContext } from 'react-hook-form'
 import { SIDEBAR_CARD_TITLE_MAX, SIDEBAR_CARDS_MAX, SIDEBAR_IFRAME_HEIGHT, SIDEBAR_PRESET_CARDS } from '@/components/blog-sidebar/sidebar-cards'
 import { parseSidebarCard } from '@/components/blog-sidebar/sidebar-cards-schema'
 import { LabelWithInfo } from '@/components/common/info-tooltip'
+import { SortableDragHandle, SortableList } from '@/components/common/sortable-list'
 import { ComponentLibraryDialog } from '@/components/content-components/component-library-dialog'
 import { ComponentPropsDialog } from '@/components/content-components/component-props-dialog'
 import { getDefaultProps } from '@/components/content-components/props'
@@ -31,6 +33,7 @@ interface CardRowProps {
   card: SidebarCardConfig
   index: number
   count: number
+  dragCtx: SortableItemRenderContext
   onChange: (card: SidebarCardConfig) => void
   onMove: (to: number) => void
   onRemove: () => void
@@ -38,8 +41,8 @@ interface CardRowProps {
   onEditOwner?: () => void
 }
 
-/** 单张卡片：类型与名称、排序 / 删除按钮；嵌入页面与组件卡片可编辑标题等参数 */
-function SidebarCardRow({ card, index, count, onChange, onMove, onRemove, onEditProps, onEditOwner }: CardRowProps) {
+/** 单张卡片：拖拽手柄、类型与名称、上下微调 / 删除按钮；嵌入页面与组件卡片可编辑标题等参数 */
+function SidebarCardRow({ card, index, count, dragCtx, onChange, onMove, onRemove, onEditProps, onEditOwner }: CardRowProps) {
   const t = useTranslations('Console.global')
   const componentT = useTranslations('ContentComponents')
   const def = card.type === 'component' ? getContentComponent(card.name) : undefined
@@ -50,8 +53,20 @@ function SidebarCardRow({ card, index, count, onChange, onMove, onRemove, onEdit
   const invalid = parseSidebarCard(card) == null
 
   return (
-    <div className={cn('grid gap-3 rounded-lg border p-3', invalid && 'border-destructive/60')}>
+    <div
+      className={cn(
+        'grid gap-3 rounded-lg border bg-card p-3 transition-colors',
+        invalid && 'border-destructive/60',
+        dragCtx.isDragging && 'border-primary/40',
+      )}
+    >
       <div className="flex items-center gap-2">
+        <SortableDragHandle
+          ctx={dragCtx}
+          disabled={count <= 1}
+          label={t('sidebar_card_drag')}
+          className="-ml-1"
+        />
         <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
         <span className="min-w-0 truncate text-sm font-medium">{name}</span>
         {card.type === 'component' && <span className="text-xs text-muted-foreground">{t('sidebar_card_component_tag')}</span>}
@@ -121,7 +136,7 @@ function SidebarCardRow({ card, index, count, onChange, onMove, onRemove, onEdit
 }
 
 /**
- * 侧边栏卡片配置：增删、调整顺序；组件卡片从组件库选择，属性弹窗与文章中的组件块共用
+ * 侧边栏卡片配置：增删、拖拽与按钮调整顺序；组件卡片从组件库选择，属性弹窗与文章中的组件块共用
  */
 export function SidebarCardsField({ name, label, description }: { name: string, label: string, description?: string }) {
   const t = useTranslations('Console.global')
@@ -131,6 +146,18 @@ export function SidebarCardsField({ name, label, description }: { name: string, 
   // 正在编辑属性的组件卡片位置
   const [editing, setEditing] = useState<number | null>(null)
 
+  // 为没有数据库主键的配置对象分配客户端稳定 key，保证编辑标题或拖拽换位时 DOM 节点连续平滑过渡
+  const cardKeyMapRef = useRef(new WeakMap<SidebarCardConfig, string>())
+  const nextKeySeqRef = useRef(1)
+  const getCardKey = (card: SidebarCardConfig): string => {
+    let key = cardKeyMapRef.current.get(card)
+    if (!key) {
+      key = `sidebar-card-${nextKeySeqRef.current++}`
+      cardKeyMapRef.current.set(card, key)
+    }
+    return key
+  }
+
   return (
     <FormField
       control={control}
@@ -139,7 +166,15 @@ export function SidebarCardsField({ name, label, description }: { name: string, 
       render={({ field }) => {
         const cards = field.value ?? []
         const setCards = (next: SidebarCardConfig[]) => field.onChange(next)
-        const update = (index: number, card: SidebarCardConfig) => setCards(cards.map((old, i) => (i === index ? card : old)))
+        const update = (index: number, card: SidebarCardConfig) => {
+          const prevCard = cards[index]
+          if (prevCard) {
+            const existingKey = cardKeyMapRef.current.get(prevCard)
+            if (existingKey)
+              cardKeyMapRef.current.set(card, existingKey)
+          }
+          setCards(cards.map((old, i) => (i === index ? card : old)))
+        }
         const move = (from: number, to: number) => {
           const next = [...cards]
           next.splice(to, 0, ...next.splice(from, 1))
@@ -154,20 +189,36 @@ export function SidebarCardsField({ name, label, description }: { name: string, 
             <LabelWithInfo info={description}><FormLabel>{label}</FormLabel></LabelWithInfo>
             <div className="grid gap-2">
               {cards.length === 0 && <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">{t('sidebar_cards_empty')}</p>}
-              {cards.map((card, index) => (
-                <SidebarCardRow
-                  // 配置项没有稳定 ID，按位置编辑
-                  key={index}
-                  card={card}
-                  index={index}
-                  count={cards.length}
-                  onChange={next => update(index, next)}
-                  onMove={to => move(index, to)}
-                  onRemove={() => setCards(cards.filter((_, i) => i !== index))}
-                  onEditProps={() => setEditing(index)}
-                  onEditOwner={card.type === 'about' ? () => void setTab('site') : undefined}
+              {cards.length > 0 && (
+                <SortableList
+                  items={cards}
+                  getId={card => getCardKey(card)}
+                  onReorder={(nextItems, fromIndex, toIndex) => {
+                    if (editing != null) {
+                      if (editing === fromIndex)
+                        setEditing(toIndex)
+                      else if (fromIndex < editing && toIndex >= editing)
+                        setEditing(editing - 1)
+                      else if (fromIndex > editing && toIndex <= editing)
+                        setEditing(editing + 1)
+                    }
+                    setCards(nextItems)
+                  }}
+                  renderItem={(card, index, dragCtx) => (
+                    <SidebarCardRow
+                      card={card}
+                      index={index}
+                      count={cards.length}
+                      dragCtx={dragCtx}
+                      onChange={next => update(index, next)}
+                      onMove={to => move(index, to)}
+                      onRemove={() => setCards(cards.filter((_, i) => i !== index))}
+                      onEditProps={() => setEditing(index)}
+                      onEditOwner={card.type === 'about' ? () => void setTab('site') : undefined}
+                    />
+                  )}
                 />
-              ))}
+              )}
               <DropdownMenu modal={false}>
                 <DropdownMenuTrigger asChild>
                   <Button type="button" variant="outline" size="sm" className="justify-self-start" disabled={full}>

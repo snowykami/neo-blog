@@ -29,7 +29,7 @@ export function PageEditor({ initialPage = null }: { initialPage?: PageModel | n
   const publishSummary = [
     { label: t('publish_visibility'), value: meta.isPrivate ? t('visibility_private') : t('visibility_public') },
     { label: t('publish_path'), value: page ? getPageUrl({ id: page.id, slug: meta.slug.trim() || page.slug }) : '-' },
-    { label: t('publish_nav'), value: meta.showInNav ? t('nav_shown', { order: meta.navOrder }) : t('nav_hidden') },
+    { label: t('publish_nav'), value: meta.showInNav ? pageT('show_in_nav') : t('nav_hidden') },
   ]
 
   return (

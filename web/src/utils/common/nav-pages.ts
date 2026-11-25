@@ -5,13 +5,14 @@ export function toNavPages(pages: PageModel[] | undefined | null): PageModel[] {
   return (pages || [])
     .filter(page => page.showInNav && !page.isPrivate)
     .sort((a, b) => a.navOrder - b.navOrder || a.id - b.id)
-    .map(({ id, title, slug, showInNav, isPrivate, navOrder, kind, linkUrl }) => ({
+    .map(({ id, title, slug, showInNav, isPrivate, navOrder, icon, kind, linkUrl }) => ({
       id,
       title,
       slug,
       showInNav,
       isPrivate,
       navOrder,
+      icon,
       kind,
       linkUrl,
     } satisfies Partial<PageModel>) as PageModel)

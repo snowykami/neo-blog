@@ -1,9 +1,26 @@
 package model
 
 import (
+	"strings"
+
 	"github.com/snowykami/neo-blog/internal/dto"
 	"gorm.io/gorm"
 )
+
+// NormalizePageIcon 规范化页面图标标识（空字符串为默认图标，none 为不显示图标，其余仅允许小写字母、数字和连字符）
+func NormalizePageIcon(raw string) string {
+	s := strings.ToLower(strings.TrimSpace(raw))
+	if s == "" || len(s) > 48 {
+		return ""
+	}
+	for i := 0; i < len(s); i++ {
+		ch := s[i]
+		if !((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '-') {
+			return ""
+		}
+	}
+	return s
+}
 
 // 独立页面的前台版式
 const (
@@ -77,6 +94,7 @@ type PageBase struct {
 	IsPrivate    bool    `gorm:"default:false"`
 	ShowInNav    bool    `gorm:"default:false;index"`
 	NavOrder     int     `gorm:"default:0;index"`
+	Icon         string  `gorm:"type:varchar(64);default:''"`
 	// 前台版式：reading 正文 + 目录侧边栏（默认），wide 正文占满整行
 	Layout string `gorm:"type:varchar(20);default:'reading'"`
 	// 页面类型与链接地址（仅链接页面）
@@ -107,6 +125,7 @@ func (p *Page) ToDto() *dto.PageDto {
 			IsPrivate:       p.IsPrivate,
 			ShowInNav:       p.ShowInNav,
 			NavOrder:        p.NavOrder,
+			Icon:            NormalizePageIcon(p.Icon),
 			Layout:          NormalizePageLayout(p.Layout),
 			Kind:            NormalizePageKind(p.Kind),
 			LinkURL:         p.LinkURL,

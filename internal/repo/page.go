@@ -208,3 +208,38 @@ func (p *pageRepo) ListPublicContentsWithComponents() ([]string, error) {
 	err := GetDB().Model(&model.Page{}).Where("is_private = ? AND content LIKE ?", false, "%data-component%").Pluck("content", &contents).Error
 	return contents, err
 }
+
+// MaxNavOrder 返回当前已展示在导航栏中的最大排序值，便于新启用的页面默认追加在末尾
+func (p *pageRepo) MaxNavOrder() (int, error) {
+	var maxOrder int
+	err := GetDB().Model(&model.Page{}).Select("COALESCE(MAX(nav_order), 0)").Scan(&maxOrder).Error
+	return maxOrder, err
+}
+
+// GetPagesMetaByIDs 批量读取页面归属信息，用于批量排序前的权限校验
+func (p *pageRepo) GetPagesMetaByIDs(ids []uint) ([]PostMeta, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var metas []PostMeta
+	if err := GetDB().Model(&model.Page{}).Select("id, user_id, is_private").Where("id IN ?", ids).Find(&metas).Error; err != nil {
+		return nil, err
+	}
+	return metas, nil
+}
+
+// ReorderNavPages 按传入 ID 顺序批量重排导航顺序（10, 20, 30...）并刷新页面缓存标签
+func (p *pageRepo) ReorderNavPages(ids []uint) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	defer TouchCacheTags(CacheTagPages)
+	return GetDB().Transaction(func(tx *gorm.DB) error {
+		for idx, id := range ids {
+			if err := tx.Model(&model.Page{}).Where("id = ?", id).UpdateColumn("nav_order", (idx+1)*10).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}

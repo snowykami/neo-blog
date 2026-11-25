@@ -51,6 +51,9 @@ export const SCOPES = {
   ],
   '(main)/c/[slug]': [
   ],
+  '(main)/friends': [
+    'Friends',
+  ],
   '(main)/l': [
     'Archive',
   ],
@@ -117,6 +120,7 @@ export const SCOPES = {
     'Console.dashboard.title',
     'Console.errors.title',
     'Console.files.title',
+    'Console.friends.title',
     'Console.global.title',
     'Console.labels.title',
     'Console.lyric_effects.title',
@@ -191,6 +195,11 @@ export const SCOPES = {
     'ImageCompress',
     'Metrics',
     'Order',
+  ],
+  'console/friends': [
+    'Components',
+    'Console.friends',
+    'Friends',
   ],
   'console/global': [
     'AssetPicker',
@@ -359,6 +368,7 @@ export const SCOPE_PARENT: Record<keyof typeof SCOPES, keyof typeof SCOPES | nul
   '(main)/a': '(main)',
   '(main)/c': '(main)',
   '(main)/c/[slug]': '(main)/c',
+  '(main)/friends': '(main)',
   '(main)/l': '(main)',
   '(main)/notification-settings': '(main)',
   '(main)/notifications': '(main)',
@@ -381,6 +391,7 @@ export const SCOPE_PARENT: Record<keyof typeof SCOPES, keyof typeof SCOPES | nul
   'console/errors': 'console',
   'console/errors/[id]': 'console/errors',
   'console/files': 'console',
+  'console/friends': 'console',
   'console/global': 'console',
   'console/labels': 'console',
   'console/lyric-effects': 'console',

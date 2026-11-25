@@ -6,10 +6,10 @@ import { CompassIcon, FileTextIcon, LayoutTemplateIcon, SendIcon } from 'lucide-
 import { useTranslations } from 'next-intl'
 import { useForm } from 'react-hook-form'
 import { InfoTooltip, LabelWithInfo } from '@/components/common/info-tooltip'
+import { PageIconPicker } from '@/components/common/page-icon-picker'
 import {
   ContentSettingsSheet,
   CoverField,
-  NumberField,
   SettingsSection,
   SwitchField,
   useSyncSettingsForm,
@@ -27,7 +27,7 @@ interface PageSettingsValues {
   cover: string
   isPrivate: boolean
   showInNav: boolean
-  navOrder: number
+  icon: string
   layout: PageLayout
   fullscreen: boolean
 }
@@ -39,7 +39,7 @@ function toValues(meta: ContentMeta): PageSettingsValues {
     cover: meta.cover,
     isPrivate: meta.isPrivate,
     showInNav: meta.showInNav,
-    navOrder: meta.navOrder,
+    icon: meta.icon || '',
     layout: meta.layout,
     fullscreen: meta.fullscreen,
   }
@@ -51,7 +51,7 @@ function isNumericSlug(value: string) {
 }
 
 /**
- * 页面设置抽屉：访问路径（必填）、摘要（与画布同步）、封面、私密、导航展示与排序、前台版式
+ * 页面设置抽屉：访问路径（必填）、摘要（与画布同步）、封面、私密、导航展示与图标、前台版式
  */
 export function PageSettingsSheet({
   open,
@@ -117,7 +117,23 @@ export function PageSettingsSheet({
 
           <SettingsSection icon={CompassIcon} title={t('settings_nav')}>
             <SwitchField form={form} name="showInNav" label={pageT('show_in_nav')} description={t('show_in_nav_hint')} />
-            {showInNav && <NumberField form={form} name="navOrder" label={pageT('nav_order')} description={t('nav_order_hint')} />}
+            <FormField
+              control={form.control}
+              name="icon"
+              render={({ field }) => (
+                <FormItem>
+                  <LabelWithInfo info={pageT('icon_hint')}><FormLabel>{pageT('icon')}</FormLabel></LabelWithInfo>
+                  <FormControl>
+                    <PageIconPicker value={field.value} kind="content" onChange={field.onChange} />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+            {showInNav && (
+              <p className="text-xs text-muted-foreground">
+                {pageT('nav_order_drag_hint')}
+              </p>
+            )}
           </SettingsSection>
 
           <SettingsSection icon={LayoutTemplateIcon} title={t('settings_layout')}>

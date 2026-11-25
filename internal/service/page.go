@@ -60,6 +60,12 @@ func (p *PageService) CreatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 			return 0, svcerr
 		}
 	}
+	navOrder := utils.Deref(req.NavOrder)
+	if utils.Deref(req.ShowInNav) && (req.NavOrder == nil || navOrder == 0) {
+		if maxOrder, err := repo.Page.MaxNavOrder(); err == nil {
+			navOrder = maxOrder + 10
+		}
+	}
 	page := &model.Page{
 		UserID: currentUser.ID,
 		PageBase: model.PageBase{
@@ -72,7 +78,8 @@ func (p *PageService) CreatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 			Type:         pageType,
 			IsPrivate:    utils.Deref(req.IsPrivate),
 			ShowInNav:    utils.Deref(req.ShowInNav),
-			NavOrder:     utils.Deref(req.NavOrder),
+			NavOrder:     navOrder,
+			Icon:         model.NormalizePageIcon(utils.Deref(req.Icon)),
 			Layout:       model.NormalizePageLayout(utils.Deref(req.Layout)),
 			Kind:         kind,
 			LinkURL:      linkURL,
@@ -233,6 +240,7 @@ func (p *PageService) UpdatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 	}
 	// 未传的字段保持原值，只保存草稿时不会重置私密与导航设置
 	wasPrivate := page.IsPrivate
+	wasShowInNav := page.ShowInNav
 	if req.IsPrivate != nil {
 		page.IsPrivate = *req.IsPrivate
 		columns = append(columns, "is_private")
@@ -244,6 +252,15 @@ func (p *PageService) UpdatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 	if req.NavOrder != nil {
 		page.NavOrder = *req.NavOrder
 		columns = append(columns, "nav_order")
+	} else if !wasShowInNav && page.ShowInNav && page.NavOrder == 0 {
+		if maxOrder, err := repo.Page.MaxNavOrder(); err == nil {
+			page.NavOrder = maxOrder + 10
+			columns = append(columns, "nav_order")
+		}
+	}
+	if req.Icon != nil {
+		page.Icon = model.NormalizePageIcon(*req.Icon)
+		columns = append(columns, "icon")
 	}
 	if req.Layout != nil {
 		page.Layout = model.NormalizePageLayout(*req.Layout)
@@ -431,4 +448,47 @@ func (p *PageService) listPages(ctx context.Context, req *dto.ListPageReq, inclu
 		pageDtos = append(pageDtos, dtoPage)
 	}
 	return pageDtos, total, nil
+}
+
+// ReorderNavPages 批量调整导航菜单页面的先后顺序：管理员可重排任意页面，编辑者仅能重排自己创建的页面
+func (p *PageService) ReorderNavPages(ctx context.Context, req *dto.ReorderPageNavReq) *errs.ServiceError {
+	currentUser, ok := ctxutils.GetCurrentUser(ctx)
+	if !ok {
+		return errs.NewUnauthorized("login_required")
+	}
+	if !currentUser.GreaterThanEditor() {
+		return errs.NewForbidden("permission_denied")
+	}
+	seen := make(map[uint]struct{}, len(req.IDs))
+	uniqueIDs := make([]uint, 0, len(req.IDs))
+	for _, id := range req.IDs {
+		if id == 0 {
+			continue
+		}
+		if _, exists := seen[id]; !exists {
+			seen[id] = struct{}{}
+			uniqueIDs = append(uniqueIDs, id)
+		}
+	}
+	if len(uniqueIDs) == 0 {
+		return nil
+	}
+	metas, err := repo.Page.GetPagesMetaByIDs(uniqueIDs)
+	if err != nil {
+		return errs.Internal("failed_to_get_target", err).WithResource("page")
+	}
+	if len(metas) != len(uniqueIDs) {
+		return errs.NewNotFound("target_not_found").WithResource("page")
+	}
+	if !ctxutils.IsAdmin(ctx) {
+		for _, meta := range metas {
+			if meta.UserID != currentUser.ID {
+				return errs.NewForbidden("permission_denied")
+			}
+		}
+	}
+	if err := repo.Page.ReorderNavPages(uniqueIDs); err != nil {
+		return errs.Internal("failed_to_update_target", err).WithResource("page")
+	}
+	return nil
 }

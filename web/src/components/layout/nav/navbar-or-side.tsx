@@ -4,11 +4,8 @@ import type { NavMenuItem } from './nav-shared'
 import type { PageModel } from '@/models/page'
 import {
   ArchiveIcon,
-  ExternalLinkIcon,
-  FileTextIcon,
   FolderIcon,
   HouseIcon,
-  LinkIcon,
   MenuIcon,
   NewspaperIcon,
   PanelsTopLeftIcon,
@@ -34,6 +31,7 @@ import {
   NavigationMenuTrigger,
 } from '@/components/ui/navigation-menu'
 import { Link, usePathname } from '@/i18n/navigation'
+import { resolvePageNavIcon } from '@/lib/page-icons'
 import { cn } from '@/lib/utils'
 import { NAV_PAGES_QUERY, toNavPages } from '@/utils/common/nav-pages'
 import { getPageUrl, mainPath } from '@/utils/common/route'
@@ -140,7 +138,7 @@ function useNavMenuItems(): NavMenuItem[] {
             title: `page-${page.id}`,
             label: page.title,
             href: isLink ? page.linkUrl : getPageUrl(page),
-            icon: external ? ExternalLinkIcon : isLink ? LinkIcon : FileTextIcon,
+            icon: resolvePageNavIcon(page),
             external,
           }
         }),
@@ -219,7 +217,7 @@ function NavMenuCenter({ items }: { items: NavMenuItem[] }) {
                       aria-current={active ? 'page' : undefined}
                       className={cn(navItemClass, active && navItemActiveClass)}
                     >
-                      <item.icon aria-hidden className="size-5" />
+                      {item.icon && <item.icon aria-hidden className="size-5" />}
                       <span>{item.label ?? routeT(item.title)}</span>
                     </Link>
                   )
@@ -238,7 +236,7 @@ function NavMenuCenter({ items }: { items: NavMenuItem[] }) {
                               e.preventDefault()
                           }}
                         >
-                          <item.icon aria-hidden className="size-5" />
+                          {item.icon && <item.icon aria-hidden className="size-5" />}
                           <span>{item.label ?? routeT(item.title)}</span>
                         </NavigationMenuTrigger>
                         <NavigationMenuContent className="rounded-xl! p-1.5 shadow-lg!">
@@ -257,7 +255,7 @@ function NavMenuCenter({ items }: { items: NavMenuItem[] }) {
                                         childActive && 'bg-primary/10 font-semibold text-secondary-foreground',
                                       )}
                                     >
-                                      <child.icon aria-hidden className="size-4 text-current!" />
+                                      {child.icon && <child.icon aria-hidden className="size-4 text-current!" />}
                                       <span className="truncate">{child.label ?? routeT(child.title)}</span>
                                     </NavItemLink>
                                   </NavigationMenuLink>

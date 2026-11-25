@@ -60,6 +60,7 @@ export interface ContentMeta {
   // 仅页面
   showInNav: boolean
   navOrder: number
+  icon: string
   layout: PageLayout
   fullscreen: boolean
 }
@@ -141,6 +142,7 @@ const EMPTY_META: ContentMeta = {
   labels: [],
   showInNav: false,
   navOrder: 0,
+  icon: '',
   layout: 'reading',
   fullscreen: false,
 }
@@ -195,7 +197,7 @@ const postAdapter: ContentAdapter = {
     return updatePost({ post: patch, editSessionId: sessionId })
   },
   mergeMeta: (doc, meta) => {
-    const { showInNav: _showInNav, navOrder: _navOrder, layout: _layout, fullscreen: _fullscreen, ...rest } = meta
+    const { showInNav: _showInNav, navOrder: _navOrder, icon: _icon, layout: _layout, fullscreen: _fullscreen, ...rest } = meta
     return { ...(doc as Post), ...rest, slug: meta.slug !== undefined ? meta.slug || null : (doc as Post).slug }
   },
 }
@@ -213,6 +215,7 @@ const pageAdapter: ContentAdapter = {
       isPrivate: !!page.isPrivate,
       showInNav: !!page.showInNav,
       navOrder: page.navOrder || 0,
+      icon: page.icon || '',
       layout: page.layout === 'wide' ? 'wide' : 'reading',
       fullscreen: !!page.fullscreen,
     }
@@ -239,6 +242,8 @@ const pageAdapter: ContentAdapter = {
       patch.showInNav = meta.showInNav
     if (meta.navOrder !== undefined)
       patch.navOrder = Number(meta.navOrder) || 0
+    if (meta.icon !== undefined)
+      patch.icon = meta.icon
     if (meta.layout !== undefined)
       patch.layout = meta.layout
     if (meta.fullscreen !== undefined)

@@ -60,6 +60,7 @@ export interface PageModel {
   isPrivate: boolean
   showInNav: boolean
   navOrder: number
+  icon?: string
   layout: PageLayout
   kind: PageKind
   linkUrl: string

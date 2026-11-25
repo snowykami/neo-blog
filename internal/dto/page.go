@@ -13,6 +13,7 @@ type PageBaseDto struct {
 	IsPrivate    bool    `json:"is_private"`
 	ShowInNav    bool    `json:"show_in_nav"`
 	NavOrder     int     `json:"nav_order"`
+	Icon         string  `json:"icon"`       // 页面导航图标（Lucide 图标键名，none 表示不显示图标，空字符串表示使用默认图标）
 	Layout       string  `json:"layout"`     // 前台版式：reading 阅读（正文 + 目录侧边栏）/ wide 宽屏
 	Kind         string  `json:"kind"`       // 页面类型：content 正文页面 / link 链接页面
 	LinkURL      string  `json:"link_url"`   // 链接页面的地址：站内路径（/ 开头）或 http(s) 站外地址
@@ -43,6 +44,7 @@ type CreateOrUpdatePageReq struct {
 	IsPrivate  *bool   `json:"is_private"`
 	ShowInNav  *bool   `json:"show_in_nav"`
 	NavOrder   *int    `json:"nav_order"`
+	Icon       *string `json:"icon"`
 	Layout     *string `json:"layout"`
 	Kind       *string `json:"kind"`
 	LinkURL    *string `json:"link_url"`
@@ -66,6 +68,10 @@ type ListPageReq struct {
 	OnlyNav   bool   `query:"only_nav" default:"false"`
 	UserID    uint   `query:"user_id"`
 	PaginationParams
+}
+
+type ReorderPageNavReq struct {
+	IDs []uint `json:"ids"`
 }
 
 // PageHTMLBundleDto HTML 页面当前生效版本的访问信息

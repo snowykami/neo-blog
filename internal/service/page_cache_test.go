@@ -120,3 +120,65 @@ func TestPageServiceGuestCacheAndCrossInstanceInvalidation(t *testing.T) {
 		t.Fatalf("deleted page should 404 immediately, got err=%v", svcerr)
 	}
 }
+
+func TestPageIconAndReorderNavPages(t *testing.T) {
+	author, admin, otherEditor, _, _ := setupEditTest(t)
+	pageSvc := NewPageService()
+	anon := context.Background()
+	showInNav := true
+	isPrivate := false
+	linkKind := model.PageKindLink
+	friendsLink := "/friends"
+	musicLink := "/music"
+	handshakeIcon := "handshake"
+	musicIcon := "music"
+
+	id1, svcerr := pageSvc.CreatePage(author, &dto.CreateOrUpdatePageReq{
+		PageBaseDto: dto.PageBaseDto{Title: "Friends"},
+		Kind:        &linkKind,
+		LinkURL:     &friendsLink,
+		Icon:        &handshakeIcon,
+		ShowInNav:   &showInNav,
+		IsPrivate:   &isPrivate,
+	})
+	if svcerr != nil {
+		t.Fatalf("create page 1: %v", svcerr)
+	}
+	id2, svcerr := pageSvc.CreatePage(otherEditor, &dto.CreateOrUpdatePageReq{
+		PageBaseDto: dto.PageBaseDto{Title: "Music"},
+		Kind:        &linkKind,
+		LinkURL:     &musicLink,
+		Icon:        &musicIcon,
+		ShowInNav:   &showInNav,
+		IsPrivate:   &isPrivate,
+	})
+	if svcerr != nil {
+		t.Fatalf("create page 2: %v", svcerr)
+	}
+
+	// 非管理员不能重排他人创建的页面
+	if err := pageSvc.ReorderNavPages(author, &dto.ReorderPageNavReq{IDs: []uint{id2, id1}}); err == nil || err.Code != 403 {
+		t.Fatalf("expected 403 when editor reorders other user's page, got %v", err)
+	}
+
+	// 管理员可重排任意页面并使访客导航缓存立即失效
+	if err := pageSvc.ReorderNavPages(admin, &dto.ReorderPageNavReq{IDs: []uint{id2, id1}}); err != nil {
+		t.Fatalf("admin reorder nav pages: %v", err)
+	}
+
+	listReq := &dto.ListPageReq{
+		PaginationParams: dto.PaginationParams{Page: 1, Size: 10, OrderBy: constant.OrderByCreatedAt, Desc: true},
+		OnlyNav:          true,
+	}
+	pages, _, svcerr := pageSvc.ListPages(anon, listReq)
+	if svcerr != nil || len(pages) != 2 {
+		t.Fatalf("ListPages after reorder = %+v, err=%v", pages, svcerr)
+	}
+	byID := map[uint]*dto.PageDto{pages[0].ID: pages[0], pages[1].ID: pages[1]}
+	if byID[id2].NavOrder >= byID[id1].NavOrder {
+		t.Fatalf("expected Music (%d) before Friends (%d)", byID[id2].NavOrder, byID[id1].NavOrder)
+	}
+	if byID[id1].Icon != "handshake" || byID[id2].Icon != "music" {
+		t.Fatalf("unexpected page icons: id1=%q id2=%q", byID[id1].Icon, byID[id2].Icon)
+	}
+}
