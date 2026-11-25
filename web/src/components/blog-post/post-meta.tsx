@@ -28,7 +28,7 @@ export { PostMetaItem }
 // 元信息中的链接：位于整卡链接（stretched link）之上，需提升层级。
 // 用负外边距抵消内边距，悬停时呈现 Fuwari 同款柔和圆角底块（仅颜色过渡，不触发布局重排），
 // 同时配合透明伪元素把热区扩至 ≥ 24px（WCAG 2.2），避免点偏误触整卡链接
-const metaLinkClass = 'relative z-10 -mx-1.5 -my-0.5 rounded-md px-1.5 py-0.5 transition-colors duration-150 after:absolute after:-inset-y-0.5 after:inset-x-0 hover:bg-secondary hover:text-primary active:bg-primary/12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+const metaLinkClass = 'relative z-10 -mx-1.5 -my-0.5 rounded-md px-1.5 py-0.5 transition-colors duration-150 after:absolute after:-inset-y-0.5 after:inset-x-0 hover:bg-secondary hover:text-primary active:bg-(--primary-soft) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 /** 头像 + 昵称的作者项（列表），整体链接到作者主页 */
 function PostAuthorAvatarItem({ user, compact = false }: { user: Post['user'], compact?: boolean }) {
@@ -111,7 +111,7 @@ export function PostMeta({
           <span className="flex flex-wrap items-center gap-y-2">
             {visibleLabels.map((label, index) => (
               <Fragment key={label.id}>
-                {index > 0 && <span aria-hidden className="mx-1.5 text-foreground/30">/</span>}
+                {index > 0 && <span aria-hidden className="mx-1.5 text-(--post-divider-fg)">/</span>}
                 {/* 标签页是带 ?label= 的首页：进入视口只预取首页的 App Shell（与其他首页链接共用一份，点击立刻出骨架）；
                     悬停不升级为按链接预取（带筛选的列表不进取数缓存，每次悬停都要打后端） */}
                 <Link href={getLabelUrl(label)} unstable_dynamicOnHover={false} className={metaLinkClass}>
@@ -120,7 +120,7 @@ export function PostMeta({
               </Fragment>
             ))}
             {hiddenLabelCount > 0 && (
-              <span aria-hidden className="ml-1.5 text-foreground/45 tabular-nums">
+              <span aria-hidden className="ml-1.5 text-(--post-subtle-fg) tabular-nums">
                 +
                 {hiddenLabelCount}
               </span>

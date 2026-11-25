@@ -220,7 +220,7 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
           <ToggleGroupItem
             value={OrderBy.CreatedAt}
             aria-label={t('latest')}
-            className="h-9 rounded-md px-3 first:rounded-md last:rounded-md data-[state=on]:bg-primary/10 data-[state=on]:font-semibold data-[state=on]:text-secondary-foreground"
+            className="h-9 rounded-md px-3 first:rounded-md last:rounded-md data-[state=on]:bg-(--primary-soft) data-[state=on]:font-semibold data-[state=on]:text-secondary-foreground"
           >
             <Clock aria-hidden />
             {t('latest')}
@@ -228,7 +228,7 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
           <ToggleGroupItem
             value={OrderBy.Heat}
             aria-label={t('hottest')}
-            className="h-9 rounded-md px-3 first:rounded-md last:rounded-md data-[state=on]:bg-primary/10 data-[state=on]:font-semibold data-[state=on]:text-secondary-foreground"
+            className="h-9 rounded-md px-3 first:rounded-md last:rounded-md data-[state=on]:bg-(--primary-soft) data-[state=on]:font-semibold data-[state=on]:text-secondary-foreground"
           >
             <TrendingUp aria-hidden />
             {t('hottest')}

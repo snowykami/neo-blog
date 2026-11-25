@@ -3,6 +3,7 @@
 import type { Post } from '@/models/post'
 import { ChevronRightIcon, FileSearchIcon, RotateCwIcon, XIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import { memo } from 'react'
 import { PostMeta } from '@/components/blog-post/post-meta'
 import { SafeImage } from '@/components/common/safe-image'
 import { Badge } from '@/components/ui/badge'
@@ -25,9 +26,10 @@ import { htmlToText } from '@/utils/common/string'
  */
 
 const LIST_CLASS = 'grid gap-3.5 md:gap-4'
-const ITEM_CLASS = 'surface-card overflow-hidden rounded-2xl bg-card'
-// 首页置顶文章：在独立卡片底色中混入极淡主题色以示区分
-const PINNED_ITEM_CLASS = 'surface-card overflow-hidden rounded-2xl bg-[color-mix(in_oklch,var(--primary)_4%,var(--card))]'
+// overflow-clip + contain:content 裁剪内嵌圆角元素并把单卡样式/布局/重绘隔离在卡片边界内（不影响外侧 surface-card 投影，且不创建 PaintLayerScrollableArea）
+const ITEM_CLASS = 'surface-card overflow-clip rounded-2xl bg-card [contain:content]'
+// 首页置顶文章：使用预计算的极淡主题色底色 token，避免每张卡片重算 color-mix()
+const PINNED_ITEM_CLASS = 'surface-card overflow-clip rounded-2xl bg-(--card-pinned) [contain:content]'
 
 // 搜索结果里命中的关键词：淡主色底，文字颜色不变（标题悬停变主色时仍可读）
 function Highlighted({ text, terms }: { text: string, terms?: string[] }) {
@@ -35,110 +37,119 @@ function Highlighted({ text, terms }: { text: string, terms?: string[] }) {
     return text
   return splitHighlight(text, terms).map((part, index) => part.match
     // 片段由同一段文本按顺序切出，用下标作 key 即可
-    ? <mark key={index} className="rounded-sm bg-primary/15 text-inherit">{part.text}</mark>
+    ? <mark key={index} className="rounded-sm bg-(--primary-soft) text-inherit">{part.text}</mark>
     : part.text)
 }
 
-/**
- * pinned：作为首页置顶文章显示（带置顶徽标）；文章在其他列表里按正常顺序出现时不显示
- * highlight：搜索结果中要高亮的关键词（标题与摘要）
- * priority：首屏第一篇的封面（手机上在卡片顶部，常是最大内容绘制的元素）：预加载、高优先级、不懒加载
- */
-export function PostListItem({ post, showAuthor = true, pinned = false, highlight, priority = false }: { post: Post, showAuthor?: boolean, pinned?: boolean, highlight?: string[], priority?: boolean }) {
+interface PostListItemInnerProps {
+  post: Post
+  showAuthor: boolean
+  pinned: boolean
+  highlight?: string[]
+  priority: boolean
+  likeEnabled: boolean
+  commentEnabled: boolean
+}
+
+const MemoPostListItem = memo(({
+  post,
+  showAuthor,
+  pinned,
+  highlight,
+  priority,
+  likeEnabled,
+  commentEnabled,
+}: PostListItemInnerProps) => {
   const t = useTranslations()
-  const { siteInfo } = useSiteInfo()
-  const likeEnabled = isLikeEnabled(siteInfo)
-  const commentEnabled = isCommentEnabled(siteInfo)
   const url = getPostUrl({ post })
   const hasCover = !!post.cover
   // 搜索命中了正文片段时优先展示裁剪片段，否则按作者描述 → 后端纯文本摘要 → 前端兜底提取展示
-  const summary = post.searchSnippet || stripInlineMarkdown(post.description) || post.excerpt || htmlToText(post.content || '').slice(0, 200)
+  const summary = post.searchSnippet || stripInlineMarkdown(post.description) || post.excerpt || (post.content ? htmlToText(post.content).slice(0, 200) : '')
   const effectiveHighlight = post.highlightTerms?.length
     ? Array.from(new Set([...(highlight ?? []), ...post.highlightTerms]))
     : highlight
 
   return (
-    // 单一主链接架构：仅标题内挂载一个 Next.js <Link> 并以伪元素铺满整卡（减少重复 IntersectionObserver）；
-    // 右侧封面 / 进入按钮设为 pointer-events-none，配合 data-post-link 让悬停分类/标签子链接（z-10）时不误亮整卡反馈
-    <article className="group relative flex flex-col-reverse md:flex-col">
-      <div
-        className={cn(
-          'relative px-5 pt-5 pb-4 md:pt-6 md:pb-5 md:pl-9',
-          hasCover ? 'md:w-[calc(72%-1.5rem)] md:pr-5' : 'md:w-[calc(100%-3.25rem-1.25rem)] md:pr-4',
-        )}
-      >
-        {/* 前台列表只有公开文章（私密文章只在后台可见），只需要置顶徽标 */}
-        {pinned && (
-          <div className="mb-2 flex flex-wrap gap-2">
-            <Badge variant="secondary" className="rounded-md bg-primary/12 text-primary">
-              <PinnedIcon />
-              {t('Common.pinned')}
-            </Badge>
-          </div>
-        )}
-
-        {/* 标题：桌面端左侧附带与正文同风格的主色圆角竖条，悬停时右侧滑出主色箭头 */}
-        <h2 className="relative mb-3 text-xl leading-snug font-bold tracking-tight text-foreground/90 [text-wrap:balance] before:pointer-events-none before:absolute before:top-1.5 before:-left-[18px] before:hidden before:h-5 before:w-1 before:rounded-md before:bg-primary md:text-2xl md:leading-8 md:before:block">
-          <Link
-            href={url}
-            data-post-link=""
-            className="group/link rounded-sm transition-colors duration-150 outline-none after:absolute after:inset-0 after:z-0 after:rounded-2xl hover:text-primary active:text-primary/80 focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset"
-          >
-            <Highlighted text={post.title} terms={effectiveHighlight} />
-            <ChevronRightIcon
-              aria-hidden
-              className="ml-0.5 inline-block size-5 translate-y-[-0.06em] text-primary md:ml-1 md:size-6 md:-translate-x-1.5 md:opacity-0 md:transition-[opacity,transform] md:duration-150 md:group-hover/link:translate-x-0 md:group-hover/link:opacity-100"
-            />
-          </Link>
-        </h2>
-
-        {/* 元信息：柔和底色图标块 + 分类/标签药丸热区 */}
-        <PostMeta post={post} showAuthor={showAuthor} authorAvatar maxLabels={4} className="mb-3" />
-
-        {summary && (
-          // 最多 2 行，建立「标题 → 色块元信息 → 摘要 → 轻指标」四拍扫读节奏；max-h 兜底
-          // 关闭 text-autospace：Safari 默认开启而 Chrome 不开启，保持一致，也避免其影响截断
-          <p className="mb-3 line-clamp-2 max-h-[2lh] pr-2 text-sm leading-relaxed text-foreground/75 md:text-[0.9375rem] [text-autospace:no-autospace]">
-            <Highlighted text={summary} terms={effectiveHighlight} />
-          </p>
-        )}
-
-        {/* 底部轻指标行：与 Fuwari 字数栏同位置，复用已有列表字段而不额外拉取全文 */}
-        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-foreground/45 tabular-nums">
-          <span className="inline-flex items-center gap-1" title={t('Metrics.view_count')}>
-            <ViewIcon className="size-3.5" />
-            <span className="sr-only">{t('Metrics.view_count')}</span>
-            {post.viewCount || 0}
-          </span>
-          {likeEnabled && (
-            <>
-              <span aria-hidden className="text-foreground/20">|</span>
-              <span className="inline-flex items-center gap-1" title={t('Metrics.like_count')}>
-                <LikeIcon className="size-3.5" />
-                <span className="sr-only">{t('Metrics.like_count')}</span>
-                {post.likeCount || 0}
-              </span>
-            </>
-          )}
-          {commentEnabled && (
-            <>
-              <span aria-hidden className="text-foreground/20">|</span>
-              <span className="inline-flex items-center gap-1" title={t('Metrics.comment_count')}>
-                <CommentIcon className="size-3.5" />
-                <span className="sr-only">{t('Metrics.comment_count')}</span>
-                {post.commentCount || 0}
-              </span>
-            </>
-          )}
+    // 单一主链接 + 纯前向兄弟选择器架构：
+    // 1. 仅标题内挂载一个 Next.js <Link>，保持 <h2> 为 static 定位使其 ::after 铺满整个 <article>（z-0）；
+    // 2. PostMeta 内的作者/分类/标签链接带 relative z-10 浮于 ::after 之上，悬停子链接时不会命中主链接；
+    // 3. <h2> 作为 post-title-peer 置于右侧封面/进入色块之前，走精确类名 ~ 兄弟选择器驱动反馈，彻底消除父级 :has() 回溯重算
+    <article
+      className={cn(
+        'relative flex flex-col px-5 pt-5 pb-4 md:pt-6 md:pb-5 md:pl-9',
+        hasCover ? 'md:pr-[calc(28%+2.75rem)]' : 'md:pr-[5.5rem]',
+      )}
+    >
+      {/* 前台列表只有公开文章（私密文章只在后台可见），只需要置顶徽标 */}
+      {pinned && (
+        <div className="pointer-events-none mb-2 flex flex-wrap gap-2">
+          <Badge variant="secondary" className="rounded-md bg-(--primary-soft) text-primary">
+            <PinnedIcon />
+            {t('Common.pinned')}
+          </Badge>
         </div>
+      )}
+
+      {/* 标题：桌面端左侧主色竖条采用脱离文档流的 static-position 绝对定位（h2 保持 static 定位），避免长连续词在行内块后断行孤立竖条，且仅用 opacity 过渡箭头 */}
+      <h2 className="post-title-peer mb-3 text-xl leading-snug font-bold tracking-tight wrap-break-word text-(--post-title-fg) before:pointer-events-none before:absolute before:mt-1.5 before:-ml-4.5 before:hidden before:h-5 before:w-1 before:rounded-md before:bg-primary md:text-2xl md:leading-8 md:before:block">
+        <Link
+          href={url}
+          className="group/link rounded-sm transition-colors duration-150 outline-none after:absolute after:inset-0 after:z-0 after:rounded-2xl hover:text-primary focus-visible:text-primary focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset active:text-(--primary-active)"
+        >
+          <Highlighted text={post.title} terms={effectiveHighlight} />
+          <ChevronRightIcon
+            aria-hidden
+            className="ml-0.5 inline-block size-5 align-[-0.18em] text-primary md:ml-1 md:size-6 md:opacity-0 md:transition-opacity md:duration-150 md:group-hover/link:opacity-100 md:group-focus-visible/link:opacity-100"
+          />
+        </Link>
+      </h2>
+
+      {/* 元信息：柔和底色图标块 + 分类/标签药丸热区 */}
+      <PostMeta post={post} showAuthor={showAuthor} authorAvatar maxLabels={4} className="mb-3" />
+
+      {summary && (
+        // 最多 2 行，建立「标题 → 色块元信息 → 摘要 → 轻指标」四拍扫读节奏；max-h 兜底
+        // 关闭 text-autospace：Safari 默认开启而 Chrome 不开启，保持一致，也避免其影响截断
+        <p className="mb-3 line-clamp-2 max-h-[2lh] pr-2 text-sm leading-relaxed text-(--post-summary-fg) md:text-[0.9375rem] [text-autospace:no-autospace]">
+          <Highlighted text={summary} terms={effectiveHighlight} />
+        </p>
+      )}
+
+      {/* 底部轻指标行：与 Fuwari 字数栏同位置，复用已有列表字段而不额外拉取全文 */}
+      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-(--post-subtle-fg) tabular-nums">
+        <span className="inline-flex items-center gap-1">
+          <ViewIcon className="size-3.5" />
+          <span className="sr-only">{t('Metrics.view_count')}</span>
+          {post.viewCount || 0}
+        </span>
+        {likeEnabled && (
+          <>
+            <span aria-hidden className="text-(--post-divider-fg)">|</span>
+            <span className="inline-flex items-center gap-1">
+              <LikeIcon className="size-3.5" />
+              <span className="sr-only">{t('Metrics.like_count')}</span>
+              {post.likeCount || 0}
+            </span>
+          </>
+        )}
+        {commentEnabled && (
+          <>
+            <span aria-hidden className="text-(--post-divider-fg)">|</span>
+            <span className="inline-flex items-center gap-1">
+              <CommentIcon className="size-3.5" />
+              <span className="sr-only">{t('Metrics.comment_count')}</span>
+              {post.commentCount || 0}
+            </span>
+          </>
+        )}
       </div>
 
-      {/* 右侧视觉槽位：有封面时展示宽松内距的大圆角缩略图，无封面时桌面端展示同列对齐的纵向进入色块 */}
+      {/* 右侧视觉槽位：DOM 排在 post-title-peer 之后以使用 ~ 兄弟选择器；移动端封面通过 -order-1 保持置顶 */}
       {hasCover
         ? (
             <div
               aria-hidden
-              className="pointer-events-none relative mx-3.5 mt-3.5 -mb-0.5 h-[19vh] min-h-32 overflow-hidden rounded-xl transition-transform duration-150 group-has-[[data-post-link]:active]:scale-[.98] md:absolute md:inset-y-3.5 md:right-3.5 md:m-0 md:h-auto md:w-[28%]"
+              className="post-cover-slot pointer-events-none relative -order-1 -mx-1.5 -mt-1.5 mb-4.5 h-[19svh] min-h-32 overflow-clip rounded-xl md:absolute md:inset-y-3.5 md:right-3.5 md:order-0 md:m-0 md:h-auto md:min-h-0 md:w-[28%]"
             >
               <SafeImage
                 src={post.cover}
@@ -146,55 +157,72 @@ export function PostListItem({ post, showAuthor = true, pinned = false, highligh
                 fill
                 quality={60}
                 className="object-cover"
-                sizes="(max-width: 767px) 100vw, 320px"
+                sizes="(max-width: 767px) calc(100vw - 52px), 280px"
                 preload={priority}
                 loading={priority ? 'eager' : undefined}
                 fetchPriority={priority ? 'high' : undefined}
               />
-              <span className="absolute inset-0 z-10 bg-black/0 transition-colors duration-150 group-has-[[data-post-link]:hover]:bg-black/30" />
-              <span className="absolute inset-0 z-20 flex items-center justify-center">
-                <ChevronRightIcon className="size-11 scale-50 text-white opacity-0 transition-[opacity,transform] duration-150 group-has-[[data-post-link]:hover]:scale-100 group-has-[[data-post-link]:hover]:opacity-100" />
+              <span className="post-cover-overlay absolute inset-0 flex items-center justify-center">
+                <ChevronRightIcon className="size-10 text-white" />
               </span>
             </div>
           )
         : (
             <div
               aria-hidden
-              className="pointer-events-none hidden items-center justify-center rounded-xl bg-secondary text-secondary-foreground transition-[background-color,color,transform] duration-150 group-has-[[data-post-link]:hover]:bg-[color-mix(in_oklch,var(--primary)_14%,var(--secondary))] group-has-[[data-post-link]:hover]:text-primary group-has-[[data-post-link]:active]:scale-95 md:absolute md:inset-y-3.5 md:right-3.5 md:flex md:w-[3.25rem]"
+              className="post-enter-slot pointer-events-none hidden items-center justify-center rounded-xl bg-secondary text-secondary-foreground transition-colors duration-150 md:absolute md:inset-y-3.5 md:right-3.5 md:flex md:w-[3.25rem]"
             >
-              <ChevronRightIcon className="size-7 transition-transform duration-150 group-has-[[data-post-link]:hover]:translate-x-0.5" />
+              <ChevronRightIcon className="size-7" />
             </div>
           )}
     </article>
+  )
+})
+
+/**
+ * pinned：作为首页置顶文章显示（带置顶徽标）；文章在其他列表里按正常顺序出现时不显示
+ * highlight：搜索结果中要高亮的关键词（标题与摘要）
+ * priority：首屏第一张封面图（手机上在卡片顶部，常是最大内容绘制的元素）：预加载、高优先级、不懒加载
+ */
+export function PostListItem({ post, showAuthor = true, pinned = false, highlight, priority = false }: { post: Post, showAuthor?: boolean, pinned?: boolean, highlight?: string[], priority?: boolean }) {
+  const { siteInfo } = useSiteInfo()
+  return (
+    <MemoPostListItem
+      post={post}
+      showAuthor={showAuthor}
+      pinned={pinned}
+      highlight={highlight}
+      priority={priority}
+      likeEnabled={isLikeEnabled(siteInfo)}
+      commentEnabled={isCommentEnabled(siteInfo)}
+    />
   )
 }
 
 export function PostListItemSkeleton({ showAuthor = true }: { showAuthor?: boolean }) {
   return (
-    <div className="relative">
-      <div className="px-5 pt-5 pb-4 md:w-[calc(100%-3.25rem-1.25rem)] md:pt-6 md:pr-4 md:pb-5 md:pl-9">
-        <Skeleton className="mb-3 h-7 w-3/5 md:h-8" />
-        <div className="mb-3 flex flex-wrap items-center gap-3.5">
-          {showAuthor && (
-            <div className="flex items-center gap-2">
-              <Skeleton className="size-7 rounded-full" />
-              <Skeleton className="h-4 w-16" />
-            </div>
-          )}
+    <div className="relative animate-pulse px-5 pt-5 pb-4 md:pt-6 md:pr-[5.5rem] md:pb-5 md:pl-9">
+      <Skeleton className="mb-3 h-7 w-3/5 animate-none md:h-8" />
+      <div className="mb-3 flex flex-wrap items-center gap-3.5">
+        {showAuthor && (
           <div className="flex items-center gap-2">
-            <Skeleton className="size-7 rounded-lg" />
-            <Skeleton className="h-4 w-20" />
+            <Skeleton className="size-7 animate-none rounded-full" />
+            <Skeleton className="h-4 w-16 animate-none" />
           </div>
-          <div className="flex items-center gap-2">
-            <Skeleton className="size-7 rounded-lg" />
-            <Skeleton className="h-4 w-16" />
-          </div>
+        )}
+        <div className="flex items-center gap-2">
+          <Skeleton className="size-7 animate-none rounded-lg" />
+          <Skeleton className="h-4 w-20 animate-none" />
         </div>
-        <Skeleton className="mb-1.5 h-4 w-full" />
-        <Skeleton className="mb-3 h-4 w-2/3" />
-        <Skeleton className="h-3.5 w-28" />
+        <div className="flex items-center gap-2">
+          <Skeleton className="size-7 animate-none rounded-lg" />
+          <Skeleton className="h-4 w-16 animate-none" />
+        </div>
       </div>
-      <Skeleton className="hidden rounded-xl md:absolute md:inset-y-3.5 md:right-3.5 md:block md:w-[3.25rem]" />
+      <Skeleton className="mb-2 h-5 w-full animate-none" />
+      <Skeleton className="mb-3 h-5 w-2/3 animate-none" />
+      <Skeleton className="h-4 w-28 animate-none" />
+      <Skeleton className="hidden animate-none rounded-xl md:absolute md:inset-y-3.5 md:right-3.5 md:block md:w-[3.25rem]" />
     </div>
   )
 }
@@ -236,7 +264,10 @@ export function PostList({
   className?: string
 }) {
   const t = useTranslations('BlogHome')
-  const cardClass = cn('surface-card overflow-hidden rounded-2xl bg-card', className)
+  const { siteInfo } = useSiteInfo()
+  const likeEnabled = isLikeEnabled(siteInfo)
+  const commentEnabled = isCommentEnabled(siteInfo)
+  const cardClass = cn('surface-card overflow-clip rounded-2xl bg-card', className)
 
   if (isLoading) {
     return (
@@ -251,7 +282,7 @@ export function PostList({
   if (error) {
     return (
       <div className={cn(cardClass, 'flex flex-col items-center gap-3 px-6 py-14 text-center')} role="alert">
-        <p className="text-lg font-medium text-foreground/75">{t('load_failed')}</p>
+        <p className="text-lg font-medium text-(--post-summary-fg)">{t('load_failed')}</p>
         {onRetry && (
           <Button variant="secondary" onClick={onRetry}>
             <RotateCwIcon aria-hidden />
@@ -268,7 +299,7 @@ export function PostList({
         <span aria-hidden className="mb-1 flex size-12 items-center justify-center rounded-xl bg-secondary text-secondary-foreground">
           <FileSearchIcon className="size-6" />
         </span>
-        <p className="text-lg font-medium text-foreground/75">{t('no_posts')}</p>
+        <p className="text-lg font-medium text-(--post-summary-fg)">{t('no_posts')}</p>
         <p className="text-sm text-muted-foreground">
           {t('no_posts_found')}
         </p>
@@ -282,21 +313,42 @@ export function PostList({
     )
   }
 
+  // 首屏前两张卡片内出现的第一张封面图设为 LCP 优先加载（避免首篇无封面时白白浪费高优先级预加载）
+  const priorityPostId = prioritizeFirst
+    ? [...pinnedPosts, ...posts].slice(0, 2).find(p => p.cover)?.id
+    : undefined
+
   return (
     <div className={cn(LIST_CLASS, className)}>
-      {pinnedPosts.map((post, index) => (
+      {pinnedPosts.map(post => (
         <div key={post.id} className={PINNED_ITEM_CLASS}>
-          <PostListItem post={post} showAuthor={showAuthor} pinned highlight={highlight} priority={prioritizeFirst && index === 0} />
+          <MemoPostListItem
+            post={post}
+            showAuthor={showAuthor}
+            pinned
+            highlight={highlight}
+            priority={post.id === priorityPostId}
+            likeEnabled={likeEnabled}
+            commentEnabled={commentEnabled}
+          />
         </div>
       ))}
       {pinnedPosts.length > 0 && posts.length > 0 && (
-        <div className="flex items-center gap-3 px-2 py-0.5 text-xs font-medium text-muted-foreground after:flex-1 after:border-t after:border-dashed after:border-foreground/12">
+        <div className="flex items-center gap-3 px-2 py-0.5 text-xs font-medium text-muted-foreground after:flex-1 after:border-t after:border-dashed after:border-border">
           {listLabel}
         </div>
       )}
-      {posts.map((post, index) => (
+      {posts.map(post => (
         <div key={post.id} className={ITEM_CLASS}>
-          <PostListItem post={post} showAuthor={showAuthor} highlight={highlight} priority={prioritizeFirst && pinnedPosts.length === 0 && index === 0} />
+          <MemoPostListItem
+            post={post}
+            showAuthor={showAuthor}
+            pinned={false}
+            highlight={highlight}
+            priority={post.id === priorityPostId}
+            likeEnabled={likeEnabled}
+            commentEnabled={commentEnabled}
+          />
         </div>
       ))}
     </div>

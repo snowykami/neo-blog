@@ -25,7 +25,7 @@ export function PostMetaDates({
   const t = useTranslations()
   const format = useFormatter()
   const createdText = createdAt ? format.dateTime(new Date(createdAt), DATE_FORMAT) : ''
-  const updatedText = updatedAt ? format.dateTime(new Date(updatedAt), DATE_FORMAT) : ''
+  const updatedText = showUpdated && updatedAt ? format.dateTime(new Date(updatedAt), DATE_FORMAT) : ''
   return (
     <>
       {createdText && (

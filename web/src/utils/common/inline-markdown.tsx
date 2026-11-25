@@ -186,7 +186,13 @@ export function renderInlineMarkdown(nodes: InlineNode[], limit = Number.POSITIV
   return walk(nodes, '')
 }
 
+const INLINE_SYNTAX_RE = /[\\`*[\r]/
+
 // 去掉行内 Markdown 标记，得到纯文本（用于列表摘要、meta 描述等不渲染格式的场景）
 export function stripInlineMarkdown(src: string): string {
+  if (!src)
+    return ''
+  if (!INLINE_SYNTAX_RE.test(src))
+    return src
   return inlineToPlainText(parseInlineMarkdown(src))
 }

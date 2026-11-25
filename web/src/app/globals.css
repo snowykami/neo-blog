@@ -56,7 +56,7 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border outline-(--ring-soft);
   }
 
   body {
@@ -150,18 +150,26 @@
   --dur-enter: 300ms;
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
 
-  /* 前台卡片表面层次：1px 极淡中性内沿描边 + 多层柔光微阴影（不染彩色光晕） */
+  /* 列表卡片高频派生色：预计算纯 oklch 值，避免每张卡片在样式重算时重复求值 color-mix(in oklch/oklab, ...) */
+  --ring-soft: oklch(var(--primary-l) var(--chroma) var(--hue) / 0.5);
+  --card-pinned: oklch(0.982 calc(var(--chroma) * 0.04) var(--hue));
+  --secondary-hover: oklch(0.895 calc(0.0215 + var(--chroma) * 0.14) var(--hue));
+  --secondary-active: oklch(0.86 calc(0.02 + var(--chroma) * 0.18) var(--hue));
+  --primary-soft: oklch(var(--primary-l) var(--chroma) var(--hue) / 0.12);
+  --primary-active: oklch(var(--primary-l) var(--chroma) var(--hue) / 0.8);
+  --post-title-fg: oklch(0.305 0.018 var(--hue));
+  --post-summary-fg: oklch(0.445 0.015 var(--hue));
+  --post-subtle-fg: oklch(0.63 0.012 var(--hue));
+  --post-divider-fg: oklch(0.78 0.008 var(--hue));
+
+  /* 前台卡片表面层次：1px 极淡中性内沿描边 + 单层柔光微阴影（收敛模糊半径与层数，降低多卡片滚动光栅化开销） */
   --surface-shadow:
     0px 0px 0px 1px rgba(15, 23, 42, 0.05),
-    0px 1px 2px -0.5px rgba(15, 23, 42, 0.04),
-    0px 6px 16px -4px rgba(15, 23, 42, 0.045),
-    0px 16px 32px -12px rgba(15, 23, 42, 0.035);
-  /* 滚动悬浮态顶栏阴影：与 --surface-shadow 保持相同 4 层结构，保证 transition-shadow 平滑插值无闪烁 */
+    0px 4px 12px -2px rgba(15, 23, 42, 0.06);
+  /* 滚动悬浮态顶栏阴影：与 --surface-shadow 保持相同 2 层结构，保证 transition-shadow 平滑插值无闪烁 */
   --surface-shadow-scrolled:
     0px 0px 0px 1px rgba(15, 23, 42, 0.065),
-    0px 2px 4px -1px rgba(15, 23, 42, 0.05),
-    0px 10px 24px -6px rgba(15, 23, 42, 0.085),
-    0px 20px 36px -12px rgba(15, 23, 42, 0.05);
+    0px 10px 24px -4px rgba(15, 23, 42, 0.1);
 }
 
 .dark,
@@ -191,13 +199,24 @@
 
   --sidebar: oklch(0.2 0.015 var(--hue));
 
+  --ring-soft: oklch(var(--primary-l-dark) var(--chroma) var(--hue) / 0.5);
+  --card-pinned: oklch(0.25 calc(0.0144 + var(--chroma) * 0.04) var(--hue));
+  --secondary-hover: oklch(0.39 calc(0.03 + var(--chroma) * 0.14) var(--hue));
+  --secondary-active: oklch(0.35 calc(0.028 + var(--chroma) * 0.18) var(--hue));
+  --primary-soft: oklch(var(--primary-l-dark) var(--chroma) var(--hue) / 0.15);
+  --primary-active: oklch(var(--primary-l-dark) var(--chroma) var(--hue) / 0.8);
+  --post-title-fg: oklch(0.875 0.01 var(--hue));
+  --post-summary-fg: oklch(0.78 0.012 var(--hue));
+  --post-subtle-fg: oklch(0.58 0.014 var(--hue));
+  --post-divider-fg: oklch(0.46 0.014 var(--hue));
+
   /* 深色前台卡片：1px 微弱内沿高光环 + 柔和暗部投影 */
   --surface-shadow:
     0px 0px 0px 1px rgba(255, 255, 255, 0.065),
-    0px 8px 24px -6px rgba(0, 0, 0, 0.38);
+    0px 6px 16px -4px rgba(0, 0, 0, 0.36);
   --surface-shadow-scrolled:
     0px 0px 0px 1px rgba(255, 255, 255, 0.095),
-    0px 12px 28px -6px rgba(0, 0, 0, 0.52);
+    0px 12px 24px -6px rgba(0, 0, 0, 0.5);
 }
 
 /* ---------------------------------------------------------------------------
@@ -223,6 +242,11 @@ html[data-console],
   --sidebar: oklch(0.975 0.002 260);
   --sidebar-foreground: var(--foreground);
   --sidebar-border: var(--border);
+  --card-pinned: oklch(0.985 0.002 260);
+  --post-title-fg: oklch(0.28 0.006 260);
+  --post-summary-fg: oklch(0.43 0.007 260);
+  --post-subtle-fg: oklch(0.62 0.006 260);
+  --post-divider-fg: oklch(0.78 0.004 260);
 }
 
 html.dark[data-console],
@@ -242,6 +266,11 @@ html.dark[data-console],
   --sidebar: oklch(0.165 0.004 260);
   --sidebar-foreground: var(--foreground);
   --sidebar-border: var(--border);
+  --card-pinned: oklch(0.215 0.005 260);
+  --post-title-fg: oklch(0.89 0.004 260);
+  --post-summary-fg: oklch(0.78 0.005 260);
+  --post-subtle-fg: oklch(0.57 0.005 260);
+  --post-divider-fg: oklch(0.44 0.005 260);
 }
 
 html[data-console] body {
@@ -299,6 +328,34 @@ html[data-theme] .bg-primary {
   box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
 }
 
+/* 文章列表右侧封面遮罩与进入色块：用精确类名兄弟选择器替代 Tailwind peer-[&>...] 展开出的 ~ * 通配符，
+ * 让 Blink SiblingInvalidationSet 直接过滤跳过同级的元信息、摘要与指标行，且遮罩全程只做合成层友好的 opacity 过渡 */
+.post-cover-overlay {
+  background-color: rgb(0 0 0 / 0.36);
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+
+@media (hover: hover) {
+  .post-title-peer:hover ~ .post-cover-slot > .post-cover-overlay {
+    opacity: 0.78;
+  }
+
+  .post-title-peer:hover ~ .post-enter-slot {
+    background-color: var(--secondary-hover);
+    color: var(--primary);
+  }
+}
+
+.post-title-peer:active ~ .post-cover-slot > .post-cover-overlay {
+  opacity: 1;
+}
+
+.post-title-peer:active ~ .post-enter-slot {
+  background-color: var(--secondary-active);
+  color: var(--primary);
+}
+
 /* 隐藏滚动条但保留滚动能力（用于目录等局部滚动区域） */
 @utility hide-scrollbar {
   scrollbar-width: none;
@@ -327,19 +384,12 @@ html body[data-scroll-locked] {
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: rgba(100,100,100,0.45);
+  background-color: rgba(100, 100, 100, 0.45);
   border-radius: 999px;
-  opacity: 0;
-  transition: opacity 160ms ease, background-color 160ms ease;
 }
 
-*:hover::-webkit-scrollbar-thumb,
-*:focus-within::-webkit-scrollbar-thumb {
-  opacity: 1;
-}
-
-*:hover::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(100,100,100,0.75);
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(100, 100, 100, 0.75);
 }
 
 /* 盘古之白：在中文与英文/数字之间自动加入间距，仅影响渲染，不修改文本（复制内容不变）
