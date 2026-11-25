@@ -929,3 +929,59 @@ func TestMigrateConsoleQueryIndexes(t *testing.T) {
 		}
 	})
 }
+
+// 友链站长托管可空外键升级：旧版 friend_links.user_id NOT NULL 升级后应允许写入 NULL，且不违反外键约束
+func TestMigrateFriendLinksNullableUser(t *testing.T) {
+	type legacyFriendLink struct {
+		ID             uint   `gorm:"primarykey"`
+		UserID         uint   `gorm:"not null;index"`
+		GroupID        uint   `gorm:"not null;index"`
+		Name           string `gorm:"type:varchar(64);not null"`
+		URL            string `gorm:"type:varchar(512);not null"`
+		NormalizedHost string `gorm:"type:varchar(255);uniqueIndex;not null"`
+		Avatar         string `gorm:"type:varchar(512);not null;default:''"`
+		Description    string `gorm:"type:varchar(200);not null;default:''"`
+		ColorKey       string `gorm:"type:varchar(32);not null;default:'sky'"`
+		BacklinkURL    string `gorm:"type:varchar(512);not null;default:''"`
+		SortOrder      int    `gorm:"not null;default:0"`
+		Status         string `gorm:"type:varchar(16);not null;default:'approved'"`
+		ReviewNote     string `gorm:"type:varchar(500);not null;default:''"`
+		HealthStatus   string `gorm:"type:varchar(16);not null;default:'unknown'"`
+		LatencyMs      int    `gorm:"not null;default:0"`
+		FailCount      int    `gorm:"not null;default:0"`
+		BacklinkStatus string `gorm:"type:varchar(16);not null;default:'unchecked'"`
+	}
+
+	forEachDialect(t, func(t *testing.T) {
+		seedLegacyDatabase(t)
+		if err := db.Table("friend_links").AutoMigrate(&legacyFriendLink{}); err != nil {
+			t.Fatalf("prepare legacy friend_links: %v", err)
+		}
+		if db.Dialector.Name() == "postgres" {
+			_ = db.Exec("ALTER TABLE friend_links ADD CONSTRAINT fk_friend_links_user FOREIGN KEY (user_id) REFERENCES users(id)").Error
+		}
+		if err := migrate(); err != nil {
+			t.Fatalf("migrate: %v", err)
+		}
+		if db.Dialector.Name() == "sqlite" {
+			_ = db.Exec("PRAGMA foreign_keys = ON").Error
+		}
+		var grp model.FriendGroup
+		if err := db.First(&grp).Error; err != nil {
+			t.Fatalf("load seeded friend group: %v", err)
+		}
+		siteManaged := &model.FriendLink{
+			UserID:         nil,
+			GroupID:        grp.ID,
+			Name:           "Next.js",
+			URL:            "https://nextjs.org",
+			NormalizedHost: "nextjs.org",
+			Avatar:         "https://nextjs.org/favicon.ico",
+			ColorKey:       "midnight",
+			Status:         model.FriendStatusApproved,
+		}
+		if err := db.Create(siteManaged).Error; err != nil {
+			t.Fatalf("insert site-managed friend link with NULL user_id after migration failed: %v", err)
+		}
+	})
+}

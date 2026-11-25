@@ -25,6 +25,10 @@ func setupFriendTest(t *testing.T) (user, otherUser, editor, admin *model.User) 
 	if err := repo.InitDatabase(); err != nil {
 		t.Fatalf("init database: %v", err)
 	}
+	// 开启 SQLite 外键强约束，与生产环境 PostgreSQL 外键检查行为保持一致
+	if err := repo.GetDB().Exec("PRAGMA foreign_keys = ON").Error; err != nil {
+		t.Fatalf("enable sqlite foreign_keys: %v", err)
+	}
 	users := []*model.User{
 		{Username: "alice", Email: "alice@test.local", Role: constant.RoleUser},
 		{Username: "bob", Email: "bob@test.local", Role: constant.RoleUser},

@@ -369,7 +369,7 @@ func runFriendReviewTask(linkID uint, triggerUserID uint) {
 
 	uid := triggerUserID
 	if uid == 0 {
-		uid = link.UserID
+		uid = link.OwnerUserID()
 	}
 	aiCtx, cancelAI := context.WithTimeout(withLLMPurpose(context.Background(), constant.LLMPurposeFriendLink, uid), friendAIReviewTimeout)
 	reply, err := chatCompletionWithReasoning(aiCtx, aiCfg, friendAIReviewSystemPrompt, userMsg, 0.1, "none")
@@ -419,7 +419,7 @@ func ResumePendingFriendReviews() {
 		return
 	}
 	for i := range links {
-		runFriendReviewTask(links[i].ID, links[i].UserID)
+		runFriendReviewTask(links[i].ID, links[i].OwnerUserID())
 	}
 }
 

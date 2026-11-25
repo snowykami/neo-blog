@@ -30,5 +30,6 @@ func List() []*gormigrate.Migration {
 		postLabelsIndex(),
 		p1SchemaAndIndexes(),
 		consoleQueryIndexes(),
+		friendLinksNullableUser(),
 	}
 }

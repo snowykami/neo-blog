@@ -461,8 +461,9 @@ func (s *FriendService) CreateMyFriendLink(ctx context.Context, req *dto.UpsertM
 	}
 
 	status, reviewNote, shouldRunAI := decideSubmissionReviewMode(currentUser)
+	ownerID := currentUser.ID
 	link := &model.FriendLink{
-		UserID:         currentUser.ID,
+		UserID:         &ownerID,
 		GroupID:        grp.ID,
 		Name:           cleanName,
 		URL:            cleanURL,
@@ -513,7 +514,7 @@ func (s *FriendService) UpdateMyFriendLink(ctx context.Context, id uint, req *dt
 		}
 		return nil, errs.Internal("failed_to_get_target", err).WithResource("friend_link")
 	}
-	if !(isAdminUser || link.UserID == currentUser.ID) {
+	if !(isAdminUser || link.OwnerUserID() == currentUser.ID) {
 		return nil, errs.NewForbidden("permission_denied")
 	}
 
@@ -577,7 +578,7 @@ func (s *FriendService) DeleteMyFriendLink(ctx context.Context, id uint) *errs.S
 		}
 		return errs.Internal("failed_to_get_target", err).WithResource("friend_link")
 	}
-	if !(currentUser.Role == constant.RoleAdmin || link.UserID == currentUser.ID) {
+	if !(currentUser.Role == constant.RoleAdmin || link.OwnerUserID() == currentUser.ID) {
 		return errs.NewForbidden("permission_denied")
 	}
 	if err := repo.Friend.DeleteLink(link.ID); err != nil {
@@ -821,9 +822,9 @@ func (s *FriendService) AdminCreateLink(ctx context.Context, req *dto.AdminUpser
 		return nil, errs.Internal("failed_to_get_target", err).WithResource("friend_link")
 	}
 
-	// 管理员后台直接创建的友链默认设为站长托管（UserID=0），后续可随时按需转移给已注册用户管理
+	// 管理员后台直接创建的友链默认设为站长托管（UserID=nil），后续可随时按需转移给已注册用户管理
 	link := &model.FriendLink{
-		UserID:         0,
+		UserID:         nil,
 		GroupID:        grp.ID,
 		Name:           cleanName,
 		URL:            cleanURL,
@@ -954,11 +955,11 @@ func (s *FriendService) AdminTransferLink(ctx context.Context, id uint, req *dto
 	}
 
 	if req.UserID == 0 {
-		if err := repo.Friend.UpdateLinkColumns(link.ID, map[string]any{"user_id": uint(0)}); err != nil {
+		if err := repo.Friend.UpdateLinkColumns(link.ID, map[string]any{"user_id": nil}); err != nil {
 			return nil, errs.Internal("failed_to_update_target", err).WithResource("friend_link")
 		}
-		link.UserID = 0
-		link.User = model.User{}
+		link.UserID = nil
+		link.User = nil
 		out := link.ToAdminDto()
 		return &out, nil
 	}
@@ -976,7 +977,7 @@ func (s *FriendService) AdminTransferLink(ctx context.Context, id uint, req *dto
 	if targetUser.Disabled {
 		return nil, errs.NewBadRequest("user_disabled")
 	}
-	if targetUser.Role != constant.RoleAdmin && link.UserID != targetUser.ID {
+	if targetUser.Role != constant.RoleAdmin && link.OwnerUserID() != targetUser.ID {
 		count, err := repo.Friend.CountByUser(targetUser.ID)
 		if err != nil {
 			return nil, errs.Internal("failed_to_get_target", err).WithResource("friend_link")
@@ -989,8 +990,9 @@ func (s *FriendService) AdminTransferLink(ctx context.Context, id uint, req *dto
 	if err := repo.Friend.UpdateLinkColumns(link.ID, map[string]any{"user_id": targetUser.ID}); err != nil {
 		return nil, errs.Internal("failed_to_update_target", err).WithResource("friend_link")
 	}
-	link.UserID = targetUser.ID
-	link.User = *targetUser
+	uid := targetUser.ID
+	link.UserID = &uid
+	link.User = targetUser
 	out := link.ToAdminDto()
 	return &out, nil
 }

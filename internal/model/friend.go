@@ -145,8 +145,8 @@ type FriendLink struct {
 	ID             uint      `gorm:"primarykey"`
 	CreatedAt      time.Time `gorm:"index"`
 	UpdatedAt      time.Time
-	UserID         uint   `gorm:"not null;index"`
-	User           User   `gorm:"foreignKey:UserID;references:ID"`
+	UserID         *uint  `gorm:"index"`
+	User           *User  `gorm:"constraint:OnDelete:SET NULL"`
 	GroupID        uint   `gorm:"not null;index"`
 	Name           string `gorm:"type:varchar(64);not null"`
 	URL            string `gorm:"type:varchar(512);not null"`
@@ -199,15 +199,23 @@ func (l *FriendLink) ToMineDto() dto.FriendLinkMineDto {
 	}
 }
 
+// OwnerUserID 返回归属用户 ID；站长托管（UserID 为 nil）时返回 0
+func (l *FriendLink) OwnerUserID() uint {
+	if l.UserID == nil {
+		return 0
+	}
+	return *l.UserID
+}
+
 func (l *FriendLink) ToAdminDto() dto.FriendLinkAdminDto {
 	var userDto *dto.PublicUserDto
-	if l.User.ID != 0 {
+	if l.User != nil && l.User.ID != 0 {
 		u := l.User.ToPublicDto()
 		userDto = &u
 	}
 	return dto.FriendLinkAdminDto{
 		ID:             l.ID,
-		UserID:         l.UserID,
+		UserID:         l.OwnerUserID(),
 		User:           userDto,
 		GroupID:        l.GroupID,
 		Name:           l.Name,
