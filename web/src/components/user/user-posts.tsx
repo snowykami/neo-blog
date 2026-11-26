@@ -10,7 +10,6 @@ import { PaginationController } from '@/components/common/pagination'
 import { SectionTitle } from '@/components/layout/site-shell'
 import { useAuth } from '@/contexts/auth-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
-import { usePathname } from '@/i18n/navigation'
 import { localizePath } from '@/i18n/routing'
 import { OrderBy } from '@/models/common'
 import { isAdmin } from '@/utils/common/permission'
@@ -46,15 +45,16 @@ function UserPostsPageQueryBridge({
  */
 export function UserPosts({
   userId,
+  baseUrl,
   initialPosts,
 }: {
   userId: number
+  baseUrl: string
   initialPosts?: { posts: Post[], total: number }
 }) {
   const t = useTranslations('UserPage')
   const locale = useLocale()
-  const pathname = usePathname()
-  const cleanPathname = localizePath(pathname, locale)
+  const cleanPathname = localizePath(baseUrl, locale)
   const { siteInfo } = useSiteInfo()
   const { user: currentUser } = useAuth()
   const pageSize = siteInfo.postsPerPage || 10

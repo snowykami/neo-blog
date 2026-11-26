@@ -41,10 +41,12 @@ function UserTabPageResetBridge({
  */
 export function UserContentTabs({
   userId,
+  baseUrl,
   showLikes,
   initialPosts,
 }: {
   userId: number
+  baseUrl: string
   showLikes: boolean
   initialPosts?: { posts: Post[], total: number }
 }) {
@@ -90,20 +92,16 @@ export function UserContentTabs({
         )}
       </TabsList>
       <TabsContent value="posts">
-        <UserPosts userId={userId} initialPosts={initialPosts} />
+        <UserPosts userId={userId} baseUrl={baseUrl} initialPosts={initialPosts} />
       </TabsContent>
       {canViewComments && (
         <TabsContent value="comments">
-          <Suspense fallback={null}>
-            <UserComments userId={userId} />
-          </Suspense>
+          <UserComments userId={userId} />
         </TabsContent>
       )}
       {canViewLikes && (
         <TabsContent value="likes">
-          <Suspense fallback={null}>
-            <UserLikes userId={userId} isPublic={showLikes} />
-          </Suspense>
+          <UserLikes userId={userId} isPublic={showLikes} />
         </TabsContent>
       )}
     </Tabs>

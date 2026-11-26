@@ -7,6 +7,7 @@ import { getUserByUsername } from '@/api/user'
 import { SiteShell } from '@/components/layout/site-shell'
 import { UserContentTabs } from '@/components/user/user-content-tabs'
 import { UserHeader } from '@/components/user/user-header'
+import { getUserUrl } from '@/utils/common/route'
 
 /**
  * 用户主页：资料由服务端取好传进来（页面按地址缓存，见 page.tsx），首帧就是完整的资料卡，浏览器不再取一次。
@@ -43,7 +44,7 @@ export function UserPage({ user: initialUser, initialPosts }: { user: User, init
   return (
     <SiteShell>
       <UserHeader user={user} />
-      <UserContentTabs userId={user.id} showLikes={!!user.showLikes} initialPosts={initialPosts} />
+      <UserContentTabs userId={user.id} baseUrl={getUserUrl(user)} showLikes={!!user.showLikes} initialPosts={initialPosts} />
     </SiteShell>
   )
 }

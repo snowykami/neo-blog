@@ -4,7 +4,7 @@ import type { UserComment } from '@/models/comment'
 import { ArrowRightIcon, FileTextIcon, LockIcon, MessageSquareOffIcon, RotateCwIcon } from 'lucide-react'
 import { useLocale, useTranslations } from 'next-intl'
 import { parseAsInteger, useQueryState } from 'nuqs'
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { listUserComments } from '@/api/comment'
 import { CommentAttachments } from '@/components/comment/comment-attachments'
 import { useCommentLimits } from '@/components/comment/comment-limits'
@@ -107,23 +107,65 @@ function UserCommentItemSkeleton() {
   )
 }
 
+function UserCommentsPageQueryBridge({
+  onSync,
+  setPageRef,
+}: {
+  onSync: (page: number) => void
+  setPageRef: React.MutableRefObject<((page: number | null) => unknown) | null>
+}) {
+  const [page, setPage] = useQueryState(
+    'page',
+    parseAsInteger.withDefault(1).withOptions({ history: 'replace', clearOnDefault: true }),
+  )
+
+  useLayoutEffect(() => {
+    setPageRef.current = setPage
+    return () => {
+      setPageRef.current = null
+    }
+  }, [setPage, setPageRef])
+
+  useLayoutEffect(() => {
+    onSync(Math.max(1, page))
+  }, [onSync, page])
+
+  return null
+}
+
 /**
  * 用户主页的评论列表：访客与他人只能看到公开目标下的公开评论（由后端控制）
  */
 export function UserComments({ userId }: { userId: number }) {
   const t = useTranslations('UserPage')
   const blogT = useTranslations('BlogHome')
-  const [page, setPage] = useQueryState(
-    'page',
-    parseAsInteger.withDefault(1).withOptions({ history: 'replace', clearOnDefault: true }),
-  )
+  const [page, setPage] = useState(1)
+  const [querySynced, setQuerySynced] = useState(false)
   const [comments, setComments] = useState<UserComment[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
 
+  const pageRef = useRef(1)
+  const setUrlPageRef = useRef<((page: number | null) => unknown) | null>(null)
+
+  const applyNextPage = useCallback((nextPage: number) => {
+    if (pageRef.current !== nextPage) {
+      pageRef.current = nextPage
+      setPage(prev => (prev === nextPage ? prev : nextPage))
+      setLoading(true)
+    }
+  }, [])
+
+  const handlePageSync = useCallback((nextPage: number) => {
+    applyNextPage(nextPage)
+    setQuerySynced(true)
+  }, [applyNextPage])
+
   useEffect(() => {
+    if (!querySynced)
+      return
     let cancelled = false
     setLoading(true)
     setLoadError(false)
@@ -148,7 +190,7 @@ export function UserComments({ userId }: { userId: number }) {
     return () => {
       cancelled = true
     }
-  }, [userId, page, reloadKey])
+  }, [userId, page, querySynced, reloadKey])
 
   let content: React.ReactNode
   if (loading) {
@@ -200,6 +242,9 @@ export function UserComments({ userId }: { userId: number }) {
 
   return (
     <section className="grid gap-4">
+      <Suspense fallback={null}>
+        <UserCommentsPageQueryBridge onSync={handlePageSync} setPageRef={setUrlPageRef} />
+      </Suspense>
       <SectionTitle className="mx-4 text-xl md:mx-2 md:text-2xl">
         {t('comments')}
         {total > 0 && <span className="ml-2 text-base font-medium text-muted-foreground tabular-nums">{total}</span>}
@@ -210,11 +255,13 @@ export function UserComments({ userId }: { userId: number }) {
           hideOnSinglePage
           className="flex justify-center pt-2"
           pageSize={PAGE_SIZE}
-          initialPage={page}
+          page={page}
           total={total}
           onPageChange={(next) => {
-            setPage(next)
-            window.scrollTo({ top: 0, behavior: 'smooth' })
+            setUrlPageRef.current?.(next)
+            applyNextPage(next)
+            const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+            window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' })
           }}
         />
       )}

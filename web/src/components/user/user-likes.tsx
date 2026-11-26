@@ -4,7 +4,7 @@ import type { UserLike } from '@/models/like'
 import { FileTextIcon, HeartOffIcon, LockIcon, RotateCwIcon } from 'lucide-react'
 import { useLocale, useTranslations } from 'next-intl'
 import { parseAsInteger, useQueryState } from 'nuqs'
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { listUserLikes } from '@/api/like'
 import { UserAvatar } from '@/components/common/avatar'
 import { PaginationController } from '@/components/common/pagination'
@@ -98,23 +98,65 @@ function UserLikeItemSkeleton() {
   )
 }
 
+function UserLikesPageQueryBridge({
+  onSync,
+  setPageRef,
+}: {
+  onSync: (page: number) => void
+  setPageRef: React.MutableRefObject<((page: number | null) => unknown) | null>
+}) {
+  const [page, setPage] = useQueryState(
+    'page',
+    parseAsInteger.withDefault(1).withOptions({ history: 'replace', clearOnDefault: true }),
+  )
+
+  useLayoutEffect(() => {
+    setPageRef.current = setPage
+    return () => {
+      setPageRef.current = null
+    }
+  }, [setPage, setPageRef])
+
+  useLayoutEffect(() => {
+    onSync(Math.max(1, page))
+  }, [onSync, page])
+
+  return null
+}
+
 /**
  * 用户主页的点赞列表：默认仅本人与管理员可见，公开后他人只能看到公开内容上的点赞（由后端控制）
  */
 export function UserLikes({ userId, isPublic }: { userId: number, isPublic: boolean }) {
   const t = useTranslations('UserPage')
   const blogT = useTranslations('BlogHome')
-  const [page, setPage] = useQueryState(
-    'page',
-    parseAsInteger.withDefault(1).withOptions({ history: 'replace', clearOnDefault: true }),
-  )
+  const [page, setPage] = useState(1)
+  const [querySynced, setQuerySynced] = useState(false)
   const [likes, setLikes] = useState<UserLike[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
 
+  const pageRef = useRef(1)
+  const setUrlPageRef = useRef<((page: number | null) => unknown) | null>(null)
+
+  const applyNextPage = useCallback((nextPage: number) => {
+    if (pageRef.current !== nextPage) {
+      pageRef.current = nextPage
+      setPage(prev => (prev === nextPage ? prev : nextPage))
+      setLoading(true)
+    }
+  }, [])
+
+  const handlePageSync = useCallback((nextPage: number) => {
+    applyNextPage(nextPage)
+    setQuerySynced(true)
+  }, [applyNextPage])
+
   useEffect(() => {
+    if (!querySynced)
+      return
     let cancelled = false
     setLoading(true)
     setLoadError(false)
@@ -139,7 +181,7 @@ export function UserLikes({ userId, isPublic }: { userId: number, isPublic: bool
     return () => {
       cancelled = true
     }
-  }, [userId, page, reloadKey])
+  }, [userId, page, querySynced, reloadKey])
 
   let content: React.ReactNode
   if (loading) {
@@ -191,6 +233,9 @@ export function UserLikes({ userId, isPublic }: { userId: number, isPublic: bool
 
   return (
     <section className="grid gap-4">
+      <Suspense fallback={null}>
+        <UserLikesPageQueryBridge onSync={handlePageSync} setPageRef={setUrlPageRef} />
+      </Suspense>
       <div className="mx-4 flex items-center gap-3 md:mx-2">
         <SectionTitle className="text-xl md:text-2xl">
           {t('likes')}
@@ -209,11 +254,13 @@ export function UserLikes({ userId, isPublic }: { userId: number, isPublic: bool
           hideOnSinglePage
           className="flex justify-center pt-2"
           pageSize={PAGE_SIZE}
-          initialPage={page}
+          page={page}
           total={total}
           onPageChange={(next) => {
-            setPage(next)
-            window.scrollTo({ top: 0, behavior: 'smooth' })
+            setUrlPageRef.current?.(next)
+            applyNextPage(next)
+            const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+            window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' })
           }}
         />
       )}
