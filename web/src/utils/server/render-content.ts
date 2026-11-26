@@ -38,7 +38,7 @@ function pickCopyToken(html: string): string {
   return token
 }
 
-/** 为正文内联 <img> 补充懒加载与异步解码属性（已有对应属性时保持原值） */
+/** 为正文内联 <img> 补充懒加载、异步解码与无障碍空 alt 兜底属性（已有对应属性时保持原值） */
 function enhanceContentImages(html: string): string {
   if (!html || !html.includes('<img'))
     return html
@@ -46,6 +46,10 @@ function enhanceContentImages(html: string): string {
   let changed = false
   $('img').each((_, el) => {
     const $img = $(el)
+    if ($img.attr('alt') === undefined) {
+      $img.attr('alt', '')
+      changed = true
+    }
     if (!$img.attr('loading')) {
       $img.attr('loading', 'lazy')
       changed = true

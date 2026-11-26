@@ -35,25 +35,39 @@ describe('renderContentHtml 正文服务端渲染与缓存', () => {
     spy.mockRestore()
   })
 
-  it('为正文 <img> 注入 loading="lazy" 与 decoding="async"，并保留已有属性', async () => {
+  it('为正文 <img> 注入 loading="lazy"、decoding="async" 与缺失 alt="" 兜底，并保留已有属性', async () => {
     const raw = [
-      '<p><img src="/a.jpg" alt="a"></p>',
+      '<p><img src="/a.jpg" alt="架构示意图"></p>',
       '<p><img src="/b.jpg" alt="b" loading="eager"></p>',
       '<p><img src="/c.jpg" alt="c" loading="eager" decoding="sync"></p>',
+      '<p><img src="/no-alt.jpg" loading="eager" decoding="async"></p>',
+      '<p><img src="/empty-alt.jpg" alt=""></p>',
     ].join('')
 
     const { html } = await renderContentHtml(raw)
     const $ = cheerio.load(html, null, false)
     const imgs = $('img')
 
+    expect(imgs.eq(0).attr('alt')).toBe('架构示意图')
     expect(imgs.eq(0).attr('loading')).toBe('lazy')
     expect(imgs.eq(0).attr('decoding')).toBe('async')
 
+    expect(imgs.eq(1).attr('alt')).toBe('b')
     expect(imgs.eq(1).attr('loading')).toBe('eager')
     expect(imgs.eq(1).attr('decoding')).toBe('async')
 
+    expect(imgs.eq(2).attr('alt')).toBe('c')
     expect(imgs.eq(2).attr('loading')).toBe('eager')
     expect(imgs.eq(2).attr('decoding')).toBe('sync')
+
+    // 缺失 alt 属性时自动兜底补上空字符串 alt=""，且即使 loading/decoding 已存在也会写回变更
+    expect(imgs.eq(3).attr('alt')).toBe('')
+    expect(html).toContain('<img src="/no-alt.jpg" loading="eager" decoding="async" alt="">')
+
+    // 显式空 alt="" 保持原样
+    expect(imgs.eq(4).attr('alt')).toBe('')
+    expect(imgs.eq(4).attr('loading')).toBe('lazy')
+    expect(imgs.eq(4).attr('decoding')).toBe('async')
   })
 
   it('超过 8000 字符的未标注语言代码块跳过 highlightAuto 并保留转义纯文本，显式语言仍正常高亮', async () => {

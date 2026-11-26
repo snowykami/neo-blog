@@ -184,8 +184,8 @@ export function PostToc({ headings, className }: { headings: TocHeading[], class
                   onClick={e => scrollTo(e, heading.id)}
                   aria-current={active ? 'location' : undefined}
                   className={cn(
-                    'flex w-full items-start gap-2 rounded-lg px-2 py-2 transition-colors duration-150 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                    active ? 'bg-primary/10 font-medium text-primary' : 'text-foreground/75',
+                    'flex w-full items-start gap-2 rounded-lg px-2 py-2 transition-colors duration-150 hover:bg-primary/10 hover:text-secondary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    active ? 'bg-primary/10 font-semibold text-secondary-foreground' : 'text-foreground/75',
                   )}
                   title={heading.text}
                 >
@@ -195,7 +195,7 @@ export function PostToc({ headings, className }: { headings: TocHeading[], class
                           aria-hidden
                           className={cn(
                             'flex size-5 shrink-0 items-center justify-center rounded-md text-xs font-bold tabular-nums',
-                            active ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground',
+                            active ? 'bg-primary text-white dark:text-primary-foreground' : 'bg-secondary text-secondary-foreground',
                           )}
                         >
                           {topIndex}

@@ -1082,7 +1082,7 @@ export function ImageViewer({
                                       markImageLoaded(item.src)
                                   }}
                                   src={item.src}
-                                  alt={item.alt}
+                                  alt={item.alt ?? ''}
                                   draggable={false}
                                   onLoad={() => markImageLoaded(item.src)}
                                   onError={() => markImageError(item.src)}
