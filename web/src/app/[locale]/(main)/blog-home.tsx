@@ -3,7 +3,7 @@
 import type { BlogHomeInitialData, HomeTab } from './blog-home-query'
 import type { Post } from '@/models/post'
 import { Clock, TrendingUp, XIcon } from 'lucide-react'
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
 import { parseAsInteger, parseAsStringLiteral, useQueryState } from 'nuqs'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { listPosts } from '@/api/post'
@@ -16,12 +16,21 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { OrderBy } from '@/models/common'
 import { parseHighlightTerms } from '@/utils/common/highlight'
-import { blogHomeQueryKey, HOME_TABS, parseHomeTab } from './blog-home-query'
+import {
+  blogHomeQueryKey,
+  buildHomeSnapshotKey,
+  clearHomeSnapshot,
+  HOME_TABS,
+  parseHomeTab,
+  readFreshHomeSnapshot,
+  writeHomeSnapshot,
+} from './blog-home-query'
 
 // 首页正文（标题、排序、文章列表、分页）；页面外壳与侧栏在 page.tsx（侧栏不依赖地址参数，属于静态外壳）
 export default function BlogHome({ initialData }: { initialData?: BlogHomeInitialData }) {
   // 从路由查询参数中获取页码和标签们
   const t = useTranslations('BlogHome')
+  const locale = useLocale()
   const { siteInfo } = useSiteInfo()
   // 筛选条件来自 URL：?label=标签 &category=分类 &query=搜索词，与后端列表接口参数一致
   const [labelSlug, setLabelSlug] = useQueryState('label')
@@ -35,14 +44,22 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
     'tab',
     parseAsStringLiteral(HOME_TABS).withDefault(OrderBy.CreatedAt).withOptions({ history: 'replace', clearOnDefault: true }),
   )
-  const [posts, setPosts] = useState<Post[]>(initialData?.posts ?? [])
-  const [totalPosts, setTotalPosts] = useState(initialData?.total ?? 0)
+  const pageSize = siteInfo.postsPerPage || 9
+  const currentQueryKey = blogHomeQueryKey({ page, label: labelSlug, category: categorySlug, query, orderBy: tab })
+  const currentSnapshotKey = buildHomeSnapshotKey({ locale, size: pageSize, queryKey: currentQueryKey })
+  const matchedInitial = initialData?.key === currentQueryKey ? initialData : null
+  const cachedHome = matchedInitial ? null : readFreshHomeSnapshot(currentSnapshotKey)
+  const seed = matchedInitial ?? cachedHome
+
+  const [posts, setPosts] = useState<Post[]>(() => seed?.posts ?? [])
+  const [totalPosts, setTotalPosts] = useState(() => seed?.total ?? 0)
   // 置顶文章：只在没有筛选时由接口返回，显示在第一页最上方；它们不在 posts 里，也不计入 totalPosts
-  const [pinnedPosts, setPinnedPosts] = useState<Post[]>(initialData?.pinned ?? [])
-  const initialKeyRef = useRef(initialData?.key)
+  const [pinnedPosts, setPinnedPosts] = useState<Post[]>(() => seed?.pinned ?? [])
+  const initialKeyRef = useRef(matchedInitial?.key)
   // 服务端后来又给了新的预取结果（后台改完内容后 router.refresh，或被 Activity 保留的首页重新取到新的页面数据）：
   // state 只在挂载时取一次 initialData，这里记下最新的一份与收到的次数，参数一致时换上，不一致时按当前参数重新请求
   const serverDataRef = useRef(initialData)
+  const pendingServerRefreshRef = useRef(false)
   const [serverVersion, setServerVersion] = useState(0)
   // 请求序号：快速翻页、切换筛选或排序时只采用最后一次请求的结果，旧请求晚到不覆盖新结果
   const requestSeqRef = useRef(0)
@@ -82,12 +99,18 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
       return
     serverDataRef.current = initialData
     initialKeyRef.current = initialData?.key
+    clearHomeSnapshot()
+    pendingServerRefreshRef.current = true
     setServerVersion(v => v + 1)
   }, [initialData])
 
   useEffect(() => {
+    const forceServerRefresh = pendingServerRefreshRef.current
+    pendingServerRefreshRef.current = false
+    const size = siteInfo.postsPerPage || 9
     // 首次查询与服务端预取参数一致时复用预取结果
     const key = blogHomeQueryKey({ page, label: labelSlug, category: categorySlug, query, orderBy: tab })
+    const snapshotKey = buildHomeSnapshotKey({ locale, size, queryKey: key })
     // 参数变化后预取结果即失效（不在命中时清除，开发模式下 effect 会执行两次）
     if (initialKeyRef.current === key && reloadKey === 0) {
       // 首次挂载时 state 已由预取结果初始化；之后收到的新预取结果在这里换上，并作废进行中的旧请求
@@ -99,16 +122,42 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
         setPinnedPosts(data.pinned ?? [])
         setLoadError(false)
         setLoading(false)
+        writeHomeSnapshot({
+          cacheKey: snapshotKey,
+          key,
+          posts: data.posts,
+          total: data.total,
+          pinned: data.pinned ?? [],
+        })
+      }
+      else if (data && data.key === key) {
+        writeHomeSnapshot({
+          cacheKey: snapshotKey,
+          key,
+          posts: data.posts,
+          total: data.total,
+          pinned: data.pinned ?? [],
+        })
       }
       return
     }
     initialKeyRef.current = undefined
+    const cached = reloadKey === 0 && !forceServerRefresh ? readFreshHomeSnapshot(snapshotKey) : null
+    if (cached) {
+      ++requestSeqRef.current
+      setPosts(cached.posts)
+      setTotalPosts(cached.total)
+      setPinnedPosts(cached.pinned)
+      setLoadError(false)
+      setLoading(false)
+      return
+    }
     const seq = ++requestSeqRef.current
     setLoading(true)
     setLoadError(false)
     listPosts({
       page,
-      size: siteInfo.postsPerPage || 9,
+      size,
       orderBy: tab,
       desc: true,
       query: query || undefined,
@@ -119,10 +168,18 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
       .then((res) => {
         if (seq !== requestSeqRef.current)
           return
+        const nextPinned = res.data.pinned ?? []
         setPosts(res.data.posts)
         setTotalPosts(res.data.total)
-        setPinnedPosts(res.data.pinned ?? [])
+        setPinnedPosts(nextPinned)
         setLoading(false)
+        writeHomeSnapshot({
+          cacheKey: snapshotKey,
+          key,
+          posts: res.data.posts,
+          total: res.data.total,
+          pinned: nextPinned,
+        })
       })
       .catch((err) => {
         if (seq !== requestSeqRef.current)
@@ -131,7 +188,7 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
         setLoadError(true)
         setLoading(false)
       })
-  }, [query, labelSlug, categorySlug, page, tab, siteInfo.postsPerPage, reloadKey, serverVersion])
+  }, [locale, query, labelSlug, categorySlug, page, tab, siteInfo.postsPerPage, reloadKey, serverVersion])
 
   // 标题随筛选条件变化：标签/分类优先显示名称（从返回的文章中取，取不到则用 slug），其次搜索词
   const order = tab === OrderBy.Heat ? 'hottest' : 'latest'

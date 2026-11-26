@@ -1,142 +1,29 @@
 'use client'
 
 import type { MusicTrack } from '@/models/music'
-import { useTranslations } from 'next-intl'
-import dynamic from 'next/dynamic'
-import React, { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { fetchNcmPlaylist, fetchPlaylistTrack, fetchPlaylistVersion } from '@/api/music'
 import { readMusicShareParamsFromLocation } from '@/components/music-page/music-share-params'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { useImageOptimizeHosts } from '@/contexts/image-optimize-context'
-import { useMusicActions, useMusicClockStore, useMusicPlayback } from '@/contexts/music-context'
-import { useDesktopIslandPrefs, useDesktopIslandRuntime } from '@/hooks/use-desktop-island-pref'
-import { usePathname } from '@/i18n/navigation'
-import { isConsolePath } from '@/i18n/routing'
+import {
+  hasStoredPlaybackRecord,
+  useMusicActions,
+  useMusicClockStore,
+  useMusicPlayback,
+} from '@/contexts/music-context'
 import { readPlaylistCache, touchPlaylistCache, writePlaylistCache } from '@/lib/music-playlist-cache'
-import { cn } from '@/lib/utils'
-import { formatMusicCoverUrl, shouldOptimize } from '@/utils/common/image'
-import { isConsolePreviewPath } from '@/utils/common/route'
-import { ALBUM_ROTATE_CLASSNAME, CrossfadeAlbumImage, MINI_PLAYER_POPOVER_CLASSNAME, MINI_PLAYER_POPOVER_STYLE } from './music-player-shared'
-import { useFloatingBall } from './use-floating-ball'
-
-// 弹层内的迷你播放器（歌词、舞台特效、歌单、控制栏）单独拆包，点击展开悬浮球或悬停预热时按需加载
-const MiniPlayer = dynamic(() => import('./mini-player').then(m => m.MiniPlayer), { ssr: false })
-const preloadMiniPlayer = () => void import('./mini-player')
-
-const DEFAULT_MUSIC_THEME_RGB = '59 130 246'
-
-function normalizeThemeColor(r: number, g: number, b: number) {
-  const max = Math.max(r, g, b)
-  const min = Math.min(r, g, b)
-  const contrast = max - min
-  const lift = max < 80 ? 48 : 0
-  const saturationBoost = contrast < 35 ? 1.35 : 1
-
-  const normalizeChannel = (channel: number) => {
-    const centered = channel - min
-    return Math.round(Math.max(42, Math.min(232, channel + lift + centered * (saturationBoost - 1))))
-  }
-
-  return `${normalizeChannel(r)} ${normalizeChannel(g)} ${normalizeChannel(b)}`
-}
-
-function getThemeSampleImageSrc(src: string, optimizeHosts: readonly string[]) {
-  const formatted = formatMusicCoverUrl(src, 48)
-  if (formatted !== src)
-    return formatted
-  // 仅站内 / 白名单图片经优化器取小图；站外图片直连（依赖对方 CORS，失败时回退默认色）
-  return shouldOptimize(src, optimizeHosts) ? `/_next/image?url=${encodeURIComponent(src)}&w=64&q=45` : src
-}
-
-function useAlbumThemeColor(src?: string) {
-  const optimizeHosts = useImageOptimizeHosts()
-  const [themeColor, setThemeColor] = useState(DEFAULT_MUSIC_THEME_RGB)
-
-  useEffect(() => {
-    if (!src) {
-      setThemeColor(DEFAULT_MUSIC_THEME_RGB)
-      return
-    }
-
-    let cancelled = false
-    const image = new window.Image()
-    image.crossOrigin = 'anonymous'
-    image.decoding = 'async'
-
-    image.onload = () => {
-      if (cancelled)
-        return
-
-      try {
-        const canvas = document.createElement('canvas')
-        const size = 24
-        canvas.width = size
-        canvas.height = size
-        const context = canvas.getContext('2d', { willReadFrequently: true })
-        if (!context)
-          return
-
-        context.drawImage(image, 0, 0, size, size)
-        const data = context.getImageData(0, 0, size, size).data
-        let r = 0
-        let g = 0
-        let b = 0
-        let weightSum = 0
-
-        for (let i = 0; i < data.length; i += 4) {
-          const alpha = data[i + 3] / 255
-          if (alpha < 0.4)
-            continue
-
-          const red = data[i]
-          const green = data[i + 1]
-          const blue = data[i + 2]
-          const max = Math.max(red, green, blue)
-          const min = Math.min(red, green, blue)
-          const saturation = max === 0 ? 0 : (max - min) / max
-          const brightness = (red + green + blue) / 3
-          const weight = alpha * (0.65 + saturation) * (brightness > 245 || brightness < 18 ? 0.25 : 1)
-
-          r += red * weight
-          g += green * weight
-          b += blue * weight
-          weightSum += weight
-        }
-
-        if (weightSum > 0) {
-          setThemeColor(normalizeThemeColor(r / weightSum, g / weightSum, b / weightSum))
-        }
-      }
-      catch {
-        setThemeColor(DEFAULT_MUSIC_THEME_RGB)
-      }
-    }
-
-    image.onerror = () => {
-      if (!cancelled)
-        setThemeColor(DEFAULT_MUSIC_THEME_RGB)
-    }
-    image.src = getThemeSampleImageSrc(src, optimizeHosts)
-
-    return () => {
-      cancelled = true
-    }
-  }, [src, optimizeHosts])
-
-  return themeColor
-}
 
 // 本地存储键：当前曲目索引、曲目 id 与播放进度（秒）
 const STORAGE_KEY_INDEX = 'music-current-index'
 const STORAGE_KEY_TRACK_ID = 'music-current-track-id'
 const STORAGE_KEY_TIME = 'music-current-time'
+
 function readStoredNumber(key: string): number | null {
   try {
     const raw = localStorage.getItem(key)
     if (raw == null)
       return null
-    const value = Number(JSON.parse(raw))
-    return Number.isFinite(value) ? value : null
+    const parsed: unknown = JSON.parse(raw)
+    return typeof parsed === 'number' && Number.isFinite(parsed) ? parsed : null
   }
   catch {
     return null
@@ -193,14 +80,17 @@ function getRestoreCandidates(): number[] | null {
   return ids
 }
 
-/** 全局音乐播放器（悬浮球）：歌单只来自后台配置的网易云歌单，未配置时不挂载（见 FloatingWidgets） */
+/**
+ * 无头歌单同步与断点进度持久化协调器（按需挂载）：
+ * 仅在存在断点续播记录、用户点击展开迷你播放器或进入 `/music` 页时挂载；
+ * 若用户仅展开预览而未实际播放且未主动切歌，不向 `localStorage` 写入断点键，避免污染后续访问的静默加载判定。
+ */
 export function MusicPlayer() {
-  const t = useTranslations('MusicPlayer')
   const {
     currentTrack,
     currentIndex,
     duration,
-    isPlaying,
+    hasPlayed,
     playlistState,
   } = useMusicPlayback()
   const {
@@ -210,36 +100,20 @@ export function MusicPlayer() {
     markPlaylistFailed,
   } = useMusicActions()
   const clock = useMusicClockStore()
-  // 播放器页（/music）本身就是完整的播放器：不显示悬浮球，但歌单加载与进度保存照常进行
-  const pathname = usePathname()
-  const onPlayerPage = pathname === '/music'
-  // 后台也不显示悬浮球：后台的保存栏、编辑器状态、仪表盘卡片都贴着右下角，悬浮球停在哪都会挡住操作；
-  // 后台的播放器入口在顶栏右侧（见 components/console/console-music-button.tsx）。文章 / 页面预览用的是前台外壳（有灵动岛），照常显示
-  const inConsole = isConsolePath(pathname) && !isConsolePreviewPath(pathname)
-  const desktopPrefs = useDesktopIslandPrefs()
-  const { status: desktopStatus } = useDesktopIslandRuntime()
-  const hiddenByDesktopIsland = desktopPrefs.enabled && desktopPrefs.hideFloatingBallWhenConnected && desktopStatus === 'connected'
-  const showBall = Boolean(currentTrack) && !onPlayerPage && !inConsole && !hiddenByDesktopIsland
-  const themeColor = useAlbumThemeColor(showBall && isPlaying ? currentTrack?.albumPic : undefined)
-  // 悬浮球可拖动；开始拖动时收起播放器
-  const [open, setOpen] = useState(false)
-  const ball = useFloatingBall({ onDragStart: () => setOpen(false) })
 
-  // 歌单加载并完成进度恢复后才允许写回存储，避免初始化阶段覆盖已保存的值
+  // 记录挂载前是否已有持久化断点记录：若原本无记录且用户一直未点击播放/未切歌，则不写回 localStorage
+  const hadStoredSessionRef = useRef<boolean | null>(null)
+  if (hadStoredSessionRef.current == null && typeof window !== 'undefined')
+    hadStoredSessionRef.current = hasStoredPlaybackRecord()
+
   const restoredRef = useRef(false)
-  // 刷新后恢复的曲目 id：首次切到该曲目时不清零已保存的进度
   const restoredTrackIdRef = useRef<number | null>(null)
-  // 节流写入存储，避免频繁 localStorage 写入
   const lastSavedTimeRef = useRef(0)
   const currentTrackId = currentTrack?.id ?? null
   const initialSessionRef = useRef({ playlistState, currentTrackId })
   initialSessionRef.current = { playlistState, currentTrackId }
 
-  // 拉取歌单后一次性以“存储的曲目 + 进度”初始化，不再先切到第 0 首再切回，避免多余的歌词请求与竞态。
-  // 歌单有本地缓存：先用缓存渲染（悬浮球立刻出现、直接恢复上次的曲目），再只校验版本，版本变了在需要时再下载整份歌单；
-  // 没有缓存时只取要恢复的那一首（几百字节，完整歌单约 90 KB gzip），完整歌单等开始出声、打开播放器 / 歌单或切歌时再取（见 music-context 的 ensurePlaylist）
   useEffect(() => {
-    // 因 [locale] 软路由重挂载时，共享音频会话已完成初始化：直接接管进度保存，不再用缓存覆盖正在播放的曲目与实时秒数
     if (initialSessionRef.current.playlistState === 'loaded') {
       restoredTrackIdRef.current = initialSessionRef.current.currentTrackId
       restoredRef.current = true
@@ -247,26 +121,25 @@ export function MusicPlayer() {
     }
 
     let cancelled = false
-    // 首次应用：恢复上次的曲目与进度；若挂载前读者已在文章内点播了单曲，则只合并歌单、不打断当前播放
     const applyRestored = (tracks: MusicTrack[]) => {
       if (initialSessionRef.current.currentTrackId != null) {
         restoredTrackIdRef.current = initialSessionRef.current.currentTrackId
-        updatePlaylist(tracks)
         restoredRef.current = true
+        updatePlaylist(tracks)
         return
       }
       const { index, time } = getRestoredPlayback(tracks)
       restoredTrackIdRef.current = tracks[index]?.id ?? null
-      replacePlaylist(tracks, index, time)
       restoredRef.current = true
+      replacePlaylist(tracks, index, time)
     }
-    // 取完整歌单并写入本地缓存。换上时只换歌单数据，不换歌、不动进度（包括还没应用的恢复进度，iOS 上要等读者点播放才加载元数据）；
-    // 当前曲目被移出歌单时留在原位，读者切到别的歌后才消失（见 music-context 的 rebasePlaylist）
+
     const loadFull = async () => {
       const fresh = await fetchNcmPlaylist()
       writePlaylistCache(fresh.version, fresh.tracks)
       return fresh.tracks
     }
+
     const cached = readPlaylistCache()
     if (cached)
       applyRestored(cached.tracks)
@@ -276,24 +149,20 @@ export function MusicPlayer() {
         const version = await fetchPlaylistVersion()
         if (cancelled)
           return
-        // 内容没变：刷新本地副本的保存时间，每天都来的读者不会每 24 小时重新下载一次整份歌单
         if (version === cached.version) {
           touchPlaylistCache(cached.version)
           return
         }
-        // 站长增删了歌曲：缓存的歌单照常可用（切歌不用等），新版本在需要时于后台换上
         deferPlaylist(loadFull, false)
         return
       }
       const candidates = getRestoreCandidates()
-      // 只存了索引的旧数据：按索引定位要有完整歌单
       if (candidates == null) {
         const tracks = await loadFull()
         if (!cancelled)
           applyRestored(tracks)
         return
       }
-      // 取不到（如前端先于后端升级、接口还不存在）时退回整份下载
       const track = await fetchPlaylistTrack(candidates).catch(() => undefined)
       if (cancelled)
         return
@@ -303,7 +172,6 @@ export function MusicPlayer() {
           applyRestored(tracks)
         return
       }
-      // 候选都不在歌单里时拿到的是歌单第一首，getRestoredPlayback 按「存储的曲目已不在歌单中」从头开始、不恢复进度
       applyRestored(track ? [track] : [])
       if (track)
         deferPlaylist(loadFull, true)
@@ -312,8 +180,6 @@ export function MusicPlayer() {
     sync().catch((error) => {
       if (cancelled)
         return
-      // 有本地缓存时继续用缓存；没有时不显示悬浮球（不再用假曲目兜底），播放器页显示加载失败。
-      // 不开启存储写回，不会覆盖读者已保存的曲目与进度
       if (!cached)
         markPlaylistFailed()
       console.error('Failed to fetch playlist:', error)
@@ -323,10 +189,14 @@ export function MusicPlayer() {
     }
   }, [replacePlaylist, updatePlaylist, deferPlaylist, markPlaylistFailed])
 
-  // 曲目变化时保存索引与曲目 id；切到新曲目时进度清零，保证进度始终属于已保存的曲目
+  // 曲目变化或首次开始播放时保存索引与曲目 id；仅展开查看未播放且未切歌时不写 localStorage
   useEffect(() => {
     if (!restoredRef.current || currentTrackId == null || currentIndex == null)
       return
+    const userSwitchedTrack = restoredTrackIdRef.current !== null && restoredTrackIdRef.current !== currentTrackId
+    if (!hasPlayed && !hadStoredSessionRef.current && !userSwitchedTrack)
+      return
+    hadStoredSessionRef.current = true
     writeStoredNumber(STORAGE_KEY_INDEX, currentIndex)
     writeStoredNumber(STORAGE_KEY_TRACK_ID, currentTrackId)
     if (restoredTrackIdRef.current === currentTrackId)
@@ -334,11 +204,11 @@ export function MusicPlayer() {
     restoredTrackIdRef.current = null
     writeStoredNumber(STORAGE_KEY_TIME, 0)
     lastSavedTimeRef.current = 0
-  }, [currentIndex, currentTrackId])
+  }, [currentIndex, currentTrackId, hasPlayed, playlistState])
 
-  // 定期保存播放进度到 storage（直接订阅播放时钟，不因进度变化重渲染）；元数据就绪前（duration 为空）进度尚未恢复，不写入
+  // 定期保存播放进度到 storage（仅在已播放或已有持久化记录后写回）
   useEffect(() => {
-    if (currentTrackId == null || duration == null)
+    if (currentTrackId == null || duration == null || (!hasPlayed && !hadStoredSessionRef.current))
       return
     return clock.subscribe(() => {
       const time = clock.getSnapshot()
@@ -351,66 +221,7 @@ export function MusicPlayer() {
       writeStoredNumber(STORAGE_KEY_TRACK_ID, currentTrackId)
       lastSavedTimeRef.current = now
     })
-  }, [clock, currentTrackId, duration])
+  }, [clock, currentTrackId, duration, hasPlayed])
 
-  // 悬浮球停靠在底部时给页面底部留出它的高度（见 useFloatingBall 的 reserve 与 globals.css 的 --floating-ball-reserve）
-  const reserve = showBall && ball.ready ? ball.reserve : 0
-  useEffect(() => {
-    if (!reserve)
-      return
-    const root = document.documentElement
-    root.style.setProperty('--floating-ball-reserve', `${reserve}px`)
-    return () => {
-      root.style.removeProperty('--floating-ball-reserve')
-    }
-  }, [reserve])
-
-  if (!currentTrack || !showBall) {
-    return null
-  }
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          aria-label={t('floating_player')}
-          onPointerEnter={preloadMiniPlayer}
-          onFocus={preloadMiniPlayer}
-          {...ball.handlers}
-          style={{
-            ...ball.style,
-            // 播放时以专辑主题色发光（由原生 CSS transition 平滑过渡阴影颜色，避免切歌 RAF 循环重渲染）
-            boxShadow: isPlaying ? `0 6px 22px rgb(${themeColor} / 0.55)` : '0 8px 18px rgb(0 0 0 / 0.18)',
-          }}
-          className={cn(
-            // touch-none：在悬浮球上拖动时不滚动页面；停靠时用过渡吸附到边缘，拖动时跟手
-            'fixed z-50 flex touch-none cursor-pointer items-center justify-center rounded-full select-none transition-[transform,box-shadow] duration-300 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-            ball.dragging ? 'cursor-grabbing scale-105' : 'motion-safe:transition-[left,top,transform,box-shadow]',
-            !ball.ready && 'invisible',
-          )}
-        >
-          <CrossfadeAlbumImage
-            src={formatMusicCoverUrl(currentTrack.albumPic, 128)}
-            alt={currentTrack.album}
-            sizes="(min-width: 1024px) 64px, 48px"
-            style={{ animationPlayState: isPlaying ? 'running' : 'paused' }}
-            className={cn('rounded-full h-12 w-12 lg:h-16 lg:w-16', ALBUM_ROTATE_CLASSNAME)}
-            imageClassName="object-cover rounded-full border-4 border-card"
-          />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        // 朝屏幕中较宽敞的方向展开，与悬浮球所在的一侧对齐
-        side={ball.upperHalf ? 'bottom' : 'top'}
-        align={ball.side === 'left' ? 'start' : 'end'}
-        sideOffset={12}
-        collisionPadding={8}
-        className={MINI_PLAYER_POPOVER_CLASSNAME}
-        style={MINI_PLAYER_POPOVER_STYLE}
-      >
-        {open && <MiniPlayer onOpenPage={() => setOpen(false)} />}
-      </PopoverContent>
-    </Popover>
-  )
+  return null
 }

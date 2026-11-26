@@ -11,6 +11,7 @@ import { MusicLyricMoments } from '@/components/music-page/music-lyric-moments'
 import { MiniPlayerMoreMenu, MUSIC_ICON_BUTTON_CLASSNAME, MusicPageControls } from '@/components/music-page/music-page-controls'
 import { MusicStageEffects } from '@/components/music-page/music-stage-effects'
 import { useSongAccent } from '@/components/music-page/use-cover-accent'
+import { Spinner } from '@/components/ui/spinner'
 import { useCurrentLyric, useMusicActions, useMusicPlayback, useMusicPreferences } from '@/contexts/music-context'
 import { useCachedSongMetaTranslation } from '@/contexts/song-meta-translations'
 import { Link } from '@/i18n/navigation'
@@ -45,7 +46,7 @@ function LyricLineStandIn() {
  */
 export function MiniPlayer({ onOpenPage }: { onOpenPage?: () => void }) {
   const t = useTranslations('MusicPlayer')
-  const { currentTrack, isPlaying } = useMusicPlayback()
+  const { currentTrack, isPlaying, playlistState } = useMusicPlayback()
   const { showTranslation } = useMusicPreferences()
   const meta = useCachedSongMetaTranslation(currentTrack?.id ?? null)
   const { ensurePlaylist } = useMusicActions()
@@ -63,8 +64,16 @@ export function MiniPlayer({ onOpenPage }: { onOpenPage?: () => void }) {
   useMiniPlayerHold('lyrics', lyricsRunning)
   // 与播放器页相同：主题色（模型选的颜色或封面主色）作为辉光与呼吸的默认颜色
   const accent = useSongAccent(currentTrack?.albumPic)
-  if (!currentTrack)
+  if (!currentTrack) {
+    if (playlistState === 'pending') {
+      return (
+        <div role="region" aria-label={t('floating_player')} className="flex h-52 items-center justify-center">
+          <Spinner className="size-6 text-white/60" />
+        </div>
+      )
+    }
     return null
+  }
 
   const titleExtra = formatTitleAliases(currentTrack.name, currentTrack.aliases, meta?.title, showTranslation, meta?.aliases)
   const displayArtists = formatDisplayArtists(currentTrack.artists, meta?.artists, showTranslation)

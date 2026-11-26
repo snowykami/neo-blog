@@ -108,7 +108,9 @@ export default (phase: string): NextConfig => {
       dynamicOnHover: true,
       // 访问过的页面 30 秒内再点链接回去直接用浏览器里的缓存（默认 0，每次都重新请求）。页面已对所有人一致，缓存不会串号。
       // 开发模式下置 0，避免页面内来回切换命中旧的客户端路由缓存。
-      // 预取内容的缓存时长由 cacheLife 的 stale 决定（见上），不再设 static（它会改写 default 配置的 stale）
+      // 预取内容的缓存时长由 cacheLife 的 stale 决定（见上），不再设 static（它会改写 default 配置的 stale）。
+      // 注意：cacheComponents 开启后 Next 16.4 在每层路由段用 <Activity mode="hidden"> 固定保留最近 3 个子段（不受 staleTimes 控制），
+      // 首页与文章段分属 (main) 兄弟槽位天然保活；文章详情页重子树由 components/blog-post/post-memory-lru.ts 按 LRU 窗口主动卸载，避免长会话内存累积
       staleTimes: {
         dynamic: isDev ? 0 : 30,
       },

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { HOVER_CLOSE_DELAY, HOVER_OPEN_DELAY, TOUCH_AUTO_CLOSE } from '@/components/common/hover-popover'
 import { LinkPreviewCard } from '@/components/common/link-preview-card'
 import { COMPONENT_ROOT_SELECTOR } from '@/components/content-components/constants'
@@ -43,6 +43,13 @@ export function ContentHoverCard({ containerId }: { containerId: string }) {
   useEffect(() => {
     targetRef.current = target
   }, [target])
+
+  // Activity 隐藏文章或路由离开前同步收起瞬态悬停卡片，释放对正文 DOM 节点（target.el）的持有
+  useLayoutEffect(() => {
+    return () => {
+      setTarget(null)
+    }
+  }, [])
 
   useEffect(() => {
     const container = getVisibleElementById(containerId)
@@ -180,6 +187,8 @@ export function ContentHoverCard({ containerId }: { containerId: string }) {
       window.clearTimeout(openTimer.current)
       window.clearTimeout(closeTimer.current)
       window.clearTimeout(autoCloseTimer.current)
+      targetRef.current = null
+      setTarget(null)
     }
   }, [containerId])
 

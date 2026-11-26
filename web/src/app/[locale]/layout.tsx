@@ -123,7 +123,7 @@ export default async function RootLayout({
                       {/* 浏览器首选语言与当前页面语言不一致时，空闲后以目标语言弹出轻量切换提示 */}
                       <LocaleSuggestToast />
                       <LoginDialogProvider>
-                        <MusicProvider>
+                        <MusicProvider musicEnabled={Boolean(siteInfo.musicEnabled)}>
                           <NavProvider>
                             {children}
                             {/* 悬浮按钮放在页面内容之后：Tab 顺序先到「跳到正文」与页面本身，最后才是播放器 / 回到顶部 */}

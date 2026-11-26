@@ -22,3 +22,44 @@ export interface BlogHomeInitialData {
 export function blogHomeQueryKey(params: { page: number, label?: string | null, category?: string | null, query?: string | null, orderBy: OrderBy }) {
   return [params.page, params.label ?? '', params.category ?? '', params.query ?? '', params.orderBy].join('|')
 }
+
+// 仅保留最新 1 份首页查询快照（60s 有效期，O(1) 零膨胀）：
+// 常规「首页 ↔ 文章」由 Next <Activity> 原生保活；即便读者连续跨 3 个以上一级路由段导致首页被框架 BFCache 挤出，
+// 返回带分页/筛选的首页时也能按「语言 + 每页条数 + 查询条件」命中内存快照瞬切渲染，且后台写操作触发时同步清空
+const HOME_SNAPSHOT_TTL_MS = 60_000
+
+export interface HomeSnapshotEntry {
+  cacheKey: string
+  key: string
+  posts: Post[]
+  total: number
+  pinned: Post[]
+  savedAt: number
+}
+
+let lastHomeSnapshot: HomeSnapshotEntry | null = null
+
+export function buildHomeSnapshotKey(params: { locale: string, size: number, queryKey: string }) {
+  return `${params.locale}|${params.size}|${params.queryKey}`
+}
+
+export function readFreshHomeSnapshot(cacheKey: string): HomeSnapshotEntry | null {
+  if (!lastHomeSnapshot || lastHomeSnapshot.cacheKey !== cacheKey)
+    return null
+  if (Date.now() - lastHomeSnapshot.savedAt > HOME_SNAPSHOT_TTL_MS) {
+    lastHomeSnapshot = null
+    return null
+  }
+  return lastHomeSnapshot
+}
+
+export function writeHomeSnapshot(entry: Omit<HomeSnapshotEntry, 'savedAt'>) {
+  lastHomeSnapshot = {
+    ...entry,
+    savedAt: Date.now(),
+  }
+}
+
+export function clearHomeSnapshot() {
+  lastHomeSnapshot = null
+}

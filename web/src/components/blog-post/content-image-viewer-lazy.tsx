@@ -2,7 +2,7 @@
 
 import type { ViewerImage } from './content-image-viewer'
 import dynamic from 'next/dynamic'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { COMPONENT_ROOT_SELECTOR } from '@/components/content-components/constants'
 import { getVisibleElementById } from '@/utils/client/dom'
 
@@ -25,6 +25,15 @@ export function ContentImageViewer({ containerId }: { containerId: string }) {
   const [index, setIndex] = useState<number | null>(null)
   const [mounted, setMounted] = useState(false)
   const originElementsRef = useRef<HTMLImageElement[]>([])
+
+  // Activity 隐藏文章前同步关闭图片预览并清空对正文 <img> 元素的引用数组，避免驻留已解码大图 DOM 引用
+  useLayoutEffect(() => {
+    return () => {
+      originElementsRef.current = []
+      setIndex(null)
+      setImages([])
+    }
+  }, [])
 
   // 仅当正文容器内确实存在可预览 <img> 时才启用预览与空闲预加载，纯文字文章不加载预览器分包
   useEffect(() => {

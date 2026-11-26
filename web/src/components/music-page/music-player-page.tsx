@@ -11,7 +11,7 @@ import { VisitReporter } from '@/components/common/visit-reporter'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/contexts/auth-context'
-import { useMusicActions, useMusicLyrics, useMusicPlayback, useMusicPreferences } from '@/contexts/music-context'
+import { activateMusicRuntime, useMusicActions, useMusicLyrics, useMusicPlayback, useMusicPreferences } from '@/contexts/music-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { useCachedSongMetaTranslation } from '@/contexts/song-meta-translations'
 import { useRouter } from '@/i18n/navigation'
@@ -182,10 +182,12 @@ export function MusicPlayerPage() {
   const { user } = useAuth()
   const { playlist, playlistState, currentTrack, isPlaying } = useMusicPlayback()
   const { ensurePlaylist } = useMusicActions()
-  // 播放器页要用完整歌单（歌单抽屉、上一首 / 下一首、分享地址定位）：恢复播放时可能只取了一首，进入时补全
+  // 进入 /music 页时立即激活音乐运行时控制器与歌单恢复，并补全完整歌单（歌单抽屉、上一首 / 下一首、分享地址定位）
   useEffect(() => {
+    if (siteInfo.musicEnabled)
+      activateMusicRuntime({ syncPlaylist: true })
     void ensurePlaylist()
-  }, [ensurePlaylist])
+  }, [ensurePlaylist, siteInfo.musicEnabled])
   // 移动端在歌词与封面两个视图之间切换，默认先看歌词
   const [view, setView] = useState<'cover' | 'lyrics'>('lyrics')
   const [playlistOpen, setPlaylistOpen] = useState(false)

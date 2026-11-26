@@ -2,6 +2,7 @@
 
 import type { LucideIcon } from 'lucide-react'
 import type * as React from 'react'
+import { preloadMusicRuntime } from '@/contexts/music-context'
 import { Link } from '@/i18n/navigation'
 
 /** 顶栏（navbar-or-side.tsx）与移动端侧边菜单（mobile-nav-sheet.tsx）共用的菜单项结构与小工具 */
@@ -16,11 +17,31 @@ export interface NavLinkItem {
   external?: boolean
 }
 
-/** 菜单中的链接：站内路径用 Next 的路由切换，站外地址在新窗口打开 */
-export function NavItemLink({ href, external, ...props }: React.ComponentProps<typeof Link> & { href: string, external?: boolean }) {
+function isMusicEntryHref(href: string): boolean {
+  return href === '/music' || href.startsWith('/music?') || href.startsWith('/music#')
+}
+
+/** 菜单中的链接：站内路径用 Next 的路由切换，站外地址在新窗口打开；若指向 /music 则悬停/触摸时预热控制器代码分包 */
+export function NavItemLink({ href, external, onPointerEnter, onTouchStart, ...props }: React.ComponentProps<typeof Link> & { href: string, external?: boolean }) {
   if (external)
-    return <a href={href} target="_blank" rel="noopener noreferrer" {...(props as React.ComponentProps<'a'>)} />
-  return <Link href={href} {...props} />
+    return <a href={href} target="_blank" rel="noopener noreferrer" onPointerEnter={onPointerEnter} onTouchStart={onTouchStart} {...(props as React.ComponentProps<'a'>)} />
+  const musicEntry = isMusicEntryHref(href)
+  return (
+    <Link
+      href={href}
+      onPointerEnter={(e) => {
+        if (musicEntry)
+          preloadMusicRuntime()
+        onPointerEnter?.(e)
+      }}
+      onTouchStart={(e) => {
+        if (musicEntry)
+          preloadMusicRuntime()
+        onTouchStart?.(e)
+      }}
+      {...props}
+    />
+  )
 }
 
 // 一级菜单：带 href 的直接跳转，带 children 的展开子菜单

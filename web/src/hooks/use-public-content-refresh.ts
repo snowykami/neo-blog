@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import axiosClient from '@/api/client'
+import { clearHomeSnapshot } from '@/app/[locale]/(main)/blog-home-query'
 import { useRouter } from '@/i18n/navigation'
 
 /**
@@ -71,11 +72,13 @@ const pendingWrites = new WeakSet<object>()
 
 /** 清掉浏览器路由缓存：立刻一次，服务端得知修改后再一次（多次保存合并成最后一次之后的那一次） */
 export function invalidateRouterCache() {
+  clearHomeSnapshot()
   refreshRouter?.()
   if (delayedTimer)
     clearTimeout(delayedTimer)
   delayedTimer = setTimeout(() => {
     delayedTimer = null
+    clearHomeSnapshot()
     refreshRouter?.()
   }, SERVER_SYNC_DELAY_MS)
 }

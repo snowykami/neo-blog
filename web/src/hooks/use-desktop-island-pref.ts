@@ -118,6 +118,27 @@ export function getDesktopIslandPrefs(): DesktopIslandPreferences {
   }
 }
 
+// MARK: - 本地连接运行态（供设置页状态徽标与网页内避让逻辑订阅）
+
+interface RuntimeSnapshot {
+  status: DesktopIslandConnectionStatus
+  reconnectEpoch: number
+}
+
+let runtime: RuntimeSnapshot = {
+  status: 'standby',
+  reconnectEpoch: 0,
+}
+const runtimeListeners = new Set<() => void>()
+
+export function setDesktopIslandRuntimeStatus(status: DesktopIslandConnectionStatus) {
+  if (runtime.status === status)
+    return
+  runtime = { ...runtime, status }
+  for (const listener of runtimeListeners)
+    listener()
+}
+
 export function updateDesktopIslandPrefs(patch: Partial<DesktopIslandPreferences>) {
   if (typeof window === 'undefined')
     return
@@ -138,6 +159,8 @@ export function updateDesktopIslandPrefs(patch: Partial<DesktopIslandPreferences
   }
   if (!next.enabled)
     setDesktopIslandRuntimeStatus('disabled')
+  else if (runtime.status === 'disabled')
+    setDesktopIslandRuntimeStatus('standby')
   for (const listener of prefListeners)
     listener()
 }
@@ -152,27 +175,6 @@ function subscribePrefs(listener: () => void): () => void {
 
 export function useDesktopIslandPrefs(): DesktopIslandPreferences {
   return useSyncExternalStore(subscribePrefs, getDesktopIslandPrefs, () => DEFAULT_DESKTOP_ISLAND_PREFS)
-}
-
-// MARK: - 本地连接运行态（供设置页状态徽标与网页内避让逻辑订阅）
-
-interface RuntimeSnapshot {
-  status: DesktopIslandConnectionStatus
-  reconnectEpoch: number
-}
-
-let runtime: RuntimeSnapshot = {
-  status: 'standby',
-  reconnectEpoch: 0,
-}
-const runtimeListeners = new Set<() => void>()
-
-export function setDesktopIslandRuntimeStatus(status: DesktopIslandConnectionStatus) {
-  if (runtime.status === status)
-    return
-  runtime = { ...runtime, status }
-  for (const listener of runtimeListeners)
-    listener()
 }
 
 export function requestDesktopIslandReconnect() {
