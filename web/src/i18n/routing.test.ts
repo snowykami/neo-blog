@@ -33,12 +33,19 @@ describe('语言路由', () => {
     expect(splitLocalePrefix('/english')).toEqual({ locale: undefined, pathname: '/english' })
   })
 
-  it('hreflang 列出每种语言并带 x-default，canonical 指向当前语言', () => {
+  it('默认将非默认语言的 canonical 收敛至默认语言；独立索引模式下输出各语言 hreflang 与自身 canonical', () => {
     const languages = languageAlternates('/p/x')
     expect(Object.keys(languages)).toEqual([...routing.locales, 'x-default'])
     expect(languages['x-default']).toBe('/p/x')
     expect(languages['zh-MO']).toBe('/zh-mo/p/x')
-    expect(localeAlternates('/', 'en').canonical).toBe('/en')
+
+    const consolidated = localeAlternates('/p/x', 'en')
+    expect(consolidated.canonical).toBe('/p/x')
+    expect(consolidated.languages).toBeUndefined()
+
+    const independent = localeAlternates('/', 'en', 'independent')
+    expect(independent.canonical).toBe('/en')
+    expect(independent.languages?.['x-default']).toBe('/')
   })
 })
 

@@ -41,6 +41,9 @@ func TestCacheTagVersions(t *testing.T) {
 		changed(CacheTagPages, func() error {
 			return Page.CreatePage(&model.Page{UserID: user.ID, PageBase: model.PageBase{Title: "page", Slug: "cache-tag-page"}})
 		})
+		changed(CacheTagFriends, func() error {
+			return Friend.CreateGroup(&model.FriendGroup{Name: "Test Group", Slug: "test-group-tag", IsPublic: true})
+		})
 		changed(CacheTagSite, func() error { return KV.SetKV("cache_tag_test", "v") })
 	})
 }

@@ -87,19 +87,39 @@ export const PaginationController = forwardRef<
       [total, pageSize],
     )
     const [currentPage, setCurrentPage] = useState(() => clampPage(page ?? initialPage, totalPages))
+    const currentPageRef = useRef(currentPage)
+    currentPageRef.current = currentPage
+    const onPageChangeRef = useRef(onPageChange)
+    onPageChangeRef.current = onPageChange
+    // 初始化为初始页码，避免挂载首帧与受控 page 同步时反向回声触发父级 onPageChange
+    const lastReportedRef = useRef<number | null>(currentPage)
+    const syncingToRef = useRef<{ target: number, rawPage: number } | null>(null)
 
-    // 受控模式：父组件页码变化时同步到内部状态
+    // 受控模式：父组件页码变化时同步到内部状态；仅在 currentPage 真正切换到目标页后才对齐 lastReportedRef，
+    // 防止同一次提交中旧 currentPage 闭包反向触发 onPageChange(1) 覆盖 URL 页码
     useEffect(() => {
       if (page === undefined)
         return
-      setCurrentPage(prev => (prev === page ? prev : clampPage(page, totalPages)))
-    }, [page, totalPages])
+      const clamped = clampPage(page, totalPages)
+      if (clamped !== currentPageRef.current) {
+        syncingToRef.current = { target: clamped, rawPage: page }
+        setCurrentPage(clamped)
+      }
+      else {
+        syncingToRef.current = null
+        if (clamped === page || total === 0 || !reportAutoAdjust)
+          lastReportedRef.current = clamped
+      }
+    }, [page, reportAutoAdjust, total, totalPages])
 
     // 暴露方法给父组件
     useImperativeHandle(
       ref,
       () => ({
-        setPage: (p: number) => setCurrentPage(() => clampPage(p, totalPages)),
+        setPage: (p: number) => {
+          syncingToRef.current = null
+          setCurrentPage(() => clampPage(p, totalPages))
+        },
         getPage: () => currentPage,
       }),
       [currentPage, totalPages],
@@ -113,10 +133,20 @@ export const PaginationController = forwardRef<
     }, [totalPages])
 
     // 统一向父组件报告变化，避免在 setState 的 updater 中直接调用父级 setState 引发警告
-    const lastReportedRef = useRef<number | null>(null)
     useEffect(() => {
-      if (!onPageChange)
+      const cb = onPageChangeRef.current
+      if (!cb)
         return
+      if (syncingToRef.current !== null) {
+        if (currentPage !== syncingToRef.current.target)
+          return
+        const sync = syncingToRef.current
+        syncingToRef.current = null
+        if (currentPage === sync.rawPage || total === 0 || !reportAutoAdjust) {
+          lastReportedRef.current = currentPage
+          return
+        }
+      }
       // 数据尚未加载（total 为 0）时页码会被临时校正为 1，此时不上报，避免把 URL 中的页码重置
       if (total === 0)
         return
@@ -126,13 +156,14 @@ export const PaginationController = forwardRef<
       if (!reportAutoAdjust && lastReportedRef.current !== null && currentPage > totalPages)
         return
       lastReportedRef.current = currentPage
-      onPageChange(currentPage)
-    }, [currentPage, onPageChange, reportAutoAdjust, total, totalPages])
+      cb(currentPage)
+    }, [currentPage, reportAutoAdjust, total, totalPages])
 
     const handleSetPage = useCallback(
       (p: number) => {
         if (disabled)
           return
+        syncingToRef.current = null
         setCurrentPage(() => clampPage(p, totalPages))
       },
       [disabled, totalPages],

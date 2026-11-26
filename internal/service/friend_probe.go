@@ -688,20 +688,21 @@ func runFriendReviewTask(linkID uint, triggerUserID uint) {
 		verdict = model.FriendStatusPreApproved
 	}
 	reason := clipRunes(parsed.Reason, friendReviewNoteMaxRunes)
-	commitAIReviewIfStillPending(link.ID, verdict, reason)
+	if commitAIReviewIfStillPending(link.ID, verdict, reason) && verdict == model.FriendStatusApproved {
+		warmCtx, cancelWarm := context.WithTimeout(context.Background(), 15*time.Second)
+		WarmFriendAvatarCache(warmCtx, link.Avatar)
+		cancelWarm()
+	}
 }
 
 // commitAIReviewIfStillPending 仅在记录仍处于 pending 时写入 AI 结论，确保管理员中途人工裁决绝不被覆盖
-func commitAIReviewIfStillPending(linkID uint, nextStatus string, note string) {
-	err := repo.GetDB().Model(&model.FriendLink{}).
-		Where("id = ? AND status = ?", linkID, model.FriendStatusPending).
-		Updates(map[string]any{
-			"status":      nextStatus,
-			"review_note": note,
-		}).Error
+func commitAIReviewIfStillPending(linkID uint, nextStatus string, note string) bool {
+	updated, err := repo.Friend.CommitPendingReview(linkID, nextStatus, note)
 	if err != nil {
 		logrus.Warnf("commit friend ai review (id=%d): %v", linkID, err)
+		return false
 	}
+	return updated
 }
 
 // ResumePendingFriendReviews 接手实例重启前未完成的 pending 友链初审（由 job_recovery 定期调用）

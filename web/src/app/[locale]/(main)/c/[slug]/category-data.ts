@@ -23,8 +23,7 @@ export const getCachedCategories = cache(async (): Promise<Category[]> => {
 })
 
 /**
- * 按 slug 找分类：分类列表取到了但没有这个 slug 时 404；列表取不到时返回 undefined，页面按 slug 照常显示。
- * 在 loading.tsx 的骨架里面调用也能得到真正的 404（见 p/[id]/post-data.ts 的说明）
+ * 按 slug 找分类：分类列表取到了但没有这个 slug 时 404；列表取不到时返回 undefined，页面按 slug 照常显示
  */
 export async function findCategoryOr404(slug: string): Promise<Category | undefined> {
   const categories = await getCachedCategories().catch(() => null)
@@ -37,6 +36,10 @@ export async function findCategoryOr404(slug: string): Promise<Category | undefi
 /** 分类页每页的文章数 */
 export const CATEGORY_PAGE_SIZE = 20
 
+function slimCategoryPost(post: Post): Post {
+  return post.description || post.excerpt ? { ...post, content: '' } : post
+}
+
 function fetchCategoryPosts(slug: string, page: number): Promise<{ posts: Post[], total: number }> {
   return listPosts({
     page,
@@ -44,7 +47,7 @@ function fetchCategoryPosts(slug: string, page: number): Promise<{ posts: Post[]
     category: slug,
     orderBy: OrderBy.CreatedAt,
     desc: true,
-  }).then(res => ({ posts: res.data.posts || [], total: res.data.total || 0 }))
+  }).then(res => ({ posts: (res.data.posts || []).map(slimCategoryPost), total: res.data.total || 0 }))
 }
 
 // 只缓存第一页（文章、分类、标签变化时 posts 标签失效）：页码来自地址栏，随手就能拼出无数个，翻页也少，后面的页照常向后端取。

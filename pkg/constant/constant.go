@@ -25,7 +25,7 @@ const (
 	DefaultCaptchaDevPasscode  = "dev_passcode"
 	DefaultBaseUrl             = "http://localhost:3000" // 默认BaseUrl
 	DefaultPasswordSalt        = "default_salt_114514"
-	DefaultRssLimit            = 30
+	DefaultRssLimit            = 20
 	DefaultSitemapLimit        = 5000
 	TargetTypePost             = "post"
 	TargetTypePage             = "page"

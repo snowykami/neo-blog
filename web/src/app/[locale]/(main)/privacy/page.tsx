@@ -6,11 +6,13 @@ import { locale as rootLocale } from 'next/root-params'
 import { getPublicConfig } from '@/api/misc'
 import { getCachedSiteInfo } from '@/api/misc.server'
 import { SiteShell } from '@/components/layout/site-shell'
-import { localeAlternates } from '@/i18n/alternates'
 import { resolveRouteLocale } from '@/i18n/routing'
 import { CacheTag, skipBackendAtBuild } from '@/lib/cache-tags'
+import { buildPublicPageMetadata } from '@/lib/seo'
 import { mainPath } from '@/utils/common/route'
 import '@/app/styles/prose.css'
+
+export const ensureStatic = 'navigation'
 
 // 隐私政策（简版）：内容需与后端实际行为保持一致，涉及访客记录（internal/service/visit.go、visit_trust.go）、
 // 错误报告（internal/service/error_report.go、src/lib/telemetry）、Cookie、评论、账号、第三方请求等改动时同步更新文案与 UPDATED_AT
@@ -33,8 +35,18 @@ const SECTIONS: { key: string, body?: boolean, items?: readonly string[], note?:
 export async function generateMetadata(): Promise<Metadata> {
   const locale = resolveRouteLocale(await rootLocale())
   setRequestLocale(locale)
-  const routeT = await getTranslations('Route')
-  return { title: routeT('privacy_policy'), alternates: localeAlternates(mainPath.privacy, locale) }
+  const [siteInfo, routeT, privacyT] = await Promise.all([
+    getCachedSiteInfo(),
+    getTranslations('Route'),
+    getTranslations('Privacy'),
+  ])
+  return buildPublicPageMetadata({
+    locale,
+    pathname: mainPath.privacy,
+    siteInfo,
+    title: routeT('privacy_policy'),
+    description: privacyT('summary.body', { site: siteInfo.metadata.name, owner: siteInfo.owner.name }),
+  })
 }
 
 // 访问记录与错误报告的保留天数来自全局配置（跨请求缓存，站点配置变化时 site 标签失效），配置值非法时使用默认值

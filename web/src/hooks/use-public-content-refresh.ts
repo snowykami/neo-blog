@@ -35,6 +35,9 @@ const PUBLIC_CONTENT_WRITES: RegExp[] = [
   /^\/label\/l(?:\/\d+)?$/,
   // 首页置顶
   /^\/admin\/posts\/\d+\/pin$/,
+  // 友链与分组管理、用户自助修改友链
+  /^\/admin\/friends(?:\/.*)?$/,
+  /^\/friends\/mine(?:\/.*)?$/,
   // 站点配置（全局配置与高级 KV）
   /^\/admin\/config$/,
   /^\/admin\/kv(?:\/.*)?$/,

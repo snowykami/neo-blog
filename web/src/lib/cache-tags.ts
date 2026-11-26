@@ -15,6 +15,8 @@ export const CacheTag = {
   Pages: 'pages',
   /** 用户资料 */
   Users: 'users',
+  /** 公开友链与分组 */
+  Friends: 'friends',
   /** 站点配置 */
   Site: 'site',
   /**

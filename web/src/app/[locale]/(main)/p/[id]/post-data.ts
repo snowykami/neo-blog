@@ -36,9 +36,7 @@ const getCachedPost = cache((id: string) => {
 
 /**
  * 取文章并判定地址：不存在 → 404；用 id 访问但文章有 slug → 永久跳转到规范地址（保持当前语言：/en/p/123 → /en/p/slug）。
- * 在 loading.tsx 的骨架里面调用也能得到真正的 404 / 308：文档请求访问还没缓存的地址时，Next 先把整页生成完再发送
- * （根参数 [locale] 不在构建期生成，见 lib/cache-tags.ts 的 BUILD_PLACEHOLDER_PARAM），生成期间的 notFound() / permanentRedirect()
- * 会设置状态码；生成好的 308 按地址缓存，404 不缓存（见 web/cache-handler.mjs）
+ * 生成好的 308 按地址缓存，404 不缓存（见 web/cache-handler.mjs）
  */
 export async function getCanonicalPost(id: string, locale: string): Promise<Post> {
   const post = await getCachedPost(id)

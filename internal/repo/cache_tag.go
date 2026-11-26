@@ -21,12 +21,14 @@ const (
 	CacheTagPages = "pages"
 	// CacheTagUsers 用户资料（用户主页；文章页的作者信息跟随文章的访客缓存，不挂这个标签）
 	CacheTagUsers = "users"
+	// CacheTagFriends 公开友链与友链分组（友链增删改、审核、排序与拨测回写）
+	CacheTagFriends = "friends"
 	// CacheTagSite 站点配置（配置项写入，见 kvRepo.changed）
 	CacheTagSite = "site"
 )
 
 // CacheTags 全部失效标签
-var CacheTags = []string{CacheTagPosts, CacheTagPages, CacheTagUsers, CacheTagSite}
+var CacheTags = []string{CacheTagPosts, CacheTagPages, CacheTagUsers, CacheTagFriends, CacheTagSite}
 
 // cacheTagKeyPrefix 版本号在共享状态中的键前缀：多副本时任何一个后端实例的修改，前端都能从任意实例读到
 const cacheTagKeyPrefix = "cache_tag:"

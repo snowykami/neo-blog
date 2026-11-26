@@ -1,7 +1,15 @@
+import type { Metadata } from 'next'
 import { connection } from 'next/server'
 import { getConsoleAuthSeedServer } from '@/api/user.server'
 import { I18nScope } from '@/components/i18n-scope'
 import { ConsoleShell } from './console-shell'
+
+export const metadata: Metadata = {
+  robots: {
+    index: false,
+    follow: false,
+  },
+}
 
 // 后台地址不带语言前缀，界面语言由 proxy.ts 按偏好改写进 [locale] 段；页面主体都在浏览器里取数，
 // 后台按请求渲染（connection()），与改前的 force-dynamic 相同：带 [id] 的后台页面（编辑器、详情页）的 id 是任意的，

@@ -1,8 +1,13 @@
 import type { Category } from '@/models/category'
 import type { User } from '@/models/user'
+import type { SeoSitemapLocaleMode } from '@/utils/common/siteinfo'
 
 export interface SitemapData {
   baseUrl: string
+  sitemapEnabled?: boolean
+  sitemapLocaleMode?: SeoSitemapLocaleMode
+  friendsEnabled?: boolean
+  friendsUpdatedAt?: string | null
   posts: {
     createdAt: string
     updatedAt: string
@@ -37,6 +42,8 @@ export interface RssPostItem {
   id: number
   title: string
   slug: string
+  description?: string
+  excerpt?: string
   content: string
   createdAt: string
   updatedAt: string
@@ -46,6 +53,8 @@ export interface RssPostItem {
 }
 
 export interface RssData {
+  enabled?: boolean
+  fullContent?: boolean
   title: string
   description: string
   siteUrl: string // 网站链接

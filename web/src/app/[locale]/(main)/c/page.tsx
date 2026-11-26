@@ -2,20 +2,33 @@ import type { Metadata } from 'next'
 import { FolderIcon } from 'lucide-react'
 import { getTranslations, setRequestLocale } from 'next-intl/server'
 import { locale as rootLocale } from 'next/root-params'
+import { getCachedSiteInfo } from '@/api/misc.server'
 import BlogSidebar from '@/components/blog-sidebar'
 import { getCachedSidebarData } from '@/components/blog-sidebar/sidebar-data'
 import { SectionTitle, SiteShell } from '@/components/layout/site-shell'
-import { localeAlternates } from '@/i18n/alternates'
 import { Link } from '@/i18n/navigation'
 import { resolveRouteLocale } from '@/i18n/routing'
+import { buildPublicPageMetadata } from '@/lib/seo'
 import { getCategoryUrl, mainPath } from '@/utils/common/route'
 import { getCachedCategories } from './[slug]/category-data'
+
+export const ensureStatic = 'navigation'
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = resolveRouteLocale(await rootLocale())
   setRequestLocale(locale)
-  const t = await getTranslations('Public')
-  return { title: t('categories'), alternates: localeAlternates(mainPath.category, locale) }
+  const [siteInfo, publicT, routeT] = await Promise.all([
+    getCachedSiteInfo(),
+    getTranslations('Public'),
+    getTranslations('Route'),
+  ])
+  return buildPublicPageMetadata({
+    locale,
+    pathname: mainPath.category,
+    siteInfo,
+    title: publicT('categories'),
+    description: routeT('category_desc', { site: siteInfo.metadata.name }),
+  })
 }
 
 export default async function CategoryPage() {

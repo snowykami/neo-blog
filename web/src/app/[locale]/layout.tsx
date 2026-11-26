@@ -22,8 +22,9 @@ import { MusicProvider } from '@/contexts/music-context'
 import { NavProvider } from '@/contexts/nav-context'
 import { SiteInfoProvider } from '@/contexts/site-info-context'
 import { ThemeProvider } from '@/contexts/theme-context'
-import { routing } from '@/i18n/routing'
+import { resolveRouteLocale, routing } from '@/i18n/routing'
 import { BUILD_PLACEHOLDER_PARAM } from '@/lib/cache-tags'
+import { buildSeoRobots, buildSiteVerification, resolveDefaultSeoDescription } from '@/lib/seo'
 import { themeAttributes, themeCssVars } from '@/themes'
 import { getActiveTheme } from '@/themes/active-theme.server'
 import { themeInitScript } from '@/themes/init-script'
@@ -52,7 +53,11 @@ export function generateStaticParams() {
 }
 
 export async function generateMetadata(): Promise<Metadata> {
-  const siteInfo = await getCachedSiteInfo()
+  const [rawLocale, siteInfo] = await Promise.all([rootLocale(), getCachedSiteInfo()])
+  const locale = resolveRouteLocale(rawLocale)
+  const defaultDesc = resolveDefaultSeoDescription(siteInfo)
+  const verification = buildSiteVerification(siteInfo)
+  const rssEnabled = siteInfo.seo?.rssEnabled ?? true
   return {
     // 页面里的 canonical、hreflang、分享图都写站内路径，统一按站点地址补全
     metadataBase: safeMetadataBase(siteInfo.baseUrl),
@@ -61,6 +66,11 @@ export async function generateMetadata(): Promise<Metadata> {
       default: siteInfo.metadata.name,
       template: `%s - ${siteInfo.metadata.name}`,
     },
+    description: defaultDesc || undefined,
+    keywords: siteInfo.keywords?.length ? siteInfo.keywords : undefined,
+    ...(verification ? { verification } : {}),
+    ...(rssEnabled ? { alternates: { types: { 'application/rss+xml': '/rss.xml' } } } : {}),
+    robots: buildSeoRobots(locale, siteInfo),
     // 没有配置站点图标时不输出 icon 链接，浏览器使用 /favicon.ico；圆角 > 0% 时指向强缓存裁剪路由
     icons: getSiteMetadataIcons(siteInfo),
   }

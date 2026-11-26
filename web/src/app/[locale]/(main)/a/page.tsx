@@ -5,18 +5,17 @@ import process from 'node:process'
 import { getTranslations, setRequestLocale } from 'next-intl/server'
 import { cacheLife, cacheTag } from 'next/cache'
 import { locale as rootLocale } from 'next/root-params'
-import { Suspense } from 'react'
+import { getCachedSiteInfo } from '@/api/misc.server'
 import { listPosts } from '@/api/post'
 import { getCachedSidebarData } from '@/components/blog-sidebar/sidebar-data'
-import { BlogSidebarSkeleton } from '@/components/blog-sidebar/sidebar-skeleton'
-import { SiteShell } from '@/components/layout/site-shell'
-import { Skeleton } from '@/components/ui/skeleton'
-import { localeAlternates } from '@/i18n/alternates'
 import { resolveRouteLocale } from '@/i18n/routing'
 import { CacheTag, skipBackendAtBuild } from '@/lib/cache-tags'
+import { buildPublicPageMetadata } from '@/lib/seo'
 import { OrderBy } from '@/models/common'
 import { getPostUrl, mainPath } from '@/utils/common/route'
 import { Archive } from './archive'
+
+export const ensureStatic = 'navigation'
 
 // 归档日期按站点时区计算，与后端容器的 TZ 保持一致；在服务端算好再传给客户端，避免水合时因时区不同而错位
 const ARCHIVE_TIME_ZONE = process.env.TZ || 'Asia/Chongqing'
@@ -24,8 +23,17 @@ const ARCHIVE_TIME_ZONE = process.env.TZ || 'Asia/Chongqing'
 export async function generateMetadata(): Promise<Metadata> {
   const locale = resolveRouteLocale(await rootLocale())
   setRequestLocale(locale)
-  const routeT = await getTranslations('Route')
-  return { title: routeT('archive'), alternates: localeAlternates(mainPath.archive, locale) }
+  const [siteInfo, routeT] = await Promise.all([
+    getCachedSiteInfo(),
+    getTranslations('Route'),
+  ])
+  return buildPublicPageMetadata({
+    locale,
+    pathname: mainPath.archive,
+    siteInfo,
+    title: routeT('archive'),
+    description: routeT('archive_desc', { site: siteInfo.metadata.name }),
+  })
 }
 
 function getDateParts(date: string) {
@@ -45,65 +53,37 @@ function groupByYear(posts: Post[]): ArchiveGroup[] {
       group = { year, posts: [] }
       groups.push(group)
     }
+    const labels = post.labels || []
     group.posts.push({
       id: post.id,
       title: post.title,
       url: getPostUrl({ post }),
       date: monthDay,
-      labels: (post.labels || []).map(label => label.name),
+      labels: labels.map(label => label.name),
+      labelSlugs: labels.map(label => label.slug),
+      categorySlug: post.category?.slug || undefined,
+      categoryName: post.category?.name || undefined,
     })
   }
   return groups.sort((a, b) => b.year - a.year)
 }
 
-function fetchArchivePosts(label: string, category: string): Promise<Post[]> {
-  return listPosts({ page: 1, size: 500, orderBy: OrderBy.CreatedAt, desc: true, noContent: true, label, category })
-    .then(res => res.data.posts)
-}
-
-// 不筛选的归档（最常见）跨请求缓存，文章、分类、标签变化时 posts 标签失效；带 ?label= / ?category= 的组合来自地址栏，照常每次向后端取
+// 全量归档文章列表跨请求缓存，文章、分类、标签变化时 posts 标签失效；?label= / ?category= 在客户端无延迟过滤
 async function loadAllPosts(): Promise<Post[]> {
   'use cache'
   cacheLife('site')
   cacheTag(CacheTag.Posts)
-  return fetchArchivePosts('', '')
+  return listPosts({ page: 1, size: 500, orderBy: OrderBy.CreatedAt, desc: true, noContent: true })
+    .then(res => res.data.posts)
 }
 
-// 读地址查询参数的部分：放在 Suspense 里按请求渲染，外面的部分属于归档页的 App Shell
-async function ArchiveContent({ searchParams }: { searchParams: Promise<{ label?: string, category?: string }> }) {
-  // 构建期占位预渲染在触碰 searchParams 前先短路退出，保留该路由的 ShouldAttemptStaticPrefetch 提示位
+export default async function ArchivesPage() {
+  const locale = resolveRouteLocale(await rootLocale())
+  setRequestLocale(locale)
   skipBackendAtBuild()
-  // 支持 ?label=xxx / ?category=xxx 只看某个标签或分类的归档
-  const { label = '', category = '' } = await searchParams
   const [posts, sidebarData] = await Promise.all([
-    (label || category ? fetchArchivePosts(label, category) : loadAllPosts()).catch(() => []),
+    loadAllPosts(),
     getCachedSidebarData(),
   ])
-  return <Archive groups={groupByYear(posts)} filter={{ label, category }} sidebarData={sidebarData} />
-}
-
-// 归档到达前的占位：时间线卡片里画几行
-function ArchiveSkeleton() {
-  return (
-    <SiteShell skeleton sidebar={<BlogSidebarSkeleton />}>
-      <div className="surface-card grid gap-4 rounded-2xl bg-card px-4 py-6 md:px-8" aria-busy="true">
-        <Skeleton className="h-8 w-32" />
-        <Skeleton className="h-5 w-full" />
-        <Skeleton className="h-5 w-4/5" />
-        <Skeleton className="h-5 w-3/5" />
-      </div>
-    </SiteShell>
-  )
-}
-
-export default function ArchivesPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ label?: string, category?: string }>
-}) {
-  return (
-    <Suspense fallback={<ArchiveSkeleton />}>
-      <ArchiveContent searchParams={searchParams} />
-    </Suspense>
-  )
+  return <Archive groups={groupByYear(posts)} sidebarData={sidebarData} />
 }

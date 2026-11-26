@@ -4,8 +4,9 @@ import type { Post } from '@/models/post'
 import { getTranslations, setRequestLocale } from 'next-intl/server'
 import { getCachedSiteInfo } from '@/api/misc.server'
 import { localeAlternates } from '@/i18n/alternates'
-import { localizePath, resolveRouteLocale } from '@/i18n/routing'
+import { localizePath, resolveRouteLocale, routing } from '@/i18n/routing'
 import { BUILD_PLACEHOLDER_PARAM } from '@/lib/cache-tags'
+import { buildSeoRobots, normalizeTwitterHandle } from '@/lib/seo'
 import { stripInlineMarkdown } from '@/utils/common/inline-markdown'
 import { getPostShareImageUrl, getPostUrl, getUserUrl } from '@/utils/common/route'
 import { absoluteSiteUrl, safeMetadataBase } from '@/utils/common/siteinfo'
@@ -26,10 +27,12 @@ interface Props {
 }
 
 // 文章页按地址缓存：构建时只预渲染占位参数（见 lib/cache-tags.ts 的 BUILD_PLACEHOLDER_PARAM），每篇文章（每种语言）在第一次被访问时
-// 整页生成，之后文档请求与悬停时的按链接预取都直接用缓存。后台修改文章 / 分类 / 标签、站点配置后，posts / site 标签失效
-// （见 lib/cache-tags.ts），下次访问重新生成；slug 跳转（308）同样被缓存，改 slug 时一并失效；不存在的文章（404）不缓存，每次向后端确认。
-// 段级骨架由同目录 loading.tsx 提供（属于所有文章共用的 App Shell），键盘 / 轻点的点击立刻出骨架。
-// 浏览量、点赞数是快照，浏览器进入页面后另取最新值
+// 整页直接生成进 <main>，之后文档请求与悬停时的按链接预取（dynamicOnHover）都直接命中缓存。后台修改文章 / 分类 / 标签、站点配置后，
+// posts / site 标签失效（见 lib/cache-tags.ts），下次访问重新生成；slug 跳转（308）同样被缓存，不存在的文章（404）不缓存。
+// 显式关闭段级 instant 导航校验，避免开发态因移除外层 loading.tsx 弹出 params 阻塞警告
+export const ensureStatic = 'navigation'
+export const instant = false
+
 export function generateStaticParams() {
   return [{ id: BUILD_PLACEHOLDER_PARAM }]
 }
@@ -51,18 +54,32 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const title = post.title || t('untitled')
   const description = metaDescription(post) || title
   const siteName = siteInfo?.metadata.name || undefined
+  const twitterHandle = normalizeTwitterHandle(siteInfo?.seo?.twitterHandle)
+  const localeMode = siteInfo?.seo?.localeIndexMode ?? 'canonical_default'
+  const canonicalPath = localizePath(
+    getPostUrl({ post }),
+    localeMode === 'independent' ? locale : routing.defaultLocale,
+  )
+  const postKeywords = post.labels?.length
+    ? post.labels.map(label => label.name)
+    : (siteInfo?.keywords?.length ? siteInfo.keywords : undefined)
   return {
     title,
     description,
     metadataBase: safeMetadataBase(siteInfo?.baseUrl),
-    alternates: localeAlternates(getPostUrl({ post }), locale),
+    alternates: localeAlternates(
+      getPostUrl({ post }),
+      locale,
+      localeMode,
+      siteInfo?.seo?.rssEnabled ?? true,
+    ),
     authors: post.user ? [{ name: formatFullName(post.user) }] : undefined,
     creator: post.user ? formatFullName(post.user) : undefined,
-    keywords: post.labels?.map(label => label.name) || undefined,
+    keywords: postKeywords,
     openGraph: {
       title,
       description,
-      url: localizePath(getPostUrl({ post }), locale),
+      url: canonicalPath,
       siteName,
       // 分享图由 /p/{id}/share-image 生成，不直接用封面：社交平台上的卡片信息更完整
       images: [{ url: shareImage, width: 1080, height: 1350, alt: title }],
@@ -76,18 +93,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title,
       description,
       images: [shareImage],
+      ...(twitterHandle ? { site: twitterHandle, creator: twitterHandle } : {}),
     },
-    robots: {
-      index: true,
-      follow: true,
-      googleBot: {
-        'index': true,
-        'follow': true,
-        'max-video-preview': -1,
-        'max-image-preview': 'large',
-        'max-snippet': -1,
-      },
-    },
+    robots: buildSeoRobots(locale, siteInfo, true),
   }
 }
 
@@ -97,6 +105,8 @@ export default async function PostPage({ params }: Props) {
   setRequestLocale(locale)
   // 不存在 → 404，用 id 访问有 slug 的文章 → 308（见 post-data.ts）；之后拿到的一定是规范地址上的公开文章
   const [post, siteInfo] = await Promise.all([getCanonicalPost(id, locale), getCachedSiteInfo()])
+  const localeMode = siteInfo?.seo?.localeIndexMode ?? 'canonical_default'
+  const canonicalLocale = localeMode === 'independent' ? locale : routing.defaultLocale
 
   const jsonLd: WithContext<Article> = {
     '@context': 'https://schema.org',
@@ -105,7 +115,7 @@ export default async function PostPage({ params }: Props) {
     'author': {
       '@type': 'Person',
       'name': formatFullName(post.user),
-      'url': `${siteInfo.baseUrl}${localizePath(getUserUrl({ username: post.user.username }), locale)}`,
+      'url': absoluteSiteUrl(localizePath(getUserUrl({ username: post.user.username }), canonicalLocale), siteInfo.baseUrl),
     },
     // 没有封面时省略 image；站内相对路径要补成绝对地址（结构化数据不接受相对 URL）
     ...(post.cover
@@ -122,10 +132,10 @@ export default async function PostPage({ params }: Props) {
       },
     },
     'description': metaDescription(post) || post.title,
-    // mainEntityOfPage 指向文章自身，而不是站点根地址
+    // mainEntityOfPage 与规范地址保持一致
     'mainEntityOfPage': {
       '@type': 'WebPage',
-      '@id': `${siteInfo.baseUrl}${localizePath(getPostUrl({ post }), locale)}`,
+      '@id': absoluteSiteUrl(localizePath(getPostUrl({ post }), canonicalLocale), siteInfo.baseUrl),
     },
   }
 

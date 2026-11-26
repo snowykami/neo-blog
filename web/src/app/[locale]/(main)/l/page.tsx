@@ -4,20 +4,32 @@ import { getTranslations, setRequestLocale } from 'next-intl/server'
 import { cacheLife, cacheTag } from 'next/cache'
 import { locale as rootLocale } from 'next/root-params'
 import { getLabels } from '@/api/label'
+import { getCachedSiteInfo } from '@/api/misc.server'
 import BlogSidebar from '@/components/blog-sidebar'
 import { getCachedSidebarData } from '@/components/blog-sidebar/sidebar-data'
 import { SectionTitle, SiteShell } from '@/components/layout/site-shell'
-import { localeAlternates } from '@/i18n/alternates'
 import { Link } from '@/i18n/navigation'
 import { resolveRouteLocale } from '@/i18n/routing'
 import { CacheTag, skipBackendAtBuild } from '@/lib/cache-tags'
+import { buildPublicPageMetadata } from '@/lib/seo'
 import { getLabelUrl, mainPath } from '@/utils/common/route'
+
+export const ensureStatic = 'navigation'
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = resolveRouteLocale(await rootLocale())
   setRequestLocale(locale)
-  const t = await getTranslations('Route')
-  return { title: t('label'), alternates: localeAlternates(mainPath.label, locale) }
+  const [siteInfo, routeT] = await Promise.all([
+    getCachedSiteInfo(),
+    getTranslations('Route'),
+  ])
+  return buildPublicPageMetadata({
+    locale,
+    pathname: mainPath.label,
+    siteInfo,
+    title: routeT('label'),
+    description: routeT('label_desc', { site: siteInfo.metadata.name }),
+  })
 }
 
 // 标签列表跨请求缓存，文章、标签变化时 posts 标签失效；取不到时抛错（不缓存）

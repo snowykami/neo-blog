@@ -1,14 +1,20 @@
 import type { Metadata } from 'next'
-import { localeAlternates } from '@/i18n/alternates'
+import { getTranslations, setRequestLocale } from 'next-intl/server'
+import { getCachedSiteInfo } from '@/api/misc.server'
 import { resolveRouteLocale } from '@/i18n/routing'
 import { BUILD_PLACEHOLDER_PARAM } from '@/lib/cache-tags'
+import { buildPublicPageMetadata } from '@/lib/seo'
+import { Role } from '@/models/user'
 import { getUserUrl } from '@/utils/common/route'
 import { formatDisplayName } from '@/utils/common/username'
 import { UserPage } from './user'
-import { getExistingUser } from './user-data'
+import { getCachedUserFirstPagePosts, getExistingUser } from './user-data'
+
+export const ensureStatic = 'navigation'
+export const instant = false
 
 // 用户页按地址缓存：构建时只预渲染占位参数（见 lib/cache-tags.ts 的 BUILD_PLACEHOLDER_PARAM），每个用户（每种语言）在第一次被访问时生成；
-// 用户资料变化时 users 标签失效（见 lib/cache-tags.ts）。服务端取资料（存在性、标题与资料卡），文章、评论、点赞列表在浏览器里取
+// 服务端同时预取公开资料与首屏第一页公开文章直接输出到 <main>，评论与喜欢按需在浏览器加载
 export function generateStaticParams() {
   return [{ username: BUILD_PLACEHOLDER_PARAM }]
 }
@@ -20,15 +26,36 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale: rawLocale, username } = await params
   const locale = resolveRouteLocale(rawLocale)
-  // 与页面共用同一次读取；不存在的用户判定 404
-  const user = await getExistingUser(username)
-  return { title: formatDisplayName(user), alternates: localeAlternates(getUserUrl(user), locale) }
+  setRequestLocale(locale)
+  const [user, siteInfo, routeT] = await Promise.all([
+    getExistingUser(username),
+    getCachedSiteInfo(),
+    getTranslations('Route'),
+  ])
+  const displayName = formatDisplayName(user)
+  const ownerBio = user.role === Role.ADMIN
+    ? (siteInfo.owner?.description?.trim() || siteInfo.owner?.motto?.trim() || '')
+    : ''
+  const description = ownerBio || routeT('user_desc', { name: displayName, site: siteInfo.metadata.name })
+  return buildPublicPageMetadata({
+    locale,
+    pathname: getUserUrl(user),
+    siteInfo,
+    title: displayName,
+    description,
+    image: user.avatarUrl || undefined,
+    ogType: 'profile',
+  })
 }
 
-// 资料在服务端取好直接传给页面（首帧即是完整资料卡，浏览器不再取）；文章、评论、点赞列表在浏览器里取。
-// 段级骨架由同目录 loading.tsx 提供（属于所有用户页共用的 App Shell）
 export default async function Page({ params }: { params: Promise<{ locale: string, username: string }> }) {
-  const { username } = await params
-  const user = await getExistingUser(username)
-  return <UserPage user={user} />
+  const { locale: rawLocale, username } = await params
+  const locale = resolveRouteLocale(rawLocale)
+  setRequestLocale(locale)
+  const [user, siteInfo] = await Promise.all([
+    getExistingUser(username),
+    getCachedSiteInfo(),
+  ])
+  const initialPosts = await getCachedUserFirstPagePosts(user.id, siteInfo.postsPerPage || 10)
+  return <UserPage user={user} initialPosts={initialPosts} />
 }

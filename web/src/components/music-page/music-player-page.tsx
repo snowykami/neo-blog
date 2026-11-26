@@ -156,18 +156,36 @@ function TrackHero({ track, playing, onCoverClick, className }: { track: MusicTr
 }
 
 /** 歌单未配置、加载中、加载失败或为空时的占位 */
-function PlayerPlaceholder({ state }: { state: 'not_configured' | 'loading' | 'failed' | 'empty' }) {
+function PlayerPlaceholder({
+  state,
+  seoHeading,
+  seoDescription,
+}: {
+  state: 'not_configured' | 'loading' | 'failed' | 'empty'
+  seoHeading?: string
+  seoDescription?: string
+}) {
   const t = useTranslations('MusicPage')
-  if (state === 'loading')
-    return <Spinner className="m-auto size-8 text-white/70" aria-label={t('loading')} />
   return (
-    <Empty className="m-auto border-0 bg-transparent text-white">
-      <EmptyHeader>
-        <EmptyMedia variant="icon"><MusicIcon /></EmptyMedia>
-        <EmptyTitle>{t(`${state}_title`)}</EmptyTitle>
-        <EmptyDescription className="text-white/60">{t(`${state}_description`)}</EmptyDescription>
-      </EmptyHeader>
-    </Empty>
+    <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-5">
+      {seoHeading && (
+        <div className="sr-only">
+          <h1>{seoHeading}</h1>
+          {seoDescription && <p>{seoDescription}</p>}
+        </div>
+      )}
+      {state === 'loading'
+        ? <Spinner className="m-auto size-8 text-white/70" aria-label={t('loading')} />
+        : (
+            <Empty className="m-auto border-0 bg-transparent text-white">
+              <EmptyHeader>
+                <EmptyMedia variant="icon"><MusicIcon /></EmptyMedia>
+                <EmptyTitle>{t(`${state}_title`)}</EmptyTitle>
+                <EmptyDescription className="text-white/60">{t(`${state}_description`)}</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          )}
+    </main>
   )
 }
 
@@ -175,7 +193,7 @@ function PlayerPlaceholder({ state }: { state: 'not_configured' | 'loading' | 'f
  * 播放器页（/music，见 docs/music-player-spec.md 第 5 节）：沉浸式全屏，与悬浮播放器共用全局播放状态。
  * 桌面端左栏为封面、信息与控制栏，右栏为歌词舞台；移动端在歌词视图（默认）与封面视图之间切换，控制栏固定在底部
  */
-export function MusicPlayerPage() {
+export function MusicPlayerPage({ seoHeading, seoDescription }: { seoHeading?: string, seoDescription?: string } = {}) {
   const t = useTranslations('MusicPage')
   const router = useRouter()
   const { siteInfo } = useSiteInfo()
@@ -267,7 +285,7 @@ export function MusicPlayerPage() {
       {debugOpen && canDebug && !placeholder && <RhythmDebugPanel onClose={() => setDebugOpen(false)} />}
 
       {placeholder || !currentTrack
-        ? <PlayerPlaceholder state={placeholder ?? 'loading'} />
+        ? <PlayerPlaceholder state={placeholder ?? 'loading'} seoHeading={seoHeading} seoDescription={seoDescription} />
         : (
             <main
               className={cn(

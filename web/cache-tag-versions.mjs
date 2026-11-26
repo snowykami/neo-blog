@@ -32,7 +32,7 @@ const ERROR_LOG_INTERVAL_MS = 60_000
 const DEFAULT_REDIS_PREFIX = 'neo-blog:'
 
 /** 依赖后端数据的标签，与 src/lib/cache-tags.ts 的 CacheTag、后端 repo.CacheTags 一致 */
-export const BACKEND_TAGS = ['posts', 'pages', 'users', 'site']
+export const BACKEND_TAGS = ['posts', 'pages', 'users', 'friends', 'site']
 /** 不存在的内容（404）的标签，与 src/lib/cache-tags.ts 的 CacheTag.NoStore 一致：带它的取数结果与页面都不写进缓存 */
 export const NO_STORE_TAG = 'neo-nostore'
 

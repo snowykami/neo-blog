@@ -48,7 +48,12 @@ func (mc *MiscController) GetPublicConfig(ctx context.Context, c *app.RequestCon
 }
 
 func (mc *MiscController) GetSitemapData(ctx context.Context, c *app.RequestContext) {
-	resps.Ok(c, "", mc.service.GetSitemapData(ctx))
+	data, svcerr := mc.service.GetSitemapData(ctx)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, "", data)
 }
 
 func (mc *MiscController) GetRssData(ctx context.Context, c *app.RequestContext) {

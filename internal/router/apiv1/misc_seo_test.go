@@ -86,4 +86,130 @@ func TestSitemapPagesAndSiteLanguage(t *testing.T) {
 	if _, ok := info.Data["default_language"]; ok {
 		t.Fatalf("site-info should not carry default_language")
 	}
+	seoMap, ok := info.Data["seo"].(map[string]any)
+	if !ok {
+		t.Fatalf("site-info should carry default seo config map, got %T", info.Data["seo"])
+	}
+	if seoMap["allow_indexing"] != true ||
+		seoMap["sitemap_enabled"] != true ||
+		seoMap["sitemap_locale_mode"] != "default_only" ||
+		seoMap["locale_index_mode"] != "canonical_default" ||
+		seoMap["rss_enabled"] != true ||
+		seoMap["twitter_card"] != "summary_large_image" {
+		t.Fatalf("unexpected default seo settings: %#v", seoMap)
+	}
+}
+
+func TestSeoConfigRssAndSitemapFriends(t *testing.T) {
+	t.Setenv(constant.EnvKeyDBDriver, "sqlite")
+	t.Setenv(constant.EnvKeyDBURL, "")
+	t.Setenv(constant.EnvKeyDBPath, filepath.Join(t.TempDir(), "test.db"))
+	if err := repo.InitDatabase(); err != nil {
+		t.Fatalf("init database: %v", err)
+	}
+
+	user := model.User{Username: "author1", Role: constant.RoleAdmin}
+	if err := repo.GetDB().Create(&user).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	post := model.Post{
+		UserID: user.ID,
+		PostBase: model.PostBase{
+			Title:       "SEO 实战",
+			Description: "手写摘要",
+			Content:     "<p>这是一段完整的文章正文内容。</p>",
+		},
+		Excerpt: "这是一段完整的文章正文内容。",
+	}
+	if err := repo.GetDB().Create(&post).Error; err != nil {
+		t.Fatalf("create post: %v", err)
+	}
+	groups, err := repo.Friend.ListGroups(true, "")
+	if err != nil || len(groups) == 0 {
+		t.Fatalf("list friend groups: %v", err)
+	}
+	link := model.FriendLink{
+		GroupID:        groups[0].ID,
+		Name:           "Friend Blog",
+		URL:            "https://friend.example.com",
+		NormalizedHost: "friend.example.com",
+		Status:         model.FriendStatusApproved,
+		ColorKey:       "sky",
+	}
+	if err := repo.Friend.CreateLink(&link); err != nil {
+		t.Fatalf("create friend link: %v", err)
+	}
+
+	base := startRoutes(t, registerMiscRoutes)
+
+	var sm struct {
+		Data struct {
+			SitemapEnabled    bool   `json:"sitemap_enabled"`
+			SitemapLocaleMode string `json:"sitemap_locale_mode"`
+			FriendsEnabled    bool   `json:"friends_enabled"`
+			FriendsUpdatedAt  string `json:"friends_updated_at"`
+		} `json:"data"`
+	}
+	getJSON(t, base+"/misc/sitemap-data", &sm)
+	if !sm.Data.SitemapEnabled || sm.Data.SitemapLocaleMode != "default_only" || !sm.Data.FriendsEnabled || sm.Data.FriendsUpdatedAt == "" {
+		t.Fatalf("unexpected sitemap seo fields: %+v", sm.Data)
+	}
+
+	// 切换为仅摘要输出 + 自定义 RSS 描述
+	if err := repo.KV.SetKV("rss_full_content", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.KV.SetKV("rss_description", "自定义订阅简介"); err != nil {
+		t.Fatal(err)
+	}
+	var rssSummary struct {
+		Data struct {
+			Enabled          bool   `json:"enabled"`
+			FullContent      bool   `json:"full_content"`
+			Description      string `json:"description"`
+			PostDefaultCover string `json:"post_default_cover"`
+			Posts            []struct {
+				Description string `json:"description"`
+				Excerpt     string `json:"excerpt"`
+				Content     string `json:"content"`
+			} `json:"posts"`
+		} `json:"data"`
+	}
+	getJSON(t, base+"/misc/rss-data", &rssSummary)
+	if !rssSummary.Data.Enabled || rssSummary.Data.FullContent || rssSummary.Data.Description != "自定义订阅简介" || rssSummary.Data.PostDefaultCover != "" {
+		t.Fatalf("unexpected rss summary metadata: %+v", rssSummary.Data)
+	}
+	if len(rssSummary.Data.Posts) != 1 || rssSummary.Data.Posts[0].Content != "" || rssSummary.Data.Posts[0].Description != "手写摘要" {
+		t.Fatalf("expected summary-only rss item without full content, got %+v", rssSummary.Data.Posts)
+	}
+
+	// 关闭全站索引时，sitemap-data 立即短路为空列表且 site-info.seo.sitemap_enabled 同步为 false
+	if err := repo.KV.SetKV("seo_allow_indexing", false); err != nil {
+		t.Fatal(err)
+	}
+	var smDisabled struct {
+		Data struct {
+			SitemapEnabled bool  `json:"sitemap_enabled"`
+			Posts          []any `json:"posts"`
+		} `json:"data"`
+	}
+	getJSON(t, base+"/misc/sitemap-data", &smDisabled)
+	if smDisabled.Data.SitemapEnabled || len(smDisabled.Data.Posts) != 0 {
+		t.Fatalf("expected sitemap short-circuited when seo_allow_indexing=false, got %+v", smDisabled.Data)
+	}
+
+	// 关闭 RSS 后返回 enabled=false 且不查文章列表
+	if err := repo.KV.SetKV("rss_enabled", false); err != nil {
+		t.Fatal(err)
+	}
+	var rssDisabled struct {
+		Data struct {
+			Enabled bool  `json:"enabled"`
+			Posts   []any `json:"posts"`
+		} `json:"data"`
+	}
+	getJSON(t, base+"/misc/rss-data", &rssDisabled)
+	if rssDisabled.Data.Enabled || len(rssDisabled.Data.Posts) != 0 {
+		t.Fatalf("expected rss disabled response, got %+v", rssDisabled.Data)
+	}
 }

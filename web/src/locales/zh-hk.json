@@ -353,7 +353,13 @@
     "user": "用戶"
   },
   "Route": {
-    "privacy_policy": "私隱政策"
+    "privacy_policy": "私隱政策",
+    "archive_desc": "{site} 的文章時間軸封存，依年份與日期瀏覽全部公開文章。",
+    "friends_desc": "{site} 的友情連結與夥伴網站導覽。",
+    "label_desc": "{site} 的文章標籤索引，依主題標籤探索相關內容。",
+    "category_desc": "{site} 的文章分類目錄，依專欄分類瀏覽全部文章。",
+    "music_desc": "{site} 的網上音樂播放器與精選歌單。",
+    "user_desc": "{name} 在 {site} 的作者主頁與公開創作列表。"
   },
   "RhythmDebug": {
     "reasons": {

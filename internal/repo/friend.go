@@ -38,19 +38,31 @@ func (r *friendRepo) GetGroupBySlug(slug string) (*model.FriendGroup, error) {
 }
 
 func (r *friendRepo) CreateGroup(group *model.FriendGroup) error {
-	return GetDB().Select("*").Create(group).Error
+	err := GetDB().Select("*").Create(group).Error
+	if err == nil {
+		TouchCacheTags(CacheTagFriends)
+	}
+	return err
 }
 
 func (r *friendRepo) SaveGroup(group *model.FriendGroup) error {
-	return GetDB().Save(group).Error
+	err := GetDB().Save(group).Error
+	if err == nil {
+		TouchCacheTags(CacheTagFriends)
+	}
+	return err
 }
 
 func (r *friendRepo) DeleteGroup(id uint) error {
-	return GetDB().Delete(&model.FriendGroup{}, id).Error
+	err := GetDB().Delete(&model.FriendGroup{}, id).Error
+	if err == nil {
+		TouchCacheTags(CacheTagFriends)
+	}
+	return err
 }
 
 func (r *friendRepo) ReorderGroups(ids []uint) error {
-	return GetDB().Transaction(func(tx *gorm.DB) error {
+	err := GetDB().Transaction(func(tx *gorm.DB) error {
 		for i, id := range ids {
 			if err := tx.Model(&model.FriendGroup{}).Where("id = ?", id).UpdateColumn("sort_order", (i+1)*10).Error; err != nil {
 				return err
@@ -58,6 +70,10 @@ func (r *friendRepo) ReorderGroups(ids []uint) error {
 		}
 		return nil
 	})
+	if err == nil {
+		TouchCacheTags(CacheTagFriends)
+	}
+	return err
 }
 
 func (r *friendRepo) CountLinksByGroup() (map[uint]int64, error) {
@@ -146,7 +162,7 @@ func (r *friendRepo) NextLinkSortOrder(groupID uint) (int, error) {
 
 // ReorderLinksInGroup 在单事务中按给定顺序重写指定分组内友链的 sort_order（保留原有 updated_at）
 func (r *friendRepo) ReorderLinksInGroup(groupID uint, orderedIDs []uint) error {
-	return GetDB().Transaction(func(tx *gorm.DB) error {
+	err := GetDB().Transaction(func(tx *gorm.DB) error {
 		for i, id := range orderedIDs {
 			if err := tx.Model(&model.FriendLink{}).
 				Where("id = ? AND group_id = ?", id, groupID).
@@ -156,6 +172,10 @@ func (r *friendRepo) ReorderLinksInGroup(groupID uint, orderedIDs []uint) error 
 		}
 		return nil
 	})
+	if err == nil {
+		TouchCacheTags(CacheTagFriends)
+	}
+	return err
 }
 
 func (r *friendRepo) ListByUser(userID uint) ([]model.FriendLink, error) {
@@ -183,22 +203,38 @@ func (r *friendRepo) GetByNormalizedHost(host string) (*model.FriendLink, error)
 }
 
 func (r *friendRepo) CreateLink(link *model.FriendLink) error {
-	return GetDB().Create(link).Error
+	err := GetDB().Create(link).Error
+	if err == nil {
+		TouchCacheTags(CacheTagFriends)
+	}
+	return err
 }
 
 func (r *friendRepo) SaveLink(link *model.FriendLink) error {
-	return GetDB().Omit("User").Save(link).Error
+	err := GetDB().Omit("User").Save(link).Error
+	if err == nil {
+		TouchCacheTags(CacheTagFriends)
+	}
+	return err
 }
 
 func (r *friendRepo) UpdateLinkColumns(id uint, updates map[string]any) error {
-	return GetDB().Model(&model.FriendLink{}).Where("id = ?", id).Updates(updates).Error
+	err := GetDB().Model(&model.FriendLink{}).Where("id = ?", id).Updates(updates).Error
+	if err == nil {
+		TouchCacheTags(CacheTagFriends)
+	}
+	return err
 }
 
 // UpdateLinkProbeColumns 仅在目标友链地址、回链配置与所属分组均未并发变更时写回拨测结果（使用 UpdateColumns 避免污染 updated_at）
 func (r *friendRepo) UpdateLinkProbeColumns(id uint, expectedURL string, expectedBacklinkURL string, expectedGroupID uint, updates map[string]any) error {
-	return GetDB().Model(&model.FriendLink{}).
+	tx := GetDB().Model(&model.FriendLink{}).
 		Where("id = ? AND url = ? AND backlink_url = ? AND group_id = ?", id, expectedURL, expectedBacklinkURL, expectedGroupID).
-		UpdateColumns(updates).Error
+		UpdateColumns(updates)
+	if tx.Error == nil && tx.RowsAffected > 0 {
+		TouchCacheTags(CacheTagFriends)
+	}
+	return tx.Error
 }
 
 // BackfillEmptyRSSURL 仅当友链地址未变且 rss_url 仍为空时原子回填自动探测到的 RSS 地址，绝不覆盖用户或管理员手动填写的值
@@ -209,6 +245,9 @@ func (r *friendRepo) BackfillEmptyRSSURL(id uint, expectedURL string, discovered
 	tx := GetDB().Model(&model.FriendLink{}).
 		Where("id = ? AND url = ? AND rss_url = ''", id, expectedURL).
 		UpdateColumn("rss_url", discoveredRSS)
+	if tx.Error == nil && tx.RowsAffected > 0 {
+		TouchCacheTags(CacheTagFriends)
+	}
 	return tx.RowsAffected > 0, tx.Error
 }
 
@@ -224,7 +263,11 @@ func (r *friendRepo) BackfillEmptyBacklinkURL(id uint, expectedURL string, disco
 }
 
 func (r *friendRepo) DeleteLink(id uint) error {
-	return GetDB().Delete(&model.FriendLink{}, id).Error
+	err := GetDB().Delete(&model.FriendLink{}, id).Error
+	if err == nil {
+		TouchCacheTags(CacheTagFriends)
+	}
+	return err
 }
 
 func (r *friendRepo) CountPendingReviews() (int64, error) {
@@ -280,6 +323,24 @@ func (r *friendRepo) ListPendingLinks(limit int) ([]model.FriendLink, error) {
 		Limit(limit).
 		Find(&links).Error
 	return links, err
+}
+
+// CommitPendingReview 仅在记录仍处于 pending 时原子写入 AI 初审结论，确保不覆盖管理员中途人工裁决
+func (r *friendRepo) CommitPendingReview(id uint, nextStatus string, note string) (bool, error) {
+	tx := GetDB().Model(&model.FriendLink{}).
+		Where("id = ? AND status = ?", id, model.FriendStatusPending).
+		Updates(map[string]any{
+			"status":      nextStatus,
+			"review_note": note,
+		})
+	if tx.Error != nil {
+		return false, tx.Error
+	}
+	if tx.RowsAffected > 0 {
+		TouchCacheTags(CacheTagFriends)
+		return true, nil
+	}
+	return false, nil
 }
 
 // seedDefaultFriendGroups 首次启动且表中无任何分组时初始化默认预设分组

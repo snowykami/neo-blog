@@ -11,7 +11,6 @@ import (
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/cache"
-	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"golang.org/x/sync/singleflight"
 )
@@ -48,6 +47,23 @@ func (s *MiscService) GetSiteInfo() map[string]any {
 		"enabled": tools.InteractionEnabled(),
 		"comment": tools.CommentEnabled(),
 		"like":    tools.LikeEnabled(),
+	}
+	// SEO 配置写入综合总开关后的实际生效值（关闭全站索引时 sitemap_enabled 同步为 false）
+	info["seo"] = dto.SEOSettingsDto{
+		HomeTitle:          config.String("seo_home_title"),
+		HomeDescription:    config.String("seo_home_description"),
+		OgImage:            config.String("seo_og_image"),
+		TwitterHandle:      config.String("seo_twitter_handle"),
+		TwitterCard:        config.String("seo_twitter_card"),
+		GoogleVerification: config.String("seo_google_verification"),
+		BingVerification:   config.String("seo_bing_verification"),
+		BaiduVerification:  config.String("seo_baidu_verification"),
+		AllowIndexing:      tools.GetSEOAllowIndexing(),
+		RobotsExtraRules:   config.String("seo_robots_extra_rules"),
+		SitemapEnabled:     tools.GetSEOSitemapEnabled(),
+		SitemapLocaleMode:  config.String("seo_sitemap_locale_mode"),
+		LocaleIndexMode:    config.String("seo_locale_index_mode"),
+		RssEnabled:         tools.GetRssEnabled(),
 	}
 	// 评论的字数上限与折叠行数是后台可调的配置，直接给生效值，前台不必再判断缺省
 	info["comment_max_length"] = tools.GetCommentMaxLength()
@@ -87,15 +103,33 @@ func (s *MiscService) GetPublicConfig(keysParam string) (map[string]any, *errs.S
 }
 
 // GetSitemapData 聚合全站公开文章、独立页面、分类、标签与编辑列表供站点地图使用（带短时缓存与防击穿合并）
-func (s *MiscService) GetSitemapData(ctx context.Context) map[string]any {
-	if cached, ok := cache.GetJSON[map[string]any](repo.SitemapGuestCache, "sitemap"); ok {
-		return cached
+func (s *MiscService) GetSitemapData(ctx context.Context) (map[string]any, *errs.ServiceError) {
+	if !tools.GetSEOSitemapEnabled() {
+		return map[string]any{
+			"base_url":            tools.GetBaseUrl(),
+			"sitemap_enabled":     false,
+			"sitemap_locale_mode": config.String("seo_sitemap_locale_mode"),
+			"friends_enabled":     false,
+			"friends_updated_at":  nil,
+			"archives":            []string{},
+			"pages":               []map[string]any{},
+			"labels":              []map[string]any{},
+			"categories":          []map[string]any{},
+			"posts":               []map[string]any{},
+			"editors":             []map[string]any{},
+		}, nil
 	}
-	rawVal, _, _ := sitemapGuestFlight.Do("sitemap", func() (any, error) {
+	if cached, ok := cache.GetJSON[map[string]any](repo.SitemapGuestCache, "sitemap"); ok {
+		return cached, nil
+	}
+	rawVal, err, _ := sitemapGuestFlight.Do("sitemap", func() (any, error) {
 		if cached, ok := cache.GetJSON[map[string]any](repo.SitemapGuestCache, "sitemap"); ok {
 			return cached, nil
 		}
-		raw := repo.Misc.GetSitemapRaw(ctx, tools.GetSitemapLimit())
+		raw, dbErr := repo.Misc.GetSitemapRaw(context.WithoutCancel(ctx), tools.GetSitemapLimit())
+		if dbErr != nil {
+			return nil, dbErr
+		}
 		archiveSet := make(map[string]struct{})
 		archives := make([]string, 0)
 		for _, post := range raw.Posts {
@@ -108,8 +142,12 @@ func (s *MiscService) GetSitemapData(ctx context.Context) map[string]any {
 		}
 
 		payload := map[string]any{
-			"base_url": tools.GetBaseUrl(),
-			"archives": archives,
+			"base_url":            tools.GetBaseUrl(),
+			"sitemap_enabled":     true,
+			"sitemap_locale_mode": config.String("seo_sitemap_locale_mode"),
+			"friends_enabled":     true,
+			"friends_updated_at":  raw.FriendsUpdatedAt,
+			"archives":            archives,
 			"pages": func() []map[string]any {
 				m := make([]map[string]any, 0, len(raw.Pages))
 				for _, page := range raw.Pages {
@@ -171,53 +209,75 @@ func (s *MiscService) GetSitemapData(ctx context.Context) map[string]any {
 		cache.SetJSON(repo.SitemapGuestCache, "sitemap", payload, repo.PostGuestCacheTTL)
 		return payload, nil
 	})
-	return rawVal.(map[string]any)
+	if err != nil {
+		return nil, errs.Internal("failed_to_get_target", err).WithResource("sitemap")
+	}
+	return rawVal.(map[string]any), nil
 }
 
 // GetRssData 获取 RSS 订阅源数据
-func (s *MiscService) GetRssData(ctx context.Context) (map[string]any, *errs.ServiceError) {
-	posts, err := repo.Misc.ListPublicPostsForRSS(ctx, tools.GetRssLimit())
+func (s *MiscService) GetRssData(ctx context.Context) (*dto.RssDataDto, *errs.ServiceError) {
+	if !tools.GetRssEnabled() {
+		return &dto.RssDataDto{
+			Enabled: false,
+			Posts:   []dto.RssPostItemDto{},
+		}, nil
+	}
+
+	fullContent := tools.GetRssFullContent()
+	posts, err := repo.Misc.ListPublicPostsForRSS(ctx, tools.GetRssLimit(), fullContent)
 	if err != nil {
 		return nil, errs.Internal("failed_to_get_target", err).WithResource("post")
 	}
 
-	return map[string]any{
-		"title":              tools.GetRssTitle(),
-		"description":        tools.GetSiteDescription(),
-		"site_url":           tools.GetBaseUrl(),
-		"feed_url":           tools.GetBaseUrl() + "/rss.xml",
-		"author":             tools.GetRssAuthor(),
-		"copyright":          tools.GetRssCopyright(),
-		"image_url":          tools.GetRssImage(),
-		"language":           config.String("default_language"),
-		"post_default_cover": repo.KV.GetKVWithoutErr(constant.KeyPostDefaultCover, "https://cdn.liteyuki.org/blog/background.png"),
-		"pub_date": func() time.Time {
-			if len(posts) > 0 {
-				return posts[0].UpdatedAt
+	pubDate := time.Now()
+	if len(posts) > 0 {
+		pubDate = posts[0].UpdatedAt
+		for _, post := range posts[1:] {
+			if post.UpdatedAt.After(pubDate) {
+				pubDate = post.UpdatedAt
 			}
-			return time.Now()
-		}(),
-		"posts": func() []map[string]any {
-			m := make([]map[string]any, 0, len(posts))
-			for _, post := range posts {
-				m = append(m, map[string]any{
-					"id":         post.ID,
-					"title":      post.Title,
-					"slug":       post.Slug,
-					"content":    post.Content,
-					"created_at": post.CreatedAt,
-					"updated_at": post.UpdatedAt,
-					"user":       post.User.ToPublicDto(),
-					"category": func() *dto.CategoryDto {
-						if post.Category == nil {
-							return nil
-						}
-						return post.Category.ToDto()
-					}(),
-					"cover": post.Cover,
-				})
-			}
-			return m
-		}(),
+		}
+	}
+
+	items := make([]dto.RssPostItemDto, 0, len(posts))
+	for _, post := range posts {
+		var cat *dto.CategoryDto
+		if post.Category != nil {
+			cat = post.Category.ToDto()
+		}
+		content := ""
+		if fullContent {
+			content = post.Content
+		}
+		items = append(items, dto.RssPostItemDto{
+			ID:          post.ID,
+			Title:       post.Title,
+			Slug:        post.Slug,
+			Description: post.Description,
+			Excerpt:     post.Excerpt,
+			Content:     content,
+			CreatedAt:   post.CreatedAt,
+			UpdatedAt:   post.UpdatedAt,
+			User:        post.User.ToPublicDto(),
+			Category:    cat,
+			Cover:       post.Cover,
+		})
+	}
+
+	return &dto.RssDataDto{
+		Enabled:          true,
+		FullContent:      fullContent,
+		Title:            tools.GetRssTitle(),
+		Description:      tools.GetRssDescription(),
+		SiteURL:          tools.GetBaseUrl(),
+		FeedURL:          tools.GetBaseUrl() + "/rss.xml",
+		Author:           tools.GetRssAuthor(),
+		Copyright:        tools.GetRssCopyright(),
+		ImageURL:         tools.GetRssImage(),
+		Language:         config.String("default_language"),
+		PostDefaultCover: tools.GetPostDefaultCover(),
+		PubDate:          pubDate,
+		Posts:            items,
 	}, nil
 }

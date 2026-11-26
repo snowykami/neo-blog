@@ -29,6 +29,7 @@ var NCMSongLevels = []string{"standard", "higher", "exhigh", "lossless", "hires"
 
 var tabs = []Tab{
 	{Key: "site", Title: "tab_site"},
+	{Key: "seo", Title: "tab_seo"},
 	{Key: "appearance", Title: "tab_appearance"},
 	{Key: "content", Title: "tab_content"},
 	{Key: "account", Title: "tab_account"},
@@ -61,7 +62,6 @@ var sections = []*Section{
 		{Key: "default_language", Type: TypeEnum, Label: "site_language", Description: "site_language_desc", Options: options([]string{"zh-cn", "zh-tw", "en-us", "ja-jp", "ko-kr"}, "site_language_"), Default: "zh-cn"},
 		{Key: "site_icon", Type: TypeImage, Label: "site_icon", Default: "", siteInfoPath: path("metadata.icon"), mirror: same},
 		{Key: "site_icon_radius", Type: TypeInt, Widget: "site_icon_radius", Label: "site_icon_radius", Description: "site_icon_radius_desc", Min: num(0), Max: num(50), Wide: true, Default: 22, siteInfoPath: path("metadata.icon_radius")},
-		{Key: "keywords", Type: TypeStringList, Label: "keywords", PlaceholderKey: "keyword_placeholder", Default: []string{}, siteInfoPath: path("keywords")},
 		// 前台随机使用其中一张；RSS 的默认封面只支持单张，独立配置键只写第一张
 		{Key: "default_cover", Type: TypeImageList, Label: "default_covers", Description: "default_covers_desc", Default: []string{}, siteInfoPath: path("default_cover"), mirror: first},
 	}},
@@ -80,12 +80,39 @@ var sections = []*Section{
 		{Key: "footer_text", Type: TypeString, Label: "footer_text", Wide: true, Default: "", siteInfoPath: path("footer.text")},
 		{Key: "footer_links", Type: TypeLinkList, Label: "footer_links", Default: []map[string]any{}, siteInfoPath: path("footer.links")},
 	}},
-	{Tab: "site", Key: "rss", Title: "section_rss", Description: "section_rss_desc", Items: []*Item{
-		{Key: "site_title", Type: TypeString, Label: "rss_title", Default: ""},
-		{Key: "site_author", Type: TypeString, Label: "rss_author", Default: ""},
-		{Key: "site_copyright", Type: TypeString, Label: "rss_copyright", Default: ""},
-		{Key: "site_image", Type: TypeImage, Label: "rss_image", Default: ""},
-		{Key: "rss_limit", Type: TypeInt, Label: "rss_limit", Description: "rss_limit_desc", Min: num(1), Max: num(500), Default: constant.DefaultRssLimit, Env: constant.EnvKeyRssLimit},
+
+	// ---- SEO 与订阅 ----
+	{Tab: "seo", Key: "seo_meta", Title: "section_seo_meta", Description: "section_seo_meta_desc", Items: []*Item{
+		{Key: "seo_home_title", Type: TypeString, Label: "seo_home_title", Description: "seo_home_title_desc", PlaceholderKey: "seo_inherit_site_placeholder", Default: "", siteInfoPath: path("seo.home_title")},
+		{Key: "seo_twitter_handle", Type: TypeString, Label: "seo_twitter_handle", Description: "seo_twitter_handle_desc", Placeholder: "@username", Default: "", siteInfoPath: path("seo.twitter_handle")},
+		{Key: "seo_twitter_card", Type: TypeEnum, Label: "seo_twitter_card", Description: "seo_twitter_card_desc", Options: options([]string{"summary_large_image", "summary"}, "seo_twitter_card_"), Default: "summary_large_image", siteInfoPath: path("seo.twitter_card")},
+		{Key: "seo_home_description", Type: TypeText, Label: "seo_home_description", Description: "seo_home_description_desc", PlaceholderKey: "seo_inherit_desc_placeholder", Wide: true, Default: "", siteInfoPath: path("seo.home_description")},
+		{Key: "keywords", Type: TypeStringList, Label: "keywords", Description: "seo_keywords_desc", PlaceholderKey: "keyword_placeholder", Default: []string{}, siteInfoPath: path("keywords")},
+		{Key: "seo_og_image", Type: TypeImage, Label: "seo_og_image", Description: "seo_og_image_desc", Default: "", siteInfoPath: path("seo.og_image")},
+	}},
+	{Tab: "seo", Key: "seo_verification", Title: "section_seo_verification", Description: "section_seo_verification_desc", Items: []*Item{
+		{Key: "seo_google_verification", Type: TypeString, Label: "seo_google_verification", Description: "seo_google_verification_desc", Default: "", siteInfoPath: path("seo.google_verification")},
+		{Key: "seo_bing_verification", Type: TypeString, Label: "seo_bing_verification", Description: "seo_bing_verification_desc", Default: "", siteInfoPath: path("seo.bing_verification")},
+		{Key: "seo_baidu_verification", Type: TypeString, Label: "seo_baidu_verification", Description: "seo_baidu_verification_desc", Default: "", siteInfoPath: path("seo.baidu_verification")},
+	}},
+	{Tab: "seo", Key: "seo_indexing", Title: "section_seo_indexing", Description: "section_seo_indexing_desc", Items: []*Item{
+		{Key: "seo_allow_indexing", Type: TypeBool, Label: "seo_allow_indexing", Description: "seo_allow_indexing_desc", Default: true, siteInfoPath: path("seo.allow_indexing")},
+		{Key: "seo_locale_index_mode", Type: TypeEnum, Label: "seo_locale_index_mode", Description: "seo_locale_index_mode_desc", Options: options([]string{"canonical_default", "noindex_follow", "independent"}, "seo_locale_index_mode_"), Default: "canonical_default", ShowWhen: when("seo_allow_indexing", "true"), siteInfoPath: path("seo.locale_index_mode")},
+		{Key: "seo_sitemap_enabled", Type: TypeBool, Label: "seo_sitemap_enabled", Description: "seo_sitemap_enabled_desc", Default: true, ShowWhen: when("seo_allow_indexing", "true"), siteInfoPath: path("seo.sitemap_enabled")},
+		{Key: "seo_sitemap_locale_mode", Type: TypeEnum, Label: "seo_sitemap_locale_mode", Description: "seo_sitemap_locale_mode_desc", Options: options([]string{"default_only", "all_locales"}, "seo_sitemap_locale_mode_"), Default: "default_only", ShowWhen: when("seo_sitemap_enabled", "true"), siteInfoPath: path("seo.sitemap_locale_mode")},
+		// 站点地图协议单个文件最多 50000 条
+		{Key: "sitemap_limit", Type: TypeInt, Label: "sitemap_limit", Description: "sitemap_limit_desc", Min: num(1), Max: num(50000), Default: constant.DefaultSitemapLimit, Env: constant.EnvKeySitemapLimit, ShowWhen: when("seo_sitemap_enabled", "true")},
+		{Key: "seo_robots_extra_rules", Type: TypeText, Label: "seo_robots_extra_rules", Description: "seo_robots_extra_rules_desc", Placeholder: "User-agent: GPTBot\nDisallow: /", Rows: 4, Wide: true, Default: "", ShowWhen: when("seo_allow_indexing", "true"), siteInfoPath: path("seo.robots_extra_rules")},
+	}},
+	{Tab: "seo", Key: "rss", Title: "section_rss", Description: "section_rss_desc", Items: []*Item{
+		{Key: "rss_enabled", Type: TypeBool, Label: "rss_enabled", Description: "rss_enabled_desc", Default: true, siteInfoPath: path("seo.rss_enabled")},
+		{Key: "site_title", Type: TypeString, Label: "rss_title", PlaceholderKey: "seo_inherit_name_placeholder", Default: "", ShowWhen: when("rss_enabled", "true")},
+		{Key: "site_author", Type: TypeString, Label: "rss_author", PlaceholderKey: "seo_inherit_owner_placeholder", Default: "", ShowWhen: when("rss_enabled", "true")},
+		{Key: "site_copyright", Type: TypeString, Label: "rss_copyright", PlaceholderKey: "seo_inherit_copyright_placeholder", Default: "", ShowWhen: when("rss_enabled", "true")},
+		{Key: "rss_limit", Type: TypeInt, Label: "rss_limit", Description: "rss_limit_desc", Min: num(1), Max: num(500), Default: constant.DefaultRssLimit, Env: constant.EnvKeyRssLimit, ShowWhen: when("rss_enabled", "true")},
+		{Key: "rss_description", Type: TypeText, Label: "rss_description", Description: "rss_description_desc", PlaceholderKey: "seo_inherit_desc_placeholder", Wide: true, Default: "", ShowWhen: when("rss_enabled", "true")},
+		{Key: "site_image", Type: TypeImage, Label: "rss_image", Description: "rss_image_desc", Default: "", ShowWhen: when("rss_enabled", "true")},
+		{Key: "rss_full_content", Type: TypeBool, Label: "rss_full_content", Description: "rss_full_content_desc", Default: true, ShowWhen: when("rss_enabled", "true")},
 	}},
 
 	// ---- 外观与前台 ----
@@ -147,8 +174,6 @@ var sections = []*Section{
 	{Tab: "content", Key: "content", Title: "section_content", Items: []*Item{
 		{Key: "posts_per_page", Type: TypeInt, Label: "posts_per_page", Min: num(1), Max: num(100), Default: 10, siteInfoPath: path("posts_per_page")},
 		{Key: "revision_max_keep", Type: TypeInt, Label: "revision_max_keep", Description: "revision_max_keep_desc", Min: num(RevisionMaxKeepMin), Max: num(RevisionMaxKeepMax), Default: RevisionMaxKeepDefault},
-		// 站点地图协议单个文件最多 50000 条
-		{Key: "sitemap_limit", Type: TypeInt, Label: "sitemap_limit", Description: "sitemap_limit_desc", Min: num(1), Max: num(50000), Default: constant.DefaultSitemapLimit, Env: constant.EnvKeySitemapLimit},
 	}},
 	// 互动功能（评论与点赞）：把总分开关与评论展示参数放在同一处，应对审核或调优时一屏改完
 	{Tab: "content", Key: "interaction", Title: "section_interaction", Description: "section_interaction_desc", Items: []*Item{

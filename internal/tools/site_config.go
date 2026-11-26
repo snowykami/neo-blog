@@ -18,14 +18,36 @@ func GetSiteName() string        { return config.String("site_name") }
 func GetSiteIcon() string        { return config.String("site_icon") }
 func GetSiteDescription() string { return config.String("site_description") }
 
-// RSS 频道信息：后台「RSS」页单独填写的优先，留空时沿用站点名称、站长名称、页脚版权与站点图标
-func GetRssTitle() string  { return cmp.Or(config.String("site_title"), GetSiteName()) }
-func GetRssAuthor() string { return cmp.Or(config.String("site_author"), config.String("owner_name")) }
-func GetRssImage() string  { return cmp.Or(config.String("site_image"), GetSiteIcon()) }
+// RSS 频道信息：后台「SEO → RSS」单独填写的优先，留空时沿用站点名称、站点简介、站长名称、页脚版权与站点图标
+func GetRssEnabled() bool { return config.Bool("rss_enabled") }
+func GetRssTitle() string { return cmp.Or(config.String("site_title"), GetSiteName()) }
+func GetRssDescription() string {
+	return cmp.Or(config.String("rss_description"), GetSiteDescription())
+}
+func GetRssAuthor() string    { return cmp.Or(config.String("site_author"), config.String("owner_name")) }
+func GetRssImage() string     { return cmp.Or(config.String("site_image"), GetSiteIcon()) }
+func GetRssFullContent() bool { return config.Bool("rss_full_content") }
 
 // GetRssCopyright 都没填写时沿用以往的默认协议
 func GetRssCopyright() string {
-	return cmp.Or(config.String("site_copyright"), config.String("copyright"), "CC BY-NC-SA 4.0")
+	return cmp.Or(config.String("site_copyright"), config.String("copyright"), config.String("footer_text"), "CC BY-NC-SA 4.0")
+}
+
+// GetPostDefaultCover 获取首张默认文章封面（未配置时返回空串，不在零配置站点硬编码外部地址）
+func GetPostDefaultCover() string {
+	covers := config.Strings("default_cover")
+	for _, c := range covers {
+		if trimmed := strings.TrimSpace(c); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+// SEO 索引与站点地图开关
+func GetSEOAllowIndexing() bool { return config.Bool("seo_allow_indexing") }
+func GetSEOSitemapEnabled() bool {
+	return config.Bool("seo_allow_indexing") && config.Bool("seo_sitemap_enabled")
 }
 
 // GetBaseUrl 站点地址：环境变量 BASE_URL 优先，其次后台配置

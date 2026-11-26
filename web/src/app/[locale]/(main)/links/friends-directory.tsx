@@ -140,6 +140,9 @@ export function FriendsDirectory({ initialData }: { initialData: PublicFriendsDa
   const { siteInfo: runtimeSiteInfo } = useSiteInfo()
 
   const [publicData, setPublicData] = useState<PublicFriendsData>(initialData)
+  useEffect(() => {
+    setPublicData(initialData)
+  }, [initialData])
   const [activeGroupTab, setActiveGroupTab] = useState<string>('all')
   const [copyFormat, setCopyFormat] = useState<CopyFormat>('text')
   const [copied, setCopied] = useState(false)

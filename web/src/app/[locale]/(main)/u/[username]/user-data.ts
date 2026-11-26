@@ -1,9 +1,12 @@
+import type { Post } from '@/models/post'
 import type { User } from '@/models/user'
 import { cacheLife, cacheTag } from 'next/cache'
 import { notFound } from 'next/navigation'
 import { cache } from 'react'
+import { listPosts } from '@/api/post'
 import { getUserByUsername } from '@/api/user'
 import { CacheTag, skipBackendAtBuild } from '@/lib/cache-tags'
+import { OrderBy } from '@/models/common'
 import { isNotFoundLikeError } from '@/utils/common/error'
 
 // 跨请求缓存（各语言的页面共用一条）：用户页按地址缓存，按链接预取与重新生成先读这里；用户资料变化时 users 标签失效。
@@ -30,8 +33,7 @@ const getCachedUser = cache((username: string) => {
 })
 
 /**
- * 取用户，不存在时 404。在 loading.tsx 的骨架里面调用也能得到真正的 404：文档请求访问还没缓存的地址时，
- * Next 先把整页生成完再发送（见 p/[id]/post-data.ts 的说明）
+ * 取用户，不存在时触发 404（404 不写进缓存，见 CacheTag.NoStore）
  */
 export async function getExistingUser(username: string): Promise<User> {
   const user = await getCachedUser(username)
@@ -39,3 +41,34 @@ export async function getExistingUser(username: string): Promise<User> {
     notFound()
   return user
 }
+
+export interface UserInitialPostsData {
+  posts: Post[]
+  total: number
+}
+
+function slimUserPost(post: Post): Post {
+  return post.description || post.excerpt ? { ...post, content: '' } : post
+}
+
+async function loadUserFirstPagePosts(userId: number, pageSize: number): Promise<UserInitialPostsData> {
+  'use cache'
+  cacheLife('detail')
+  cacheTag(CacheTag.Posts, CacheTag.Users)
+  const res = await listPosts({
+    userId,
+    page: 1,
+    size: pageSize,
+    orderBy: OrderBy.CreatedAt,
+    desc: true,
+  })
+  return {
+    posts: (res.data.posts || []).map(slimUserPost),
+    total: res.data.total || 0,
+  }
+}
+
+export const getCachedUserFirstPagePosts = cache((userId: number, pageSize: number): Promise<UserInitialPostsData> => {
+  skipBackendAtBuild()
+  return loadUserFirstPagePosts(userId, pageSize)
+})

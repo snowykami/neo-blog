@@ -68,6 +68,30 @@ export interface InteractionSettings {
   like: boolean
 }
 
+export type SeoTwitterCard = 'summary_large_image' | 'summary'
+export type SeoSitemapLocaleMode = 'default_only' | 'all_locales'
+export type SeoLocaleIndexMode = 'canonical_default' | 'noindex_follow' | 'independent'
+
+/**
+ * 全站 SEO 与订阅配置（后台「全局配置 → SEO」配置，留空项自动继承站点基础配置）
+ */
+export interface SeoSettings {
+  homeTitle?: string
+  homeDescription?: string
+  ogImage?: string
+  twitterHandle?: string
+  twitterCard?: SeoTwitterCard
+  googleVerification?: string
+  bingVerification?: string
+  baiduVerification?: string
+  allowIndexing?: boolean
+  robotsExtraRules?: string
+  sitemapEnabled?: boolean
+  sitemapLocaleMode?: SeoSitemapLocaleMode
+  localeIndexMode?: SeoLocaleIndexMode
+  rssEnabled?: boolean
+}
+
 export interface SiteInfo {
   colorSchemes: string[]
   defaultColorScheme: string
@@ -119,6 +143,7 @@ export interface SiteInfo {
   pageBackground?: PageBackground // 前台全站背景（底色 / 背景图 / 模糊 / 节日装饰）
   island?: IslandSettings // 顶栏灵动岛（实验性）的开关
   interaction?: InteractionSettings // 全站互动功能（评论与点赞）总分开关
+  seo?: SeoSettings // 全站 SEO 与订阅配置
 }
 
 // 取不到站点信息时的兜底，也用来补全站点信息里缺少的字段：取值与后端配置注册表（internal/config/items.go）的默认值一致。
@@ -192,6 +217,22 @@ export const fallbackSiteInfo: SiteInfo = {
     enabled: true,
     comment: true,
     like: true,
+  },
+  seo: {
+    homeTitle: '',
+    homeDescription: '',
+    ogImage: '',
+    twitterHandle: '',
+    twitterCard: 'summary_large_image',
+    googleVerification: '',
+    bingVerification: '',
+    baiduVerification: '',
+    allowIndexing: true,
+    robotsExtraRules: '',
+    sitemapEnabled: true,
+    sitemapLocaleMode: 'default_only',
+    localeIndexMode: 'canonical_default',
+    rssEnabled: true,
   },
 }
 

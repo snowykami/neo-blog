@@ -35,10 +35,10 @@ import 'katex/dist/katex.min.css'
  */
 
 // isDraft：后台预览（/console/pages/preview/[id]）渲染草稿正文、不上报访问；前台页面不传
-export async function PageView({ page, isDraft = false }: { page: PageModel, isDraft?: boolean }) {
+export async function PageView({ page, isDraft = false, locale }: { page: PageModel, isDraft?: boolean, locale?: string }) {
   // 链接页面：跳转到其地址（站内路径或站外地址），导航中已直接链接，这里处理直接访问 /page/{slug} 的情况；站内前台地址保持当前语言
   if (page.kind === 'link' && page.linkUrl)
-    redirect(localizePath(page.linkUrl, await getLocale()))
+    redirect(localizePath(page.linkUrl, locale ?? await getLocale()))
   // HTML 页面：上传的静态 HTML 在沙箱 iframe 中展示
   if (page.kind === 'html') {
     return (

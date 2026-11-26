@@ -169,3 +169,53 @@ type MeilisearchIndexStatDto struct {
 	Documents  int64  `json:"documents"`
 	IsIndexing bool   `json:"is_indexing"`
 }
+
+// SEOSettingsDto 前台站点信息中的 SEO 与订阅配置快照（与后台全局配置 SEO 页签一一对应）
+type SEOSettingsDto struct {
+	HomeTitle          string `json:"home_title"`
+	HomeDescription    string `json:"home_description"`
+	OgImage            string `json:"og_image"`
+	TwitterHandle      string `json:"twitter_handle"`
+	TwitterCard        string `json:"twitter_card"` // summary_large_image | summary
+	GoogleVerification string `json:"google_verification"`
+	BingVerification   string `json:"bing_verification"`
+	BaiduVerification  string `json:"baidu_verification"`
+	AllowIndexing      bool   `json:"allow_indexing"`
+	RobotsExtraRules   string `json:"robots_extra_rules"`
+	SitemapEnabled     bool   `json:"sitemap_enabled"`
+	SitemapLocaleMode  string `json:"sitemap_locale_mode"` // default_only | all_locales
+	LocaleIndexMode    string `json:"locale_index_mode"`   // canonical_default | noindex_follow | independent
+	RssEnabled         bool   `json:"rss_enabled"`
+}
+
+// RssPostItemDto RSS 订阅源单篇文章条目
+type RssPostItemDto struct {
+	ID          uint          `json:"id"`
+	Title       string        `json:"title"`
+	Slug        *string       `json:"slug"`
+	Description string        `json:"description"`
+	Excerpt     string        `json:"excerpt"`
+	Content     string        `json:"content"`
+	CreatedAt   time.Time     `json:"created_at"`
+	UpdatedAt   time.Time     `json:"updated_at"`
+	User        PublicUserDto `json:"user"`
+	Category    *CategoryDto  `json:"category"`
+	Cover       string        `json:"cover"`
+}
+
+// RssDataDto RSS 订阅源数据响应
+type RssDataDto struct {
+	Enabled          bool             `json:"enabled"`
+	FullContent      bool             `json:"full_content"`
+	Title            string           `json:"title"`
+	Description      string           `json:"description"`
+	SiteURL          string           `json:"site_url"`
+	FeedURL          string           `json:"feed_url"`
+	Author           string           `json:"author"`
+	Copyright        string           `json:"copyright"`
+	ImageURL         string           `json:"image_url"`
+	Language         string           `json:"language"`
+	PostDefaultCover string           `json:"post_default_cover"`
+	PubDate          time.Time        `json:"pub_date"`
+	Posts            []RssPostItemDto `json:"posts"`
+}

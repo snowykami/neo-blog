@@ -2,8 +2,8 @@
 
 import type { SidebarCard } from './sidebar-cards'
 import type { SidebarInitialData } from './sidebar-data'
-import { parseAsString, useQueryState } from 'nuqs'
-import { Suspense, useMemo } from 'react'
+import { parseAsInteger, parseAsString, useQueryState } from 'nuqs'
+import { Suspense, useCallback, useMemo } from 'react'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { OrderBy } from '@/models/common'
 import { BlogSidebarAbout, BlogSidebarHotPosts, BlogSidebarLabels, SidebarComponentCard, SidebarIframeCard } from './blog-sidebar-card'
@@ -23,7 +23,15 @@ const labelParser = parseAsString
 /** 读地址查询参数的标签云：放在自己的 Suspense 里，侧栏其余卡片不依赖地址，可以进页面的静态外壳 */
 function QueryLabels({ initialLabels }: { initialLabels?: SidebarInitialData['labels'] }) {
   const [label, setLabel] = useQueryState('label', labelParser)
-  return <BlogSidebarLabels label={label} setLabel={setLabel} initialLabels={initialLabels} />
+  const [, setPage] = useQueryState(
+    'page',
+    parseAsInteger.withDefault(1).withOptions({ history: 'replace', clearOnDefault: true }),
+  )
+  const handleSetLabel = useCallback((next: string | null) => {
+    void setLabel(next)
+    void setPage(1)
+  }, [setLabel, setPage])
+  return <BlogSidebarLabels label={label} setLabel={handleSetLabel} initialLabels={initialLabels} />
 }
 
 function SidebarCardView({ card, label, setLabel, labelFromQuery, initialData }: { card: SidebarCard, initialData?: SidebarInitialData } & LabelFilter) {

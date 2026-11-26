@@ -156,4 +156,40 @@ describe('paginationController 无障碍与链接语义', () => {
     expect(buttons.length).toBeGreaterThan(0)
     buttons.forEach(btn => expect(btn.disabled).toBe(true))
   })
+
+  it('挂载与受控 page 同步（含内联回调及 useLayoutEffect 首帧跳页）时不会反向触发 onPageChange 回声覆盖页码', async () => {
+    const calls: number[] = []
+    await renderPagination({ total: 30, pageSize: 10, page: 1, onPageChange: p => calls.push(p) })
+    expect(calls).toEqual([])
+
+    // 每次传入全新的内联箭头函数并将受控 page 切换为 2，不应回声触发 1 或 2
+    await renderPagination({ total: 30, pageSize: 10, page: 2, onPageChange: p => calls.push(p) })
+    expect(calls).toEqual([])
+    const page2Btn = host.querySelector('button[aria-label="前往第 2 页"]') as HTMLButtonElement
+    expect(page2Btn.getAttribute('aria-current')).toBe('page')
+
+    // 模拟 QueryBridge 在首帧挂载的 useLayoutEffect 中同步将 page 从 1 改为 2
+    function LayoutSyncHarness() {
+      const [p, setP] = React.useState(1)
+      React.useLayoutEffect(() => {
+        setP(2)
+      }, [])
+      return React.createElement(PaginationController, {
+        total: 30,
+        pageSize: 10,
+        page: p,
+        onPageChange: next => calls.push(next),
+      })
+    }
+    await act(async () => {
+      root.render(
+        React.createElement(NextIntlClientProvider, {
+          locale: 'zh-CN',
+          messages,
+          children: React.createElement(LayoutSyncHarness),
+        }),
+      )
+    })
+    expect(calls).toEqual([])
+  })
 })

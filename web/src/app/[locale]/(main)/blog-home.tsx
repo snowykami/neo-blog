@@ -5,7 +5,7 @@ import type { Post } from '@/models/post'
 import { Clock, TrendingUp, XIcon } from 'lucide-react'
 import { useLocale, useTranslations } from 'next-intl'
 import { parseAsInteger, parseAsStringLiteral, useQueryState } from 'nuqs'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { listPosts } from '@/api/post'
 import { PostList } from '@/components/blog-home/post-list'
 import { BlogMobileOwnerBanner } from '@/components/blog-sidebar/blog-sidebar-card'
@@ -14,6 +14,7 @@ import { SectionTitle } from '@/components/layout/site-shell'
 import { Button } from '@/components/ui/button'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useSiteInfo } from '@/contexts/site-info-context'
+import { localizePath } from '@/i18n/routing'
 import { OrderBy } from '@/models/common'
 import { parseHighlightTerms } from '@/utils/common/highlight'
 import {
@@ -26,13 +27,47 @@ import {
   writeHomeSnapshot,
 } from './blog-home-query'
 
-// 首页正文（标题、排序、文章列表、分页）；页面外壳与侧栏在 page.tsx（侧栏不依赖地址参数，属于静态外壳）
-export default function BlogHome({ initialData }: { initialData?: BlogHomeInitialData }) {
-  // 从路由查询参数中获取页码和标签们
-  const t = useTranslations('BlogHome')
-  const locale = useLocale()
-  const { siteInfo } = useSiteInfo()
-  // 筛选条件来自 URL：?label=标签 &category=分类 &query=搜索词，与后端列表接口参数一致
+interface HomeQueryValues {
+  labelSlug: string | null
+  categorySlug: string | null
+  query: string | null
+  page: number
+  tab: HomeTab
+}
+
+interface HomeQueryActions {
+  setLabelSlug: (value: string | null) => unknown
+  setCategorySlug: (value: string | null) => unknown
+  setQuery: (value: string | null) => unknown
+  setPage: (value: number | null) => unknown
+  setTab: (value: HomeTab | null) => unknown
+}
+
+const DEFAULT_HOME_QUERY: HomeQueryValues = {
+  labelSlug: null,
+  categorySlug: null,
+  query: null,
+  page: 1,
+  tab: OrderBy.CreatedAt,
+}
+
+function sameHomeQuery(a: HomeQueryValues, b: HomeQueryValues): boolean {
+  return a.labelSlug === b.labelSlug
+    && a.categorySlug === b.categorySlug
+    && a.query === b.query
+    && a.page === b.page
+    && a.tab === b.tab
+}
+
+// 将 nuqs 的 useQueryState（底层调用 useSearchParams）隔离在独立的无占位 Suspense 子节点中，
+// 确保首页文章列表与标题栏随服务端预渲染直接进 <main>，不在静态生成阶段挂起整块列表
+function BlogHomeQueryBridge({
+  onSync,
+  actionsRef,
+}: {
+  onSync: (next: HomeQueryValues) => void
+  actionsRef: React.MutableRefObject<HomeQueryActions | null>
+}) {
   const [labelSlug, setLabelSlug] = useQueryState('label')
   const [categorySlug, setCategorySlug] = useQueryState('category')
   const [query, setQuery] = useQueryState('query')
@@ -44,6 +79,33 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
     'tab',
     parseAsStringLiteral(HOME_TABS).withDefault(OrderBy.CreatedAt).withOptions({ history: 'replace', clearOnDefault: true }),
   )
+
+  useLayoutEffect(() => {
+    actionsRef.current = { setLabelSlug, setCategorySlug, setQuery, setPage, setTab }
+    return () => {
+      actionsRef.current = null
+    }
+  }, [actionsRef, setCategorySlug, setLabelSlug, setPage, setQuery, setTab])
+
+  useLayoutEffect(() => {
+    onSync({ labelSlug, categorySlug, query, page, tab })
+  }, [categorySlug, labelSlug, onSync, page, query, tab])
+
+  return null
+}
+
+// 首页正文（标题、排序、文章列表、分页）；页面外壳与侧栏在 page.tsx（侧栏不依赖地址参数，属于静态外壳）
+export default function BlogHome({ initialData }: { initialData?: BlogHomeInitialData }) {
+  // 从路由查询参数中获取页码和标签们
+  const t = useTranslations('BlogHome')
+  const locale = useLocale()
+  const { siteInfo } = useSiteInfo()
+  const [queryValues, setQueryValues] = useState<HomeQueryValues>(DEFAULT_HOME_QUERY)
+  const [querySynced, setQuerySynced] = useState(false)
+  const queryActionsRef = useRef<HomeQueryActions | null>(null)
+  const queryValuesRef = useRef<HomeQueryValues>(DEFAULT_HOME_QUERY)
+  const { labelSlug, categorySlug, query, page, tab } = queryValues
+
   const pageSize = siteInfo.postsPerPage || 9
   const currentQueryKey = blogHomeQueryKey({ page, label: labelSlug, category: categorySlug, query, orderBy: tab })
   const currentSnapshotKey = buildHomeSnapshotKey({ locale, size: pageSize, queryKey: currentQueryKey })
@@ -55,18 +117,65 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
   const [totalPosts, setTotalPosts] = useState(() => seed?.total ?? 0)
   // 置顶文章：只在没有筛选时由接口返回，显示在第一页最上方；它们不在 posts 里，也不计入 totalPosts
   const [pinnedPosts, setPinnedPosts] = useState<Post[]>(() => seed?.pinned ?? [])
-  const initialKeyRef = useRef(matchedInitial?.key)
-  // 服务端后来又给了新的预取结果（后台改完内容后 router.refresh，或被 Activity 保留的首页重新取到新的页面数据）：
-  // state 只在挂载时取一次 initialData，这里记下最新的一份与收到的次数，参数一致时换上，不一致时按当前参数重新请求
+  // 记录当前 state 中已就绪的查询键：Activity 从隐藏恢复显示时若键未变则直接保留现有 DOM，不闪骨架也不丢滚动位置
+  const loadedKeyRef = useRef<string | undefined>(seed ? currentQueryKey : undefined)
+  // 服务端预取的首屏默认数据跨筛选保留在 ref 中（仅后台刷新 initialData 引用变化时更新），清除筛选回到默认页可直接复用
   const serverDataRef = useRef(initialData)
   const pendingServerRefreshRef = useRef(false)
   const [serverVersion, setServerVersion] = useState(0)
   // 请求序号：快速翻页、切换筛选或排序时只采用最后一次请求的结果，旧请求晚到不覆盖新结果
   const requestSeqRef = useRef(0)
   const [loading, setLoading] = useState(false)
-  // 加载失败标记与重试计数：重试时自增以重新触发请求
+  // 加载失败标记与重试计数：重试时仅单次跳过缓存强制重拉，不影响后续 Activity 保活与预取复用
   const [loadError, setLoadError] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
+  const pendingRetryRef = useRef(false)
+
+  const applyNextQuery = useCallback((next: HomeQueryValues) => {
+    if (!sameHomeQuery(queryValuesRef.current, next)) {
+      queryValuesRef.current = next
+      setQueryValues(prev => (sameHomeQuery(prev, next) ? prev : next))
+      const nextKey = blogHomeQueryKey({
+        page: next.page,
+        label: next.labelSlug,
+        category: next.categorySlug,
+        query: next.query,
+        orderBy: next.tab,
+      })
+      if (nextKey !== loadedKeyRef.current) {
+        const srv = serverDataRef.current
+        if (srv && srv.key === nextKey) {
+          ++requestSeqRef.current
+          loadedKeyRef.current = nextKey
+          setPosts(srv.posts)
+          setTotalPosts(srv.total)
+          setPinnedPosts(srv.pinned ?? [])
+          setLoadError(false)
+          setLoading(false)
+        }
+        else {
+          const snap = readFreshHomeSnapshot(buildHomeSnapshotKey({ locale, size: pageSize, queryKey: nextKey }))
+          if (snap) {
+            ++requestSeqRef.current
+            loadedKeyRef.current = nextKey
+            setPosts(snap.posts)
+            setTotalPosts(snap.total)
+            setPinnedPosts(snap.pinned)
+            setLoadError(false)
+            setLoading(false)
+          }
+          else {
+            setLoading(true)
+          }
+        }
+      }
+    }
+  }, [locale, pageSize])
+
+  const handleQuerySync = useCallback((next: HomeQueryValues) => {
+    applyNextQuery(next)
+    setQuerySynced(true)
+  }, [applyNextQuery])
 
   // 区分浏览器 history popstate（回退/前进）与用户主动触发的分页
   const popStateRef = useRef(false)
@@ -80,11 +189,19 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
 
   // 页码或筛选真正变化时滚到顶部（浏览器回退 / 前进恢复的除外）。用 ref 记下上次的值：从文章返回首页时，
   // 被 Activity 保留的首页重新显示会重跑 effect，值没变就不滚，停在离开时的位置；首次挂载也不滚（由路由决定滚动位置）
+  const hasHydratedScrollRef = useRef(false)
   const scrollKey = JSON.stringify([page, labelSlug, categorySlug, query, tab])
   const scrollKeyRef = useRef(scrollKey)
   useEffect(() => {
+    if (!querySynced)
+      return
     const fromPopState = popStateRef.current
     popStateRef.current = false
+    if (!hasHydratedScrollRef.current) {
+      hasHydratedScrollRef.current = true
+      scrollKeyRef.current = scrollKey
+      return
+    }
     if (scrollKeyRef.current === scrollKey)
       return
     scrollKeyRef.current = scrollKey
@@ -92,59 +209,59 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
       const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
       window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' })
     }
-  }, [scrollKey])
+  }, [querySynced, scrollKey])
 
   useEffect(() => {
     if (serverDataRef.current === initialData)
       return
     serverDataRef.current = initialData
-    initialKeyRef.current = initialData?.key
+    loadedKeyRef.current = undefined
     clearHomeSnapshot()
     pendingServerRefreshRef.current = true
     setServerVersion(v => v + 1)
   }, [initialData])
 
   useEffect(() => {
+    if (!querySynced)
+      return
     const forceServerRefresh = pendingServerRefreshRef.current
     pendingServerRefreshRef.current = false
+    const forceRetry = pendingRetryRef.current
+    pendingRetryRef.current = false
     const size = siteInfo.postsPerPage || 9
-    // 首次查询与服务端预取参数一致时复用预取结果
     const key = blogHomeQueryKey({ page, label: labelSlug, category: categorySlug, query, orderBy: tab })
     const snapshotKey = buildHomeSnapshotKey({ locale, size, queryKey: key })
-    // 参数变化后预取结果即失效（不在命中时清除，开发模式下 effect 会执行两次）
-    if (initialKeyRef.current === key && reloadKey === 0) {
-      // 首次挂载时 state 已由预取结果初始化；之后收到的新预取结果在这里换上，并作废进行中的旧请求
-      const data = serverDataRef.current
-      if (serverVersion > 0 && data) {
+    const data = serverDataRef.current
+
+    // 命中服务端预取的默认页数据（含首次挂载、清除筛选回到首页、router.refresh 更新）
+    if (data && data.key === key && !forceRetry) {
+      if (loadedKeyRef.current !== key || forceServerRefresh) {
         ++requestSeqRef.current
+        loadedKeyRef.current = key
         setPosts(data.posts)
         setTotalPosts(data.total)
         setPinnedPosts(data.pinned ?? [])
         setLoadError(false)
         setLoading(false)
-        writeHomeSnapshot({
-          cacheKey: snapshotKey,
-          key,
-          posts: data.posts,
-          total: data.total,
-          pinned: data.pinned ?? [],
-        })
       }
-      else if (data && data.key === key) {
-        writeHomeSnapshot({
-          cacheKey: snapshotKey,
-          key,
-          posts: data.posts,
-          total: data.total,
-          pinned: data.pinned ?? [],
-        })
-      }
+      writeHomeSnapshot({
+        cacheKey: snapshotKey,
+        key,
+        posts: data.posts,
+        total: data.total,
+        pinned: data.pinned ?? [],
+      })
       return
     }
-    initialKeyRef.current = undefined
-    const cached = reloadKey === 0 && !forceServerRefresh ? readFreshHomeSnapshot(snapshotKey) : null
+
+    // Activity 从隐藏恢复显示时若当前查询的数据已在状态中且未强制刷新，直接保留现有列表与滚动位置
+    if (loadedKeyRef.current === key && !forceRetry && !forceServerRefresh)
+      return
+
+    const cached = !forceRetry && !forceServerRefresh ? readFreshHomeSnapshot(snapshotKey) : null
     if (cached) {
       ++requestSeqRef.current
+      loadedKeyRef.current = key
       setPosts(cached.posts)
       setTotalPosts(cached.total)
       setPinnedPosts(cached.pinned)
@@ -169,6 +286,7 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
         if (seq !== requestSeqRef.current)
           return
         const nextPinned = res.data.pinned ?? []
+        loadedKeyRef.current = key
         setPosts(res.data.posts)
         setTotalPosts(res.data.total)
         setPinnedPosts(nextPinned)
@@ -188,7 +306,7 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
         setLoadError(true)
         setLoading(false)
       })
-  }, [locale, query, labelSlug, categorySlug, page, tab, siteInfo.postsPerPage, reloadKey, serverVersion])
+  }, [querySynced, locale, query, labelSlug, categorySlug, page, tab, siteInfo.postsPerPage, reloadKey, serverVersion])
 
   // 标题随筛选条件变化：标签/分类优先显示名称（从返回的文章中取，取不到则用 slug），其次搜索词
   const order = tab === OrderBy.Heat ? 'hottest' : 'latest'
@@ -204,22 +322,27 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
   // 搜索结果里高亮搜索词（只在按搜索词筛选时）
   const highlightTerms = useMemo(() => parseHighlightTerms(query), [query])
   const clearFilter = () => {
-    setLabelSlug(null)
-    setCategorySlug(null)
-    setQuery(null)
-    setPage(1)
+    const actions = queryActionsRef.current
+    actions?.setLabelSlug(null)
+    actions?.setCategorySlug(null)
+    actions?.setQuery(null)
+    actions?.setPage(1)
+    applyNextQuery({ ...queryValuesRef.current, labelSlug: null, categorySlug: null, query: null, page: 1 })
   }
 
   const handleSortChange = (next: HomeTab) => {
     if (next !== tab) {
-      setTab(next)
-      setPage(1)
+      const actions = queryActionsRef.current
+      actions?.setTab(next)
+      actions?.setPage(1)
+      applyNextQuery({ ...queryValuesRef.current, tab: next, page: 1 })
     }
   }
 
-  const handlePageChange = (page: number) => {
+  const handlePageChange = (nextPage: number) => {
     // 仅设置 page，滚动逻辑由上面的 effect 处理（会避开 popstate）
-    setPage(page)
+    queryActionsRef.current?.setPage(nextPage)
+    applyNextQuery({ ...queryValuesRef.current, page: nextPage })
   }
 
   const buildPageHref = (p: number) => {
@@ -235,11 +358,14 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
     if (p > 1)
       params.set('page', String(p))
     const qs = params.toString()
-    return qs ? `?${qs}` : '?'
+    return qs ? `?${qs}` : localizePath('/', locale)
   }
 
   return (
     <>
+      <Suspense fallback={null}>
+        <BlogHomeQueryBridge onSync={handleQuerySync} actionsRef={queryActionsRef} />
+      </Suspense>
       {page === 1 && !filter && <BlogMobileOwnerBanner />}
       {/* 列表标题与排序 */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-1.5 md:px-2">
@@ -300,7 +426,11 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
         isLoading={loading}
         skeletonCount={siteInfo.postsPerPage || 9}
         error={loadError}
-        onRetry={() => setReloadKey(k => k + 1)}
+        onRetry={() => {
+          loadedKeyRef.current = undefined
+          pendingRetryRef.current = true
+          setReloadKey(k => k + 1)
+        }}
         onClearFilter={filter ? clearFilter : undefined}
         highlight={highlightTerms}
         prioritizeFirst

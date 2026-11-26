@@ -50,11 +50,11 @@ function toFormValues(schema: ConfigSchema, siteInfo: SiteInfo): ConfigValues {
   return values
 }
 
-// 按 showWhen 决定是否显示（如歌单来源为网易云时才显示网易云配置）；无条件显示项不订阅表单变化
-const VisibleField = memo(({ item }: { item: ConfigItem }) => {
-  if (!item.showWhen)
+// 按 showWhen 链决定是否显示（支持父级开关级联隐藏，如关闭全站索引时同步隐藏 Sitemap 子选项）；无条件显示项不订阅表单变化
+const VisibleField = memo(({ item, conditions }: { item: ConfigItem, conditions: NonNullable<ConfigItem['showWhen']>[] }) => {
+  if (conditions.length === 0)
     return <ConfigField item={item} />
-  return <ConditionalVisibleField item={item} showWhen={item.showWhen} />
+  return <ConditionalVisibleField item={item} conditions={conditions} />
 })
 
 /**
@@ -72,7 +72,7 @@ export function SettingsForm({ advanced }: { advanced: React.ReactNode }) {
   const form = useForm<ConfigValues>()
   // 当前 Tab 写入地址参数，便于直接打开某个分组；兼容旧书签中的 frontend / rss
   const [rawTab, setTab] = useQueryState('tab', parseAsString.withDefault('site').withOptions({ history: 'replace', clearOnDefault: true }))
-  const tab = rawTab === 'frontend' ? 'appearance' : rawTab === 'rss' ? 'site' : rawTab
+  const tab = rawTab === 'frontend' ? 'appearance' : rawTab === 'rss' ? 'seo' : rawTab
   // 只挂载访问过的设置 Tab：首屏免去挂载未访问分组与网易云等懒触发字段，已访问过的保留挂载以维持跨 Tab 校验规则与未保存输入
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set(tab && tab !== 'advanced' ? [tab] : []))
 
@@ -118,6 +118,22 @@ export function SettingsForm({ advanced }: { advanced: React.ReactNode }) {
   }, [load, operationT])
 
   const items = useMemo(() => schema?.sections.flatMap(section => section.items) ?? [], [schema])
+  const conditionsByKey = useMemo(() => {
+    const itemMap = new Map(items.map(it => [it.key, it]))
+    const result = new Map<string, NonNullable<ConfigItem['showWhen']>[]>()
+    for (const it of items) {
+      const chain: NonNullable<ConfigItem['showWhen']>[] = []
+      const seen = new Set<string>([it.key])
+      let cur = it.showWhen
+      while (cur && !seen.has(cur.key)) {
+        chain.push(cur)
+        seen.add(cur.key)
+        cur = itemMap.get(cur.key)?.showWhen
+      }
+      result.set(it.key, chain)
+    }
+    return result
+  }, [items])
   const standaloneKeys = useMemo(() => items.filter(item => item.standalone).map(item => item.key), [items])
   const tabOf = useCallback((key: string) => schema?.sections.find(section => section.items.some(item => item.key === key))?.tab, [schema])
   // 通过子组件 useFormState 局部订阅同步最新 dirtyFields，不在 SettingsForm 顶层读取 form.formState，
@@ -212,7 +228,7 @@ export function SettingsForm({ advanced }: { advanced: React.ReactNode }) {
                       headerAction={<SectionHeaderAction name={section.widget} />}
                     >
                       <SectionWidget name={section.widget} items={section.items} />
-                      {section.items.map(item => <VisibleField key={item.key} item={item} />)}
+                      {section.items.map(item => <VisibleField key={item.key} item={item} conditions={conditionsByKey.get(item.key) ?? []} />)}
                     </Section>
                   ))}
                 </TabsContent>
@@ -252,14 +268,16 @@ function TabDirtyDot({
 
 function ConditionalVisibleField({
   item,
-  showWhen,
+  conditions,
 }: {
   item: ConfigItem
-  showWhen: NonNullable<ConfigItem['showWhen']>
+  conditions: NonNullable<ConfigItem['showWhen']>[]
 }) {
   const { control } = useFormContext<ConfigValues>()
-  const [watched] = useWatch<ConfigValues, [string]>({ control, name: [showWhen.key] })
-  if (!showWhen.values.includes(String(watched)))
+  const names = useMemo(() => conditions.map(c => c.key), [conditions])
+  const watchedValues = useWatch<ConfigValues>({ control, name: names })
+  const visible = conditions.every((cond, idx) => cond.values.includes(String(watchedValues[idx])))
+  if (!visible)
     return null
   return <ConfigField item={item} />
 }
