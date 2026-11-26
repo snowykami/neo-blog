@@ -753,7 +753,7 @@ export function FriendsDirectory({ initialData }: { initialData: PublicFriendsDa
                           <p className="py-4 text-center text-sm text-muted-foreground">{t('empty_group')}</p>
                         )
                       : (
-                          <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                          <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                             {group.links.map(link => (
                               <FriendCard key={link.id} item={link} />
                             ))}

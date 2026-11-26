@@ -5,8 +5,6 @@ import { cacheLife, cacheTag } from 'next/cache'
 import { locale as rootLocale } from 'next/root-params'
 import { getPublicFriends } from '@/api/friend'
 import { getCachedSiteInfo } from '@/api/misc.server'
-import BlogSidebar from '@/components/blog-sidebar'
-import { getCachedSidebarData } from '@/components/blog-sidebar/sidebar-data'
 import { SiteShell } from '@/components/layout/site-shell'
 import { resolveRouteLocale } from '@/i18n/routing'
 import { CacheTag, skipBackendAtBuild } from '@/lib/cache-tags'
@@ -54,12 +52,9 @@ export default async function FriendsPage() {
   const locale = resolveRouteLocale(await rootLocale())
   setRequestLocale(locale)
   skipBackendAtBuild()
-  const [initialData, sidebarData] = await Promise.all([
-    loadPublicFriends(),
-    getCachedSidebarData(),
-  ])
+  const initialData = await loadPublicFriends()
   return (
-    <SiteShell sidebar={<BlogSidebar initialData={sidebarData} />}>
+    <SiteShell>
       <FriendsDirectory initialData={initialData} />
     </SiteShell>
   )
