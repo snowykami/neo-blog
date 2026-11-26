@@ -12,6 +12,15 @@ export type FriendSortMode = (typeof FRIEND_SORT_MODES)[number]
 export type FriendHealthStatus = 'unknown' | 'healthy' | 'slow' | 'unreachable'
 export type FriendBacklinkStatus = 'unchecked' | 'verified' | 'missing' | 'skipped'
 
+export const FRIEND_TECH_CATEGORIES = ['cdn', 'server', 'cms', 'framework'] as const
+export type FriendTechCategory = (typeof FRIEND_TECH_CATEGORIES)[number]
+
+export interface FriendTechItem {
+  id: string
+  name: string
+  category: FriendTechCategory
+}
+
 export interface FriendPaletteEntry {
   key: FriendColorKey
   hex: string
@@ -109,6 +118,7 @@ export interface FriendLinkPublic {
   sortOrder: number
   healthStatus: FriendHealthStatus
   latencyMs: number
+  techStack?: FriendTechItem[]
 }
 
 export interface FriendGroupPublic {
@@ -149,6 +159,7 @@ export interface FriendLinkMine {
   reviewNote: string
   healthStatus: FriendHealthStatus
   latencyMs: number
+  techStack?: FriendTechItem[]
   createdAt: string
   updatedAt: string
 }
@@ -218,6 +229,7 @@ export interface FriendLinkAdmin {
   latencyMs: number
   failCount: number
   backlinkStatus: FriendBacklinkStatus
+  techStack?: FriendTechItem[]
   lastCheckedAt: string | null
   createdAt: string
   updatedAt: string

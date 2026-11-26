@@ -60,9 +60,11 @@ Output strictly ONE valid JSON object and nothing else:
 
 type friendFetchOutcome struct {
 	Reachable   bool
+	IsWAF       bool
 	LatencyMs   int
 	HTTPStatus  int
 	FinalURL    *url.URL
+	Headers     http.Header
 	HTMLSnippet string
 	RawHTML     string
 }
@@ -126,17 +128,18 @@ func fetchFriendHTMLWithTimingOpts(ctx context.Context, rawURL string, timeout t
 			continue
 		}
 
-		bodyBytes, _ := readPreviewHead(resp.Body, resp.Header.Get("Content-Encoding"), friendProbeMaxBytes, false)
+		bodyBytes, readErr := readPreviewHead(resp.Body, resp.Header.Get("Content-Encoding"), friendProbeMaxBytes, false)
 		_ = resp.Body.Close()
 
 		elapsedMs := int(time.Since(start).Milliseconds())
 		roundedMs := max(10, ((elapsedMs+5)/10)*10)
 
-		// Cloudflare / 常见 WAF 盾返回 403/503 时视为站点在线（避免误伤开盾博友为死链）
-		isWAFChallenge := (status == http.StatusForbidden || status == http.StatusServiceUnavailable) &&
-			(resp.Header.Get("cf-mitigated") != "" || strings.Contains(strings.ToLower(resp.Header.Get("Server")), "cloudflare"))
+		decoded := decodePreviewHTML(bodyBytes, resp.Header.Get("Content-Type"))
+		techHeaders := cloneFriendTechHeaders(resp.Header)
+		// Cloudflare / EdgeOne / 雷池 / 阿里云 WAF / Anubis 等挑战页（含 403/429/468/503 与 200 JS 盾）视为站点在线，避免误伤开盾博友为死链或覆盖原技术栈
+		isWAF := isLikelyWAFInterstitial(status, techHeaders, decoded)
 
-		if (status < 200 || status >= 400) && !isWAFChallenge {
+		if (status < 200 || status >= 400) && !isWAF {
 			return friendFetchOutcome{
 				Reachable:  false,
 				LatencyMs:  roundedMs,
@@ -145,12 +148,18 @@ func fetchFriendHTMLWithTimingOpts(ctx context.Context, rawURL string, timeout t
 			}
 		}
 
-		decoded := decodePreviewHTML(bodyBytes, resp.Header.Get("Content-Type"))
+		// 若读取正文流中途出错且未拿到任何有效字节，置空 RawHTML 以防止上层误判为空页面覆盖历史特征
+		if readErr != nil && len(strings.TrimSpace(decoded)) == 0 {
+			decoded = ""
+		}
+
 		return friendFetchOutcome{
 			Reachable:   true,
+			IsWAF:       isWAF,
 			LatencyMs:   roundedMs,
 			HTTPStatus:  status,
 			FinalURL:    current,
+			Headers:     techHeaders,
 			RawHTML:     decoded,
 			HTMLSnippet: extractPlainSnippetFromHTML(decoded, 600),
 		}
@@ -415,8 +424,8 @@ func probeAndPersistSingleLink(ctx context.Context, link *model.FriendLink, forc
 		backlinkStatus = model.FriendBacklinkSkipped
 	}
 
-	// 仅当站点可达时才进一步执行 Sitemap / 子路由反链与 RSS 探测，防止瞬时网络抖动将已核验反链误改为 missing 或锁死 7 天冷却
-	if home.Reachable {
+	// 仅当站点可达且未处于全站 WAF 挑战页时才进一步执行 Sitemap / 子路由反链与 RSS 探测，防止网络抖动或人机验证盾将已核验反链误改为 missing、锁死 7 天冷却或向 WAF 发起连环请求
+	if home.Reachable && !home.IsWAF {
 		recheckKey := friendBacklinkCooldownKey(link.ID, probedURL, link.BacklinkURL)
 		_, recentlyCheckedBacklink, _ := sharedstate.Current().Get(recheckKey)
 
@@ -480,6 +489,41 @@ func probeAndPersistSingleLink(ctx context.Context, link *model.FriendLink, forc
 		"backlink_status": backlinkStatus,
 		"last_checked_at": &now,
 	}
+	var nextTechStack string
+	var updatedTechStack bool
+	if home.Reachable {
+		_, parsedProbed, parseErr := NormalizeFriendOutboundURL(probedURL)
+		probedHost := ""
+		if parseErr == nil && parsedProbed != nil {
+			probedHost = parsedProbed.Hostname()
+		}
+		finalHost := ""
+		if home.FinalURL != nil {
+			finalHost = home.FinalURL.Hostname()
+		}
+		// 若首页跨域重定向到非同域家族的外部认证/停靠域名，不覆盖原站点的技术栈
+		if probedHost == "" || finalHost == "" || sameFriendSiteFamily(probedHost, finalHost) {
+			effectiveHost := probedHost
+			if finalHost != "" {
+				effectiveHost = finalHost
+			}
+			preserveHTMLTech := home.IsWAF ||
+				home.HTTPStatus < 200 ||
+				home.HTTPStatus >= 400 ||
+				strings.TrimSpace(home.RawHTML) == "" ||
+				!isHTMLOrUnknownContentType(home.Headers)
+			htmlForDetect := home.RawHTML
+			if !isHTMLOrUnknownContentType(home.Headers) {
+				htmlForDetect = ""
+			}
+			existingTech := model.ParseFriendTechStack(link.TechStack)
+			detectedTech := DetectFriendTechStackWithHost(effectiveHost, home.Headers, htmlForDetect, home.IsWAF)
+			mergedTech := MergeFriendTechStack(detectedTech, existingTech, preserveHTMLTech)
+			nextTechStack = model.EncodeFriendTechStack(mergedTech)
+			updates["tech_stack"] = nextTechStack
+			updatedTechStack = true
+		}
+	}
 	if err := repo.Friend.UpdateLinkProbeColumns(link.ID, probedURL, link.BacklinkURL, probedGroupID, updates); err != nil {
 		logrus.Warnf("update friend probe result (id=%d): %v", link.ID, err)
 	}
@@ -487,6 +531,9 @@ func probeAndPersistSingleLink(ctx context.Context, link *model.FriendLink, forc
 	link.LatencyMs = latencyMs
 	link.FailCount = failCount
 	link.BacklinkStatus = backlinkStatus
+	if updatedTechStack {
+		link.TechStack = nextTechStack
+	}
 	link.LastCheckedAt = &now
 	if ctx.Err() == nil && link.Status == model.FriendStatusApproved {
 		WarmFriendAvatarCache(ctx, link.Avatar)
@@ -594,6 +641,10 @@ func runFriendReviewTask(linkID uint, triggerUserID uint) {
 
 	if !home.Reachable {
 		commitAIReviewIfStillPending(link.ID, model.FriendStatusPreApproved, "目标站点暂时无法连接，已转交管理员人工复核")
+		return
+	}
+	if home.IsWAF {
+		commitAIReviewIfStillPending(link.ID, model.FriendStatusPreApproved, "目标站点开启了防火墙人机验证，已转交管理员人工复核")
 		return
 	}
 

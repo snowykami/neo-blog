@@ -56,6 +56,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     // 页面里的 canonical、hreflang、分享图都写站内路径，统一按站点地址补全
     metadataBase: safeMetadataBase(siteInfo.baseUrl),
+    generator: 'neo-blog',
     title: {
       default: siteInfo.metadata.name,
       template: `%s - ${siteInfo.metadata.name}`,

@@ -3,6 +3,7 @@ package model
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"slices"
@@ -71,7 +72,69 @@ const (
 	// 友链前台展示排序方式
 	FriendSortModeManual   = "manual"   // 手动默认排序：按各分组内拖拽调整的 sort_order 升序展示
 	FriendSortModeActivity = "activity" // 更新频次排序：预留接入友链 RSS 聚合后按最近发文活跃度排序
+
+	// 友链技术栈分类
+	FriendTechCategoryCDN       = "cdn"
+	FriendTechCategoryServer    = "server"
+	FriendTechCategoryCMS       = "cms"
+	FriendTechCategoryFramework = "framework"
 )
+
+// FriendTechItem 友链单项技术栈（与 dto.FriendTechItem 共用类型定义）
+type FriendTechItem = dto.FriendTechItem
+
+func IsValidFriendTechCategory(cat string) bool {
+	switch cat {
+	case FriendTechCategoryCDN, FriendTechCategoryServer, FriendTechCategoryCMS, FriendTechCategoryFramework:
+		return true
+	default:
+		return false
+	}
+}
+
+// ParseFriendTechStack 安全反序列化数据库中存储的技术栈 JSON 数组；格式异常或为空时始终降级为空切片 []
+func ParseFriendTechStack(raw string) []FriendTechItem {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" || trimmed == "[]" {
+		return []FriendTechItem{}
+	}
+	var parsed []FriendTechItem
+	if err := json.Unmarshal([]byte(trimmed), &parsed); err != nil || len(parsed) == 0 {
+		return []FriendTechItem{}
+	}
+	out := make([]FriendTechItem, 0, len(parsed))
+	seen := make(map[string]struct{}, len(parsed))
+	for _, item := range parsed {
+		id := strings.TrimSpace(item.ID)
+		name := strings.TrimSpace(item.Name)
+		cat := strings.TrimSpace(item.Category)
+		if id == "" || name == "" || !IsValidFriendTechCategory(cat) {
+			continue
+		}
+		if _, dup := seen[id]; dup {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, FriendTechItem{
+			ID:       id,
+			Name:     name,
+			Category: cat,
+		})
+	}
+	return out
+}
+
+// EncodeFriendTechStack 将技术栈切片序列化为紧凑 JSON 字符串（空切片固定返回 "[]"）
+func EncodeFriendTechStack(items []FriendTechItem) string {
+	if len(items) == 0 {
+		return "[]"
+	}
+	b, err := json.Marshal(items)
+	if err != nil {
+		return "[]"
+	}
+	return string(b)
+}
 
 var FriendSortModes = []string{
 	FriendSortModeManual,
@@ -184,6 +247,7 @@ type FriendLink struct {
 	LatencyMs      int    `gorm:"not null;default:0"`
 	FailCount      int    `gorm:"not null;default:0"`
 	BacklinkStatus string `gorm:"type:varchar(16);not null;default:'unchecked'"`
+	TechStack      string `gorm:"type:text;not null;default:'[]'"`
 	LastCheckedAt  *time.Time
 }
 
@@ -254,6 +318,7 @@ func (l *FriendLink) ToPublicDto() dto.FriendLinkPublicDto {
 		SortOrder:    l.SortOrder,
 		HealthStatus: l.HealthStatus,
 		LatencyMs:    l.LatencyMs,
+		TechStack:    ParseFriendTechStack(l.TechStack),
 	}
 }
 
@@ -273,6 +338,7 @@ func (l *FriendLink) ToMineDto() dto.FriendLinkMineDto {
 		ReviewNote:   l.ReviewNote,
 		HealthStatus: l.HealthStatus,
 		LatencyMs:    l.LatencyMs,
+		TechStack:    ParseFriendTechStack(l.TechStack),
 		CreatedAt:    l.CreatedAt,
 		UpdatedAt:    l.UpdatedAt,
 	}
@@ -312,6 +378,7 @@ func (l *FriendLink) ToAdminDto() dto.FriendLinkAdminDto {
 		LatencyMs:      l.LatencyMs,
 		FailCount:      l.FailCount,
 		BacklinkStatus: l.BacklinkStatus,
+		TechStack:      ParseFriendTechStack(l.TechStack),
 		LastCheckedAt:  l.LastCheckedAt,
 		CreatedAt:      l.CreatedAt,
 		UpdatedAt:      l.UpdatedAt,

@@ -28,66 +28,76 @@ type FriendGroupAdminDto struct {
 	UpdatedAt         time.Time `json:"updated_at"`
 }
 
+// FriendTechItem 友链站点探测识别出的单项技术栈标签
+type FriendTechItem struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Category string `json:"category"`
+}
+
 // FriendLinkPublicDto 前台公开展示的友链（物理隔离审核备注、反链状态、提交人等内部字段）
 type FriendLinkPublicDto struct {
-	ID           uint   `json:"id"`
-	GroupID      uint   `json:"group_id"`
-	Name         string `json:"name"`
-	URL          string `json:"url"`
-	Avatar       string `json:"avatar"`
-	AvatarURL    string `json:"avatar_url"`
-	Description  string `json:"description"`
-	ColorKey     string `json:"color_key"`
-	RSSURL       string `json:"rss_url"`
-	SortOrder    int    `json:"sort_order"`
-	HealthStatus string `json:"health_status"`
-	LatencyMs    int    `json:"latency_ms"`
+	ID           uint             `json:"id"`
+	GroupID      uint             `json:"group_id"`
+	Name         string           `json:"name"`
+	URL          string           `json:"url"`
+	Avatar       string           `json:"avatar"`
+	AvatarURL    string           `json:"avatar_url"`
+	Description  string           `json:"description"`
+	ColorKey     string           `json:"color_key"`
+	RSSURL       string           `json:"rss_url"`
+	SortOrder    int              `json:"sort_order"`
+	HealthStatus string           `json:"health_status"`
+	LatencyMs    int              `json:"latency_ms"`
+	TechStack    []FriendTechItem `json:"tech_stack"`
 }
 
 // FriendLinkMineDto 登录用户查看名下友链 DTO（可见本人审核状态与反馈原因，不含后台反链内部标记）
 type FriendLinkMineDto struct {
-	ID           uint      `json:"id"`
-	GroupID      uint      `json:"group_id"`
-	Name         string    `json:"name"`
-	URL          string    `json:"url"`
-	Avatar       string    `json:"avatar"`
-	AvatarURL    string    `json:"avatar_url"`
-	Description  string    `json:"description"`
-	ColorKey     string    `json:"color_key"`
-	RSSURL       string    `json:"rss_url"`
-	BacklinkURL  string    `json:"backlink_url"`
-	Status       string    `json:"status"`
-	ReviewNote   string    `json:"review_note"`
-	HealthStatus string    `json:"health_status"`
-	LatencyMs    int       `json:"latency_ms"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID           uint             `json:"id"`
+	GroupID      uint             `json:"group_id"`
+	Name         string           `json:"name"`
+	URL          string           `json:"url"`
+	Avatar       string           `json:"avatar"`
+	AvatarURL    string           `json:"avatar_url"`
+	Description  string           `json:"description"`
+	ColorKey     string           `json:"color_key"`
+	RSSURL       string           `json:"rss_url"`
+	BacklinkURL  string           `json:"backlink_url"`
+	Status       string           `json:"status"`
+	ReviewNote   string           `json:"review_note"`
+	HealthStatus string           `json:"health_status"`
+	LatencyMs    int              `json:"latency_ms"`
+	TechStack    []FriendTechItem `json:"tech_stack"`
+	CreatedAt    time.Time        `json:"created_at"`
+	UpdatedAt    time.Time        `json:"updated_at"`
 }
 
 // FriendLinkAdminDto 管理员后台查看的全量友链 DTO
 type FriendLinkAdminDto struct {
-	ID             uint           `json:"id"`
-	UserID         uint           `json:"user_id"`
-	User           *PublicUserDto `json:"user,omitempty"`
-	GroupID        uint           `json:"group_id"`
-	Name           string         `json:"name"`
-	URL            string         `json:"url"`
-	Avatar         string         `json:"avatar"`
-	AvatarURL      string         `json:"avatar_url"`
-	Description    string         `json:"description"`
-	ColorKey       string         `json:"color_key"`
-	RSSURL         string         `json:"rss_url"`
-	BacklinkURL    string         `json:"backlink_url"`
-	SortOrder      int            `json:"sort_order"`
-	Status         string         `json:"status"`
-	ReviewNote     string         `json:"review_note"`
-	HealthStatus   string         `json:"health_status"`
-	LatencyMs      int            `json:"latency_ms"`
-	FailCount      int            `json:"fail_count"`
-	BacklinkStatus string         `json:"backlink_status"`
-	LastCheckedAt  *time.Time     `json:"last_checked_at"`
-	CreatedAt      time.Time      `json:"created_at"`
-	UpdatedAt      time.Time      `json:"updated_at"`
+	ID             uint             `json:"id"`
+	UserID         uint             `json:"user_id"`
+	User           *PublicUserDto   `json:"user,omitempty"`
+	GroupID        uint             `json:"group_id"`
+	Name           string           `json:"name"`
+	URL            string           `json:"url"`
+	Avatar         string           `json:"avatar"`
+	AvatarURL      string           `json:"avatar_url"`
+	Description    string           `json:"description"`
+	ColorKey       string           `json:"color_key"`
+	RSSURL         string           `json:"rss_url"`
+	BacklinkURL    string           `json:"backlink_url"`
+	SortOrder      int              `json:"sort_order"`
+	Status         string           `json:"status"`
+	ReviewNote     string           `json:"review_note"`
+	HealthStatus   string           `json:"health_status"`
+	LatencyMs      int              `json:"latency_ms"`
+	FailCount      int              `json:"fail_count"`
+	BacklinkStatus string           `json:"backlink_status"`
+	TechStack      []FriendTechItem `json:"tech_stack"`
+	LastCheckedAt  *time.Time       `json:"last_checked_at"`
+	CreatedAt      time.Time        `json:"created_at"`
+	UpdatedAt      time.Time        `json:"updated_at"`
 }
 
 // FriendSiteCardDto 本站友链名片信息（供博友一键复制）

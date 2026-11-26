@@ -1182,6 +1182,7 @@ export function FriendManage() {
                               colorKey: item.colorKey,
                               healthStatus: item.healthStatus,
                               latencyMs: item.latencyMs,
+                              techStack: item.techStack,
                             }}
                           />
                           <a

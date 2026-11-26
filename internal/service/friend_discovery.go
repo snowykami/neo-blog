@@ -1514,36 +1514,40 @@ func runFriendDiscoveryAndBacklinkCheck(
 		blCtx, cancelBL := context.WithTimeout(ctx, friendBacklinkStageBudget)
 		explicitBacklink := strings.TrimSpace(existingBacklinkURL)
 		if explicitBacklink != "" {
+			subpageWAF := false
 			normExp, expParsed, expOK := resolveSafeFriendCandidateURL(explicitBacklink, nil)
 			if expOK && allowBacklinkHost(expParsed.Hostname()) {
-				if sameURLIgnoringTrailingSlash(normExp, siteParsed.String()) && home.RawHTML != "" {
+				if sameURLIgnoringTrailingSlash(normExp, siteParsed.String()) && home.RawHTML != "" && !home.IsWAF {
 					if htmlContainsBacklinkToHostsForSite(home.RawHTML, siteHost, primarySelfHosts, aliasSelfHosts) {
 						out.BacklinkStatus = "verified"
 						out.BacklinkCompleted = true
 					}
 				} else if blCtx.Err() == nil {
 					res := fetchFriendHTMLWithTimingOpts(blCtx, normExp, friendSubpageProbeTimeout, allowBacklinkHost)
-					if res.Reachable && res.FinalURL != nil && allowBacklinkHost(res.FinalURL.Hostname()) && htmlContainsBacklinkToHostsForSite(res.RawHTML, siteHost, primarySelfHosts, aliasSelfHosts) {
+					if res.IsWAF {
+						subpageWAF = true
+					} else if res.Reachable && res.FinalURL != nil && allowBacklinkHost(res.FinalURL.Hostname()) && htmlContainsBacklinkToHostsForSite(res.RawHTML, siteHost, primarySelfHosts, aliasSelfHosts) {
 						out.BacklinkStatus = "verified"
 						out.BacklinkCompleted = true
 					}
 				}
 			}
-			if out.BacklinkStatus == "" && home.RawHTML != "" && htmlContainsBacklinkToHostsForSite(home.RawHTML, siteHost, primarySelfHosts, aliasSelfHosts) {
+			if out.BacklinkStatus == "" && home.RawHTML != "" && !home.IsWAF && htmlContainsBacklinkToHostsForSite(home.RawHTML, siteHost, primarySelfHosts, aliasSelfHosts) {
 				out.BacklinkStatus = "verified"
 				out.BacklinkCompleted = true
 			}
-			if out.BacklinkStatus == "" && blCtx.Err() == nil && ctx.Err() == nil {
+			if out.BacklinkStatus == "" && !subpageWAF && blCtx.Err() == nil && ctx.Err() == nil {
 				out.BacklinkStatus = "missing"
 				out.BacklinkCompleted = true
 			}
 		} else {
 			// 未填写回链地址：先检查首页自身是否已含反链，否则启动三层漏斗发现友链页并在命中时自动回填
-			if home.RawHTML != "" && htmlContainsBacklinkToHostsForSite(home.RawHTML, siteHost, primarySelfHosts, aliasSelfHosts) {
+			if home.RawHTML != "" && !home.IsWAF && htmlContainsBacklinkToHostsForSite(home.RawHTML, siteHost, primarySelfHosts, aliasSelfHosts) {
 				out.BacklinkStatus = "verified"
 				out.BacklinkCompleted = true
 			} else {
 				backlinkProbes := 0
+				sawWAFSubpage := false
 				tryBacklink := func(cand string) bool {
 					if blCtx.Err() != nil || backlinkProbes >= friendMaxBacklinkProbes {
 						return false
@@ -1558,6 +1562,10 @@ func runFriendDiscoveryAndBacklinkCheck(
 					triedURLs[norm] = struct{}{}
 					backlinkProbes++
 					res := fetchFriendHTMLWithTimingOpts(blCtx, norm, friendSubpageProbeTimeout, allowBacklinkHost)
+					if res.IsWAF {
+						sawWAFSubpage = true
+						return false
+					}
 					if res.Reachable && res.FinalURL != nil && allowBacklinkHost(res.FinalURL.Hostname()) && htmlContainsBacklinkToHostsForSite(res.RawHTML, siteHost, primarySelfHosts, aliasSelfHosts) {
 						out.BacklinkStatus = "verified"
 						out.BacklinkCompleted = true
@@ -1592,7 +1600,7 @@ func runFriendDiscoveryAndBacklinkCheck(
 						}
 					}
 				}
-				if out.BacklinkStatus == "" && blCtx.Err() == nil && ctx.Err() == nil {
+				if out.BacklinkStatus == "" && !sawWAFSubpage && blCtx.Err() == nil && ctx.Err() == nil {
 					out.BacklinkStatus = "missing"
 					out.BacklinkCompleted = true
 				}

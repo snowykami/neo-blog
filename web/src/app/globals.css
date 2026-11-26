@@ -352,7 +352,8 @@ html[data-theme] .bg-primary {
     0 2px 8px -2px oklch(0.35 calc(var(--fl-c, 0.14) * 0.3) var(--fl-h, 235) / 0.08);
   color: oklch(0.24 calc(var(--fl-c, 0.14) * 0.3) var(--fl-h, 235));
   --fl-desc: oklch(0.45 calc(var(--fl-c, 0.14) * 0.2) var(--fl-h, 235));
-  --fl-sig: oklch(0.42 calc(var(--fl-c, 0.14) * 0.45) var(--fl-h, 235));
+  --fl-sig: oklch(0.42 calc(var(--fl-c, 0.14) * 0.5) var(--fl-h, 235));
+  --fl-sig-muted: oklch(0.8 calc(var(--fl-c, 0.14) * 0.1) var(--fl-h, 235));
   --fl-avatar-bg: oklch(0.56 max(var(--fl-c, 0.14), 0.08) var(--fl-h, 235));
 }
 
@@ -369,7 +370,8 @@ html[data-theme] .bg-primary {
     0 4px 12px -3px rgba(0, 0, 0, 0.34);
   color: oklch(0.94 calc(var(--fl-c, 0.14) * 0.12) var(--fl-h, 235));
   --fl-desc: oklch(0.75 calc(var(--fl-c, 0.14) * 0.14) var(--fl-h, 235));
-  --fl-sig: oklch(0.78 calc(var(--fl-c, 0.14) * 0.42) var(--fl-h, 235));
+  --fl-sig: oklch(0.8 calc(var(--fl-c, 0.14) * 0.45) var(--fl-h, 235));
+  --fl-sig-muted: oklch(0.4 calc(var(--fl-c, 0.14) * 0.12) var(--fl-h, 235));
   --fl-avatar-bg: oklch(0.48 max(var(--fl-c, 0.14), 0.08) var(--fl-h, 235));
 }
 

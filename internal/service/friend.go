@@ -343,7 +343,11 @@ func (s *FriendService) AutofillFriendLink(ctx context.Context, req *dto.FriendA
 
 	home := fetchFriendHTMLWithTiming(ctx, cleanURL)
 	effectiveParsed := parsedURL
-	if home.FinalURL != nil {
+	if home.IsWAF {
+		// 命中 WAF 盾页时丢弃挑战页标题（如“请稍候…”），避免把盾页元数据缓存或填入表单
+		home.RawHTML = ""
+		home.HTMLSnippet = ""
+	} else if home.FinalURL != nil {
 		if sameFriendSiteFamily(parsedURL.Hostname(), home.FinalURL.Hostname()) {
 			effectiveParsed = home.FinalURL
 		} else {
@@ -379,8 +383,14 @@ func (s *FriendService) AutofillFriendLink(ctx context.Context, req *dto.FriendA
 		}
 	}
 
+	var rssURL, backlinkURL string
+	var htmlHints htmlDiscoveryHints
+	var smHints sitemapDiscoveryHints
+	var tried map[string]struct{}
 	discCtx, cancelDisc := context.WithTimeout(ctx, 10*time.Second)
-	rssURL, backlinkURL, htmlHints, smHints, tried := discoverAutofillEndpoints(discCtx, effectiveParsed, home.RawHTML)
+	if home.Reachable && !home.IsWAF {
+		rssURL, backlinkURL, htmlHints, smHints, tried = discoverAutofillEndpoints(discCtx, effectiveParsed, home.RawHTML)
+	}
 
 	aiCfg := tools.GetAIConfig()
 	var candLinksBuf strings.Builder
@@ -473,16 +483,18 @@ func (s *FriendService) AutofillFriendLink(ctx context.Context, req *dto.FriendA
 		}
 	}
 
-	toCache := cachedFriendAutofill{
-		Name:        name,
-		URL:         cleanURL,
-		Avatar:      avatar,
-		Description: desc,
-		ColorKey:    colorKey,
-		RSSURL:      rssURL,
-		BacklinkURL: backlinkURL,
+	if home.Reachable && !home.IsWAF {
+		toCache := cachedFriendAutofill{
+			Name:        name,
+			URL:         cleanURL,
+			Avatar:      avatar,
+			Description: desc,
+			ColorKey:    colorKey,
+			RSSURL:      rssURL,
+			BacklinkURL: backlinkURL,
+		}
+		_ = sharedstate.SetJSON(cacheKey, toCache, friendAutofillCacheTTL)
 	}
-	_ = sharedstate.SetJSON(cacheKey, toCache, friendAutofillCacheTTL)
 
 	return &dto.FriendAutofillResp{
 		Name:              name,
@@ -595,6 +607,7 @@ func invalidateFriendProbeStateOnEdit(link *model.FriendLink, cleanURL, cleanRSS
 		link.LatencyMs = 0
 		link.FailCount = 0
 		link.BacklinkStatus = model.FriendBacklinkUnchecked
+		link.TechStack = "[]"
 		link.LastCheckedAt = nil
 	} else if backlinkChanged || groupChanged {
 		link.BacklinkStatus = model.FriendBacklinkUnchecked
@@ -670,6 +683,7 @@ func (s *FriendService) CreateMyFriendLink(ctx context.Context, req *dto.UpsertM
 		ReviewNote:     reviewNote,
 		HealthStatus:   model.FriendHealthUnknown,
 		BacklinkStatus: model.FriendBacklinkUnchecked,
+		TechStack:      "[]",
 	}
 	if err := repo.Friend.CreateLink(link); err != nil {
 		return nil, errs.Internal("failed_to_create_target", err).WithResource("friend_link")
@@ -1302,6 +1316,7 @@ func (s *FriendService) AdminCreateLink(ctx context.Context, req *dto.AdminUpser
 		ReviewNote:     clipRunes(req.ReviewNote, friendReviewNoteMaxRunes),
 		HealthStatus:   model.FriendHealthUnknown,
 		BacklinkStatus: model.FriendBacklinkUnchecked,
+		TechStack:      "[]",
 	}
 	if err := repo.Friend.CreateLink(link); err != nil {
 		return nil, errs.Internal("failed_to_create_target", err).WithResource("friend_link")
