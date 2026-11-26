@@ -61,17 +61,28 @@ type friendFetchOutcome struct {
 	Reachable   bool
 	LatencyMs   int
 	HTTPStatus  int
+	FinalURL    *url.URL
 	HTMLSnippet string
 	RawHTML     string
 }
 
 // fetchFriendHTMLWithTiming 经友链专用出站安全传输层（仅限公网 80/443）发起请求，测量耗时（按 10ms 取整）并提取纯文本摘要与原始 HTML
 func fetchFriendHTMLWithTiming(ctx context.Context, rawURL string) friendFetchOutcome {
+	return fetchFriendHTMLWithTimingOpts(ctx, rawURL, friendProbeTimeout, nil)
+}
+
+func fetchFriendHTMLWithTimingOpts(ctx context.Context, rawURL string, timeout time.Duration, allowHost func(string) bool) friendFetchOutcome {
 	_, parsed, err := NormalizeFriendOutboundURL(rawURL)
 	if err != nil || parsed == nil {
 		return friendFetchOutcome{}
 	}
-	reqCtx, cancel := context.WithTimeout(ctx, friendProbeTimeout)
+	if allowHost != nil && !allowHost(parsed.Hostname()) {
+		return friendFetchOutcome{}
+	}
+	if timeout <= 0 {
+		timeout = friendProbeTimeout
+	}
+	reqCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	start := time.Now()
@@ -104,7 +115,10 @@ func fetchFriendHTMLWithTiming(ctx context.Context, rawURL string) friendFetchOu
 				return friendFetchOutcome{HTTPStatus: status}
 			}
 			_, nextNorm, err := NormalizeFriendOutboundURL(nextRaw.String())
-			if err != nil {
+			if err != nil || nextNorm == nil {
+				return friendFetchOutcome{HTTPStatus: status}
+			}
+			if allowHost != nil && !allowHost(nextNorm.Hostname()) {
 				return friendFetchOutcome{HTTPStatus: status}
 			}
 			current = nextNorm
@@ -126,6 +140,7 @@ func fetchFriendHTMLWithTiming(ctx context.Context, rawURL string) friendFetchOu
 				Reachable:  false,
 				LatencyMs:  roundedMs,
 				HTTPStatus: status,
+				FinalURL:   current,
 			}
 		}
 
@@ -134,6 +149,7 @@ func fetchFriendHTMLWithTiming(ctx context.Context, rawURL string) friendFetchOu
 			Reachable:   true,
 			LatencyMs:   roundedMs,
 			HTTPStatus:  status,
+			FinalURL:    current,
 			RawHTML:     decoded,
 			HTMLSnippet: extractPlainSnippetFromHTML(decoded, 600),
 		}
@@ -185,8 +201,13 @@ func htmlContainsBacklinkToHost(rawHTML string, myHost string) bool {
 	if rawHTML == "" || myHost == "" {
 		return false
 	}
-	lowerHost := strings.ToLower(strings.TrimPrefix(myHost, "www."))
-	if !strings.Contains(strings.ToLower(rawHTML), lowerHost) {
+	lowerHost := normalizeASCIIHost(myHost)
+	if lowerHost == "" {
+		return false
+	}
+	lowerHTML := strings.ToLower(rawHTML)
+	rawHost := strings.ToLower(strings.TrimPrefix(strings.TrimRight(strings.TrimSpace(myHost), "."), "www."))
+	if !strings.Contains(lowerHTML, lowerHost) && (rawHost == "" || !strings.Contains(lowerHTML, rawHost)) {
 		return false
 	}
 	z := html.NewTokenizer(strings.NewReader(rawHTML))
@@ -206,7 +227,7 @@ func htmlContainsBacklinkToHost(rawHTML string, myHost string) bool {
 			k, v, more := z.TagAttr()
 			if string(k) == "href" {
 				if u, err := url.Parse(strings.TrimSpace(string(v))); err == nil {
-					h := strings.ToLower(strings.TrimPrefix(u.Hostname(), "www."))
+					h := normalizeASCIIHost(u.Hostname())
 					if h == lowerHost || strings.HasSuffix(h, "."+lowerHost) {
 						return true
 					}
@@ -218,59 +239,31 @@ func htmlContainsBacklinkToHost(rawHTML string, myHost string) bool {
 		}
 	}
 	// 兼容部分 SPA 在初始化脚本 JSON 数据里内嵌友链 URL 的情况
-	return strings.Contains(strings.ToLower(rawHTML), "://"+lowerHost) ||
-		strings.Contains(strings.ToLower(rawHTML), "://www."+lowerHost)
+	if strings.Contains(lowerHTML, "://"+lowerHost) || strings.Contains(lowerHTML, "://www."+lowerHost) {
+		return true
+	}
+	if rawHost != "" && rawHost != lowerHost {
+		return strings.Contains(lowerHTML, "://"+rawHost) || strings.Contains(lowerHTML, "://www."+rawHost)
+	}
+	return false
 }
 
-func checkBacklinkStatus(ctx context.Context, link *model.FriendLink, homeHTML string, skipBacklink bool) string {
-	if skipBacklink {
-		return model.FriendBacklinkSkipped
-	}
-	baseURL := tools.GetBaseUrl()
-	if baseURL == "" {
-		return model.FriendBacklinkUnchecked
-	}
-	parsedSelf, err := url.Parse(baseURL)
-	if err != nil || parsedSelf.Hostname() == "" {
-		return model.FriendBacklinkUnchecked
-	}
-	selfHost := parsedSelf.Hostname()
-
-	if link.BacklinkURL == "" && htmlContainsBacklinkToHost(homeHTML, selfHost) {
-		return model.FriendBacklinkVerified
-	}
-
-	candidates := make([]string, 0, 3)
-	if link.BacklinkURL != "" {
-		candidates = append(candidates, link.BacklinkURL)
-	} else if u, err := url.Parse(link.URL); err == nil && u.Host != "" {
-		origin := fmt.Sprintf("%s://%s", u.Scheme, u.Host)
-		candidates = append(candidates, origin+"/friends", origin+"/links")
-	}
-
-	for _, cand := range candidates {
-		if strings.EqualFold(strings.TrimRight(cand, "/"), strings.TrimRight(link.URL, "/")) && homeHTML != "" {
-			if htmlContainsBacklinkToHost(homeHTML, selfHost) {
-				return model.FriendBacklinkVerified
-			}
-			continue
-		}
-		res := fetchFriendHTMLWithTiming(ctx, cand)
-		if res.Reachable && htmlContainsBacklinkToHost(res.RawHTML, selfHost) {
-			return model.FriendBacklinkVerified
-		}
-	}
-	if homeHTML != "" && htmlContainsBacklinkToHost(homeHTML, selfHost) {
-		return model.FriendBacklinkVerified
-	}
-	return model.FriendBacklinkMissing
+func friendBacklinkCooldownKey(linkID uint, siteURL, backlinkURL string) string {
+	return fmt.Sprintf("friend_backlink_checked:%d:%s", linkID, model.FriendAvatarHash(siteURL+"|"+backlinkURL))
 }
 
-func probeAndPersistSingleLink(ctx context.Context, link *model.FriendLink, forceBacklink bool) friendFetchOutcome {
-	grp, _ := repo.Friend.GetGroup(link.GroupID)
+func friendRSSCooldownKey(linkID uint, siteURL string) string {
+	return fmt.Sprintf("friend_rss_checked:%d:%s", linkID, model.FriendAvatarHash(siteURL))
+}
+
+func probeAndPersistSingleLink(ctx context.Context, link *model.FriendLink, forceRecheck bool, allowAIFallback bool) friendFetchOutcome {
+	probedURL := link.URL
+	probedGroupID := link.GroupID
+
+	grp, _ := repo.Friend.GetGroup(probedGroupID)
 	skipBacklink := grp != nil && grp.SkipBacklinkCheck
 
-	home := fetchFriendHTMLWithTiming(ctx, link.URL)
+	home := fetchFriendHTMLWithTiming(ctx, probedURL)
 	now := time.Now()
 
 	health := link.HealthStatus
@@ -292,15 +285,66 @@ func probeAndPersistSingleLink(ctx context.Context, link *model.FriendLink, forc
 	}
 
 	backlinkStatus := link.BacklinkStatus
-	needBacklink := forceBacklink ||
-		backlinkStatus == "" ||
-		backlinkStatus == model.FriendBacklinkUnchecked ||
-		(skipBacklink && backlinkStatus != model.FriendBacklinkSkipped) ||
-		(!skipBacklink && backlinkStatus == model.FriendBacklinkSkipped) ||
-		(link.LastCheckedAt != nil && now.Sub(*link.LastCheckedAt) >= friendBacklinkRecheckSpan)
+	if skipBacklink {
+		backlinkStatus = model.FriendBacklinkSkipped
+	}
 
-	if needBacklink {
-		backlinkStatus = checkBacklinkStatus(ctx, link, home.RawHTML, skipBacklink)
+	// 仅当站点可达时才进一步执行 Sitemap / 子路由反链与 RSS 探测，防止瞬时网络抖动将已核验反链误改为 missing 或锁死 7 天冷却
+	if home.Reachable {
+		recheckKey := friendBacklinkCooldownKey(link.ID, probedURL, link.BacklinkURL)
+		_, recentlyCheckedBacklink, _ := sharedstate.Current().Get(recheckKey)
+
+		needBacklink := !skipBacklink && (forceRecheck ||
+			backlinkStatus == "" ||
+			backlinkStatus == model.FriendBacklinkUnchecked ||
+			backlinkStatus == model.FriendBacklinkSkipped ||
+			!recentlyCheckedBacklink)
+
+		rssCooldownKey := friendRSSCooldownKey(link.ID, probedURL)
+		_, recentlyCheckedRSS, _ := sharedstate.Current().Get(rssCooldownKey)
+		existingRSS := strings.TrimSpace(link.RSSURL)
+		shouldDiscoverRSS := existingRSS == "" && (forceRecheck || !recentlyCheckedRSS)
+
+		if needBacklink || shouldDiscoverRSS {
+			seedRSS := existingRSS
+			if !shouldDiscoverRSS && seedRSS == "" {
+				// 非强制巡检且处于 7 天冷却期内时跳过重复 RSS 盲测
+				seedRSS = "__skip_rss_probe__"
+			}
+			disc := runFriendDiscoveryAndBacklinkCheck(
+				ctx,
+				probedURL,
+				home,
+				seedRSS,
+				link.BacklinkURL,
+				skipBacklink,
+				needBacklink,
+				allowAIFallback,
+				link.OwnerUserID(),
+			)
+			if needBacklink && disc.BacklinkStatus != "" {
+				backlinkStatus = disc.BacklinkStatus
+				if disc.BacklinkCompleted && backlinkStatus != model.FriendBacklinkUnchecked {
+					if strings.TrimSpace(link.BacklinkURL) == "" && disc.MatchedBacklinkURL != "" {
+						if updated, err := repo.Friend.BackfillEmptyBacklinkURL(link.ID, probedURL, disc.MatchedBacklinkURL); err == nil && updated {
+							link.BacklinkURL = disc.MatchedBacklinkURL
+						}
+					}
+					finalRecheckKey := friendBacklinkCooldownKey(link.ID, probedURL, link.BacklinkURL)
+					_ = sharedstate.Current().Set(finalRecheckKey, "1", friendBacklinkRecheckSpan)
+				}
+			}
+			if shouldDiscoverRSS {
+				if disc.RSSURL != "" && disc.RSSURL != "__skip_rss_probe__" {
+					if updated, err := repo.Friend.BackfillEmptyRSSURL(link.ID, probedURL, disc.RSSURL); err == nil && updated {
+						link.RSSURL = disc.RSSURL
+					}
+				}
+				if disc.RSSCheckCompleted {
+					_ = sharedstate.Current().Set(rssCooldownKey, "1", friendBacklinkRecheckSpan)
+				}
+			}
+		}
 	}
 
 	updates := map[string]any{
@@ -310,7 +354,7 @@ func probeAndPersistSingleLink(ctx context.Context, link *model.FriendLink, forc
 		"backlink_status": backlinkStatus,
 		"last_checked_at": &now,
 	}
-	if err := repo.Friend.UpdateLinkProbeColumns(link.ID, link.URL, updates); err != nil {
+	if err := repo.Friend.UpdateLinkProbeColumns(link.ID, probedURL, link.BacklinkURL, probedGroupID, updates); err != nil {
 		logrus.Warnf("update friend probe result (id=%d): %v", link.ID, err)
 	}
 	link.HealthStatus = health
@@ -324,41 +368,69 @@ func probeAndPersistSingleLink(ctx context.Context, link *model.FriendLink, forc
 	return home
 }
 
-// EnqueueFriendProbe 异步对单条友链执行首次存活与反链拨测（带单条目防重与全局并发信号量上限）
-func EnqueueFriendProbe(linkID uint) {
+// EnqueueFriendProbe 异步对单条友链执行首次存活、反链与 RSS 自动发现拨测（带单条目防重、并发变更重检与全局并发信号量上限）
+func EnqueueFriendProbe(linkID uint, allowAIFallback bool) {
 	dedupKey := "friend_probe:single:" + strconv.FormatUint(uint64(linkID), 10)
-	if ok, err := sharedstate.Current().SetNX(dedupKey, "1", 25*time.Second); err == nil && !ok {
+	rerunKey := dedupKey + ":rerun"
+	modeVal := "0"
+	if allowAIFallback {
+		modeVal = "1"
+	}
+	if ok, err := sharedstate.Current().SetNX(dedupKey, modeVal, 45*time.Second); err == nil && !ok {
+		if allowAIFallback {
+			_ = sharedstate.Current().Set(rerunKey, "1", 45*time.Second)
+		} else {
+			_, _ = sharedstate.Current().SetNX(rerunKey, "0", 45*time.Second)
+		}
 		return
 	}
 	select {
 	case friendSingleProbeSem <- struct{}{}:
 		friendBackgroundWG.Add(1)
-		go func() {
+		go func(initialAllowAI bool) {
 			defer friendBackgroundWG.Done()
 			defer func() {
 				<-friendSingleProbeSem
 				_ = sharedstate.Current().Delete(dedupKey)
+				_ = sharedstate.Current().Delete(rerunKey)
 			}()
-			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
 			defer cancel()
-			for attempt := 0; attempt < 2; attempt++ {
+			runAI := initialAllowAI
+			for attempt := 0; attempt < 3; attempt++ {
 				link, err := repo.Friend.GetLink(linkID)
 				if err != nil {
 					return
 				}
-				probedURL := link.URL
-				probeAndPersistSingleLink(ctx, link, true)
+				origURL := link.URL
+				origRSS := link.RSSURL
+				origBacklink := link.BacklinkURL
+				origGroup := link.GroupID
+
+				probeAndPersistSingleLink(ctx, link, true, runAI)
 				if ctx.Err() != nil {
 					return
 				}
+				rerunVal, hasRerun, _ := sharedstate.Current().Take(rerunKey)
+				if hasRerun && rerunVal == "1" {
+					runAI = true
+				}
 				latest, err := repo.Friend.GetLink(linkID)
-				if err != nil || latest.URL == probedURL {
+				if err != nil {
+					return
+				}
+				configUnchanged := latest.URL == origURL &&
+					latest.GroupID == origGroup &&
+					(latest.BacklinkURL == origBacklink || latest.BacklinkURL == link.BacklinkURL) &&
+					(latest.RSSURL == origRSS || latest.RSSURL == link.RSSURL)
+				if configUnchanged && !hasRerun {
 					return
 				}
 			}
-		}()
+		}(allowAIFallback)
 	default:
 		_ = sharedstate.Current().Delete(dedupKey)
+		_ = sharedstate.Current().Delete(rerunKey)
 	}
 }
 
@@ -384,8 +456,8 @@ func runFriendReviewTask(linkID uint, triggerUserID uint) {
 		return
 	}
 
-	probeCtx, cancelProbe := context.WithTimeout(context.Background(), 20*time.Second)
-	home := probeAndPersistSingleLink(probeCtx, link, true)
+	probeCtx, cancelProbe := context.WithTimeout(context.Background(), 35*time.Second)
+	home := probeAndPersistSingleLink(probeCtx, link, true, true)
 	cancelProbe()
 
 	aiCfg := tools.GetAIConfig()
@@ -466,6 +538,15 @@ func ResumePendingFriendReviews() {
 	}
 }
 
+// EnqueueFriendProbeRound 异步触发一轮全量友链连通、反链与 RSS 探测（供后台手动全量拨测使用，受 WaitGroup 纳管）
+func EnqueueFriendProbeRound(forceBacklink bool) {
+	friendBackgroundWG.Add(1)
+	go func() {
+		defer friendBackgroundWG.Done()
+		RunFriendLinksProbeRound(forceBacklink)
+	}()
+}
+
 // RunFriendLinksProbeRound 批量并发拨测所有已公开（或含预通过）的友链（通过租约防并发重叠执行）
 func RunFriendLinksProbeRound(forceBacklink bool) {
 	lease, err := sharedstate.AcquireLease(friendProbeRoundLease, 5*time.Minute)
@@ -487,9 +568,10 @@ func RunFriendLinksProbeRound(forceBacklink bool) {
 		go func() {
 			defer wg.Done()
 			defer func() { <-sem }()
-			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 32*time.Second)
 			defer cancel()
-			probeAndPersistSingleLink(ctx, &item, forceBacklink)
+			// 批量巡检与后台全量拨测仅执行确定性三层代码漏斗，不触发 LLM 兜底以避免 Token 风暴
+			probeAndPersistSingleLink(ctx, &item, forceBacklink, false)
 		}()
 	}
 	wg.Wait()

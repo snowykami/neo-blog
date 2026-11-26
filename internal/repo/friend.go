@@ -194,9 +194,33 @@ func (r *friendRepo) UpdateLinkColumns(id uint, updates map[string]any) error {
 	return GetDB().Model(&model.FriendLink{}).Where("id = ?", id).Updates(updates).Error
 }
 
-// UpdateLinkProbeColumns 仅在目标友链地址未发生变更时写回拨测结果，避免旧地址慢速拨测覆盖已修改的新地址状态
-func (r *friendRepo) UpdateLinkProbeColumns(id uint, expectedURL string, updates map[string]any) error {
-	return GetDB().Model(&model.FriendLink{}).Where("id = ? AND url = ?", id, expectedURL).Updates(updates).Error
+// UpdateLinkProbeColumns 仅在目标友链地址、回链配置与所属分组均未并发变更时写回拨测结果（使用 UpdateColumns 避免污染 updated_at）
+func (r *friendRepo) UpdateLinkProbeColumns(id uint, expectedURL string, expectedBacklinkURL string, expectedGroupID uint, updates map[string]any) error {
+	return GetDB().Model(&model.FriendLink{}).
+		Where("id = ? AND url = ? AND backlink_url = ? AND group_id = ?", id, expectedURL, expectedBacklinkURL, expectedGroupID).
+		UpdateColumns(updates).Error
+}
+
+// BackfillEmptyRSSURL 仅当友链地址未变且 rss_url 仍为空时原子回填自动探测到的 RSS 地址，绝不覆盖用户或管理员手动填写的值
+func (r *friendRepo) BackfillEmptyRSSURL(id uint, expectedURL string, discoveredRSS string) (bool, error) {
+	if strings.TrimSpace(discoveredRSS) == "" {
+		return false, nil
+	}
+	tx := GetDB().Model(&model.FriendLink{}).
+		Where("id = ? AND url = ? AND rss_url = ''", id, expectedURL).
+		UpdateColumn("rss_url", discoveredRSS)
+	return tx.RowsAffected > 0, tx.Error
+}
+
+// BackfillEmptyBacklinkURL 仅当友链地址未变且 backlink_url 仍为空时原子回填自动探测并验证通过的回链页面地址
+func (r *friendRepo) BackfillEmptyBacklinkURL(id uint, expectedURL string, discoveredBacklink string) (bool, error) {
+	if strings.TrimSpace(discoveredBacklink) == "" {
+		return false, nil
+	}
+	tx := GetDB().Model(&model.FriendLink{}).
+		Where("id = ? AND url = ? AND backlink_url = ''", id, expectedURL).
+		UpdateColumn("backlink_url", discoveredBacklink)
+	return tx.RowsAffected > 0, tx.Error
 }
 
 func (r *friendRepo) DeleteLink(id uint) error {
@@ -221,7 +245,7 @@ func (r *friendRepo) ListAdminLinks(page, pageSize int, status string, groupID u
 	}
 	if kw := strings.TrimSpace(keyword); kw != "" {
 		like := "%" + kw + "%"
-		q = q.Where("name LIKE ? OR url LIKE ? OR description LIKE ?", like, like, like)
+		q = q.Where("name LIKE ? OR url LIKE ? OR description LIKE ? OR rss_url LIKE ?", like, like, like, like)
 	}
 	var total int64
 	if err := q.Count(&total).Error; err != nil {

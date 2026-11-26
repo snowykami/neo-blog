@@ -1,6 +1,7 @@
 'use client'
 
 import type {
+  FriendAutoMetaSnapshot,
   FriendColorKey,
   FriendGroupPresetKey,
   FriendLinkMine,
@@ -48,7 +49,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Empty, EmptyDescription } from '@/components/ui/empty'
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -60,7 +61,15 @@ import { useDebouncedValue } from '@/hooks/use-debounce'
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import copyToClipboard from '@/lib/clipboard'
 import { cn } from '@/lib/utils'
-import { isPreviewableAvatarUrl, pickFriendColorFromSeed } from '@/models/friend'
+import {
+  EMPTY_FRIEND_AUTO_META,
+  isPreviewableAvatarUrl,
+  isRelatedFriendUrlHost,
+  normalizeFriendUrlHost,
+  parseFriendTextSnippet,
+  pickFriendColorFromSeed,
+  resolveAutofillOptionalFields,
+} from '@/models/friend'
 import { isAdmin } from '@/utils/common/permission'
 
 type CopyFormat = 'text' | 'json' | 'yaml' | 'html'
@@ -72,6 +81,7 @@ interface ApplyFormValues {
   name: string
   avatar: string
   description: string
+  rssUrl: string
   backlinkUrl: string
   colorKey: FriendColorKey
 }
@@ -91,57 +101,6 @@ function GroupPresetIcon({ presetKey }: { presetKey: FriendGroupPresetKey }) {
     default:
       return <Link2Icon className="size-4" />
   }
-}
-
-function parseFriendTextSnippet(raw: string): Partial<Record<'name' | 'url' | 'avatar' | 'description', string>> {
-  const trimmed = raw.trim()
-  if (!trimmed)
-    return {}
-
-  // 优先尝试 JSON 解析
-  if (trimmed.startsWith('{')) {
-    try {
-      const obj = JSON.parse(trimmed) as Record<string, unknown>
-      const pick = (...keys: string[]) => {
-        for (const k of keys) {
-          if (typeof obj[k] === 'string' && obj[k].trim())
-            return (obj[k] as string).trim()
-        }
-        return undefined
-      }
-      return {
-        name: pick('name', 'title', 'site', 'sitename'),
-        url: pick('url', 'link', 'href', 'site_url'),
-        avatar: pick('avatar', 'icon', 'logo', 'img', 'image'),
-        description: pick('description', 'desc', 'descr', 'bio', 'slogan'),
-      }
-    }
-    catch {
-      // 回退逐行解析
-    }
-  }
-
-  const out: Partial<Record<'name' | 'url' | 'avatar' | 'description', string>> = {}
-  const lines = trimmed.split(/\r?\n/)
-  for (const rawLine of lines) {
-    const line = rawLine.replace(/^[-*•\s]+/, '').trim()
-    const sepIdx = line.search(/[:：=]/)
-    if (sepIdx <= 0)
-      continue
-    const key = line.slice(0, sepIdx).trim().toLowerCase()
-    const val = line.slice(sepIdx + 1).trim().replace(/^['"`]+|['"`,]+$/g, '')
-    if (!val)
-      continue
-    if (/name|title|名称|名字|站名|站点|标题/.test(key) && !out.name)
-      out.name = val
-    else if (/avatar|icon|logo|img|头像|图标/.test(key) && !out.avatar)
-      out.avatar = val
-    else if (/url|link|href|地址|链接|网址/.test(key) && !out.url)
-      out.url = val
-    else if (/desc|bio|slogan|描述|简介|签名|介绍/.test(key) && !out.description)
-      out.description = val
-  }
-  return out
 }
 
 function formatSiteSnippet(format: CopyFormat, card: { name: string, url: string, avatar: string, description: string }, labels: {
@@ -198,6 +157,9 @@ export function FriendsDirectory({ initialData }: { initialData: PublicFriendsDa
   const suppressSpyUntilRef = useRef<number>(0)
   const stickyNavRef = useRef<HTMLDivElement | null>(null)
   const groupTabListRef = useRef<HTMLDivElement | null>(null)
+  const myLinksReqSeqRef = useRef<number>(0)
+  const lastAutoMetaRef = useRef<FriendAutoMetaSnapshot>(EMPTY_FRIEND_AUTO_META)
+  const [probeSyncTrigger, setProbeSyncTrigger] = useState(0)
 
   useEffect(() => {
     setClientOrigin(window.location.origin)
@@ -243,6 +205,7 @@ export function FriendsDirectory({ initialData }: { initialData: PublicFriendsDa
       name: '',
       avatar: '',
       description: '',
+      rssUrl: '',
       backlinkUrl: '',
       colorKey: 'sky',
     },
@@ -341,27 +304,51 @@ export function FriendsDirectory({ initialData }: { initialData: PublicFriendsDa
     }
   }, [])
 
-  const fetchMyLinks = useCallback(async () => {
+  const fetchMyLinks = useCallback(async (opts?: { silent?: boolean }) => {
+    const seq = ++myLinksReqSeqRef.current
     if (!user) {
       setMyData(null)
       return
     }
-    setMyLoading(true)
+    if (!opts?.silent)
+      setMyLoading(true)
     try {
       const res = await listMyFriendLinks()
+      if (seq !== myLinksReqSeqRef.current)
+        return
       setMyData(res.data)
     }
     catch (err) {
-      toast.error(errorMessageT(err))
+      if (seq === myLinksReqSeqRef.current && !opts?.silent)
+        toast.error(errorMessageT(err))
     }
     finally {
-      setMyLoading(false)
+      if (seq === myLinksReqSeqRef.current)
+        setMyLoading(false)
     }
   }, [errorMessageT, user])
 
   useEffect(() => {
     fetchMyLinks()
   }, [fetchMyLinks])
+
+  // 提交或更新友链后，后台异步执行反链与 RSS 自动探测回填（通常 1~6s 完成），做有界静默二次同步以避免紧接着点编辑时读到旧空值
+  useEffect(() => {
+    if (probeSyncTrigger === 0 || !user)
+      return
+    const t1 = window.setTimeout(() => {
+      fetchMyLinks({ silent: true })
+      refreshPublicDirectory()
+    }, 3500)
+    const t2 = window.setTimeout(() => {
+      fetchMyLinks({ silent: true })
+      refreshPublicDirectory()
+    }, 8500)
+    return () => {
+      window.clearTimeout(t1)
+      window.clearTimeout(t2)
+    }
+  }, [fetchMyLinks, probeSyncTrigger, refreshPublicDirectory, user])
 
   const handleGroupTabClick = (value: string) => {
     setActiveGroupTab(value)
@@ -427,6 +414,7 @@ export function FriendsDirectory({ initialData }: { initialData: PublicFriendsDa
     try {
       const res = await autofillFriendLink(rawUrl)
       const data = res.data
+      const targetUrl = (data.url || rawUrl).trim()
       if (data.url)
         form.setValue('url', data.url, { shouldValidate: true })
       if (data.name)
@@ -435,10 +423,31 @@ export function FriendsDirectory({ initialData }: { initialData: PublicFriendsDa
         setImmediateAvatar(data.avatar.trim())
         form.setValue('avatar', data.avatar, { shouldValidate: true })
       }
-      if (data.description)
-        form.setValue('description', data.description, { shouldValidate: true })
       if (data.colorKey)
         form.setValue('colorKey', data.colorKey)
+
+      const { updates, nextMeta } = resolveAutofillOptionalFields({
+        targetUrl,
+        current: {
+          description: form.getValues('description'),
+          rssUrl: form.getValues('rssUrl'),
+          backlinkUrl: form.getValues('backlinkUrl'),
+        },
+        incoming: {
+          description: data.description,
+          rssUrl: data.rssUrl,
+          backlinkUrl: data.backlinkUrl,
+        },
+        prevMeta: lastAutoMetaRef.current,
+      })
+      if (updates.description !== undefined)
+        form.setValue('description', updates.description, { shouldValidate: true })
+      if (updates.rssUrl !== undefined)
+        form.setValue('rssUrl', updates.rssUrl, { shouldValidate: true })
+      if (updates.backlinkUrl !== undefined)
+        form.setValue('backlinkUrl', updates.backlinkUrl, { shouldValidate: true })
+      lastAutoMetaRef.current = nextMeta
+
       setMyData(prev => prev ? { ...prev, autofillRemaining: data.autofillRemaining } : prev)
       toast.success(t('autofill_success'))
     }
@@ -453,6 +462,10 @@ export function FriendsDirectory({ initialData }: { initialData: PublicFriendsDa
   const handleApplyPaste = () => {
     const parsed = parseFriendTextSnippet(pasteText)
     let count = 0
+    const prevHost = normalizeFriendUrlHost(form.getValues('url')) || lastAutoMetaRef.current.siteHost
+    const nextHost = parsed.url ? normalizeFriendUrlHost(parsed.url) : prevHost
+    const pasteHostChanged = Boolean(parsed.url && prevHost && nextHost && prevHost !== nextHost)
+
     if (parsed.url) {
       form.setValue('url', parsed.url, { shouldValidate: true })
       count++
@@ -461,19 +474,64 @@ export function FriendsDirectory({ initialData }: { initialData: PublicFriendsDa
       form.setValue('name', parsed.name, { shouldValidate: true })
       count++
     }
+    else if (pasteHostChanged) {
+      form.setValue('name', '', { shouldValidate: true })
+    }
+
     if (parsed.avatar) {
       setImmediateAvatar(parsed.avatar.trim())
       form.setValue('avatar', parsed.avatar, { shouldValidate: true })
       count++
     }
+    else if (pasteHostChanged) {
+      setImmediateAvatar('')
+      form.setValue('avatar', '', { shouldValidate: true })
+    }
+
     if (parsed.description) {
       form.setValue('description', parsed.description, { shouldValidate: true })
       count++
     }
+    else if (pasteHostChanged) {
+      form.setValue('description', '', { shouldValidate: true })
+    }
+
+    const targetUrl = parsed.url || form.getValues('url').trim()
+    const currentRss = form.getValues('rssUrl').trim()
+    if (parsed.rssUrl) {
+      form.setValue('rssUrl', parsed.rssUrl, { shouldValidate: true })
+      count++
+    }
+    else if (
+      pasteHostChanged
+      || (parsed.url && currentRss && !isRelatedFriendUrlHost(currentRss, targetUrl, { allowExternalFeedHosts: false }))
+    ) {
+      form.setValue('rssUrl', '', { shouldValidate: true })
+    }
+
+    const currentBacklink = form.getValues('backlinkUrl').trim()
+    if (parsed.backlinkUrl) {
+      form.setValue('backlinkUrl', parsed.backlinkUrl, { shouldValidate: true })
+      count++
+    }
+    else if (
+      pasteHostChanged
+      || (parsed.url && currentBacklink && !isRelatedFriendUrlHost(currentBacklink, targetUrl))
+    ) {
+      form.setValue('backlinkUrl', '', { shouldValidate: true })
+    }
+
     if (parsed.name || parsed.url) {
       form.setValue('colorKey', pickFriendColorFromSeed(`${parsed.name || ''}${parsed.url || ''}`))
     }
     if (count > 0) {
+      lastAutoMetaRef.current = {
+        source: 'paste',
+        siteHost: nextHost,
+        description: form.getValues('description').trim(),
+        rssUrl: form.getValues('rssUrl').trim(),
+        backlinkUrl: form.getValues('backlinkUrl').trim(),
+      }
       toast.success(t('paste_parse_success'))
       setPasteText('')
       setPasteOpen(false)
@@ -486,12 +544,20 @@ export function FriendsDirectory({ initialData }: { initialData: PublicFriendsDa
   const startEditLink = (item: FriendLinkMine) => {
     setEditingLink(item)
     setImmediateAvatar(item.avatar.trim())
+    lastAutoMetaRef.current = {
+      source: 'seed',
+      siteHost: normalizeFriendUrlHost(item.url),
+      description: (item.description || '').trim(),
+      rssUrl: (item.rssUrl || '').trim(),
+      backlinkUrl: (item.backlinkUrl || '').trim(),
+    }
     form.reset({
       groupId: String(item.groupId),
       url: item.url,
       name: item.name,
       avatar: item.avatar,
       description: item.description,
+      rssUrl: item.rssUrl || '',
       backlinkUrl: item.backlinkUrl || '',
       colorKey: item.colorKey || 'sky',
     })
@@ -501,12 +567,14 @@ export function FriendsDirectory({ initialData }: { initialData: PublicFriendsDa
   const cancelEditLink = () => {
     setEditingLink(null)
     setImmediateAvatar('')
+    lastAutoMetaRef.current = EMPTY_FRIEND_AUTO_META
     form.reset({
       groupId: defaultGroupId,
       url: '',
       name: '',
       avatar: '',
       description: '',
+      rssUrl: '',
       backlinkUrl: '',
       colorKey: 'sky',
     })
@@ -519,9 +587,14 @@ export function FriendsDirectory({ initialData }: { initialData: PublicFriendsDa
       url: values.url.trim(),
       avatar: values.avatar.trim(),
       description: values.description.trim(),
+      rssUrl: values.rssUrl.trim(),
       backlinkUrl: values.backlinkUrl.trim(),
       colorKey: values.colorKey,
     }
+    const willRunAsyncDiscovery = !editingLink
+      || editingLink.url !== payload.url
+      || payload.rssUrl === ''
+      || payload.backlinkUrl === ''
     try {
       if (editingLink) {
         await updateMyFriendLink(editingLink.id, payload)
@@ -533,6 +606,8 @@ export function FriendsDirectory({ initialData }: { initialData: PublicFriendsDa
       }
       cancelEditLink()
       await Promise.all([fetchMyLinks(), refreshPublicDirectory()])
+      if (willRunAsyncDiscovery)
+        setProbeSyncTrigger(n => n + 1)
     }
     catch (err) {
       toast.error(errorMessageT(err))
@@ -985,19 +1060,36 @@ export function FriendsDirectory({ initialData }: { initialData: PublicFriendsDa
                         />
                       </div>
 
+                      <FormField
+                        control={form.control}
+                        name="avatar"
+                        rules={{
+                          validate: v => v.trim() !== '' || t('field_avatar_required'),
+                        }}
+                        render={({ field }) => (
+                          <FormItem className="grid min-w-0 gap-2">
+                            <FormLabel>{t('field_avatar')}</FormLabel>
+                            <FormControl>
+                              <Input {...field} type="text" inputMode="url" maxLength={512} placeholder="https://example.com/avatar.png" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
                       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2">
                         <FormField
                           control={form.control}
-                          name="avatar"
-                          rules={{
-                            validate: v => v.trim() !== '' || t('field_avatar_required'),
-                          }}
+                          name="rssUrl"
                           render={({ field }) => (
                             <FormItem className="grid min-w-0 gap-2">
-                              <FormLabel>{t('field_avatar')}</FormLabel>
+                              <FormLabel className="leading-snug">{t('field_rss_url')}</FormLabel>
                               <FormControl>
-                                <Input {...field} type="text" inputMode="url" maxLength={512} placeholder="https://example.com/avatar.png" />
+                                <Input {...field} type="text" inputMode="url" maxLength={512} placeholder={t('field_rss_placeholder')} />
                               </FormControl>
+                              <FormDescription className="text-xs leading-normal">
+                                {t('auto_detect_if_blank')}
+                              </FormDescription>
                               <FormMessage />
                             </FormItem>
                           )}
@@ -1008,10 +1100,13 @@ export function FriendsDirectory({ initialData }: { initialData: PublicFriendsDa
                           name="backlinkUrl"
                           render={({ field }) => (
                             <FormItem className="grid min-w-0 gap-2">
-                              <FormLabel>{t('field_backlink_url')}</FormLabel>
+                              <FormLabel className="leading-snug">{t('field_backlink_url')}</FormLabel>
                               <FormControl>
-                                <Input {...field} type="text" inputMode="url" maxLength={512} placeholder="https://example.com/links" />
+                                <Input {...field} type="text" inputMode="url" maxLength={512} placeholder={t('field_backlink_placeholder')} />
                               </FormControl>
+                              <FormDescription className="text-xs leading-normal">
+                                {t('auto_detect_if_blank')}
+                              </FormDescription>
                               <FormMessage />
                             </FormItem>
                           )}

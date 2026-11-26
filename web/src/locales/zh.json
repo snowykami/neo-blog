@@ -3504,7 +3504,9 @@
       "action_move_top": "置顶",
       "action_move_up": "上移",
       "action_move_down": "下移",
-      "drag_handle_label": "拖拽调整顺序"
+      "drag_handle_label": "拖拽调整顺序",
+      "rss_bound": "RSS 已绑定",
+      "rss_empty": "无 RSS"
     }
   },
   "NotificationDelivery": {
@@ -4170,6 +4172,7 @@
       "invalid_friend_avatar": "站点头像地址无效，请填写合法的 http(s) 图片链接",
       "invalid_friend_description": "站点描述最多 240 个字符",
       "invalid_friend_backlink": "回链页面地址无效，请填写合法的 http(s) 链接",
+      "invalid_friend_rss": "RSS 订阅地址无效，请填写合法的 http(s) 链接",
       "friend_autofill_quota_exceeded": "今日 AI 自动填写次数已用完，请直接手动填写或明天再试",
       "friend_group_not_found": "所选友链分组不存在",
       "friend_quota_exceeded": "你提交的友链数量已达上限（最多 5 条），删除已有记录后可释放名额",
@@ -5361,6 +5364,10 @@
     "field_avatar": "头像 / 图标链接",
     "field_avatar_required": "请填写头像图片链接",
     "field_backlink_url": "回链页面地址（选填）",
+    "field_backlink_placeholder": "https://example.com/links",
+    "field_rss_url": "RSS 订阅地址（选填）",
+    "field_rss_placeholder": "https://example.com/feed.xml",
+    "auto_detect_if_blank": "留空将自动探测并回填",
     "field_description": "站点简介",
     "field_description_placeholder": "一句话介绍你的站点特色…",
     "field_color": "卡片主题色（清透双态 32 色）",

@@ -105,6 +105,7 @@ export interface FriendLinkPublic {
   avatarUrl?: string
   description: string
   colorKey: FriendColorKey
+  rssUrl?: string
   sortOrder: number
   healthStatus: FriendHealthStatus
   latencyMs: number
@@ -142,6 +143,7 @@ export interface FriendLinkMine {
   avatarUrl?: string
   description: string
   colorKey: FriendColorKey
+  rssUrl: string
   backlinkUrl: string
   status: FriendStatus
   reviewNote: string
@@ -166,6 +168,8 @@ export interface FriendAutofillResult {
   avatar: string
   description: string
   colorKey: FriendColorKey
+  rssUrl?: string
+  backlinkUrl?: string
   autofillRemaining: number
 }
 
@@ -176,6 +180,7 @@ export interface UpsertMyFriendLinkPayload {
   avatar: string
   description: string
   colorKey: FriendColorKey
+  rssUrl: string
   backlinkUrl: string
 }
 
@@ -204,6 +209,7 @@ export interface FriendLinkAdmin {
   avatarUrl?: string
   description: string
   colorKey: FriendColorKey
+  rssUrl: string
   backlinkUrl: string
   sortOrder: number
   status: FriendStatus
@@ -240,6 +246,7 @@ export interface AdminUpsertFriendLinkPayload {
   avatar: string
   description: string
   colorKey: FriendColorKey
+  rssUrl: string
   backlinkUrl: string
   sortOrder?: number
   status: FriendStatus
@@ -260,4 +267,263 @@ export interface AdminReviewFriendLinkPayload {
   status: FriendStatus
   groupId?: number
   reviewNote: string
+}
+
+const MULTI_TENANT_HOST_SUFFIXES = [
+  'github.io',
+  'gitlab.io',
+  'vercel.app',
+  'pages.dev',
+  'netlify.app',
+  'cloudflarepages.com',
+  'zeabur.app',
+  'fly.dev',
+  'web.app',
+  'firebaseapp.com',
+  'onrender.com',
+  'railway.app',
+] as const
+
+const TWO_PART_PUBLIC_SUFFIXES = new Set([
+  'co.uk',
+  'org.uk',
+  'ac.uk',
+  'com.cn',
+  'net.cn',
+  'org.cn',
+  'gov.cn',
+  'edu.cn',
+  'co.jp',
+  'ne.jp',
+  'or.jp',
+  'co.kr',
+  'or.kr',
+  'com.hk',
+  'com.tw',
+  'org.tw',
+  'idv.tw',
+  'com.au',
+  'org.au',
+])
+
+export function normalizeFriendUrlHost(raw?: string | null): string {
+  const trimmed = raw?.trim() ?? ''
+  if (!trimmed)
+    return ''
+  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+  try {
+    const parsed = new URL(withScheme)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')
+      return ''
+    return parsed.hostname.toLowerCase().replace(/^www\./, '').replace(/\.$/, '')
+  }
+  catch {
+    return ''
+  }
+}
+
+function getRegistrableHostTail(host: string): string {
+  const parts = host.split('.').filter(Boolean)
+  if (parts.length <= 2)
+    return host
+  const tail2 = `${parts[parts.length - 2]}.${parts[parts.length - 1]}`
+  if (TWO_PART_PUBLIC_SUFFIXES.has(tail2) && parts.length >= 3)
+    return `${parts[parts.length - 3]}.${tail2}`
+  return tail2
+}
+
+export function isRelatedFriendUrlHost(
+  candidateUrl?: string | null,
+  siteUrl?: string | null,
+  opts?: { allowExternalFeedHosts?: boolean },
+): boolean {
+  const candHost = normalizeFriendUrlHost(candidateUrl)
+  const siteHost = normalizeFriendUrlHost(siteUrl)
+  if (!candHost || !siteHost)
+    return false
+  if (candHost === siteHost || candHost.endsWith(`.${siteHost}`) || siteHost.endsWith(`.${candHost}`))
+    return true
+  if (opts?.allowExternalFeedHosts) {
+    if (
+      candHost === 'feedburner.com'
+      || candHost.endsWith('.feedburner.com')
+      || candHost === 'rsshub.app'
+      || candHost.endsWith('.rsshub.app')
+      || candHost === 'follow.is'
+      || candHost.endsWith('.follow.is')
+    ) {
+      return true
+    }
+  }
+  const isMultiTenant = MULTI_TENANT_HOST_SUFFIXES.some(
+    suffix =>
+      candHost === suffix
+      || candHost.endsWith(`.${suffix}`)
+      || siteHost === suffix
+      || siteHost.endsWith(`.${suffix}`),
+  )
+  if (isMultiTenant)
+    return false
+  return getRegistrableHostTail(candHost) === getRegistrableHostTail(siteHost)
+}
+
+export interface FriendAutoMetaSnapshot {
+  source: 'none' | 'seed' | 'autofill' | 'paste'
+  siteHost: string
+  description: string
+  rssUrl: string
+  backlinkUrl: string
+}
+
+export const EMPTY_FRIEND_AUTO_META: FriendAutoMetaSnapshot = {
+  source: 'none',
+  siteHost: '',
+  description: '',
+  rssUrl: '',
+  backlinkUrl: '',
+}
+
+export function resolveAutofillOptionalFields(params: {
+  targetUrl: string
+  current: {
+    description: string
+    rssUrl: string
+    backlinkUrl: string
+  }
+  incoming: {
+    description?: string
+    rssUrl?: string
+    backlinkUrl?: string
+  }
+  prevMeta: FriendAutoMetaSnapshot
+}): {
+  updates: Partial<Record<'description' | 'rssUrl' | 'backlinkUrl', string>>
+  nextMeta: FriendAutoMetaSnapshot
+} {
+  const { targetUrl, current, incoming, prevMeta } = params
+  const nextHost = normalizeFriendUrlHost(targetUrl)
+  const hostChanged = Boolean(prevMeta.siteHost && nextHost && prevMeta.siteHost !== nextHost)
+  const updates: Partial<Record<'description' | 'rssUrl' | 'backlinkUrl', string>> = {}
+
+  const inDesc = incoming.description?.trim() ?? ''
+  const curDesc = current.description.trim()
+  if (inDesc) {
+    updates.description = incoming.description!
+  }
+  else if (hostChanged || (prevMeta.source === 'autofill' && curDesc === prevMeta.description && curDesc !== '')) {
+    updates.description = ''
+  }
+
+  const inRss = incoming.rssUrl?.trim() ?? ''
+  const curRss = current.rssUrl.trim()
+  const curRssCrossSite = Boolean(
+    curRss && nextHost && !isRelatedFriendUrlHost(curRss, targetUrl, { allowExternalFeedHosts: !hostChanged }),
+  )
+  if (inRss) {
+    if (!curRss || hostChanged || curRssCrossSite || curRss === prevMeta.rssUrl)
+      updates.rssUrl = inRss
+  }
+  else if (hostChanged || curRssCrossSite || (prevMeta.source === 'autofill' && curRss === prevMeta.rssUrl && curRss !== '')) {
+    updates.rssUrl = ''
+  }
+
+  const inBacklink = incoming.backlinkUrl?.trim() ?? ''
+  const curBacklink = current.backlinkUrl.trim()
+  const curBacklinkCrossSite = Boolean(
+    curBacklink && nextHost && !isRelatedFriendUrlHost(curBacklink, targetUrl),
+  )
+  if (inBacklink) {
+    if (!curBacklink || hostChanged || curBacklinkCrossSite || curBacklink === prevMeta.backlinkUrl)
+      updates.backlinkUrl = inBacklink
+  }
+  else if (hostChanged || curBacklinkCrossSite || (prevMeta.source === 'autofill' && curBacklink === prevMeta.backlinkUrl && curBacklink !== '')) {
+    updates.backlinkUrl = ''
+  }
+
+  const nextMeta: FriendAutoMetaSnapshot = {
+    source: 'autofill',
+    siteHost: nextHost,
+    description: (updates.description ?? current.description).trim(),
+    rssUrl: (updates.rssUrl ?? current.rssUrl).trim(),
+    backlinkUrl: (updates.backlinkUrl ?? current.backlinkUrl).trim(),
+  }
+
+  return { updates, nextMeta }
+}
+
+export type ParsedFriendSnippet = Partial<
+  Record<'name' | 'url' | 'avatar' | 'description' | 'rssUrl' | 'backlinkUrl', string>
+>
+
+/**
+ * 解析主流开源博客（Hexo / Hugo / Astro / JSON / YAML / 键值文本）友链片段：
+ * 严格按互斥分类分支匹配键名，避免多条订阅或回链字段因 `!out.xxx` 条件穿透污染 `url` / `name`
+ */
+export function parseFriendTextSnippet(raw: string): ParsedFriendSnippet {
+  const trimmed = raw.trim()
+  if (!trimmed)
+    return {}
+
+  if (trimmed.startsWith('{')) {
+    try {
+      const obj = JSON.parse(trimmed) as Record<string, unknown>
+      const pick = (...keys: string[]) => {
+        for (const k of keys) {
+          if (typeof obj[k] === 'string' && (obj[k] as string).trim())
+            return (obj[k] as string).trim()
+        }
+        return undefined
+      }
+      return {
+        name: pick('name', 'title', 'site', 'sitename', 'site_name', 'siteName'),
+        url: pick('url', 'link', 'href', 'site_url', 'siteUrl'),
+        avatar: pick('avatar', 'icon', 'logo', 'img', 'image', 'avatar_url', 'avatarUrl'),
+        description: pick('description', 'desc', 'descr', 'bio', 'slogan'),
+        rssUrl: pick('rss', 'feed', 'atom', 'rss_url', 'rssUrl', 'feed_url', 'feedUrl'),
+        backlinkUrl: pick('backlink', 'backlink_url', 'backlinkUrl'),
+      }
+    }
+    catch {
+      // 回退逐行解析
+    }
+  }
+
+  const out: ParsedFriendSnippet = {}
+  const lines = trimmed.split(/\r?\n/)
+  for (const rawLine of lines) {
+    const line = rawLine.replace(/^[-*•\s]+/, '').trim()
+    const sepIdx = line.search(/[:：=]/)
+    if (sepIdx <= 0)
+      continue
+    const key = line.slice(0, sepIdx).trim().toLowerCase()
+    const val = line.slice(sepIdx + 1).trim().replace(/^['"`]+|['"`,]+$/g, '')
+    if (!val)
+      continue
+
+    if (/rss|atom|feed|订阅|訂閱|フィード|피드/.test(key)) {
+      if (!out.rssUrl)
+        out.rssUrl = val
+    }
+    else if (/backlink|回链|回鏈|反链|反鏈|相互リンク|맞링크/.test(key)) {
+      if (!out.backlinkUrl)
+        out.backlinkUrl = val
+    }
+    else if (/avatar|icon|logo|img|image|头像|頭像|图标|圖示|アイコン|아이콘/.test(key)) {
+      if (!out.avatar)
+        out.avatar = val
+    }
+    else if (/desc|bio|slogan|motto|描述|简介|簡介|签名|簽名|介绍|介紹|紹介|소개/.test(key)) {
+      if (!out.description)
+        out.description = val
+    }
+    else if (/url|link|href|地址|網址|链接|連結|网址|リンク|주소/.test(key)) {
+      if (!out.url)
+        out.url = val
+    }
+    else if (/name|title|sitename|名称|名稱|名字|站名|网站名|網站名|标题|標題|サイト名|사이트\s*이름|^site$|^站点$|^站點$/.test(key)) {
+      if (!out.name)
+        out.name = val
+    }
+  }
+  return out
 }

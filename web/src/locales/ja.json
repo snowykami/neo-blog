@@ -3504,7 +3504,9 @@
       "action_move_top": "先頭へ移動",
       "action_move_up": "上へ移動",
       "action_move_down": "下へ移動",
-      "drag_handle_label": "ドラッグして並び替え"
+      "drag_handle_label": "ドラッグして並び替え",
+      "rss_bound": "RSS 連携済",
+      "rss_empty": "RSS なし"
     }
   },
   "NotificationDelivery": {
@@ -4209,6 +4211,7 @@
       "invalid_friend_avatar": "アイコン URL が無効です。有効な http(s) 画像リンクを入力してください",
       "invalid_friend_description": "サイト紹介は 240 文字以内で入力してください",
       "invalid_friend_backlink": "相互リンク先ページ URL が無効です。有効な http(s) リンクを入力してください",
+      "invalid_friend_rss": "RSS フィード URL が無効です。有効な http(s) リンクを入力してください",
       "friend_autofill_quota_exceeded": "本日の AI 自動入力上限に達しました。手動で入力するか明日お試しください",
       "friend_group_not_found": "選択されたグループが存在しません",
       "friend_quota_exceeded": "登録可能なリンク数の上限（最大 5 件）に達しました。既存の項目を削除すると枠が戻ります",
@@ -5360,7 +5363,11 @@
     "field_group": "グループ",
     "field_avatar": "アイコン画像 URL",
     "field_avatar_required": "アイコン画像 URL を入力してください",
-    "field_backlink_url": "相互リンク掲載ページ URL（任意）",
+    "field_backlink_url": "相互リンク先 URL（任意）",
+    "field_backlink_placeholder": "https://example.com/links",
+    "field_rss_url": "RSS フィード URL（任意）",
+    "field_rss_placeholder": "https://example.com/feed.xml",
+    "auto_detect_if_blank": "空欄の場合は自動検出されます",
     "field_description": "サイト紹介",
     "field_description_placeholder": "サイトの特徴を一言で紹介…",
     "field_color": "カードテーマ色（32 色アダプティブ）",

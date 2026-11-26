@@ -175,6 +175,7 @@ type FriendLink struct {
 	Avatar         string `gorm:"type:varchar(512);not null;default:''"`
 	Description    string `gorm:"type:varchar(200);not null;default:''"`
 	ColorKey       string `gorm:"type:varchar(32);not null;default:'sky'"`
+	RSSURL         string `gorm:"column:rss_url;type:varchar(512);not null;default:''"`
 	BacklinkURL    string `gorm:"type:varchar(512);not null;default:''"`
 	SortOrder      int    `gorm:"not null;default:0"`
 	Status         string `gorm:"type:varchar(16);not null;default:'pending';index"`
@@ -249,6 +250,7 @@ func (l *FriendLink) ToPublicDto() dto.FriendLinkPublicDto {
 		AvatarURL:    l.AvatarCacheURL(),
 		Description:  l.Description,
 		ColorKey:     NormalizeFriendColorKey(l.ColorKey),
+		RSSURL:       l.RSSURL,
 		SortOrder:    l.SortOrder,
 		HealthStatus: l.HealthStatus,
 		LatencyMs:    l.LatencyMs,
@@ -265,6 +267,7 @@ func (l *FriendLink) ToMineDto() dto.FriendLinkMineDto {
 		AvatarURL:    l.AvatarCacheURL(),
 		Description:  l.Description,
 		ColorKey:     NormalizeFriendColorKey(l.ColorKey),
+		RSSURL:       l.RSSURL,
 		BacklinkURL:  l.BacklinkURL,
 		Status:       l.Status,
 		ReviewNote:   l.ReviewNote,
@@ -300,6 +303,7 @@ func (l *FriendLink) ToAdminDto() dto.FriendLinkAdminDto {
 		AvatarURL:      l.AvatarCacheURL(),
 		Description:    l.Description,
 		ColorKey:       NormalizeFriendColorKey(l.ColorKey),
+		RSSURL:         l.RSSURL,
 		BacklinkURL:    l.BacklinkURL,
 		SortOrder:      l.SortOrder,
 		Status:         l.Status,

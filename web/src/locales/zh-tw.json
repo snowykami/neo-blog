@@ -3504,7 +3504,9 @@
       "action_move_top": "置頂",
       "action_move_up": "上移",
       "action_move_down": "下移",
-      "drag_handle_label": "拖曳調整順序"
+      "drag_handle_label": "拖曳調整順序",
+      "rss_bound": "RSS 已綁定",
+      "rss_empty": "無 RSS"
     }
   },
   "NotificationDelivery": {
@@ -4209,6 +4211,7 @@
       "invalid_friend_avatar": "網站頭像網址無效，請填寫合法的 http(s) 圖片連結",
       "invalid_friend_description": "網站描述最多 240 個字元",
       "invalid_friend_backlink": "回鏈頁面網址無效，請填寫合法的 http(s) 連結",
+      "invalid_friend_rss": "RSS 訂閱網址無效，請填寫合法的 http(s) 連結",
       "friend_autofill_quota_exceeded": "今日 AI 自動填寫次數已用完，請直接手動填寫或明天再試",
       "friend_group_not_found": "所選友鏈分組不存在",
       "friend_quota_exceeded": "你提交的友鏈數量已達上限（最多 5 條），刪除既有紀錄後可釋放名額",
@@ -5361,6 +5364,10 @@
     "field_avatar": "頭像 / 圖示連結",
     "field_avatar_required": "請填寫頭像圖片連結",
     "field_backlink_url": "回鏈頁面網址（選填）",
+    "field_backlink_placeholder": "https://example.com/links",
+    "field_rss_url": "RSS 訂閱網址（選填）",
+    "field_rss_placeholder": "https://example.com/feed.xml",
+    "auto_detect_if_blank": "留空將自動探測並回填",
     "field_description": "網站簡介",
     "field_description_placeholder": "一句話介紹你的網站特色…",
     "field_color": "卡片主題色（清透雙態 32 色）",

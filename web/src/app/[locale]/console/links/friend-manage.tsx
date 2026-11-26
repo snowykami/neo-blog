@@ -1,6 +1,7 @@
 'use client'
 
 import type {
+  FriendAutoMetaSnapshot,
   FriendBacklinkStatus,
   FriendColorKey,
   FriendGroupAdmin,
@@ -85,7 +86,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Empty, EmptyDescription } from '@/components/ui/empty'
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -104,7 +105,15 @@ import { useAuth } from '@/contexts/auth-context'
 import { useDebouncedState, useDebouncedValue } from '@/hooks/use-debounce'
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
-import { FRIEND_GROUP_PRESETS, FRIEND_STATUSES, isPreviewableAvatarUrl, resolveFriendPalette } from '@/models/friend'
+import {
+  EMPTY_FRIEND_AUTO_META,
+  FRIEND_GROUP_PRESETS,
+  FRIEND_STATUSES,
+  isPreviewableAvatarUrl,
+  normalizeFriendUrlHost,
+  resolveAutofillOptionalFields,
+  resolveFriendPalette,
+} from '@/models/friend'
 import { isAdmin } from '@/utils/common/permission'
 
 const PAGE_SIZE = 20
@@ -115,6 +124,7 @@ interface AdminLinkFormValues {
   name: string
   avatar: string
   description: string
+  rssUrl: string
   backlinkUrl: string
   colorKey: FriendColorKey
   status: FriendStatus
@@ -160,7 +170,10 @@ export function FriendManage() {
   const [activeSortGroupId, setActiveSortGroupId] = useState<number | null>(null)
   const [reorderingLinks, setReorderingLinks] = useState(false)
   const groupReqSeqRef = useRef(0)
+  const linksReqSeqRef = useRef(0)
   const sortReqSeqRef = useRef(0)
+  const dialogAutoMetaRef = useRef<FriendAutoMetaSnapshot>(EMPTY_FRIEND_AUTO_META)
+  const [probeSyncTrigger, setProbeSyncTrigger] = useState(0)
 
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [groupFilter, setGroupFilter] = useState<string>('all')
@@ -226,10 +239,12 @@ export function FriendManage() {
     }
   }, [errorMessageT, userIsAdmin])
 
-  const fetchLinks = useCallback(async () => {
+  const fetchLinks = useCallback(async (opts?: { silent?: boolean, suppressErrorToast?: boolean }) => {
     if (!userIsAdmin)
       return
-    setLinksLoading(true)
+    const seq = ++linksReqSeqRef.current
+    if (!opts?.silent)
+      setLinksLoading(true)
     try {
       const res = await adminListFriendLinks({
         page,
@@ -238,15 +253,19 @@ export function FriendManage() {
         groupId: groupFilter === 'all' ? undefined : Number(groupFilter),
         keyword: debouncedKeyword.trim() || undefined,
       })
+      if (seq !== linksReqSeqRef.current)
+        return
       setLinks(res.data.links || [])
       setTotal(res.data.total || 0)
       setPendingReviewCount(res.data.pendingReviewCount || 0)
     }
     catch (err) {
-      toast.error(errorMessageT(err))
+      if (seq === linksReqSeqRef.current && !opts?.suppressErrorToast)
+        toast.error(errorMessageT(err))
     }
     finally {
-      setLinksLoading(false)
+      if (seq === linksReqSeqRef.current)
+        setLinksLoading(false)
     }
   }, [debouncedKeyword, errorMessageT, groupFilter, page, statusFilter, userIsAdmin])
 
@@ -291,6 +310,24 @@ export function FriendManage() {
     fetchSortOverview()
   }, [fetchSortOverview])
 
+  // 新建/更新留空字段或触发全量拨测后，后台异步执行反链与 RSS 自动发现回填，做有界静默二次同步防止编辑时读到旧快照
+  useEffect(() => {
+    if (probeSyncTrigger === 0 || !userIsAdmin)
+      return
+    const t1 = window.setTimeout(() => {
+      fetchLinks({ silent: true, suppressErrorToast: true })
+      fetchSortOverview({ silent: true, suppressErrorToast: true })
+    }, 3500)
+    const t2 = window.setTimeout(() => {
+      fetchLinks({ silent: true, suppressErrorToast: true })
+      fetchSortOverview({ silent: true, suppressErrorToast: true })
+    }, 8500)
+    return () => {
+      window.clearTimeout(t1)
+      window.clearTimeout(t2)
+    }
+  }, [fetchLinks, fetchSortOverview, probeSyncTrigger, userIsAdmin])
+
   useEffect(() => {
     if (!transferTarget || !userIsAdmin)
       return
@@ -322,6 +359,8 @@ export function FriendManage() {
     setTransferring(true)
     try {
       const res = await adminTransferFriendLink(transferTarget.id, targetUserId)
+      linksReqSeqRef.current += 1
+      sortReqSeqRef.current += 1
       setLinks(prev => prev.map(item => (item.id === transferTarget.id ? res.data : item)))
       setSortGroups(prev => prev.map(g => ({
         ...g,
@@ -345,6 +384,7 @@ export function FriendManage() {
       name: '',
       avatar: '',
       description: '',
+      rssUrl: '',
       backlinkUrl: '',
       colorKey: 'sky',
       status: 'approved',
@@ -370,6 +410,7 @@ export function FriendManage() {
   const openCreateLinkDialog = () => {
     setEditingLink(null)
     setImmediateDialogAvatar('')
+    dialogAutoMetaRef.current = EMPTY_FRIEND_AUTO_META
     const preferredGroupId = mainTab === 'sort' && activeSortGroupId && groups.some(g => g.id === activeSortGroupId)
       ? activeSortGroupId
       : groups[0]?.id
@@ -379,6 +420,7 @@ export function FriendManage() {
       name: '',
       avatar: '',
       description: '',
+      rssUrl: '',
       backlinkUrl: '',
       colorKey: 'sky',
       status: 'approved',
@@ -390,12 +432,20 @@ export function FriendManage() {
   const openEditLinkDialog = (item: FriendLinkAdmin) => {
     setEditingLink(item)
     setImmediateDialogAvatar(item.avatar.trim())
+    dialogAutoMetaRef.current = {
+      source: 'seed',
+      siteHost: normalizeFriendUrlHost(item.url),
+      description: (item.description || '').trim(),
+      rssUrl: (item.rssUrl || '').trim(),
+      backlinkUrl: (item.backlinkUrl || '').trim(),
+    }
     linkForm.reset({
       groupId: String(item.groupId),
       url: item.url,
       name: item.name,
       avatar: item.avatar,
       description: item.description,
+      rssUrl: item.rssUrl || '',
       backlinkUrl: item.backlinkUrl || '',
       colorKey: item.colorKey || 'sky',
       status: item.status,
@@ -414,6 +464,7 @@ export function FriendManage() {
     try {
       const res = await autofillFriendLink(rawUrl)
       const data = res.data
+      const targetUrl = (data.url || rawUrl).trim()
       if (data.url)
         linkForm.setValue('url', data.url, { shouldValidate: true })
       if (data.name)
@@ -422,10 +473,31 @@ export function FriendManage() {
         setImmediateDialogAvatar(data.avatar.trim())
         linkForm.setValue('avatar', data.avatar, { shouldValidate: true })
       }
-      if (data.description)
-        linkForm.setValue('description', data.description)
       if (data.colorKey)
         linkForm.setValue('colorKey', data.colorKey)
+
+      const { updates, nextMeta } = resolveAutofillOptionalFields({
+        targetUrl,
+        current: {
+          description: linkForm.getValues('description'),
+          rssUrl: linkForm.getValues('rssUrl'),
+          backlinkUrl: linkForm.getValues('backlinkUrl'),
+        },
+        incoming: {
+          description: data.description,
+          rssUrl: data.rssUrl,
+          backlinkUrl: data.backlinkUrl,
+        },
+        prevMeta: dialogAutoMetaRef.current,
+      })
+      if (updates.description !== undefined)
+        linkForm.setValue('description', updates.description, { shouldValidate: true })
+      if (updates.rssUrl !== undefined)
+        linkForm.setValue('rssUrl', updates.rssUrl, { shouldValidate: true })
+      if (updates.backlinkUrl !== undefined)
+        linkForm.setValue('backlinkUrl', updates.backlinkUrl, { shouldValidate: true })
+      dialogAutoMetaRef.current = nextMeta
+
       toast.success(friendT('autofill_success'))
     }
     catch (err) {
@@ -443,11 +515,18 @@ export function FriendManage() {
       url: values.url.trim(),
       avatar: values.avatar.trim(),
       description: values.description.trim(),
+      rssUrl: values.rssUrl.trim(),
       backlinkUrl: values.backlinkUrl.trim(),
       colorKey: values.colorKey,
       status: values.status,
       reviewNote: values.reviewNote.trim(),
     }
+    const willRunAsyncDiscovery = !editingLink
+      || editingLink.url !== payload.url
+      || editingLink.backlinkUrl !== payload.backlinkUrl
+      || editingLink.rssUrl !== payload.rssUrl
+      || editingLink.groupId !== payload.groupId
+      || (editingLink.status === 'rejected' && payload.status !== 'rejected')
     try {
       if (editingLink) {
         await adminUpdateFriendLink(editingLink.id, payload)
@@ -459,6 +538,8 @@ export function FriendManage() {
       }
       setLinkDialogOpen(false)
       await Promise.all([fetchLinks(), fetchGroups(), fetchSortOverview({ silent: true })])
+      if (willRunAsyncDiscovery)
+        setProbeSyncTrigger(n => n + 1)
     }
     catch (err) {
       toast.error(errorMessageT(err))
@@ -497,6 +578,8 @@ export function FriendManage() {
     setProbingId(id)
     try {
       const res = await adminProbeFriendLink(id)
+      linksReqSeqRef.current += 1
+      sortReqSeqRef.current += 1
       setLinks(prev => prev.map(item => (item.id === id ? res.data : item)))
       setSortGroups(prev => prev.map(g => ({
         ...g,
@@ -517,6 +600,7 @@ export function FriendManage() {
     try {
       await adminProbeAllFriendLinks()
       toast.success(t('probe_all_triggered'))
+      setProbeSyncTrigger(n => n + 1)
     }
     catch (err) {
       toast.error(errorMessageT(err))
@@ -990,6 +1074,29 @@ export function FriendManage() {
                           <div className="flex flex-wrap items-center gap-1.5">
                             {renderHealthText(item.healthStatus, item.latencyMs, item.failCount)}
                             {renderBacklinkBadge(item.backlinkStatus)}
+                            {item.rssUrl && /^https?:\/\//i.test(item.rssUrl)
+                              ? (
+                                  <Badge
+                                    asChild
+                                    variant="outline"
+                                    className="gap-1 border-sky-500/40 text-sky-600 hover:bg-sky-500/10 dark:text-sky-400"
+                                  >
+                                    <a
+                                      href={item.rssUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      title={item.rssUrl}
+                                    >
+                                      <RssIcon className="size-3" aria-hidden />
+                                      {t('rss_bound')}
+                                    </a>
+                                  </Badge>
+                                )
+                              : (
+                                  <Badge variant="outline" className="text-muted-foreground">
+                                    {t('rss_empty')}
+                                  </Badge>
+                                )}
                           </div>
                           {item.lastCheckedAt && (
                             <span className="text-xs text-muted-foreground">
@@ -1576,13 +1683,66 @@ export function FriendManage() {
 
                 <FormField
                   control={linkForm.control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem className="grid min-w-0 gap-2">
+                      <FormLabel>{t('field_status')}</FormLabel>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger className="w-full min-w-0">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {FRIEND_STATUSES.map(st => (
+                            <SelectItem key={st} value={st}>
+                              {st === 'approved'
+                                ? friendT('status_approved')
+                                : st === 'pre_approved'
+                                  ? friendT('status_pre_approved')
+                                  : st === 'rejected'
+                                    ? friendT('status_rejected')
+                                    : friendT('status_pending')}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2">
+                <FormField
+                  control={linkForm.control}
+                  name="rssUrl"
+                  render={({ field }) => (
+                    <FormItem className="grid min-w-0 gap-2">
+                      <FormLabel className="leading-snug">{friendT('field_rss_url')}</FormLabel>
+                      <FormControl>
+                        <Input {...field} type="text" inputMode="url" maxLength={512} placeholder={friendT('field_rss_placeholder')} />
+                      </FormControl>
+                      <FormDescription className="text-xs leading-normal">
+                        {friendT('auto_detect_if_blank')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={linkForm.control}
                   name="backlinkUrl"
                   render={({ field }) => (
                     <FormItem className="grid min-w-0 gap-2">
-                      <FormLabel>{friendT('field_backlink_url')}</FormLabel>
+                      <FormLabel className="leading-snug">{friendT('field_backlink_url')}</FormLabel>
                       <FormControl>
-                        <Input {...field} type="text" inputMode="url" maxLength={512} placeholder="https://example.com/links" />
+                        <Input {...field} type="text" inputMode="url" maxLength={512} placeholder={friendT('field_backlink_placeholder')} />
                       </FormControl>
+                      <FormDescription className="text-xs leading-normal">
+                        {friendT('auto_detect_if_blank')}
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -1598,37 +1758,6 @@ export function FriendManage() {
                     <FormControl>
                       <Textarea {...field} rows={2} maxLength={200} />
                     </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={linkForm.control}
-                name="status"
-                render={({ field }) => (
-                  <FormItem className="grid min-w-0 gap-2">
-                    <FormLabel>{t('field_status')}</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full min-w-0">
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {FRIEND_STATUSES.map(st => (
-                          <SelectItem key={st} value={st}>
-                            {st === 'approved'
-                              ? friendT('status_approved')
-                              : st === 'pre_approved'
-                                ? friendT('status_pre_approved')
-                                : st === 'rejected'
-                                  ? friendT('status_rejected')
-                                  : friendT('status_pending')}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}

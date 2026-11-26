@@ -3504,7 +3504,9 @@
       "action_move_top": "Move to top",
       "action_move_up": "Move up",
       "action_move_down": "Move down",
-      "drag_handle_label": "Drag to reorder"
+      "drag_handle_label": "Drag to reorder",
+      "rss_bound": "RSS Linked",
+      "rss_empty": "No RSS"
     }
   },
   "NotificationDelivery": {
@@ -4209,6 +4211,7 @@
       "invalid_friend_avatar": "Invalid avatar URL. Please enter a valid http(s) image link",
       "invalid_friend_description": "Site description must be at most 240 characters",
       "invalid_friend_backlink": "Invalid backlink URL. Please enter a valid http(s) link",
+      "invalid_friend_rss": "Invalid RSS feed URL. Please enter a valid http(s) link",
       "friend_autofill_quota_exceeded": "Daily AI autofill quota reached. Please fill in manually or try again tomorrow",
       "friend_group_not_found": "Selected friend group does not exist",
       "friend_quota_exceeded": "You have reached the maximum of 5 friend links. Delete an existing entry to free a slot",
@@ -5360,7 +5363,11 @@
     "field_group": "Group",
     "field_avatar": "Avatar / Icon URL",
     "field_avatar_required": "Please enter the avatar image URL",
-    "field_backlink_url": "Backlink Page URL (optional)",
+    "field_backlink_url": "Backlink Page URL (Optional)",
+    "field_backlink_placeholder": "https://example.com/links",
+    "field_rss_url": "RSS Feed URL (Optional)",
+    "field_rss_placeholder": "https://example.com/feed.xml",
+    "auto_detect_if_blank": "Auto-detected if left blank",
     "field_description": "Description",
     "field_description_placeholder": "A short tagline describing your site…",
     "field_color": "Card Accent (32 Adaptive Colors)",

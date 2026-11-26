@@ -3504,7 +3504,9 @@
       "action_move_top": "맨 위로",
       "action_move_up": "위로",
       "action_move_down": "아래로",
-      "drag_handle_label": "드래그하여 순서 변경"
+      "drag_handle_label": "드래그하여 순서 변경",
+      "rss_bound": "RSS 연동됨",
+      "rss_empty": "RSS 없음"
     }
   },
   "NotificationDelivery": {
@@ -4209,6 +4211,7 @@
       "invalid_friend_avatar": "유효하지 않은 아이콘 주소입니다. 올바른 http(s) 이미지 링크를 입력해 주세요",
       "invalid_friend_description": "사이트 소개는 최대 240자까지 입력할 수 있습니다",
       "invalid_friend_backlink": "유효하지 않은 맞링크 페이지 주소입니다. 올바른 http(s) 링크를 입력해 주세요",
+      "invalid_friend_rss": "유효하지 않은 RSS 피드 주소입니다. 올바른 http(s) 링크를 입력해 주세요",
       "friend_autofill_quota_exceeded": "오늘의 AI 자동 입력 횟수를 모두 사용했습니다. 직접 입력하거나 내일 다시 시도해 주세요",
       "friend_group_not_found": "선택한 친구 링크 그룹을 찾을 수 없습니다",
       "friend_quota_exceeded": "등록 가능한 친구 링크 한도(최대 5개)에 도달했습니다. 기존 항목을 삭제하면 한도가 복구됩니다",
@@ -5360,7 +5363,11 @@
     "field_group": "소속 그룹",
     "field_avatar": "아이콘 이미지 URL",
     "field_avatar_required": "아이콘 이미지 URL을 입력해 주세요",
-    "field_backlink_url": "맞링크 페이지 주소(선택)",
+    "field_backlink_url": "맞링크 페이지 주소 (선택)",
+    "field_backlink_placeholder": "https://example.com/links",
+    "field_rss_url": "RSS 피드 주소 (선택)",
+    "field_rss_placeholder": "https://example.com/feed.xml",
+    "auto_detect_if_blank": "비워두면 자동으로 감지합니다",
     "field_description": "사이트 소개",
     "field_description_placeholder": "사이트를 한 줄로 소개해 주세요…",
     "field_color": "카드 테마 색상(32색 어댑티브)",

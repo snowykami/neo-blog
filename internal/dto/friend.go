@@ -38,6 +38,7 @@ type FriendLinkPublicDto struct {
 	AvatarURL    string `json:"avatar_url"`
 	Description  string `json:"description"`
 	ColorKey     string `json:"color_key"`
+	RSSURL       string `json:"rss_url"`
 	SortOrder    int    `json:"sort_order"`
 	HealthStatus string `json:"health_status"`
 	LatencyMs    int    `json:"latency_ms"`
@@ -53,6 +54,7 @@ type FriendLinkMineDto struct {
 	AvatarURL    string    `json:"avatar_url"`
 	Description  string    `json:"description"`
 	ColorKey     string    `json:"color_key"`
+	RSSURL       string    `json:"rss_url"`
 	BacklinkURL  string    `json:"backlink_url"`
 	Status       string    `json:"status"`
 	ReviewNote   string    `json:"review_note"`
@@ -74,6 +76,7 @@ type FriendLinkAdminDto struct {
 	AvatarURL      string         `json:"avatar_url"`
 	Description    string         `json:"description"`
 	ColorKey       string         `json:"color_key"`
+	RSSURL         string         `json:"rss_url"`
 	BacklinkURL    string         `json:"backlink_url"`
 	SortOrder      int            `json:"sort_order"`
 	Status         string         `json:"status"`
@@ -124,6 +127,8 @@ type FriendAutofillResp struct {
 	Avatar            string `json:"avatar"`
 	Description       string `json:"description"`
 	ColorKey          string `json:"color_key"`
+	RSSURL            string `json:"rss_url"`
+	BacklinkURL       string `json:"backlink_url"`
 	AutofillRemaining int    `json:"autofill_remaining"`
 }
 
@@ -135,6 +140,7 @@ type UpsertMyFriendLinkReq struct {
 	Avatar      string `json:"avatar"`
 	Description string `json:"description"`
 	ColorKey    string `json:"color_key"`
+	RSSURL      string `json:"rss_url"`
 	BacklinkURL string `json:"backlink_url"`
 }
 
@@ -178,6 +184,7 @@ type AdminUpsertFriendLinkReq struct {
 	Avatar      string `json:"avatar"`
 	Description string `json:"description"`
 	ColorKey    string `json:"color_key"`
+	RSSURL      string `json:"rss_url"`
 	BacklinkURL string `json:"backlink_url"`
 	SortOrder   *int   `json:"sort_order,omitempty"`
 	Status      string `json:"status"`
