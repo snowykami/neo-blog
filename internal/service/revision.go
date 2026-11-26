@@ -102,7 +102,7 @@ func (s *RevisionService) snapshot(targetType string, targetID uint) (*revisionS
 			content: currentDraft(page.DraftContent, page.Content),
 			meta: dto.RevisionMeta{
 				Title: page.Title, Description: page.Description, Cover: page.Cover, Slug: &slug, IsPrivate: page.IsPrivate,
-				ShowInNav: page.ShowInNav, NavOrder: page.NavOrder, Layout: model.NormalizePageLayout(page.Layout),
+				ShowInNav: page.ShowInNav, OpenInNewTab: &page.OpenInNewTab, NavOrder: page.NavOrder, Layout: model.NormalizePageLayout(page.Layout),
 				Fullscreen: &page.Fullscreen,
 			},
 		}, nil
@@ -410,9 +410,10 @@ func (s *RevisionService) Restore(ctx context.Context, targetType string, target
 			ID:          targetID,
 			PageBaseDto: dto.PageBaseDto{Title: meta.Title, Slug: slug, DraftContent: &content},
 			IsPrivate:   &meta.IsPrivate, ShowInNav: &meta.ShowInNav, NavOrder: &meta.NavOrder, Layout: pageLayoutPtr(meta.Layout),
-			// 旧版本快照中没有全屏设置（nil）时不修改
-			Fullscreen:  meta.Fullscreen,
-			Description: &meta.Description, Cover: &meta.Cover,
+			// 旧版本快照中没有全屏/新标签页设置（nil）时不修改
+			OpenInNewTab: meta.OpenInNewTab,
+			Fullscreen:   meta.Fullscreen,
+			Description:  &meta.Description, Cover: &meta.Cover,
 			EditSessionID: sessionID,
 		})
 	default:

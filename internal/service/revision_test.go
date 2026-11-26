@@ -472,11 +472,11 @@ func TestPageKindLinkAndFullscreen(t *testing.T) {
 		t.Fatalf("create content page: %v", svcerr)
 	}
 	page, _ := repo.Page.GetPageByID(id)
-	if got := page.ToDto(); got.Kind != model.PageKindContent || got.LinkURL != "" || got.Fullscreen {
+	if got := page.ToDto(); got.Kind != model.PageKindContent || got.LinkURL != "" || got.Fullscreen || got.OpenInNewTab {
 		t.Fatalf("content page = %+v", got.PageBaseDto)
 	}
 
-	// 全屏设置：更新后保留，恢复版本时随之恢复
+	// 全屏与新标签页打开设置：更新后保留，恢复版本时随之恢复
 	session, _ := NewEditSessionService().Acquire(author, constant.TargetTypePage, id, "test")
 	update := func(req dto.CreateOrUpdatePageReq) *errs.ServiceError {
 		draft := "<p>改了</p>"
@@ -485,11 +485,11 @@ func TestPageKindLinkAndFullscreen(t *testing.T) {
 		return svcerr
 	}
 	on := true
-	if svcerr := update(dto.CreateOrUpdatePageReq{Fullscreen: &on}); svcerr != nil {
-		t.Fatalf("update fullscreen: %v", svcerr)
+	if svcerr := update(dto.CreateOrUpdatePageReq{Fullscreen: &on, OpenInNewTab: &on}); svcerr != nil {
+		t.Fatalf("update fullscreen & open_in_new_tab: %v", svcerr)
 	}
-	if page, _ = repo.Page.GetPageByID(id); !page.Fullscreen {
-		t.Fatal("fullscreen should be saved")
+	if page, _ = repo.Page.GetPageByID(id); !page.Fullscreen || !page.OpenInNewTab {
+		t.Fatalf("fullscreen & open_in_new_tab should be saved, got fullscreen=%v openInNewTab=%v", page.Fullscreen, page.OpenInNewTab)
 	}
 	// 改成链接页面但地址非法：拒绝
 	if svcerr := update(dto.CreateOrUpdatePageReq{Kind: ptr(model.PageKindLink), LinkURL: ptr("javascript:x")}); svcerr == nil {
@@ -498,7 +498,7 @@ func TestPageKindLinkAndFullscreen(t *testing.T) {
 	if svcerr := NewRevisionService().Restore(author, constant.TargetTypePage, id, session.BaseRevisionID, session.SessionID); svcerr != nil {
 		t.Fatalf("restore: %v", svcerr)
 	}
-	if page, _ = repo.Page.GetPageByID(id); page.Fullscreen {
-		t.Fatal("restore should bring back fullscreen = false")
+	if page, _ = repo.Page.GetPageByID(id); page.Fullscreen || page.OpenInNewTab {
+		t.Fatalf("restore should bring back fullscreen=false & open_in_new_tab=false, got %v / %v", page.Fullscreen, page.OpenInNewTab)
 	}
 }

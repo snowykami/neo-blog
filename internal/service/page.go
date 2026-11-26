@@ -78,6 +78,7 @@ func (p *PageService) CreatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 			Type:         pageType,
 			IsPrivate:    utils.Deref(req.IsPrivate),
 			ShowInNav:    utils.Deref(req.ShowInNav),
+			OpenInNewTab: utils.Deref(req.OpenInNewTab),
 			NavOrder:     navOrder,
 			Icon:         model.NormalizePageIcon(utils.Deref(req.Icon)),
 			Layout:       model.NormalizePageLayout(utils.Deref(req.Layout)),
@@ -251,6 +252,10 @@ func (p *PageService) UpdatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 	if req.ShowInNav != nil {
 		page.ShowInNav = *req.ShowInNav
 		columns = append(columns, "show_in_nav")
+	}
+	if req.OpenInNewTab != nil {
+		page.OpenInNewTab = *req.OpenInNewTab
+		columns = append(columns, "open_in_new_tab")
 	}
 	if req.NavOrder != nil {
 		page.NavOrder = *req.NavOrder

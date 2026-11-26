@@ -12,6 +12,7 @@ type PageBaseDto struct {
 	Type         string  `json:"type"`
 	IsPrivate    bool    `json:"is_private"`
 	ShowInNav    bool    `json:"show_in_nav"`
+	OpenInNewTab bool    `json:"open_in_new_tab"`
 	NavOrder     int     `json:"nav_order"`
 	Icon         string  `json:"icon"`       // 页面导航图标（Lucide 图标键名，none 表示不显示图标，空字符串表示使用默认图标）
 	Layout       string  `json:"layout"`     // 前台版式：reading 阅读（正文 + 目录侧边栏）/ wide 宽屏
@@ -41,14 +42,15 @@ type CreateOrUpdatePageReq struct {
 	ID uint `path:"id" json:"id"`
 	PageBaseDto
 	// 以下字段覆盖 PageBaseDto 同名字段，用指针区分“未传”与“零值”，避免只保存草稿时把私密、导航设置重置
-	IsPrivate  *bool   `json:"is_private"`
-	ShowInNav  *bool   `json:"show_in_nav"`
-	NavOrder   *int    `json:"nav_order"`
-	Icon       *string `json:"icon"`
-	Layout     *string `json:"layout"`
-	Kind       *string `json:"kind"`
-	LinkURL    *string `json:"link_url"`
-	Fullscreen *bool   `json:"fullscreen"`
+	IsPrivate    *bool   `json:"is_private"`
+	ShowInNav    *bool   `json:"show_in_nav"`
+	OpenInNewTab *bool   `json:"open_in_new_tab"`
+	NavOrder     *int    `json:"nav_order"`
+	Icon         *string `json:"icon"`
+	Layout       *string `json:"layout"`
+	Kind         *string `json:"kind"`
+	LinkURL      *string `json:"link_url"`
+	Fullscreen   *bool   `json:"fullscreen"`
 	// HTML 页面的显示尺寸
 	HTMLSizeMode    *string `json:"html_size_mode"`
 	HTMLAspectRatio *string `json:"html_aspect_ratio"`

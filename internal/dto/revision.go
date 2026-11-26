@@ -17,10 +17,11 @@ type RevisionMeta struct {
 	CategoryID *uint  `json:"category_id,omitempty"`
 	LabelIds   []uint `json:"label_ids,omitempty"`
 	// 页面
-	ShowInNav  bool   `json:"show_in_nav,omitempty"`
-	NavOrder   int    `json:"nav_order,omitempty"`
-	Layout     string `json:"layout,omitempty"`
-	Fullscreen *bool  `json:"fullscreen,omitempty"`
+	ShowInNav    bool   `json:"show_in_nav,omitempty"`
+	OpenInNewTab *bool  `json:"open_in_new_tab,omitempty"`
+	NavOrder     int    `json:"nav_order,omitempty"`
+	Layout       string `json:"layout,omitempty"`
+	Fullscreen   *bool  `json:"fullscreen,omitempty"`
 }
 
 // RevisionDto 版本列表项（不含正文）

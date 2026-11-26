@@ -130,7 +130,7 @@ function useNavMenuItems(): NavMenuItem[] {
       {
         title: 'page',
         icon: PanelsTopLeftIcon,
-        // 链接页面直接跳转到其地址：站内路径用路由切换，站外地址新窗口打开
+        // 链接页面跳转到配置地址，其余跳转到 /page/{slug}；是否新标签页打开统一由 page.openInNewTab 控制
         children: pages.map((page) => {
           const isLink = page.kind === 'link' && !!page.linkUrl
           const external = isLink && isExternalHref(page.linkUrl)
@@ -140,6 +140,7 @@ function useNavMenuItems(): NavMenuItem[] {
             href: isLink ? page.linkUrl : getPageUrl(page),
             icon: resolvePageNavIcon(page),
             external,
+            openInNewTab: Boolean(page.openInNewTab),
           }
         }),
       },
@@ -249,6 +250,7 @@ function NavMenuCenter({ items }: { items: NavMenuItem[] }) {
                                     <NavItemLink
                                       href={child.href}
                                       external={child.external}
+                                      openInNewTab={child.openInNewTab}
                                       aria-current={childActive ? 'page' : undefined}
                                       className={cn(
                                         'flex-row! items-center gap-2! rounded-lg! px-3 py-2 text-sm font-medium text-foreground/75 hover:bg-primary/10! hover:text-primary! focus:bg-primary/10! focus:text-primary!',

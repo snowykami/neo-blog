@@ -93,6 +93,7 @@ type PageBase struct {
 	Type         string  `gorm:"type:varchar(20);default:'html'"`
 	IsPrivate    bool    `gorm:"default:false"`
 	ShowInNav    bool    `gorm:"default:false;index"`
+	OpenInNewTab bool    `gorm:"default:false"`
 	NavOrder     int     `gorm:"default:0;index"`
 	Icon         string  `gorm:"type:varchar(64);default:''"`
 	// 前台版式：reading 正文 + 目录侧边栏（默认），wide 正文占满整行
@@ -124,6 +125,7 @@ func (p *Page) ToDto() *dto.PageDto {
 			Type:            p.Type,
 			IsPrivate:       p.IsPrivate,
 			ShowInNav:       p.ShowInNav,
+			OpenInNewTab:    p.OpenInNewTab,
 			NavOrder:        p.NavOrder,
 			Icon:            NormalizePageIcon(p.Icon),
 			Layout:          NormalizePageLayout(p.Layout),

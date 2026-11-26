@@ -27,6 +27,7 @@ interface PageSettingsValues {
   cover: string
   isPrivate: boolean
   showInNav: boolean
+  openInNewTab: boolean
   icon: string
   layout: PageLayout
   fullscreen: boolean
@@ -39,6 +40,7 @@ function toValues(meta: ContentMeta): PageSettingsValues {
     cover: meta.cover,
     isPrivate: meta.isPrivate,
     showInNav: meta.showInNav,
+    openInNewTab: meta.openInNewTab,
     icon: meta.icon || '',
     layout: meta.layout,
     fullscreen: meta.fullscreen,
@@ -117,6 +119,7 @@ export function PageSettingsSheet({
 
           <SettingsSection icon={CompassIcon} title={t('settings_nav')}>
             <SwitchField form={form} name="showInNav" label={pageT('show_in_nav')} description={t('show_in_nav_hint')} />
+            <SwitchField form={form} name="openInNewTab" label={pageT('open_in_new_tab')} description={pageT('open_in_new_tab_hint')} />
             <FormField
               control={form.control}
               name="icon"

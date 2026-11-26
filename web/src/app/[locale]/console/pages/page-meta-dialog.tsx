@@ -45,6 +45,7 @@ interface PageMetaForm {
   description: string
   isPrivate: boolean
   showInNav: boolean
+  openInNewTab: boolean
   icon: string
   layout: PageLayout
   kind: PageKind
@@ -437,6 +438,16 @@ export function PageMetaDialog({
               />
               <FormField
                 control={form.control}
+                name="openInNewTab"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between gap-4 rounded-lg border p-3">
+                    <LabelWithInfo info={t('open_in_new_tab_hint')}><FormLabel>{t('open_in_new_tab')}</FormLabel></LabelWithInfo>
+                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
                 name="isPrivate"
                 render={({ field }) => (
                   <FormItem className="flex items-center justify-between gap-4 rounded-lg border p-3">
@@ -482,6 +493,7 @@ function toFormValues(page: PageModel | null): PageMetaForm {
         description: page.description || '',
         isPrivate: page.isPrivate,
         showInNav: page.showInNav,
+        openInNewTab: !!page.openInNewTab,
         icon: page.icon || '',
         layout: page.layout === 'wide' ? 'wide' : 'reading',
         kind: PAGE_KINDS.includes(page.kind) ? page.kind : 'content',
@@ -498,6 +510,7 @@ function toFormValues(page: PageModel | null): PageMetaForm {
         description: '',
         isPrivate: false,
         showInNav: false,
+        openInNewTab: false,
         icon: '',
         layout: 'reading',
         kind: 'content',

@@ -9,11 +9,12 @@ import {
   CodeXmlIcon,
   CompassIcon,
   Ellipsis,
+  ExternalLinkIcon,
   Eye,
   HandshakeIcon,
   LinkIcon,
   PanelsTopLeftIcon,
-  Settings2Icon,
+  PencilIcon,
 } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { parseAsBoolean, parseAsInteger, useQueryState } from 'nuqs'
@@ -163,6 +164,12 @@ const PageItem = memo(({
           {page.showInNav && (
             <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300">
               {t('in_nav_badge')}
+            </Badge>
+          )}
+          {page.openInNewTab && (
+            <Badge variant="outline" className="gap-1">
+              <ExternalLinkIcon aria-hidden className="size-3" />
+              {t('new_tab_badge')}
             </Badge>
           )}
           {showAuthor && page.user && (
@@ -352,6 +359,7 @@ export function PageManage() {
           linkUrl: mainPath.friends,
           icon: 'handshake',
           showInNav: true,
+          openInNewTab: false,
           isPrivate: false,
           content: '',
           type: 'html',
@@ -454,6 +462,12 @@ export function PageManage() {
                           : <CircleOffIcon className="size-3.5 shrink-0 text-muted-foreground/50" aria-hidden />}
                         <span className="min-w-0 truncate text-sm font-medium">{navItem.title}</span>
                         <span className="hidden truncate font-mono text-xs text-muted-foreground sm:inline">{hrefText}</span>
+                        {navItem.openInNewTab && (
+                          <span title={t('new_tab_badge')} className="inline-flex shrink-0 items-center">
+                            <ExternalLinkIcon aria-hidden className="size-3.5 text-muted-foreground" />
+                            <span className="sr-only">{t('new_tab_badge')}</span>
+                          </span>
+                        )}
                         {navItem.isPrivate && (
                           <Badge variant="secondary" className="bg-orange-100 text-orange-800 dark:bg-orange-500/15 dark:text-orange-300">
                             {stateT('private')}
@@ -480,16 +494,32 @@ export function PageManage() {
                           >
                             <ArrowDownIcon />
                           </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label={operationT('setting')}
-                            title={operationT('setting')}
-                            onClick={() => openEditDialog(navItem)}
-                          >
-                            <Settings2Icon />
-                          </Button>
+                          {navItem.kind === 'link'
+                            ? (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  aria-label={operationT('edit')}
+                                  title={operationT('edit')}
+                                  onClick={() => openEditDialog(navItem)}
+                                >
+                                  <PencilIcon />
+                                </Button>
+                              )
+                            : (
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  aria-label={operationT('edit')}
+                                  title={operationT('edit')}
+                                  asChild
+                                >
+                                  <Link href={getPageEditUrl(navItem)} prefetch>
+                                    <PencilIcon />
+                                  </Link>
+                                </Button>
+                              )}
                           <Switch
                             checked={navItem.showInNav}
                             onCheckedChange={checked => handleToggleNav(navItem, checked)}
@@ -636,12 +666,10 @@ function PageDropdownMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="min-w-36" align="end">
-        {/* 链接页面没有正文，编辑即打开设置 */}
+        {/* 统一保留「编辑」入口：链接页面直接打开编辑弹窗，正文与 HTML 页面进入各自编辑器（内部已包含全部页面设置） */}
         {page.kind === 'link'
           ? <DropdownMenuItem onClick={() => onRequestEditMeta(page)}>{operationT('edit')}</DropdownMenuItem>
-          // 客户端跳转（不整页刷新）；菜单打开时（链接挂载）就完整预取编辑器的页面与 JS
           : <DropdownMenuItem asChild><Link href={getPageEditUrl(page)} prefetch>{operationT('edit')}</Link></DropdownMenuItem>}
-        <DropdownMenuItem onClick={() => onRequestEditMeta(page)}>{operationT('setting')}</DropdownMenuItem>
         <DropdownMenuItem asChild><a href={getPageOpenUrl(page)} target="_blank" rel="noreferrer">{operationT(isPreview(page) ? 'preview' : 'view')}</a></DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={togglePrivate}>{operationT(page.isPrivate ? 'set_public' : 'set_private')}</DropdownMenuItem>

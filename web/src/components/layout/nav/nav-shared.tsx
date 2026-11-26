@@ -13,18 +13,51 @@ export interface NavLinkItem {
   label?: string
   href: string
   icon?: LucideIcon | null
-  // 站外链接：新窗口打开
+  // 站外 http(s) 绝对地址（不经过站内多语言路由）
   external?: boolean
+  // 是否在新浏览器标签页打开（等价 target="_blank"），关闭则在当前页打开
+  openInNewTab?: boolean
 }
 
 function isMusicEntryHref(href: string): boolean {
   return href === '/music' || href.startsWith('/music?') || href.startsWith('/music#')
 }
 
-/** 菜单中的链接：站内路径用 Next 的路由切换，站外地址在新窗口打开；若指向 /music 则悬停/触摸时预热控制器代码分包 */
-export function NavItemLink({ href, external, onPointerEnter, onTouchStart, ...props }: React.ComponentProps<typeof Link> & { href: string, external?: boolean }) {
-  if (external)
-    return <a href={href} target="_blank" rel="noopener noreferrer" onPointerEnter={onPointerEnter} onTouchStart={onTouchStart} {...(props as React.ComponentProps<'a'>)} />
+/** 菜单中的链接：站内路径用 Next 多语言路由（支持按需新标签页打开），站外地址按 openInNewTab 决定新标签页或当前页跳转 */
+export function NavItemLink({
+  href,
+  external,
+  openInNewTab,
+  onPointerEnter,
+  onTouchStart,
+  ...props
+}: React.ComponentProps<typeof Link> & { href: string, external?: boolean, openInNewTab?: boolean }) {
+  if (external) {
+    return (
+      <a
+        href={href}
+        target={openInNewTab ? '_blank' : undefined}
+        rel={openInNewTab ? 'noopener noreferrer' : undefined}
+        onPointerEnter={onPointerEnter}
+        onTouchStart={onTouchStart}
+        {...(props as React.ComponentProps<'a'>)}
+      />
+    )
+  }
+  if (openInNewTab) {
+    return (
+      <Link
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        prefetch={false}
+        unstable_dynamicOnHover={false}
+        onPointerEnter={onPointerEnter}
+        onTouchStart={onTouchStart}
+        {...props}
+      />
+    )
+  }
   const musicEntry = isMusicEntryHref(href)
   return (
     <Link

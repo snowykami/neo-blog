@@ -5,7 +5,7 @@ export const PAGE_LAYOUTS = ['reading', 'wide'] as const
 
 export type PageLayout = typeof PAGE_LAYOUTS[number]
 
-// 页面类型：content 正文页面（用编辑器撰写）；link 链接页面，在导航中直接跳转到站内路径（/ 开头）或站外地址（新窗口打开）；
+// 页面类型：content 正文页面（用编辑器撰写）；link 链接页面，在导航中直接跳转到站内路径（/ 开头）或站外地址；
 // html HTML 页面（仅管理员），上传静态 HTML 包，前台在沙箱 iframe 中展示
 export const PAGE_KINDS = ['content', 'link', 'html'] as const
 
@@ -59,6 +59,7 @@ export interface PageModel {
   type: 'markdown' | 'html'
   isPrivate: boolean
   showInNav: boolean
+  openInNewTab: boolean
   navOrder: number
   icon?: string
   layout: PageLayout

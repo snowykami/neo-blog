@@ -59,6 +59,7 @@ export interface ContentMeta {
   labels: Label[]
   // 仅页面
   showInNav: boolean
+  openInNewTab: boolean
   navOrder: number
   icon: string
   layout: PageLayout
@@ -141,6 +142,7 @@ const EMPTY_META: ContentMeta = {
   category: null,
   labels: [],
   showInNav: false,
+  openInNewTab: false,
   navOrder: 0,
   icon: '',
   layout: 'reading',
@@ -197,7 +199,7 @@ const postAdapter: ContentAdapter = {
     return updatePost({ post: patch, editSessionId: sessionId })
   },
   mergeMeta: (doc, meta) => {
-    const { showInNav: _showInNav, navOrder: _navOrder, icon: _icon, layout: _layout, fullscreen: _fullscreen, ...rest } = meta
+    const { showInNav: _showInNav, openInNewTab: _openInNewTab, navOrder: _navOrder, icon: _icon, layout: _layout, fullscreen: _fullscreen, ...rest } = meta
     return { ...(doc as Post), ...rest, slug: meta.slug !== undefined ? meta.slug || null : (doc as Post).slug }
   },
 }
@@ -214,6 +216,7 @@ const pageAdapter: ContentAdapter = {
       cover: page.cover || '',
       isPrivate: !!page.isPrivate,
       showInNav: !!page.showInNav,
+      openInNewTab: !!page.openInNewTab,
       navOrder: page.navOrder || 0,
       icon: page.icon || '',
       layout: page.layout === 'wide' ? 'wide' : 'reading',
@@ -240,6 +243,8 @@ const pageAdapter: ContentAdapter = {
       patch.isPrivate = meta.isPrivate
     if (meta.showInNav !== undefined)
       patch.showInNav = meta.showInNav
+    if (meta.openInNewTab !== undefined)
+      patch.openInNewTab = meta.openInNewTab
     if (meta.navOrder !== undefined)
       patch.navOrder = Number(meta.navOrder) || 0
     if (meta.icon !== undefined)

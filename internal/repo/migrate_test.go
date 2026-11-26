@@ -985,3 +985,45 @@ func TestMigrateFriendLinksNullableUser(t *testing.T) {
 		}
 	})
 }
+
+// 页面新标签页打开字段迁移：旧库升级后自动补齐 open_in_new_tab 列，且历史站外 http(s) 链接页面保持 true、站内页面保持 false
+func TestMigratePageOpenInNewTab(t *testing.T) {
+	type legacyPage struct {
+		ID      uint   `gorm:"primarykey"`
+		Title   string `gorm:"type:text;not null"`
+		Slug    string `gorm:"type:text;not null;uniqueIndex"`
+		Kind    string `gorm:"type:varchar(16);default:'content'"`
+		LinkURL string `gorm:"type:text"`
+	}
+
+	forEachDialect(t, func(t *testing.T) {
+		seedLegacyDatabase(t)
+		if err := db.Table("pages").AutoMigrate(&legacyPage{}); err != nil {
+			t.Fatalf("prepare legacy pages: %v", err)
+		}
+		seed := []legacyPage{
+			{Title: "About", Slug: "about", Kind: "content", LinkURL: ""},
+			{Title: "Friends", Slug: "link-friends", Kind: "link", LinkURL: "/links"},
+			{Title: "GitHub", Slug: "link-gh", Kind: "link", LinkURL: "https://github.com/snowykami"},
+		}
+		if err := db.Table("pages").Create(&seed).Error; err != nil {
+			t.Fatalf("seed legacy pages: %v", err)
+		}
+		if err := migrate(); err != nil {
+			t.Fatalf("migrate: %v", err)
+		}
+		var rows []model.Page
+		if err := db.Order("id asc").Find(&rows).Error; err != nil {
+			t.Fatalf("query migrated pages: %v", err)
+		}
+		if len(rows) != 3 {
+			t.Fatalf("expected 3 pages, got %d", len(rows))
+		}
+		if rows[0].OpenInNewTab || rows[1].OpenInNewTab {
+			t.Fatalf("internal content/link pages should default open_in_new_tab=false, got %v / %v", rows[0].OpenInNewTab, rows[1].OpenInNewTab)
+		}
+		if !rows[2].OpenInNewTab {
+			t.Fatal("external http(s) link page should backfill open_in_new_tab=true")
+		}
+	})
+}
