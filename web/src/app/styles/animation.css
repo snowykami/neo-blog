@@ -53,11 +53,9 @@
 
 @keyframes enter-fade-down {
   from {
-    opacity: 0;
-    transform: translateY(-1rem);
+    transform: translateY(-0.5rem);
   }
   to {
-    opacity: 1;
     transform: none;
   }
 }

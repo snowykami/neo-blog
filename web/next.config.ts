@@ -96,6 +96,8 @@ export default (phase: string): NextConfig => {
     // 这里兜住轮询失败、CDN 上存着的旧页面（如已改为私密的文章）
     expireTime: 3600,
     experimental: {
+      // 内联关键样式表至首屏 HTML <style>，消除移动端 4G 下 globals.css 外链样式表的额外 RTT 渲染阻塞延迟
+      inlineCss: true,
       // 对跨页面高频引用的图标大包开启按需单文件解构（省约 20 KiB），避免 barrel 入口拖入未使用的图标模块。
       // 注意：请勿移除这些包名；前台组件必须保持具名导入（如 `import { Eye } from 'lucide-react'`），
       // 严禁在前台使用 `import * as Icons from 'lucide-react'`（全量图标包约 278 KiB，仅限后台图标选择器异步加载）
@@ -162,6 +164,15 @@ export default (phase: string): NextConfig => {
         {
           source: '/fonts/:path*',
           headers: [{ key: 'Access-Control-Allow-Origin', value: '*' }],
+        },
+      ]
+    },
+    async rewrites() {
+      return [
+        // IndexNow 根路径密钥验证文件（/<key>.txt -> /api/indexnow?key=<key>，8–128 位不与 robots.txt 冲突）
+        {
+          source: '/:key([a-zA-Z0-9-]{8,128}).txt',
+          destination: '/api/indexnow?key=:key',
         },
       ]
     },

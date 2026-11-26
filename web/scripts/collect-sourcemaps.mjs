@@ -57,6 +57,94 @@ for (const file of files.filter(f => f.endsWith('.map') && existsSync(f)))
 writeFileSync(join(outputDir, 'index.json'), JSON.stringify(index))
 console.log(`collect-sourcemaps: moved ${Object.keys(index).length} source maps to .next/sourcemaps`)
 
+// 清理 Next 16 Turbopack 在未使用 next/font 时生成的空数组路由项（`app[route] = []`）：
+// Next 的 getPreloadableFonts 对空数组返回 `[]` 而非 `null`，触发 getLayerAssets 输出无意义的 `</>; rel=preconnect; crossorigin=""`（Lighthouse 报告 Unused preconnect）
+function pruneEmptyFontManifestObj(manifest) {
+  if (!manifest || typeof manifest !== 'object')
+    return false
+  let changed = false
+  for (const section of ['app', 'pages']) {
+    const map = manifest[section]
+    if (!map || typeof map !== 'object')
+      continue
+    for (const [key, val] of Object.entries(map)) {
+      if (Array.isArray(val) && val.length === 0) {
+        delete map[key]
+        changed = true
+      }
+    }
+  }
+  if (changed && Object.keys(manifest.app ?? {}).length === 0 && Object.keys(manifest.pages ?? {}).length === 0) {
+    manifest.appUsingSizeAdjust = false
+    manifest.pagesUsingSizeAdjust = false
+  }
+  return changed
+}
+
+const serverRoots = [
+  join(root, '.next/server'),
+  join(root, '.next/standalone/.next/server'),
+  join(root, '.next/standalone/web/.next/server'),
+]
+let cleanedFontManifests = 0
+let cleanedMetaPreconnects = 0
+for (const srvRoot of serverRoots) {
+  if (!existsSync(srvRoot))
+    continue
+  for (const file of walk(srvRoot)) {
+    if (file.endsWith('next-font-manifest.json')) {
+      try {
+        const parsed = JSON.parse(readFileSync(file, 'utf8'))
+        if (pruneEmptyFontManifestObj(parsed)) {
+          writeFileSync(file, JSON.stringify(parsed))
+          cleanedFontManifests++
+        }
+      }
+      catch {}
+    }
+    else if (file.endsWith('next-font-manifest.js')) {
+      const src = readFileSync(file, 'utf8')
+      const prefix = 'self.__NEXT_FONT_MANIFEST='
+      const idx = src.indexOf(prefix)
+      if (idx >= 0) {
+        const jsonPart = src.slice(idx + prefix.length).trim().replace(/;$/, '')
+        try {
+          const parsed = JSON.parse(jsonPart)
+          if (pruneEmptyFontManifestObj(parsed)) {
+            writeFileSync(file, `${src.slice(0, idx)}${prefix}${JSON.stringify(parsed)}`)
+            cleanedFontManifests++
+          }
+        }
+        catch {}
+      }
+    }
+    else if (file.endsWith('.meta')) {
+      try {
+        const meta = JSON.parse(readFileSync(file, 'utf8'))
+        const linkHeader = meta?.headers?.['x-nextjs-prerender'] !== undefined || typeof meta?.headers?.link === 'string'
+          ? meta.headers?.link
+          : undefined
+        if (typeof linkHeader === 'string' && linkHeader.includes('</>; rel=preconnect')) {
+          const parts = linkHeader
+            .split(',')
+            .map(s => s.trim())
+            .filter(s => s && !/^<\/\s*>;\s*rel="?preconnect"?/i.test(s))
+          if (parts.length > 0)
+            meta.headers.link = parts.join(', ')
+          else
+            delete meta.headers.link
+          writeFileSync(file, JSON.stringify(meta))
+          cleanedMetaPreconnects++
+        }
+      }
+      catch {}
+    }
+  }
+}
+if (cleanedFontManifests > 0 || cleanedMetaPreconnects > 0) {
+  console.log(`collect-sourcemaps: pruned ${cleanedFontManifests} empty font manifests and ${cleanedMetaPreconnects} root preconnect meta headers`)
+}
+
 const STANDALONE_CONFIG_ANCHOR = 'process.env.__NEXT_PRIVATE_STANDALONE_CONFIG = JSON.stringify(nextConfig)'
 
 const RUNTIME_COMPRESS_PATCH = `// 运行时支持通过 COMPRESS / NEXT_COMPRESS 环境变量动态开关压缩

@@ -1,0 +1,36 @@
+/* 友链卡片（清透双态 32 色）：按预设色的色相 --fl-h 与彩度 --fl-c 在亮/暗模式下分别派生柔和底色与高对比前景，保证全色域对比度 ≥ 5.5:1 */
+.friend-card-adaptive {
+  background-color: oklch(0.958 calc(var(--fl-c, 0.14) * 0.26) var(--fl-h, 235));
+  box-shadow:
+    inset 0 0 0 1px oklch(0.86 calc(var(--fl-c, 0.14) * 0.42) var(--fl-h, 235) / 0.72),
+    0 2px 8px -2px oklch(0.35 calc(var(--fl-c, 0.14) * 0.3) var(--fl-h, 235) / 0.08);
+  color: oklch(0.24 calc(var(--fl-c, 0.14) * 0.3) var(--fl-h, 235));
+  --fl-desc: oklch(0.45 calc(var(--fl-c, 0.14) * 0.2) var(--fl-h, 235));
+  --fl-sig: oklch(0.42 calc(var(--fl-c, 0.14) * 0.5) var(--fl-h, 235));
+  --fl-sig-muted: oklch(0.8 calc(var(--fl-c, 0.14) * 0.1) var(--fl-h, 235));
+  --fl-avatar-bg: oklch(0.56 max(var(--fl-c, 0.14), 0.08) var(--fl-h, 235));
+}
+
+@media (hover: hover) {
+  .friend-card-adaptive:hover {
+    background-color: oklch(0.935 calc(var(--fl-c, 0.14) * 0.34) var(--fl-h, 235));
+  }
+}
+
+.dark .friend-card-adaptive {
+  background-color: oklch(0.255 calc(var(--fl-c, 0.14) * 0.32) var(--fl-h, 235));
+  box-shadow:
+    inset 0 0 0 1px oklch(0.48 calc(var(--fl-c, 0.14) * 0.48) var(--fl-h, 235) / 0.42),
+    0 4px 12px -3px rgba(0, 0, 0, 0.34);
+  color: oklch(0.94 calc(var(--fl-c, 0.14) * 0.12) var(--fl-h, 235));
+  --fl-desc: oklch(0.75 calc(var(--fl-c, 0.14) * 0.14) var(--fl-h, 235));
+  --fl-sig: oklch(0.8 calc(var(--fl-c, 0.14) * 0.45) var(--fl-h, 235));
+  --fl-sig-muted: oklch(0.4 calc(var(--fl-c, 0.14) * 0.12) var(--fl-h, 235));
+  --fl-avatar-bg: oklch(0.48 max(var(--fl-c, 0.14), 0.08) var(--fl-h, 235));
+}
+
+@media (hover: hover) {
+  .dark .friend-card-adaptive:hover {
+    background-color: oklch(0.285 calc(var(--fl-c, 0.14) * 0.38) var(--fl-h, 235));
+  }
+}

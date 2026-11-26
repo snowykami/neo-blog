@@ -19,6 +19,7 @@ export const SCOPES = {
     'Operation',
     'Register',
     'Response',
+    'Route',
   ],
   '(main)': [
     'BlogHome',
@@ -36,7 +37,6 @@ export const SCOPES = {
     'Metrics',
     'Nav',
     'Notifications',
-    'Route',
     'Search',
     'ThemeMode',
     'ThemePack',
@@ -93,7 +93,6 @@ export const SCOPES = {
     'ContentComponents.weatherCard',
     'Nav',
     'Notifications',
-    'Route',
     'Search',
     'ThemeMode',
     'ThemePack',
@@ -105,7 +104,6 @@ export const SCOPES = {
   ],
   'auth': [
     'ResetPassword',
-    'Route',
   ],
   'console': [
     'Console.about_content',
@@ -144,7 +142,6 @@ export const SCOPES = {
     'Console.users.title',
     'Console.visit_insights.title',
     'Console.visits.title',
-    'Route',
     'ThemeMode',
   ],
   'console/(dashboard)': [

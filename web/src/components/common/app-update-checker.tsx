@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 import { IslandSlot, IslandText } from '@/components/layout/topbar-island/island-parts'
 import { useIslandAccepts, useIslandActivity } from '@/contexts/topbar-island'
 import { usePathname } from '@/i18n/navigation'
-import { CHUNK_LOAD_MESSAGE_RE, CURRENT_APP_VERSION, isChunkLoadError, isNewVersionDeployed, reloadForChunkError } from '@/utils/client/chunk-error'
+import { CURRENT_APP_VERSION, isNewVersionDeployed } from '@/utils/client/chunk-error'
 
 const CHECK_INTERVAL_MS = 5 * 60 * 1000
 // 页面内跳转时顺带检查的最小间隔：连续翻页不用每次都问
@@ -62,23 +62,6 @@ export function AppUpdateChecker() {
   const [updateAvailable, setUpdateAvailable] = useState(false)
   const viaIsland = useIslandAccepts('update')
   const checkRef = useRef<() => Promise<void>>(async () => {})
-
-  useEffect(() => {
-    const onError = (event: ErrorEvent) => {
-      if (isChunkLoadError(event.error) || CHUNK_LOAD_MESSAGE_RE.test(event.message))
-        reloadForChunkError()
-    }
-    const onRejection = (event: PromiseRejectionEvent) => {
-      if (isChunkLoadError(event.reason))
-        reloadForChunkError()
-    }
-    window.addEventListener('error', onError)
-    window.addEventListener('unhandledrejection', onRejection)
-    return () => {
-      window.removeEventListener('error', onError)
-      window.removeEventListener('unhandledrejection', onRejection)
-    }
-  }, [])
 
   // 发现新版本：定时、切回标签页、页面内跳转时检查
   useEffect(() => {

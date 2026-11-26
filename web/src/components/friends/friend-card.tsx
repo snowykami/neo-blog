@@ -16,6 +16,7 @@ import { FriendTechIcon } from '@/components/friends/friend-tech-icon'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import { FRIEND_TECH_CATEGORIES, resolveFriendPalette } from '@/models/friend'
+import './friend-card.css'
 
 const HOVER_OPEN_DELAY_MS = 60
 const HOVER_CLOSE_DELAY_MS = 150
