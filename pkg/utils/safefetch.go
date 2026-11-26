@@ -12,6 +12,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"golang.org/x/net/idna"
 )
 
 // 安全获取外部资源（防 SSRF）：校验 URL、端口与解析出的每个目标地址（含重定向每一跳），拦截私网、回环、链路本地与云元数据地址
@@ -49,8 +51,11 @@ var (
 
 // IsPublicAddr 地址是否为可访问的公网地址
 func IsPublicAddr(addr netip.Addr) bool {
+	if !addr.IsValid() || addr.Zone() != "" {
+		return false
+	}
 	addr = addr.Unmap()
-	if !addr.IsValid() || addr.IsLoopback() || addr.IsPrivate() || addr.IsLinkLocalUnicast() || addr.IsLinkLocalMulticast() ||
+	if addr.IsLoopback() || addr.IsPrivate() || addr.IsLinkLocalUnicast() || addr.IsLinkLocalMulticast() ||
 		addr.IsInterfaceLocalMulticast() || addr.IsMulticast() || addr.IsUnspecified() {
 		return false
 	}
@@ -64,10 +69,10 @@ func IsPublicAddr(addr netip.Addr) bool {
 
 // IsPublicOrFakeIPAddr 允许公网地址及常见代理 Fake-IP 段（198.18.0.0/15、fc00::/18），仍拦截回环、私网与云元数据地址
 func IsPublicOrFakeIPAddr(addr netip.Addr) bool {
-	addr = addr.Unmap()
-	if !addr.IsValid() {
+	if !addr.IsValid() || addr.Zone() != "" {
 		return false
 	}
+	addr = addr.Unmap()
 	if fakeIPv4Prefix.Contains(addr) || fakeIPv6Prefix.Contains(addr) {
 		return true
 	}
@@ -77,11 +82,13 @@ func IsPublicOrFakeIPAddr(addr netip.Addr) bool {
 // SafeDialOptions 防 SSRF 安全拨号配置
 type SafeDialOptions struct {
 	DialTimeout  time.Duration
-	AllowAnyPort bool                                                         // 为 false 时仅允许 80 / 443 端口
-	AllowPrivate func() bool                                                  // 可选动态私网放行开关（仅测试用）
-	AllowAddr    func(netip.Addr) bool                                        // 自定义地址准入判断，默认 IsPublicAddr
-	LookupNetIP  func(ctx context.Context, host string) ([]netip.Addr, error) // 可选自定义 DNS 解析钩子
-	Dial         func(ctx context.Context, network, address string) (net.Conn, error)
+	AllowAnyPort bool                                                                        // 为 false 时仅允许 80 / 443 端口
+	AllowPort    func(port string) bool                                                      // 可选自定义端口准入判断（设置后优先于 AllowAnyPort）
+	AllowPrivate func() bool                                                                 // 可选动态私网放行开关（仅测试用）
+	AllowAddr    func(netip.Addr) bool                                                       // 自定义地址准入判断，默认 IsPublicAddr
+	LookupNetIP  func(ctx context.Context, host string) ([]netip.Addr, error)                // 可选自定义 DNS 解析钩子
+	Dial         func(ctx context.Context, network, address string) (net.Conn, error)        // 静态自定义拨号钩子（仅测试用）
+	ResolveDial  func() func(ctx context.Context, network, address string) (net.Conn, error) // 动态拨号钩子（返回 nil 时走带 Control 二次校验的 defaultDialer）
 }
 
 // NewSafeDialContext 构造防 SSRF 的 DialContext：
@@ -102,7 +109,13 @@ func NewSafeDialContext(opts SafeDialOptions) func(ctx context.Context, network,
 		return SafeFetchAllowPrivate || (opts.AllowPrivate != nil && opts.AllowPrivate())
 	}
 	isPortAllowed := func(port string) bool {
-		return opts.AllowAnyPort || port == "80" || port == "443" || isPrivateAllowed()
+		if isPrivateAllowed() {
+			return true
+		}
+		if opts.AllowPort != nil {
+			return opts.AllowPort(port)
+		}
+		return opts.AllowAnyPort || port == "80" || port == "443"
 	}
 
 	defaultDialer := &net.Dialer{
@@ -119,6 +132,9 @@ func NewSafeDialContext(opts SafeDialOptions) func(ctx context.Context, network,
 			if err != nil {
 				return err
 			}
+			if addr.Zone() != "" {
+				return ErrBlockedAddress
+			}
 			if !(isPrivateAllowed() || isAddrAllowed(addr.Unmap())) {
 				return ErrBlockedAddress
 			}
@@ -131,21 +147,31 @@ func NewSafeDialContext(opts SafeDialOptions) func(ctx context.Context, network,
 		if err != nil {
 			return nil, err
 		}
+		if strings.Contains(host, "%") {
+			return nil, ErrBlockedAddress
+		}
 		if !isPortAllowed(port) {
 			return nil, ErrBlockedAddress
 		}
 
 		var resolved []netip.Addr
 		if ip, parseErr := netip.ParseAddr(host); parseErr == nil {
+			if ip.Zone() != "" {
+				return nil, ErrBlockedAddress
+			}
 			resolved = []netip.Addr{ip}
 		} else {
+			cleanHost := strings.TrimRight(host, ".")
+			if cleanHost == "" {
+				return nil, ErrBlockedAddress
+			}
 			lookup := opts.LookupNetIP
 			if lookup == nil {
 				lookup = func(ctx context.Context, h string) ([]netip.Addr, error) {
 					return net.DefaultResolver.LookupNetIP(ctx, "ip", h)
 				}
 			}
-			resolved, err = lookup(ctx, host)
+			resolved, err = lookup(ctx, cleanHost)
 			if err != nil {
 				return nil, err
 			}
@@ -155,6 +181,9 @@ func NewSafeDialContext(opts SafeDialOptions) func(ctx context.Context, network,
 		v4 := make([]netip.Addr, 0, len(resolved))
 		v6 := make([]netip.Addr, 0, len(resolved))
 		for _, addr := range resolved {
+			if addr.Zone() != "" {
+				continue
+			}
 			unmapped := addr.Unmap()
 			if !(allowPriv || isAddrAllowed(unmapped)) {
 				continue
@@ -171,6 +200,9 @@ func NewSafeDialContext(opts SafeDialOptions) func(ctx context.Context, network,
 		}
 
 		dialFn := opts.Dial
+		if dialFn == nil && opts.ResolveDial != nil {
+			dialFn = opts.ResolveDial()
+		}
 		if dialFn == nil {
 			dialFn = defaultDialer.DialContext
 		}
@@ -267,7 +299,7 @@ func NewSafeHTTPClient(opts SafeClientOptions) *http.Client {
 	}
 }
 
-// CheckSafeURL 校验外部请求 URL 的协议、凭据、主机名与字面量 IP
+// CheckSafeURL 校验外部请求 URL 的协议、凭据、主机名与字面量 IP（拦截 IPv6 Zone、末尾点号伪装与全角句号 IDN IP）
 func CheckSafeURL(u *url.URL, allowPrivate bool, allowAddr func(netip.Addr) bool) error {
 	if u == nil {
 		return errors.New("only http and https URLs are allowed")
@@ -280,19 +312,47 @@ func CheckSafeURL(u *url.URL, allowPrivate bool, allowAddr func(netip.Addr) bool
 		return errors.New("URLs with credentials are not allowed")
 	}
 	host := strings.ToLower(strings.TrimSpace(u.Hostname()))
-	if host == "" {
+	if host == "" || strings.Contains(host, "%") {
+		return ErrBlockedAddress
+	}
+	check := allowAddr
+	if check == nil {
+		check = IsPublicAddr
+	}
+	if ip, err := netip.ParseAddr(host); err == nil {
+		if ip.Zone() != "" {
+			return ErrBlockedAddress
+		}
+		if !allowPrivate && !check(ip.Unmap()) {
+			return ErrBlockedAddress
+		}
+		return nil
+	}
+
+	noDot := strings.TrimRight(host, ".")
+	if noDot == "" {
+		return ErrBlockedAddress
+	}
+	// 禁止带末尾点号的 IP 字面量（如 127.0.0.1.）
+	if noDot != host {
+		if _, ipErr := netip.ParseAddr(noDot); ipErr == nil {
+			return ErrBlockedAddress
+		}
+	}
+	asciiHost, idnaErr := idna.Lookup.ToASCII(noDot)
+	if idnaErr != nil {
+		return ErrBlockedAddress
+	}
+	asciiHost = strings.ToLower(strings.TrimSpace(strings.TrimRight(asciiHost, ".")))
+	if asciiHost == "" {
 		return ErrBlockedAddress
 	}
 	if !allowPrivate {
-		if host == "localhost" || strings.HasSuffix(host, ".localhost") {
+		if asciiHost == "localhost" || strings.HasSuffix(asciiHost, ".localhost") {
 			return ErrBlockedAddress
 		}
-		if ip, err := netip.ParseAddr(host); err == nil {
-			check := allowAddr
-			if check == nil {
-				check = IsPublicAddr
-			}
-			if !check(ip.Unmap()) {
+		if ip, err := netip.ParseAddr(asciiHost); err == nil {
+			if ip.Zone() != "" || !check(ip.Unmap()) {
 				return ErrBlockedAddress
 			}
 		}

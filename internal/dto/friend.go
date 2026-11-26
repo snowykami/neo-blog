@@ -238,10 +238,16 @@ type AdminTransferFriendLinkReq struct {
 
 // FriendAdminSettingsDto 后台友链全局设置响应
 type FriendAdminSettingsDto struct {
-	BacklinkAliasHosts []string `json:"backlink_alias_hosts"`
+	BacklinkAliasHosts    []string `json:"backlink_alias_hosts"`
+	AllowRedirects        bool     `json:"allow_redirects"`
+	MaxRedirects          int      `json:"max_redirects"`
+	AllowNonStandardPorts bool     `json:"allow_non_standard_ports"`
 }
 
 // AdminUpdateFriendSettingsReq 管理员更新友链全局设置请求
 type AdminUpdateFriendSettingsReq struct {
-	BacklinkAliasHosts []string `json:"backlink_alias_hosts"`
+	BacklinkAliasHosts    []string `json:"backlink_alias_hosts"`
+	AllowRedirects        *bool    `json:"allow_redirects"`
+	MaxRedirects          *int     `json:"max_redirects"`
+	AllowNonStandardPorts *bool    `json:"allow_non_standard_ports"`
 }

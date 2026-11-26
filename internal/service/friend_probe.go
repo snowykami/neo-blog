@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -16,6 +17,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/sharedstate"
+	"github.com/snowykami/neo-blog/pkg/utils"
 	"golang.org/x/net/html"
 	"golang.org/x/net/idna"
 )
@@ -59,28 +61,39 @@ Output strictly ONE valid JSON object and nothing else:
 {"verdict":"approved|pre_approved|rejected","reason":"简短清晰的中文审核说明（不超过50字）"}`
 
 type friendFetchOutcome struct {
-	Reachable   bool
-	IsWAF       bool
-	LatencyMs   int
-	HTTPStatus  int
-	FinalURL    *url.URL
-	Headers     http.Header
-	HTMLSnippet string
-	RawHTML     string
+	Reachable       bool
+	BlockedByPolicy bool
+	IsWAF           bool
+	LatencyMs       int
+	HTTPStatus      int
+	FinalURL        *url.URL
+	Headers         http.Header
+	HTMLSnippet     string
+	RawHTML         string
 }
 
-// fetchFriendHTMLWithTiming 经友链专用出站安全传输层（仅限公网 80/443）发起请求，测量耗时（按 10ms 取整）并提取纯文本摘要与原始 HTML
+// fetchFriendHTMLWithTiming 经友链专用出站安全传输层发起请求，测量耗时（按 10ms 取整）并提取纯文本摘要与原始 HTML
 func fetchFriendHTMLWithTiming(ctx context.Context, rawURL string) friendFetchOutcome {
-	return fetchFriendHTMLWithTimingOpts(ctx, rawURL, friendProbeTimeout, nil)
+	return fetchFriendHTMLWithTimingURLOpts(ctx, rawURL, friendProbeTimeout, nil)
 }
 
 func fetchFriendHTMLWithTimingOpts(ctx context.Context, rawURL string, timeout time.Duration, allowHost func(string) bool) friendFetchOutcome {
+	var allowURL func(*url.URL) bool
+	if allowHost != nil {
+		allowURL = func(u *url.URL) bool {
+			return u != nil && allowHost(u.Hostname())
+		}
+	}
+	return fetchFriendHTMLWithTimingURLOpts(ctx, rawURL, timeout, allowURL)
+}
+
+func fetchFriendHTMLWithTimingURLOpts(ctx context.Context, rawURL string, timeout time.Duration, allowURL func(*url.URL) bool) friendFetchOutcome {
 	_, parsed, err := NormalizeFriendOutboundURL(rawURL)
 	if err != nil || parsed == nil {
-		return friendFetchOutcome{}
+		return friendFetchOutcome{BlockedByPolicy: true}
 	}
-	if allowHost != nil && !allowHost(parsed.Hostname()) {
-		return friendFetchOutcome{}
+	if allowURL != nil && !allowURL(parsed) {
+		return friendFetchOutcome{BlockedByPolicy: true}
 	}
 	if timeout <= 0 {
 		timeout = friendProbeTimeout
@@ -90,7 +103,8 @@ func fetchFriendHTMLWithTimingOpts(ctx context.Context, rawURL string, timeout t
 
 	start := time.Now()
 	current := parsed
-	for hop := 0; hop <= linkPreviewMaxRedirects; hop++ {
+	maxRedirects := GetFriendProbeSettings().EffectiveMaxRedirects()
+	for hop := 0; hop <= maxRedirects; hop++ {
 		req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, current.String(), nil)
 		if err != nil {
 			return friendFetchOutcome{}
@@ -102,7 +116,9 @@ func fetchFriendHTMLWithTimingOpts(ctx context.Context, rawURL string, timeout t
 
 		resp, err := friendOutboundRoundTripper.RoundTrip(req)
 		if err != nil {
-			return friendFetchOutcome{}
+			return friendFetchOutcome{
+				BlockedByPolicy: errors.Is(err, utils.ErrBlockedAddress),
+			}
 		}
 
 		status := resp.StatusCode
@@ -110,8 +126,16 @@ func fetchFriendHTMLWithTimingOpts(ctx context.Context, rawURL string, timeout t
 			status == http.StatusTemporaryRedirect || status == http.StatusPermanentRedirect {
 			loc := resp.Header.Get("Location")
 			_ = resp.Body.Close()
-			if loc == "" {
-				return friendFetchOutcome{HTTPStatus: status}
+			if hop >= maxRedirects || loc == "" {
+				elapsedMs := int(time.Since(start).Milliseconds())
+				roundedMs := max(10, ((elapsedMs+5)/10)*10)
+				return friendFetchOutcome{
+					Reachable:       false,
+					BlockedByPolicy: hop >= maxRedirects,
+					LatencyMs:       roundedMs,
+					HTTPStatus:      status,
+					FinalURL:        current,
+				}
 			}
 			nextRaw, err := current.Parse(loc)
 			if err != nil {
@@ -119,10 +143,10 @@ func fetchFriendHTMLWithTimingOpts(ctx context.Context, rawURL string, timeout t
 			}
 			_, nextNorm, err := NormalizeFriendOutboundURL(nextRaw.String())
 			if err != nil || nextNorm == nil {
-				return friendFetchOutcome{HTTPStatus: status}
+				return friendFetchOutcome{BlockedByPolicy: true, HTTPStatus: status}
 			}
-			if allowHost != nil && !allowHost(nextNorm.Hostname()) {
-				return friendFetchOutcome{HTTPStatus: status}
+			if allowURL != nil && !allowURL(nextNorm) {
+				return friendFetchOutcome{BlockedByPolicy: true, HTTPStatus: status}
 			}
 			current = nextNorm
 			continue
@@ -207,8 +231,13 @@ func extractPlainSnippetFromHTML(rawHTML string, maxRunes int) string {
 	return cleanPreviewText(b.String(), maxRunes)
 }
 
-func isHostWordChar(b byte) bool {
-	return (b >= 'a' && b <= 'z') || (b >= '0' && b <= '9') || b == '-' || b == '.' || b == '@' || b == '_' || b >= 0x80
+func isSafeURLAuthorityTerminator(b byte) bool {
+	switch b {
+	case '/', '?', '#', '"', '\'', '\\', '<', '>', ' ', '\t', '\r', '\n':
+		return true
+	default:
+		return false
+	}
 }
 
 func containsBoundedSchemeHost(lowerHTML string, targetHost string) bool {
@@ -216,7 +245,12 @@ func containsBoundedSchemeHost(lowerHTML string, targetHost string) bool {
 		return false
 	}
 	noWWW := strings.TrimPrefix(targetHost, "www.")
-	prefixes := []string{"://" + noWWW, "://www." + noWWW}
+	prefixes := []string{
+		"http://" + noWWW,
+		"https://" + noWWW,
+		"http://www." + noWWW,
+		"https://www." + noWWW,
+	}
 	for _, needle := range prefixes {
 		searchFrom := 0
 		for searchFrom < len(lowerHTML) {
@@ -225,7 +259,36 @@ func containsBoundedSchemeHost(lowerHTML string, targetHost string) bool {
 				break
 			}
 			afterIdx := searchFrom + idx + len(needle)
-			if afterIdx >= len(lowerHTML) || !isHostWordChar(lowerHTML[afterIdx]) {
+			if afterIdx >= len(lowerHTML) {
+				return true
+			}
+			if lowerHTML[afterIdx] == ':' {
+				// 仅允许合法数字端口后缀且紧跟明确 URL 边界符，拦截 https://example.org:123!@evil.com 等 RFC 3986 userinfo 伪装
+				rest := lowerHTML[afterIdx+1:]
+				if len(rest) == 0 || rest[0] < '1' || rest[0] > '9' {
+					searchFrom += idx + len(needle)
+					continue
+				}
+				endPort := 0
+				for endPort < len(rest) && endPort < 6 && rest[endPort] >= '0' && rest[endPort] <= '9' {
+					endPort++
+				}
+				if endPort == 0 || endPort > 5 {
+					searchFrom += idx + len(needle)
+					continue
+				}
+				portNum, pErr := strconv.Atoi(rest[:endPort])
+				if pErr != nil || !isAllowedFriendOutboundPortNum(portNum) {
+					searchFrom += idx + len(needle)
+					continue
+				}
+				if endPort < len(rest) && !isSafeURLAuthorityTerminator(rest[endPort]) {
+					searchFrom += idx + len(needle)
+					continue
+				}
+				return true
+			}
+			if isSafeURLAuthorityTerminator(lowerHTML[afterIdx]) {
 				return true
 			}
 			searchFrom += idx + len(needle)
@@ -384,11 +447,13 @@ func htmlContainsBacklinkToHostsForSite(rawHTML string, friendSiteHost string, p
 
 func friendBacklinkCooldownKey(linkID uint, siteURL, backlinkURL string) string {
 	_, _, selfHosts := resolveSelfBacklinkHosts()
-	return fmt.Sprintf("friend_backlink_checked:%d:%s", linkID, model.FriendAvatarHash(siteURL+"|"+backlinkURL+"|"+strings.Join(selfHosts, ",")))
+	probeDigest := GetFriendProbeSettings().CacheDigest()
+	return fmt.Sprintf("friend_backlink_checked:%d:%s", linkID, model.FriendAvatarHash(siteURL+"|"+backlinkURL+"|"+strings.Join(selfHosts, ",")+"|"+probeDigest))
 }
 
 func friendRSSCooldownKey(linkID uint, siteURL string) string {
-	return fmt.Sprintf("friend_rss_checked:%d:%s", linkID, model.FriendAvatarHash(siteURL))
+	probeDigest := GetFriendProbeSettings().CacheDigest()
+	return fmt.Sprintf("friend_rss_checked:%d:%s", linkID, model.FriendAvatarHash(siteURL+"|"+probeDigest))
 }
 
 func probeAndPersistSingleLink(ctx context.Context, link *model.FriendLink, forceRecheck bool, allowAIFallback bool) friendFetchOutcome {
@@ -404,6 +469,11 @@ func probeAndPersistSingleLink(ctx context.Context, link *model.FriendLink, forc
 	health := link.HealthStatus
 	failCount := link.FailCount
 	latencyMs := link.LatencyMs
+	backlinkStatus := link.BacklinkStatus
+	if skipBacklink {
+		backlinkStatus = model.FriendBacklinkSkipped
+	}
+
 	if home.Reachable {
 		failCount = 0
 		latencyMs = home.LatencyMs
@@ -414,14 +484,12 @@ func probeAndPersistSingleLink(ctx context.Context, link *model.FriendLink, forc
 		}
 	} else {
 		failCount++
-		if failCount >= friendProbeFailThreshold || link.HealthStatus == model.FriendHealthUnknown {
+		if home.BlockedByPolicy || failCount >= friendProbeFailThreshold || link.HealthStatus == model.FriendHealthUnknown {
 			health = model.FriendHealthUnreachable
 		}
-	}
-
-	backlinkStatus := link.BacklinkStatus
-	if skipBacklink {
-		backlinkStatus = model.FriendBacklinkSkipped
+		if home.BlockedByPolicy && !skipBacklink {
+			backlinkStatus = model.FriendBacklinkMissing
+		}
 	}
 
 	// 仅当站点可达且未处于全站 WAF 挑战页时才进一步执行 Sitemap / 子路由反链与 RSS 探测，防止网络抖动或人机验证盾将已核验反链误改为 missing、锁死 7 天冷却或向 WAF 发起连环请求
@@ -448,6 +516,7 @@ func probeAndPersistSingleLink(ctx context.Context, link *model.FriendLink, forc
 			}
 			disc := runFriendDiscoveryAndBacklinkCheck(
 				ctx,
+				link.ID,
 				probedURL,
 				&home,
 				seedRSS,
@@ -501,8 +570,13 @@ func probeAndPersistSingleLink(ctx context.Context, link *model.FriendLink, forc
 		if home.FinalURL != nil {
 			finalHost = home.FinalURL.Hostname()
 		}
-		// 若首页跨域重定向到非同域家族的外部认证/停靠域名，不覆盖原站点的技术栈
-		if probedHost == "" || finalHost == "" || sameFriendSiteFamily(probedHost, finalHost) {
+		primarySelfHosts, aliasSelfHosts, _ := resolveSelfBacklinkHosts()
+		existingTech := model.ParseFriendTechStack(link.TechStack)
+		// 若首页跨域重定向到非同域家族的外部认证/停靠域名，不覆盖原站点已持久化的技术栈；仅首次为空且目标站合法时允许识别
+		allowTechDetect := probedHost == "" || finalHost == "" || sameFriendSiteFamily(probedHost, finalHost) ||
+			(len(existingTech) == 0 && parsedProbed != nil && home.FinalURL != nil &&
+				isValidRedirectedFriendSiteURL(parsedProbed, home.FinalURL, primarySelfHosts, aliasSelfHosts, loadActiveFriendSiteURLs(link.ID)))
+		if allowTechDetect {
 			effectiveHost := probedHost
 			if finalHost != "" {
 				effectiveHost = finalHost
@@ -516,7 +590,6 @@ func probeAndPersistSingleLink(ctx context.Context, link *model.FriendLink, forc
 			if !isHTMLOrUnknownContentType(home.Headers) {
 				htmlForDetect = ""
 			}
-			existingTech := model.ParseFriendTechStack(link.TechStack)
 			detectedTech := DetectFriendTechStackWithHost(effectiveHost, home.Headers, htmlForDetect, home.IsWAF)
 			mergedTech := MergeFriendTechStack(detectedTech, existingTech, preserveHTMLTech)
 			nextTechStack = model.EncodeFriendTechStack(mergedTech)
@@ -688,6 +761,15 @@ func runFriendReviewTask(linkID uint, triggerUserID uint) {
 		verdict = model.FriendStatusPreApproved
 	}
 	reason := clipRunes(parsed.Reason, friendReviewNoteMaxRunes)
+	if verdict == model.FriendStatusApproved && home.FinalURL != nil {
+		if origParsed, pErr := url.Parse(link.URL); pErr == nil && origParsed != nil &&
+			!sameFriendSiteFamily(origParsed.Hostname(), home.FinalURL.Hostname()) {
+			verdict = model.FriendStatusPreApproved
+			if reason == "" {
+				reason = "检测到站点存在跨域名重定向，已转交管理员人工复核"
+			}
+		}
+	}
 	if commitAIReviewIfStillPending(link.ID, verdict, reason) && verdict == model.FriendStatusApproved {
 		warmCtx, cancelWarm := context.WithTimeout(context.Background(), 15*time.Second)
 		WarmFriendAvatarCache(warmCtx, link.Avatar)
@@ -725,32 +807,45 @@ func EnqueueFriendProbeRound(forceBacklink bool) {
 	}()
 }
 
-// RunFriendLinksProbeRound 批量并发拨测所有已公开（或含预通过）的友链（通过租约防并发重叠执行）
+// RunFriendLinksProbeRound 批量并发拨测所有已公开（或含预通过）的友链（通过租约防并发重叠执行，支持并发配置变更自动补跑）
 func RunFriendLinksProbeRound(forceBacklink bool) {
+	const rerunKey = friendProbeRoundLease + ":rerun"
 	lease, err := sharedstate.AcquireLease(friendProbeRoundLease, 5*time.Minute)
 	if err != nil || lease == nil {
+		if forceBacklink {
+			_ = sharedstate.Current().Set(rerunKey, "1", 5*time.Minute)
+		} else {
+			_, _ = sharedstate.Current().SetNX(rerunKey, "0", 5*time.Minute)
+		}
 		return
 	}
 	defer lease.Release()
 
-	links, err := repo.Friend.ListAllForProbe(!forceBacklink)
-	if err != nil || len(links) == 0 {
-		return
+	runForce := forceBacklink
+	for pass := 0; pass < 3; pass++ {
+		links, err := repo.Friend.ListAllForProbe(!runForce)
+		if err == nil && len(links) > 0 {
+			sem := make(chan struct{}, friendProbeWorkers)
+			var wg sync.WaitGroup
+			for i := range links {
+				item := links[i]
+				wg.Add(1)
+				sem <- struct{}{}
+				go func(force bool) {
+					defer wg.Done()
+					defer func() { <-sem }()
+					ctx, cancel := context.WithTimeout(context.Background(), 32*time.Second)
+					defer cancel()
+					// 批量巡检与后台全量拨测仅执行确定性三层代码漏斗，不触发 LLM 兜底以避免 Token 风暴
+					probeAndPersistSingleLink(ctx, &item, force, false)
+				}(runForce)
+			}
+			wg.Wait()
+		}
+		nextVal, hasRerun, _ := sharedstate.Current().Take(rerunKey)
+		if !hasRerun {
+			break
+		}
+		runForce = nextVal == "1"
 	}
-	sem := make(chan struct{}, friendProbeWorkers)
-	var wg sync.WaitGroup
-	for i := range links {
-		item := links[i]
-		wg.Add(1)
-		sem <- struct{}{}
-		go func() {
-			defer wg.Done()
-			defer func() { <-sem }()
-			ctx, cancel := context.WithTimeout(context.Background(), 32*time.Second)
-			defer cancel()
-			// 批量巡检与后台全量拨测仅执行确定性三层代码漏斗，不触发 LLM 兜底以避免 Token 风暴
-			probeAndPersistSingleLink(ctx, &item, forceBacklink, false)
-		}()
-	}
-	wg.Wait()
 }

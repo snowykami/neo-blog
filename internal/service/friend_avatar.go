@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"path"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -69,17 +70,18 @@ var (
 	friendAvatarSingleflight singleflight.Group
 	friendAvatarDecodeSem    = make(chan struct{}, friendAvatarMaxConcurrentDecode)
 
-	// 友链出站专用安全传输层：严格仅允许 80/443 公网 IP（禁止任意端口扫描与 Fake-IP 内网保留段）
+	// 友链出站专用安全传输层：强制校验公网 IP（拦截回环/私网/云元数据与 Fake-IP 保留段），并按后台设置动态放行合法非标 HTTP(S) 端口
 	friendOutboundSafeDialOpts = utils.SafeDialOptions{
 		DialTimeout:  linkPreviewDialTimeout,
 		AllowAnyPort: false,
+		AllowPort:    isAllowedFriendOutboundPort,
 		AllowPrivate: func() bool { return linkPreviewAllowPrivate },
 		AllowAddr:    utils.IsPublicAddr,
 		LookupNetIP: func(ctx context.Context, host string) ([]netip.Addr, error) {
 			return linkPreviewLookupNetIP(ctx, host)
 		},
-		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			return linkPreviewDial(ctx, network, address)
+		ResolveDial: func() func(ctx context.Context, network, address string) (net.Conn, error) {
+			return linkPreviewDial
 		},
 	}
 
@@ -112,7 +114,47 @@ type friendAvatarFetched struct {
 	etag        string
 }
 
-// NormalizeFriendOutboundURL 校验并规范化友链相关的外部 HTTP(S) URL：严格限制纯公网地址与标准 80/443 端口，并拦截本站头像缓存自环
+// isDangerousNonHTTPPort 拦截高危非 HTTP 文本/二进制基础协议与数据库端口（对齐 WHATWG Fetch 受限端口并补充主流数据库/缓存端口），防止跨协议 SSRF
+func isDangerousNonHTTPPort(port int) bool {
+	if port < 20 {
+		return true
+	}
+	switch port {
+	case 20, 21, 22, 23, 25, 37, 42, 43, 53, 69, 77, 79, 87, 95,
+		101, 102, 103, 104, 109, 110, 111, 113, 115, 117, 119, 123,
+		135, 137, 138, 139, 143, 161, 162, 179, 389, 427, 445, 465,
+		512, 513, 514, 515, 526, 530, 531, 532, 540, 548, 554, 556,
+		563, 587, 601, 636, 989, 990, 993, 995, 1080, 1433, 1521,
+		2049, 2375, 2376, 3306, 3389, 4190, 5060, 5061, 5432, 5900,
+		6000, 6379, 6665, 6666, 6667, 6668, 6669, 6697, 10080, 11211, 27017:
+		return true
+	default:
+		return false
+	}
+}
+
+func isAllowedFriendOutboundPortNum(portNum int) bool {
+	if portNum < 1 || portNum > 65535 {
+		return false
+	}
+	if portNum == 80 || portNum == 443 {
+		return true
+	}
+	if !GetFriendProbeSettings().AllowNonStandardPorts {
+		return false
+	}
+	return !isDangerousNonHTTPPort(portNum)
+}
+
+func isAllowedFriendOutboundPort(port string) bool {
+	portNum, err := strconv.Atoi(port)
+	if err != nil || strconv.Itoa(portNum) != port {
+		return false
+	}
+	return isAllowedFriendOutboundPortNum(portNum)
+}
+
+// NormalizeFriendOutboundURL 校验并规范化友链相关的外部 HTTP(S) URL：限制纯公网地址、按配置放行合法非标端口，并拦截本站头像缓存自环
 func NormalizeFriendOutboundURL(raw string) (string, *url.URL, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" || len(trimmed) > 512 {
@@ -128,10 +170,37 @@ func NormalizeFriendOutboundURL(raw string) (string, *url.URL, error) {
 	}
 
 	scheme := strings.ToLower(u.Scheme)
-	host := strings.ToLower(strings.TrimSpace(u.Hostname()))
-	port := u.Port()
-	if !allowPriv && port != "" && port != "80" && port != "443" {
+	rawHost := strings.ToLower(strings.TrimSpace(u.Hostname()))
+	if rawHost == "" || strings.Contains(rawHost, "%") {
 		return "", nil, errLinkPreviewBlockedAddr
+	}
+	var host string
+	if ip, ipErr := netip.ParseAddr(rawHost); ipErr == nil {
+		if ip.Zone() != "" || (!allowPriv && !utils.IsPublicAddr(ip.Unmap())) {
+			return "", nil, errLinkPreviewBlockedAddr
+		}
+		host = ip.Unmap().String()
+	} else {
+		host = normalizeExactASCIIHost(rawHost)
+		if host == "" {
+			return "", nil, errLinkPreviewBlockedAddr
+		}
+		if ip, ipErr := netip.ParseAddr(host); ipErr == nil {
+			if ip.Zone() != "" || (!allowPriv && !utils.IsPublicAddr(ip.Unmap())) {
+				return "", nil, errLinkPreviewBlockedAddr
+			}
+			host = ip.Unmap().String()
+		}
+	}
+	port := u.Port()
+	if port != "" {
+		portNum, pErr := strconv.Atoi(port)
+		if pErr != nil || portNum < 1 || portNum > 65535 || strconv.Itoa(portNum) != port {
+			return "", nil, errLinkPreviewBlockedAddr
+		}
+		if !allowPriv && !isAllowedFriendOutboundPortNum(portNum) {
+			return "", nil, errLinkPreviewBlockedAddr
+		}
 	}
 	if (scheme == "http" && port == "80") || (scheme == "https" && port == "443") {
 		port = ""
@@ -400,7 +469,8 @@ func fetchUpstreamAvatarBytes(ctx context.Context, rawURL string) ([]byte, error
 		return nil, errFriendAvatarUnavailable
 	}
 
-	for hop := 0; hop <= linkPreviewMaxRedirects; hop++ {
+	maxRedirects := GetFriendProbeSettings().EffectiveMaxRedirects()
+	for hop := 0; hop <= maxRedirects; hop++ {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, current.String(), nil)
 		if err != nil {
 			return nil, err
@@ -419,6 +489,9 @@ func fetchUpstreamAvatarBytes(ctx context.Context, rawURL string) ([]byte, error
 			status == http.StatusTemporaryRedirect || status == http.StatusPermanentRedirect {
 			loc := resp.Header.Get("Location")
 			_ = resp.Body.Close()
+			if hop >= maxRedirects {
+				return nil, errors.New("too many redirects")
+			}
 			if loc == "" {
 				return nil, errFriendAvatarUnavailable
 			}

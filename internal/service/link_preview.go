@@ -74,10 +74,8 @@ var (
 	linkPreviewLookupNetIP  = func(ctx context.Context, host string) ([]netip.Addr, error) {
 		return net.DefaultResolver.LookupNetIP(ctx, "ip", host)
 	}
-	linkPreviewDial = func(ctx context.Context, network, address string) (net.Conn, error) {
-		dialer := &net.Dialer{Timeout: linkPreviewDialTimeout}
-		return dialer.DialContext(ctx, network, address)
-	}
+	// 默认 nil 时走 utils.NewSafeDialContext 内置带 Control 二次校验的 defaultDialer；仅测试按需注入自定义拨号钩子
+	linkPreviewDial func(ctx context.Context, network, address string) (net.Conn, error)
 
 	linkPreviewFetchGroup singleflight.Group
 
@@ -480,8 +478,8 @@ var linkPreviewSafeDialOpts = utils.SafeDialOptions{
 	LookupNetIP: func(ctx context.Context, host string) ([]netip.Addr, error) {
 		return linkPreviewLookupNetIP(ctx, host)
 	},
-	Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-		return linkPreviewDial(ctx, network, address)
+	ResolveDial: func() func(ctx context.Context, network, address string) (net.Conn, error) {
+		return linkPreviewDial
 	},
 }
 

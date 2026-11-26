@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"path"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -49,7 +50,101 @@ const (
 
 	friendMaxRSSProbes      = 10
 	friendMaxBacklinkProbes = 9
+
+	friendProbeSettingsKVKey     = "friend_probe_settings"
+	defaultFriendAllowRedirects  = true
+	defaultFriendMaxRedirects    = 5
+	minFriendMaxRedirects        = 1
+	maxFriendMaxRedirects        = 10
+	defaultFriendAllowNonStdPort = true
 )
+
+// FriendProbeSettings 友链出站拨测与 URL 校验可配置策略
+type FriendProbeSettings struct {
+	AllowRedirects        bool `json:"allow_redirects"`
+	MaxRedirects          int  `json:"max_redirects"`
+	AllowNonStandardPorts bool `json:"allow_non_standard_ports"`
+}
+
+func defaultFriendProbeSettings() FriendProbeSettings {
+	return FriendProbeSettings{
+		AllowRedirects:        defaultFriendAllowRedirects,
+		MaxRedirects:          defaultFriendMaxRedirects,
+		AllowNonStandardPorts: defaultFriendAllowNonStdPort,
+	}
+}
+
+// EffectiveMaxRedirects 返回实际允许跟随的最大重定向跳数（禁用重定向时为 0）
+func (s FriendProbeSettings) EffectiveMaxRedirects() int {
+	if !s.AllowRedirects {
+		return 0
+	}
+	if s.MaxRedirects < minFriendMaxRedirects {
+		return defaultFriendMaxRedirects
+	}
+	if s.MaxRedirects > maxFriendMaxRedirects {
+		return maxFriendMaxRedirects
+	}
+	return s.MaxRedirects
+}
+
+// CacheDigest 生成用于冷却键与自动识别缓存隔离的策略摘要
+func (s FriendProbeSettings) CacheDigest() string {
+	return fmt.Sprintf("%t:%d:%t", s.AllowRedirects, s.EffectiveMaxRedirects(), s.AllowNonStandardPorts)
+}
+
+func parseKVInt(v any) (int, bool) {
+	switch n := v.(type) {
+	case int:
+		return n, true
+	case int64:
+		return int(n), true
+	case float64:
+		return int(n), true
+	case json.Number:
+		if parsed, err := n.Int64(); err == nil {
+			return int(parsed), true
+		}
+	case string:
+		if parsed, err := strconv.Atoi(strings.TrimSpace(n)); err == nil {
+			return parsed, true
+		}
+	}
+	return 0, false
+}
+
+// GetFriendProbeSettings 读取后台配置的友链拨测与端口策略（未配置或数据库未就绪时使用安全默认值）
+func GetFriendProbeSettings() FriendProbeSettings {
+	cfg := defaultFriendProbeSettings()
+	raw, err := repo.KV.GetKV(friendProbeSettingsKVKey)
+	if err != nil || raw == nil {
+		return cfg
+	}
+	applyMap := func(m map[string]any) {
+		if v, ok := m["allow_redirects"].(bool); ok {
+			cfg.AllowRedirects = v
+		}
+		if v, ok := parseKVInt(m["max_redirects"]); ok && v >= minFriendMaxRedirects && v <= maxFriendMaxRedirects {
+			cfg.MaxRedirects = v
+		}
+		if v, ok := m["allow_non_standard_ports"].(bool); ok {
+			cfg.AllowNonStandardPorts = v
+		}
+	}
+	switch val := raw.(type) {
+	case FriendProbeSettings:
+		cfg.AllowRedirects = val.AllowRedirects
+		if val.MaxRedirects >= minFriendMaxRedirects && val.MaxRedirects <= maxFriendMaxRedirects {
+			cfg.MaxRedirects = val.MaxRedirects
+		}
+		cfg.AllowNonStandardPorts = val.AllowNonStandardPorts
+	case map[string]any:
+		applyMap(val)
+	case model.JSONMap:
+		applyMap(map[string]any(val))
+	}
+	return cfg
+}
 
 // 主流开源博客（Hexo / Hugo / Astro / Halo / Typecho / WordPress / Ghost / VanBlog / Valaxy / VuePress / NotionNext 等）高频 RSS 路径
 var defaultFriendRSSFallbackPaths = []string{
@@ -520,6 +615,154 @@ func isValidBacklinkPageHost(siteHost, candHost string, primarySelfHosts, aliasS
 	return true
 }
 
+func sharesRootWithSelfOrAlias(candHost string, primarySelfHosts, aliasSelfHosts []string) bool {
+	candRoot := registrableSiteRoot(candHost)
+	if candRoot == "" {
+		return false
+	}
+	for _, pHost := range primarySelfHosts {
+		if pHost != "" && registrableSiteRoot(pHost) == candRoot {
+			return true
+		}
+	}
+	for _, aHost := range aliasSelfHosts {
+		if aHost != "" && registrableSiteRoot(aHost) == candRoot {
+			return true
+		}
+	}
+	return false
+}
+
+func effectiveFriendNonStdPort(u *url.URL) string {
+	if u == nil {
+		return ""
+	}
+	port := u.Port()
+	if port == "" {
+		return ""
+	}
+	scheme := strings.ToLower(u.Scheme)
+	if (scheme == "http" && port == "80") || (scheme == "https" && port == "443") {
+		return ""
+	}
+	return port
+}
+
+func cleanFriendSitePath(u *url.URL) string {
+	if u == nil {
+		return ""
+	}
+	p := path.Clean("/" + strings.TrimSpace(u.Path))
+	if p == "/" {
+		return ""
+	}
+	return strings.ToLower(strings.TrimRight(p, "/"))
+}
+
+func loadActiveFriendSiteURLs(excludeLinkID uint) []*url.URL {
+	if repo.GetDB() == nil {
+		return nil
+	}
+	rawList, err := repo.Friend.ListActiveSiteURLs(excludeLinkID)
+	if err != nil || len(rawList) == 0 {
+		return nil
+	}
+	out := make([]*url.URL, 0, len(rawList))
+	for _, raw := range rawList {
+		if u, pErr := url.Parse(strings.TrimSpace(raw)); pErr == nil && u != nil && u.Hostname() != "" {
+			out = append(out, u)
+		}
+	}
+	return out
+}
+
+// conflictsWithOtherFriendSites 判断候选地址（重定向落地页或回链页）是否落入其他已登记友链站点的归属范围，杜绝跨端口/子路径/同根域兄弟子域借壳自证
+func conflictsWithOtherFriendSites(origSiteURL, candURL *url.URL, otherSites []*url.URL) bool {
+	if origSiteURL == nil || candURL == nil || len(otherSites) == 0 {
+		return false
+	}
+	origHost := normalizeASCIIHost(origSiteURL.Hostname())
+	candHost := normalizeASCIIHost(candURL.Hostname())
+	if origHost == "" || candHost == "" {
+		return false
+	}
+	crossDomain := !sameFriendSiteFamily(origHost, candHost)
+	origPort := effectiveFriendNonStdPort(origSiteURL)
+	candPort := effectiveFriendNonStdPort(candURL)
+	origPath := cleanFriendSitePath(origSiteURL)
+	candPath := cleanFriendSitePath(candURL)
+
+	for _, otherU := range otherSites {
+		otherHost := normalizeASCIIHost(otherU.Hostname())
+		if otherHost == "" {
+			continue
+		}
+		if crossDomain {
+			if sameFriendSiteFamily(otherHost, candHost) {
+				return true
+			}
+			continue
+		}
+		if otherHost != origHost {
+			if candHost == otherHost || strings.HasSuffix(candHost, "."+otherHost) {
+				if !(strings.HasSuffix(origHost, "."+otherHost) && (candHost == origHost || strings.HasSuffix(candHost, "."+origHost))) {
+					return true
+				}
+			}
+			continue
+		}
+		otherPort := effectiveFriendNonStdPort(otherU)
+		if otherPort != origPort {
+			if candPort == otherPort {
+				return true
+			}
+			continue
+		}
+		otherPath := cleanFriendSitePath(otherU)
+		if otherPath == origPath {
+			continue
+		}
+		if otherPath != "" && (candPath == otherPath || strings.HasPrefix(candPath, otherPath+"/")) {
+			if !(origPath != "" && strings.HasPrefix(origPath, otherPath+"/")) {
+				return true
+			}
+		}
+		if otherPath == "" && origPath != "" {
+			if !(candPath == origPath || strings.HasPrefix(candPath, origPath+"/")) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// isValidRedirectedFriendSiteURL 校验友链首页 301/302 重定向后的落地 URL 是否可作为有效目标站：
+// 拦截跳回本站/别名/同根域兄弟子站及借用任何其他已登记友链站点（含不同端口、子路径、同根域兄弟站）的伪造跳转
+func isValidRedirectedFriendSiteURL(origSiteURL, finalHomeURL *url.URL, primarySelfHosts, aliasSelfHosts []string, otherSites []*url.URL) bool {
+	if origSiteURL == nil || finalHomeURL == nil {
+		return false
+	}
+	origSiteHost := origSiteURL.Hostname()
+	finalHomeHost := finalHomeURL.Hostname()
+	if sameFriendSiteFamily(origSiteHost, finalHomeHost) {
+		if !isValidBacklinkPageHost(origSiteHost, finalHomeHost, primarySelfHosts, aliasSelfHosts) {
+			return false
+		}
+	} else {
+		normCandNoWWW := normalizeASCIIHost(finalHomeHost)
+		if normCandNoWWW == "" {
+			return false
+		}
+		if isSelfOrAliasFriendHost(finalHomeHost, primarySelfHosts, aliasSelfHosts) {
+			return false
+		}
+		if sharesRootWithSelfOrAlias(finalHomeHost, primarySelfHosts, aliasSelfHosts) {
+			return false
+		}
+	}
+	return !conflictsWithOtherFriendSites(origSiteURL, finalHomeURL, otherSites)
+}
+
 func sameURLIgnoringTrailingSlash(a, b string) bool {
 	cleanA := strings.TrimRight(strings.TrimSpace(a), "/")
 	cleanB := strings.TrimRight(strings.TrimSpace(b), "/")
@@ -570,7 +813,8 @@ func fetchFriendRawDocument(ctx context.Context, rawURL string, accept string, t
 
 	current := parsed
 	currentNorm := normStr
-	for hop := 0; hop <= linkPreviewMaxRedirects; hop++ {
+	maxRedirects := GetFriendProbeSettings().EffectiveMaxRedirects()
+	for hop := 0; hop <= maxRedirects; hop++ {
 		req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, current.String(), nil)
 		if err != nil {
 			return 0, "", "", nil, nil, false
@@ -589,7 +833,7 @@ func fetchFriendRawDocument(ctx context.Context, rawURL string, accept string, t
 			code == http.StatusTemporaryRedirect || code == http.StatusPermanentRedirect {
 			loc := resp.Header.Get("Location")
 			_ = resp.Body.Close()
-			if loc == "" {
+			if hop >= maxRedirects || loc == "" {
 				return code, "", "", nil, nil, false
 			}
 			nextRaw, err := current.Parse(loc)
@@ -719,16 +963,23 @@ func isValidFeedDocument(body []byte) bool {
 }
 
 func fetchAndVerifyFeedURL(ctx context.Context, siteHost string, rawCandidate string) (string, bool) {
-	allowFeedHost := func(h string) bool {
+	allowInitialHost := func(h string) bool {
 		return isAllowedFriendFeedHost(siteHost, h)
 	}
 	_, candParsed, ok := resolveSafeFriendCandidateURL(rawCandidate, nil)
-	if !ok || !allowFeedHost(candParsed.Hostname()) {
+	if !ok || !allowInitialHost(candParsed.Hostname()) {
 		return "", false
 	}
+	primarySelfHosts, aliasSelfHosts, _ := resolveSelfBacklinkHosts()
+	allowRedirectFeedHost := func(h string) bool {
+		if allowInitialHost(h) {
+			return true
+		}
+		return !isSelfOrAliasFriendHost(h, primarySelfHosts, aliasSelfHosts) && !sharesRootWithSelfOrAlias(h, primarySelfHosts, aliasSelfHosts)
+	}
 	const feedAccept = "application/rss+xml, application/atom+xml, application/feed+json, application/rdf+xml, application/xml;q=0.9, text/xml;q=0.8, */*;q=0.5"
-	_, _, finalNorm, finalParsed, body, fetched := fetchFriendRawDocument(ctx, rawCandidate, feedAccept, friendFeedFetchTimeout, friendFeedMaxBytes, allowFeedHost)
-	if !fetched || finalParsed == nil || !allowFeedHost(finalParsed.Hostname()) {
+	_, _, finalNorm, finalParsed, body, fetched := fetchFriendRawDocument(ctx, rawCandidate, feedAccept, friendFeedFetchTimeout, friendFeedMaxBytes, allowRedirectFeedHost)
+	if !fetched || finalParsed == nil || !allowRedirectFeedHost(finalParsed.Hostname()) {
 		return "", false
 	}
 	if !isValidFeedDocument(body) {
@@ -810,6 +1061,7 @@ func extractHTMLDiscoveryHints(rawHTML string, baseURL *url.URL) htmlDiscoveryHi
 	}
 	siteHost := baseURL.Hostname()
 	siteNorm := baseURL.String()
+	primarySelfHosts, aliasSelfHosts, _ := resolveSelfBacklinkHosts()
 
 	feedScoreMap := make(map[string]int)
 	backlinkScoreMap := make(map[string]int)
@@ -859,7 +1111,7 @@ func extractHTMLDiscoveryHints(rawHTML string, baseURL *url.URL) htmlDiscoveryHi
 		if isAllowedFriendFeedHost(siteHost, parsed.Hostname()) && looksLikeFeedPathOrQuery(parsed) {
 			addFeed(normURL, 80)
 		}
-		if sameFriendSiteFamily(siteHost, parsed.Hostname()) && !isStaticAssetPath(parsed.Path) {
+		if isValidBacklinkPageHost(siteHost, parsed.Hostname(), primarySelfHosts, aliasSelfHosts) && !isStaticAssetPath(parsed.Path) {
 			score := max(scoreFriendAnchorLabel(combinedLabel), scoreFriendPageSlug(parsed))
 			if score > 0 {
 				addBacklink(normURL, score)
@@ -1094,13 +1346,17 @@ func parseSitemapXMLBytes(data []byte) (childSitemaps []string, pageLocs []strin
 
 func extractSitemapURLsFromRobotsTxt(raw string, base *url.URL) []string {
 	var out []string
+	if base == nil {
+		return out
+	}
+	primarySelfHosts, aliasSelfHosts, _ := resolveSelfBacklinkHosts()
 	for _, line := range strings.Split(raw, "\n") {
 		line = strings.TrimSpace(line)
 		if len(line) < 9 || !strings.EqualFold(line[:8], "sitemap:") {
 			continue
 		}
 		val := strings.TrimSpace(line[8:])
-		if norm, parsed, ok := resolveSafeFriendCandidateURL(val, base); ok && sameFriendSiteFamily(base.Hostname(), parsed.Hostname()) {
+		if norm, parsed, ok := resolveSafeFriendCandidateURL(val, base); ok && isValidBacklinkPageHost(base.Hostname(), parsed.Hostname(), primarySelfHosts, aliasSelfHosts) {
 			if !slices.Contains(out, norm) {
 				out = append(out, norm)
 				if len(out) >= 2 {
@@ -1146,8 +1402,9 @@ func fetchSitemapDiscoveryHints(ctx context.Context, siteURL *url.URL) sitemapDi
 	var childSitemaps []string
 	triedSitemap := make(map[string]struct{})
 
+	primarySelfHosts, aliasSelfHosts, _ := resolveSelfBacklinkHosts()
 	allowSameSite := func(h string) bool {
-		return sameFriendSiteFamily(siteHost, h)
+		return isValidBacklinkPageHost(siteHost, h, primarySelfHosts, aliasSelfHosts)
 	}
 
 	fetchOneSitemap := func(smURL string) bool {
@@ -1199,7 +1456,7 @@ func fetchSitemapDiscoveryHints(ctx context.Context, siteURL *url.URL) sitemapDi
 				break
 			}
 			normChild, childParsed, ok := resolveSafeFriendCandidateURL(child, siteURL)
-			if !ok || !sameFriendSiteFamily(siteHost, childParsed.Hostname()) {
+			if !ok || !allowSameSite(childParsed.Hostname()) {
 				continue
 			}
 			if fetchOneSitemap(normChild) {
@@ -1215,7 +1472,7 @@ func fetchSitemapDiscoveryHints(ctx context.Context, siteURL *url.URL) sitemapDi
 
 	for _, rawLoc := range collectedLocs {
 		normLoc, parsedLoc, ok := resolveSafeFriendCandidateURL(rawLoc, siteURL)
-		if !ok || !sameFriendSiteFamily(siteHost, parsedLoc.Hostname()) || sameURLIgnoringTrailingSlash(normLoc, siteNorm) {
+		if !ok || !allowSameSite(parsedLoc.Hostname()) || sameURLIgnoringTrailingSlash(normLoc, siteNorm) {
 			continue
 		}
 		if looksLikeFeedPathOrQuery(parsedLoc) {
@@ -1293,7 +1550,7 @@ func aiSuggestFriendDiscoveryURLs(
 		return nil, nil
 	}
 
-	aiCacheKey := "friend_ai_disc:v1:" + model.FriendAvatarHash(strings.ToLower(strings.TrimSpace(siteURL)))
+	aiCacheKey := "friend_ai_disc:v1:" + model.FriendAvatarHash(strings.ToLower(strings.TrimSpace(siteURL))+"|"+GetFriendProbeSettings().CacheDigest())
 	var cached cachedAIDiscoverySuggestion
 	if hit, err := sharedstate.GetJSON(aiCacheKey, &cached); err == nil && hit {
 		return cached.RSSCandidates, cached.BacklinkCandidates
@@ -1378,6 +1635,7 @@ type friendDiscoveryOutcome struct {
 // runFriendDiscoveryAndBacklinkCheck 统一执行「代码三层漏斗优先 -> AI 辅助兜底 -> 严格真实内容校验」的 RSS 与反链探测
 func runFriendDiscoveryAndBacklinkCheck(
 	ctx context.Context,
+	linkID uint,
 	siteRawURL string,
 	home *friendFetchOutcome,
 	existingRSSURL string,
@@ -1402,26 +1660,31 @@ func runFriendDiscoveryAndBacklinkCheck(
 		return out
 	}
 
-	var primarySelfHosts, aliasSelfHosts, selfHosts []string
+	origSiteParsed := siteParsed
+	origSiteHost := origSiteParsed.Hostname()
+	primarySelfHosts, aliasSelfHosts, selfHosts := resolveSelfBacklinkHosts()
+	otherSites := loadActiveFriendSiteURLs(linkID)
 	if skipBacklink {
 		out.BacklinkStatus = "skipped"
 		out.BacklinkCompleted = true
 		needBacklinkCheck = false
-	} else {
-		primarySelfHosts, aliasSelfHosts, selfHosts = resolveSelfBacklinkHosts()
-		if needBacklinkCheck && len(selfHosts) == 0 {
-			out.BacklinkStatus = "unchecked"
-			needBacklinkCheck = false
-		}
+	} else if needBacklinkCheck && len(selfHosts) == 0 {
+		out.BacklinkStatus = "unchecked"
+		needBacklinkCheck = false
 	}
 
-	// 严格校验首页重定向落点：若 301/302 跨域离开站点家族或跳回本站主域名/别名域名，清空首页 HTML 以杜绝跨域假阳性与自证绕过
+	// 校验首页重定向落点：支持友站迁移域名或跳转非标端口，同时严格拦截跳回本站主域名/别名域名/同根域兄弟子站及借用其他已登记友链站点的伪造跳转
 	if home.FinalURL != nil {
-		if isValidBacklinkPageHost(siteParsed.Hostname(), home.FinalURL.Hostname(), primarySelfHosts, aliasSelfHosts) {
+		if isValidRedirectedFriendSiteURL(origSiteParsed, home.FinalURL, primarySelfHosts, aliasSelfHosts, otherSites) {
 			siteParsed = home.FinalURL
 		} else {
 			home.RawHTML = ""
 			home.HTMLSnippet = ""
+			if needBacklinkCheck {
+				out.BacklinkStatus = "missing"
+				out.BacklinkCompleted = true
+			}
+			return out
 		}
 	}
 	siteHost := siteParsed.Hostname()
@@ -1448,8 +1711,43 @@ func runFriendDiscoveryAndBacklinkCheck(
 		}
 	}
 
-	allowBacklinkHost := func(h string) bool {
-		return isValidBacklinkPageHost(siteHost, h, primarySelfHosts, aliasSelfHosts)
+	allowBacklinkURL := func(u *url.URL) bool {
+		if u == nil {
+			return false
+		}
+		h := u.Hostname()
+		hostOK := isValidBacklinkPageHost(origSiteHost, h, primarySelfHosts, aliasSelfHosts) ||
+			(siteHost != origSiteHost && isValidBacklinkPageHost(siteHost, h, primarySelfHosts, aliasSelfHosts))
+		if !hostOK {
+			return false
+		}
+		return !conflictsWithOtherFriendSites(origSiteParsed, u, otherSites)
+	}
+
+	hasValidBacklinkInPage := func(rawHTML string, pageHost string) bool {
+		if !htmlContainsBacklinkToHostsForSite(rawHTML, origSiteHost, primarySelfHosts, aliasSelfHosts) {
+			return false
+		}
+		if pageHost != "" && pageHost != origSiteHost && !htmlContainsBacklinkToHostsForSite(rawHTML, pageHost, primarySelfHosts, aliasSelfHosts) {
+			return false
+		}
+		return true
+	}
+
+	pickBackfillableURL := func(probedNorm string, finalURL *url.URL) string {
+		if finalURL != nil && isValidBacklinkPageHost(origSiteHost, finalURL.Hostname(), primarySelfHosts, aliasSelfHosts) &&
+			!conflictsWithOtherFriendSites(origSiteParsed, finalURL, otherSites) {
+			if finalStr := finalURL.String(); len(finalStr) <= 512 {
+				return finalStr
+			}
+		}
+		if parsedProbed, err := url.Parse(probedNorm); err == nil && parsedProbed != nil &&
+			isValidBacklinkPageHost(origSiteHost, parsedProbed.Hostname(), primarySelfHosts, aliasSelfHosts) &&
+			!conflictsWithOtherFriendSites(origSiteParsed, parsedProbed, otherSites) &&
+			len(probedNorm) <= 512 {
+			return probedNorm
+		}
+		return ""
 	}
 
 	// =========================================================================
@@ -1516,23 +1814,23 @@ func runFriendDiscoveryAndBacklinkCheck(
 		if explicitBacklink != "" {
 			subpageWAF := false
 			normExp, expParsed, expOK := resolveSafeFriendCandidateURL(explicitBacklink, nil)
-			if expOK && allowBacklinkHost(expParsed.Hostname()) {
+			if expOK && allowBacklinkURL(expParsed) {
 				if sameURLIgnoringTrailingSlash(normExp, siteParsed.String()) && home.RawHTML != "" && !home.IsWAF {
-					if htmlContainsBacklinkToHostsForSite(home.RawHTML, siteHost, primarySelfHosts, aliasSelfHosts) {
+					if hasValidBacklinkInPage(home.RawHTML, siteHost) {
 						out.BacklinkStatus = "verified"
 						out.BacklinkCompleted = true
 					}
 				} else if blCtx.Err() == nil {
-					res := fetchFriendHTMLWithTimingOpts(blCtx, normExp, friendSubpageProbeTimeout, allowBacklinkHost)
+					res := fetchFriendHTMLWithTimingURLOpts(blCtx, normExp, friendSubpageProbeTimeout, allowBacklinkURL)
 					if res.IsWAF {
 						subpageWAF = true
-					} else if res.Reachable && res.FinalURL != nil && allowBacklinkHost(res.FinalURL.Hostname()) && htmlContainsBacklinkToHostsForSite(res.RawHTML, siteHost, primarySelfHosts, aliasSelfHosts) {
+					} else if res.Reachable && res.FinalURL != nil && allowBacklinkURL(res.FinalURL) && hasValidBacklinkInPage(res.RawHTML, res.FinalURL.Hostname()) {
 						out.BacklinkStatus = "verified"
 						out.BacklinkCompleted = true
 					}
 				}
 			}
-			if out.BacklinkStatus == "" && home.RawHTML != "" && !home.IsWAF && htmlContainsBacklinkToHostsForSite(home.RawHTML, siteHost, primarySelfHosts, aliasSelfHosts) {
+			if out.BacklinkStatus == "" && home.RawHTML != "" && !home.IsWAF && hasValidBacklinkInPage(home.RawHTML, siteHost) {
 				out.BacklinkStatus = "verified"
 				out.BacklinkCompleted = true
 			}
@@ -1542,7 +1840,7 @@ func runFriendDiscoveryAndBacklinkCheck(
 			}
 		} else {
 			// 未填写回链地址：先检查首页自身是否已含反链，否则启动三层漏斗发现友链页并在命中时自动回填
-			if home.RawHTML != "" && !home.IsWAF && htmlContainsBacklinkToHostsForSite(home.RawHTML, siteHost, primarySelfHosts, aliasSelfHosts) {
+			if home.RawHTML != "" && !home.IsWAF && hasValidBacklinkInPage(home.RawHTML, siteHost) {
 				out.BacklinkStatus = "verified"
 				out.BacklinkCompleted = true
 			} else {
@@ -1553,7 +1851,7 @@ func runFriendDiscoveryAndBacklinkCheck(
 						return false
 					}
 					norm, parsed, ok := resolveSafeFriendCandidateURL(cand, siteParsed)
-					if !ok || !allowBacklinkHost(parsed.Hostname()) || sameURLIgnoringTrailingSlash(norm, siteParsed.String()) {
+					if !ok || !allowBacklinkURL(parsed) || sameURLIgnoringTrailingSlash(norm, siteParsed.String()) {
 						return false
 					}
 					if _, seen := triedURLs[norm]; seen {
@@ -1561,17 +1859,15 @@ func runFriendDiscoveryAndBacklinkCheck(
 					}
 					triedURLs[norm] = struct{}{}
 					backlinkProbes++
-					res := fetchFriendHTMLWithTimingOpts(blCtx, norm, friendSubpageProbeTimeout, allowBacklinkHost)
+					res := fetchFriendHTMLWithTimingURLOpts(blCtx, norm, friendSubpageProbeTimeout, allowBacklinkURL)
 					if res.IsWAF {
 						sawWAFSubpage = true
 						return false
 					}
-					if res.Reachable && res.FinalURL != nil && allowBacklinkHost(res.FinalURL.Hostname()) && htmlContainsBacklinkToHostsForSite(res.RawHTML, siteHost, primarySelfHosts, aliasSelfHosts) {
+					if res.Reachable && res.FinalURL != nil && allowBacklinkURL(res.FinalURL) && hasValidBacklinkInPage(res.RawHTML, res.FinalURL.Hostname()) {
 						out.BacklinkStatus = "verified"
 						out.BacklinkCompleted = true
-						if finalStr := res.FinalURL.String(); len(finalStr) <= 512 {
-							out.MatchedBacklinkURL = finalStr
-						}
+						out.MatchedBacklinkURL = pickBackfillableURL(norm, res.FinalURL)
 						return true
 					}
 					return false
@@ -1645,20 +1941,18 @@ func runFriendDiscoveryAndBacklinkCheck(
 						break
 					}
 					norm, parsed, ok := resolveSafeFriendCandidateURL(cand, siteParsed)
-					if !ok || !allowBacklinkHost(parsed.Hostname()) {
+					if !ok || !allowBacklinkURL(parsed) {
 						continue
 					}
 					if _, seen := triedURLs[norm]; seen {
 						continue
 					}
 					triedURLs[norm] = struct{}{}
-					res := fetchFriendHTMLWithTimingOpts(verifyCtx, norm, friendSubpageProbeTimeout, allowBacklinkHost)
-					if res.Reachable && res.FinalURL != nil && allowBacklinkHost(res.FinalURL.Hostname()) && htmlContainsBacklinkToHostsForSite(res.RawHTML, siteHost, primarySelfHosts, aliasSelfHosts) {
+					res := fetchFriendHTMLWithTimingURLOpts(verifyCtx, norm, friendSubpageProbeTimeout, allowBacklinkURL)
+					if res.Reachable && res.FinalURL != nil && allowBacklinkURL(res.FinalURL) && hasValidBacklinkInPage(res.RawHTML, res.FinalURL.Hostname()) {
 						out.BacklinkStatus = "verified"
 						out.BacklinkCompleted = true
-						if finalStr := res.FinalURL.String(); len(finalStr) <= 512 {
-							out.MatchedBacklinkURL = finalStr
-						}
+						out.MatchedBacklinkURL = pickBackfillableURL(norm, res.FinalURL)
 						break
 					}
 				}
@@ -1670,16 +1964,17 @@ func runFriendDiscoveryAndBacklinkCheck(
 	return out
 }
 
-func verifyFriendHTMLPageURL(ctx context.Context, siteHost string, rawCandidate string) (string, bool) {
+func verifyFriendHTMLPageURL(ctx context.Context, siteHost string, rawCandidate string, origSiteURL *url.URL, otherSites []*url.URL) (string, bool) {
+	primarySelfHosts, aliasSelfHosts, _ := resolveSelfBacklinkHosts()
 	allowSameSite := func(h string) bool {
-		return sameFriendSiteFamily(siteHost, h)
+		return isValidBacklinkPageHost(siteHost, h, primarySelfHosts, aliasSelfHosts)
 	}
 	norm, parsed, ok := resolveSafeFriendCandidateURL(rawCandidate, nil)
-	if !ok || !allowSameSite(parsed.Hostname()) {
+	if !ok || !allowSameSite(parsed.Hostname()) || conflictsWithOtherFriendSites(origSiteURL, parsed, otherSites) {
 		return "", false
 	}
 	_, ct, finalNorm, finalParsed, body, fetched := fetchFriendRawDocument(ctx, norm, "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5", 4*time.Second, 32<<10, allowSameSite)
-	if !fetched || finalParsed == nil || !allowSameSite(finalParsed.Hostname()) || len(body) == 0 {
+	if !fetched || finalParsed == nil || !allowSameSite(finalParsed.Hostname()) || conflictsWithOtherFriendSites(origSiteURL, finalParsed, otherSites) || len(body) == 0 {
 		return "", false
 	}
 	lowerCT := strings.ToLower(ct)
@@ -1690,7 +1985,7 @@ func verifyFriendHTMLPageURL(ctx context.Context, siteHost string, rawCandidate 
 }
 
 // discoverAutofillEndpoints 供表单「AI 自动识别」按钮调用：基于已抓取首页 HTML 快速发现有效 RSS 源与高置信度友链页
-func discoverAutofillEndpoints(ctx context.Context, siteParsed *url.URL, homeHTML string) (rssURL string, backlinkURL string, htmlHints htmlDiscoveryHints, smHints sitemapDiscoveryHints, tried map[string]struct{}) {
+func discoverAutofillEndpoints(ctx context.Context, siteParsed *url.URL, homeHTML string, origSiteURL *url.URL, otherSites []*url.URL) (rssURL string, backlinkURL string, htmlHints htmlDiscoveryHints, smHints sitemapDiscoveryHints, tried map[string]struct{}) {
 	tried = make(map[string]struct{})
 	if siteParsed == nil || siteParsed.Host == "" {
 		return "", "", htmlHints, smHints, tried
@@ -1768,7 +2063,7 @@ func discoverAutofillEndpoints(ctx context.Context, siteParsed *url.URL, homeHTM
 		}
 		tried[norm] = struct{}{}
 		fpProbes++
-		if finalNorm, ok := verifyFriendHTMLPageURL(fpCtx, siteHost, norm); ok {
+		if finalNorm, ok := verifyFriendHTMLPageURL(fpCtx, siteHost, norm, origSiteURL, otherSites); ok {
 			backlinkURL = finalNorm
 			return true
 		}

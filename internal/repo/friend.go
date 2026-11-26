@@ -202,6 +202,17 @@ func (r *friendRepo) GetByNormalizedHost(host string) (*model.FriendLink, error)
 	return &link, err
 }
 
+// ListActiveSiteURLs 查询当前非驳回状态的全部友链站点 URL（排除指定 ID），用于校验重定向或回链地址是否借用其他已登记友链站点
+func (r *friendRepo) ListActiveSiteURLs(excludeID uint) ([]string, error) {
+	var urls []string
+	q := GetDB().Model(&model.FriendLink{}).Where("status != ?", model.FriendStatusRejected)
+	if excludeID > 0 {
+		q = q.Where("id != ?", excludeID)
+	}
+	err := q.Pluck("url", &urls).Error
+	return urls, err
+}
+
 func (r *friendRepo) CreateLink(link *model.FriendLink) error {
 	err := GetDB().Create(link).Error
 	if err == nil {

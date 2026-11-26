@@ -9,9 +9,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
+	"github.com/snowykami/neo-blog/pkg/constant"
 )
 
 func htmlResp(status int, ct string, body string, req *http.Request) *http.Response {
@@ -117,6 +119,7 @@ func TestFriendDiscoveryFunnelAndAIFallback(t *testing.T) {
 		return htmlResp(404, "text/plain", "404", req), nil
 	})
 	t.Cleanup(func() {
+		WaitForFriendBackgroundTasks()
 		friendOutboundRoundTripper = origRT
 	})
 
@@ -351,6 +354,7 @@ func TestFriendDiscoverySecurityAndAdversarialCases(t *testing.T) {
 		return htmlResp(404, "text/plain", "404", req), nil
 	})
 	t.Cleanup(func() {
+		WaitForFriendBackgroundTasks()
 		friendOutboundRoundTripper = origRT
 	})
 
@@ -591,6 +595,7 @@ func TestFriendBacklinkAliasHostsAndRedirectGuard(t *testing.T) {
 		return htmlResp(404, "text/plain", "404", req), nil
 	})
 	t.Cleanup(func() {
+		WaitForFriendBackgroundTasks()
 		friendOutboundRoundTripper = origRT
 	})
 
@@ -719,5 +724,260 @@ func TestFriendBacklinkAliasHostsAndRedirectGuard(t *testing.T) {
 	afterAlias, gErr := repo.Friend.GetLink(lateLink.ID)
 	if gErr != nil || afterAlias.BacklinkStatus != model.FriendBacklinkVerified || afterAlias.BacklinkURL != "https://late-alias.test.com/links" {
 		t.Fatalf("expected lateLink auto-reprobed to verified after alias update, got err=%v status=%q url=%q", gErr, afterAlias.BacklinkStatus, afterAlias.BacklinkURL)
+	}
+}
+
+func TestFriendRedirectsAndNonStandardPortsSettings(t *testing.T) {
+	alice, _, _, admin := setupFriendTest(t)
+	svc := NewFriendService()
+
+	if err := repo.KV.SetKV("base_url", "https://blog.example.org"); err != nil {
+		t.Fatalf("set base_url: %v", err)
+	}
+
+	// 1. 默认设置应开启重定向（5 跳）与非标端口支持，且非法 max_redirects 范围（0 或 11）必须拒绝
+	defCfg, svcerr := svc.AdminGetSettings(userCtx(admin))
+	if svcerr != nil {
+		t.Fatalf("AdminGetSettings default: %v", svcerr)
+	}
+	if !defCfg.AllowRedirects || defCfg.MaxRedirects != 5 || !defCfg.AllowNonStandardPorts {
+		t.Fatalf("unexpected default probe settings: %+v", defCfg)
+	}
+	for _, badMax := range []int{0, -1, 11, 99} {
+		v := badMax
+		if _, err := svc.AdminUpdateSettings(userCtx(admin), &dto.AdminUpdateFriendSettingsReq{
+			MaxRedirects: &v,
+		}); err == nil || err.Code != http.StatusBadRequest || !strings.Contains(err.Error(), "invalid_friend_max_redirects") {
+			t.Fatalf("expected max_redirects=%d rejected, got %v", badMax, err)
+		}
+	}
+
+	origRT := friendOutboundRoundTripper
+	friendOutboundRoundTripper = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		switch req.URL.Host {
+		case "nas-friend.test.com:8443":
+			switch req.URL.Path {
+			case "/", "":
+				return htmlResp(200, "text/html", `<html><head><title>NAS Blog</title><link rel="alternate" type="application/rss+xml" href="/rss.xml"/></head><body><a href="/friends">友链</a></body></html>`, req), nil
+			case "/rss.xml":
+				return htmlResp(200, "application/rss+xml", `<?xml version="1.0"?><rss version="2.0"><channel><title>NAS</title></channel></rss>`, req), nil
+			case "/friends":
+				return htmlResp(200, "text/html", `<html><body><a href="https://blog.example.org:8443/">Main</a></body></html>`, req), nil
+			}
+		case "subpath-friend.test.org":
+			switch req.URL.Path {
+			case "/blog", "/blog/":
+				return htmlResp(200, "text/html", `<html><head><title>Subpath Blog</title></head><body><a href="/blog/friends">友链</a></body></html>`, req), nil
+			case "/blog/friends":
+				return htmlResp(200, "text/html", `<html><body><a href="https://blog.example.org">Backlink</a></body></html>`, req), nil
+			}
+		case "old-domain.test.com":
+			// 301 -> 中转页 -> 302 -> 新域名 :2096（共 2 跳重定向）
+			return &http.Response{
+				StatusCode: http.StatusMovedPermanently,
+				Header:     http.Header{"Location": []string{"https://hop1.test.net/go"}},
+				Body:       io.NopCloser(strings.NewReader("")),
+				Request:    req,
+			}, nil
+		case "hop1.test.net":
+			return &http.Response{
+				StatusCode: http.StatusFound,
+				Header:     http.Header{"Location": []string{"https://new-domain.test.org:2096/"}},
+				Body:       io.NopCloser(strings.NewReader("")),
+				Request:    req,
+			}, nil
+		case "new-domain.test.org:2096":
+			switch req.URL.Path {
+			case "/", "":
+				return htmlResp(200, "text/html", `<html><head><title>Migrated Blog</title></head><body><nav><a href="/links">Links</a></nav></body></html>`, req), nil
+			case "/links":
+				return htmlResp(200, "text/html", `<html><body><a href="https://blog.example.org">Backlink</a></body></html>`, req), nil
+			case "/feed.xml":
+				return htmlResp(200, "application/rss+xml", `<?xml version="1.0"?><rss version="2.0"><channel><title>Migrated</title></channel></rss>`, req), nil
+			}
+		case "piggyback.test.com", "piggyback.evil.org":
+			// 企图 302 跳转到已登记友链 nas-friend.test.com:8443/friends 子路径盗用其反链状态（覆盖同根域与跨域两种借壳）
+			return &http.Response{
+				StatusCode: http.StatusFound,
+				Header:     http.Header{"Location": []string{"https://nas-friend.test.com:8443/friends"}},
+				Body:       io.NopCloser(strings.NewReader("")),
+				Request:    req,
+			}, nil
+		case "subpage-piggy.test.com":
+			if req.URL.Path == "/links" {
+				return &http.Response{
+					StatusCode: http.StatusFound,
+					Header:     http.Header{"Location": []string{"https://nas-friend.test.com:8443/friends"}},
+					Body:       io.NopCloser(strings.NewReader("")),
+					Request:    req,
+				}, nil
+			}
+			return htmlResp(200, "text/html", `<html><body><a href="/links">Links</a><script>var u="https://blog.example.org:123!@evil.com/"</script></body></html>`, req), nil
+		}
+		return htmlResp(404, "text/plain", "404", req), nil
+	})
+	t.Cleanup(func() {
+		WaitForFriendBackgroundTasks()
+		friendOutboundRoundTripper = origRT
+	})
+
+	pub, svcerr := svc.ListPublicFriends(context.Background(), "")
+	if svcerr != nil || len(pub.Groups) == 0 {
+		t.Fatalf("list groups: %v", svcerr)
+	}
+	groupID := pub.Groups[0].ID
+
+	// 2. 非标端口友链（:8443）申请、拨测、反链与 RSS 发现全流程通过
+	nasLink, svcerr := svc.AdminCreateLink(userCtx(admin), &dto.AdminUpsertFriendLinkReq{
+		GroupID:  groupID,
+		Name:     "NAS Friend",
+		URL:      "https://nas-friend.test.com:8443",
+		Avatar:   "https://nas-friend.test.com:8443/favicon.ico",
+		ColorKey: "sky",
+		Status:   model.FriendStatusApproved,
+	})
+	if svcerr != nil {
+		t.Fatalf("create non-std port link: %v", svcerr)
+	}
+	WaitForFriendBackgroundTasks()
+	probedNAS, svcerr := svc.AdminProbeLink(userCtx(admin), nasLink.ID)
+	if svcerr != nil {
+		t.Fatalf("probe non-std port link: %v", svcerr)
+	}
+	if probedNAS.HealthStatus != model.FriendHealthHealthy || probedNAS.BacklinkStatus != model.FriendBacklinkVerified || probedNAS.RSSURL != "https://nas-friend.test.com:8443/rss.xml" {
+		t.Fatalf("expected non-std port link healthy + verified + rss, got %+v", probedNAS)
+	}
+
+	// 3. 跨域 + 非标端口两跳重定向（old-domain.test.com -> hop1 -> new-domain.test.org:2096）：
+	//    a) max_redirects=1 时因跳数超限不可达；
+	//    b) max_redirects=2 时可达且反链与 RSS 发现通过，且不会回填跨域 backlink_url 破坏后续编辑；
+	//    c) allow_redirects=false 时不跟随重定向。
+	oneHop := 1
+	if _, svcerr := svc.AdminUpdateSettings(userCtx(admin), &dto.AdminUpdateFriendSettingsReq{
+		MaxRedirects: &oneHop,
+	}); svcerr != nil {
+		t.Fatalf("set max_redirects=1: %v", svcerr)
+	}
+	WaitForFriendBackgroundTasks()
+
+	migLink, svcerr := svc.AdminCreateLink(userCtx(admin), &dto.AdminUpsertFriendLinkReq{
+		GroupID:  groupID,
+		Name:     "Migrated Friend",
+		URL:      "https://old-domain.test.com",
+		Avatar:   "https://old-domain.test.com/a.png",
+		ColorKey: "mint",
+		Status:   model.FriendStatusApproved,
+	})
+	if svcerr != nil {
+		t.Fatalf("create migLink: %v", svcerr)
+	}
+	WaitForFriendBackgroundTasks()
+	probedHop1, svcerr := svc.AdminProbeLink(userCtx(admin), migLink.ID)
+	if svcerr != nil {
+		t.Fatalf("probe migLink with max_redirects=1: %v", svcerr)
+	}
+	if probedHop1.HealthStatus != model.FriendHealthUnreachable {
+		t.Fatalf("expected 2-hop redirect to fail when max_redirects=1, got %+v", probedHop1)
+	}
+
+	twoHops := 2
+	if _, svcerr := svc.AdminUpdateSettings(userCtx(admin), &dto.AdminUpdateFriendSettingsReq{
+		MaxRedirects: &twoHops,
+	}); svcerr != nil {
+		t.Fatalf("set max_redirects=2: %v", svcerr)
+	}
+	WaitForFriendBackgroundTasks()
+	probedHop2, svcerr := svc.AdminProbeLink(userCtx(admin), migLink.ID)
+	if svcerr != nil {
+		t.Fatalf("probe migLink with max_redirects=2: %v", svcerr)
+	}
+	if probedHop2.HealthStatus != model.FriendHealthHealthy || probedHop2.BacklinkStatus != model.FriendBacklinkVerified || probedHop2.RSSURL != "https://new-domain.test.org:2096/feed.xml" {
+		t.Fatalf("expected 2-hop redirect healthy + verified + rss when max_redirects=2, got %+v", probedHop2)
+	}
+	if probedHop2.BacklinkURL != "" {
+		t.Fatalf("expected cross-domain backlink_url left empty so editing stays valid, got %q", probedHop2.BacklinkURL)
+	}
+
+	// 自动识别（Autofill）同样支持跨域+非标端口重定向且返回的字段可直接提交；且已登记的子路径友链再次点击 Autofill 不发生自冲突
+	afResp, svcerr := svc.AutofillFriendLink(userCtx(alice), &dto.FriendAutofillReq{URL: "https://old-domain.test.com"})
+	if svcerr != nil || afResp.Name != "Migrated Blog" || afResp.BacklinkURL != "" {
+		t.Fatalf("unexpected autofill on redirected domain: resp=%+v err=%v", afResp, svcerr)
+	}
+	if _, svcerr := svc.AdminCreateLink(userCtx(admin), &dto.AdminUpsertFriendLinkReq{
+		GroupID:  groupID,
+		Name:     "Subpath Blog",
+		URL:      "https://subpath-friend.test.org/blog",
+		Avatar:   "https://subpath-friend.test.org/a.png",
+		ColorKey: "jade",
+		Status:   model.FriendStatusApproved,
+	}); svcerr != nil {
+		t.Fatalf("create subpath friend: %v", svcerr)
+	}
+	WaitForFriendBackgroundTasks()
+	afSub, svcerr := svc.AutofillFriendLink(userCtx(admin), &dto.FriendAutofillReq{URL: "https://subpath-friend.test.org/blog"})
+	if svcerr != nil || afSub.Name != "Subpath Blog" || afSub.BacklinkURL != "https://subpath-friend.test.org/blog/friends" {
+		t.Fatalf("expected existing subpath friend autofill to succeed without self-conflict, got resp=%+v err=%v", afSub, svcerr)
+	}
+
+	// 4. 借用其他已登记友链站点做 302 跳转蹭反链（同根域、跨域、仅 /links 子页跳转及 RFC3986 userinfo 端口伪装）均必须拦截反链自证
+	for _, piggyURL := range []string{"https://piggyback.test.com", "https://piggyback.evil.org", "https://subpage-piggy.test.com"} {
+		piggyLink, svcerr := svc.AdminCreateLink(userCtx(admin), &dto.AdminUpsertFriendLinkReq{
+			GroupID:  groupID,
+			Name:     "Piggyback",
+			URL:      piggyURL,
+			Avatar:   piggyURL + "/a.png",
+			ColorKey: "crimson",
+			Status:   model.FriendStatusApproved,
+		})
+		if svcerr != nil {
+			t.Fatalf("create piggyLink (%s): %v", piggyURL, svcerr)
+		}
+		WaitForFriendBackgroundTasks()
+		probedPiggy, _ := svc.AdminProbeLink(userCtx(admin), piggyLink.ID)
+		if probedPiggy.BacklinkStatus == model.FriendBacklinkVerified || probedPiggy.BacklinkURL != "" || probedPiggy.RSSURL != "" {
+			t.Fatalf("expected piggyback (%s) redirect to existing friend link NOT verified, got %+v", piggyURL, probedPiggy)
+		}
+	}
+
+	// 4b. 仅持有 friends:read 只读 API Token 的管理员上下文不得读取或修改后台友链设置
+	readOnlyAdminCtx := ctxutils.WithAPIToken(userCtx(admin), &ctxutils.APITokenInfo{
+		Name:   "ro-token",
+		Scopes: []string{constant.ScopeFriendsRead},
+	})
+	if _, err := svc.AdminGetSettings(readOnlyAdminCtx); err == nil || err.Code != http.StatusForbidden {
+		t.Fatalf("expected friends:read token rejected on AdminGetSettings, got %v", err)
+	}
+	if _, err := svc.AdminUpdateSettings(readOnlyAdminCtx, &dto.AdminUpdateFriendSettingsReq{}); err == nil || err.Code != http.StatusForbidden {
+		t.Fatalf("expected friends:read token rejected on AdminUpdateSettings, got %v", err)
+	}
+
+	// 5. 关闭 allow_redirects 与 allow_non_standard_ports 后立即生效，且自动重测将原非标端口/重定向条目立即降级为 unreachable + missing
+	disallowRedir := false
+	disallowPort := false
+	if _, svcerr := svc.AdminUpdateSettings(userCtx(admin), &dto.AdminUpdateFriendSettingsReq{
+		AllowRedirects:        &disallowRedir,
+		AllowNonStandardPorts: &disallowPort,
+	}); svcerr != nil {
+		t.Fatalf("disable redirects & non-std ports: %v", svcerr)
+	}
+	WaitForFriendBackgroundTasks()
+
+	reloadedNAS, _ := repo.Friend.GetLink(nasLink.ID)
+	reloadedMig, _ := repo.Friend.GetLink(migLink.ID)
+	if reloadedNAS.HealthStatus != model.FriendHealthUnreachable || reloadedNAS.BacklinkStatus != model.FriendBacklinkMissing {
+		t.Fatalf("expected non-std port link downgraded after policy tighten, got health=%s backlink=%s", reloadedNAS.HealthStatus, reloadedNAS.BacklinkStatus)
+	}
+	if reloadedMig.HealthStatus != model.FriendHealthUnreachable || reloadedMig.BacklinkStatus != model.FriendBacklinkMissing {
+		t.Fatalf("expected redirect link downgraded after policy tighten, got health=%s backlink=%s", reloadedMig.HealthStatus, reloadedMig.BacklinkStatus)
+	}
+
+	if _, svcerr := svc.CreateMyFriendLink(userCtx(alice), &dto.UpsertMyFriendLinkReq{
+		GroupID:  groupID,
+		Name:     "Blocked Port",
+		URL:      "https://another.test.com:8080",
+		Avatar:   "https://another.test.com/a.png",
+		ColorKey: "sky",
+	}); svcerr == nil || svcerr.Code != http.StatusBadRequest {
+		t.Fatalf("expected non-standard port rejected when AllowNonStandardPorts=false, got %v", svcerr)
 	}
 }

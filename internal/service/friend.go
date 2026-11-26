@@ -58,7 +58,7 @@ func NewFriendService() *FriendService {
 	return &FriendService{}
 }
 
-// normalizeFriendSiteURL 校验并规范化友链站点地址（严格限制公网 80/443），同时生成用于防重的 normalized_host
+// normalizeFriendSiteURL 校验并规范化友链站点地址（限制公网地址并按设置放行合法非标端口），同时生成用于防重的 normalized_host
 func normalizeFriendSiteURL(raw string) (cleanURL string, normalizedHost string, parsed *url.URL, svcerr *errs.ServiceError) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" || len(trimmed) > 512 {
@@ -201,13 +201,13 @@ func GetFriendSortMode() string {
 	return resolveEffectiveFriendSortMode(raw)
 }
 
-// ListPublicFriends 公开友链列表；仅管理员或携带 friends:read Scope 的 API Token 可按 ?group=slug 读取非公开分组
+// ListPublicFriends 公开友链列表；仅管理员或携带 friends:read / friends:write Scope 的 API Token 可按 ?group=slug 读取非公开分组
 func (s *FriendService) ListPublicFriends(ctx context.Context, groupSlug string, requestedSort ...string) (*dto.PublicFriendsResp, *errs.ServiceError) {
-	canReadPrivate := ctxutils.HasAPITokenScope(ctx, constant.ScopeFriendsRead)
-	if !canReadPrivate {
-		if u, ok := ctxutils.GetCurrentUser(ctx); ok && u.Role == constant.RoleAdmin {
-			canReadPrivate = true
-		}
+	var canReadPrivate bool
+	if _, viaToken := ctxutils.GetAPIToken(ctx); viaToken {
+		canReadPrivate = ctxutils.HasAPITokenScope(ctx, constant.ScopeFriendsRead) || ctxutils.HasAPITokenScope(ctx, constant.ScopeFriendsWrite)
+	} else if u, ok := ctxutils.GetCurrentUser(ctx); ok && !u.IsAI && u.Role == constant.RoleAdmin {
+		canReadPrivate = true
 	}
 	sortMode := GetFriendSortMode()
 	if len(requestedSort) > 0 && strings.TrimSpace(requestedSort[0]) != "" {
@@ -309,15 +309,21 @@ func (s *FriendService) AutofillFriendLink(ctx context.Context, req *dto.FriendA
 	if svcerr != nil {
 		return nil, svcerr
 	}
+	isAdminUser := isEffectiveFriendWriteAdmin(ctx, currentUser)
+	primarySelfHosts, aliasSelfHosts, _ := resolveSelfBacklinkHosts()
+	if !isAdminUser && isSelfOrAliasFriendHost(parsedURL.Hostname(), primarySelfHosts, aliasSelfHosts) {
+		return nil, errs.NewBadRequest("invalid_friend_url")
+	}
 
 	now := time.Now()
-	sum := sha256.Sum256([]byte(cleanURL))
+	probeCfg := GetFriendProbeSettings()
+	sum := sha256.Sum256([]byte(cleanURL + "|" + probeCfg.CacheDigest()))
 	cacheKey := "friend_autofill:v2:" + hex.EncodeToString(sum[:16])
 
 	var cached cachedFriendAutofill
 	if hit, err := sharedstate.GetJSON(cacheKey, &cached); err == nil && hit && cached.Name != "" {
 		rem := friendDailyAutofillLimit
-		if currentUser.Role != constant.RoleAdmin {
+		if !isAdminUser {
 			rem = getDailyRemaining("friend_autofill", currentUser.ID, friendDailyAutofillLimit, now)
 		}
 		return &dto.FriendAutofillResp{
@@ -333,7 +339,7 @@ func (s *FriendService) AutofillFriendLink(ctx context.Context, req *dto.FriendA
 	}
 
 	rem := friendDailyAutofillLimit
-	if currentUser.Role != constant.RoleAdmin {
+	if !isAdminUser {
 		allowed, nextRem := consumeDailyQuota("friend_autofill", currentUser.ID, friendDailyAutofillLimit, now)
 		if !allowed {
 			return nil, errs.NewTooManyRequests("friend_autofill_quota_exceeded")
@@ -341,16 +347,19 @@ func (s *FriendService) AutofillFriendLink(ctx context.Context, req *dto.FriendA
 		rem = nextRem
 	}
 
+	otherSites := loadActiveFriendSiteURLs(0)
 	home := fetchFriendHTMLWithTiming(ctx, cleanURL)
 	effectiveParsed := parsedURL
+	redirectRejected := false
 	if home.IsWAF {
 		// 命中 WAF 盾页时丢弃挑战页标题（如“请稍候…”），避免把盾页元数据缓存或填入表单
 		home.RawHTML = ""
 		home.HTMLSnippet = ""
 	} else if home.FinalURL != nil {
-		if sameFriendSiteFamily(parsedURL.Hostname(), home.FinalURL.Hostname()) {
+		if isValidRedirectedFriendSiteURL(parsedURL, home.FinalURL, primarySelfHosts, aliasSelfHosts, otherSites) {
 			effectiveParsed = home.FinalURL
 		} else {
+			redirectRejected = true
 			home.RawHTML = ""
 			home.HTMLSnippet = ""
 		}
@@ -364,7 +373,11 @@ func (s *FriendService) AutofillFriendLink(ctx context.Context, req *dto.FriendA
 	fallbackHost := strings.TrimPrefix(parsedURL.Hostname(), "www.")
 	name := fallbackHost
 	desc := ""
-	avatar := fmt.Sprintf("%s://%s/favicon.ico", effectiveParsed.Scheme, effectiveParsed.Host)
+	fallbackAvatar := fmt.Sprintf("%s://%s/favicon.ico", parsedURL.Scheme, parsedURL.Host)
+	avatar := fallbackAvatar
+	if effFav, favErr := normalizeFriendAvatarField(fmt.Sprintf("%s://%s/favicon.ico", effectiveParsed.Scheme, effectiveParsed.Host)); favErr == nil && effFav != "" {
+		avatar = effFav
+	}
 	colorKey := pickDeterministicColorKey(cleanURL)
 
 	if preview != nil {
@@ -376,9 +389,9 @@ func (s *FriendService) AutofillFriendLink(ctx context.Context, req *dto.FriendA
 		if d := strings.TrimSpace(preview.Description); d != "" {
 			desc = clipRunes(d, friendDescMaxRunes)
 		}
-		if fav := strings.TrimSpace(preview.Favicon); fav != "" {
+		if fav, favErr := normalizeFriendAvatarField(preview.Favicon); favErr == nil && fav != "" {
 			avatar = fav
-		} else if img := strings.TrimSpace(preview.Image); img != "" {
+		} else if img, imgErr := normalizeFriendAvatarField(preview.Image); imgErr == nil && img != "" {
 			avatar = img
 		}
 	}
@@ -388,8 +401,8 @@ func (s *FriendService) AutofillFriendLink(ctx context.Context, req *dto.FriendA
 	var smHints sitemapDiscoveryHints
 	var tried map[string]struct{}
 	discCtx, cancelDisc := context.WithTimeout(ctx, 10*time.Second)
-	if home.Reachable && !home.IsWAF {
-		rssURL, backlinkURL, htmlHints, smHints, tried = discoverAutofillEndpoints(discCtx, effectiveParsed, home.RawHTML)
+	if home.Reachable && !home.IsWAF && !redirectRejected {
+		rssURL, backlinkURL, htmlHints, smHints, tried = discoverAutofillEndpoints(discCtx, effectiveParsed, home.RawHTML, parsedURL, otherSites)
 	}
 
 	aiCfg := tools.GetAIConfig()
@@ -469,7 +482,7 @@ func (s *FriendService) AutofillFriendLink(ctx context.Context, req *dto.FriendA
 					if needVerifyBacklink {
 						if norm, _, ok := resolveSafeFriendCandidateURL(parsed.BacklinkCandidate, effectiveParsed); ok {
 							if _, seen := tried[norm]; !seen {
-								if verifiedPage, ok := verifyFriendHTMLPageURL(verifyCtx, effectiveParsed.Hostname(), norm); ok {
+								if verifiedPage, ok := verifyFriendHTMLPageURL(verifyCtx, effectiveParsed.Hostname(), norm, parsedURL, otherSites); ok {
 									backlinkURL = verifiedPage
 								}
 							}
@@ -483,7 +496,23 @@ func (s *FriendService) AutofillFriendLink(ctx context.Context, req *dto.FriendA
 		}
 	}
 
-	if home.Reachable && !home.IsWAF {
+	if rssURL != "" {
+		if cleanFeed, fErr := normalizeOptionalHTTPURL(rssURL, "invalid_friend_rss"); fErr == nil {
+			rssURL = cleanFeed
+		} else {
+			rssURL = ""
+		}
+	}
+	if backlinkURL != "" {
+		if blParsed, pErr := url.Parse(backlinkURL); pErr != nil || blParsed == nil ||
+			!isValidBacklinkPageHost(parsedURL.Hostname(), blParsed.Hostname(), primarySelfHosts, aliasSelfHosts) ||
+			conflictsWithOtherFriendSites(parsedURL, blParsed, otherSites) {
+			// 若站点首页跨域重定向或与其他友链站点冲突，回链地址留空交由提交后异步拨测跟随重定向核验，避免触发提交校验拒绝
+			backlinkURL = ""
+		}
+	}
+
+	if home.Reachable && !home.IsWAF && !redirectRejected {
 		toCache := cachedFriendAutofill{
 			Name:        name,
 			URL:         cleanURL,
@@ -539,7 +568,7 @@ func resolveTargetGroupForUser(requestedGroupID uint, allowPrivate bool) (*model
 	return &groups[0], nil
 }
 
-func validateFriendLinkFields(name, rawURL, rawAvatar, desc, rawRSS, rawBacklink, rawColor string, allowSelfHost bool) (
+func validateFriendLinkFields(name, rawURL, rawAvatar, desc, rawRSS, rawBacklink, rawColor string, allowSelfHost bool, excludeLinkID uint) (
 	cleanName, cleanURL, normHost, cleanAvatar, cleanDesc, cleanRSS, cleanBacklink, colorKey string,
 	svcerr *errs.ServiceError,
 ) {
@@ -578,7 +607,9 @@ func validateFriendLinkFields(name, rawURL, rawAvatar, desc, rawRSS, rawBacklink
 	}
 	if cleanBacklink != "" {
 		parsedBacklink, pErr := url.Parse(cleanBacklink)
-		if pErr != nil || parsedBacklink == nil || !isValidBacklinkPageHost(parsedSiteURL.Hostname(), parsedBacklink.Hostname(), primarySelfHosts, aliasSelfHosts) {
+		if pErr != nil || parsedBacklink == nil ||
+			!isValidBacklinkPageHost(parsedSiteURL.Hostname(), parsedBacklink.Hostname(), primarySelfHosts, aliasSelfHosts) ||
+			conflictsWithOtherFriendSites(parsedSiteURL, parsedBacklink, loadActiveFriendSiteURLs(excludeLinkID)) {
 			return "", "", "", "", "", "", "", "", errs.NewBadRequest("invalid_friend_backlink")
 		}
 	}
@@ -623,15 +654,9 @@ func (s *FriendService) CreateMyFriendLink(ctx context.Context, req *dto.UpsertM
 	if currentUser.IsAI {
 		return nil, errs.NewForbidden("permission_denied")
 	}
-	isAdminUser := currentUser.Role == constant.RoleAdmin
+	isAdminUser := isEffectiveFriendWriteAdmin(ctx, currentUser)
 	if !isAdminUser && !utils.AllowRequest(fmt.Sprintf("friend_write_user:%d", currentUser.ID), 10, 10*time.Minute) {
 		return nil, errs.NewTooManyRequests("too_many_requests")
-	}
-	cleanName, cleanURL, normHost, cleanAvatar, cleanDesc, cleanRSS, cleanBacklink, colorKey, svcerr := validateFriendLinkFields(
-		req.Name, req.URL, req.Avatar, req.Description, req.RSSURL, req.BacklinkURL, req.ColorKey, isAdminUser,
-	)
-	if svcerr != nil {
-		return nil, svcerr
 	}
 
 	unlock, err := sharedstate.Lock(ctx, friendApplyLockKey, friendApplyLockTTL)
@@ -639,6 +664,13 @@ func (s *FriendService) CreateMyFriendLink(ctx context.Context, req *dto.UpsertM
 		return nil, errs.Internal("failed_to_lock", err)
 	}
 	defer unlock()
+
+	cleanName, cleanURL, normHost, cleanAvatar, cleanDesc, cleanRSS, cleanBacklink, colorKey, svcerr := validateFriendLinkFields(
+		req.Name, req.URL, req.Avatar, req.Description, req.RSSURL, req.BacklinkURL, req.ColorKey, isAdminUser, 0,
+	)
+	if svcerr != nil {
+		return nil, svcerr
+	}
 
 	grp, svcerr := resolveTargetGroupForUser(req.GroupID, isAdminUser)
 	if svcerr != nil {
@@ -707,7 +739,7 @@ func (s *FriendService) UpdateMyFriendLink(ctx context.Context, id uint, req *dt
 	if currentUser.IsAI {
 		return nil, errs.NewForbidden("permission_denied")
 	}
-	isAdminUser := currentUser.Role == constant.RoleAdmin
+	isAdminUser := isEffectiveFriendWriteAdmin(ctx, currentUser)
 	if !isAdminUser && !utils.AllowRequest(fmt.Sprintf("friend_write_user:%d", currentUser.ID), 10, 10*time.Minute) {
 		return nil, errs.NewTooManyRequests("too_many_requests")
 	}
@@ -734,7 +766,7 @@ func (s *FriendService) UpdateMyFriendLink(ctx context.Context, id uint, req *dt
 		return nil, svcerr
 	}
 	cleanName, cleanURL, normHost, cleanAvatar, cleanDesc, cleanRSS, cleanBacklink, colorKey, svcerr := validateFriendLinkFields(
-		req.Name, req.URL, req.Avatar, req.Description, req.RSSURL, req.BacklinkURL, req.ColorKey, isAdminUser,
+		req.Name, req.URL, req.Avatar, req.Description, req.RSSURL, req.BacklinkURL, req.ColorKey, isAdminUser, link.ID,
 	)
 	if svcerr != nil {
 		return nil, svcerr
@@ -831,13 +863,26 @@ func decideSubmissionReviewMode(user *model.User) (status string, note string, r
 // 管理员后台接口（仅 admin 角色或持有 admin 签发的 friends:write Token 可调用）
 // ============================================================================
 
+func isEffectiveFriendWriteAdmin(ctx context.Context, u *model.User) bool {
+	if u == nil || u.IsAI || u.Role != constant.RoleAdmin {
+		return false
+	}
+	if _, viaToken := ctxutils.GetAPIToken(ctx); viaToken {
+		return ctxutils.HasAPITokenScope(ctx, constant.ScopeFriendsWrite)
+	}
+	return true
+}
+
 func requireAdminUser(ctx context.Context) (*model.User, *errs.ServiceError) {
 	u, ok := ctxutils.GetCurrentUser(ctx)
 	if !ok {
 		return nil, errs.NewUnauthorized("login_required")
 	}
-	if u.Role != constant.RoleAdmin {
+	if u.IsAI || u.Role != constant.RoleAdmin {
 		return nil, errs.NewForbidden("permission_denied")
+	}
+	if _, viaToken := ctxutils.GetAPIToken(ctx); viaToken && !ctxutils.HasAPITokenScope(ctx, constant.ScopeFriendsWrite) {
+		return nil, errs.NewForbidden("api_token_scope_insufficient")
 	}
 	return u, nil
 }
@@ -1098,41 +1143,83 @@ func (s *FriendService) AdminUpdateSortMode(ctx context.Context, req *dto.AdminU
 	}
 }
 
-// AdminGetSettings 获取后台友链全局设置（含反链别名域名列表，仅限管理员）
+// AdminGetSettings 获取后台友链全局设置（含拨测重定向策略、非标准端口开关及反链别名域名列表，仅限管理员）
 func (s *FriendService) AdminGetSettings(ctx context.Context) (*dto.FriendAdminSettingsDto, *errs.ServiceError) {
 	if _, svcerr := requireAdminUser(ctx); svcerr != nil {
 		return nil, svcerr
 	}
+	probeCfg := GetFriendProbeSettings()
 	return &dto.FriendAdminSettingsDto{
-		BacklinkAliasHosts: GetFriendBacklinkAliasHosts(),
+		BacklinkAliasHosts:    GetFriendBacklinkAliasHosts(),
+		AllowRedirects:        probeCfg.AllowRedirects,
+		MaxRedirects:          probeCfg.MaxRedirects,
+		AllowNonStandardPorts: probeCfg.AllowNonStandardPorts,
 	}, nil
 }
 
-// AdminUpdateSettings 更新后台友链全局设置（严格规范化与校验别名域名，并通过 KV + sharedstate.Notify 多副本同步失效缓存）
+// AdminUpdateSettings 更新后台友链全局设置（严格规范化与校验别名域名及拨测策略，并通过 KV + sharedstate.Notify 多副本同步失效缓存）
 func (s *FriendService) AdminUpdateSettings(ctx context.Context, req *dto.AdminUpdateFriendSettingsReq) (*dto.FriendAdminSettingsDto, *errs.ServiceError) {
 	if _, svcerr := requireAdminUser(ctx); svcerr != nil {
 		return nil, svcerr
 	}
-	cleanHosts, svcerr := NormalizeAndValidateFriendBacklinkAliasHosts(req.BacklinkAliasHosts)
-	if svcerr != nil {
-		return nil, svcerr
+	if req.MaxRedirects != nil && (*req.MaxRedirects < minFriendMaxRedirects || *req.MaxRedirects > maxFriendMaxRedirects) {
+		return nil, errs.NewBadRequest("invalid_friend_max_redirects")
 	}
+
+	hasProbePatch := req.AllowRedirects != nil || req.MaxRedirects != nil || req.AllowNonStandardPorts != nil
+	var cleanHosts []string
+	if req.BacklinkAliasHosts != nil || !hasProbePatch {
+		var svcerr *errs.ServiceError
+		cleanHosts, svcerr = NormalizeAndValidateFriendBacklinkAliasHosts(req.BacklinkAliasHosts)
+		if svcerr != nil {
+			return nil, svcerr
+		}
+	}
+
 	unlock, err := sharedstate.Lock(ctx, friendApplyLockKey, friendApplyLockTTL)
 	if err != nil {
 		return nil, errs.Internal("failed_to_lock", err)
 	}
 	defer unlock()
 
-	repo.KV.InvalidateCache(friendBacklinkAliasesKVKey)
+	repo.KV.InvalidateCache(friendBacklinkAliasesKVKey, friendProbeSettingsKVKey)
 	prevHosts := GetFriendBacklinkAliasHosts()
-	if err := repo.KV.SetKV(friendBacklinkAliasesKVKey, cleanHosts); err != nil {
+	prevProbe := GetFriendProbeSettings()
+
+	if cleanHosts == nil {
+		cleanHosts = prevHosts
+	} else if err := repo.KV.SetKV(friendBacklinkAliasesKVKey, cleanHosts); err != nil {
 		return nil, errs.Internal("failed_to_update_target", err)
 	}
-	if !slices.Equal(prevHosts, cleanHosts) {
-		EnqueueFriendProbeRound(false)
+
+	nextProbe := prevProbe
+	if req.AllowRedirects != nil {
+		nextProbe.AllowRedirects = *req.AllowRedirects
+	}
+	if req.MaxRedirects != nil {
+		nextProbe.MaxRedirects = *req.MaxRedirects
+	}
+	if req.AllowNonStandardPorts != nil {
+		nextProbe.AllowNonStandardPorts = *req.AllowNonStandardPorts
+	}
+	if hasProbePatch {
+		if err := repo.KV.SetKV(friendProbeSettingsKVKey, map[string]any{
+			"allow_redirects":          nextProbe.AllowRedirects,
+			"max_redirects":            nextProbe.MaxRedirects,
+			"allow_non_standard_ports": nextProbe.AllowNonStandardPorts,
+		}); err != nil {
+			return nil, errs.Internal("failed_to_update_target", err)
+		}
+	}
+
+	if !slices.Equal(prevHosts, cleanHosts) || prevProbe != nextProbe {
+		EnqueueFriendProbeRound(true)
 	}
 	return &dto.FriendAdminSettingsDto{
-		BacklinkAliasHosts: cleanHosts,
+		BacklinkAliasHosts:    cleanHosts,
+		AllowRedirects:        nextProbe.AllowRedirects,
+		MaxRedirects:          nextProbe.MaxRedirects,
+		AllowNonStandardPorts: nextProbe.AllowNonStandardPorts,
 	}, nil
 }
 
@@ -1265,18 +1352,18 @@ func (s *FriendService) AdminCreateLink(ctx context.Context, req *dto.AdminUpser
 			return nil, svcerr
 		}
 	}
-	cleanName, cleanURL, normHost, cleanAvatar, cleanDesc, cleanRSS, cleanBacklink, colorKey, svcerr := validateFriendLinkFields(
-		req.Name, req.URL, req.Avatar, req.Description, req.RSSURL, req.BacklinkURL, req.ColorKey, true,
-	)
-	if svcerr != nil {
-		return nil, svcerr
-	}
-
 	unlock, err := sharedstate.Lock(ctx, friendApplyLockKey, friendApplyLockTTL)
 	if err != nil {
 		return nil, errs.Internal("failed_to_lock", err)
 	}
 	defer unlock()
+
+	cleanName, cleanURL, normHost, cleanAvatar, cleanDesc, cleanRSS, cleanBacklink, colorKey, svcerr := validateFriendLinkFields(
+		req.Name, req.URL, req.Avatar, req.Description, req.RSSURL, req.BacklinkURL, req.ColorKey, true, 0,
+	)
+	if svcerr != nil {
+		return nil, svcerr
+	}
 
 	grp, svcerr := resolveTargetGroupForUser(req.GroupID, true)
 	if svcerr != nil {
@@ -1353,7 +1440,7 @@ func (s *FriendService) AdminUpdateLink(ctx context.Context, id uint, req *dto.A
 		return nil, svcerr
 	}
 	cleanName, cleanURL, normHost, cleanAvatar, cleanDesc, cleanRSS, cleanBacklink, colorKey, svcerr := validateFriendLinkFields(
-		req.Name, req.URL, req.Avatar, req.Description, req.RSSURL, req.BacklinkURL, req.ColorKey, true,
+		req.Name, req.URL, req.Avatar, req.Description, req.RSSURL, req.BacklinkURL, req.ColorKey, true, link.ID,
 	)
 	if svcerr != nil {
 		return nil, svcerr

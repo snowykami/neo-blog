@@ -217,9 +217,21 @@ func TestBuildFriendAvatarThumbnailFormatsAndSecurity(t *testing.T) {
 		t.Fatalf("expected ico wrapping png decompression bomb to be rejected without passthrough")
 	}
 
-	// 6. 非标准端口与反斜杠开放重定向路径校验
-	if _, _, err := NormalizeFriendOutboundURL("https://example.com:8443/avatar.png"); err == nil {
-		t.Fatalf("expected non-80/443 port to be blocked")
+	// 6. 非标准端口开关、高危协议端口拦截与反斜杠开放重定向路径校验
+	if normPort, _, err := NormalizeFriendOutboundURL("https://example.com:8443/avatar.png"); err != nil || normPort != "https://example.com:8443/avatar.png" {
+		t.Fatalf("expected non-standard port 8443 allowed by default, got url=%q err=%v", normPort, err)
+	}
+	for _, dangerousPortURL := range []string{
+		"http://example.com:22/avatar.png",
+		"http://example.com:25/avatar.png",
+		"http://example.com:3306/avatar.png",
+		"http://example.com:6379/avatar.png",
+		"https://example.com:0/avatar.png",
+		"https://example.com:65536/avatar.png",
+	} {
+		if _, _, err := NormalizeFriendOutboundURL(dangerousPortURL); err == nil {
+			t.Fatalf("expected dangerous or invalid port URL %s to be blocked", dangerousPortURL)
+		}
 	}
 	if model.IsSafeInternalAvatarPath("/\\evil.com") || model.IsSafeInternalAvatarPath("//evil.com") {
 		t.Fatalf("expected open-redirect relative paths to be rejected")
@@ -252,6 +264,7 @@ func TestGetFriendAvatarThumbnailCacheAndPermissions(t *testing.T) {
 		}, nil
 	})
 	t.Cleanup(func() {
+		WaitForFriendBackgroundTasks()
 		friendOutboundRoundTripper = origRT
 	})
 
