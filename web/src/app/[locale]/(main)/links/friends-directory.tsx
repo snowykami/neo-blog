@@ -628,9 +628,9 @@ export function FriendsDirectory({ initialData }: { initialData: PublicFriendsDa
   const renderStatusBadge = (status: FriendStatus) => {
     switch (status) {
       case 'approved':
-        return <Badge variant="default" className="bg-emerald-600 text-white hover:bg-emerald-600">{t('status_approved')}</Badge>
+        return <Badge variant="default" className="bg-emerald-700 text-white hover:bg-emerald-700">{t('status_approved')}</Badge>
       case 'pre_approved':
-        return <Badge variant="secondary" className="text-amber-600 dark:text-amber-400">{t('status_pre_approved')}</Badge>
+        return <Badge variant="secondary" className="text-amber-700 dark:text-amber-400">{t('status_pre_approved')}</Badge>
       case 'rejected':
         return <Badge variant="destructive">{t('status_rejected')}</Badge>
       default:
@@ -943,7 +943,7 @@ export function FriendsDirectory({ initialData }: { initialData: PublicFriendsDa
                             : t('form_create_title')}
                         </h3>
                         {editingLink && !userIsAdmin && (
-                          <p className="text-xs wrap-anywhere text-amber-600 dark:text-amber-400">
+                          <p className="text-xs wrap-anywhere text-amber-700 dark:text-amber-400">
                             {t('edit_re_review_notice')}
                           </p>
                         )}

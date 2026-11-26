@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils'
  * - underline：无轨道，选中项下方显示主题色短线，适合内容区的标签页
  * 轨道与选中项用前景色的透明度叠加，亮 / 暗模式下都能和页面底色、卡片底色区分开
  */
-const tabsListVariants = cva('inline-flex w-fit items-center justify-center text-foreground/60', {
+const tabsListVariants = cva('inline-flex w-fit items-center justify-center text-foreground/65', {
   variants: {
     variant: {
       default: 'h-9 rounded-lg bg-foreground/[.06] p-[3px] ring-1 ring-inset ring-foreground/[.04]',
@@ -34,9 +34,9 @@ const tabsTriggerVariants = cva(
     variants: {
       variant: {
         default: 'h-full rounded-md data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-foreground/[.06] dark:data-[state=active]:bg-foreground/15',
-        outline: 'h-full rounded-md data-[state=active]:bg-primary/10 data-[state=active]:text-primary',
+        outline: 'h-full rounded-md data-[state=active]:bg-primary/10 data-[state=active]:font-semibold data-[state=active]:text-secondary-foreground',
         solid: 'h-full rounded-md data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm',
-        underline: '-mb-px h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground',
+        underline: '-mb-px h-full rounded-none border-b-2 border-transparent focus-visible:ring-inset data-[state=active]:border-primary data-[state=active]:text-foreground',
       },
     },
     defaultVariants: { variant: 'default' },

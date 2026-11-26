@@ -112,11 +112,12 @@ function FriendProbeSignal({
   if (healthStatus === 'unreachable') {
     return (
       <span
+        role="img"
         className="pointer-events-auto inline-flex items-center justify-center text-destructive/90"
         title={t('probe_unreachable')}
         aria-label={t('probe_unreachable')}
       >
-        <XIcon className="size-3.5 stroke-[2.5]" />
+        <XIcon aria-hidden="true" className="size-3.5 stroke-[2.5]" />
       </span>
     )
   }
@@ -135,13 +136,14 @@ function FriendProbeSignal({
 
   return (
     <span
+      role="img"
       className="pointer-events-auto inline-flex h-3 items-end gap-[2px]"
       title={label}
       aria-label={label}
     >
-      <i className={cn('h-[5px] w-[2.5px] rounded-[1px]', filledBars >= 1 ? 'bg-(--fl-sig)' : 'bg-(--fl-sig-muted)')} />
-      <i className={cn('h-[8.5px] w-[2.5px] rounded-[1px]', filledBars >= 2 ? 'bg-(--fl-sig)' : 'bg-(--fl-sig-muted)')} />
-      <i className={cn('h-3 w-[2.5px] rounded-[1px]', filledBars >= 3 ? 'bg-(--fl-sig)' : 'bg-(--fl-sig-muted)')} />
+      <i aria-hidden="true" className={cn('h-[5px] w-[2.5px] rounded-[1px]', filledBars >= 1 ? 'bg-(--fl-sig)' : 'bg-(--fl-sig-muted)')} />
+      <i aria-hidden="true" className={cn('h-[8.5px] w-[2.5px] rounded-[1px]', filledBars >= 2 ? 'bg-(--fl-sig)' : 'bg-(--fl-sig-muted)')} />
+      <i aria-hidden="true" className={cn('h-3 w-[2.5px] rounded-[1px]', filledBars >= 3 ? 'bg-(--fl-sig)' : 'bg-(--fl-sig-muted)')} />
     </span>
   )
 }
@@ -263,7 +265,7 @@ function FriendTechPopover({
         <button
           type="button"
           aria-label={t('tech_stack_aria', { name: siteName })}
-          className="pointer-events-auto -m-1 inline-flex size-5.5 items-center justify-center rounded-md text-(--fl-sig) opacity-75 transition-[opacity,background-color,color] hover:bg-black/6 hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none pointer-coarse:-m-1.5 pointer-coarse:size-6.5 dark:hover:bg-white/10"
+          className="group/info pointer-events-auto -m-[7px] inline-flex size-7 items-center justify-center rounded-md text-(--fl-sig) opacity-75 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none"
           onPointerDown={(e) => {
             pointerTypeRef.current = e.pointerType
           }}
@@ -285,7 +287,9 @@ function FriendTechPopover({
             pointerTypeRef.current = ''
           }}
         >
-          <InfoIcon className="size-3.5" />
+          <span className="flex size-5 items-center justify-center rounded-md transition-colors group-hover/info:bg-black/6 group-focus-visible/info:ring-2 group-focus-visible/info:ring-ring dark:group-hover/info:bg-white/10">
+            <InfoIcon aria-hidden="true" className="size-3.5" />
+          </span>
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -443,7 +447,7 @@ export function FriendCard({
           )}
 
       {(hasTechStack || hasSignal) && (
-        <div className="pointer-events-none absolute top-2.5 right-2.5 z-10 flex items-center gap-1.5">
+        <div className="pointer-events-none absolute top-2.5 right-2.5 z-10 flex items-center gap-2">
           {hasTechStack && (
             <FriendTechPopover
               siteName={siteDisplayName}

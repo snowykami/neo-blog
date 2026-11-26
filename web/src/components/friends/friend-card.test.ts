@@ -49,6 +49,34 @@ describe('friend-card 技术栈展示与双端悬浮窗', () => {
     expect(linkEl?.querySelector('.cf-friends-avatar')?.getAttribute('data-src')).toBe('https://blog.example.com/avatar.png')
     expect(linkEl?.querySelector('.cf-friends-name')?.textContent).toBe('测试友链')
     expect(container.querySelector('button')).toBeNull()
+    // 信号状态使用显式 role="img" 承接 aria-label，避免裸 <span> 触发 aria-prohibited-attr
+    const signalEl = container.querySelector('[role="img"]')
+    expect(signalEl).not.toBeNull()
+    expect(signalEl?.getAttribute('aria-label')).toContain('120')
+    expect(container.querySelector('span:not([role])[aria-label]')).toBeNull()
+
+    // 不可达状态的 ✕ 图标同样具备 role="img" 且无违规裸 span[aria-label]
+    await act(async () => {
+      root.render(
+        React.createElement(NextIntlClientProvider, {
+          locale: 'zh',
+          messages: zhMessages,
+          children: React.createElement(FriendCard, {
+            item: {
+              name: '不可达友链',
+              url: 'https://down.example.com',
+              avatar: 'https://down.example.com/avatar.png',
+              description: '离线测试',
+              colorKey: 'rose',
+              healthStatus: 'unreachable',
+              techStack: [],
+            },
+          }),
+        }),
+      )
+    })
+    expect(container.querySelector('[role="img"]')?.getAttribute('aria-label')).toBeTruthy()
+    expect(container.querySelector('span:not([role])[aria-label]')).toBeNull()
 
     // 非交互预览卡片（interactive=false）不应输出 cf-friends-* 爬虫类名，避免污染外部朋友圈抓取
     await act(async () => {
@@ -124,6 +152,7 @@ describe('friend-card 技术栈展示与双端悬浮窗', () => {
 
     const infoBtn = container.querySelector('button[aria-label*="雪神的博客"]') as HTMLButtonElement
     expect(infoBtn).not.toBeNull()
+    expect(infoBtn.className).toContain('size-7')
 
     // 桌面鼠标移入触发延迟开启（React 的 onPointerEnter 基于底层冒泡的 pointerover 合成）
     await act(async () => {
