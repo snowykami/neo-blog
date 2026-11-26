@@ -9,7 +9,7 @@ import { iconComponentName } from './catalog'
 import { hasIcon, iconSvgMarkup, isIconName, loadIconSvg, renderInlineIconsHtml } from './icon'
 import metaJSON from './lucide-meta.json'
 
-const LOCALES = ['zh', 'zh-tw', 'en', 'ja', 'ko']
+const LOCALES = ['zh', 'zh-hk', 'en', 'ja', 'ko']
 const meta = metaJSON as LucideMeta
 
 describe('图标名', () => {

@@ -15,8 +15,8 @@ import { isConsolePath, routing, splitLocalePrefix } from '@/i18n/routing'
  * 后台（/console）不带语言前缀，界面语言按偏好（语言 Cookie > Accept-Language，见 i18n/detect.ts）：
  * 这里在内部改写到 /{语言}/console/...，地址栏不变。
  *
- * 其余交给 next-intl：把 /p/x 改写到内部路径 /zh-CN/p/x，/zh-tw/x 改写到 /zh-TW/x，
- * /zh-cn/x 这类多余的默认语言前缀与内部写法（/zh-TW/x）跳转回规范地址。
+ * 其余交给 next-intl：把 /p/x 改写到内部路径 /zh-CN/p/x，/zh-hk/x 改写到 /zh-HK/x，
+ * /zh-cn/x 这类多余的默认语言前缀与内部写法（/zh-HK/x）跳转回规范地址。
  */
 const handleI18nRouting = createMiddleware(routing)
 

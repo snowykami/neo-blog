@@ -3,25 +3,19 @@ import jaData from './ja.json'
 import koData from './ko.json'
 import { getFallbackChain, mergeLocaleMessages } from './registry'
 import zhHkData from './zh-hk.json'
-import zhMoData from './zh-mo.json'
-import zhSgData from './zh-sg.json'
-import zhTwData from './zh-tw.json'
 import zhData from './zh.json'
 
 export { DEFAULT_LOCALE, getFallbackChain, LOCALES, parseAcceptLanguage, resolveLocale, toServiceLanguage } from './registry'
 
 type Messages = Record<string, unknown>
 
-// 各语言自己的文案文件；地区变体（zh-SG、zh-HK、zh-MO）只含与上一级不同的 key
+// 各语言自己的文案文件
 export const LOCALE_DATA: Record<string, Messages> = {
   'en': enData,
   'ja': jaData,
   'ko': koData,
   'zh-CN': zhData,
-  'zh-SG': zhSgData,
-  'zh-TW': zhTwData,
   'zh-HK': zhHkData,
-  'zh-MO': zhMoData,
 }
 
 const mergedMessages = new Map<string, Messages>()

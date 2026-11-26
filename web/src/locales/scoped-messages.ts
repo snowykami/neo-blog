@@ -34,8 +34,7 @@ function resolvePath(source: Messages, path: string): unknown {
  * 按路径挑出文案，沿语言回退链逐层合并
  *
  * 路径是整棵命名空间（`Comment`）、子命名空间（`Console.global`）或单独一条键（键表里的菜单标题）。
- * 语言变体是稀疏覆盖（zh-HK 只写与 zh-TW 不同的条目），所以同一路径要沿回退链逐层合并，
- * 直接取第一个能查到的值会丢掉上级语言里其余键。
+ * 同一路径沿回退链逐层合并，缺少的键自动由上级回退语言补齐。
  */
 export function pickMessages(locale: string, paths: readonly string[]): Messages {
   const chain = getFallbackChain(locale).map(code => LOCALE_DATA[code] ?? {})

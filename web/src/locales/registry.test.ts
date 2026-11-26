@@ -24,16 +24,16 @@ function placeholders(text: string): string[] {
 
 describe('resolveLocale', () => {
   it.each([
-    ['zh-TW', 'zh-TW'],
-    ['zh-tw', 'zh-TW'],
-    ['ZH_tw', 'zh-TW'],
+    ['zh-TW', 'zh-HK'],
+    ['zh-tw', 'zh-HK'],
+    ['ZH_tw', 'zh-HK'],
     ['zh-HK', 'zh-HK'],
-    ['zh-MO', 'zh-MO'],
-    ['zh-SG', 'zh-SG'],
+    ['zh-MO', 'zh-HK'],
+    ['zh-SG', 'zh-CN'],
     ['zh-Hant-HK', 'zh-HK'],
-    ['zh-Hant-TW', 'zh-TW'],
-    ['zh-Hant', 'zh-TW'],
-    ['zh-Hant-SG', 'zh-TW'],
+    ['zh-Hant-TW', 'zh-HK'],
+    ['zh-Hant', 'zh-HK'],
+    ['zh-Hant-SG', 'zh-HK'],
     ['zh-Hans-HK', 'zh-CN'],
     ['zh-Hans', 'zh-CN'],
     ['zh', 'zh-CN'],
@@ -55,15 +55,15 @@ describe('resolveLocale', () => {
 
 describe('parseAcceptLanguage', () => {
   it('按 q 值排序，同权重保持顺序，忽略 q=0 与通配符', () => {
-    expect(parseAcceptLanguage('en;q=0.5, zh-TW, *;q=0.1, ja;q=0, zh;q=0.9, ko;q=0.9')).toEqual(['zh-TW', 'zh', 'ko', 'en'])
+    expect(parseAcceptLanguage('en;q=0.5, zh-HK, *;q=0.1, ja;q=0, zh;q=0.9, ko;q=0.9')).toEqual(['zh-HK', 'zh', 'ko', 'en'])
     expect(parseAcceptLanguage(null)).toEqual([])
   })
 })
 
 describe('getFallbackChain', () => {
-  it('地区变体逐级回退，所有语言最终回退到默认语言', () => {
-    expect(getFallbackChain('zh-MO')).toEqual(['zh-MO', 'zh-HK', 'zh-TW', 'zh-CN', 'en'])
-    expect(getFallbackChain('zh-SG')).toEqual(['zh-SG', 'zh-CN', 'en'])
+  it('所有语言逐级回退并最终回退到默认语言', () => {
+    expect(getFallbackChain('zh-HK')).toEqual(['zh-HK', 'zh-CN', 'en'])
+    expect(getFallbackChain('zh-CN')).toEqual(['zh-CN', 'en'])
     for (const code of Object.keys(LOCALES))
       expect(getFallbackChain(code).at(-1)).toBe(DEFAULT_LOCALE)
   })
@@ -83,20 +83,25 @@ describe('getFallbackChain', () => {
 })
 
 describe('文案文件', () => {
-  it('每种界面语言都有对应的文案文件', () => {
+  it('每种界面语言都有对应的文案文件与预期显示名称', () => {
     expect(Object.keys(LOCALE_DATA).sort()).toEqual(Object.keys(LOCALES).sort())
+    expect(LOCALES['zh-CN'].name).toBe('简体中文')
+    expect(LOCALES['zh-HK'].name).toBe('繁體中文')
+    expect(LOCALES['zh-SG']).toBeUndefined()
+    expect(LOCALES['zh-TW']).toBeUndefined()
+    expect(LOCALES['zh-MO']).toBeUndefined()
   })
 
-  it('合并时靠前的语言覆盖靠后的，缺少的 key 从回退语言补齐', () => {
+  it('合并时靠前的语言覆盖靠后的，繁体中文完整保留港式文案与全部键集', () => {
     expect(mergeLocaleMessages([{ a: { x: '1' } }, { a: { x: '2', y: '2' }, b: '2' }])).toEqual({ a: { x: '1', y: '2' }, b: '2' })
     const hk = flatten(getLocaleMessages('zh-HK'))
-    const tw = flatten(getLocaleMessages('zh-TW'))
+    const zh = flatten(getLocaleMessages('zh-CN'))
     expect(hk.get('Route.privacy_policy')).toBe('私隱政策')
-    expect(hk.get('Common.search')).toBe(tw.get('Common.search'))
-    expect([...hk.keys()].sort()).toEqual([...tw.keys()].sort())
+    expect(hk.get('Common.email')).toBe('電郵')
+    expect([...hk.keys()].sort()).toEqual([...zh.keys()].sort())
   })
 
-  it('地区变体只覆盖上一级已有的 key，且不改动占位符与标签', () => {
+  it('非默认回退语言只覆盖上一级已有的 key，且不改动占位符与标签', () => {
     for (const [code, meta] of Object.entries(LOCALES)) {
       if (!meta.fallback || meta.fallback === DEFAULT_LOCALE)
         continue

@@ -46,10 +46,7 @@ const LOADERS: Record<string, () => Promise<{ default: Messages }>> = {
   'ja': () => import('@/locales/ja.json'),
   'ko': () => import('@/locales/ko.json'),
   'zh': () => import('@/locales/zh.json'),
-  'zh-sg': () => import('@/locales/zh-sg.json'),
-  'zh-tw': () => import('@/locales/zh-tw.json'),
   'zh-hk': () => import('@/locales/zh-hk.json'),
-  'zh-mo': () => import('@/locales/zh-mo.json'),
 }
 
 /**

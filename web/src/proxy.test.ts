@@ -34,9 +34,9 @@ describe('proxy 语言路由', () => {
     expect(location(enPrefixed)).toBeNull()
     expect(rewrite(enPrefixed)).toBeNull()
 
-    const twPrefixed = proxy(request('/zh-tw/p/hello', { 'cookie': 'NEXT_LOCALE=ja', 'accept-language': 'ko' }))
-    expect(location(twPrefixed)).toBeNull()
-    expect(rewrite(twPrefixed)).toBe('https://blog.example.com/zh-TW/p/hello')
+    const hkPrefixed = proxy(request('/zh-hk/p/hello', { 'cookie': 'NEXT_LOCALE=ja', 'accept-language': 'ko' }))
+    expect(location(hkPrefixed)).toBeNull()
+    expect(rewrite(hkPrefixed)).toBe('https://blog.example.com/zh-HK/p/hello')
   })
 
   it('前台整页文档可进 CDN 缓存；后台与客户端路由取数不进 CDN 缓存', () => {
@@ -51,7 +51,7 @@ describe('proxy 语言路由', () => {
   })
 
   it('小写前缀改写到注册表里的语言代码，多余的默认语言前缀跳回规范地址', () => {
-    expect(rewrite(proxy(request('/zh-tw/p/hello')))).toBe('https://blog.example.com/zh-TW/p/hello')
+    expect(rewrite(proxy(request('/zh-hk/p/hello')))).toBe('https://blog.example.com/zh-HK/p/hello')
     expect(location(proxy(request('/zh-cn/p/hello')))).toBe('https://blog.example.com/p/hello')
   })
 

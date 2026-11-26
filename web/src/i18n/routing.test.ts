@@ -6,7 +6,10 @@ import { isConsolePath, isLocalizedHref, LOCALE_PREFIXES, localizePath, routing,
 describe('语言路由', () => {
   it('简体中文不带前缀，其余语言用小写前缀', () => {
     expect(routing.defaultLocale).toBe('zh-CN')
-    expect(LOCALE_PREFIXES['zh-TW']).toBe('/zh-tw')
+    expect(LOCALE_PREFIXES['zh-HK']).toBe('/zh-hk')
+    expect(LOCALE_PREFIXES['zh-TW']).toBeUndefined()
+    expect(LOCALE_PREFIXES['zh-SG']).toBeUndefined()
+    expect(LOCALE_PREFIXES['zh-MO']).toBeUndefined()
     expect(LOCALE_PREFIXES.en).toBe('/en')
     expect(localizePath('/p/x', 'zh-CN')).toBe('/p/x')
     expect(localizePath('/p/x', 'en')).toBe('/en/p/x')
@@ -24,9 +27,12 @@ describe('语言路由', () => {
     expect(isConsolePath('/consoles')).toBe(false)
   })
 
-  it('拆出地址里的语言前缀，不区分大小写', () => {
-    expect(splitLocalePrefix('/zh-tw/p/x')).toEqual({ locale: 'zh-TW', pathname: '/p/x' })
-    expect(splitLocalePrefix('/zh-TW/p/x')).toEqual({ locale: 'zh-TW', pathname: '/p/x' })
+  it('拆出地址里的语言前缀，不区分大小写，已移除的地区前缀不再匹配', () => {
+    expect(splitLocalePrefix('/zh-hk/p/x')).toEqual({ locale: 'zh-HK', pathname: '/p/x' })
+    expect(splitLocalePrefix('/zh-HK/p/x')).toEqual({ locale: 'zh-HK', pathname: '/p/x' })
+    expect(splitLocalePrefix('/zh-tw/p/x')).toEqual({ locale: undefined, pathname: '/zh-tw/p/x' })
+    expect(splitLocalePrefix('/zh-sg/p/x')).toEqual({ locale: undefined, pathname: '/zh-sg/p/x' })
+    expect(splitLocalePrefix('/zh-mo/p/x')).toEqual({ locale: undefined, pathname: '/zh-mo/p/x' })
     expect(splitLocalePrefix('/en')).toEqual({ locale: 'en', pathname: '/' })
     expect(splitLocalePrefix('/zh-cn/a')).toEqual({ locale: 'zh-CN', pathname: '/a' })
     expect(splitLocalePrefix('/p/en')).toEqual({ locale: undefined, pathname: '/p/en' })
@@ -37,7 +43,7 @@ describe('语言路由', () => {
     const languages = languageAlternates('/p/x')
     expect(Object.keys(languages)).toEqual([...routing.locales, 'x-default'])
     expect(languages['x-default']).toBe('/p/x')
-    expect(languages['zh-MO']).toBe('/zh-mo/p/x')
+    expect(languages['zh-HK']).toBe('/zh-hk/p/x')
 
     const consolidated = localeAlternates('/p/x', 'en')
     expect(consolidated.canonical).toBe('/p/x')
@@ -52,12 +58,13 @@ describe('语言路由', () => {
 describe('访客偏好语言', () => {
   it('语言 Cookie 优先于浏览器语言', () => {
     expect(detectPreferredLocale({ cookie: 'ja', acceptLanguage: 'en-US,en;q=0.9' })).toBe('ja')
-    // 旧版本保存的小写写法也能识别
-    expect(detectPreferredLocale({ cookie: 'zh-tw' })).toBe('zh-TW')
+    // 旧版本保存的 zh-tw / zh-sg Cookie 自动映射到合并后的界面语言
+    expect(detectPreferredLocale({ cookie: 'zh-tw' })).toBe('zh-HK')
+    expect(detectPreferredLocale({ cookie: 'zh-sg' })).toBe('zh-CN')
   })
 
   it('按 Accept-Language 权重选第一个支持的语言，都不支持时用 en', () => {
-    expect(detectPreferredLocale({ acceptLanguage: 'fr;q=1, zh-Hant-HK;q=0.8, en;q=0.5' })).toBe('zh-HK')
+    expect(detectPreferredLocale({ acceptLanguage: 'fr;q=1, zh-Hant-TW;q=0.8, en;q=0.5' })).toBe('zh-HK')
     expect(detectPreferredLocale({ cookie: 'xx', acceptLanguage: 'fr' })).toBe('en')
   })
 

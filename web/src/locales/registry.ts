@@ -1,7 +1,7 @@
 import deepmerge from 'deepmerge'
 
 // 界面语言注册表：只有元信息，不含文案，客户端组件可以直接引用
-// 语言代码按 BCP 47 规范写法（语言小写、地区大写，如 zh-TW）；查找时一律不区分大小写
+// 语言代码按 BCP 47 规范写法（语言小写、地区大写，如 zh-HK）；查找时一律不区分大小写
 
 export interface LocaleMeta {
   /** 语言选择器中显示的名称，用该语言自己的写法 */
@@ -16,30 +16,28 @@ export interface LocaleMeta {
 
 export const DEFAULT_LOCALE = 'en'
 
-// 地区变体只写与上一级不同的 key：zh-SG → zh-CN，zh-MO → zh-HK → zh-TW，其余文案沿用上一级
 export const LOCALES: Record<string, LocaleMeta> = {
   'en': { name: 'English', file: 'en' },
   'ja': { name: '日本語', file: 'ja', fallback: 'en' },
   'ko': { name: '한국어', file: 'ko', fallback: 'en' },
-  'zh-CN': { name: '简体中文（中国）', file: 'zh', script: 'Hans', fallback: 'en' },
-  'zh-SG': { name: '简体中文（新加坡）', file: 'zh-sg', script: 'Hans', fallback: 'zh-CN' },
-  'zh-TW': { name: '繁體中文（中國台灣）', file: 'zh-tw', script: 'Hant', fallback: 'zh-CN' },
-  'zh-HK': { name: '繁體中文（中國香港）', file: 'zh-hk', script: 'Hant', fallback: 'zh-TW' },
-  'zh-MO': { name: '繁體中文（中國澳門）', file: 'zh-mo', script: 'Hant', fallback: 'zh-HK' },
+  'zh-CN': { name: '简体中文', file: 'zh', script: 'Hans', fallback: 'en' },
+  'zh-HK': { name: '繁體中文', file: 'zh-hk', script: 'Hant', fallback: 'zh-CN' },
 }
 
-// 不在注册表里的常见写法（小写）→ 界面语言：旧版本保存的 zh，以及只带文字代码的 zh-Hans / zh-Hant
+// 不在注册表里的常见写法（小写）→ 界面语言：旧版本保存的 zh / zh-tw / zh-mo，以及只带文字代码的 zh-Hans / zh-Hant
 const LOCALE_ALIASES: Record<string, string> = {
   'zh': 'zh-CN',
   'zh-hans': 'zh-CN',
-  'zh-hant': 'zh-TW',
+  'zh-hant': 'zh-HK',
+  'zh-tw': 'zh-HK',
+  'zh-mo': 'zh-HK',
 }
 
 const LOWERCASE_CODES = new Map(Object.keys(LOCALES).map(code => [code.toLowerCase(), code]))
 
 /**
  * 把任意语言标签（用户设置、Accept-Language、navigator.languages）解析为界面语言，不区分大小写，`_` 视同 `-`。
- * 依次尝试完整标签、语言-地区、语言-文字、语言，如 zh-Hant-HK → zh-HK、zh-hant → zh-TW、zh-MY → zh-CN、en-US → en；
+ * 依次尝试完整标签、语言-地区、语言-文字、语言，如 zh-Hant-TW → zh-HK、zh-hant → zh-HK、zh-SG / zh-MY → zh-CN、en-US → en；
  * 标签带文字代码时只接受同文字的语言（zh-Hans-HK → zh-CN）。都不匹配时返回 undefined
  */
 export function resolveLocale(tag: string | null | undefined): string | undefined {

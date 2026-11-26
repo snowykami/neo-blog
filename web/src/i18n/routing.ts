@@ -4,8 +4,8 @@ import { LOCALES } from '@/locales/registry'
 /**
  * 前台按 URL 区分界面语言：同一个地址对所有人返回同一种语言，页面才能静态化、被 CDN 缓存，搜索引擎也能收录每种语言。
  *
- * - 简体中文（zh-CN）不带前缀，旧链接与已收录的地址不变；其余语言带小写前缀：/en、/ja、/ko、/zh-tw、/zh-hk、/zh-mo、/zh-sg
- * - 路由参数 [locale] 取注册表里的语言代码（zh-TW），对外地址用小写前缀（/zh-tw），由 proxy.ts 改写到内部路径
+ * - 简体中文（zh-CN）不带前缀，旧链接与已收录的地址不变；其余语言带小写前缀：/en、/ja、/ko、/zh-hk
+ * - 路由参数 [locale] 取注册表里的语言代码（zh-HK），对外地址用小写前缀（/zh-hk），由 proxy.ts 改写到内部路径
  * - 后台（/console）、接口（/api）、RSS、sitemap、robots 不带语言前缀，见 isLocalizedHref
  *
  * 语言 Cookie（NEXT_LOCALE）只由浏览器写：语言切换、账号语言同步（见 i18n/locale-cookie.ts）。
@@ -64,8 +64,8 @@ export function resolveRouteLocale(locale?: string): string {
 }
 
 /**
- * 拆出地址里的语言前缀：/zh-tw/p/x → { locale: 'zh-TW', pathname: '/p/x' }；没有前缀时 locale 为 undefined。
- * 前缀不区分大小写，内部路径写法（/zh-TW）也能识别
+ * 拆出地址里的语言前缀：/zh-hk/p/x → { locale: 'zh-HK', pathname: '/p/x' }；没有前缀时 locale 为 undefined。
+ * 前缀不区分大小写，内部路径写法（/zh-HK）也能识别
  */
 export function splitLocalePrefix(pathname: string): { locale: string | undefined, pathname: string } {
   const [, first = '', ...rest] = pathname.split('/')

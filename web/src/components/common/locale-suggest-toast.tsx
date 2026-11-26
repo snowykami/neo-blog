@@ -41,24 +41,9 @@ const LOCALE_PROMPTS: Record<string, LocalePrompt> = {
     description: '当前页面支持简体中文显示。',
     action: '切换',
   },
-  'zh-SG': {
-    title: '切换为简体中文（新加坡）？',
-    description: '当前页面支持简体中文（新加坡）显示。',
-    action: '切换',
-  },
-  'zh-TW': {
+  'zh-HK': {
     title: '切換為繁體中文？',
     description: '此頁面支援繁體中文顯示。',
-    action: '切換',
-  },
-  'zh-HK': {
-    title: '切換為繁體中文（香港）？',
-    description: '此頁面支援繁體中文（香港）顯示。',
-    action: '切換',
-  },
-  'zh-MO': {
-    title: '切換為繁體中文（澳門）？',
-    description: '此頁面支援繁體中文（澳門）顯示。',
     action: '切換',
   },
 }

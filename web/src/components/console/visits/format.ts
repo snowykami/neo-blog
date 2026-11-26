@@ -55,7 +55,7 @@ export function ipDisplay(ip: string): string {
   return `${prefix.join(':')}::/64`
 }
 
-// 港澳台在中文界面下使用的名称：简体（含 zh-SG）与繁体（zh-TW、zh-HK、zh-MO）
+// 港澳台在中文界面下使用的名称：简体（zh-CN）与繁体（zh-HK）
 const ZH_REGION_NAMES: Record<string, Record<string, string>> = {
   'zh': { HK: '中国香港', MO: '中国澳门', TW: '中国台湾' },
   'zh-tw': { HK: '中國香港', MO: '中國澳門', TW: '中國台灣' },

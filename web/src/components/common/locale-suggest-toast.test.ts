@@ -5,7 +5,9 @@ describe('detectBrowserTargetLocale', () => {
   it('按浏览器语言顺序匹配支持的界面语言', () => {
     expect(detectBrowserTargetLocale(['en-US', 'zh-CN'])).toBe('en')
     expect(detectBrowserTargetLocale(['ja-JP', 'en'])).toBe('ja')
-    expect(detectBrowserTargetLocale(['zh-Hant-TW', 'en'])).toBe('zh-TW')
+    expect(detectBrowserTargetLocale(['zh-Hant-TW', 'en'])).toBe('zh-HK')
+    expect(detectBrowserTargetLocale(['zh-MO', 'en'])).toBe('zh-HK')
+    expect(detectBrowserTargetLocale(['zh-SG', 'en'])).toBe('zh-CN')
     expect(detectBrowserTargetLocale(['zh-Hans-CN'])).toBe('zh-CN')
   })
 
