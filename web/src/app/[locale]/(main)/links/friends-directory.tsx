@@ -183,15 +183,15 @@ export function FriendsDirectory({ initialData }: { initialData: PublicFriendsDa
       }
     }
     const rawAvatar = publicData.siteInfo.avatar || runtimeSiteInfo?.metadata.icon || '/api/site-icon'
-    const absoluteAvatar = rawAvatar.startsWith('/') && !rawAvatar.startsWith('//') && baseOrigin
-      ? `${baseOrigin}${rawAvatar}`
-      : rawAvatar
+    // 站内名片预览保留原图（S3/CDN），对外复制的友链片段使用固定反代路径，后续换头像无需通知友链站同步改链
+    const fixedSnippetPath = publicData.siteInfo.avatar ? '/avatar.png' : '/site-icon.png'
+    const snippetAvatar = baseOrigin ? `${baseOrigin}${fixedSnippetPath}` : fixedSnippetPath
 
     return {
       name: publicData.siteInfo.name || runtimeSiteInfo?.metadata.name || 'neo-blog',
       url: rawUrl,
       avatar: rawAvatar,
-      snippetAvatar: absoluteAvatar,
+      snippetAvatar,
       description: publicData.siteInfo.description || runtimeSiteInfo?.metadata.description || '',
     }
   }, [clientOrigin, publicData.siteInfo, runtimeSiteInfo])
