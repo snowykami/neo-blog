@@ -2,8 +2,10 @@ import type {
   AdminFriendSortOverview,
   AdminListFriendLinksData,
   AdminReviewFriendLinkPayload,
+  AdminUpdateFriendSettingsPayload,
   AdminUpsertFriendGroupPayload,
   AdminUpsertFriendLinkPayload,
+  FriendAdminSettings,
   FriendAutofillResult,
   FriendGroupAdmin,
   FriendLinkAdmin,
@@ -84,6 +86,16 @@ export async function adminGetFriendSortOverview(): Promise<BaseResponse<AdminFr
 
 export async function adminUpdateFriendSortMode(sortMode: FriendSortMode): Promise<BaseResponse<{ sortMode: FriendSortMode }>> {
   const res = await axiosClient.put<BaseResponse<{ sortMode: FriendSortMode }>>('/admin/friends/sort-mode', { sortMode })
+  return res.data
+}
+
+export async function adminGetFriendSettings(): Promise<BaseResponse<FriendAdminSettings>> {
+  const res = await axiosClient.get<BaseResponse<FriendAdminSettings>>('/admin/friends/settings')
+  return res.data
+}
+
+export async function adminUpdateFriendSettings(payload: AdminUpdateFriendSettingsPayload): Promise<BaseResponse<FriendAdminSettings>> {
+  const res = await axiosClient.put<BaseResponse<FriendAdminSettings>>('/admin/friends/settings', payload)
   return res.data
 }
 

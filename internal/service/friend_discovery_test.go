@@ -416,3 +416,308 @@ func TestFriendDiscoverySecurityAndAdversarialCases(t *testing.T) {
 		t.Fatalf("expected transient outage to preserve verified backlink_status, got %q", afterOutage.BacklinkStatus)
 	}
 }
+
+func TestFriendBacklinkAliasHostsAndRedirectGuard(t *testing.T) {
+	alice, _, editor, admin := setupFriendTest(t)
+	svc := NewFriendService()
+
+	if err := repo.KV.SetKV("base_url", "https://blog.example.org"); err != nil {
+		t.Fatalf("set base_url: %v", err)
+	}
+
+	// 1. 权限控制：普通用户与编辑者均不可读取或修改友链反链别名设置
+	if _, err := svc.AdminGetSettings(userCtx(alice)); err == nil || err.Code != http.StatusForbidden {
+		t.Fatalf("expected alice AdminGetSettings forbidden, got %v", err)
+	}
+	if _, err := svc.AdminUpdateSettings(userCtx(editor), &dto.AdminUpdateFriendSettingsReq{
+		BacklinkAliasHosts: []string{"example.org"},
+	}); err == nil || err.Code != http.StatusForbidden {
+		t.Fatalf("expected editor AdminUpdateSettings forbidden, got %v", err)
+	}
+
+	// 2. 非法格式拦截：通配符、内网主机名、字面量 IP（IPv4/IPv6）、凭据、伪协议、公共后缀根域、裸斜杠与超量切片一律拒绝
+	overCapList := make([]string, 129)
+	for i := range overCapList {
+		overCapList[i] = "example.org"
+	}
+	invalidSamples := [][]string{
+		{"*.example.org"},
+		{"localhost"},
+		{"nas.local"},
+		{"db.internal"},
+		{"127.0.0.1"},
+		{"192.168.1.1"},
+		{"[::1]"},
+		{"user:pass@example.org"},
+		{"javascript:alert(1)"},
+		{"github.io"},
+		{"co.uk"},
+		{"公司.香港"},
+		{"//example.org"},
+		{"http:///example.org"},
+		{"ftp://example.org"},
+		{"example.org:8080"},
+		{"İİİİİİİİİİ,http://a"},
+		overCapList,
+	}
+	for _, bad := range invalidSamples {
+		if _, err := svc.AdminUpdateSettings(userCtx(admin), &dto.AdminUpdateFriendSettingsReq{
+			BacklinkAliasHosts: bad,
+		}); err == nil || err.Code != http.StatusBadRequest || !strings.Contains(err.Error(), "invalid_friend_backlink_alias") {
+			t.Fatalf("expected %v rejected as invalid_friend_backlink_alias, got %v", bad, err)
+		}
+	}
+
+	// 2b. 空列表与 nil 输入必须返回非 nil 空切片 []string{}（保证 JSON 序列化为 [] 而非 null）
+	for _, emptyInput := range [][]string{nil, {}, {"   ", " , ； "}} {
+		normEmpty, svcerr := NormalizeAndValidateFriendBacklinkAliasHosts(emptyInput)
+		if svcerr != nil || normEmpty == nil || len(normEmpty) != 0 {
+			t.Fatalf("expected non-nil empty slice for %v, got slice=%#v err=%v", emptyInput, normEmpty, svcerr)
+		}
+	}
+
+	// 3. 规范化与去重：支持管理员误粘贴带协议/路径/含逗号查询参数/分号路径参数/大小写/末尾点及中英文逗号无空格分隔的输入
+	savedSettings, svcerr := svc.AdminUpdateSettings(userCtx(admin), &dto.AdminUpdateFriendSettingsReq{
+		BacklinkAliasHosts: []string{
+			"https://WWW.Example.ORG/links?tags=blog,tech, example.org.",
+			"https://www.example.org/links;v=1",
+			"http://example.org:80/links，https://portal.example.net/about",
+		},
+	})
+	if svcerr != nil {
+		t.Fatalf("AdminUpdateSettings valid aliases: %v", svcerr)
+	}
+	WaitForFriendBackgroundTasks()
+	if len(savedSettings.BacklinkAliasHosts) != 3 ||
+		savedSettings.BacklinkAliasHosts[0] != "www.example.org" ||
+		savedSettings.BacklinkAliasHosts[1] != "example.org" ||
+		savedSettings.BacklinkAliasHosts[2] != "portal.example.net" {
+		t.Fatalf("unexpected normalized aliases: %+v", savedSettings.BacklinkAliasHosts)
+	}
+
+	// 收敛回 www.example.org + example.org 供后续用例验证
+	savedSettings, svcerr = svc.AdminUpdateSettings(userCtx(admin), &dto.AdminUpdateFriendSettingsReq{
+		BacklinkAliasHosts: []string{"www.example.org", "example.org"},
+	})
+	if svcerr != nil {
+		t.Fatalf("reset aliases: %v", svcerr)
+	}
+	WaitForFriendBackgroundTasks()
+
+	loadedSettings, svcerr := svc.AdminGetSettings(userCtx(admin))
+	if svcerr != nil || len(loadedSettings.BacklinkAliasHosts) != 2 {
+		t.Fatalf("AdminGetSettings failed: err=%v resp=%+v", svcerr, loadedSettings)
+	}
+
+	origRT := friendOutboundRoundTripper
+	friendOutboundRoundTripper = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		switch req.URL.Hostname() {
+		case "example.org", "www.example.org", "blog.example.org":
+			// 别名站点与主站首页均天然包含指向自身的导航链接
+			return htmlResp(200, "text/html", `<html><body><a href="https://example.org">Main</a><a href="https://blog.example.org">Blog</a></body></html>`, req), nil
+
+		case "docs.example.org":
+			// 同根域下的其他兄弟子站（包含指向 blog.example.org 的页脚）
+			return htmlResp(200, "text/html", `<html><body><a href="https://blog.example.org">Blog</a></body></html>`, req), nil
+
+		case "alias-www.test.com":
+			switch req.URL.Path {
+			case "/", "":
+				return htmlResp(200, "text/html", `<html><body><nav><a href="/friends">友链</a></nav></body></html>`, req), nil
+			case "/friends":
+				return htmlResp(200, "text/html", `<html><body><a href="https://www.example.org/">My Portal</a></body></html>`, req), nil
+			default:
+				return htmlResp(404, "text/plain", "404", req), nil
+			}
+
+		case "alias-root.test.com":
+			switch req.URL.Path {
+			case "/", "":
+				return htmlResp(200, "text/html", `<html><body>hello</body></html>`, req), nil
+			case "/links":
+				return htmlResp(200, "text/html", `<html><body><a href="https://example.org">Root Portal</a></body></html>`, req), nil
+			default:
+				return htmlResp(404, "text/plain", "404", req), nil
+			}
+
+		case "late-alias.test.com":
+			switch req.URL.Path {
+			case "/", "":
+				return htmlResp(200, "text/html", `<html><body>hello</body></html>`, req), nil
+			case "/links":
+				return htmlResp(200, "text/html", `<html><body><a href="https://legacy.example.net/">Legacy Site</a></body></html>`, req), nil
+			default:
+				return htmlResp(404, "text/plain", "404", req), nil
+			}
+
+		case "userinfo-spoof.test.com":
+			// SPA 脚本内嵌 userinfo 伪装 URL（https://example.org@evil.com），不得命中反链
+			return htmlResp(200, "text/html", `<html><body><script>window.__DATA__ = {"link":"https://example.org@evil.com/path"}</script></body></html>`, req), nil
+
+		case "sneaky-cross.test.com":
+			if req.URL.Path == "/links" {
+				return &http.Response{
+					StatusCode: http.StatusFound,
+					Header:     http.Header{"Location": []string{"https://www.example.org/"}},
+					Body:       io.NopCloser(strings.NewReader("")),
+					Request:    req,
+				}, nil
+			}
+			return htmlResp(200, "text/html", `<html><body>sneaky</body></html>`, req), nil
+
+		case "sneaky-sub.example.org":
+			switch req.URL.Path {
+			case "/links":
+				// 302 跳转到已配置的别名域名必须拦截
+				return &http.Response{
+					StatusCode: http.StatusFound,
+					Header:     http.Header{"Location": []string{"https://www.example.org/"}},
+					Body:       io.NopCloser(strings.NewReader("")),
+					Request:    req,
+				}, nil
+			case "/friends":
+				// 302 跳转到同根域其他兄弟子站（如 docs.example.org）同样必须拦截，严防跨子域借壳自证
+				return &http.Response{
+					StatusCode: http.StatusFound,
+					Header:     http.Header{"Location": []string{"https://docs.example.org/"}},
+					Body:       io.NopCloser(strings.NewReader("")),
+					Request:    req,
+				}, nil
+			default:
+				// 自身页面仅含指向 sneaky-sub.example.org 自己的自链与兄弟子站 docs.example.org，绝不得因为配置了 example.org 别名而误判为本站反链
+				return htmlResp(200, "text/html", `<html><body><a href="https://sneaky-sub.example.org/about">Self</a><a href="https://docs.example.org/">Docs</a></body></html>`, req), nil
+			}
+		}
+		return htmlResp(404, "text/plain", "404", req), nil
+	})
+	t.Cleanup(func() {
+		friendOutboundRoundTripper = origRT
+	})
+
+	pub, svcerr := svc.ListPublicFriends(context.Background(), "")
+	if svcerr != nil || len(pub.Groups) == 0 {
+		t.Fatalf("list groups: %v", svcerr)
+	}
+	groupID := pub.Groups[0].ID
+
+	// 3b. 普通用户禁止提交本站主域名或任何反链别名域名作为友链 URL（防 AI 自动过审自证）
+	for _, selfOrAlias := range []string{"https://blog.example.org", "https://example.org", "https://www.example.org"} {
+		if _, err := svc.CreateMyFriendLink(userCtx(alice), &dto.UpsertMyFriendLinkReq{
+			GroupID:  groupID,
+			Name:     "Self Spoof",
+			URL:      selfOrAlias,
+			Avatar:   "https://alias-www.test.com/a.png",
+			ColorKey: "sky",
+		}); err == nil || err.Code != http.StatusBadRequest || !strings.Contains(err.Error(), "invalid_friend_url") {
+			t.Fatalf("expected user CreateMyFriendLink(%s) rejected with invalid_friend_url, got %v", selfOrAlias, err)
+		}
+	}
+
+	// 4. 对方友链页挂 https://www.example.org/ -> 反链校验通过并自动回填 backlink_url
+	l1, svcerr := svc.AdminCreateLink(userCtx(admin), &dto.AdminUpsertFriendLinkReq{
+		GroupID:  groupID,
+		Name:     "Alias WWW Friend",
+		URL:      "https://alias-www.test.com",
+		Avatar:   "https://alias-www.test.com/a.png",
+		ColorKey: "sky",
+		Status:   model.FriendStatusApproved,
+	})
+	if svcerr != nil {
+		t.Fatalf("create l1: %v", svcerr)
+	}
+	WaitForFriendBackgroundTasks()
+	p1, svcerr := svc.AdminProbeLink(userCtx(admin), l1.ID)
+	if svcerr != nil {
+		t.Fatalf("probe l1: %v", svcerr)
+	}
+	if p1.BacklinkStatus != model.FriendBacklinkVerified || p1.BacklinkURL != "https://alias-www.test.com/friends" {
+		t.Fatalf("expected www.example.org alias verified & backfilled, got status=%q url=%q", p1.BacklinkStatus, p1.BacklinkURL)
+	}
+
+	// 5. 对方友链页挂 https://example.org -> 反链校验通过并自动回填 backlink_url
+	l2, svcerr := svc.AdminCreateLink(userCtx(admin), &dto.AdminUpsertFriendLinkReq{
+		GroupID:  groupID,
+		Name:     "Alias Root Friend",
+		URL:      "https://alias-root.test.com",
+		Avatar:   "https://alias-root.test.com/a.png",
+		ColorKey: "mint",
+		Status:   model.FriendStatusApproved,
+	})
+	if svcerr != nil {
+		t.Fatalf("create l2: %v", svcerr)
+	}
+	WaitForFriendBackgroundTasks()
+	p2, svcerr := svc.AdminProbeLink(userCtx(admin), l2.ID)
+	if svcerr != nil {
+		t.Fatalf("probe l2: %v", svcerr)
+	}
+	if p2.BacklinkStatus != model.FriendBacklinkVerified || p2.BacklinkURL != "https://alias-root.test.com/links" {
+		t.Fatalf("expected example.org alias verified & backfilled, got status=%q url=%q", p2.BacklinkStatus, p2.BacklinkURL)
+	}
+
+	// 6. 对方 /links 或 /friends 302 重定向到别名域名、同根域兄弟子站或仅含自身自链时均被拦截，绝不判为 verified
+	for _, sneakyURL := range []string{"https://sneaky-cross.test.com", "https://sneaky-sub.example.org", "https://userinfo-spoof.test.com"} {
+		sl, svcerr := svc.AdminCreateLink(userCtx(admin), &dto.AdminUpsertFriendLinkReq{
+			GroupID:  groupID,
+			Name:     "Sneaky Alias Redirect",
+			URL:      sneakyURL,
+			Avatar:   sneakyURL + "/a.png",
+			ColorKey: "crimson",
+			Status:   model.FriendStatusApproved,
+		})
+		if svcerr != nil {
+			t.Fatalf("create sneaky (%s): %v", sneakyURL, svcerr)
+		}
+		WaitForFriendBackgroundTasks()
+		sp, svcerr := svc.AdminProbeLink(userCtx(admin), sl.ID)
+		if svcerr != nil {
+			t.Fatalf("probe sneaky (%s): %v", sneakyURL, svcerr)
+		}
+		if sp.BacklinkStatus == model.FriendBacklinkVerified || sp.BacklinkURL != "" {
+			t.Fatalf("alias bypass check failed for %s: status=%q url=%q", sneakyURL, sp.BacklinkStatus, sp.BacklinkURL)
+		}
+	}
+
+	// 7. www 对称性：仅配置 ["www.example.org"] 时，对方挂裸根域 https://example.org 同样识别通过，且 302 -> https://example.org 同样拦截
+	if _, svcerr := svc.AdminUpdateSettings(userCtx(admin), &dto.AdminUpdateFriendSettingsReq{
+		BacklinkAliasHosts: []string{"www.example.org"},
+	}); svcerr != nil {
+		t.Fatalf("update only www.example.org: %v", svcerr)
+	}
+	WaitForFriendBackgroundTasks()
+	if !htmlContainsBacklinkToHostsForSite(`<html><body><a href="https://example.org/">Bare Root</a></body></html>`, "friend.test.com", []string{"blog.example.org"}, []string{"www.example.org"}) {
+		t.Fatalf("expected configuring www.example.org to also match bare https://example.org/")
+	}
+	if isValidBacklinkPageHost("sneaky-sub.example.org", "example.org", []string{"blog.example.org"}, []string{"www.example.org"}) {
+		t.Fatalf("expected configuring www.example.org to also block redirect to bare example.org")
+	}
+
+	// 8. 冷却键联动刷新与自动重测：原本因未配置 legacy.example.net 而被标为 missing 并写入 7 天冷却键的友链，在新增该别名后自动失效旧冷却并重测为 verified
+	lateLink, svcerr := svc.AdminCreateLink(userCtx(admin), &dto.AdminUpsertFriendLinkReq{
+		GroupID:  groupID,
+		Name:     "Late Alias Friend",
+		URL:      "https://late-alias.test.com",
+		Avatar:   "https://late-alias.test.com/a.png",
+		ColorKey: "ocean",
+		Status:   model.FriendStatusApproved,
+	})
+	if svcerr != nil {
+		t.Fatalf("create lateLink: %v", svcerr)
+	}
+	WaitForFriendBackgroundTasks()
+	beforeAlias, gErr := repo.Friend.GetLink(lateLink.ID)
+	if gErr != nil || beforeAlias.BacklinkStatus != model.FriendBacklinkMissing {
+		t.Fatalf("expected lateLink initially missing, got err=%v status=%q", gErr, beforeAlias.BacklinkStatus)
+	}
+
+	if _, svcerr := svc.AdminUpdateSettings(userCtx(admin), &dto.AdminUpdateFriendSettingsReq{
+		BacklinkAliasHosts: []string{"www.example.org", "legacy.example.net"},
+	}); svcerr != nil {
+		t.Fatalf("add legacy.example.net alias: %v", svcerr)
+	}
+	WaitForFriendBackgroundTasks()
+	afterAlias, gErr := repo.Friend.GetLink(lateLink.ID)
+	if gErr != nil || afterAlias.BacklinkStatus != model.FriendBacklinkVerified || afterAlias.BacklinkURL != "https://late-alias.test.com/links" {
+		t.Fatalf("expected lateLink auto-reprobed to verified after alias update, got err=%v status=%q url=%q", gErr, afterAlias.BacklinkStatus, afterAlias.BacklinkURL)
+	}
+}

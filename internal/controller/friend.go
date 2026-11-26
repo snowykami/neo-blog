@@ -264,6 +264,29 @@ func (f *FriendController) AdminUpdateSortMode(ctx context.Context, c *app.Reque
 	resps.Ok(c, resps.Success, map[string]any{"sort_mode": mode})
 }
 
+func (f *FriendController) AdminGetSettings(ctx context.Context, c *app.RequestContext) {
+	resp, svcerr := f.service.AdminGetSettings(ctx)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, resp)
+}
+
+func (f *FriendController) AdminUpdateSettings(ctx context.Context, c *app.RequestContext) {
+	req := &dto.AdminUpdateFriendSettingsReq{}
+	if err := c.BindAndValidate(req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	resp, svcerr := f.service.AdminUpdateSettings(ctx, req)
+	if svcerr != nil {
+		resps.Error(c, svcerr)
+		return
+	}
+	resps.Ok(c, resps.Success, resp)
+}
+
 func (f *FriendController) AdminReorderLinks(ctx context.Context, c *app.RequestContext) {
 	req := &dto.AdminReorderFriendLinksReq{}
 	if err := c.BindAndValidate(req); err != nil {

@@ -225,3 +225,13 @@ type AdminReviewFriendLinkReq struct {
 type AdminTransferFriendLinkReq struct {
 	UserID uint `json:"user_id"`
 }
+
+// FriendAdminSettingsDto 后台友链全局设置响应
+type FriendAdminSettingsDto struct {
+	BacklinkAliasHosts []string `json:"backlink_alias_hosts"`
+}
+
+// AdminUpdateFriendSettingsReq 管理员更新友链全局设置请求
+type AdminUpdateFriendSettingsReq struct {
+	BacklinkAliasHosts []string `json:"backlink_alias_hosts"`
+}

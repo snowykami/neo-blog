@@ -4,6 +4,7 @@ import {
   isRelatedFriendUrlHost,
   parseFriendTextSnippet,
   resolveAutofillOptionalFields,
+  splitFriendBacklinkAliasesInput,
 } from './friend'
 
 describe('parseFriendTextSnippet', () => {
@@ -126,5 +127,41 @@ describe('isRelatedFriendUrlHost & resolveAutofillOptionalFields', () => {
     expect(res.updates.rssUrl).toBeUndefined()
     expect(res.updates.backlinkUrl).toBe('https://site-a.example.com/links')
     expect(res.updates.description).toBe('Hello')
+  })
+})
+
+describe('splitFriendBacklinkAliasesInput', () => {
+  it('splits newline, comma, fullwidth comma, semicolon, and space separated hosts cleanly', () => {
+    expect(
+      splitFriendBacklinkAliasesInput('  sfkm.me, www.sfkm.me，old.sfkm.me;\nportal.sfkm.me  ；  '),
+    ).toEqual(['sfkm.me', 'www.sfkm.me', 'old.sfkm.me', 'portal.sfkm.me'])
+    expect(splitFriendBacklinkAliasesInput('   \n  ')).toEqual([])
+  })
+
+  it('strips URL path/query/hash before splitting so commas or semicolons in pasted URLs do not corrupt tokens', () => {
+    expect(splitFriendBacklinkAliasesInput('https://www.sfkm.me/links?tags=blog,tech')).toEqual([
+      'https://www.sfkm.me',
+    ])
+    expect(splitFriendBacklinkAliasesInput('https://www.sfkm.me/links;v=1')).toEqual([
+      'https://www.sfkm.me',
+    ])
+    expect(splitFriendBacklinkAliasesInput('https://www.sfkm.me/links?a=1,b=2, sfkm.me')).toEqual([
+      'https://www.sfkm.me',
+      'sfkm.me',
+    ])
+    expect(splitFriendBacklinkAliasesInput('https://www.sfkm.me,sfkm.me')).toEqual([
+      'https://www.sfkm.me',
+      'sfkm.me',
+    ])
+    expect(splitFriendBacklinkAliasesInput('https://www.sfkm.me/links,https://sfkm.me/about')).toEqual([
+      'https://www.sfkm.me',
+      'https://sfkm.me',
+    ])
+    expect(splitFriendBacklinkAliasesInput('https://www.sfkm.me/links，https://sfkm.me/about')).toEqual([
+      'https://www.sfkm.me',
+      'https://sfkm.me',
+    ])
+    expect(splitFriendBacklinkAliasesInput('//example.org')).toEqual(['//example.org'])
+    expect(splitFriendBacklinkAliasesInput('http:///example.org')).toEqual(['http://'])
   })
 })

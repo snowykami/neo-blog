@@ -17,6 +17,7 @@ import (
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/sharedstate"
 	"golang.org/x/net/html"
+	"golang.org/x/net/idna"
 )
 
 const (
@@ -197,19 +198,139 @@ func extractPlainSnippetFromHTML(rawHTML string, maxRunes int) string {
 	return cleanPreviewText(b.String(), maxRunes)
 }
 
+func isHostWordChar(b byte) bool {
+	return (b >= 'a' && b <= 'z') || (b >= '0' && b <= '9') || b == '-' || b == '.' || b == '@' || b == '_' || b >= 0x80
+}
+
+func containsBoundedSchemeHost(lowerHTML string, targetHost string) bool {
+	if targetHost == "" {
+		return false
+	}
+	noWWW := strings.TrimPrefix(targetHost, "www.")
+	prefixes := []string{"://" + noWWW, "://www." + noWWW}
+	for _, needle := range prefixes {
+		searchFrom := 0
+		for searchFrom < len(lowerHTML) {
+			idx := strings.Index(lowerHTML[searchFrom:], needle)
+			if idx < 0 {
+				break
+			}
+			afterIdx := searchFrom + idx + len(needle)
+			if afterIdx >= len(lowerHTML) || !isHostWordChar(lowerHTML[afterIdx]) {
+				return true
+			}
+			searchFrom += idx + len(needle)
+		}
+	}
+	return false
+}
+
 func htmlContainsBacklinkToHost(rawHTML string, myHost string) bool {
-	if rawHTML == "" || myHost == "" {
+	if myHost == "" {
 		return false
 	}
-	lowerHost := normalizeASCIIHost(myHost)
-	if lowerHost == "" {
+	baseNoWWW := normalizeASCIIHost(myHost)
+	if baseNoWWW == "" {
 		return false
 	}
+	return htmlContainsBacklinkToHostsForSite(rawHTML, "", []string{baseNoWWW}, nil)
+}
+
+func htmlContainsBacklinkToHosts(rawHTML string, selfHosts []string) bool {
+	return htmlContainsBacklinkToHostsForSite(rawHTML, "", nil, selfHosts)
+}
+
+// htmlContainsBacklinkToHostsForSite 检查对方页面是否包含指向本站主域名或任一反链别名域名的链接，同时排除对方站点指向自身的自链假阳性
+func htmlContainsBacklinkToHostsForSite(rawHTML string, friendSiteHost string, primarySelfHosts, aliasSelfHosts []string) bool {
+	if rawHTML == "" || (len(primarySelfHosts) == 0 && len(aliasSelfHosts) == 0) {
+		return false
+	}
+	friendSiteNoWWW := normalizeASCIIHost(friendSiteHost)
+	friendSiteRoot := registrableSiteRoot(friendSiteHost)
+
+	type hostTarget struct {
+		ascii     string
+		unicode   string
+		root      string
+		isPrimary bool
+	}
+	targets := make([]hostTarget, 0, len(primarySelfHosts)+len(aliasSelfHosts))
+	seen := make(map[string]int, len(primarySelfHosts)+len(aliasSelfHosts))
+	addTarget := func(raw string, isPrimary bool) {
+		noWWW := normalizeASCIIHost(raw)
+		if noWWW == "" {
+			return
+		}
+		if idx, exists := seen[noWWW]; exists {
+			if isPrimary {
+				targets[idx].isPrimary = true
+			}
+			return
+		}
+		uni := ""
+		if strings.Contains(noWWW, "xn--") {
+			if u, err := idna.Lookup.ToUnicode(noWWW); err == nil {
+				uni = strings.ToLower(strings.TrimPrefix(strings.TrimRight(strings.TrimSpace(u), "."), "www."))
+			}
+		}
+		seen[noWWW] = len(targets)
+		targets = append(targets, hostTarget{
+			ascii:     noWWW,
+			unicode:   uni,
+			root:      registrableSiteRoot(noWWW),
+			isPrimary: isPrimary,
+		})
+	}
+	for _, p := range primarySelfHosts {
+		addTarget(p, true)
+	}
+	for _, a := range aliasSelfHosts {
+		addTarget(a, false)
+	}
+	if len(targets) == 0 {
+		return false
+	}
+
 	lowerHTML := strings.ToLower(rawHTML)
-	rawHost := strings.ToLower(strings.TrimPrefix(strings.TrimRight(strings.TrimSpace(myHost), "."), "www."))
-	if !strings.Contains(lowerHTML, lowerHost) && (rawHost == "" || !strings.Contains(lowerHTML, rawHost)) {
+	anySubstringHit := false
+	for _, t := range targets {
+		if strings.Contains(lowerHTML, t.ascii) || (t.unicode != "" && strings.Contains(lowerHTML, t.unicode)) {
+			anySubstringHit = true
+			break
+		}
+	}
+	if !anySubstringHit {
 		return false
 	}
+
+	matchesTargetHost := func(linkHostRaw string) bool {
+		hNoWWW := normalizeASCIIHost(linkHostRaw)
+		if hNoWWW == "" {
+			return false
+		}
+		// 绝不将对方页面指向对方站点自身（或对方子域）的自链算作本站反链
+		if friendSiteNoWWW != "" && (hNoWWW == friendSiteNoWWW || strings.HasSuffix(hNoWWW, "."+friendSiteNoWWW)) {
+			return false
+		}
+		for _, t := range targets {
+			if t.isPrimary {
+				if hNoWWW == t.ascii || strings.HasSuffix(hNoWWW, "."+t.ascii) {
+					return true
+				}
+				continue
+			}
+			// 当对方站点与本站共享同一根域（如本站别名 sfkm.me、友站 alice.sfkm.me）时，仅认可精确指向别名根域/www，避免兄弟子域链接误判
+			if friendSiteRoot != "" && friendSiteRoot == t.root {
+				if hNoWWW == t.ascii {
+					return true
+				}
+			} else if hNoWWW == t.ascii || strings.HasSuffix(hNoWWW, "."+t.ascii) {
+				return true
+			}
+		}
+		return false
+	}
+
 	z := html.NewTokenizer(strings.NewReader(rawHTML))
 	for {
 		tt := z.Next()
@@ -227,8 +348,7 @@ func htmlContainsBacklinkToHost(rawHTML string, myHost string) bool {
 			k, v, more := z.TagAttr()
 			if string(k) == "href" {
 				if u, err := url.Parse(strings.TrimSpace(string(v))); err == nil {
-					h := normalizeASCIIHost(u.Hostname())
-					if h == lowerHost || strings.HasSuffix(h, "."+lowerHost) {
+					if matchesTargetHost(u.Hostname()) {
 						return true
 					}
 				}
@@ -238,18 +358,24 @@ func htmlContainsBacklinkToHost(rawHTML string, myHost string) bool {
 			}
 		}
 	}
-	// 兼容部分 SPA 在初始化脚本 JSON 数据里内嵌友链 URL 的情况
-	if strings.Contains(lowerHTML, "://"+lowerHost) || strings.Contains(lowerHTML, "://www."+lowerHost) {
-		return true
-	}
-	if rawHost != "" && rawHost != lowerHost {
-		return strings.Contains(lowerHTML, "://"+rawHost) || strings.Contains(lowerHTML, "://www."+rawHost)
+	// 兼容部分 SPA 在初始化脚本 JSON 数据里内嵌友链 URL 的情况（校验右边界字符拦截 @userinfo 与后缀抢匹配，并排除对方自链）
+	for _, t := range targets {
+		if friendSiteNoWWW != "" && (t.ascii == friendSiteNoWWW || strings.HasSuffix(t.ascii, "."+friendSiteNoWWW)) {
+			continue
+		}
+		if containsBoundedSchemeHost(lowerHTML, t.ascii) {
+			return true
+		}
+		if t.unicode != "" && t.unicode != t.ascii && containsBoundedSchemeHost(lowerHTML, t.unicode) {
+			return true
+		}
 	}
 	return false
 }
 
 func friendBacklinkCooldownKey(linkID uint, siteURL, backlinkURL string) string {
-	return fmt.Sprintf("friend_backlink_checked:%d:%s", linkID, model.FriendAvatarHash(siteURL+"|"+backlinkURL))
+	_, _, selfHosts := resolveSelfBacklinkHosts()
+	return fmt.Sprintf("friend_backlink_checked:%d:%s", linkID, model.FriendAvatarHash(siteURL+"|"+backlinkURL+"|"+strings.Join(selfHosts, ",")))
 }
 
 func friendRSSCooldownKey(linkID uint, siteURL string) string {
@@ -314,7 +440,7 @@ func probeAndPersistSingleLink(ctx context.Context, link *model.FriendLink, forc
 			disc := runFriendDiscoveryAndBacklinkCheck(
 				ctx,
 				probedURL,
-				home,
+				&home,
 				seedRSS,
 				link.BacklinkURL,
 				skipBacklink,

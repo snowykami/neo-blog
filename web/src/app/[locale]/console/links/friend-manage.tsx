@@ -47,6 +47,7 @@ import {
   adminCreateFriendLink,
   adminDeleteFriendGroup,
   adminDeleteFriendLink,
+  adminGetFriendSettings,
   adminGetFriendSortOverview,
   adminListFriendGroups,
   adminListFriendLinks,
@@ -58,6 +59,7 @@ import {
   adminTransferFriendLink,
   adminUpdateFriendGroup,
   adminUpdateFriendLink,
+  adminUpdateFriendSettings,
   adminUpdateFriendSortMode,
   autofillFriendLink,
 } from '@/api/friend'
@@ -102,6 +104,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/contexts/auth-context'
+import { useSiteInfo } from '@/contexts/site-info-context'
 import { useDebouncedState, useDebouncedValue } from '@/hooks/use-debounce'
 import { useErrorMessageT, useOperationT } from '@/hooks/use-translations'
 import { cn } from '@/lib/utils'
@@ -113,6 +116,7 @@ import {
   normalizeFriendUrlHost,
   resolveAutofillOptionalFields,
   resolveFriendPalette,
+  splitFriendBacklinkAliasesInput,
 } from '@/models/friend'
 import { isAdmin } from '@/utils/common/permission'
 
@@ -144,6 +148,25 @@ interface RejectFormValues {
   reviewNote: string
 }
 
+interface AdminSettingsFormValues {
+  aliasHostsText: string
+}
+
+type MainTabKey = 'links' | 'sort' | 'groups' | 'settings'
+
+function extractExactHostname(raw?: string | null): string {
+  const trimmed = raw?.trim() ?? ''
+  if (!/^https?:\/\//i.test(trimmed))
+    return ''
+  try {
+    const parsed = new URL(trimmed)
+    return parsed.hostname.toLowerCase().replace(/\.$/, '')
+  }
+  catch {
+    return ''
+  }
+}
+
 export function FriendManage() {
   const t = useTranslations('Console.friends')
   const friendT = useTranslations('Friends')
@@ -152,8 +175,9 @@ export function FriendManage() {
   const format = useFormatter()
   const presetT = useFriendPresetTranslator()
   const { user } = useAuth()
+  const { siteInfo } = useSiteInfo()
 
-  const [mainTab, setMainTab] = useState<'links' | 'sort' | 'groups'>('links')
+  const [mainTab, setMainTab] = useState<MainTabKey>('links')
   const [groups, setGroups] = useState<FriendGroupAdmin[]>([])
   const [groupsLoading, setGroupsLoading] = useState(true)
 
@@ -169,9 +193,19 @@ export function FriendManage() {
   const [sortLoading, setSortLoading] = useState(true)
   const [activeSortGroupId, setActiveSortGroupId] = useState<number | null>(null)
   const [reorderingLinks, setReorderingLinks] = useState(false)
+
+  // 友链反链别名域名配置状态
+  const [aliasHosts, setAliasHosts] = useState<string[]>([])
+  const [settingsLoading, setSettingsLoading] = useState(true)
+  const [settingsLoaded, setSettingsLoaded] = useState(false)
+  const [settingsLoadError, setSettingsLoadError] = useState(false)
+  const [savingSettings, setSavingSettings] = useState(false)
+
   const groupReqSeqRef = useRef(0)
   const linksReqSeqRef = useRef(0)
   const sortReqSeqRef = useRef(0)
+  const settingsReqSeqRef = useRef(0)
+  const settingsInFlightRef = useRef(false)
   const sortGroupTabListRef = useRef<HTMLDivElement | null>(null)
   const dialogAutoMetaRef = useRef<FriendAutoMetaSnapshot>(EMPTY_FRIEND_AUTO_META)
   const [probeSyncTrigger, setProbeSyncTrigger] = useState(0)
@@ -428,6 +462,82 @@ export function FriendManage() {
   const rejectForm = useForm<RejectFormValues>({
     defaultValues: { reviewNote: '' },
   })
+
+  const settingsForm = useForm<AdminSettingsFormValues>({
+    defaultValues: { aliasHostsText: '' },
+  })
+  const isSettingsDirty = settingsForm.formState.isDirty
+  const isSettingsDirtyRef = useRef(false)
+  isSettingsDirtyRef.current = isSettingsDirty
+
+  const fetchSettings = useCallback(async (opts?: { silent?: boolean, suppressErrorToast?: boolean }) => {
+    if (!userIsAdmin)
+      return
+    const seq = ++settingsReqSeqRef.current
+    settingsInFlightRef.current = true
+    if (!opts?.silent) {
+      setSettingsLoading(true)
+      setSettingsLoadError(false)
+    }
+    try {
+      const res = await adminGetFriendSettings()
+      if (seq !== settingsReqSeqRef.current)
+        return
+      const nextAliases = res.data.backlinkAliasHosts || []
+      setAliasHosts(nextAliases)
+      setSettingsLoaded(true)
+      setSettingsLoadError(false)
+      if (!isSettingsDirtyRef.current)
+        settingsForm.reset({ aliasHostsText: nextAliases.join('\n') })
+    }
+    catch (err) {
+      if (seq === settingsReqSeqRef.current) {
+        setSettingsLoadError(true)
+        if (!opts?.suppressErrorToast)
+          toast.error(errorMessageT(err))
+      }
+    }
+    finally {
+      if (seq === settingsReqSeqRef.current) {
+        settingsInFlightRef.current = false
+        setSettingsLoading(false)
+      }
+    }
+  }, [errorMessageT, settingsForm, userIsAdmin])
+
+  useEffect(() => {
+    fetchSettings()
+  }, [fetchSettings])
+
+  const onSubmitSettings = async (values: AdminSettingsFormValues) => {
+    if (savingSettings || !settingsLoaded)
+      return
+    setSavingSettings(true)
+    settingsReqSeqRef.current += 1
+    settingsInFlightRef.current = false
+    setSettingsLoading(false)
+    try {
+      const payloadHosts = splitFriendBacklinkAliasesInput(values.aliasHostsText)
+      const res = await adminUpdateFriendSettings({ backlinkAliasHosts: payloadHosts })
+      settingsReqSeqRef.current += 1
+      const savedAliases = res.data.backlinkAliasHosts || []
+      const aliasesChanged = savedAliases.length !== aliasHosts.length
+        || savedAliases.some((item, idx) => item !== aliasHosts[idx])
+      setAliasHosts(savedAliases)
+      setSettingsLoaded(true)
+      setSettingsLoadError(false)
+      settingsForm.reset({ aliasHostsText: savedAliases.join('\n') })
+      if (aliasesChanged)
+        setProbeSyncTrigger(n => n + 1)
+      toast.success(t('backlink_alias_saved'))
+    }
+    catch (err) {
+      toast.error(errorMessageT(err))
+    }
+    finally {
+      setSavingSettings(false)
+    }
+  }
 
   const openCreateLinkDialog = () => {
     setEditingLink(null)
@@ -796,10 +906,12 @@ export function FriendManage() {
     }
   }
 
-  const handleSwitchMainTab = (nextTab: 'links' | 'sort' | 'groups') => {
+  const handleSwitchMainTab = (nextTab: MainTabKey) => {
     setMainTab(nextTab)
     if (nextTab === 'sort' && !reorderingLinks)
       void fetchSortOverview({ silent: sortGroups.length > 0 })
+    if (nextTab === 'settings' && !savingSettings && !settingsInFlightRef.current && !isSettingsDirtyRef.current)
+      void fetchSettings({ silent: settingsLoaded, suppressErrorToast: settingsLoaded })
   }
 
   const handleMoveLinkToIndex = async (
@@ -824,6 +936,11 @@ export function FriendManage() {
   const totalSortableLinks = useMemo(
     () => sortGroups.reduce((acc, item) => acc + item.links.length, 0),
     [sortGroups],
+  )
+
+  const primarySiteHost = useMemo(
+    () => extractExactHostname(siteInfo?.baseUrl),
+    [siteInfo?.baseUrl],
   )
 
   const renderStatusBadge = (status: FriendStatus, badgeClassName?: string) => {
@@ -918,24 +1035,23 @@ export function FriendManage() {
             <RefreshCwIcon className={`size-4 ${probingAll ? 'animate-spin' : ''}`} />
             {t('probe_all')}
           </Button>
-          {mainTab === 'groups'
-            ? (
-                <Button type="button" size="sm" onClick={openCreateGroupDialog}>
-                  <FolderPlusIcon className="size-4" />
-                  {t('add_group')}
-                </Button>
-              )
-            : (
-                <Button type="button" size="sm" onClick={openCreateLinkDialog}>
-                  <PlusIcon className="size-4" />
-                  {t('add_link')}
-                </Button>
-              )}
+          {mainTab === 'groups' && (
+            <Button type="button" size="sm" onClick={openCreateGroupDialog}>
+              <FolderPlusIcon className="size-4" />
+              {t('add_group')}
+            </Button>
+          )}
+          {(mainTab === 'links' || mainTab === 'sort') && (
+            <Button type="button" size="sm" onClick={openCreateLinkDialog}>
+              <PlusIcon className="size-4" />
+              {t('add_link')}
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* 主视图切换：全部友链与审核 / 友链排序 / 分组管理与排序联动 */}
-      <Tabs value={mainTab} onValueChange={v => handleSwitchMainTab(v as 'links' | 'sort' | 'groups')} className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
+      {/* 主视图切换：全部友链与审核 / 友链排序 / 分组管理与排序联动 / 反链设置 */}
+      <Tabs value={mainTab} onValueChange={v => handleSwitchMainTab(v as MainTabKey)} className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
         <TabsList variant="underline" className="w-full max-w-full min-w-0 justify-start overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <TabsTrigger value="links" className="flex-none px-3">
             <span>{t('tab_links')}</span>
@@ -952,6 +1068,12 @@ export function FriendManage() {
           <TabsTrigger value="groups" className="flex-none px-3">
             <span>{t('tab_groups')}</span>
             <span className="text-xs text-muted-foreground tabular-nums">{groups.length}</span>
+          </TabsTrigger>
+          <TabsTrigger value="settings" className="flex-none px-3">
+            <span>{t('tab_settings')}</span>
+            {aliasHosts.length > 0 && (
+              <span className="text-xs text-muted-foreground tabular-nums">{aliasHosts.length}</span>
+            )}
           </TabsTrigger>
         </TabsList>
 
@@ -1672,6 +1794,113 @@ export function FriendManage() {
                   )}
                 />
               )}
+        </TabsContent>
+        {/* Tab 4: 友链反链别名域名设置 */}
+        <TabsContent value="settings" className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 overflow-x-clip rounded-xl border bg-card p-3.5 shadow-[0_1px_1px_-0.5px_rgba(0,0,0,0.035),0_3px_8px_-2px_rgba(0,0,0,0.035)] sm:p-5 dark:shadow-none">
+            <div className="grid min-w-0 gap-1">
+              <h3 className="text-sm font-semibold">{t('backlink_alias_title')}</h3>
+              <p className="text-xs leading-relaxed wrap-anywhere text-muted-foreground">{t('backlink_alias_desc')}</p>
+            </div>
+
+            <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border bg-muted/25 px-3 py-2.5 text-xs">
+              <div className="inline-flex min-w-0 flex-wrap items-center gap-1.5">
+                <span className="shrink-0 text-muted-foreground">
+                  {t('backlink_primary_host_label')}
+                  :
+                </span>
+                {primarySiteHost
+                  ? (
+                      <Badge variant="outline" className="max-w-full min-w-0 shrink font-mono text-xs">
+                        <span className="truncate">{primarySiteHost}</span>
+                      </Badge>
+                    )
+                  : (
+                      <span className="text-muted-foreground">{t('backlink_primary_host_unset')}</span>
+                    )}
+              </div>
+
+              {aliasHosts.length > 0 && (
+                <div className="inline-flex min-w-0 flex-wrap items-center gap-1.5">
+                  <span className="shrink-0 text-muted-foreground">
+                    {t('backlink_alias_active_label')}
+                    :
+                  </span>
+                  {aliasHosts.map(host => (
+                    <Badge key={host} variant="secondary" className="max-w-full min-w-0 shrink font-mono text-xs">
+                      <span className="truncate">{host}</span>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {!settingsLoaded && settingsLoading
+              ? (
+                  <div className="grid gap-2">
+                    <Skeleton className="h-4 w-40 rounded" />
+                    <Skeleton className="h-24 w-full rounded-lg" />
+                  </div>
+                )
+              : !settingsLoaded && settingsLoadError
+                  ? (
+                      <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed py-8 text-center">
+                        <p className="px-4 text-xs leading-relaxed wrap-anywhere text-muted-foreground">
+                          {t('backlink_alias_load_failed')}
+                        </p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={settingsLoading}
+                          onClick={() => void fetchSettings()}
+                        >
+                          <RefreshCwIcon className={cn('size-3.5', settingsLoading && 'animate-spin')} />
+                          {t('backlink_alias_retry')}
+                        </Button>
+                      </div>
+                    )
+                  : (
+                      <Form {...settingsForm}>
+                        <form
+                          className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4"
+                          onSubmit={settingsForm.handleSubmit(onSubmitSettings)}
+                        >
+                          <FormField
+                            control={settingsForm.control}
+                            name="aliasHostsText"
+                            render={({ field }) => (
+                              <FormItem className="grid min-w-0 gap-2">
+                                <FormLabel className="leading-snug">{t('backlink_alias_label')}</FormLabel>
+                                <FormControl>
+                                  <Textarea
+                                    {...field}
+                                    rows={4}
+                                    spellCheck={false}
+                                    autoCapitalize="off"
+                                    autoCorrect="off"
+                                    className="font-mono"
+                                    placeholder={t('backlink_alias_placeholder')}
+                                  />
+                                </FormControl>
+                                <FormDescription className="text-xs leading-relaxed wrap-anywhere">
+                                  {t('backlink_alias_hint')}
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <div className="flex flex-wrap items-center justify-end gap-3">
+                            <Button type="submit" size="sm" disabled={savingSettings || settingsLoading || !settingsLoaded}>
+                              {savingSettings && <Loader2Icon className="size-4 animate-spin" />}
+                              {operationT('save')}
+                            </Button>
+                          </div>
+                        </form>
+                      </Form>
+                    )}
+          </div>
         </TabsContent>
       </Tabs>
 

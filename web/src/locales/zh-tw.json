@@ -3506,7 +3506,19 @@
       "action_move_down": "下移",
       "drag_handle_label": "拖曳調整順序",
       "rss_bound": "RSS 已綁定",
-      "rss_empty": "無 RSS"
+      "rss_empty": "無 RSS",
+      "tab_settings": "反鏈設定",
+      "backlink_alias_title": "反鏈別名網域",
+      "backlink_alias_desc": "除主站網域外，對方友鏈頁面指向以下任一網域（或其子網域）時也視為反鏈校驗通過；儲存後可點擊右上角「立即全量撥測」或單條撥測立即生效。",
+      "backlink_alias_label": "允許識別的反鏈別名網域",
+      "backlink_alias_placeholder": "sfkm.me\nwww.sfkm.me",
+      "backlink_alias_hint": "支援換行、逗號或空格分隔多個網域（無需填寫協定與路徑），留空表示僅比對主站網域。",
+      "backlink_primary_host_label": "目前主站網域",
+      "backlink_primary_host_unset": "未設定網站網址",
+      "backlink_alias_active_label": "已生效別名",
+      "backlink_alias_load_failed": "載入反鏈別名網域設定失敗，請重試後再編輯",
+      "backlink_alias_retry": "重新載入",
+      "backlink_alias_saved": "反鏈別名網域設定已儲存"
     }
   },
   "NotificationDelivery": {
@@ -4212,6 +4224,7 @@
       "invalid_friend_description": "網站描述最多 240 個字元",
       "invalid_friend_backlink": "回鏈頁面網址無效，請填寫合法的 http(s) 連結",
       "invalid_friend_rss": "RSS 訂閱網址無效，請填寫合法的 http(s) 連結",
+      "invalid_friend_backlink_alias": "反鏈別名網域格式無效，請填寫合法的公開網域（不支援萬用字元 * 或內網位址）",
       "friend_autofill_quota_exceeded": "今日 AI 自動填寫次數已用完，請直接手動填寫或明天再試",
       "friend_group_not_found": "所選友鏈分組不存在",
       "friend_quota_exceeded": "你提交的友鏈數量已達上限（最多 5 條），刪除既有紀錄後可釋放名額",

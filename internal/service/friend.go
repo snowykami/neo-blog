@@ -43,9 +43,11 @@ const (
 	friendGroupDescMaxRunes  = 255
 	friendSlugMaxRunes       = 64
 
-	friendSortModeKVKey  = "friend_sort_mode"
-	friendMaxReorderSize = 1000
-	friendSortOrderLimit = 1_000_000
+	friendSortModeKVKey        = "friend_sort_mode"
+	friendBacklinkAliasesKVKey = "friend_backlink_alias_hosts"
+	friendMaxBacklinkAliases   = 32
+	friendMaxReorderSize       = 1000
+	friendSortOrderLimit       = 1_000_000
 )
 
 var friendSlugPattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
@@ -525,7 +527,7 @@ func resolveTargetGroupForUser(requestedGroupID uint, allowPrivate bool) (*model
 	return &groups[0], nil
 }
 
-func validateFriendLinkFields(name, rawURL, rawAvatar, desc, rawRSS, rawBacklink, rawColor string) (
+func validateFriendLinkFields(name, rawURL, rawAvatar, desc, rawRSS, rawBacklink, rawColor string, allowSelfHost bool) (
 	cleanName, cleanURL, normHost, cleanAvatar, cleanDesc, cleanRSS, cleanBacklink, colorKey string,
 	svcerr *errs.ServiceError,
 ) {
@@ -540,6 +542,10 @@ func validateFriendLinkFields(name, rawURL, rawAvatar, desc, rawRSS, rawBacklink
 		if errURL != nil {
 			return "", "", "", "", "", "", "", "", errURL
 		}
+		return "", "", "", "", "", "", "", "", errs.NewBadRequest("invalid_friend_url")
+	}
+	primarySelfHosts, aliasSelfHosts, _ := resolveSelfBacklinkHosts()
+	if !allowSelfHost && isSelfOrAliasFriendHost(parsedSiteURL.Hostname(), primarySelfHosts, aliasSelfHosts) {
 		return "", "", "", "", "", "", "", "", errs.NewBadRequest("invalid_friend_url")
 	}
 	cleanAvatar, errURL = normalizeFriendAvatarField(rawAvatar)
@@ -560,7 +566,7 @@ func validateFriendLinkFields(name, rawURL, rawAvatar, desc, rawRSS, rawBacklink
 	}
 	if cleanBacklink != "" {
 		parsedBacklink, pErr := url.Parse(cleanBacklink)
-		if pErr != nil || parsedBacklink == nil || !sameFriendSiteFamily(parsedSiteURL.Hostname(), parsedBacklink.Hostname()) {
+		if pErr != nil || parsedBacklink == nil || !isValidBacklinkPageHost(parsedSiteURL.Hostname(), parsedBacklink.Hostname(), primarySelfHosts, aliasSelfHosts) {
 			return "", "", "", "", "", "", "", "", errs.NewBadRequest("invalid_friend_backlink")
 		}
 	}
@@ -609,7 +615,7 @@ func (s *FriendService) CreateMyFriendLink(ctx context.Context, req *dto.UpsertM
 		return nil, errs.NewTooManyRequests("too_many_requests")
 	}
 	cleanName, cleanURL, normHost, cleanAvatar, cleanDesc, cleanRSS, cleanBacklink, colorKey, svcerr := validateFriendLinkFields(
-		req.Name, req.URL, req.Avatar, req.Description, req.RSSURL, req.BacklinkURL, req.ColorKey,
+		req.Name, req.URL, req.Avatar, req.Description, req.RSSURL, req.BacklinkURL, req.ColorKey, isAdminUser,
 	)
 	if svcerr != nil {
 		return nil, svcerr
@@ -714,7 +720,7 @@ func (s *FriendService) UpdateMyFriendLink(ctx context.Context, id uint, req *dt
 		return nil, svcerr
 	}
 	cleanName, cleanURL, normHost, cleanAvatar, cleanDesc, cleanRSS, cleanBacklink, colorKey, svcerr := validateFriendLinkFields(
-		req.Name, req.URL, req.Avatar, req.Description, req.RSSURL, req.BacklinkURL, req.ColorKey,
+		req.Name, req.URL, req.Avatar, req.Description, req.RSSURL, req.BacklinkURL, req.ColorKey, isAdminUser,
 	)
 	if svcerr != nil {
 		return nil, svcerr
@@ -1078,6 +1084,44 @@ func (s *FriendService) AdminUpdateSortMode(ctx context.Context, req *dto.AdminU
 	}
 }
 
+// AdminGetSettings 获取后台友链全局设置（含反链别名域名列表，仅限管理员）
+func (s *FriendService) AdminGetSettings(ctx context.Context) (*dto.FriendAdminSettingsDto, *errs.ServiceError) {
+	if _, svcerr := requireAdminUser(ctx); svcerr != nil {
+		return nil, svcerr
+	}
+	return &dto.FriendAdminSettingsDto{
+		BacklinkAliasHosts: GetFriendBacklinkAliasHosts(),
+	}, nil
+}
+
+// AdminUpdateSettings 更新后台友链全局设置（严格规范化与校验别名域名，并通过 KV + sharedstate.Notify 多副本同步失效缓存）
+func (s *FriendService) AdminUpdateSettings(ctx context.Context, req *dto.AdminUpdateFriendSettingsReq) (*dto.FriendAdminSettingsDto, *errs.ServiceError) {
+	if _, svcerr := requireAdminUser(ctx); svcerr != nil {
+		return nil, svcerr
+	}
+	cleanHosts, svcerr := NormalizeAndValidateFriendBacklinkAliasHosts(req.BacklinkAliasHosts)
+	if svcerr != nil {
+		return nil, svcerr
+	}
+	unlock, err := sharedstate.Lock(ctx, friendApplyLockKey, friendApplyLockTTL)
+	if err != nil {
+		return nil, errs.Internal("failed_to_lock", err)
+	}
+	defer unlock()
+
+	repo.KV.InvalidateCache(friendBacklinkAliasesKVKey)
+	prevHosts := GetFriendBacklinkAliasHosts()
+	if err := repo.KV.SetKV(friendBacklinkAliasesKVKey, cleanHosts); err != nil {
+		return nil, errs.Internal("failed_to_update_target", err)
+	}
+	if !slices.Equal(prevHosts, cleanHosts) {
+		EnqueueFriendProbeRound(false)
+	}
+	return &dto.FriendAdminSettingsDto{
+		BacklinkAliasHosts: cleanHosts,
+	}, nil
+}
+
 // AdminReorderLinks 拖拽重排指定分组内的友链展示顺序（校验归属一致性并保留并发新提交友链在末尾）
 func (s *FriendService) AdminReorderLinks(ctx context.Context, req *dto.AdminReorderFriendLinksReq) *errs.ServiceError {
 	if _, svcerr := requireAdminUser(ctx); svcerr != nil {
@@ -1208,7 +1252,7 @@ func (s *FriendService) AdminCreateLink(ctx context.Context, req *dto.AdminUpser
 		}
 	}
 	cleanName, cleanURL, normHost, cleanAvatar, cleanDesc, cleanRSS, cleanBacklink, colorKey, svcerr := validateFriendLinkFields(
-		req.Name, req.URL, req.Avatar, req.Description, req.RSSURL, req.BacklinkURL, req.ColorKey,
+		req.Name, req.URL, req.Avatar, req.Description, req.RSSURL, req.BacklinkURL, req.ColorKey, true,
 	)
 	if svcerr != nil {
 		return nil, svcerr
@@ -1294,7 +1338,7 @@ func (s *FriendService) AdminUpdateLink(ctx context.Context, id uint, req *dto.A
 		return nil, svcerr
 	}
 	cleanName, cleanURL, normHost, cleanAvatar, cleanDesc, cleanRSS, cleanBacklink, colorKey, svcerr := validateFriendLinkFields(
-		req.Name, req.URL, req.Avatar, req.Description, req.RSSURL, req.BacklinkURL, req.ColorKey,
+		req.Name, req.URL, req.Avatar, req.Description, req.RSSURL, req.BacklinkURL, req.ColorKey, true,
 	)
 	if svcerr != nil {
 		return nil, svcerr

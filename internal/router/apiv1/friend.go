@@ -41,6 +41,8 @@ func registerFriendRoutes(group *route.RouterGroup) {
 
 		adminGroup.GET("/sort", friendController.AdminGetSortOverview)
 		adminGroup.PUT("/sort-mode", friendController.AdminUpdateSortMode)
+		adminGroup.GET("/settings", friendController.AdminGetSettings)
+		adminGroup.PUT("/settings", friendController.AdminUpdateSettings)
 
 		adminGroup.GET("/links", friendController.AdminListLinks)
 		adminGroup.POST("/links", friendController.AdminCreateLink)

@@ -14,11 +14,14 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/model"
+	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/constant"
+	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/sharedstate"
 	"golang.org/x/net/html"
 	"golang.org/x/net/idna"
@@ -107,7 +110,8 @@ type sitemapDiscoveryHints struct {
 	StandalonePages    []string
 }
 
-func normalizeASCIIHost(host string) string {
+// normalizeExactASCIIHost 规范化主机名为小写 ASCII/Punycode 并去除末尾点（保留 www. 前缀，供精确别名配置与子域匹配使用）
+func normalizeExactASCIIHost(host string) string {
 	h := strings.TrimRight(strings.TrimSpace(host), ".")
 	if h == "" {
 		return ""
@@ -118,9 +122,306 @@ func normalizeASCIIHost(host string) string {
 	if ascii, err := idna.Lookup.ToASCII(h); err == nil && ascii != "" {
 		h = ascii
 	}
-	h = strings.ToLower(strings.TrimRight(h, "."))
-	h = strings.TrimPrefix(h, "www.")
-	return h
+	return strings.ToLower(strings.TrimRight(h, "."))
+}
+
+func normalizeASCIIHost(host string) string {
+	return strings.TrimPrefix(normalizeExactASCIIHost(host), "www.")
+}
+
+var blockedInternalDomainSuffixes = []string{
+	"localhost",
+	"local",
+	"internal",
+	"lan",
+	"corp",
+	"home",
+	"arpa",
+	"invalid",
+}
+
+func isValidPublicDomainASCII(ascii string) bool {
+	if len(ascii) < 4 || len(ascii) > 253 {
+		return false
+	}
+	for _, suf := range blockedInternalDomainSuffixes {
+		if ascii == suf || strings.HasSuffix(ascii, "."+suf) {
+			return false
+		}
+	}
+	labels := strings.Split(ascii, ".")
+	if len(labels) < 2 {
+		return false
+	}
+	for _, lbl := range labels {
+		if len(lbl) < 1 || len(lbl) > 63 || lbl[0] == '-' || lbl[len(lbl)-1] == '-' {
+			return false
+		}
+		for i := 0; i < len(lbl); i++ {
+			c := lbl[i]
+			if !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-') {
+				return false
+			}
+		}
+	}
+	tld := labels[len(labels)-1]
+	if len(tld) < 2 {
+		return false
+	}
+	allDigits := true
+	for i := 0; i < len(tld); i++ {
+		if tld[i] < '0' || tld[i] > '9' {
+			allDigits = false
+			break
+		}
+	}
+	if allDigits {
+		return false
+	}
+	etld1, err := publicsuffix.EffectiveTLDPlusOne(ascii)
+	return err == nil && etld1 != ""
+}
+
+func leadingSchemeEnd(s string) int {
+	idx := strings.Index(s, "://")
+	if idx <= 0 {
+		return -1
+	}
+	for i := 0; i < idx; i++ {
+		c := s[i]
+		if i == 0 {
+			if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
+				return -1
+			}
+			continue
+		}
+		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '+' || c == '-' || c == '.') {
+			return -1
+		}
+	}
+	return idx + 3
+}
+
+func parseAndValidateSingleAliasHost(rawToken string) (string, bool) {
+	token := strings.TrimSpace(rawToken)
+	if token == "" || len(token) > 512 || strings.ContainsAny(token, "* \t\r\n\\") {
+		return "", false
+	}
+	var rawHost string
+	if leadingSchemeEnd(token) > 0 {
+		u, err := url.Parse(token)
+		if err != nil || u == nil || u.User != nil || u.Hostname() == "" {
+			return "", false
+		}
+		scheme := strings.ToLower(u.Scheme)
+		if !(scheme == "http" || scheme == "https") {
+			return "", false
+		}
+		port := u.Port()
+		if port != "" && port != "80" && port != "443" {
+			return "", false
+		}
+		rawHost = u.Hostname()
+	} else {
+		if strings.HasPrefix(token, "/") || strings.HasPrefix(token, ":") || strings.HasPrefix(token, ".") ||
+			strings.HasPrefix(token, "?") || strings.HasPrefix(token, "#") {
+			return "", false
+		}
+		u, err := url.Parse("https://" + token)
+		if err != nil || u == nil || u.User != nil || u.Hostname() == "" {
+			return "", false
+		}
+		port := u.Port()
+		if port != "" && port != "80" && port != "443" {
+			return "", false
+		}
+		rawHost = u.Hostname()
+	}
+
+	h := strings.TrimRight(strings.TrimSpace(rawHost), ".")
+	if h == "" || strings.ContainsAny(h, "*:/\\[]@") {
+		return "", false
+	}
+	if _, err := netip.ParseAddr(h); err == nil {
+		return "", false
+	}
+	ascii, err := idna.Lookup.ToASCII(h)
+	if err != nil || ascii == "" {
+		return "", false
+	}
+	ascii = strings.ToLower(strings.TrimRight(ascii, "."))
+	if !isValidPublicDomainASCII(ascii) {
+		return "", false
+	}
+	return ascii, true
+}
+
+func splitSingleAliasChunk(chunk string) []string {
+	trimmed := strings.Trim(chunk, ",，;； \t\r\n")
+	if trimmed == "" {
+		return nil
+	}
+	// 处理无空格拼接的多条完整 URL（如 https://a.com/p,https://b.com/q 或全角逗号拼接）
+	for i, r := range trimmed {
+		if i > 0 && (r == ',' || r == '，' || r == ';' || r == '；') {
+			after := trimmed[i+utf8.RuneLen(r):]
+			if (len(after) >= 7 && strings.EqualFold(after[:7], "http://")) ||
+				(len(after) >= 8 && strings.EqualFold(after[:8], "https://")) {
+				return append(splitSingleAliasChunk(trimmed[:i]), splitSingleAliasChunk(after)...)
+			}
+		}
+	}
+	if schemeEnd := leadingSchemeEnd(trimmed); schemeEnd > 0 {
+		rest := trimmed[schemeEnd:]
+		firstPath := strings.IndexAny(rest, "/?#")
+		firstDelim := strings.IndexAny(rest, ",，;；")
+		if firstDelim >= 0 && (firstPath < 0 || firstDelim < firstPath) {
+			left := trimmed[:schemeEnd+firstDelim]
+			right := rest[firstDelim:]
+			return append(splitSingleAliasChunk(left), splitSingleAliasChunk(right)...)
+		}
+		if firstPath >= 0 {
+			trimmed = trimmed[:schemeEnd+firstPath]
+		}
+		trimmed = strings.Trim(trimmed, ",，;；")
+		if trimmed == "" {
+			return nil
+		}
+		return []string{trimmed}
+	}
+	firstDelim := strings.IndexAny(trimmed, ",，;；")
+	firstPath := strings.IndexAny(trimmed, "/?#")
+	if firstDelim >= 0 && (firstPath < 0 || firstDelim < firstPath) {
+		left := trimmed[:firstDelim]
+		right := trimmed[firstDelim:]
+		return append(splitSingleAliasChunk(left), splitSingleAliasChunk(right)...)
+	}
+	if firstPath > 0 {
+		trimmed = strings.Trim(trimmed[:firstPath], ",，;；")
+	}
+	if trimmed == "" {
+		return nil
+	}
+	return []string{trimmed}
+}
+
+func splitAliasHostTokens(raw string) []string {
+	wsChunks := strings.Fields(raw)
+	if len(wsChunks) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(wsChunks))
+	for _, chunk := range wsChunks {
+		out = append(out, splitSingleAliasChunk(chunk)...)
+	}
+	return out
+}
+
+// NormalizeAndValidateFriendBacklinkAliasHosts 规范化并严格校验反链别名域名列表（自动剥离误填的 http(s):// 与路径、转小写 Punycode、去末尾点、去重，拦截通配符与内网/公共后缀）
+func NormalizeAndValidateFriendBacklinkAliasHosts(rawList []string) ([]string, *errs.ServiceError) {
+	if len(rawList) > 128 {
+		return nil, errs.NewBadRequest("invalid_friend_backlink_alias")
+	}
+	out := make([]string, 0, len(rawList))
+	seen := make(map[string]struct{}, len(rawList))
+	rawTokensSeen := 0
+	for _, entry := range rawList {
+		if len(entry) > 4096 {
+			return nil, errs.NewBadRequest("invalid_friend_backlink_alias")
+		}
+		tokens := splitAliasHostTokens(entry)
+		for _, tok := range tokens {
+			rawTokensSeen++
+			if rawTokensSeen > 128 {
+				return nil, errs.NewBadRequest("invalid_friend_backlink_alias")
+			}
+			normHost, ok := parseAndValidateSingleAliasHost(tok)
+			if !ok {
+				return nil, errs.NewBadRequest("invalid_friend_backlink_alias")
+			}
+			if _, dup := seen[normHost]; dup {
+				continue
+			}
+			seen[normHost] = struct{}{}
+			out = append(out, normHost)
+			if len(out) > friendMaxBacklinkAliases {
+				return nil, errs.NewBadRequest("invalid_friend_backlink_alias")
+			}
+		}
+	}
+	return out, nil
+}
+
+// GetFriendBacklinkAliasHosts 读取后台配置的友链反链别名域名列表（经 KV 进程缓存与多副本通知自动同步）
+func GetFriendBacklinkAliasHosts() []string {
+	raw, err := repo.KV.GetKV(friendBacklinkAliasesKVKey)
+	if err != nil || raw == nil {
+		return []string{}
+	}
+	var rawStrings []string
+	switch v := raw.(type) {
+	case []string:
+		rawStrings = v
+	case []any:
+		rawStrings = make([]string, 0, len(v))
+		for _, item := range v {
+			if s, ok := item.(string); ok {
+				rawStrings = append(rawStrings, s)
+			}
+		}
+	case string:
+		rawStrings = splitAliasHostTokens(v)
+	default:
+		return []string{}
+	}
+
+	out := make([]string, 0, len(rawStrings))
+	seen := make(map[string]struct{}, len(rawStrings))
+	for _, item := range rawStrings {
+		for _, tok := range splitAliasHostTokens(item) {
+			if normHost, ok := parseAndValidateSingleAliasHost(tok); ok {
+				if _, dup := seen[normHost]; !dup && len(out) < friendMaxBacklinkAliases {
+					seen[normHost] = struct{}{}
+					out = append(out, normHost)
+				}
+			}
+		}
+	}
+	return out
+}
+
+// resolveSelfBacklinkHosts 汇总本站主域名（BaseUrl，自动兼容去 www. 根域）与后台配置的反链别名域名
+func resolveSelfBacklinkHosts() (primaryHosts []string, aliasHosts []string, allSelfHosts []string) {
+	seenAll := make(map[string]struct{}, 8)
+	addAll := func(h string) {
+		if h == "" {
+			return
+		}
+		if _, dup := seenAll[h]; !dup {
+			seenAll[h] = struct{}{}
+			allSelfHosts = append(allSelfHosts, h)
+		}
+	}
+
+	if baseURL := strings.TrimSpace(tools.GetBaseUrl()); baseURL != "" {
+		if parsedSelf, err := url.Parse(baseURL); err == nil && parsedSelf.Hostname() != "" {
+			exactBase := normalizeExactASCIIHost(parsedSelf.Hostname())
+			noWWWBase := strings.TrimPrefix(exactBase, "www.")
+			if noWWWBase != "" {
+				primaryHosts = append(primaryHosts, noWWWBase)
+				addAll(noWWWBase)
+			}
+			if exactBase != "" && exactBase != noWWWBase {
+				addAll(exactBase)
+			}
+		}
+	}
+
+	for _, alias := range GetFriendBacklinkAliasHosts() {
+		aliasHosts = append(aliasHosts, alias)
+		addAll(strings.TrimPrefix(alias, "www."))
+	}
+	return primaryHosts, aliasHosts, allSelfHosts
 }
 
 func registrableSiteRoot(host string) string {
@@ -160,18 +461,61 @@ func isAllowedFriendFeedHost(siteHost, candHost string) bool {
 	return false
 }
 
-// isValidBacklinkPageHost 严格校验回链候选页面的域名必须属于友链目标站家族，且不得等于或挂在本站自身域名下（防止 302 跳回本站自证绕过审核）
-func isValidBacklinkPageHost(siteHost, candHost, selfHost string) bool {
+// isSelfOrAliasFriendHost 判断目标域名是否直接命中本站主域名（含子域）或已配置的反链别名域名（含 www. 变体）
+func isSelfOrAliasFriendHost(candHost string, primarySelfHosts, aliasSelfHosts []string) bool {
+	normNoWWW := normalizeASCIIHost(candHost)
+	if normNoWWW == "" {
+		return false
+	}
+	for _, pHost := range primarySelfHosts {
+		if pHost != "" && (normNoWWW == pHost || strings.HasSuffix(normNoWWW, "."+pHost)) {
+			return true
+		}
+	}
+	for _, aHost := range aliasSelfHosts {
+		aNoWWW := strings.TrimPrefix(aHost, "www.")
+		if aNoWWW != "" && normNoWWW == aNoWWW {
+			return true
+		}
+	}
+	return false
+}
+
+// isValidBacklinkPageHost 严格校验回链候选页面的域名必须属于友链目标站家族，不得落在本站主域名/别名域名上，且当目标站与本站共享同一根域时禁止跨兄弟子域跳转自证
+func isValidBacklinkPageHost(siteHost, candHost string, primarySelfHosts, aliasSelfHosts []string) bool {
 	if !sameFriendSiteFamily(siteHost, candHost) {
 		return false
 	}
-	normCand := normalizeASCIIHost(candHost)
-	normSelf := normalizeASCIIHost(selfHost)
-	if normCand == "" {
+	normCandNoWWW := normalizeASCIIHost(candHost)
+	if normCandNoWWW == "" {
 		return false
 	}
-	if normSelf != "" && (normCand == normSelf || strings.HasSuffix(normCand, "."+normSelf)) {
+	if isSelfOrAliasFriendHost(candHost, primarySelfHosts, aliasSelfHosts) {
 		return false
+	}
+	siteRoot := registrableSiteRoot(siteHost)
+	if siteRoot != "" {
+		sharesRootWithSelf := false
+		for _, pHost := range primarySelfHosts {
+			if pHost != "" && registrableSiteRoot(pHost) == siteRoot {
+				sharesRootWithSelf = true
+				break
+			}
+		}
+		if !sharesRootWithSelf {
+			for _, aHost := range aliasSelfHosts {
+				if aHost != "" && registrableSiteRoot(aHost) == siteRoot {
+					sharesRootWithSelf = true
+					break
+				}
+			}
+		}
+		if sharesRootWithSelf {
+			normSiteNoWWW := normalizeASCIIHost(siteHost)
+			if normSiteNoWWW == "" || !(normCandNoWWW == normSiteNoWWW || strings.HasSuffix(normCandNoWWW, "."+normSiteNoWWW)) {
+				return false
+			}
+		}
 	}
 	return true
 }
@@ -1035,7 +1379,7 @@ type friendDiscoveryOutcome struct {
 func runFriendDiscoveryAndBacklinkCheck(
 	ctx context.Context,
 	siteRawURL string,
-	home friendFetchOutcome,
+	home *friendFetchOutcome,
 	existingRSSURL string,
 	existingBacklinkURL string,
 	skipBacklink bool,
@@ -1045,6 +1389,9 @@ func runFriendDiscoveryAndBacklinkCheck(
 ) friendDiscoveryOutcome {
 	var out friendDiscoveryOutcome
 	out.RSSURL = strings.TrimSpace(existingRSSURL)
+	if home == nil {
+		home = &friendFetchOutcome{}
+	}
 
 	_, siteParsed, err := NormalizeFriendOutboundURL(siteRawURL)
 	if err != nil || siteParsed == nil {
@@ -1055,27 +1402,22 @@ func runFriendDiscoveryAndBacklinkCheck(
 		return out
 	}
 
-	var selfHost string
+	var primarySelfHosts, aliasSelfHosts, selfHosts []string
 	if skipBacklink {
 		out.BacklinkStatus = "skipped"
 		out.BacklinkCompleted = true
 		needBacklinkCheck = false
-	} else if needBacklinkCheck {
-		baseURL := tools.GetBaseUrl()
-		if baseURL == "" {
+	} else {
+		primarySelfHosts, aliasSelfHosts, selfHosts = resolveSelfBacklinkHosts()
+		if needBacklinkCheck && len(selfHosts) == 0 {
 			out.BacklinkStatus = "unchecked"
 			needBacklinkCheck = false
-		} else if parsedSelf, err := url.Parse(baseURL); err != nil || parsedSelf.Hostname() == "" {
-			out.BacklinkStatus = "unchecked"
-			needBacklinkCheck = false
-		} else {
-			selfHost = parsedSelf.Hostname()
 		}
 	}
 
-	// 严格校验首页重定向落点：若 301/302 跨域离开站点家族或跳回本站自身，清空首页 HTML 以杜绝跨域假阳性与自证绕过
+	// 严格校验首页重定向落点：若 301/302 跨域离开站点家族或跳回本站主域名/别名域名，清空首页 HTML 以杜绝跨域假阳性与自证绕过
 	if home.FinalURL != nil {
-		if isValidBacklinkPageHost(siteParsed.Hostname(), home.FinalURL.Hostname(), selfHost) {
+		if isValidBacklinkPageHost(siteParsed.Hostname(), home.FinalURL.Hostname(), primarySelfHosts, aliasSelfHosts) {
 			siteParsed = home.FinalURL
 		} else {
 			home.RawHTML = ""
@@ -1083,7 +1425,7 @@ func runFriendDiscoveryAndBacklinkCheck(
 		}
 	}
 	siteHost := siteParsed.Hostname()
-	if selfHost != "" && !isValidBacklinkPageHost(siteHost, siteHost, selfHost) {
+	if len(selfHosts) > 0 && !isValidBacklinkPageHost(siteHost, siteHost, primarySelfHosts, aliasSelfHosts) {
 		home.RawHTML = ""
 		home.HTMLSnippet = ""
 	}
@@ -1107,7 +1449,7 @@ func runFriendDiscoveryAndBacklinkCheck(
 	}
 
 	allowBacklinkHost := func(h string) bool {
-		return isValidBacklinkPageHost(siteHost, h, selfHost)
+		return isValidBacklinkPageHost(siteHost, h, primarySelfHosts, aliasSelfHosts)
 	}
 
 	// =========================================================================
@@ -1168,26 +1510,26 @@ func runFriendDiscoveryAndBacklinkCheck(
 	// =========================================================================
 	// Part B: 反向友链检查与友链页自动发现（独立阶段预算，超时不误判为 missing）
 	// =========================================================================
-	if needBacklinkCheck && selfHost != "" && ctx.Err() == nil {
+	if needBacklinkCheck && len(selfHosts) > 0 && ctx.Err() == nil {
 		blCtx, cancelBL := context.WithTimeout(ctx, friendBacklinkStageBudget)
 		explicitBacklink := strings.TrimSpace(existingBacklinkURL)
 		if explicitBacklink != "" {
 			normExp, expParsed, expOK := resolveSafeFriendCandidateURL(explicitBacklink, nil)
 			if expOK && allowBacklinkHost(expParsed.Hostname()) {
 				if sameURLIgnoringTrailingSlash(normExp, siteParsed.String()) && home.RawHTML != "" {
-					if htmlContainsBacklinkToHost(home.RawHTML, selfHost) {
+					if htmlContainsBacklinkToHostsForSite(home.RawHTML, siteHost, primarySelfHosts, aliasSelfHosts) {
 						out.BacklinkStatus = "verified"
 						out.BacklinkCompleted = true
 					}
 				} else if blCtx.Err() == nil {
 					res := fetchFriendHTMLWithTimingOpts(blCtx, normExp, friendSubpageProbeTimeout, allowBacklinkHost)
-					if res.Reachable && res.FinalURL != nil && allowBacklinkHost(res.FinalURL.Hostname()) && htmlContainsBacklinkToHost(res.RawHTML, selfHost) {
+					if res.Reachable && res.FinalURL != nil && allowBacklinkHost(res.FinalURL.Hostname()) && htmlContainsBacklinkToHostsForSite(res.RawHTML, siteHost, primarySelfHosts, aliasSelfHosts) {
 						out.BacklinkStatus = "verified"
 						out.BacklinkCompleted = true
 					}
 				}
 			}
-			if out.BacklinkStatus == "" && home.RawHTML != "" && htmlContainsBacklinkToHost(home.RawHTML, selfHost) {
+			if out.BacklinkStatus == "" && home.RawHTML != "" && htmlContainsBacklinkToHostsForSite(home.RawHTML, siteHost, primarySelfHosts, aliasSelfHosts) {
 				out.BacklinkStatus = "verified"
 				out.BacklinkCompleted = true
 			}
@@ -1197,7 +1539,7 @@ func runFriendDiscoveryAndBacklinkCheck(
 			}
 		} else {
 			// 未填写回链地址：先检查首页自身是否已含反链，否则启动三层漏斗发现友链页并在命中时自动回填
-			if home.RawHTML != "" && htmlContainsBacklinkToHost(home.RawHTML, selfHost) {
+			if home.RawHTML != "" && htmlContainsBacklinkToHostsForSite(home.RawHTML, siteHost, primarySelfHosts, aliasSelfHosts) {
 				out.BacklinkStatus = "verified"
 				out.BacklinkCompleted = true
 			} else {
@@ -1216,7 +1558,7 @@ func runFriendDiscoveryAndBacklinkCheck(
 					triedURLs[norm] = struct{}{}
 					backlinkProbes++
 					res := fetchFriendHTMLWithTimingOpts(blCtx, norm, friendSubpageProbeTimeout, allowBacklinkHost)
-					if res.Reachable && res.FinalURL != nil && allowBacklinkHost(res.FinalURL.Hostname()) && htmlContainsBacklinkToHost(res.RawHTML, selfHost) {
+					if res.Reachable && res.FinalURL != nil && allowBacklinkHost(res.FinalURL.Hostname()) && htmlContainsBacklinkToHostsForSite(res.RawHTML, siteHost, primarySelfHosts, aliasSelfHosts) {
 						out.BacklinkStatus = "verified"
 						out.BacklinkCompleted = true
 						if finalStr := res.FinalURL.String(); len(finalStr) <= 512 {
@@ -1289,7 +1631,7 @@ func runFriendDiscoveryAndBacklinkCheck(
 					}
 				}
 			}
-			if stillNeedBacklink && selfHost != "" {
+			if stillNeedBacklink && len(selfHosts) > 0 {
 				for _, cand := range aiBacklinks {
 					if verifyCtx.Err() != nil {
 						break
@@ -1303,7 +1645,7 @@ func runFriendDiscoveryAndBacklinkCheck(
 					}
 					triedURLs[norm] = struct{}{}
 					res := fetchFriendHTMLWithTimingOpts(verifyCtx, norm, friendSubpageProbeTimeout, allowBacklinkHost)
-					if res.Reachable && res.FinalURL != nil && allowBacklinkHost(res.FinalURL.Hostname()) && htmlContainsBacklinkToHost(res.RawHTML, selfHost) {
+					if res.Reachable && res.FinalURL != nil && allowBacklinkHost(res.FinalURL.Hostname()) && htmlContainsBacklinkToHostsForSite(res.RawHTML, siteHost, primarySelfHosts, aliasSelfHosts) {
 						out.BacklinkStatus = "verified"
 						out.BacklinkCompleted = true
 						if finalStr := res.FinalURL.String(); len(finalStr) <= 512 {

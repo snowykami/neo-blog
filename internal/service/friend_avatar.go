@@ -28,7 +28,6 @@ import (
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/model"
 	"github.com/snowykami/neo-blog/internal/repo"
-	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/sharedstate"
@@ -150,17 +149,12 @@ func NormalizeFriendOutboundURL(raw string) (string, *url.URL, error) {
 		u.RawPath = ""
 	}
 
-	// 阻断指向本站 /api/v1/friends/avatar/ 的自指递归放大（含路径点段规整与 www. 前缀归一）
+	// 阻断指向本站主域名或反链别名域名 /api/v1/friends/avatar/ 的自指递归放大（含路径点段规整与 www. 前缀归一）
 	cleanPath := path.Clean(strings.ToLower(u.Path))
 	if strings.HasPrefix(cleanPath, "/api/v1/friends/avatar") {
-		if base := tools.GetBaseUrl(); base != "" {
-			if bu, bErr := url.Parse(base); bErr == nil {
-				baseHost := strings.TrimPrefix(strings.ToLower(bu.Hostname()), "www.")
-				reqHost := strings.TrimPrefix(host, "www.")
-				if baseHost != "" && baseHost == reqHost {
-					return "", nil, errLinkPreviewBlockedAddr
-				}
-			}
+		primarySelfHosts, aliasSelfHosts, _ := resolveSelfBacklinkHosts()
+		if isSelfOrAliasFriendHost(host, primarySelfHosts, aliasSelfHosts) {
+			return "", nil, errLinkPreviewBlockedAddr
 		}
 	}
 

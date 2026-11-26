@@ -3506,7 +3506,19 @@
       "action_move_down": "Move down",
       "drag_handle_label": "Drag to reorder",
       "rss_bound": "RSS Linked",
-      "rss_empty": "No RSS"
+      "rss_empty": "No RSS",
+      "tab_settings": "Backlink Settings",
+      "backlink_alias_title": "Backlink Alias Domains",
+      "backlink_alias_desc": "In addition to the primary site domain, links pointing to any of these domains (or their subdomains) on a friend's page will also count as verified backlinks. Run a single or full probe after saving to apply immediately.",
+      "backlink_alias_label": "Accepted Alias Domains",
+      "backlink_alias_placeholder": "sfkm.me\nwww.sfkm.me",
+      "backlink_alias_hint": "Separate multiple domains with newlines, commas, or spaces (no scheme or path needed). Leave blank to match only the primary site domain.",
+      "backlink_primary_host_label": "Primary Site Domain",
+      "backlink_primary_host_unset": "Base URL not configured",
+      "backlink_alias_active_label": "Active Aliases",
+      "backlink_alias_load_failed": "Failed to load backlink alias settings. Please retry before editing.",
+      "backlink_alias_retry": "Retry",
+      "backlink_alias_saved": "Backlink alias domains saved"
     }
   },
   "NotificationDelivery": {
@@ -4212,6 +4224,7 @@
       "invalid_friend_description": "Site description must be at most 240 characters",
       "invalid_friend_backlink": "Invalid backlink URL. Please enter a valid http(s) link",
       "invalid_friend_rss": "Invalid RSS feed URL. Please enter a valid http(s) link",
+      "invalid_friend_backlink_alias": "Invalid backlink alias domain. Please enter valid public domain names (wildcards * and private addresses are not allowed)",
       "friend_autofill_quota_exceeded": "Daily AI autofill quota reached. Please fill in manually or try again tomorrow",
       "friend_group_not_found": "Selected friend group does not exist",
       "friend_quota_exceeded": "You have reached the maximum of 5 friend links. Delete an existing entry to free a slot",

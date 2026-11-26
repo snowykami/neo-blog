@@ -269,6 +269,68 @@ export interface AdminReviewFriendLinkPayload {
   reviewNote: string
 }
 
+export interface FriendAdminSettings {
+  backlinkAliasHosts: string[]
+}
+
+export interface AdminUpdateFriendSettingsPayload {
+  backlinkAliasHosts: string[]
+}
+
+function leadingAliasSchemeEnd(value: string): number {
+  const match = /^[a-z][a-z0-9+.-]*:\/\//i.exec(value)
+  return match ? match[0].length : -1
+}
+
+function splitSingleAliasChunk(chunk: string): string[] {
+  let trimmed = chunk.replace(/^[,，;；\s]+|[,，;；\s]+$/g, '')
+  if (!trimmed)
+    return []
+
+  const multiUrlMatch = /[,，;；](?=https?:\/\/)/i.exec(trimmed)
+  if (multiUrlMatch && multiUrlMatch.index > 0) {
+    const left = trimmed.slice(0, multiUrlMatch.index)
+    const right = trimmed.slice(multiUrlMatch.index + 1)
+    return [...splitSingleAliasChunk(left), ...splitSingleAliasChunk(right)]
+  }
+
+  const schemeEnd = leadingAliasSchemeEnd(trimmed)
+  if (schemeEnd > 0) {
+    const rest = trimmed.slice(schemeEnd)
+    const firstPath = rest.search(/[/?#]/)
+    const firstDelim = rest.search(/[,，;；]/)
+    if (firstDelim >= 0 && (firstPath < 0 || firstDelim < firstPath)) {
+      const left = trimmed.slice(0, schemeEnd + firstDelim)
+      const right = rest.slice(firstDelim + 1)
+      return [...splitSingleAliasChunk(left), ...splitSingleAliasChunk(right)]
+    }
+    if (firstPath >= 0)
+      trimmed = trimmed.slice(0, schemeEnd + firstPath)
+    trimmed = trimmed.replace(/^[,，;；]+|[,，;；]+$/g, '')
+    return trimmed ? [trimmed] : []
+  }
+
+  const firstDelim = trimmed.search(/[,，;；]/)
+  const firstPath = trimmed.search(/[/?#]/)
+  if (firstDelim >= 0 && (firstPath < 0 || firstDelim < firstPath)) {
+    const left = trimmed.slice(0, firstDelim)
+    const right = trimmed.slice(firstDelim + 1)
+    return [...splitSingleAliasChunk(left), ...splitSingleAliasChunk(right)]
+  }
+  if (firstPath > 0)
+    trimmed = trimmed.slice(0, firstPath).replace(/^[,，;；]+|[,，;；]+$/g, '')
+  return trimmed ? [trimmed] : []
+}
+
+export function splitFriendBacklinkAliasesInput(raw: string): string[] {
+  const trimmed = raw.trim()
+  if (!trimmed)
+    return []
+  return trimmed
+    .split(/\s+/)
+    .flatMap(chunk => splitSingleAliasChunk(chunk))
+}
+
 const MULTI_TENANT_HOST_SUFFIXES = [
   'github.io',
   'gitlab.io',

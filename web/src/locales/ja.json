@@ -3506,7 +3506,19 @@
       "action_move_down": "下へ移動",
       "drag_handle_label": "ドラッグして並び替え",
       "rss_bound": "RSS 連携済",
-      "rss_empty": "RSS なし"
+      "rss_empty": "RSS なし",
+      "tab_settings": "相互リンク設定",
+      "backlink_alias_title": "相互リンク別名ドメイン",
+      "backlink_alias_desc": "メインドメインに加え、相手サイトに以下のドメイン（またはサブドメイン）へのリンクがある場合も相互リンク確認済みと判定します。保存後、「一括チェック」または個別チェックで即時反映できます。",
+      "backlink_alias_label": "許可する別名ドメイン",
+      "backlink_alias_placeholder": "sfkm.me\nwww.sfkm.me",
+      "backlink_alias_hint": "改行・カンマ・スペース区切りで複数入力できます（プロトコルやパスは不要）。空欄の場合はメインドメインのみ照合します。",
+      "backlink_primary_host_label": "現在のメインドメイン",
+      "backlink_primary_host_unset": "サイト URL 未設定",
+      "backlink_alias_active_label": "有効な別名",
+      "backlink_alias_load_failed": "別名ドメイン設定の読み込みに失敗しました。再読み込みしてから編集してください。",
+      "backlink_alias_retry": "再読み込み",
+      "backlink_alias_saved": "相互リンク別名ドメインを保存しました"
     }
   },
   "NotificationDelivery": {
@@ -4212,6 +4224,7 @@
       "invalid_friend_description": "サイト紹介は 240 文字以内で入力してください",
       "invalid_friend_backlink": "相互リンク先ページ URL が無効です。有効な http(s) リンクを入力してください",
       "invalid_friend_rss": "RSS フィード URL が無効です。有効な http(s) リンクを入力してください",
+      "invalid_friend_backlink_alias": "別名ドメインの形式が無効です。有効な公開ドメイン名を入力してください（ワイルドカード * や内部アドレスは使用できません）",
       "friend_autofill_quota_exceeded": "本日の AI 自動入力上限に達しました。手動で入力するか明日お試しください",
       "friend_group_not_found": "選択されたグループが存在しません",
       "friend_quota_exceeded": "登録可能なリンク数の上限（最大 5 件）に達しました。既存の項目を削除すると枠が戻ります",

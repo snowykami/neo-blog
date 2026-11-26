@@ -3506,7 +3506,19 @@
       "action_move_down": "下移",
       "drag_handle_label": "拖拽调整顺序",
       "rss_bound": "RSS 已绑定",
-      "rss_empty": "无 RSS"
+      "rss_empty": "无 RSS",
+      "tab_settings": "反链设置",
+      "backlink_alias_title": "反链别名域名",
+      "backlink_alias_desc": "除主站域名外，对方友链页面指向以下任一域名（或其子域名）时也视为反链校验通过；保存后可点击右上角「立即全量拨测」或单条拨测立即生效。",
+      "backlink_alias_label": "允许识别的反链别名域名",
+      "backlink_alias_placeholder": "sfkm.me\nwww.sfkm.me",
+      "backlink_alias_hint": "支持换行、逗号或空格分隔多个域名（无需填写协议与路径），留空表示仅匹配主站域名。",
+      "backlink_primary_host_label": "当前主站域名",
+      "backlink_primary_host_unset": "未配置站点地址",
+      "backlink_alias_active_label": "已生效别名",
+      "backlink_alias_load_failed": "加载反链别名域名配置失败，请重试后编辑",
+      "backlink_alias_retry": "重新加载",
+      "backlink_alias_saved": "反链别名域名设置已保存"
     }
   },
   "NotificationDelivery": {
@@ -4173,6 +4185,7 @@
       "invalid_friend_description": "站点描述最多 240 个字符",
       "invalid_friend_backlink": "回链页面地址无效，请填写合法的 http(s) 链接",
       "invalid_friend_rss": "RSS 订阅地址无效，请填写合法的 http(s) 链接",
+      "invalid_friend_backlink_alias": "反链别名域名格式无效，请填写合法的公网域名（不支持通配符 * 或内网地址）",
       "friend_autofill_quota_exceeded": "今日 AI 自动填写次数已用完，请直接手动填写或明天再试",
       "friend_group_not_found": "所选友链分组不存在",
       "friend_quota_exceeded": "你提交的友链数量已达上限（最多 5 条），删除已有记录后可释放名额",
