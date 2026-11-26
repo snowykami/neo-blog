@@ -39,7 +39,12 @@ func startRoutes(t *testing.T, register func(*route.RouterGroup)) string {
 	}
 	addr := l.Addr().String()
 	_ = l.Close()
-	h := server.New(server.WithHostPorts(addr), server.WithStreamBody(true), server.WithExitWaitTime(0))
+	h := server.New(
+		server.WithHostPorts(addr),
+		server.WithStreamBody(true),
+		server.WithSenseClientDisconnection(true),
+		server.WithExitWaitTime(0),
+	)
 	register(h.Group("/api/v1"))
 	go func() { _ = h.Run() }()
 	t.Cleanup(func() { _ = h.Shutdown(context.Background()) })

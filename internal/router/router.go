@@ -67,6 +67,8 @@ func init() {
 		server.WithMaxRequestBodySize(utils.Env.GetAsInt(constant.EnvKeyMaxRequestBodySize, constant.DefaultMaxRequestBodySize)),
 		// 流式读取请求体：上传大文件时由 multipart 解析落盘，不再整体缓存在内存中
 		server.WithStreamBody(true),
+		// 客户端断开长连接（通知 SSE、编辑事件流）时立即取消请求 ctx，避免僵尸流长期占用连接名额
+		server.WithSenseClientDisconnection(true),
 	)
 	// 用 logrus.WithContext(ctx) 写的日志自动带上请求 ID
 	logrus.AddHook(ctxutils.RequestIDLogHook{})

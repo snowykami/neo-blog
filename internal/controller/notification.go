@@ -3,11 +3,12 @@ package v1
 import (
 	"context"
 	"encoding/json"
-	"io"
+	"net/http"
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/utils"
+	"github.com/cloudwego/hertz/pkg/protocol/http1/resp"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/service"
@@ -155,12 +156,16 @@ func (nc *NotificationController) SendTestNotification(ctx context.Context, c *a
 	resps.Ok(c, resps.Success, nil)
 }
 
-// notificationStreamMaxLifetime 单条 SSE 连接的最长存活时间：到点主动关闭，前端会自动重连，
-// 避免客户端异常断开时在服务端留下一条永不结束的连接
-const notificationStreamMaxLifetime = 10 * time.Minute
+var (
+	// notificationStreamHeartbeat SSE 心跳间隔：短于反向代理读超时，并在非 netpoll 环境下兜底探测对端关闭
+	notificationStreamHeartbeat = 20 * time.Second
+	// notificationStreamMaxLifetime 单条 SSE 连接的最长存活时间：到点主动关闭，前端会自动重连，
+	// 避免客户端异常断开时在服务端留下一条永不结束的连接
+	notificationStreamMaxLifetime = 10 * time.Minute
+)
 
 // StreamNotifications SSE：有新通知时推一条当前未读数与最近一条通知的标记（latest_id / latest_at）；
-// 客户端断开或到点后由浏览器自动重连
+// 保持在当前请求协程内用 ChunkedBodyWriter 同步写出并配合 WithSenseClientDisconnection，客户端刷新或关闭页面时 ctx 立即取消并释放名额
 func (nc *NotificationController) StreamNotifications(ctx context.Context, c *app.RequestContext) {
 	userID, ok := ctxutils.GetCurrentUserID(ctx)
 	if !ok {
@@ -173,60 +178,62 @@ func (nc *NotificationController) StreamNotifications(ctx context.Context, c *ap
 		resps.Error(c, svcerr)
 		return
 	}
-	reader, writer := io.Pipe()
-	c.Response.Header.SetContentType("text/event-stream; charset=utf-8")
-	c.Response.Header.Set("Cache-Control", "no-cache")
-	c.Response.Header.Set("Connection", "keep-alive")
-	// 反向代理不缓冲，否则推送会被攒成一批
-	c.Response.Header.Set("X-Accel-Buffering", "no")
-	c.Response.SetBodyStream(reader, -1)
+	defer release()
 
 	subscription, unsubscribe := service.NotificationHub.Subscribe(userID)
-	go func() {
-		defer func() {
-			unsubscribe()
-			release()
-			_ = writer.Close()
-		}()
-		writeEvent := func() bool {
-			count, svcerr := nc.service.GetUnreadCount(ctx)
-			if svcerr != nil {
-				return true // 数据库抖动时跳过这一条，连接继续
-			}
-			payload, err := json.Marshal(count)
-			if err != nil {
-				return true
-			}
-			if _, err := writer.Write([]byte("event: unread\ndata: " + string(payload) + "\n\n")); err != nil {
-				return false
-			}
+	defer unsubscribe()
+
+	c.SetStatusCode(http.StatusOK)
+	c.Response.Header.Set("Content-Type", "text/event-stream; charset=utf-8")
+	c.Response.Header.Set("Cache-Control", "no-cache, no-transform")
+	c.Response.Header.Set("X-Accel-Buffering", "no")
+	c.Response.HijackWriter(resp.NewChunkedBodyWriter(&c.Response, c.GetWriter()))
+
+	writeChunk := func(chunk string) bool {
+		if _, err := c.Write([]byte(chunk)); err != nil {
+			return false
+		}
+		return c.Flush() == nil
+	}
+	writeEvent := func() bool {
+		count, svcerr := nc.service.GetUnreadCount(ctx)
+		if svcerr != nil {
+			return true // 数据库抖动时跳过这一条，连接继续
+		}
+		payload, err := json.Marshal(count)
+		if err != nil {
 			return true
 		}
-		// 连上先给一次当前值，前端不必再单独请求
-		if !writeEvent() {
+		return writeChunk("event: unread\ndata: " + string(payload) + "\n\n")
+	}
+
+	// 连上先给一次当前值，前端不必再单独请求
+	if !writeEvent() {
+		return
+	}
+
+	ticker := time.NewTicker(notificationStreamHeartbeat)
+	defer ticker.Stop()
+	expire := time.NewTimer(notificationStreamMaxLifetime)
+	defer expire.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
 			return
-		}
-		ticker := time.NewTicker(25 * time.Second)
-		defer ticker.Stop()
-		deadline := time.After(notificationStreamMaxLifetime)
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-service.NotificationHub.Done():
-				return
-			case <-subscription:
-				if !writeEvent() {
-					return
-				}
-			case <-ticker.C:
-				// 心跳注释行，保持连接不被中间设备掐断
-				if _, err := writer.Write([]byte(": ping\n\n")); err != nil {
-					return
-				}
-			case <-deadline:
+		case <-service.NotificationHub.Done():
+			return
+		case <-subscription:
+			if !writeEvent() {
 				return
 			}
+		case <-ticker.C:
+			// 心跳注释行，保持连接不被中间设备掐断
+			if !writeChunk(": ping\n\n") {
+				return
+			}
+		case <-expire.C:
+			return
 		}
-	}()
+	}
 }

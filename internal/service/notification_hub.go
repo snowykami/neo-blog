@@ -141,12 +141,12 @@ func notifyNotificationUsers(userIDs []uint) {
 	}
 }
 
-// NotificationStreamMaxPerUser 每个用户同时保持的 SSE 连接上限（跨实例合计）：多开几个标签页够用，
-// 又不至于让一个账号占满服务端的长连接
-const NotificationStreamMaxPerUser = 5
+// NotificationStreamMaxPerUser 每个用户同时保持的 SSE 连接上限（跨实例合计）：多开几个标签页与瞬时刷新重连够用，
+// 又不至于让一个账号无限制占满服务端的长连接
+const NotificationStreamMaxPerUser = 12
 
 // notificationStreamSlotTTL 连接名额的租约有效期：连接存活期间自动续期，实例崩溃后最多这么久自动释放
-const notificationStreamSlotTTL = time.Minute
+const notificationStreamSlotTTL = 45 * time.Second
 
 // AcquireStreamSlot 为一条 SSE 连接占一个名额：名额是共享状态里的 N 个租约键，跨实例可见；
 // 连接结束时必须调用返回的释放函数。名额已满时 ok 为 false

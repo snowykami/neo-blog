@@ -15,6 +15,80 @@ let snapshot: UnreadSnapshot | null = null
 const listeners = new Set<() => void>()
 const refreshers = new Set<() => void>()
 
+const BROADCAST_CHANNEL_NAME = 'neo-blog:notification-unread'
+let broadcastChannel: BroadcastChannel | null = null
+
+type UnreadBroadcastMessage
+  = | { type: 'snapshot', snapshot: UnreadSnapshot }
+    | { type: 'clear', userId: number }
+
+/**
+ * 判断新到达的同账号快照是否比当前内存快照更旧（例如慢 HTTP 响应晚于实时 SSE 推送到达）：
+ * - 后端每次通知变更都会递增 notify:seq:{uid}（24h TTL）并写入服务端 updatedAt；
+ * - 若当前已有正整数 seq 且新负载 seq 更小，除非新负载服务端时间明显晚于旧负载（> 60s，跨天 TTL 过期或 Redis 重启），否则视为乱序旧数据丢弃；
+ * - 序号相同时若双方均带 updatedAt 且新负载生成时间严格更早，同样视为旧数据（乐观减数保持相同 updatedAt 不会被拦截）。
+ */
+export function isStaleUnreadPayload(current: NotificationUnreadCount, next: NotificationUnreadCount): boolean {
+  const currentSeq = current.seq ?? 0
+  const nextSeq = next.seq ?? 0
+  const currentUpdatedAt = current.updatedAt ? Date.parse(current.updatedAt) : Number.NaN
+  const nextUpdatedAt = next.updatedAt ? Date.parse(next.updatedAt) : Number.NaN
+  const hasTimestamps = !Number.isNaN(currentUpdatedAt) && !Number.isNaN(nextUpdatedAt)
+
+  if (currentSeq > 0 && typeof next.seq === 'number' && nextSeq !== currentSeq) {
+    if (nextSeq < currentSeq) {
+      if (hasTimestamps && nextUpdatedAt - currentUpdatedAt > 60_000)
+        return false
+      return true
+    }
+    return false
+  }
+
+  if (hasTimestamps && nextUpdatedAt < currentUpdatedAt)
+    return true
+
+  return false
+}
+
+function ensureBroadcastChannel(): BroadcastChannel | null {
+  if (typeof window === 'undefined' || typeof BroadcastChannel === 'undefined')
+    return null
+  if (!broadcastChannel) {
+    try {
+      const channel = new BroadcastChannel(BROADCAST_CHANNEL_NAME)
+      channel.onmessage = (event: MessageEvent<UnreadBroadcastMessage>) => {
+        const message = event.data
+        if (!message || typeof message !== 'object')
+          return
+        if (message.type === 'clear') {
+          if (typeof message.userId === 'number' && snapshot && snapshot.userId === message.userId) {
+            snapshot = null
+            emit()
+          }
+          return
+        }
+        if (message.type !== 'snapshot' || !message.snapshot)
+          return
+        const incoming = message.snapshot
+        if (typeof incoming.userId !== 'number' || !incoming.payload || typeof incoming.payload.total !== 'number')
+          return
+        // 仅同步同一当前账号的快照（或本页尚未建快照时预热），避免后台标签页各自维持长连接也能实时刷新徽标
+        if (snapshot && snapshot.userId !== incoming.userId)
+          return
+        if (snapshot && snapshot.userId === incoming.userId && isStaleUnreadPayload(snapshot.payload, incoming.payload))
+          return
+        snapshot = incoming
+        emit()
+      }
+      broadcastChannel = channel
+    }
+    catch {
+      return null
+    }
+  }
+  return broadcastChannel
+}
+
 function emit() {
   for (const listener of listeners)
     listener()
@@ -24,12 +98,33 @@ export function getUnreadSnapshot(): UnreadSnapshot | null {
   return snapshot
 }
 
-export function setUnreadSnapshot(next: UnreadSnapshot | null) {
+export function setUnreadSnapshot(next: UnreadSnapshot | null): boolean {
+  if (next === null) {
+    if (snapshot !== null) {
+      snapshot = null
+      emit()
+    }
+    return true
+  }
+  if (snapshot && snapshot.userId === next.userId && isStaleUnreadPayload(snapshot.payload, next.payload))
+    return false
   snapshot = next
   emit()
+  ensureBroadcastChannel()?.postMessage({ type: 'snapshot', snapshot: next } satisfies UnreadBroadcastMessage)
+  return true
+}
+
+/** 按账号清空未读快照并同步通知同源其他标签页（登出或切换账号时调用，避免新开标签页水合期误发全局清空广播） */
+export function clearUnreadSnapshot(forUserId: number) {
+  if (snapshot && snapshot.userId === forUserId) {
+    snapshot = null
+    emit()
+  }
+  ensureBroadcastChannel()?.postMessage({ type: 'clear', userId: forUserId } satisfies UnreadBroadcastMessage)
 }
 
 export function subscribeUnreadSnapshot(listener: () => void): () => void {
+  ensureBroadcastChannel()
   listeners.add(listener)
   return () => {
     listeners.delete(listener)

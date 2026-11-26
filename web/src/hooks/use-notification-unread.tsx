@@ -18,6 +18,7 @@ import { mainPath } from '@/utils/common/route'
 import { isInteractionEnabled } from '@/utils/common/siteinfo'
 import { advanceNotificationMarker, isNewerNotificationMarker, toNotificationMarker } from './notification-unread-marker'
 import {
+  clearUnreadSnapshot,
   decreaseUnreadSnapshot,
   getUnreadSnapshot,
   nextSseRetryDelay,
@@ -28,8 +29,10 @@ import {
 } from './notification-unread-store'
 import { getIslandNotificationEnabled } from './use-island-notification-pref'
 
-// 兜底轮询间隔：只在 SSE 断开或连不上（代理不支持长连接、连接数超限）时启用
+// 兜底轮询间隔：只在当前可见标签页 SSE 断开或连不上（代理不支持长连接、连接数超限）时启用
 const POLL_INTERVAL_MS = 60_000
+// 标签页切到后台超过该宽限期后主动释放 SSE 连接与轮询（快速 Cmd+Tab 来回切换不重连；切回可见时立即重连）
+const HIDDEN_SSE_GRACE_MS = 15_000
 
 /** 当前账号的未读状态（见 notification-unread-store.ts）；还没取到或属于别的账号时为 null */
 export function useUnreadNotificationSnapshot(): NotificationUnreadCount | null {
@@ -66,12 +69,13 @@ export function useUnreadNotificationCount() {
   const apply = useCallback((forUser: number, next: NotificationUnreadCount) => {
     if (activeUser.current !== forUser)
       return
-    setUnreadSnapshot({ userId: forUser, payload: next })
+    if (!setUnreadSnapshot({ userId: forUser, payload: next }))
+      return
     const marker = toNotificationMarker(next)
     const isNew = isNewerNotificationMarker(latest.current, marker)
     // 单调推进基线：标已读或取消点赞回退最新项时不回退最大已见水位，同时更新当前未读快照
     latest.current = advanceNotificationMarker(latest.current, marker)
-    if (!isNew)
+    if (!isNew || document.visibilityState !== 'visible')
       return
     // 用户个人关闭了顶栏灵动岛通知提醒时：仅静默更新未读徽标，不弹岛也不弹 toast
     if (!getIslandNotificationEnabled())
@@ -121,6 +125,8 @@ export function useUnreadNotificationCount() {
       return
     try {
       const res = await getUnreadNotificationCount()
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible')
+        return
       apply(forUser, res.data)
     }
     catch {
@@ -128,20 +134,38 @@ export function useUnreadNotificationCount() {
     }
   }, [apply, interactionEnabled])
 
+  // 用 ref 持有最新回调，确保 SSE 长连接严格只随 [userId, interactionEnabled] 建立/销毁，
+  // 页面内切换路由、切换语言或按需补齐文案分包时绝不断线重连耗费连接名额
+  const applyRef = useRef(apply)
+  const refreshRef = useRef(refresh)
   useEffect(() => {
-    // 换账号（登出、或从 A 直接切到 B）时清空基线与快照：新账号第一次拿到的值只当基线，不会被当成「来了新通知」
+    applyRef.current = apply
+    refreshRef.current = refresh
+  }, [apply, refresh])
+
+  useEffect(() => {
+    // 仅在真实登出或从账号 A 切换到账号 B 时按原账号清空快照并广播，避免新标签页水合期（null -> null）误清其他标签页红点
+    const prevUserId = activeUser.current
     activeUser.current = userId
-    latest.current = undefined
-    if (getUnreadSnapshot()?.userId !== userId)
-      setUnreadSnapshot(null)
+    if (prevUserId !== null && prevUserId !== userId)
+      clearUnreadSnapshot(prevUserId)
+    const existing = getUnreadSnapshot()
+    if (userId !== null && existing && existing.userId !== userId)
+      clearUnreadSnapshot(existing.userId)
+    // 同账号跨布局重挂载（如从后台 /console 返回前台）时继承已有快照水位，避免重连首帧误弹旧通知
+    const retained = getUnreadSnapshot()
+    latest.current = userId !== null && retained?.userId === userId
+      ? toNotificationMarker(retained.payload)
+      : undefined
     if (userId === null || !interactionEnabled)
       return
-    void refresh()
-    const unregister = registerUnreadRefresher(() => void refresh())
+    if (document.visibilityState === 'visible')
+      void refreshRef.current()
+    const unregister = registerUnreadRefresher(() => void refreshRef.current())
     let timer: ReturnType<typeof setInterval> | null = null
     const startPolling = () => {
-      if (!timer)
-        timer = setInterval(() => void refresh(), POLL_INTERVAL_MS)
+      if (!timer && document.visibilityState === 'visible')
+        timer = setInterval(() => void refreshRef.current(), POLL_INTERVAL_MS)
     }
     const stopPolling = () => {
       if (timer) {
@@ -149,30 +173,52 @@ export function useUnreadNotificationCount() {
         timer = null
       }
     }
-    const onVisible = () => {
-      if (document.visibilityState === 'visible')
-        void refresh()
-    }
-    document.addEventListener('visibilitychange', onVisible)
 
-    // SSE：连上后由推送更新；断开时浏览器会自动重连，期间用轮询兜底，重新连上就停掉轮询。
-    // 被拒绝（CLOSED）时浏览器不再重连：按退避自己重连，连上后退避清零
+    // SSE：仅在可见标签页维持长连接；切到后台超过宽限期主动关闭释放服务端名额，切回前台立即恢复连接
     let source: EventSource | null = null
     let retryTimer: ReturnType<typeof setTimeout> | null = null
+    let hideTimer: ReturnType<typeof setTimeout> | null = null
     let retryDelay = 0
     let disposed = false
+
+    const clearRetryTimer = () => {
+      if (retryTimer) {
+        clearTimeout(retryTimer)
+        retryTimer = null
+      }
+    }
+    const clearHideTimer = () => {
+      if (hideTimer) {
+        clearTimeout(hideTimer)
+        hideTimer = null
+      }
+    }
+    const closeStream = () => {
+      clearRetryTimer()
+      if (source) {
+        const closing = source
+        source = null
+        closing.onopen = null
+        closing.onerror = null
+        closing.close()
+      }
+    }
+
     const connect = () => {
       retryTimer = null
-      if (disposed)
+      if (disposed || source || typeof EventSource === 'undefined' || document.visibilityState !== 'visible')
         return
       const current = new EventSource('/api/v1/notifications/stream')
       source = current
       current.addEventListener('unread', (event) => {
+        // 后台宽限期内的隐藏标签页不抢先消费推送，交由当前可见标签页更新快照与弹灵动岛提醒（切回可见时由 onVisible 补拉）
+        if (disposed || source !== current || document.visibilityState !== 'visible')
+          return
         try {
           // SSE 不经过 axios 的字段转换：后端是 snake_case（latest_id / latest_at），这里自己转一次
           const data = snakeToCamelObj(JSON.parse((event as MessageEvent<string>).data)) as Partial<NotificationUnreadCount>
           if (typeof data.total === 'number') {
-            apply(userId, {
+            applyRef.current(userId, {
               total: data.total,
               byType: data.byType ?? {},
               latestId: data.latestId ?? 0,
@@ -188,34 +234,79 @@ export function useUnreadNotificationCount() {
         }
       })
       current.onopen = () => {
+        if (disposed || source !== current)
+          return
         retryDelay = 0
         stopPolling()
       }
       current.onerror = () => {
+        if (disposed || source !== current)
+          return
+        if (document.visibilityState !== 'visible') {
+          closeStream()
+          stopPolling()
+          return
+        }
         // 断线（CONNECTING：浏览器在重连）或被拒绝（CLOSED）都先轮询兜底
         startPolling()
-        if (current.readyState !== EventSource.CLOSED || disposed || retryTimer)
+        if (current.readyState !== EventSource.CLOSED || retryTimer)
           return
-        current.close()
+        closeStream()
         retryDelay = nextSseRetryDelay(retryDelay)
         retryTimer = setTimeout(connect, retryDelay)
       }
     }
-    if (typeof EventSource !== 'undefined')
-      connect()
-    else
-      startPolling()
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        clearHideTimer()
+        if (!source) {
+          retryDelay = 0
+          if (typeof EventSource !== 'undefined')
+            connect()
+          else
+            startPolling()
+        }
+        void refreshRef.current()
+      }
+      else {
+        stopPolling()
+        clearRetryTimer()
+        if (source && !hideTimer) {
+          hideTimer = setTimeout(() => {
+            hideTimer = null
+            if (document.visibilityState !== 'visible')
+              closeStream()
+          }, HIDDEN_SSE_GRACE_MS)
+        }
+      }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+
+    if (document.visibilityState === 'visible') {
+      if (typeof EventSource !== 'undefined')
+        connect()
+      else
+        startPolling()
+    }
 
     return () => {
       disposed = true
+      clearHideTimer()
       stopPolling()
       unregister()
-      if (retryTimer)
-        clearTimeout(retryTimer)
       document.removeEventListener('visibilitychange', onVisible)
-      source?.close()
+      closeStream()
     }
-  }, [apply, interactionEnabled, refresh, userId])
+  }, [interactionEnabled, userId])
+
+  // 其他标签页通过 BroadcastChannel 同步来更新快照时，静默推进本页已见水位，避免切回本标签页重连 SSE 时重复弹旧通知提醒
+  // （必须排在主 useEffect 之后，防止重挂载时先推进水位又被主 useEffect 重置）
+  useEffect(() => {
+    if (!payload || userId === null)
+      return
+    latest.current = advanceNotificationMarker(latest.current, toNotificationMarker(payload))
+  }, [payload, userId])
 
   return { count: userId === null || !interactionEnabled ? 0 : (payload?.total ?? 0), refresh }
 }

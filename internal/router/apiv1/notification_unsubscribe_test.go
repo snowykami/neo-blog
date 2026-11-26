@@ -1,6 +1,8 @@
 package apiv1
 
 import (
+	"bufio"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/url"
@@ -14,6 +16,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/service"
 	"github.com/snowykami/neo-blog/pkg/constant"
+	"github.com/snowykami/neo-blog/pkg/sharedstate"
 )
 
 // 邮件头 List-Unsubscribe 的一键退订：邮箱客户端带着查询参数里的凭据 POST，关掉全部通知邮件；
@@ -73,5 +76,56 @@ func TestNotificationOneClickUnsubscribe(t *testing.T) {
 	}
 	if len(envelope.Data.Email) != 0 {
 		t.Fatalf("email types after unsubscribe = %v, want none", envelope.Data.Email)
+	}
+}
+
+// 模拟连续刷新页面 / 重跑 Lighthouse：客户端关闭 SSE 连接后服务端应立即感知断连并释放名额，
+// 连续打开并关闭 2 倍于单用户上限（24 次）的流不应耗尽名额触发 429
+func TestNotificationStreamRapidReconnectReleasesSlot(t *testing.T) {
+	sharedstate.UseMemory()
+	t.Setenv(constant.EnvKeyDBDriver, "sqlite")
+	t.Setenv(constant.EnvKeyDBURL, "")
+	t.Setenv(constant.EnvKeyDBPath, filepath.Join(t.TempDir(), "test.db"))
+	if err := repo.InitDatabase(); err != nil {
+		t.Fatalf("init database: %v", err)
+	}
+	user := &model.User{Username: "streamer", Email: "streamer@test.local", Role: constant.RoleUser}
+	if err := repo.GetDB().Create(user).Error; err != nil {
+		t.Fatal(err)
+	}
+	base := startRoutes(t, registerNotificationRoutes)
+	cookie := loginCookie(t, user)
+	// 使用独立 Transport 确保每次请求关闭时真实断开 TCP 连接
+	client := &http.Client{
+		Transport: &http.Transport{DisableKeepAlives: true},
+		Timeout:   3 * time.Second,
+	}
+
+	totalRuns := service.NotificationStreamMaxPerUser * 2
+	for i := 0; i < totalRuns; i++ {
+		reqCtx, cancel := context.WithCancel(context.Background())
+		req, _ := http.NewRequestWithContext(reqCtx, http.MethodGet, base+"/notifications/stream", nil)
+		req.Header.Set("Cookie", cookie)
+		resp, err := client.Do(req)
+		if err != nil {
+			cancel()
+			t.Fatalf("iter %d: request failed: %v", i, err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			_ = resp.Body.Close()
+			cancel()
+			t.Fatalf("iter %d: status = %d, want 200", i, resp.StatusCode)
+		}
+		reader := bufio.NewReader(resp.Body)
+		line, err := reader.ReadString('\n')
+		if err != nil || !strings.HasPrefix(line, "event: unread") {
+			_ = resp.Body.Close()
+			cancel()
+			t.Fatalf("iter %d: unexpected first line %q, err=%v", i, line, err)
+		}
+		_ = resp.Body.Close()
+		cancel()
+		// 给内核与 netpoll 极短事件循环调度窗口完成 EOF 回调与 defer release()
+		time.Sleep(10 * time.Millisecond)
 	}
 }
