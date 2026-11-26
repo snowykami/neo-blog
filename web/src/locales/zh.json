@@ -3567,7 +3567,16 @@
       "drag_handle_label": "拖拽调整顺序",
       "rss_bound": "RSS 已绑定",
       "rss_empty": "无 RSS",
-      "tab_settings": "反链设置",
+      "tab_settings": "设置",
+      "probe_policy_title": "拨测与连接策略",
+      "probe_policy_desc": "控制友链申请、连通性拨测、反向友链检测、RSS 自动发现及外链头像抓取的重定向与端口策略。",
+      "settings_allow_redirects": "允许跟随重定向",
+      "settings_allow_redirects_desc": "开启后，拨测与自动识别会按跳数上限跟随 301/302/307/308 跳转（每跳均执行防 SSRF 校验）。",
+      "settings_max_redirects": "最大重定向次数",
+      "settings_max_redirects_hint": "可配置范围 1–10 次（默认 5 次），超出上限将停止跟随并判为不可达。",
+      "settings_max_redirects_invalid": "请输入 1 到 10 之间的整数",
+      "settings_allow_non_standard_ports": "允许非标准端口",
+      "settings_allow_non_standard_ports_desc": "允许友链站点、回链页、RSS 与头像使用 80/443 以外的合法端口（如 :8443、:8080、:2096），仍拦截内网地址与高危非 HTTP 服务端口。",
       "backlink_alias_title": "反链别名域名",
       "backlink_alias_desc": "除主站域名外，对方友链页面指向以下任一域名（或其子域名）时也视为反链校验通过；保存后可点击右上角「立即全量拨测」或单条拨测立即生效。",
       "backlink_alias_label": "允许识别的反链别名域名",
@@ -3576,9 +3585,9 @@
       "backlink_primary_host_label": "当前主站域名",
       "backlink_primary_host_unset": "未配置站点地址",
       "backlink_alias_active_label": "已生效别名",
-      "backlink_alias_load_failed": "加载反链别名域名配置失败，请重试后编辑",
+      "backlink_alias_load_failed": "加载友链设置失败，请重试后编辑",
       "backlink_alias_retry": "重新加载",
-      "backlink_alias_saved": "反链别名域名设置已保存"
+      "backlink_alias_saved": "友链设置已保存"
     }
   },
   "NotificationDelivery": {
@@ -4247,6 +4256,7 @@
       "invalid_friend_backlink": "回链页面地址无效，请填写合法的 http(s) 链接",
       "invalid_friend_rss": "RSS 订阅地址无效，请填写合法的 http(s) 链接",
       "invalid_friend_backlink_alias": "反链别名域名格式无效，请填写合法的公网域名（不支持通配符 * 或内网地址）",
+      "invalid_friend_max_redirects": "最大重定向次数无效，请填写 1 到 10 之间的整数",
       "friend_autofill_quota_exceeded": "今日 AI 自动填写次数已用完，请直接手动填写或明天再试",
       "friend_group_not_found": "所选友链分组不存在",
       "friend_quota_exceeded": "你提交的友链数量已达上限（最多 5 条），删除已有记录后可释放名额",

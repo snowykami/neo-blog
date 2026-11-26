@@ -149,6 +149,9 @@ interface RejectFormValues {
 }
 
 interface AdminSettingsFormValues {
+  allowRedirects: boolean
+  maxRedirects: string
+  allowNonStandardPorts: boolean
   aliasHostsText: string
 }
 
@@ -194,8 +197,13 @@ export function FriendManage() {
   const [activeSortGroupId, setActiveSortGroupId] = useState<number | null>(null)
   const [reorderingLinks, setReorderingLinks] = useState(false)
 
-  // 友链反链别名域名配置状态
+  // 友链全局设置（重定向、非标端口与反链别名域名）状态
   const [aliasHosts, setAliasHosts] = useState<string[]>([])
+  const [savedProbePolicy, setSavedProbePolicy] = useState({
+    allowRedirects: true,
+    maxRedirects: 5,
+    allowNonStandardPorts: true,
+  })
   const [settingsLoading, setSettingsLoading] = useState(true)
   const [settingsLoaded, setSettingsLoaded] = useState(false)
   const [settingsLoadError, setSettingsLoadError] = useState(false)
@@ -464,8 +472,14 @@ export function FriendManage() {
   })
 
   const settingsForm = useForm<AdminSettingsFormValues>({
-    defaultValues: { aliasHostsText: '' },
+    defaultValues: {
+      allowRedirects: true,
+      maxRedirects: '5',
+      allowNonStandardPorts: true,
+      aliasHostsText: '',
+    },
   })
+  const watchedAllowRedirects = settingsForm.watch('allowRedirects')
   const isSettingsDirty = settingsForm.formState.isDirty
   const isSettingsDirtyRef = useRef(false)
   isSettingsDirtyRef.current = isSettingsDirty
@@ -484,11 +498,25 @@ export function FriendManage() {
       if (seq !== settingsReqSeqRef.current)
         return
       const nextAliases = res.data.backlinkAliasHosts || []
+      const nextAllowRedirects = res.data.allowRedirects ?? true
+      const nextMaxRedirects = res.data.maxRedirects >= 1 && res.data.maxRedirects <= 10 ? res.data.maxRedirects : 5
+      const nextAllowNonStandardPorts = res.data.allowNonStandardPorts ?? true
       setAliasHosts(nextAliases)
+      setSavedProbePolicy({
+        allowRedirects: nextAllowRedirects,
+        maxRedirects: nextMaxRedirects,
+        allowNonStandardPorts: nextAllowNonStandardPorts,
+      })
       setSettingsLoaded(true)
       setSettingsLoadError(false)
-      if (!isSettingsDirtyRef.current)
-        settingsForm.reset({ aliasHostsText: nextAliases.join('\n') })
+      if (!isSettingsDirtyRef.current) {
+        settingsForm.reset({
+          allowRedirects: nextAllowRedirects,
+          maxRedirects: String(nextMaxRedirects),
+          allowNonStandardPorts: nextAllowNonStandardPorts,
+          aliasHostsText: nextAliases.join('\n'),
+        })
+      }
     }
     catch (err) {
       if (seq === settingsReqSeqRef.current) {
@@ -512,22 +540,62 @@ export function FriendManage() {
   const onSubmitSettings = async (values: AdminSettingsFormValues) => {
     if (savingSettings || !settingsLoaded)
       return
+    const rawMax = values.maxRedirects.trim()
+    let parsedMax = savedProbePolicy.maxRedirects
+    if (values.allowRedirects) {
+      if (!/^\d+$/.test(rawMax)) {
+        settingsForm.setError('maxRedirects', { message: t('settings_max_redirects_invalid') })
+        return
+      }
+      const num = Number.parseInt(rawMax, 10)
+      if (!Number.isInteger(num) || num < 1 || num > 10) {
+        settingsForm.setError('maxRedirects', { message: t('settings_max_redirects_invalid') })
+        return
+      }
+      parsedMax = num
+    }
+    else if (/^\d+$/.test(rawMax)) {
+      const num = Number.parseInt(rawMax, 10)
+      if (Number.isInteger(num) && num >= 1 && num <= 10)
+        parsedMax = num
+    }
     setSavingSettings(true)
     settingsReqSeqRef.current += 1
     settingsInFlightRef.current = false
     setSettingsLoading(false)
     try {
       const payloadHosts = splitFriendBacklinkAliasesInput(values.aliasHostsText)
-      const res = await adminUpdateFriendSettings({ backlinkAliasHosts: payloadHosts })
+      const res = await adminUpdateFriendSettings({
+        backlinkAliasHosts: payloadHosts,
+        allowRedirects: values.allowRedirects,
+        maxRedirects: parsedMax,
+        allowNonStandardPorts: values.allowNonStandardPorts,
+      })
       settingsReqSeqRef.current += 1
       const savedAliases = res.data.backlinkAliasHosts || []
+      const nextAllowRedirects = res.data.allowRedirects ?? values.allowRedirects
+      const nextMaxRedirects = res.data.maxRedirects >= 1 && res.data.maxRedirects <= 10 ? res.data.maxRedirects : parsedMax
+      const nextAllowNonStandardPorts = res.data.allowNonStandardPorts ?? values.allowNonStandardPorts
       const aliasesChanged = savedAliases.length !== aliasHosts.length
         || savedAliases.some((item, idx) => item !== aliasHosts[idx])
+      const policyChanged = nextAllowRedirects !== savedProbePolicy.allowRedirects
+        || nextMaxRedirects !== savedProbePolicy.maxRedirects
+        || nextAllowNonStandardPorts !== savedProbePolicy.allowNonStandardPorts
       setAliasHosts(savedAliases)
+      setSavedProbePolicy({
+        allowRedirects: nextAllowRedirects,
+        maxRedirects: nextMaxRedirects,
+        allowNonStandardPorts: nextAllowNonStandardPorts,
+      })
       setSettingsLoaded(true)
       setSettingsLoadError(false)
-      settingsForm.reset({ aliasHostsText: savedAliases.join('\n') })
-      if (aliasesChanged)
+      settingsForm.reset({
+        allowRedirects: nextAllowRedirects,
+        maxRedirects: String(nextMaxRedirects),
+        allowNonStandardPorts: nextAllowNonStandardPorts,
+        aliasHostsText: savedAliases.join('\n'),
+      })
+      if (aliasesChanged || policyChanged)
         setProbeSyncTrigger(n => n + 1)
       toast.success(t('backlink_alias_saved'))
     }
@@ -1071,9 +1139,6 @@ export function FriendManage() {
           </TabsTrigger>
           <TabsTrigger value="settings" className="flex-none px-3">
             <span>{t('tab_settings')}</span>
-            {aliasHosts.length > 0 && (
-              <span className="text-xs text-muted-foreground tabular-nums">{aliasHosts.length}</span>
-            )}
           </TabsTrigger>
         </TabsList>
 
@@ -1796,77 +1861,173 @@ export function FriendManage() {
                 />
               )}
         </TabsContent>
-        {/* Tab 4: 友链反链别名域名设置 */}
+        {/* Tab 4: 友链全局设置（拨测与连接策略 + 反链别名域名） */}
         <TabsContent value="settings" className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
-          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 overflow-x-clip rounded-xl border bg-card p-3.5 shadow-[0_1px_1px_-0.5px_rgba(0,0,0,0.035),0_3px_8px_-2px_rgba(0,0,0,0.035)] sm:p-5 dark:shadow-none">
-            <div className="grid min-w-0 gap-1">
-              <h3 className="text-sm font-semibold">{t('backlink_alias_title')}</h3>
-              <p className="text-xs leading-relaxed wrap-anywhere text-muted-foreground">{t('backlink_alias_desc')}</p>
-            </div>
-
-            <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border bg-muted/25 px-3 py-2.5 text-xs">
-              <div className="inline-flex min-w-0 flex-wrap items-center gap-1.5">
-                <span className="shrink-0 text-muted-foreground">
-                  {t('backlink_primary_host_label')}
-                  :
-                </span>
-                {primarySiteHost
-                  ? (
-                      <Badge variant="outline" className="max-w-full min-w-0 shrink font-mono text-xs">
-                        <span className="truncate">{primarySiteHost}</span>
-                      </Badge>
-                    )
-                  : (
-                      <span className="text-muted-foreground">{t('backlink_primary_host_unset')}</span>
-                    )}
-              </div>
-
-              {aliasHosts.length > 0 && (
-                <div className="inline-flex min-w-0 flex-wrap items-center gap-1.5">
-                  <span className="shrink-0 text-muted-foreground">
-                    {t('backlink_alias_active_label')}
-                    :
-                  </span>
-                  {aliasHosts.map(host => (
-                    <Badge key={host} variant="secondary" className="max-w-full min-w-0 shrink font-mono text-xs">
-                      <span className="truncate">{host}</span>
-                    </Badge>
-                  ))}
+          {!settingsLoaded && settingsLoading
+            ? (
+                <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 rounded-xl border bg-card p-3.5 sm:p-5">
+                  <Skeleton className="h-5 w-44 rounded" />
+                  <Skeleton className="h-24 w-full rounded-lg" />
+                  <Skeleton className="h-28 w-full rounded-lg" />
                 </div>
-              )}
-            </div>
+              )
+            : !settingsLoaded && settingsLoadError
+                ? (
+                    <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-card py-10 text-center">
+                      <p className="px-4 text-xs leading-relaxed wrap-anywhere text-muted-foreground">
+                        {t('backlink_alias_load_failed')}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={settingsLoading}
+                        onClick={() => void fetchSettings()}
+                      >
+                        <RefreshCwIcon className={cn('size-3.5', settingsLoading && 'animate-spin')} />
+                        {t('backlink_alias_retry')}
+                      </Button>
+                    </div>
+                  )
+                : (
+                    <Form {...settingsForm}>
+                      <form
+                        noValidate
+                        className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4"
+                        onSubmit={settingsForm.handleSubmit(onSubmitSettings)}
+                      >
+                        {/* 卡片 1：拨测与连接策略 */}
+                        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3.5 overflow-x-clip rounded-xl border bg-card p-3.5 shadow-[0_1px_1px_-0.5px_rgba(0,0,0,0.035),0_3px_8px_-2px_rgba(0,0,0,0.035)] sm:p-5 dark:shadow-none">
+                          <div className="grid min-w-0 gap-1">
+                            <h3 className="text-sm font-semibold">{t('probe_policy_title')}</h3>
+                            <p className="text-xs leading-relaxed wrap-anywhere text-muted-foreground">{t('probe_policy_desc')}</p>
+                          </div>
 
-            {!settingsLoaded && settingsLoading
-              ? (
-                  <div className="grid gap-2">
-                    <Skeleton className="h-4 w-40 rounded" />
-                    <Skeleton className="h-24 w-full rounded-lg" />
-                  </div>
-                )
-              : !settingsLoaded && settingsLoadError
-                  ? (
-                      <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed py-8 text-center">
-                        <p className="px-4 text-xs leading-relaxed wrap-anywhere text-muted-foreground">
-                          {t('backlink_alias_load_failed')}
-                        </p>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={settingsLoading}
-                          onClick={() => void fetchSettings()}
-                        >
-                          <RefreshCwIcon className={cn('size-3.5', settingsLoading && 'animate-spin')} />
-                          {t('backlink_alias_retry')}
-                        </Button>
-                      </div>
-                    )
-                  : (
-                      <Form {...settingsForm}>
-                        <form
-                          className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4"
-                          onSubmit={settingsForm.handleSubmit(onSubmitSettings)}
-                        >
+                          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 rounded-lg border p-3.5">
+                            <FormField
+                              control={settingsForm.control}
+                              name="allowRedirects"
+                              render={({ field }) => (
+                                <FormItem className="flex items-start justify-between gap-3">
+                                  <div className="grid min-w-0 gap-1">
+                                    <FormLabel className="leading-snug">{t('settings_allow_redirects')}</FormLabel>
+                                    <FormDescription className="text-xs leading-relaxed wrap-anywhere">
+                                      {t('settings_allow_redirects_desc')}
+                                    </FormDescription>
+                                  </div>
+                                  <FormControl>
+                                    <Switch
+                                      checked={field.value}
+                                      onCheckedChange={(checked) => {
+                                        if (!checked)
+                                          settingsForm.clearErrors('maxRedirects')
+                                        field.onChange(checked)
+                                      }}
+                                      className="mt-0.5 shrink-0"
+                                    />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+
+                            <FormField
+                              control={settingsForm.control}
+                              name="maxRedirects"
+                              render={({ field }) => (
+                                <FormItem
+                                  className={cn(
+                                    'grid min-w-0 gap-2 border-t pt-3 transition-opacity',
+                                    !watchedAllowRedirects && 'opacity-60',
+                                  )}
+                                >
+                                  <div className="flex flex-wrap items-center justify-between gap-3">
+                                    <div className="grid min-w-0 flex-1 basis-44 gap-0.5">
+                                      <FormLabel className="leading-snug">{t('settings_max_redirects')}</FormLabel>
+                                      <FormDescription className="text-xs leading-relaxed wrap-anywhere">
+                                        {t('settings_max_redirects_hint')}
+                                      </FormDescription>
+                                    </div>
+                                    <FormControl>
+                                      <Input
+                                        {...field}
+                                        type="number"
+                                        inputMode="numeric"
+                                        min={1}
+                                        max={10}
+                                        step={1}
+                                        disabled={!watchedAllowRedirects}
+                                        onChange={(e) => {
+                                          settingsForm.clearErrors('maxRedirects')
+                                          field.onChange(e.target.value)
+                                        }}
+                                        className="w-24 shrink-0 tabular-nums"
+                                      />
+                                    </FormControl>
+                                  </div>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+
+                          <FormField
+                            control={settingsForm.control}
+                            name="allowNonStandardPorts"
+                            render={({ field }) => (
+                              <FormItem className="flex items-start justify-between gap-3 rounded-lg border p-3.5">
+                                <div className="grid min-w-0 gap-1">
+                                  <FormLabel className="leading-snug">{t('settings_allow_non_standard_ports')}</FormLabel>
+                                  <FormDescription className="text-xs leading-relaxed wrap-anywhere">
+                                    {t('settings_allow_non_standard_ports_desc')}
+                                  </FormDescription>
+                                </div>
+                                <FormControl>
+                                  <Switch checked={field.value} onCheckedChange={field.onChange} className="mt-0.5 shrink-0" />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+
+                        {/* 卡片 2：反链别名域名 */}
+                        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 overflow-x-clip rounded-xl border bg-card p-3.5 shadow-[0_1px_1px_-0.5px_rgba(0,0,0,0.035),0_3px_8px_-2px_rgba(0,0,0,0.035)] sm:p-5 dark:shadow-none">
+                          <div className="grid min-w-0 gap-1">
+                            <h3 className="text-sm font-semibold">{t('backlink_alias_title')}</h3>
+                            <p className="text-xs leading-relaxed wrap-anywhere text-muted-foreground">{t('backlink_alias_desc')}</p>
+                          </div>
+
+                          <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border bg-muted/25 px-3 py-2.5 text-xs">
+                            <div className="inline-flex min-w-0 flex-wrap items-center gap-1.5">
+                              <span className="shrink-0 text-muted-foreground">
+                                {t('backlink_primary_host_label')}
+                                :
+                              </span>
+                              {primarySiteHost
+                                ? (
+                                    <Badge variant="outline" className="max-w-full min-w-0 shrink font-mono text-xs">
+                                      <span className="truncate">{primarySiteHost}</span>
+                                    </Badge>
+                                  )
+                                : (
+                                    <span className="text-muted-foreground">{t('backlink_primary_host_unset')}</span>
+                                  )}
+                            </div>
+
+                            {aliasHosts.length > 0 && (
+                              <div className="inline-flex min-w-0 flex-wrap items-center gap-1.5">
+                                <span className="shrink-0 text-muted-foreground">
+                                  {t('backlink_alias_active_label')}
+                                  :
+                                </span>
+                                {aliasHosts.map(host => (
+                                  <Badge key={host} variant="secondary" className="max-w-full min-w-0 shrink font-mono text-xs">
+                                    <span className="truncate">{host}</span>
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
                           <FormField
                             control={settingsForm.control}
                             name="aliasHostsText"
@@ -1891,17 +2052,17 @@ export function FriendManage() {
                               </FormItem>
                             )}
                           />
+                        </div>
 
-                          <div className="flex flex-wrap items-center justify-end gap-3">
-                            <Button type="submit" size="sm" disabled={savingSettings || settingsLoading || !settingsLoaded}>
-                              {savingSettings && <Loader2Icon className="size-4 animate-spin" />}
-                              {operationT('save')}
-                            </Button>
-                          </div>
-                        </form>
-                      </Form>
-                    )}
-          </div>
+                        <div className="flex flex-wrap items-center justify-end gap-3">
+                          <Button type="submit" size="sm" disabled={savingSettings || settingsLoading || !settingsLoaded}>
+                            {savingSettings && <Loader2Icon className="size-4 animate-spin" />}
+                            {operationT('save')}
+                          </Button>
+                        </div>
+                      </form>
+                    </Form>
+                  )}
         </TabsContent>
       </Tabs>
 

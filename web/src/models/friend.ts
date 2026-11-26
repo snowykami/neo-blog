@@ -283,10 +283,16 @@ export interface AdminReviewFriendLinkPayload {
 
 export interface FriendAdminSettings {
   backlinkAliasHosts: string[]
+  allowRedirects: boolean
+  maxRedirects: number
+  allowNonStandardPorts: boolean
 }
 
 export interface AdminUpdateFriendSettingsPayload {
   backlinkAliasHosts: string[]
+  allowRedirects: boolean
+  maxRedirects: number
+  allowNonStandardPorts: boolean
 }
 
 function leadingAliasSchemeEnd(value: string): number {

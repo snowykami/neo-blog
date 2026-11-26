@@ -37,6 +37,8 @@ describe('shouldOptimize', () => {
     ['/logo.svg', false],
     ['//cdn.other.com/a.png', false],
     ['https://img.example.com/a.png', true],
+    ['https://img.example.com:443/a.png', true],
+    ['https://img.example.com:8443/a.png', false],
     ['https://cdn.example.com/a.png', true],
     ['https://img.example.com/logo.SVG?v=1', false],
     ['https://img.example.com/favicon.ico#v2', false],

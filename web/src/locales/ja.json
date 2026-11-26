@@ -3567,7 +3567,16 @@
       "drag_handle_label": "ドラッグして並び替え",
       "rss_bound": "RSS 連携済",
       "rss_empty": "RSS なし",
-      "tab_settings": "相互リンク設定",
+      "tab_settings": "設定",
+      "probe_policy_title": "疎通確認・接続ポリシー",
+      "probe_policy_desc": "リンク申請・疎通確認・相互リンク検査・RSS 自動検出・外部アイコン取得時のリダイレクトおよびポート規則を設定します。",
+      "settings_allow_redirects": "HTTP リダイレクトを許可",
+      "settings_allow_redirects_desc": "有効にすると、疎通確認や自動入力で 301/302/307/308 リダイレクトを上限回数まで追跡します（各ホップで SSRF 検証を実施）。",
+      "settings_max_redirects": "最大リダイレクト回数",
+      "settings_max_redirects_hint": "1〜10 回の範囲で指定できます（既定値: 5 回）。上限を超えると追跡を停止します。",
+      "settings_max_redirects_invalid": "1 から 10 までの整数を入力してください",
+      "settings_allow_non_standard_ports": "非標準ポートを許可",
+      "settings_allow_non_standard_ports_desc": "80/443 以外の有効なポート（例: :8443、:8080、:2096）でのサイト・相互リンク・RSS・アイコン URL を許可します（内部 IP や危険な非 HTTP ポートは引き続き遮断）。",
       "backlink_alias_title": "相互リンク別名ドメイン",
       "backlink_alias_desc": "メインドメインに加え、相手サイトに以下のドメイン（またはサブドメイン）へのリンクがある場合も相互リンク確認済みと判定します。保存後、「一括チェック」または個別チェックで即時反映できます。",
       "backlink_alias_label": "許可する別名ドメイン",
@@ -3576,9 +3585,9 @@
       "backlink_primary_host_label": "現在のメインドメイン",
       "backlink_primary_host_unset": "サイト URL 未設定",
       "backlink_alias_active_label": "有効な別名",
-      "backlink_alias_load_failed": "別名ドメイン設定の読み込みに失敗しました。再読み込みしてから編集してください。",
+      "backlink_alias_load_failed": "リンク設定の読み込みに失敗しました。再読み込みしてから編集してください。",
       "backlink_alias_retry": "再読み込み",
-      "backlink_alias_saved": "相互リンク別名ドメインを保存しました"
+      "backlink_alias_saved": "リンク設定を保存しました"
     }
   },
   "NotificationDelivery": {
@@ -4293,6 +4302,7 @@
       "invalid_friend_backlink": "相互リンク先ページ URL が無効です。有効な http(s) リンクを入力してください",
       "invalid_friend_rss": "RSS フィード URL が無効です。有効な http(s) リンクを入力してください",
       "invalid_friend_backlink_alias": "別名ドメインの形式が無効です。有効な公開ドメイン名を入力してください（ワイルドカード * や内部アドレスは使用できません）",
+      "invalid_friend_max_redirects": "最大リダイレクト回数が無効です。1 から 10 までの整数を入力してください",
       "friend_autofill_quota_exceeded": "本日の AI 自動入力上限に達しました。手動で入力するか明日お試しください",
       "friend_group_not_found": "選択されたグループが存在しません",
       "friend_quota_exceeded": "登録可能なリンク数の上限（最大 5 件）に達しました。既存の項目を削除すると枠が戻ります",

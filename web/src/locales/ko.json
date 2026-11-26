@@ -3567,7 +3567,16 @@
       "drag_handle_label": "드래그하여 순서 변경",
       "rss_bound": "RSS 연동됨",
       "rss_empty": "RSS 없음",
-      "tab_settings": "맞링크 설정",
+      "tab_settings": "설정",
+      "probe_policy_title": "점검 및 연결 정책",
+      "probe_policy_desc": "친구 링크 신청, 연결 점검, 맞링크 검사, RSS 자동 탐색 및 외부 아이콘 수집에 적용할 리다이렉트와 포트 규칙을 설정합니다.",
+      "settings_allow_redirects": "HTTP 리다이렉트 허용",
+      "settings_allow_redirects_desc": "활성화하면 점검 및 자동 입력 시 최대 횟수 내에서 301/302/307/308 리다이렉트를 따라갑니다(매 단계 SSRF 검증 수행).",
+      "settings_max_redirects": "최대 리다이렉트 횟수",
+      "settings_max_redirects_hint": "1~10회 범위에서 설정할 수 있으며(기본값: 5회), 한도를 초과하면 추적을 중단합니다.",
+      "settings_max_redirects_invalid": "1에서 10 사이의 정수를 입력해 주세요",
+      "settings_allow_non_standard_ports": "비표준 포트 허용",
+      "settings_allow_non_standard_ports_desc": "80/443 외의 유효한 포트(예: :8443, :8080, :2096)를 사용하는 사이트·맞링크·RSS·아이콘 주소를 허용합니다(내부 IP 및 위험한 비 HTTP 포트는 계속 차단).",
       "backlink_alias_title": "맞링크 별칭 도메인",
       "backlink_alias_desc": "기본 사이트 도메인 외에도 상대방 페이지에 아래 도메인(또는 하위 도메인) 링크가 있으면 맞링크 확인 통과로 인정합니다. 저장 후 '전체 점검' 또는 개별 점검을 실행하면 즉시 반영됩니다.",
       "backlink_alias_label": "허용할 별칭 도메인",
@@ -3576,9 +3585,9 @@
       "backlink_primary_host_label": "현재 기본 도메인",
       "backlink_primary_host_unset": "사이트 URL 미설정",
       "backlink_alias_active_label": "적용 중인 별칭",
-      "backlink_alias_load_failed": "맞링크 별칭 도메인 설정을 불러오지 못했습니다. 다시 시도한 후 편집해 주세요.",
+      "backlink_alias_load_failed": "친구 링크 설정을 불러오지 못했습니다. 다시 시도한 후 편집해 주세요.",
       "backlink_alias_retry": "다시 불러오기",
-      "backlink_alias_saved": "맞링크 별칭 도메인 설정이 저장되었습니다"
+      "backlink_alias_saved": "친구 링크 설정이 저장되었습니다"
     }
   },
   "NotificationDelivery": {
@@ -4293,6 +4302,7 @@
       "invalid_friend_backlink": "유효하지 않은 맞링크 페이지 주소입니다. 올바른 http(s) 링크를 입력해 주세요",
       "invalid_friend_rss": "유효하지 않은 RSS 피드 주소입니다. 올바른 http(s) 링크를 입력해 주세요",
       "invalid_friend_backlink_alias": "맞링크 별칭 도메인 형식이 올바르지 않습니다. 유효한 공개 도메인 이름을 입력해 주세요(와일드카드 * 및 내부 주소 불가)",
+      "invalid_friend_max_redirects": "최대 리다이렉트 횟수가 유효하지 않습니다. 1에서 10 사이의 정수를 입력해 주세요",
       "friend_autofill_quota_exceeded": "오늘의 AI 자동 입력 횟수를 모두 사용했습니다. 직접 입력하거나 내일 다시 시도해 주세요",
       "friend_group_not_found": "선택한 친구 링크 그룹을 찾을 수 없습니다",
       "friend_quota_exceeded": "등록 가능한 친구 링크 한도(최대 5개)에 도달했습니다. 기존 항목을 삭제하면 한도가 복구됩니다",

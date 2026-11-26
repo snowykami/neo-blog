@@ -87,7 +87,7 @@ export function shouldOptimize(src: ImageProps['src'] | null | undefined, hosts?
   try {
     const url = new URL(src)
     const allowlist = hosts ?? getImageOptimizeHosts()
-    return url.protocol === 'https:' && allowlist.includes(url.hostname.toLowerCase())
+    return url.protocol === 'https:' && url.port === '' && allowlist.includes(url.hostname.toLowerCase())
   }
   catch {
     return false
