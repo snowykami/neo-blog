@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
 	"slices"
 	"strings"
 	"time"
@@ -280,4 +282,22 @@ func (s *MiscService) GetRssData(ctx context.Context) (*dto.RssDataDto, *errs.Se
 		PubDate:          pubDate,
 		Posts:            items,
 	}, nil
+}
+
+// VerifyIndexNowKey 校验前端 /<key>.txt 转发的 IndexNow 密钥：
+// 先以零分配校验入参格式，快速拦截非法探测请求（避免触发 site_info 深拷贝），再用定长 SHA-256 摘要做常量时间比对防止泄露密钥长度
+func (s *MiscService) VerifyIndexNowKey(rawKey string) (string, bool) {
+	if !config.IsStrictIndexNowKey(rawKey) {
+		return "", false
+	}
+	cfg := tools.GetIndexNowConfig()
+	if !cfg.Enabled() {
+		return "", false
+	}
+	gotHash := sha256.Sum256([]byte(rawKey))
+	wantHash := sha256.Sum256([]byte(cfg.Key))
+	if subtle.ConstantTimeCompare(gotHash[:], wantHash[:]) != 1 {
+		return "", false
+	}
+	return cfg.Key, true
 }

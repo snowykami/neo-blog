@@ -101,6 +101,7 @@ func (p *PageService) CreatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 	}
 	if !page.IsPrivate {
 		SyncSearchPage(page.ID, false)
+		NotifyIndexNowPage(page)
 	}
 	return page.ID, nil
 }
@@ -204,6 +205,8 @@ func (p *PageService) UpdatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 			return nil, svcerr
 		}
 	}
+	wasPublicPage := !page.IsPrivate && model.NormalizePageKind(page.Kind) != model.PageKindLink
+	oldPagePath := pageCanonicalPath(page.Slug, page.ID)
 	// 只写入本次请求改动的列：page 是请求开始时读到的快照，整行写回会覆盖期间他人写入的正文、草稿与 HTML 版本
 	var columns []string
 	if req.Title != "" {
@@ -331,6 +334,13 @@ func (p *PageService) UpdatePage(ctx context.Context, req *dto.CreateOrUpdatePag
 	publishSavedEvent(ctx, constant.TargetTypePage, page.ID, page.DraftVersion)
 	if slices.ContainsFunc(columns, func(col string) bool { return col != "draft_content" && col != "has_draft" }) {
 		SyncSearchPage(page.ID, wasPrivate != page.IsPrivate || slices.Contains(columns, "title"))
+		if !page.IsPrivate && model.NormalizePageKind(page.Kind) != model.PageKindLink {
+			var extraPaths []string
+			if newPath := pageCanonicalPath(page.Slug, page.ID); wasPublicPage && oldPagePath != "" && oldPagePath != newPath {
+				extraPaths = append(extraPaths, oldPagePath)
+			}
+			NotifyIndexNowPage(page, extraPaths...)
+		}
 	}
 	return &dto.ContentSaveResult{ID: page.ID, DraftVersion: page.DraftVersion}, nil
 }

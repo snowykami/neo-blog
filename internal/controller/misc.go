@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/utils"
@@ -73,4 +74,14 @@ func (mc *MiscController) GetMetrics(ctx context.Context, c *app.RequestContext)
 		return
 	}
 	resps.Ok(c, "", resp)
+}
+
+// GetIndexNowKey 校验并返回 IndexNow 根验证密钥文本（供前端 /<key>.txt 转发调用）
+func (mc *MiscController) GetIndexNowKey(ctx context.Context, c *app.RequestContext) {
+	matchedKey, ok := mc.service.VerifyIndexNowKey(c.Query("key"))
+	if !ok {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	c.Data(http.StatusOK, "text/plain; charset=utf-8", []byte(matchedKey))
 }

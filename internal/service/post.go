@@ -72,10 +72,11 @@ func (p *PostService) CreatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 		}
 		return 0, errs.Internal("failed_to_create_target", err).WithResource("post")
 	}
-	// 直接以公开已发布状态创建时：曝光给感兴趣的 AI 用户，并写入公开搜索索引；空正文草稿待首次发布时再触发
+	// 直接以公开已发布状态创建时：曝光给感兴趣的 AI 用户，写入公开搜索索引，并异步通知 IndexNow；空正文草稿待首次发布时再触发
 	if post.IsPublic() {
 		NotifyPostPublished(post.ID)
 		SyncSearchPost(post.ID, post.UserID, false)
+		NotifyIndexNowPost(post)
 	}
 	return post.ID, nil
 }
@@ -363,6 +364,7 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 		}
 	}
 	wasPublic := post.IsPublic()
+	oldPostPath := postCanonicalPath(post.Slug, post.ID)
 	// 只写入本次请求改动的列：post 是请求开始时读到的快照，整行写回会覆盖期间他人写入的正文、草稿与计数
 	var columns []string
 	if req.Title != "" {
@@ -468,6 +470,13 @@ func (p *PostService) UpdatePost(ctx context.Context, req *dto.CreateOrUpdatePos
 	}
 	if replaceLabels || slices.ContainsFunc(columns, func(col string) bool { return col != "draft_content" && col != "has_draft" }) {
 		SyncSearchPost(post.ID, post.UserID, wasPublic != post.IsPublic() || slices.Contains(columns, "title"))
+		if post.IsPublic() {
+			var extraPaths []string
+			if newPath := postCanonicalPath(post.Slug, post.ID); wasPublic && oldPostPath != "" && oldPostPath != newPath {
+				extraPaths = append(extraPaths, oldPostPath)
+			}
+			NotifyIndexNowPost(post, extraPaths...)
+		}
 	}
 	return &dto.ContentSaveResult{ID: post.ID, DraftVersion: post.DraftVersion}, nil
 }

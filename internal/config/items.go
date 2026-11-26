@@ -102,6 +102,8 @@ var sections = []*Section{
 		{Key: "seo_sitemap_locale_mode", Type: TypeEnum, Label: "seo_sitemap_locale_mode", Description: "seo_sitemap_locale_mode_desc", Options: options([]string{"default_only", "all_locales"}, "seo_sitemap_locale_mode_"), Default: "default_only", ShowWhen: when("seo_sitemap_enabled", "true"), siteInfoPath: path("seo.sitemap_locale_mode")},
 		// 站点地图协议单个文件最多 50000 条
 		{Key: "sitemap_limit", Type: TypeInt, Label: "sitemap_limit", Description: "sitemap_limit_desc", Min: num(1), Max: num(50000), Default: constant.DefaultSitemapLimit, Env: constant.EnvKeySitemapLimit, ShowWhen: when("seo_sitemap_enabled", "true")},
+		{Key: "seo_indexnow_enabled", Type: TypeBool, Label: "seo_indexnow_enabled", Description: "seo_indexnow_enabled_desc", Default: false, Env: constant.EnvKeyIndexNowEnabled, ShowWhen: when("seo_allow_indexing", "true")},
+		{Key: "seo_indexnow_key", Type: TypeString, Label: "seo_indexnow_key", Description: "seo_indexnow_key_desc", Placeholder: "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6", Default: "", Env: constant.EnvKeyIndexNowKey, ShowWhen: when("seo_allow_indexing", "true")},
 		{Key: "seo_robots_extra_rules", Type: TypeText, Label: "seo_robots_extra_rules", Description: "seo_robots_extra_rules_desc", Placeholder: "User-agent: GPTBot\nDisallow: /", Rows: 4, Wide: true, Default: "", ShowWhen: when("seo_allow_indexing", "true"), siteInfoPath: path("seo.robots_extra_rules")},
 	}},
 	{Tab: "seo", Key: "rss", Title: "section_rss", Description: "section_rss_desc", Items: []*Item{
@@ -326,6 +328,45 @@ var crossChecks = []struct {
 			return ""
 		},
 	},
+	{
+		// 开启 IndexNow 时必须填写合法密钥；未开启但填了非空密钥时同样校验格式（8~128 位字母、数字或连字符）
+		keys: []string{"seo_indexnow_enabled", "seo_indexnow_key"},
+		check: func(get func(string) any) string {
+			enabled, _ := get("seo_indexnow_enabled").(bool)
+			rawKey, _ := get("seo_indexnow_key").(string)
+			trimmed := strings.TrimSpace(rawKey)
+			if enabled && NormalizeIndexNowKey(trimmed) == "" {
+				return "indexnow_key_invalid"
+			}
+			if trimmed != "" && NormalizeIndexNowKey(trimmed) == "" {
+				return "indexnow_key_invalid"
+			}
+			return ""
+		},
+	},
+}
+
+// IsStrictIndexNowKey 严格校验请求入参是否为精确的 8~128 位 IndexNow 密钥（仅限 a-z、A-Z、0-9 与连字符 -，不含空白或 .txt 后缀）
+func IsStrictIndexNowKey(raw string) bool {
+	if len(raw) < 8 || len(raw) > 128 {
+		return false
+	}
+	for i := 0; i < len(raw); i++ {
+		ch := raw[i]
+		if !((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '-') {
+			return false
+		}
+	}
+	return true
+}
+
+// NormalizeIndexNowKey 校验并规整配置中的 IndexNow 密钥（兼容首尾空白与误带 .txt 后缀）
+func NormalizeIndexNowKey(raw string) string {
+	trimmed := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(raw), ".txt"))
+	if !IsStrictIndexNowKey(trimmed) {
+		return ""
+	}
+	return trimmed
 }
 
 func num(v float64) *float64 { return &v }

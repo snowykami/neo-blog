@@ -132,6 +132,9 @@ func (s *PageHTMLService) Upload(ctx context.Context, in *PageHTMLUploadInput) (
 	}
 	page.HTMLVersionID = version.ID
 	s.pruneVersions(ctx, page)
+	if !page.IsPrivate {
+		NotifyIndexNowPage(page)
+	}
 	return toPageHTMLVersionDto(version, true), nil
 }
 
@@ -178,6 +181,9 @@ func (s *PageHTMLService) UpdateVersion(ctx context.Context, req *dto.UpdatePage
 			return nil, errs.Internal("failed_to_update_target", err).WithResource("page")
 		}
 		page.HTMLVersionID = version.ID
+	}
+	if !page.IsPrivate && (req.Entry != nil || (req.Active != nil && *req.Active)) {
+		NotifyIndexNowPage(page)
 	}
 	return toPageHTMLVersionDto(version, version.ID == page.HTMLVersionID), nil
 }

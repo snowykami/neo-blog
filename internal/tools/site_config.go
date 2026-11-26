@@ -44,10 +44,37 @@ func GetPostDefaultCover() string {
 	return ""
 }
 
-// SEO 索引与站点地图开关
+// SEO 索引、站点地图与 IndexNow 开关
 func GetSEOAllowIndexing() bool { return config.Bool("seo_allow_indexing") }
 func GetSEOSitemapEnabled() bool {
 	return config.Bool("seo_allow_indexing") && config.Bool("seo_sitemap_enabled")
+}
+
+// IndexNowConfig IndexNow 主动推送配置（Bing / Yandex / Naver 等搜索引擎共享协议）
+type IndexNowConfig struct {
+	Enable bool
+	Key    string
+}
+
+// Enabled 全站允许索引、IndexNow 开启且密钥格式合法
+func (c IndexNowConfig) Enabled() bool {
+	return c.Enable && c.Key != ""
+}
+
+// NormalizeIndexNowKey 校验并规整 IndexNow 密钥（协议规定 8~128 位，仅允许 a-z、A-Z、0-9 与连字符 -）
+func NormalizeIndexNowKey(raw string) string {
+	return config.NormalizeIndexNowKey(raw)
+}
+
+// GetIndexNowConfig 读取生效的 IndexNow 配置（需同时开启全站 seo_allow_indexing 与 seo_indexnow_enabled，与后台配置页展示严格一致）
+func GetIndexNowConfig() IndexNowConfig {
+	if !GetSEOAllowIndexing() {
+		return IndexNowConfig{}
+	}
+	return IndexNowConfig{
+		Enable: config.Bool("seo_indexnow_enabled"),
+		Key:    config.NormalizeIndexNowKey(config.String("seo_indexnow_key")),
+	}
 }
 
 // GetBaseUrl 站点地址：环境变量 BASE_URL 优先，其次后台配置
