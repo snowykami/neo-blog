@@ -1,0 +1,48 @@
+# Luna DevOps 专用前端构建 Dockerfile：默认使用 reg.liteyuki.org 预制品基础镜像以跳过 pnpm 安装并复用离线 store
+# 原生全量构建（GitHub Actions / 开源通用）请继续使用 web/Dockerfile
+ARG WEB_BUILDER_IMAGE=reg.liteyuki.org/snowykami/neo-blog-web-builder:bun1.4.4-pnpm10.23.0
+ARG WEB_RUNNER_IMAGE=reg.liteyuki.org/snowykami/neo-blog-web-runner:bun1.4.4-alpine
+
+FROM ${WEB_BUILDER_IMAGE} AS builder
+WORKDIR /app
+
+# npm 镜像源（可选，仅当 pnpm-lock.yaml 相对预制品有新增依赖时兜底拉取）
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+
+COPY package.json pnpm-lock.yaml ./
+RUN if [ -n "${NPM_REGISTRY}" ]; then \
+    npm_config_registry="${NPM_REGISTRY%/}" pnpm install --frozen-lockfile --prefer-offline; \
+  else \
+    pnpm install --frozen-lockfile --prefer-offline; \
+  fi
+
+COPY . .
+
+ARG APP_VERSION=""
+ENV NEXT_PUBLIC_APP_VERSION=${APP_VERSION}
+ARG IMAGE_OPTIMIZE_HOSTS=""
+ENV NEXT_PUBLIC_IMAGE_OPTIMIZE_HOSTS=${IMAGE_OPTIMIZE_HOSTS}
+ARG ASSET_PREFIX=""
+ENV NEXT_PUBLIC_ASSET_PREFIX=${ASSET_PREFIX}
+ARG ENABLE_SOURCEMAPS=false
+ENV ENABLE_SOURCEMAPS=${ENABLE_SOURCEMAPS}
+
+RUN bun --bun run lint && bun run build
+
+# production image（已预置 bunjs/nextjs 用户与 NODE_ENV/PORT/HOSTNAME）
+FROM ${WEB_RUNNER_IMAGE} AS runner
+WORKDIR /app
+
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:bunjs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:bunjs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:bunjs /app/.next/sourcemaps ./.next/sourcemaps
+
+USER nextjs
+
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
+  CMD ["bun", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+
+CMD ["bun", "server.js"]
