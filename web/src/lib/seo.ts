@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import type { SiteInfo } from '@/utils/common/siteinfo'
 import { localeAlternates } from '@/i18n/alternates'
-import { localizePath, resolveRouteLocale, routing } from '@/i18n/routing'
+import { LOCALE_PREFIXES, localizePath, resolveRouteLocale, routing } from '@/i18n/routing'
 import { safeMetadataBase } from '@/utils/common/siteinfo'
 
 const META_CONTENT_RE = /\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)')/i
@@ -246,25 +246,36 @@ export interface RobotsRuleGroup {
   crawlDelay?: number
 }
 
+function sanitizeRobotsPath(value: string): string {
+  const clean = value.replace(/[\r\n\t]/g, '').trim()
+  if (!clean)
+    return ''
+  if (clean.startsWith('/') || clean.startsWith('*'))
+    return clean
+  return `/${clean}`
+}
+
 /**
  * 解析后台配置的额外 robots.txt 规则文本：
- * - 支持多段 `User-agent:` 分组及组内的 `Allow:` / `Disallow:` / `Crawl-delay:`
+ * - 支持多段 `User-agent:` 分组及组内的 `Allow:` / `Disallow:` / `Crawl-delay:` / `Sitemap:`
  * - 未先声明 `User-agent:` 的顶层 `Allow:` / `Disallow:` 自动并入默认 `*` 规则之后
- * - 剥离 `#` 注释与非法换行控制字符
+ * - 剥离 `#` 注释与非法换行控制字符，自动补齐路径前导 `/` 防止语法校验报错
  */
 export function parseExtraRobotsRules(raw?: string | null): {
   rootAllow: string[]
   rootDisallow: string[]
   rootCrawlDelay?: number
+  extraSitemaps: string[]
   groups: RobotsRuleGroup[]
 } {
   const rootAllow: string[] = []
   const rootDisallow: string[] = []
+  const extraSitemaps: string[] = []
   let rootCrawlDelay: number | undefined
   const groups: RobotsRuleGroup[] = []
 
   if (!raw?.trim())
-    return { rootAllow, rootDisallow, groups }
+    return { rootAllow, rootDisallow, extraSitemaps, groups }
 
   let currentAgents: string[] = []
   let currentAllow: string[] = []
@@ -309,25 +320,39 @@ export function parseExtraRobotsRules(raw?: string | null): {
       continue
     }
 
+    if (directive === 'sitemap') {
+      if (/^https?:\/\/\S+$/i.test(value))
+        extraSitemaps.push(value)
+      continue
+    }
+
     if (directive === 'allow') {
-      if (!value)
+      const pathVal = sanitizeRobotsPath(value)
+      if (!pathVal)
         continue
       if (currentAgents.length === 0) {
-        rootAllow.push(value)
+        rootAllow.push(pathVal)
       }
       else {
         inRuleBody = true
-        currentAllow.push(value)
+        currentAllow.push(pathVal)
       }
     }
     else if (directive === 'disallow') {
+      if (!value) {
+        if (currentAgents.length > 0) {
+          inRuleBody = true
+          currentDisallow.push('')
+        }
+        continue
+      }
+      const pathVal = sanitizeRobotsPath(value)
       if (currentAgents.length === 0) {
-        if (value)
-          rootDisallow.push(value)
+        rootDisallow.push(pathVal)
       }
       else {
         inRuleBody = true
-        currentDisallow.push(value)
+        currentDisallow.push(pathVal)
       }
     }
     else if (directive === 'crawl-delay') {
@@ -345,5 +370,68 @@ export function parseExtraRobotsRules(raw?: string | null): {
   }
   flushGroup()
 
-  return { rootAllow, rootDisallow, rootCrawlDelay, groups }
+  return { rootAllow, rootDisallow, rootCrawlDelay, extraSitemaps, groups }
+}
+
+export interface RobotsTxtConfigInput {
+  baseUrl?: string | null
+  allowIndexing?: boolean
+  sitemapEnabled?: boolean
+  robotsExtraRules?: string | null
+}
+
+/**
+ * 生成符合 RFC 9309 与 Lighthouse SEO 校验规范的纯文本 robots.txt
+ */
+export function buildRobotsTxtContent(input: RobotsTxtConfigInput): string {
+  if (input.allowIndexing === false) {
+    return 'User-agent: *\nDisallow: /\n'
+  }
+
+  const extra = parseExtraRobotsRules(input.robotsExtraRules)
+  const defaultAllow = Array.from(new Set(['/', ...extra.rootAllow]))
+  const defaultDisallow = Array.from(new Set([
+    '/console/',
+    '/auth/',
+    ...routing.locales.filter(locale => locale !== routing.defaultLocale).map(locale => `${LOCALE_PREFIXES[locale]}/auth/`),
+    ...extra.rootDisallow,
+  ]))
+
+  const blocks: string[] = []
+  const rootLines = ['User-agent: *']
+  for (const p of defaultAllow)
+    rootLines.push(`Allow: ${p}`)
+  for (const p of defaultDisallow)
+    rootLines.push(`Disallow: ${p}`)
+  if (extra.rootCrawlDelay !== undefined)
+    rootLines.push(`Crawl-delay: ${extra.rootCrawlDelay}`)
+  blocks.push(rootLines.join('\n'))
+
+  for (const group of extra.groups) {
+    const lines: string[] = []
+    const agents = Array.isArray(group.userAgent) ? group.userAgent : [group.userAgent]
+    for (const agent of agents)
+      lines.push(`User-agent: ${agent}`)
+    const allows = group.allow ? (Array.isArray(group.allow) ? group.allow : [group.allow]) : []
+    for (const p of allows)
+      lines.push(`Allow: ${p}`)
+    const disallows = group.disallow ? (Array.isArray(group.disallow) ? group.disallow : [group.disallow]) : []
+    for (const p of disallows)
+      lines.push(`Disallow: ${p}`)
+    if (group.crawlDelay !== undefined)
+      lines.push(`Crawl-delay: ${group.crawlDelay}`)
+    blocks.push(lines.join('\n'))
+  }
+
+  const sitemaps = new Set<string>()
+  const baseUrl = input.baseUrl?.trim().replace(/\/+$/, '') ?? ''
+  if ((input.sitemapEnabled ?? true) && /^https?:\/\/\S+$/i.test(baseUrl))
+    sitemaps.add(`${baseUrl}/sitemap.xml`)
+  for (const sm of extra.extraSitemaps)
+    sitemaps.add(sm)
+
+  if (sitemaps.size > 0)
+    blocks.push(Array.from(sitemaps, url => `Sitemap: ${url}`).join('\n'))
+
+  return `${blocks.join('\n\n')}\n`
 }

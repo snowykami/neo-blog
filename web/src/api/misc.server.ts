@@ -2,7 +2,6 @@ import type { SiteInfo } from '@/utils/common/siteinfo'
 import { cacheLife, cacheTag } from 'next/cache'
 import { cache } from 'react'
 import { CacheTag, skipBackendAtBuild } from '@/lib/cache-tags'
-import { resolveOwnerIconLabel, resolveOwnerIconSpec } from '@/lib/social-icons/resolve'
 import { DEFAULT_OWNER_LINK_ICON } from '@/lib/social-icons/types'
 import { fallbackSiteInfo } from '@/utils/common/siteinfo'
 import { getSiteInfo } from './misc'
@@ -11,6 +10,7 @@ async function enrichOwnerLinks(info: SiteInfo): Promise<SiteInfo> {
   const links = info.owner?.links
   if (!links?.length)
     return info
+  const { resolveOwnerIconLabel, resolveOwnerIconSpec } = await import('@/lib/social-icons/resolve')
   const enriched = await Promise.all(
     links.map(async (link) => {
       const iconName = link.icon || DEFAULT_OWNER_LINK_ICON

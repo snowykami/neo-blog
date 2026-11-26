@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { fallbackSiteInfo } from '@/utils/common/siteinfo'
 import {
   buildPublicPageMetadata,
+  buildRobotsTxtContent,
   buildSeoRobots,
   buildSiteVerification,
   extractVerificationToken,
@@ -154,5 +155,21 @@ describe('seo helpers', () => {
         crawlDelay: 10,
       },
     ])
+  })
+
+  it('generates RFC 9309 / Lighthouse-compliant robots.txt output', () => {
+    expect(buildRobotsTxtContent({ allowIndexing: false, baseUrl: 'https://blog.example.com' }))
+      .toBe('User-agent: *\nDisallow: /\n')
+
+    const txt = buildRobotsTxtContent({
+      baseUrl: 'https://blog.example.com/',
+      allowIndexing: true,
+      sitemapEnabled: true,
+      robotsExtraRules: 'Disallow: private-drafts\nUser-agent: GPTBot\nDisallow: /',
+    })
+    expect(txt).toContain('User-agent: *\nAllow: /\nDisallow: /console/\nDisallow: /auth/')
+    expect(txt).toContain('Disallow: /private-drafts')
+    expect(txt).toContain('User-agent: GPTBot\nDisallow: /')
+    expect(txt).toContain('Sitemap: https://blog.example.com/sitemap.xml\n')
   })
 })
