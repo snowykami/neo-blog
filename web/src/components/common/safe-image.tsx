@@ -67,7 +67,18 @@ function withInternalFileProxy(src: ImageProps['src']): ImageProps['src'] {
 /**
  * 带兜底的图片：原图 → 备用图 → 占位块，每一级只尝试一次；src 变化后重新从原图开始
  */
-export function SafeImage({ src, fallbackSrc, fallback, alt = '', onError, ...props }: SafeImageProps) {
+export function SafeImage({
+  src,
+  fallbackSrc,
+  fallback,
+  alt = '',
+  onError,
+  priority,
+  preload,
+  loading,
+  fetchPriority,
+  ...props
+}: SafeImageProps) {
   const optimizeHosts = useImageOptimizeHosts()
   // 去掉空值与重复地址，避免同一个失效地址被重复尝试
   const candidates = [src, fallbackSrc].filter((item, index, list): item is ImageProps['src'] =>
@@ -98,12 +109,21 @@ export function SafeImage({ src, fallbackSrc, fallback, alt = '', onError, ...pr
   const canOptimize = !props.unoptimized && shouldOptimize(current, optimizeHosts)
   const canFallbackDirect = canOptimize && !directFallback && typeof current === 'string' && (current.startsWith('https://') || current.startsWith('/api/v1/file/f/'))
   const renderSrc = canOptimize && !directFallback ? withInternalFileProxy(current) : current
+  // Next.js 16 中 preload/priority 仅关闭默认懒加载并注入 preload link，不会自动给 <img> 补齐 loading="eager" 与 fetchpriority="high"；
+  // 统一归一化为 preload（避免同时传 preload 与已弃用的 priority 报错），并显式补齐 eager + high 确保首屏 LCP 图立即高优拉取
+  const isHighPriority = Boolean(preload || priority)
+  const resolvedLoading = loading ?? (isHighPriority ? 'eager' : undefined)
+  const resolvedFetchPriority = fetchPriority ?? (isHighPriority ? 'high' : undefined)
+  const shouldPreload = isHighPriority && resolvedLoading !== 'lazy'
 
   return (
     <Image
       key={directFallback ? `${srcKey(current)}#direct` : srcKey(current)}
       src={renderSrc}
       alt={alt}
+      preload={shouldPreload || undefined}
+      loading={resolvedLoading}
+      fetchPriority={resolvedFetchPriority}
       onError={(event) => {
         // 远程白名单图经 /_next/image 失败时（如上游返回非 image/* MIME），先静默降级为浏览器直连原图重试一次
         if (canFallbackDirect) {

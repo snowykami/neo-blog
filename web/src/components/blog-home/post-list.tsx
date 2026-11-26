@@ -157,9 +157,9 @@ const MemoPostListItem = memo(({
                 fill
                 quality={60}
                 className="object-cover"
-                sizes="(max-width: 767px) calc(100vw - 52px), 280px"
+                sizes="(max-width: 640px) 260px, (max-width: 767px) 360px, 280px"
                 preload={priority}
-                loading={priority ? 'eager' : undefined}
+                loading={priority ? 'eager' : 'lazy'}
                 fetchPriority={priority ? 'high' : undefined}
               />
               <span className="post-cover-overlay absolute inset-0 flex items-center justify-center">
@@ -313,9 +313,9 @@ export function PostList({
     )
   }
 
-  // 首屏前两张卡片内出现的第一张封面图设为 LCP 优先加载（避免首篇无封面时白白浪费高优先级预加载）
+  // 首屏可见前 4 篇文章内出现的第一张封面图设为 LCP 优先加载（避免前两篇无封面时漏掉高优先级预加载）
   const priorityPostId = prioritizeFirst
-    ? [...pinnedPosts, ...posts].slice(0, 2).find(p => p.cover)?.id
+    ? [...pinnedPosts, ...posts].slice(0, 4).find(p => Boolean(p.cover))?.id
     : undefined
 
   return (

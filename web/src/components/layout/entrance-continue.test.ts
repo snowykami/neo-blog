@@ -5,7 +5,7 @@ function shell(kind: 'skeleton' | 'page') {
   const el = document.createElement('div')
   el.setAttribute('data-site-shell', kind)
   const content = document.createElement('div')
-  content.className = 'enter-fade-up enter-delay-150'
+  content.className = kind === 'skeleton' ? 'enter-fade-up enter-delay-150' : 'enter-fade-up enter-main'
   el.append(content)
   return { el, content }
 }

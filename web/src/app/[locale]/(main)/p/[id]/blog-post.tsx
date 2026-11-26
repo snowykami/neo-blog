@@ -113,7 +113,9 @@ async function PostArticle({ post, html, isDraft }: { post: Post, html: string, 
             src={post.cover}
             alt=""
             fill
-            priority
+            preload
+            loading="eager"
+            fetchPriority="high"
             sizes="(max-width: 1024px) 100vw, 860px"
             className="object-cover"
           />

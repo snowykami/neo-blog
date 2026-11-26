@@ -5,9 +5,10 @@ import { cn } from '@/lib/utils'
  * - 不传 sidebar 时为单栏
  * - stickySidebar 为 true（默认）时整个侧栏吸顶并限制在视口高度内滚动；
  *   为 false 时侧栏与正文等高，由侧栏内部自行决定吸顶的部分（如文章页只让目录吸顶）
- * 首屏入场动画为纯 CSS（见 styles/animation.css）：侧栏 100ms、正文 150ms；客户端跳转播放轻快版（侧栏 0、正文 50ms，250ms）
+ * 首屏入场动画为纯 CSS（见 styles/animation.css）：正文主栏保持 opacity 恒为 1、0 延迟轻量上移落定（避免阻塞 LCP 绘制判定），
+ * 侧栏保留 100ms 延迟淡入；客户端跳转播放 250ms 轻快版
  * - skeleton：加载骨架（loading.tsx、Suspense 的占位）。骨架换成正文时，正文接着骨架的入场动画往下播、不再从头播一遍
- *   （见 components/layout/entrance-once.tsx 的 entranceContinueScript）
+ *   （见 components/layout/entrance-continue.ts 的 entranceContinueScript）
  */
 export function SiteShell({
   children,
@@ -32,7 +33,14 @@ export function SiteShell({
         className,
       )}
     >
-      <div className="enter-fade-up enter-delay-150 grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-4">{children}</div>
+      <div
+        className={cn(
+          'enter-fade-up grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-4',
+          skeleton ? 'enter-delay-150' : 'enter-main',
+        )}
+      >
+        {children}
+      </div>
       {sidebar && (
         <aside
           className={cn(

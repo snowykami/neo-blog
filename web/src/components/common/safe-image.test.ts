@@ -147,4 +147,33 @@ describe('site-logo 图片优化控制', () => {
     expect(svgHtml).toContain('src="https://sfkm-blog.r2.liteyuki.org/snowykami-blog/logo.svg"')
     expect(svgHtml).not.toContain('/_next/image')
   })
+
+  it('preload 或 priority 图片输出 loading="eager" 与 fetchpriority="high"，普通图片输出 loading="lazy"', () => {
+    const renderImg = (props: Record<string, unknown>) => renderToStaticMarkup(
+      React.createElement(ImageOptimizeProvider, {
+        hosts: ['sfkm-blog.r2.liteyuki.org'],
+        children: React.createElement(SafeImage, {
+          src: 'https://sfkm-blog.r2.liteyuki.org/snowykami-blog/cover.png',
+          alt: '',
+          fill: true,
+          sizes: '(max-width: 640px) 260px, (max-width: 767px) 360px, 280px',
+          ...props,
+        }),
+      }),
+    )
+
+    const preloadHtml = renderImg({ preload: true })
+    expect(preloadHtml).toContain('loading="eager"')
+    expect(preloadHtml).toMatch(/fetchpriority="high"/i)
+    expect(preloadHtml).not.toContain('loading="lazy"')
+
+    const priorityHtml = renderImg({ priority: true })
+    expect(priorityHtml).toContain('loading="eager"')
+    expect(priorityHtml).toMatch(/fetchpriority="high"/i)
+    expect(priorityHtml).not.toContain('loading="lazy"')
+
+    const defaultHtml = renderImg({})
+    expect(defaultHtml).toContain('loading="lazy"')
+    expect(defaultHtml).not.toMatch(/fetchpriority="high"/i)
+  })
 })

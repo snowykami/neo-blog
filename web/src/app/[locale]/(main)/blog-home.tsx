@@ -433,7 +433,7 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
         }}
         onClearFilter={filter ? clearFilter : undefined}
         highlight={highlightTerms}
-        prioritizeFirst
+        prioritizeFirst={page === 1}
       />
 
       {totalPosts > 0 && !loadError && (
