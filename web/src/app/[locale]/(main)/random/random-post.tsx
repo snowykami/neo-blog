@@ -61,7 +61,7 @@ function RandomPostPreview({ post }: { post: Post }) {
     <div className="grid w-full gap-4">
       {post.cover && (
         <div className="relative aspect-[2/1] w-full overflow-hidden rounded-xl bg-muted">
-          <SafeImage src={post.cover} alt="" fill sizes="768px" className="object-cover" />
+          <SafeImage src={post.cover} alt={post.title} fill quality={60} sizes="(max-width: 640px) calc(100vw - 64px), 768px" className="object-cover" />
         </div>
       )}
       <div className="grid gap-2">

@@ -6,19 +6,21 @@ import { getCachedSiteInfo } from '@/api/misc.server'
 import { localeAlternates } from '@/i18n/alternates'
 import { localizePath, resolveRouteLocale, routing } from '@/i18n/routing'
 import { BUILD_PLACEHOLDER_PARAM } from '@/lib/cache-tags'
-import { buildSeoRobots, normalizeTwitterHandle } from '@/lib/seo'
-import { stripInlineMarkdown } from '@/utils/common/inline-markdown'
+import { buildContentMetaDescription, buildSeoRobots, normalizeTwitterHandle, resolveDefaultOgImage } from '@/lib/seo'
 import { getPostShareImageUrl, getPostUrl, getUserUrl } from '@/utils/common/route'
 import { absoluteSiteUrl, safeMetadataBase } from '@/utils/common/siteinfo'
-import { htmlToText } from '@/utils/common/string'
 import { formatDisplayName as formatFullName } from '@/utils/common/username'
 import { BlogPost } from './blog-post'
 import { getCanonicalPost } from './post-data'
 
-// metaDescription 页面描述（meta / Open Graph / 结构化数据）：作者填写的描述优先，其次是正文的纯文本摘要，取前 160 字；
-// 不能直接截正文 HTML（会把标签与属性写进描述）。后端尚未返回 excerpt 时（旧版本）退回自己从正文提取
+// metaDescription 页面描述（meta / Open Graph / 结构化数据）：作者填写的描述优先，其次从正文纯文本智能提取（句末自然收尾，避免截断在半个引号或标题前缀）
 function metaDescription(post: Post): string {
-  return stripInlineMarkdown(post.description) || (post.excerpt || htmlToText(post.content)).slice(0, 160)
+  return buildContentMetaDescription({
+    description: post.description,
+    excerpt: post.excerpt,
+    contentHtml: post.content,
+    title: post.title,
+  })
 }
 
 // 这个是app router固定的传入格式，无法更改
@@ -95,7 +97,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       images: [shareImage],
       ...(twitterHandle ? { site: twitterHandle, creator: twitterHandle } : {}),
     },
-    robots: buildSeoRobots(locale, siteInfo, true),
+    robots: (locale !== routing.defaultLocale && localeMode !== 'independent')
+      ? (siteInfo?.seo?.allowIndexing === false
+          ? { index: false, follow: false, googleBot: { index: false, follow: false } }
+          : { index: false, follow: true, googleBot: { index: false, follow: true } })
+      : buildSeoRobots(locale, siteInfo, true),
   }
 }
 
@@ -107,6 +113,9 @@ export default async function PostPage({ params }: Props) {
   const [post, siteInfo] = await Promise.all([getCanonicalPost(id, locale), getCachedSiteInfo()])
   const localeMode = siteInfo?.seo?.localeIndexMode ?? 'canonical_default'
   const canonicalLocale = localeMode === 'independent' ? locale : routing.defaultLocale
+  const articleImage = post.cover?.trim()
+    || resolveDefaultOgImage(siteInfo)
+    || localizePath(getPostShareImageUrl(post), canonicalLocale)
 
   const jsonLd: WithContext<Article> = {
     '@context': 'https://schema.org',
@@ -117,10 +126,8 @@ export default async function PostPage({ params }: Props) {
       'name': formatFullName(post.user),
       'url': absoluteSiteUrl(localizePath(getUserUrl({ username: post.user.username }), canonicalLocale), siteInfo.baseUrl),
     },
-    // 没有封面时省略 image；站内相对路径要补成绝对地址（结构化数据不接受相对 URL）
-    ...(post.cover
-      ? { image: absoluteSiteUrl(post.cover, siteInfo.baseUrl) }
-      : {}),
+    // Google Rich Results 要求 Article 提供有效绝对图片 URL：依次取文章封面 -> 站点默认 OG 图 / 站点图标 -> 文章动态分享图
+    'image': absoluteSiteUrl(articleImage, siteInfo.baseUrl),
     'datePublished': post.createdAt,
     'dateModified': post.updatedAt,
     'publisher': {

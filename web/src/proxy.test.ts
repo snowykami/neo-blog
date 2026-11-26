@@ -61,4 +61,34 @@ describe('proxy 语言路由', () => {
     expect(rewrite(proxy(request('/console')))).toBe('https://blog.example.com/zh-CN/console')
     expect(location(proxy(request('/en/console/posts')))).toBe('https://blog.example.com/console/posts')
   })
+
+  it('带非规范查询参数的前台请求返回 X-Robots-Tag: noindex, follow 并隔离共享缓存，无参页面保持正常可索引', () => {
+    expect(proxy(request('/')).headers.get('x-robots-tag')).toBeNull()
+    expect(proxy(request('/p/hello')).headers.get('x-robots-tag')).toBeNull()
+
+    for (const url of ['/?label=go', '/?p=42', '/p/hello?source=rss', '/p/hello?utm_source=x', '/p/hello?comment=3']) {
+      const res = proxy(request(url))
+      expect(res.headers.get('x-robots-tag'), url).toBe('noindex, follow')
+      expect(res.headers.get('cdn-cache-control'), url).toBe('no-store')
+    }
+  })
+
+  it('已合并移除的旧地区语言前缀 308 永久跳转至对应规范地址', () => {
+    const tw = proxy(request('/zh-tw/p/hello'))
+    expect(tw.status).toBe(308)
+    expect(location(tw)).toBe('https://blog.example.com/zh-hk/p/hello')
+
+    const sg = proxy(request('/zh-sg/p/hello'))
+    expect(sg.status).toBe(308)
+    expect(location(sg)).toBe('https://blog.example.com/p/hello')
+
+    // 不误伤普通路径或 Object.prototype 同名路径段
+    const constructorPath = proxy(request('/constructor'))
+    expect(location(constructorPath)).toBeNull()
+    expect(rewrite(constructorPath)).toBe('https://blog.example.com/zh-CN/constructor')
+
+    const tripPath = proxy(request('/zh-tw-trip'))
+    expect(location(tripPath)).toBeNull()
+    expect(rewrite(tripPath)).toBe('https://blog.example.com/zh-CN/zh-tw-trip')
+  })
 })

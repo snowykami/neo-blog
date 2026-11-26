@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import type { WebSite, WithContext } from 'schema-dts'
 import type { BlogHomeInitialData } from './blog-home-query'
 import type { Post } from '@/models/post'
-import { setRequestLocale } from 'next-intl/server'
+import { getTranslations, setRequestLocale } from 'next-intl/server'
 import { cacheLife, cacheTag } from 'next/cache'
 import { locale as rootLocale } from 'next/root-params'
 import { getCachedSiteInfo } from '@/api/misc.server'
@@ -12,7 +12,7 @@ import { getCachedSidebarData } from '@/components/blog-sidebar/sidebar-data'
 import { SiteShell } from '@/components/layout/site-shell'
 import { resolveRouteLocale } from '@/i18n/routing'
 import { CacheTag, skipBackendAtBuild } from '@/lib/cache-tags'
-import { buildPublicPageMetadata, resolveDefaultSeoDescription, resolveHomeSeoTitle } from '@/lib/seo'
+import { buildPublicPageMetadata, resolveHomeSeoDescription, resolveHomeSeoTitle } from '@/lib/seo'
 import { OrderBy } from '@/models/common'
 import { absoluteSiteUrl } from '@/utils/common/siteinfo'
 import BlogHome from './blog-home'
@@ -23,9 +23,15 @@ export const ensureStatic = 'navigation'
 export async function generateMetadata(): Promise<Metadata> {
   const locale = resolveRouteLocale(await rootLocale())
   setRequestLocale(locale)
-  const siteInfo = await getCachedSiteInfo()
+  const [siteInfo, routeT] = await Promise.all([
+    getCachedSiteInfo(),
+    getTranslations('Route'),
+  ])
   const homeTitle = resolveHomeSeoTitle(siteInfo)
-  const homeDescription = resolveDefaultSeoDescription(siteInfo)
+  const homeDescription = resolveHomeSeoDescription(
+    siteInfo,
+    routeT('home_desc', { site: siteInfo.metadata.name || 'Blog' }),
+  )
   return buildPublicPageMetadata({
     locale,
     pathname: '/',
@@ -58,9 +64,10 @@ export default async function Page() {
   skipBackendAtBuild()
   const siteInfo = await getCachedSiteInfo()
   const pageSize = siteInfo.postsPerPage || 9
-  const [sidebarData, defaultData] = await Promise.all([
+  const [sidebarData, defaultData, routeT] = await Promise.all([
     getCachedSidebarData(),
     loadDefaultPosts(pageSize, OrderBy.CreatedAt),
+    getTranslations('Route'),
   ])
   const initialData: BlogHomeInitialData = {
     key: blogHomeQueryKey({ page: 1, orderBy: OrderBy.CreatedAt }),
@@ -68,7 +75,10 @@ export default async function Page() {
     total: defaultData.total,
     pinned: (defaultData.pinned ?? []).map(slimPost),
   }
-  const description = resolveDefaultSeoDescription(siteInfo) || siteInfo.metadata.description
+  const description = resolveHomeSeoDescription(
+    siteInfo,
+    routeT('home_desc', { site: siteInfo.metadata.name || 'Blog' }),
+  ) || siteInfo.metadata.description
   const baseSiteUrl = (siteInfo.baseUrl ?? '').replace(/\/+$/, '')
   const jsonLd: WithContext<WebSite> = {
     '@context': 'https://schema.org',
@@ -82,7 +92,7 @@ export default async function Page() {
       'logo': {
         '@type': 'ImageObject',
         // 站点图标存的是站内相对路径，结构化数据要求绝对地址
-        'url': absoluteSiteUrl(siteInfo.metadata.icon, baseSiteUrl),
+        'url': absoluteSiteUrl(siteInfo.metadata.icon || '/favicon.ico', baseSiteUrl),
       },
     },
     'potentialAction': {

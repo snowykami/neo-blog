@@ -111,12 +111,13 @@ async function PostArticle({ post, html, isDraft }: { post: Post, html: string, 
         <div className="relative mb-8 aspect-[2/1] w-full overflow-hidden rounded-xl bg-muted">
           <SafeImage
             src={post.cover}
-            alt=""
+            alt={post.title || t('untitled')}
             fill
+            quality={60}
             preload
             loading="eager"
             fetchPriority="high"
-            sizes="(max-width: 1024px) 100vw, 860px"
+            sizes="(max-width: 640px) calc(100vw - 64px), (max-width: 1024px) calc(100vw - 96px), 840px"
             className="object-cover"
           />
         </div>

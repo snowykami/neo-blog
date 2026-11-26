@@ -148,12 +148,11 @@ const MemoPostListItem = memo(({
       {hasCover
         ? (
             <div
-              aria-hidden
               className="post-cover-slot pointer-events-none relative -order-1 -mx-1.5 -mt-1.5 mb-4.5 h-[19svh] min-h-32 overflow-clip rounded-xl md:absolute md:inset-y-3.5 md:right-3.5 md:order-0 md:m-0 md:h-auto md:min-h-0 md:w-[28%]"
             >
               <SafeImage
                 src={post.cover}
-                alt=""
+                alt={post.title || t('Common.untitled')}
                 fill
                 quality={60}
                 className="object-cover"
@@ -162,7 +161,7 @@ const MemoPostListItem = memo(({
                 loading={priority ? 'eager' : 'lazy'}
                 fetchPriority={priority ? 'high' : undefined}
               />
-              <span className="post-cover-overlay absolute inset-0 flex items-center justify-center">
+              <span aria-hidden className="post-cover-overlay absolute inset-0 flex items-center justify-center">
                 <ChevronRightIcon className="size-10 text-white" />
               </span>
             </div>

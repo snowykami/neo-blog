@@ -6,13 +6,11 @@ import { notFound } from 'next/navigation'
 import { cache } from 'react'
 import { getCachedSiteInfo } from '@/api/misc.server'
 import { getPageById } from '@/api/page'
-import { resolveRouteLocale } from '@/i18n/routing'
+import { resolveRouteLocale, routing } from '@/i18n/routing'
 import { BUILD_PLACEHOLDER_PARAM, CacheTag, skipBackendAtBuild } from '@/lib/cache-tags'
-import { buildPublicPageMetadata } from '@/lib/seo'
+import { buildContentMetaDescription, buildPublicPageMetadata } from '@/lib/seo'
 import { isNotFoundLikeError } from '@/utils/common/error'
-import { stripInlineMarkdown } from '@/utils/common/inline-markdown'
 import { getPageUrl } from '@/utils/common/route'
-import { htmlToText } from '@/utils/common/string'
 import { PageView } from './page-view'
 
 // 跨请求缓存（按 id / slug 分条，各语言共用）：页面按地址缓存，按链接预取与重新生成先读这里；页面增删改时 pages 标签失效。
@@ -56,7 +54,11 @@ export function generateStaticParams() {
 }
 
 function pageMetaDescription(page: PageModel): string {
-  return stripInlineMarkdown(page.description) || htmlToText(page.content || '').slice(0, 160)
+  return buildContentMetaDescription({
+    description: page.description,
+    contentHtml: page.content,
+    title: page.title,
+  })
 }
 
 export async function generateMetadata({
@@ -74,6 +76,7 @@ export async function generateMetadata({
   ])
   const title = page.title || t('untitled')
   const description = pageMetaDescription(page) || title
+  const localeMode = siteInfo.seo?.localeIndexMode ?? 'canonical_default'
   return buildPublicPageMetadata({
     locale,
     pathname: getPageUrl(page),
@@ -83,6 +86,7 @@ export async function generateMetadata({
     image: page.cover || undefined,
     ogType: 'article',
     richRobots: true,
+    forceNoIndex: locale !== routing.defaultLocale && localeMode !== 'independent',
   })
 }
 

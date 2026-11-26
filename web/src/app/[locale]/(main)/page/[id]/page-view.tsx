@@ -104,7 +104,17 @@ export async function PageView({ page, isDraft = false, locale }: { page: PageMo
         {/* 封面 */}
         {page.cover && (
           <div className="relative mb-8 aspect-[2/1] w-full overflow-hidden rounded-xl bg-muted">
-            <SafeImage src={page.cover} alt="" fill priority className="object-cover" sizes={wide ? '(max-width: 1200px) 100vw, 1200px' : '(max-width: 1024px) 100vw, 900px'} />
+            <SafeImage
+              src={page.cover}
+              alt={page.title}
+              fill
+              quality={60}
+              preload
+              loading="eager"
+              fetchPriority="high"
+              className="object-cover"
+              sizes={wide ? '(max-width: 640px) calc(100vw - 64px), (max-width: 1200px) calc(100vw - 96px), 1200px' : '(max-width: 640px) calc(100vw - 64px), (max-width: 1024px) calc(100vw - 96px), 860px'}
+            />
           </div>
         )}
         <h1 className="relative mb-3 pl-4 text-2xl font-bold text-foreground/90 [text-wrap:balance] before:absolute before:top-[0.4375rem] before:left-0 before:h-4.5 before:w-1 before:rounded-full before:bg-primary sm:text-3xl sm:before:top-2 sm:before:h-5 md:pl-5 md:text-[2.125rem] md:leading-[2.65rem] md:before:top-[0.6375rem] md:before:h-5.5">
