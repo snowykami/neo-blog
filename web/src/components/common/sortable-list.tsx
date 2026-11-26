@@ -79,7 +79,7 @@ function SortableRowShell({
       ref={setNodeRef}
       style={style}
       className={cn(
-        'relative rounded-lg motion-reduce:transition-none',
+        'relative max-w-full min-w-0 rounded-lg motion-reduce:transition-none',
         isDragging && cn(
           'z-20 bg-card shadow-[0_8px_24px_-4px_rgba(0,0,0,0.12),0_2px_6px_-1px_rgba(0,0,0,0.06)] ring-1 ring-primary/35 dark:shadow-[0_10px_28px_-4px_rgba(0,0,0,0.5)]',
           draggingClassName,
@@ -104,11 +104,13 @@ export function SortableDragHandle({
   ctx,
   label,
   disabled,
+  busy,
   className,
 }: {
   ctx: SortableItemRenderContext
   label?: string
   disabled?: boolean
+  busy?: boolean
   className?: string
 }) {
   return (
@@ -119,9 +121,11 @@ export function SortableDragHandle({
       aria-label={label}
       title={label}
       {...ctx.attributes}
-      {...ctx.listeners}
+      aria-disabled={Boolean(busy || disabled || ctx.attributes['aria-disabled'])}
+      {...(busy ? undefined : ctx.listeners)}
       className={cn(
-        'inline-flex size-7 shrink-0 touch-none items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40',
+        'inline-flex size-8 shrink-0 touch-none items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40 sm:size-7',
+        busy && 'pointer-events-none opacity-40',
         ctx.isDragging ? 'cursor-grabbing text-primary' : 'cursor-grab active:cursor-grabbing',
         className,
       )}
@@ -186,7 +190,7 @@ export function SortableList<T>({
       onDragEnd={handleDragEnd}
     >
       <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-        <div className={cn('grid gap-2', className)}>
+        <div className={cn('grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2', className)}>
           {items.map((item, index) => {
             const id = ids[index]
             return (

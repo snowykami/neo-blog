@@ -172,6 +172,7 @@ export function FriendManage() {
   const groupReqSeqRef = useRef(0)
   const linksReqSeqRef = useRef(0)
   const sortReqSeqRef = useRef(0)
+  const sortGroupTabListRef = useRef<HTMLDivElement | null>(null)
   const dialogAutoMetaRef = useRef<FriendAutoMetaSnapshot>(EMPTY_FRIEND_AUTO_META)
   const [probeSyncTrigger, setProbeSyncTrigger] = useState(0)
 
@@ -309,6 +310,27 @@ export function FriendManage() {
   useEffect(() => {
     fetchSortOverview()
   }, [fetchSortOverview])
+
+  // 窄屏切换友链排序分组标签或首次异步加载挂载分组栏时，自动将激活项滚动到水平可视区中央（遵循减弱动态效果偏好）
+  useEffect(() => {
+    if (mainTab !== 'sort' || sortGroups.length === 0)
+      return
+    const listEl = sortGroupTabListRef.current
+    if (!listEl || listEl.scrollWidth <= listEl.clientWidth)
+      return
+    const activeTrigger = listEl.querySelector<HTMLElement>('[data-state="active"]')
+    if (!activeTrigger)
+      return
+    const listRect = listEl.getBoundingClientRect()
+    const activeRect = activeTrigger.getBoundingClientRect()
+    const currentOffsetInScroll = activeRect.left - listRect.left + listEl.scrollLeft
+    const targetLeft = currentOffsetInScroll - (listRect.width - activeRect.width) / 2
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    listEl.scrollTo({
+      left: Math.max(0, Math.min(targetLeft, listEl.scrollWidth - listEl.clientWidth)),
+      behavior: prefersReducedMotion ? 'auto' : 'smooth',
+    })
+  }, [activeSortGroupId, mainTab, sortGroups.length])
 
   // 新建/更新留空字段或触发全量拨测后，后台异步执行反链与 RSS 自动发现回填，做有界静默二次同步防止编辑时读到旧快照
   useEffect(() => {
@@ -804,16 +826,32 @@ export function FriendManage() {
     [sortGroups],
   )
 
-  const renderStatusBadge = (status: FriendStatus) => {
+  const renderStatusBadge = (status: FriendStatus, badgeClassName?: string) => {
     switch (status) {
       case 'approved':
-        return <Badge variant="default" className="bg-emerald-600 text-white hover:bg-emerald-600">{friendT('status_approved')}</Badge>
+        return (
+          <Badge variant="default" className={cn('bg-emerald-600 text-white hover:bg-emerald-600', badgeClassName)}>
+            <span className="truncate">{friendT('status_approved')}</span>
+          </Badge>
+        )
       case 'pre_approved':
-        return <Badge variant="secondary" className="text-amber-600 dark:text-amber-400">{friendT('status_pre_approved')}</Badge>
+        return (
+          <Badge variant="secondary" className={cn('text-amber-600 dark:text-amber-400', badgeClassName)}>
+            <span className="truncate">{friendT('status_pre_approved')}</span>
+          </Badge>
+        )
       case 'rejected':
-        return <Badge variant="destructive">{friendT('status_rejected')}</Badge>
+        return (
+          <Badge variant="destructive" className={badgeClassName}>
+            <span className="truncate">{friendT('status_rejected')}</span>
+          </Badge>
+        )
       default:
-        return <Badge variant="outline">{friendT('status_pending')}</Badge>
+        return (
+          <Badge variant="outline" className={badgeClassName}>
+            <span className="truncate">{friendT('status_pending')}</span>
+          </Badge>
+        )
     }
   }
 
@@ -867,9 +905,9 @@ export function FriendManage() {
   return (
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
       {/* 顶部说明与操作区 */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <p className="max-w-2xl text-sm text-muted-foreground">{t('description')}</p>
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+        <p className="min-w-0 max-w-2xl text-sm wrap-anywhere text-muted-foreground">{t('description')}</p>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <Button
             type="button"
             variant="outline"
@@ -926,9 +964,9 @@ export function FriendManage() {
                 setStatusFilter(val)
                 setPage(1)
               }}
-              className="max-w-full min-w-0"
+              className="grid max-w-full min-w-0 grid-cols-[minmax(0,1fr)]"
             >
-              <TabsList className="max-w-full justify-start overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <TabsList className="w-fit max-w-full min-w-0 justify-start overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <TabsTrigger value="all" className="flex-none">{t('filter_all')}</TabsTrigger>
                 <TabsTrigger value="pre_approved" className="flex-none">{friendT('status_pre_approved')}</TabsTrigger>
                 <TabsTrigger value="pending" className="flex-none">{friendT('status_pending')}</TabsTrigger>
@@ -1212,7 +1250,7 @@ export function FriendManage() {
         {/* Tab 2: 友链默认排序策略与分组内拖拽排序 */}
         <TabsContent value="sort" className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
           {/* 卡片 1：前台默认排序方式 */}
-          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 rounded-xl border bg-card p-4 shadow-[0_1px_1px_-0.5px_rgba(0,0,0,0.035),0_3px_8px_-2px_rgba(0,0,0,0.035)] dark:shadow-none">
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 overflow-x-clip rounded-xl border bg-card p-3.5 shadow-[0_1px_1px_-0.5px_rgba(0,0,0,0.035),0_3px_8px_-2px_rgba(0,0,0,0.035)] sm:p-4 dark:shadow-none">
             <div className="grid min-w-0 gap-1">
               <h3 className="text-sm font-semibold">{t('sort_mode_title')}</h3>
               <p className="text-xs leading-relaxed text-muted-foreground">{t('sort_mode_desc')}</p>
@@ -1274,15 +1312,15 @@ export function FriendManage() {
           </div>
 
           {/* 卡片 2：分组内友链拖拽排序 */}
-          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3.5 rounded-xl border bg-card p-4 shadow-[0_1px_1px_-0.5px_rgba(0,0,0,0.035),0_3px_8px_-2px_rgba(0,0,0,0.035)] dark:shadow-none">
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3.5 overflow-x-clip rounded-xl border bg-card p-3.5 shadow-[0_1px_1px_-0.5px_rgba(0,0,0,0.035),0_3px_8px_-2px_rgba(0,0,0,0.035)] sm:p-4 dark:shadow-none">
             <div className="grid min-w-0 gap-1">
               <h3 className="text-sm font-semibold">{t('links_sort_title')}</h3>
-              <p className="text-xs leading-relaxed text-muted-foreground">{t('links_sort_desc')}</p>
+              <p className="text-xs leading-relaxed wrap-anywhere text-muted-foreground">{t('links_sort_desc')}</p>
             </div>
 
             {sortLoading && sortGroups.length === 0
               ? (
-                  <div className="grid gap-2">
+                  <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2">
                     <Skeleton className="h-9 w-72 max-w-full rounded-lg" />
                     {Array.from({ length: 4 }, (_, i) => (
                       <Skeleton key={`s-skel-${i}`} className="h-14 w-full rounded-xl" />
@@ -1303,14 +1341,17 @@ export function FriendManage() {
                         <Tabs
                           value={String(activeSortGroup.group.id)}
                           onValueChange={val => setActiveSortGroupId(Number(val))}
-                          className="max-w-full min-w-0"
+                          className="grid w-full max-w-full min-w-0 grid-cols-[minmax(0,1fr)]"
                         >
-                          <TabsList className="max-w-full justify-start overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                          <TabsList
+                            ref={sortGroupTabListRef}
+                            className="w-fit max-w-full min-w-0 justify-start overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                          >
                             {sortGroups.map((groupItem) => {
                               const grp = groupItem.group
                               return (
                                 <TabsTrigger key={grp.id} value={String(grp.id)} className="flex-none gap-1.5">
-                                  <span className="max-w-48 truncate">{presetT.groupName(grp.presetKey, grp.name)}</span>
+                                  <span className="max-w-40 truncate sm:max-w-48">{presetT.groupName(grp.presetKey, grp.name)}</span>
                                   {!grp.isPublic && (
                                     <>
                                       <EyeOffIcon className="size-3 shrink-0 opacity-75" aria-hidden />
@@ -1341,6 +1382,7 @@ export function FriendManage() {
                               items={activeSortGroup.links}
                               getId={item => item.id}
                               disabled={reorderingLinks}
+                              itemClassName="rounded-xl"
                               onReorder={next => void persistLinkOrder(activeSortGroup.group.id, next)}
                               renderItem={(item, idx, dragCtx) => {
                                 const palette = resolveFriendPalette(item.colorKey)
@@ -1350,66 +1392,65 @@ export function FriendManage() {
                                 return (
                                   <div
                                     className={cn(
-                                      'flex min-w-0 flex-wrap items-center gap-2.5 rounded-xl border bg-background/60 px-3 py-2.5 transition-colors sm:flex-nowrap',
+                                      'flex w-full min-w-0 items-center gap-2 rounded-xl border bg-background/60 px-2.5 py-2 transition-colors sm:gap-2.5 sm:px-3 sm:py-2.5',
                                       dragCtx.isDragging && 'border-primary/40 bg-card',
                                     )}
                                   >
-                                    <div className="flex min-w-0 basis-60 flex-1 items-center gap-2.5">
-                                      <SortableDragHandle
-                                        ctx={dragCtx}
-                                        disabled={activeSortGroup.links.length <= 1 || reorderingLinks}
-                                        label={t('drag_handle_label')}
-                                        className="-ml-1"
-                                      />
+                                    <SortableDragHandle
+                                      ctx={dragCtx}
+                                      disabled={activeSortGroup.links.length <= 1}
+                                      busy={reorderingLinks}
+                                      label={t('drag_handle_label')}
+                                      className="-ml-1"
+                                    />
 
-                                      <span className="min-w-6 shrink-0 px-0.5 text-center font-mono text-xs text-muted-foreground tabular-nums">
-                                        #
-                                        {idx + 1}
-                                      </span>
+                                    <span className="min-w-5 shrink-0 text-center font-mono text-[11px] text-muted-foreground tabular-nums sm:min-w-6 sm:px-0.5 sm:text-xs">
+                                      #
+                                      {idx + 1}
+                                    </span>
 
-                                      <ImageAvatar
-                                        src={primaryAvatar}
-                                        fallbackSrc={backupAvatar}
-                                        alt=""
-                                        fallback={initial}
-                                        sizes="36px"
-                                        fallbackDelayMs={150}
-                                        className="size-9 shrink-0 ring-1 ring-border/60"
-                                        fallbackClassName="text-xs font-bold text-white"
-                                        fallbackStyle={{ backgroundColor: `oklch(0.54 ${Math.max(palette.c, 0.08)} ${palette.h})` }}
-                                      />
+                                    <ImageAvatar
+                                      src={primaryAvatar}
+                                      fallbackSrc={backupAvatar}
+                                      alt=""
+                                      fallback={initial}
+                                      sizes="36px"
+                                      fallbackDelayMs={150}
+                                      className="size-8 shrink-0 ring-1 ring-border/60 sm:size-9"
+                                      fallbackClassName="text-xs font-bold text-white"
+                                      fallbackStyle={{ backgroundColor: `oklch(0.54 ${Math.max(palette.c, 0.08)} ${palette.h})` }}
+                                    />
 
-                                      <div className="min-w-0 flex-1">
-                                        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                                          <span className="inline-flex max-w-full min-w-0 items-center gap-1.5">
-                                            <span
-                                              className="size-2 shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/15"
-                                              style={{ backgroundColor: palette.hex }}
-                                              aria-hidden
-                                            />
-                                            <span className="truncate text-sm font-medium">{item.name}</span>
+                                    <div className="min-w-0 flex-1 overflow-hidden">
+                                      <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
+                                        <span className="inline-flex max-w-full min-w-0 items-center gap-1.5">
+                                          <span
+                                            className="size-2 shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/15"
+                                            style={{ backgroundColor: palette.hex }}
+                                            aria-hidden
+                                          />
+                                          <span className="min-w-0 truncate text-sm font-medium">{item.name}</span>
+                                        </span>
+                                        {item.status !== 'approved' && renderStatusBadge(item.status, 'max-w-full min-w-0 shrink')}
+                                      </div>
+                                      <div className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+                                        <span className="min-w-0 truncate font-mono">{item.url}</span>
+                                        {item.description && (
+                                          <span className="hidden min-w-0 truncate md:inline">
+                                            ·
+                                            {' '}
+                                            {item.description}
                                           </span>
-                                          {item.status !== 'approved' && renderStatusBadge(item.status)}
-                                        </div>
-                                        <div className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-                                          <span className="truncate font-mono">{item.url}</span>
-                                          {item.description && (
-                                            <span className="hidden truncate sm:inline">
-                                              ·
-                                              {' '}
-                                              {item.description}
-                                            </span>
-                                          )}
-                                        </div>
+                                        )}
                                       </div>
                                     </div>
 
-                                    <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-0.5">
+                                    <div className="ml-auto hidden shrink-0 items-center gap-0.5 sm:flex">
                                       <Button
                                         type="button"
                                         variant="ghost"
                                         size="icon"
-                                        className="size-8 sm:size-7"
+                                        className="size-7"
                                         title={t('action_move_top')}
                                         aria-label={t('action_move_top')}
                                         disabled={idx === 0 || reorderingLinks}
@@ -1421,7 +1462,7 @@ export function FriendManage() {
                                         type="button"
                                         variant="ghost"
                                         size="icon"
-                                        className="size-8 sm:size-7"
+                                        className="size-7"
                                         title={t('action_move_up')}
                                         aria-label={t('action_move_up')}
                                         disabled={idx === 0 || reorderingLinks}
@@ -1433,7 +1474,7 @@ export function FriendManage() {
                                         type="button"
                                         variant="ghost"
                                         size="icon"
-                                        className="size-8 sm:size-7"
+                                        className="size-7"
                                         title={t('action_move_down')}
                                         aria-label={t('action_move_down')}
                                         disabled={idx === activeSortGroup.links.length - 1 || reorderingLinks}
@@ -1445,13 +1486,57 @@ export function FriendManage() {
                                         type="button"
                                         variant="ghost"
                                         size="icon"
-                                        className="size-8 sm:size-7"
+                                        className="size-7"
                                         title={operationT('edit')}
                                         aria-label={operationT('edit')}
                                         onClick={() => openEditLinkDialog(item)}
                                       >
                                         <PencilIcon className="size-3.5" />
                                       </Button>
+                                    </div>
+
+                                    <div className="ml-auto flex shrink-0 sm:hidden">
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="size-8"
+                                            aria-label={t('col_actions')}
+                                          >
+                                            <MoreHorizontalIcon className="size-4" />
+                                          </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                          <DropdownMenuItem
+                                            disabled={idx === 0 || reorderingLinks}
+                                            onClick={() => handleMoveLinkToIndex(activeSortGroup.group.id, activeSortGroup.links, idx, 0)}
+                                          >
+                                            <ArrowUpToLineIcon className="size-4" />
+                                            {t('action_move_top')}
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem
+                                            disabled={idx === 0 || reorderingLinks}
+                                            onClick={() => handleMoveLinkToIndex(activeSortGroup.group.id, activeSortGroup.links, idx, idx - 1)}
+                                          >
+                                            <ArrowUpIcon className="size-4" />
+                                            {t('action_move_up')}
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem
+                                            disabled={idx === activeSortGroup.links.length - 1 || reorderingLinks}
+                                            onClick={() => handleMoveLinkToIndex(activeSortGroup.group.id, activeSortGroup.links, idx, idx + 1)}
+                                          >
+                                            <ArrowDownIcon className="size-4" />
+                                            {t('action_move_down')}
+                                          </DropdownMenuItem>
+                                          <DropdownMenuSeparator />
+                                          <DropdownMenuItem onClick={() => openEditLinkDialog(item)}>
+                                            <PencilIcon className="size-4" />
+                                            {operationT('edit')}
+                                          </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
                                     </div>
                                   </div>
                                 )
@@ -1465,13 +1550,13 @@ export function FriendManage() {
 
         {/* Tab 3: 分组管理与前台顺序联动 */}
         <TabsContent value="groups" className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
-          <div className="rounded-xl border bg-muted/30 px-4 py-3 text-xs leading-relaxed text-muted-foreground">
+          <div className="rounded-xl border bg-muted/30 px-3.5 py-3 text-xs leading-relaxed wrap-anywhere text-muted-foreground sm:px-4">
             {t('groups_order_hint')}
           </div>
 
           {groupsLoading && groups.length === 0
             ? (
-                <div className="grid gap-2">
+                <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2">
                   {Array.from({ length: 4 }, (_, i) => (
                     <Skeleton key={`g-skel-${i}`} className="h-14 w-full rounded-xl" />
                   ))}
@@ -1482,55 +1567,61 @@ export function FriendManage() {
                   items={groups}
                   getId={g => g.id}
                   disabled={reordering}
+                  itemClassName="rounded-xl"
                   onReorder={next => void persistGroupOrder(next)}
                   renderItem={(group, idx, dragCtx) => (
-                    <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-card px-3.5 py-3 shadow-[0_1px_1px_-0.5px_rgba(0,0,0,0.035),0_3px_8px_-2px_rgba(0,0,0,0.035)] dark:shadow-none">
-                      <SortableDragHandle
-                        ctx={dragCtx}
-                        disabled={groups.length <= 1 || reordering}
-                        label={t('drag_handle_label')}
-                        className="-ml-1"
-                      />
+                    <div className="flex w-full min-w-0 flex-wrap items-center gap-3 overflow-x-clip rounded-xl border bg-card px-3 py-2.5 shadow-[0_1px_1px_-0.5px_rgba(0,0,0,0.035),0_3px_8px_-2px_rgba(0,0,0,0.035)] sm:px-3.5 sm:py-3 dark:shadow-none">
+                      <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                        <SortableDragHandle
+                          ctx={dragCtx}
+                          disabled={groups.length <= 1}
+                          busy={reordering}
+                          label={t('drag_handle_label')}
+                          className="-ml-1"
+                        />
 
-                      <div className="min-w-0 basis-44 flex-1">
-                        <div className="flex min-w-0 flex-wrap items-center gap-2">
-                          <span className="text-sm font-medium wrap-anywhere">
-                            {presetT.groupName(group.presetKey, group.name)}
-                          </span>
-                          <Badge variant="outline" className="font-mono text-[11px]">
-                            {group.presetKey}
-                          </Badge>
-                          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs break-all text-muted-foreground">
-                            ?group=
-                            {group.slug}
-                          </code>
-                          <Badge variant="secondary" className="tabular-nums">
-                            {group.linkCount}
-                          </Badge>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:gap-2">
+                            <span className="text-sm font-medium wrap-anywhere">
+                              {presetT.groupName(group.presetKey, group.name)}
+                            </span>
+                            <Badge variant="outline" className="font-mono text-[11px]">
+                              {group.presetKey}
+                            </Badge>
+                            <code className="max-w-full rounded bg-muted px-1.5 py-0.5 font-mono text-xs break-all text-muted-foreground">
+                              ?group=
+                              {group.slug}
+                            </code>
+                            <Badge variant="secondary" className="tabular-nums">
+                              {group.linkCount}
+                            </Badge>
+                          </div>
+                          <p className="mt-0.5 line-clamp-1 text-xs wrap-anywhere text-muted-foreground">
+                            {presetT.groupDescription(group.presetKey, group.description)}
+                          </p>
                         </div>
-                        <p className="mt-0.5 line-clamp-1 text-xs wrap-anywhere text-muted-foreground">
-                          {presetT.groupDescription(group.presetKey, group.description)}
-                        </p>
                       </div>
 
-                      <div className="ml-auto flex flex-wrap items-center gap-3">
-                        <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground select-none">
-                          <Switch
-                            checked={group.isPublic}
-                            onCheckedChange={checked => handleToggleGroupFlag(group, { isPublic: checked })}
-                          />
-                          <span>{t('col_public')}</span>
-                        </label>
+                      <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-2.5 border-t pt-2.5 sm:ml-auto sm:w-auto sm:justify-end sm:gap-3 sm:border-t-0 sm:pt-0">
+                        <div className="flex min-w-0 flex-wrap items-center gap-3">
+                          <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground select-none">
+                            <Switch
+                              checked={group.isPublic}
+                              onCheckedChange={checked => handleToggleGroupFlag(group, { isPublic: checked })}
+                            />
+                            <span>{t('col_public')}</span>
+                          </label>
 
-                        <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground select-none">
-                          <Switch
-                            checked={group.skipBacklinkCheck}
-                            onCheckedChange={checked => handleToggleGroupFlag(group, { skipBacklinkCheck: checked })}
-                          />
-                          <span>{t('col_skip_backlink')}</span>
-                        </label>
+                          <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground select-none">
+                            <Switch
+                              checked={group.skipBacklinkCheck}
+                              onCheckedChange={checked => handleToggleGroupFlag(group, { skipBacklinkCheck: checked })}
+                            />
+                            <span>{t('col_skip_backlink')}</span>
+                          </label>
+                        </div>
 
-                        <div className="flex items-center gap-0.5">
+                        <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:ml-0">
                           <Button
                             type="button"
                             variant="ghost"
