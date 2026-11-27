@@ -41,7 +41,7 @@ function UserLikeItem({ like }: { like: UserLike }) {
   const isComment = like.targetType === TargetType.Comment
 
   const authorLink = () => (
-    <Link href={getUserUrl(like.author, isComment && commentEnabled ? 'comments' : 'posts')} className="font-medium text-foreground/90 transition-colors hover:text-primary">
+    <Link href={getUserUrl(like.author, isComment && commentEnabled ? 'comments' : 'posts')} prefetch={false} className="font-medium text-foreground/90 transition-colors hover:text-primary">
       {like.author.nickname || like.author.username}
     </Link>
   )
@@ -77,7 +77,7 @@ function UserLikeItem({ like }: { like: UserLike }) {
       <p className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
         <FileTextIcon aria-hidden className="size-3.5 shrink-0" />
         {isComment && <span className="shrink-0">{t('commented_on')}</span>}
-        <Link href={getTargetUrl(like)} className="truncate font-medium text-foreground/75 transition-colors hover:text-primary">
+        <Link href={getTargetUrl(like)} prefetch={false} className="truncate font-medium text-foreground/75 transition-colors hover:text-primary">
           {like.target.title}
         </Link>
       </p>

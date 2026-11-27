@@ -4,6 +4,7 @@ import type { ArchiveGroup } from './archive'
 import { useTranslations } from 'next-intl'
 import { useQueryState } from 'nuqs'
 import { Suspense, useLayoutEffect, useMemo, useState } from 'react'
+import { HoverPrefetchLink } from '@/components/common/hover-prefetch-link'
 import { SectionTitle } from '@/components/layout/site-shell'
 import { Badge } from '@/components/ui/badge'
 import { Link } from '@/i18n/navigation'
@@ -105,7 +106,7 @@ export function ArchiveTimeline({
         {filterText && (
           <div className="mb-2 flex items-center gap-3 px-2 text-sm">
             <Badge variant="secondary">{filterText}</Badge>
-            <Link href={mainPath.archive} className="rounded-sm text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <Link href={mainPath.archive} prefetch={false} className="rounded-sm text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               {t('clear_filter')}
             </Link>
           </div>
@@ -126,7 +127,7 @@ export function ArchiveTimeline({
             </div>
 
             {group.posts.map(post => (
-              <Link
+              <HoverPrefetchLink
                 key={post.id}
                 href={post.url}
                 aria-label={post.title}
@@ -150,7 +151,7 @@ export function ArchiveTimeline({
                     {post.labels.map(label => `#${label}`).join(' ')}
                   </div>
                 </div>
-              </Link>
+              </HoverPrefetchLink>
             ))}
           </div>
         ))}

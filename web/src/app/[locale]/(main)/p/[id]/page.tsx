@@ -29,9 +29,8 @@ interface Props {
 }
 
 // 文章页按地址缓存：构建时只预渲染占位参数（见 lib/cache-tags.ts 的 BUILD_PLACEHOLDER_PARAM），每篇文章（每种语言）在第一次被访问时
-// 整页直接生成进 <main>，之后文档请求与悬停时的按链接预取（dynamicOnHover）都直接命中缓存。后台修改文章 / 分类 / 标签、站点配置后，
-// posts / site 标签失效（见 lib/cache-tags.ts），下次访问重新生成；slug 跳转（308）同样被缓存，不存在的文章（404）不缓存。
-// 显式关闭段级 instant 导航校验，避免开发态因移除外层 loading.tsx 弹出 params 阻塞警告
+// 整页直接生成进 <main>，确保搜索引擎与无 JS 的 AI 爬虫冷抓取直出完整 <article> 与 JSON-LD（Next.js 16.4 cacheComponents 下若放置
+// 段级 loading.tsx 会对爬虫先吐静态骨架与 hidden 流式块）；人类浏览器点击未预取文章时由 MainRouteTransition 即时渲染客户端详情骨架
 export const ensureStatic = 'navigation'
 export const instant = false
 

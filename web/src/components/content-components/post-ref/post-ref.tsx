@@ -3,10 +3,10 @@
 import { FileTextIcon, LinkIcon } from 'lucide-react'
 import { useFormatter, useTranslations } from 'next-intl'
 import { UserAvatar } from '@/components/common/avatar'
+import { HoverPrefetchLink } from '@/components/common/hover-prefetch-link'
 import { SafeImage } from '@/components/common/safe-image'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ViewIcon } from '@/contexts/theme-context'
-import { Link } from '@/i18n/navigation'
 import { cn } from '@/lib/utils'
 import { stripInlineMarkdown } from '@/utils/common/inline-markdown'
 import { getPostUrl } from '@/utils/common/route'
@@ -64,7 +64,7 @@ function PostRefCardBody({ postId, showCover }: PostRefProps) {
   const author = card.user?.nickname || card.user?.username || commonT('Common.unknown_author')
 
   return (
-    <Link
+    <HoverPrefetchLink
       href={getPostUrl({ post: card })}
       className={cn(CARD_CLASS, 'group no-underline hover:border-primary/40')}
     >
@@ -103,6 +103,6 @@ function PostRefCardBody({ postId, showCover }: PostRefProps) {
           </span>
         </div>
       </div>
-    </Link>
+    </HoverPrefetchLink>
   )
 }

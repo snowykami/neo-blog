@@ -14,7 +14,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/contexts/auth-context'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { useUnreadNotificationCount } from '@/hooks/use-notification-unread'
@@ -56,13 +55,12 @@ export function AvatarWithDropdownMenu({ className }: { className?: string }) {
             ? (unreadCount > 0 ? notificationsT('account_with_unread', { name: formatDisplayName(user) }) : formatDisplayName(user))
             : operationT('login')}
           title={user ? formatDisplayName(user) : operationT('login')}
-          // 登录状态在浏览器里确认（服务端外壳对所有人一致），确认前显示与头像同尺寸的占位，避免先出现登录菜单
+          // 登录状态在浏览器里确认（服务端外壳对所有人一致），确认前显示与头像同尺寸的静默圆点占位，避免首包 HTML 混入 aria-busy 或脉冲骨架
           disabled={loading}
-          aria-busy={loading || undefined}
         >
           <span className="relative inline-flex">
             {loading
-              ? <Skeleton aria-hidden className="size-7 rounded-full" />
+              ? <span aria-hidden className="size-7 rounded-full bg-muted/60" />
               : user
                 ? (
                     <UserAvatar user={user} size={64} alt="" className="size-7" />

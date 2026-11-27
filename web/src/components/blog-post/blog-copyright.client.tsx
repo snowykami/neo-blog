@@ -74,6 +74,7 @@ function CopyrightCard({ post, className }: { post: Pick<Post, 'id' | 'slug' | '
             <dd>
               <Link
                 href={getUserUrl(post.user, 'posts')}
+                prefetch={false}
                 className="block max-w-[20ch] truncate text-foreground/75 hover:text-primary"
                 title={formatDisplayName(post.user)}
               >

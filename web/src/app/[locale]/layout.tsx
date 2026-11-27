@@ -13,6 +13,7 @@ import {
   DeferredLocaleSuggestToast,
   DeferredToaster,
 } from '@/components/common/root-client-deferred'
+import { TopProgressBar } from '@/components/common/top-progress-bar'
 import { UserPreferenceSync } from '@/components/common/user-preference-sync'
 import { I18nScope } from '@/components/i18n-scope'
 import { entranceContinueScript } from '@/components/layout/entrance-continue'
@@ -152,6 +153,8 @@ export default async function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: entranceContinueScript }} />
       </head>
       <body className="font-sans">
+        {/* 顶部细加载进度条：由 onRouterTransitionStart 驱动，静置态零节点零定时器 */}
+        <TopProgressBar />
         {/* 首屏播完完整入场动画后，客户端跳转改播轻快版（见该组件） */}
         <EntranceOnce />
         <NuqsAdapter>

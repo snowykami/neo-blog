@@ -97,6 +97,7 @@ export function BlogLikeButton({ post }: { post: Pick<Post, 'id' | 'isLiked' | '
             <Link
               key={u.id}
               href={getUserUrl(u, 'posts')}
+              prefetch={false}
               aria-label={formatDisplayName(u)}
               title={formatDisplayName(u)}
               className="relative rounded-full ring-2 ring-card transition-transform duration-150 hover:z-10 hover:-translate-y-0.5 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

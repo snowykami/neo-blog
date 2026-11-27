@@ -14,6 +14,7 @@ const state = vi.hoisted(() => ({ current: { status: 'loading' } as PostCardStat
 vi.mock('./use-post-cards', () => ({ usePostCard: () => state.current }))
 // 只验证卡片自身的分支与链接，邻居组件换成最简实现
 vi.mock('next-intl', () => ({
+  useLocale: () => 'zh-CN',
   useTranslations: () => (key: string) => key,
   useFormatter: () => ({
     dateTime: () => '2026-01-01',
@@ -22,6 +23,7 @@ vi.mock('next-intl', () => ({
 }))
 vi.mock('@/i18n/navigation', () => ({
   Link: ({ href, children }: { href: string, children: ReactNode }) => createElement('a', { href }, children),
+  useRouter: () => ({ prefetch: vi.fn() }),
 }))
 vi.mock('@/components/common/safe-image', () => ({ SafeImage: () => createElement('img', { alt: '' }) }))
 vi.mock('@/components/common/avatar', () => ({ UserAvatar: () => createElement('span', null, 'avatar') }))

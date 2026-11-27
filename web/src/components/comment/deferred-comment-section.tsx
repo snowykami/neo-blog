@@ -39,7 +39,7 @@ function wantsCommentsNow() {
 
 /**
  * 文章页的评论区：评论列表、输入框、@提及与附件的代码（约 40 KB）不进首屏包，评论区接近视口时才加载并请求评论；
- * 之前显示与加载中相同的骨架，占位高度不变
+ * 触发加载前先用等高空白容器占位（避免首包 HTML 混入 aria-busy 骨架），进入视口加载期间再展示骨架
  */
 export function DeferredCommentSection(props: ComponentProps<typeof CommentSection>) {
   const ref = useRef<HTMLDivElement>(null)
@@ -67,7 +67,7 @@ export function DeferredCommentSection(props: ComponentProps<typeof CommentSecti
 
   return (
     <div ref={ref}>
-      {visible ? <LazyCommentSection {...props} /> : <CommentsSkeleton />}
+      {visible ? <LazyCommentSection {...props} /> : <div className="min-h-40" />}
     </div>
   )
 }

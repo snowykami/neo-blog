@@ -1,9 +1,10 @@
 import type { TocHeading } from '@/models/toc'
 import { createHash } from 'node:crypto'
 import * as cheerio from 'cheerio'
+import { COMPONENT_ROOT_SELECTOR } from '@/components/content-components/constants'
 import { renderInlineIconsHtml } from '@/lib/inline-icon/icon'
 import { applyContentAutoMatch } from './content-auto-match'
-import { extractHeadings } from './heading-toc'
+import { extractHeadingsFromRoot } from './heading-toc'
 import { renderCodeBlocks } from './render-code'
 import { renderMathHtml } from './render-math'
 import { sanitizeContentHtml } from './sanitize-html'
@@ -12,6 +13,7 @@ import { sanitizeContentHtml } from './sanitize-html'
 // 结果只取决于原始内容与已安装的图标库；复制按钮文案在出缓存后按页面语言替换并转义，避免多语言重复缓存同一篇正文
 const MAX_ENTRIES = 200
 const BASE_COPY_LABEL_TOKEN = '__NEO_BLOG_CODE_COPY_LABEL__'
+const SKIP_IMAGE_ANCESTOR_SELECTOR = `pre, code, ${COMPONENT_ROOT_SELECTOR}`
 
 interface CachedRenderResult {
   html: string
@@ -38,28 +40,50 @@ function pickCopyToken(html: string): string {
   return token
 }
 
-/** 为正文内联 <img> 补充懒加载、异步解码与无障碍空 alt 兜底属性（已有对应属性时保持原值） */
-function enhanceContentImages(html: string): string {
-  if (!html || !html.includes('<img'))
-    return html
+/**
+ * 单遍 Cheerio AST 遍历同时完成标题锚点目录提取（复用 heading-toc 同源实现）与正文 <img> 懒加载属性补齐，
+ * 避免对大篇幅 HTML 重复执行两次完整解析与序列化
+ */
+function prepareHeadingsAndImages(html: string): { html: string, headings: TocHeading[] } {
+  if (!html)
+    return { html, headings: [] }
+  const hasHeadingCandidate = /<h[1-4]\b/i.test(html)
+  const hasImageCandidate = /<img\b/i.test(html)
+  if (!hasHeadingCandidate && !hasImageCandidate)
+    return { html, headings: [] }
+
   const $ = cheerio.load(html, null, false)
   let changed = false
-  $('img').each((_, el) => {
-    const $img = $(el)
-    if ($img.attr('alt') === undefined) {
-      $img.attr('alt', '')
+  let headings: TocHeading[] = []
+
+  if (hasHeadingCandidate) {
+    const extracted = extractHeadingsFromRoot($)
+    headings = extracted.headings
+    if (extracted.mutated)
       changed = true
-    }
-    if (!$img.attr('loading')) {
-      $img.attr('loading', 'lazy')
-      changed = true
-    }
-    if (!$img.attr('decoding')) {
-      $img.attr('decoding', 'async')
-      changed = true
-    }
-  })
-  return changed ? $.html() : html
+  }
+
+  if (hasImageCandidate) {
+    $('img').each((_, el) => {
+      const $img = $(el)
+      if ($img.closest(SKIP_IMAGE_ANCESTOR_SELECTOR).length > 0)
+        return
+      if ($img.attr('alt') === undefined) {
+        $img.attr('alt', '')
+        changed = true
+      }
+      if (!$img.attr('loading')) {
+        $img.attr('loading', 'lazy')
+        changed = true
+      }
+      if (!$img.attr('decoding')) {
+        $img.attr('decoding', 'async')
+        changed = true
+      }
+    })
+  }
+
+  return { html: changed ? $.html() : html, headings }
 }
 
 function applyCopyLabel(entry: CachedRenderResult, copyLabel: string): { html: string, headings: TocHeading[] } {
@@ -79,18 +103,25 @@ export async function renderContentHtml(raw: string, { copyLabel = '' }: { copyL
     renderCache.set(key, cached)
     return applyCopyLabel(cached, copyLabel)
   }
-  // 先自动匹配再净化，防止正文中的脚本 / 事件处理器造成存储型 XSS；净化后再为标题注入锚点并提取目录、为图片补全懒加载属性，
-  // 再包装代码块并着色（highlight.js 的输出由代码文本转义生成，不经过净化），再渲染公式（KaTeX 的输出不经过净化，也不影响标题文字），
-  // 最后按图标名填入图标的 SVG（同样不经过净化，来自图标库本身）
-  const { html: headedHtml, headings } = extractHeadings(sanitizeContentHtml(applyContentAutoMatch(raw)))
-  const baseHtml = enhanceContentImages(headedHtml)
-  const copyToken = baseHtml.includes('<pre') ? pickCopyToken(baseHtml) : ''
-  const renderedHtml = await renderInlineIconsHtml(
-    renderMathHtml(copyToken ? renderCodeBlocks(baseHtml, copyToken) : baseHtml),
-  )
-  const entry: CachedRenderResult = { html: renderedHtml, copyToken, headings }
+  // 先自动匹配再净化，防止正文中的脚本 / 事件处理器造成存储型 XSS；净化后再单遍完成标题目录与图片属性补齐，
+  // 接着做代码块、公式与行内图标展开（它们由可信模板构造）
+  const matched = applyContentAutoMatch(raw)
+  const safe = sanitizeContentHtml(matched)
+  const copyToken = pickCopyToken(safe)
+  const { html: withHeadingsAndImages, headings } = prepareHeadingsAndImages(safe)
+  const withCode = renderCodeBlocks(withHeadingsAndImages, copyToken)
+  const withMath = renderMathHtml(withCode)
+  const html = await renderInlineIconsHtml(withMath)
+  const entry: CachedRenderResult = {
+    html,
+    copyToken: html.includes(copyToken) ? copyToken : '',
+    headings,
+  }
   renderCache.set(key, entry)
-  if (renderCache.size > MAX_ENTRIES)
-    renderCache.delete(renderCache.keys().next().value!)
+  if (renderCache.size > MAX_ENTRIES) {
+    const oldest = renderCache.keys().next().value
+    if (oldest !== undefined)
+      renderCache.delete(oldest)
+  }
   return applyCopyLabel(entry, copyLabel)
 }

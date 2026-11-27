@@ -23,10 +23,10 @@ export function blogHomeQueryKey(params: { page: number, label?: string | null, 
   return [params.page, params.label ?? '', params.category ?? '', params.query ?? '', params.orderBy].join('|')
 }
 
-// 仅保留最新 1 份首页查询快照（60s 有效期，O(1) 零膨胀）：
-// 常规「首页 ↔ 文章」由 Next <Activity> 原生保活；即便读者连续跨 3 个以上一级路由段导致首页被框架 BFCache 挤出，
-// 返回带分页/筛选的首页时也能按「语言 + 每页条数 + 查询条件」命中内存快照瞬切渲染，且后台写操作触发时同步清空
+// 保留最近 4 份首页查询快照（60s 有效期，LRU 严格受界）：
+// 既避免悬停预热「最热」Tab 冲掉当前所在分页快照，又能在读者跨多路由返回首页或切换最新/最热时瞬切渲染；后台写操作触发时同步清空并递增代数防回写
 const HOME_SNAPSHOT_TTL_MS = 60_000
+const MAX_HOME_SNAPSHOTS = 4
 
 export interface HomeSnapshotEntry {
   cacheKey: string
@@ -37,29 +37,73 @@ export interface HomeSnapshotEntry {
   savedAt: number
 }
 
-let lastHomeSnapshot: HomeSnapshotEntry | null = null
+const homeSnapshots = new Map<string, HomeSnapshotEntry>()
+const inFlightHomeQueries = new Map<string, Promise<HomeSnapshotEntry>>()
+let homeSnapshotEpoch = 0
+
+export function getHomeSnapshotEpoch(): number {
+  return homeSnapshotEpoch
+}
 
 export function buildHomeSnapshotKey(params: { locale: string, size: number, queryKey: string }) {
   return `${params.locale}|${params.size}|${params.queryKey}`
 }
 
 export function readFreshHomeSnapshot(cacheKey: string): HomeSnapshotEntry | null {
-  if (!lastHomeSnapshot || lastHomeSnapshot.cacheKey !== cacheKey)
+  const entry = homeSnapshots.get(cacheKey)
+  if (!entry)
     return null
-  if (Date.now() - lastHomeSnapshot.savedAt > HOME_SNAPSHOT_TTL_MS) {
-    lastHomeSnapshot = null
+  if (Date.now() - entry.savedAt > HOME_SNAPSHOT_TTL_MS) {
+    homeSnapshots.delete(cacheKey)
     return null
   }
-  return lastHomeSnapshot
+  homeSnapshots.delete(cacheKey)
+  homeSnapshots.set(cacheKey, entry)
+  return entry
 }
 
-export function writeHomeSnapshot(entry: Omit<HomeSnapshotEntry, 'savedAt'>) {
-  lastHomeSnapshot = {
+export function writeHomeSnapshot(entry: Omit<HomeSnapshotEntry, 'savedAt'>, expectedEpoch = homeSnapshotEpoch): HomeSnapshotEntry | null {
+  if (expectedEpoch !== homeSnapshotEpoch)
+    return null
+  const saved: HomeSnapshotEntry = {
     ...entry,
     savedAt: Date.now(),
   }
+  homeSnapshots.delete(entry.cacheKey)
+  homeSnapshots.set(entry.cacheKey, saved)
+  if (homeSnapshots.size > MAX_HOME_SNAPSHOTS) {
+    const oldest = homeSnapshots.keys().next().value
+    if (oldest !== undefined)
+      homeSnapshots.delete(oldest)
+  }
+  return saved
+}
+
+export function fetchHomeSnapshotDedup(
+  cacheKey: string,
+  loader: () => Promise<Omit<HomeSnapshotEntry, 'savedAt'>>,
+): Promise<HomeSnapshotEntry> {
+  const existing = inFlightHomeQueries.get(cacheKey)
+  if (existing)
+    return existing
+
+  const epochAtStart = homeSnapshotEpoch
+  const task = loader()
+    .then((payload) => {
+      const written = writeHomeSnapshot(payload, epochAtStart)
+      return written ?? { ...payload, savedAt: Date.now() }
+    })
+    .finally(() => {
+      if (inFlightHomeQueries.get(cacheKey) === task)
+        inFlightHomeQueries.delete(cacheKey)
+    })
+
+  inFlightHomeQueries.set(cacheKey, task)
+  return task
 }
 
 export function clearHomeSnapshot() {
-  lastHomeSnapshot = null
+  homeSnapshotEpoch += 1
+  homeSnapshots.clear()
+  inFlightHomeQueries.clear()
 }

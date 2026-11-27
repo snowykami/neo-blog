@@ -375,6 +375,7 @@ function NotificationRow({ item, onOpen }: { item: NotificationItemModel, onOpen
     ? (
         <Link
           href={href}
+          prefetch={false}
           onClick={() => onOpen(item)}
           className="block rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >

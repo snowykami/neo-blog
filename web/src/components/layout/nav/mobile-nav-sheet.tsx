@@ -65,6 +65,7 @@ export function MobileNavSheet({ items, open, setOpen, triggerRef }: {
                           href={child.href}
                           external={child.external}
                           openInNewTab={child.openInNewTab}
+                          noPrefetch={child.noPrefetch}
                           aria-current={isActivePath(pathname, child.href) ? 'page' : undefined}
                           className={linkClass(child.href)}
                           onClick={() => setOpen(false)}

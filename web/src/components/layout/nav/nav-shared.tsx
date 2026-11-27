@@ -17,6 +17,8 @@ export interface NavLinkItem {
   external?: boolean
   // 是否在新浏览器标签页打开（等价 target="_blank"），关闭则在当前页打开
   openInNewTab?: boolean
+  // 显式关闭预取（仅用于 /random 这类中转跳转路由；常规固定导航保持 partialPrefetching + dynamicOnHover）
+  noPrefetch?: boolean
 }
 
 function isMusicEntryHref(href: string): boolean {
@@ -28,10 +30,11 @@ export function NavItemLink({
   href,
   external,
   openInNewTab,
+  noPrefetch,
   onPointerEnter,
   onTouchStart,
   ...props
-}: React.ComponentProps<typeof Link> & { href: string, external?: boolean, openInNewTab?: boolean }) {
+}: React.ComponentProps<typeof Link> & { href: string, external?: boolean, openInNewTab?: boolean, noPrefetch?: boolean }) {
   if (external) {
     return (
       <a
@@ -62,6 +65,8 @@ export function NavItemLink({
   return (
     <Link
       href={href}
+      prefetch={noPrefetch ? false : undefined}
+      unstable_dynamicOnHover={noPrefetch ? false : undefined}
       onPointerEnter={(e) => {
         if (musicEntry)
           preloadMusicRuntime()

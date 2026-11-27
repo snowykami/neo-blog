@@ -473,6 +473,7 @@ function CommentBody({
       <div className="flex gap-3">
         <Link
           href={getUserUrl(comment.user, 'comments')}
+          prefetch={false}
           aria-label={t('view_user_profile', { name: name(comment.user) })}
           className={cn('shrink-0', isRoot ? 'size-9 sm:size-10' : 'size-7')}
         >
@@ -482,6 +483,7 @@ function CommentBody({
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 leading-snug">
             <Link
               href={getUserUrl(comment.user, 'comments')}
+              prefetch={false}
               data-user-color={userColor(comment.user)}
               className="font-bold text-primary hover:underline hover:decoration-dashed hover:underline-offset-4"
             >
@@ -512,6 +514,7 @@ function CommentBody({
                 prefix={replyToUser && (
                   <Link
                     href={getUserUrl(replyToUser, 'comments')}
+                    prefetch={false}
                     data-user-color={userColor(replyToUser)}
                     className="mr-1 font-semibold text-primary hover:underline"
                   >

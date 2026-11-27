@@ -1,9 +1,9 @@
 import type { PostNeighborItem, PostNeighbors } from '@/models/post'
 import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react'
 import { getFormatter, getTranslations } from 'next-intl/server'
+import { HoverPrefetchLink } from '@/components/common/hover-prefetch-link'
 import { SafeImage } from '@/components/common/safe-image'
 import { Badge } from '@/components/ui/badge'
-import { Link } from '@/i18n/navigation'
 import { cn } from '@/lib/utils'
 import { stripInlineMarkdown } from '@/utils/common/inline-markdown'
 import { getPostUrl } from '@/utils/common/route'
@@ -33,7 +33,7 @@ export async function PostContinuation({ neighbors }: { neighbors: PostNeighbors
           className="grid grid-cols-1 gap-3 sm:grid-cols-2"
         >
           {prev && (
-            <Link
+            <HoverPrefetchLink
               href={getPostUrl({ post: prev })}
               className="surface-card group flex flex-col justify-between gap-2 rounded-2xl bg-card px-5 py-4 transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
@@ -44,10 +44,10 @@ export async function PostContinuation({ neighbors }: { neighbors: PostNeighbors
               <span className="line-clamp-2 text-sm font-semibold text-foreground/90 transition-colors group-hover:text-primary md:text-base">
                 {prev.title || t('untitled')}
               </span>
-            </Link>
+            </HoverPrefetchLink>
           )}
           {next && (
-            <Link
+            <HoverPrefetchLink
               href={getPostUrl({ post: next })}
               className={cn(
                 'surface-card group flex flex-col justify-between gap-2 rounded-2xl bg-card px-5 py-4 text-right transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
@@ -61,7 +61,7 @@ export async function PostContinuation({ neighbors }: { neighbors: PostNeighbors
               <span className="line-clamp-2 text-sm font-semibold text-foreground/90 transition-colors group-hover:text-primary md:text-base">
                 {next.title || t('untitled')}
               </span>
-            </Link>
+            </HoverPrefetchLink>
           )}
         </nav>
       )}
@@ -77,7 +77,7 @@ export async function PostContinuation({ neighbors }: { neighbors: PostNeighbors
               const title = item.title || t('untitled')
               const summary = neighborSummary(item)
               return (
-                <Link
+                <HoverPrefetchLink
                   key={item.id}
                   href={getPostUrl({ post: item })}
                   className={cn(
@@ -125,7 +125,7 @@ export async function PostContinuation({ neighbors }: { neighbors: PostNeighbors
                       />
                     </div>
                   )}
-                </Link>
+                </HoverPrefetchLink>
               )
             })}
           </div>

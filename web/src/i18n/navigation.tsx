@@ -26,14 +26,24 @@ const AppLink = NextLink as ComponentType<ComponentProps<typeof NextLink> & { un
  * 按链接预取，连同按地址缓存的正文一起取下来，点击时直接用缓存出内容。
  * 只要外壳、不必按链接取内容的传 unstable_dynamicOnHover={false}；完全不想预取的照常传 prefetch={false}（悬停也不会预取）
  *
- * 后台地址不带语言前缀、直接交给 next/link，同样默认悬停升级：视口预取的静态段 5 分钟后过期，
- * 悬停时连同按请求渲染的部分一起重新取下来，点击菜单 / Tab 时不用再等服务端
+ * 新标签页打开（target="_blank"）走独立文档导航，不共享当前页 Segment Cache，统一默认关闭 RSC 预取；
+ * 后台地址不带语言前缀、直接交给 next/link，同样默认悬停升级；非后台的非多语言端点（/api、/rss.xml、/feed 等）默认不预取
  */
-export function Link({ href, locale, unstable_dynamicOnHover = true, ...props }: LinkProps) {
+export function Link({ href, locale, prefetch, unstable_dynamicOnHover = true, ...props }: LinkProps) {
+  const opensInNewTab = props.target === '_blank'
   if (typeof href === 'string' && !isLocalizedHref(href)) {
-    // 接口、RSS 等不是页面，悬停升级没有意义
-    const dynamicOnHover = isConsolePath(href.split(/[?#]/, 1)[0]) ? unstable_dynamicOnHover : undefined
-    return <AppLink href={href} unstable_dynamicOnHover={dynamicOnHover} {...props} />
+    const isConsole = isConsolePath(href.split(/[?#]/, 1)[0])
+    const resolvedPrefetch = opensInNewTab ? false : (prefetch ?? (isConsole ? undefined : false))
+    const dynamicOnHover = !opensInNewTab && isConsole ? unstable_dynamicOnHover : false
+    return <AppLink href={href} prefetch={resolvedPrefetch} unstable_dynamicOnHover={dynamicOnHover} {...props} />
   }
-  return <IntlLink href={href} locale={locale} unstable_dynamicOnHover={unstable_dynamicOnHover} {...props} />
+  return (
+    <IntlLink
+      href={href}
+      locale={locale}
+      prefetch={opensInNewTab ? false : prefetch}
+      unstable_dynamicOnHover={opensInNewTab ? false : unstable_dynamicOnHover}
+      {...props}
+    />
+  )
 }

@@ -20,18 +20,30 @@ export function RandomPost() {
   const router = useRouter()
   const [post, setPost] = useState<Post | null>(null)
   useEffect(() => {
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | null = null
+    setPost(null)
     getRandomPost()
       .then((res) => {
+        if (cancelled)
+          return
         setPost(res.data)
-        // 等待 300 ms 再跳转，避免闪烁
-        setTimeout(() => {
-          router.push(getPostUrl({ post: res.data }))
+        // 等待 300 ms 再替换跳转，避免闪烁，同时用 replace 避免后退再次落入随机抽签死循环
+        timer = setTimeout(() => {
+          if (!cancelled)
+            router.replace(getPostUrl({ post: res.data }))
         }, 300)
       })
       .catch((err) => {
-        toast.error(errorMessageT(err, operationT('fetch_failed')))
+        if (!cancelled)
+          toast.error(errorMessageT(err, operationT('fetch_failed')))
       })
-  }, [])
+    return () => {
+      cancelled = true
+      if (timer !== null)
+        clearTimeout(timer)
+    }
+  }, [errorMessageT, operationT, router])
 
   return (
     <SiteShell className="max-w-[48rem]">

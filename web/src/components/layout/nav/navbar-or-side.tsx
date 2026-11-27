@@ -38,8 +38,13 @@ import { getPageUrl, mainPath } from '@/utils/common/route'
 import { useInitialNavPages } from './nav-pages-context'
 import { isActivePath, navIconButtonClass, NavItemLink } from './nav-shared'
 
-/** 站外地址：http(s) 绝对地址（链接页面的站内路径以 / 开头） */
-const isExternalHref = (href: string) => /^https?:\/\//i.test(href)
+/** 站外或特殊协议地址：http(s)、mailto、tel、协议相对 // 等（站内路由页面路径以单斜杠 / 开头） */
+const isExternalHref = (href: string) => /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(href)
+
+function isRandomPathHref(href: string): boolean {
+  const pathOnly = href.split(/[?#]/, 1)[0]
+  return pathOnly === mainPath.random
+}
 
 const staticMenuItems: NavMenuItem[] = [
   {
@@ -70,6 +75,7 @@ const staticMenuItems: NavMenuItem[] = [
         title: 'random',
         href: mainPath.random,
         icon: ShuffleIcon,
+        noPrefetch: true,
       },
     ],
   },
@@ -134,13 +140,15 @@ function useNavMenuItems(): NavMenuItem[] {
         children: pages.map((page) => {
           const isLink = page.kind === 'link' && !!page.linkUrl
           const external = isLink && isExternalHref(page.linkUrl)
+          const resolvedHref = isLink ? page.linkUrl : getPageUrl(page)
           return {
             title: `page-${page.id}`,
             label: page.title,
-            href: isLink ? page.linkUrl : getPageUrl(page),
+            href: resolvedHref,
             icon: resolvePageNavIcon(page),
             external,
             openInNewTab: Boolean(page.openInNewTab),
+            noPrefetch: !external && isRandomPathHref(resolvedHref),
           }
         }),
       },
@@ -251,6 +259,7 @@ function NavMenuCenter({ items }: { items: NavMenuItem[] }) {
                                       href={child.href}
                                       external={child.external}
                                       openInNewTab={child.openInNewTab}
+                                      noPrefetch={child.noPrefetch}
                                       aria-current={childActive ? 'page' : undefined}
                                       className={cn(
                                         'flex-row! items-center gap-2! rounded-lg! px-3 py-2 text-sm font-medium text-foreground/75 hover:bg-primary/10! hover:text-primary! focus:bg-primary/10! focus:text-primary!',

@@ -101,4 +101,15 @@ describe('renderContentHtml 正文服务端渲染与缓存', () => {
 
     autoSpy.mockRestore()
   })
+
+  it('跳过代码块与内嵌组件岛内部的标题标签，不产生悬空目录项', async () => {
+    const raw = [
+      '<h2>真实章节</h2>',
+      '<pre><code><h2>代码块里的标题</h2></code></pre>',
+      '<div data-component-root=""><h3>组件岛里的标题</h3></div>',
+    ].join('')
+
+    const { headings } = await renderContentHtml(raw)
+    expect(headings).toEqual([{ id: 'heading-真实章节', text: '真实章节', level: 2 }])
+  })
 })

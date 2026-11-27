@@ -49,7 +49,7 @@ function PostAuthorAvatarItem({ user, compact = false }: { user: Post['user'], c
   const itemClass = cn('flex min-w-0 items-center font-medium text-muted-foreground', compact ? 'text-xs' : 'text-sm')
 
   return user?.username
-    ? <Link href={getUserUrl(user, 'posts')} className={cn(metaLinkClass, itemClass)}>{content}</Link>
+    ? <Link href={getUserUrl(user, 'posts')} prefetch={false} className={cn(metaLinkClass, itemClass)}>{content}</Link>
     : <div className={itemClass}>{content}</div>
 }
 
@@ -86,7 +86,7 @@ export function PostMeta({
       {showAuthor && authorAvatar && <PostAuthorAvatarItem user={post.user} compact={compact} />}
       {showAuthor && !authorAvatar && (
         <PostMetaItem icon={PenLineIcon} label={t('Copyright.author')} compact={compact}>
-          <Link href={getUserUrl(post.user, 'posts')} className={cn(metaLinkClass, 'block')}>
+          <Link href={getUserUrl(post.user, 'posts')} prefetch={false} className={cn(metaLinkClass, 'block')}>
             <span className="block max-w-[16ch] truncate">
               {post.user.nickname || post.user.username || t('Common.unknown_author')}
             </span>
@@ -98,7 +98,7 @@ export function PostMeta({
       <PostMetaItem icon={FolderIcon} label={t('Route.category')} compact={compact}>
         {post.category
           ? (
-              <Link href={getCategoryUrl(post.category)} className={cn(metaLinkClass, 'block')}>
+              <Link href={getCategoryUrl(post.category)} prefetch={false} className={cn(metaLinkClass, 'block')}>
                 <span className="block max-w-[16ch] truncate">{post.category.name}</span>
               </Link>
             )
@@ -112,9 +112,8 @@ export function PostMeta({
             {visibleLabels.map((label, index) => (
               <Fragment key={label.id}>
                 {index > 0 && <span aria-hidden className="mx-1.5 text-border">/</span>}
-                {/* 标签页是带 ?label= 的首页：进入视口只预取首页的 App Shell（与其他首页链接共用一份，点击立刻出骨架）；
-                    悬停不升级为按链接预取（带筛选的列表不进取数缓存，每次悬停都要打后端） */}
-                <Link href={getLabelUrl(label)} unstable_dynamicOnHover={false} className={metaLinkClass}>
+                {/* 标签页是带 ?label= 的首页：关闭列表卡片上的自动预取，避免多卡片叠加触发大量 ?_rsc= 请求 */}
+                <Link href={getLabelUrl(label)} prefetch={false} unstable_dynamicOnHover={false} className={metaLinkClass}>
                   {label.name}
                 </Link>
               </Fragment>

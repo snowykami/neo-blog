@@ -21,6 +21,8 @@ import {
   blogHomeQueryKey,
   buildHomeSnapshotKey,
   clearHomeSnapshot,
+  fetchHomeSnapshotDedup,
+  getHomeSnapshotEpoch,
   HOME_TABS,
   parseHomeTab,
   readFreshHomeSnapshot,
@@ -130,6 +132,32 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
   const [loadError, setLoadError] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
   const pendingRetryRef = useRef(false)
+
+  // 悬停或聚焦「最热」按钮时按需预热第一页热门列表快照（共享飞行中 Promise，避免悬停后立即点击发出重复请求）
+  const prewarmHeatTab = useCallback(() => {
+    if (!querySynced || tab === OrderBy.Heat || labelSlug || categorySlug || query)
+      return
+    const heatKey = blogHomeQueryKey({ page: 1, orderBy: OrderBy.Heat })
+    const heatSnapKey = buildHomeSnapshotKey({ locale, size: pageSize, queryKey: heatKey })
+    if (readFreshHomeSnapshot(heatSnapKey))
+      return
+    void fetchHomeSnapshotDedup(heatSnapKey, async () => {
+      const res = await listPosts({
+        page: 1,
+        size: pageSize,
+        orderBy: OrderBy.Heat,
+        desc: true,
+        withPinned: true,
+      })
+      return {
+        cacheKey: heatSnapKey,
+        key: heatKey,
+        posts: res.data.posts,
+        total: res.data.total,
+        pinned: res.data.pinned ?? [],
+      }
+    }).catch(() => {})
+  }, [categorySlug, labelSlug, locale, pageSize, query, querySynced, tab])
 
   const applyNextQuery = useCallback((next: HomeQueryValues) => {
     if (!sameHomeQuery(queryValuesRef.current, next)) {
@@ -272,32 +300,60 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
     const seq = ++requestSeqRef.current
     setLoading(true)
     setLoadError(false)
-    listPosts({
-      page,
-      size,
-      orderBy: tab,
-      desc: true,
-      query: query || undefined,
-      label: labelSlug || undefined,
-      category: categorySlug || undefined,
-      withPinned: true,
-    })
-      .then((res) => {
-        if (seq !== requestSeqRef.current)
-          return
-        const nextPinned = res.data.pinned ?? []
-        loadedKeyRef.current = key
-        setPosts(res.data.posts)
-        setTotalPosts(res.data.total)
-        setPinnedPosts(nextPinned)
-        setLoading(false)
-        writeHomeSnapshot({
+    const retryEpoch = getHomeSnapshotEpoch()
+    const runFetch = forceRetry
+      ? listPosts({
+          page,
+          size,
+          orderBy: tab,
+          desc: true,
+          query: query || undefined,
+          label: labelSlug || undefined,
+          category: categorySlug || undefined,
+          withPinned: true,
+        }).then(res => writeHomeSnapshot({
           cacheKey: snapshotKey,
           key,
           posts: res.data.posts,
           total: res.data.total,
-          pinned: nextPinned,
+          pinned: res.data.pinned ?? [],
+        }, retryEpoch) ?? {
+          cacheKey: snapshotKey,
+          key,
+          posts: res.data.posts,
+          total: res.data.total,
+          pinned: res.data.pinned ?? [],
+          savedAt: Date.now(),
         })
+      : fetchHomeSnapshotDedup(snapshotKey, async () => {
+          const res = await listPosts({
+            page,
+            size,
+            orderBy: tab,
+            desc: true,
+            query: query || undefined,
+            label: labelSlug || undefined,
+            category: categorySlug || undefined,
+            withPinned: true,
+          })
+          return {
+            cacheKey: snapshotKey,
+            key,
+            posts: res.data.posts,
+            total: res.data.total,
+            pinned: res.data.pinned ?? [],
+          }
+        })
+
+    runFetch
+      .then((entry) => {
+        if (seq !== requestSeqRef.current)
+          return
+        loadedKeyRef.current = key
+        setPosts(entry.posts)
+        setTotalPosts(entry.total)
+        setPinnedPosts(entry.pinned)
+        setLoading(false)
       })
       .catch((err) => {
         if (seq !== requestSeqRef.current)
@@ -411,6 +467,8 @@ export default function BlogHome({ initialData }: { initialData?: BlogHomeInitia
           <ToggleGroupItem
             value={OrderBy.Heat}
             aria-label={t('hottest')}
+            onPointerEnter={prewarmHeatTab}
+            onFocus={prewarmHeatTab}
             className="h-9 rounded-md px-3 first:rounded-md last:rounded-md data-[state=on]:bg-(--primary-soft) data-[state=on]:font-semibold data-[state=on]:text-secondary-foreground"
           >
             <TrendingUp aria-hidden />

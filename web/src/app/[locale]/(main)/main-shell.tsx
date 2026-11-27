@@ -4,6 +4,7 @@ import { MotionConfig } from 'motion/react'
 import { useTranslations } from 'next-intl'
 import { VisitReporter } from '@/components/common/visit-reporter'
 import { WebVitalsReporter } from '@/components/common/web-vitals-reporter'
+import { MainRouteTransition } from '@/components/layout/client-route-skeleton'
 import Footer from '@/components/layout/footer'
 import { NavPagesProvider } from '@/components/layout/nav/nav-pages-context'
 import { SiteHeader } from '@/components/layout/nav/site-header'
@@ -53,7 +54,9 @@ export function MainShell({
           </NavPagesProvider>
 
           <main id="main-content" className="w-full min-w-0 flex-1">
-            {children}
+            <MainRouteTransition>
+              {children}
+            </MainRouteTransition>
           </main>
           {!fullscreen && <div data-site-footer><Footer /></div>}
         </div>

@@ -4,6 +4,7 @@ import path from 'node:path'
 import process from 'node:process'
 import createNextIntlPlugin from 'next-intl/plugin'
 import { PHASE_DEVELOPMENT_SERVER } from 'next/constants'
+import { HTML_LIMITED_BOTS_REGEX } from '@/lib/html-limited-bots'
 import { IMAGE_QUALITIES } from '@/utils/common/image'
 import { getServerImageOptimizeHosts } from '@/utils/common/image.server'
 
@@ -39,6 +40,8 @@ export default (phase: string): NextConfig => {
   const nextConfig: NextConfig = {
     output: 'standalone',
     ...(assetPrefix ? { assetPrefix } : {}),
+    // 完整保留 Next.js 默认爬虫列表并补充主流 AI / 搜索引擎 / CLI 抓取器，确保对爬虫阻塞直出完整 <head> 元信息与结构化数据
+    htmlLimitedBots: HTML_LIMITED_BOTS_REGEX,
     // 支持环境变量 COMPRESS（或 NEXT_COMPRESS）控制；开发模式下默认关闭，生产环境默认启用（有外层 Nginx/CDN 压缩时可传 COMPRESS=false 关闭）
     compress: (() => {
       const env = process.env.COMPRESS ?? process.env.NEXT_COMPRESS
@@ -108,13 +111,14 @@ export default (phase: string): NextConfig => {
       // 局部预取下等同于文档里「悬停时 prefetch={true}」的写法，连同按地址缓存的正文一起取下来，点击即开；
       // 只进入视口的链接只取所在路由的 App Shell（同一路由共用一份），键盘 / 没悬停到的点击立刻出外壳与骨架
       dynamicOnHover: true,
-      // 访问过的页面 30 秒内再点链接回去直接用浏览器里的缓存（默认 0，每次都重新请求）。页面已对所有人一致，缓存不会串号。
+      // 访问过的页面 300 秒（5 分钟，与 cacheLife.site.stale 对齐）内再点链接回去直接复用客户端 Router Cache（默认 0）。
+      // 页面已对所有人一致，缓存不会串号；后台修改内容时由 hooks/use-public-content-refresh.ts 主动失效。
       // 开发模式下置 0，避免页面内来回切换命中旧的客户端路由缓存。
       // 预取内容的缓存时长由 cacheLife 的 stale 决定（见上），不再设 static（它会改写 default 配置的 stale）。
       // 注意：cacheComponents 开启后 Next 16.4 在每层路由段用 <Activity mode="hidden"> 固定保留最近 3 个子段（不受 staleTimes 控制），
       // 首页与文章段分属 (main) 兄弟槽位天然保活；文章详情页重子树由 components/blog-post/post-memory-lru.ts 按 LRU 窗口主动卸载，避免长会话内存累积
       staleTimes: {
-        dynamic: isDev ? 0 : 30,
+        dynamic: isDev ? 0 : 300,
       },
       // 开发模式下关闭：1) ISR 磁盘落盘；2) 服务端组件跨 HMR 热更新的 fetch 缓存（默认连 no-store 也会被缓存）；
       // 3) Turbopack 在 .next/dev/cache/turbopack 的跨次启动持久化缓存，避免热载或重生成资源后残留陈旧模块图

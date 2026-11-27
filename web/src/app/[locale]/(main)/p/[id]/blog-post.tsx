@@ -50,12 +50,24 @@ import 'katex/dist/katex.min.css'
  * 正文卡片内依次为 字数/阅读时长 → 标题（左侧主色短色条）→ 元信息 → 封面 → 摘要 → 正文 → 版权 → 点赞；评论单独一张卡片
  */
 
+type SiteInfoData = Awaited<ReturnType<typeof getCachedSiteInfo>>
+
 // 正文卡片：标题、元信息、封面、正文、版权与点赞
-async function PostArticle({ post, html, isDraft }: { post: Post, html: string, isDraft?: boolean }) {
-  const t = await getTranslations('Common')
+function PostArticle({
+  post,
+  html,
+  siteInfo,
+  labels,
+  isDraft,
+}: {
+  post: Post
+  html: string
+  siteInfo: SiteInfoData
+  labels: { untitled: string, pinned: string, private: string, aiSummary: string }
+  isDraft?: boolean
+}) {
   const content = (isDraft ? post.draftContent : post.content) || ''
   // 文章未选内容主题时跟随站点默认；只加载主题与局部字体实际用到的网页字体
-  const siteInfo = await getCachedSiteInfo()
   const theme = resolveContentTheme(post.contentTheme, siteInfo.contentTheme)
   const likeEnabled = isLikeEnabled(siteInfo)
   // 交给客户端组件（编辑入口、版权、点赞、分享）的只有这些字段：整篇 post 带着正文原文，传进去会在 RSC 里再发一份正文。
@@ -84,13 +96,13 @@ async function PostArticle({ post, html, isDraft }: { post: Post, html: string, 
           {post.pinned && (
             <Badge variant="secondary" className="rounded-md">
               <PinnedIcon />
-              {t('pinned')}
+              {labels.pinned}
             </Badge>
           )}
           {post.isPrivate && (
             <Badge variant="secondary" className="rounded-md">
               <LockIcon aria-hidden />
-              {t('private')}
+              {labels.private}
             </Badge>
           )}
         </div>
@@ -111,7 +123,7 @@ async function PostArticle({ post, html, isDraft }: { post: Post, html: string, 
         <div className="relative mb-8 aspect-[2/1] w-full overflow-hidden rounded-xl bg-muted">
           <SafeImage
             src={post.cover}
-            alt={post.title || t('untitled')}
+            alt={post.title || labels.untitled}
             fill
             quality={60}
             preload
@@ -125,7 +137,7 @@ async function PostArticle({ post, html, isDraft }: { post: Post, html: string, 
 
       {/* 摘要：AI 生成的摘要以卡片 + 打字机效果展示，手写描述保持原样式 */}
       {post.description && (post.descriptionByAi
-        ? <AISummary text={post.description} label={t('ai_summary')} className="mb-6" />
+        ? <AISummary text={post.description} label={labels.aiSummary} className="mb-6" />
         : <p className="mb-6 text-foreground/75">{post.description}</p>)}
 
       {/* 文章内容 - 网页字体提升至 head 保活；正文多媒体、代码高亮与组件岛受客户端文章 LRU 托管，滑出最近窗口且隐藏时主动卸载释放内存 */}
@@ -185,15 +197,26 @@ function LikeButtonSkeleton() {
 // isDraft：后台预览（/console/posts/preview/[id]）渲染草稿正文，不上报访问、不显示分享；前台文章页不传
 export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?: boolean }) {
   const content = (isDraft ? post.draftContent : post.content) || ''
-  // 正文为空时显示一句提示（用段落而不是标题，不进目录）；渲染时照常经过净化
-  const emptyContent = content ? '' : `<p>${(await getTranslations('Common'))('empty_content')}</p>`
-  const copyLabel = (await getTranslations('CodeBlock'))('copy')
-  const [{ html, headings }, neighbors, siteInfo] = await Promise.all([
-    renderContentHtml(content || emptyContent, { copyLabel }),
-    isDraft ? Promise.resolve(null) : getCachedPostNeighbors(post.id),
+  // 立即并发启动相邻文章查询、站点配置读取与多语言表加载；neighbors 挂 .catch 防止首个 Promise.all 异常时产生未捕获拒绝
+  const neighborsPromise = isDraft ? Promise.resolve(null) : getCachedPostNeighbors(post.id).catch(() => null)
+  const [commonT, codeBlockT, siteInfo] = await Promise.all([
+    getTranslations('Common'),
+    getTranslations('CodeBlock'),
     getCachedSiteInfo(),
   ])
+  // 正文为空时显示一句提示（用段落而不是标题，不进目录）；渲染时照常经过净化
+  const emptyContent = content ? '' : `<p>${commonT('empty_content')}</p>`
+  const [{ html, headings }, neighbors] = await Promise.all([
+    renderContentHtml(content || emptyContent, { copyLabel: codeBlockT('copy') }),
+    neighborsPromise,
+  ])
   const commentEnabled = isCommentEnabled(siteInfo)
+  const articleLabels = {
+    untitled: commonT('untitled'),
+    pinned: commonT('pinned'),
+    private: commonT('private'),
+    aiSummary: commonT('ai_summary'),
+  }
   return (
     <>
       <PostActivityTracker postId={post.id} bypass={isDraft} />
@@ -219,7 +242,7 @@ export async function BlogPost({ post, isDraft = false }: { post: Post, isDraft?
           </div>
         )}
       >
-        <PostArticle post={post} html={html} isDraft={isDraft} />
+        <PostArticle post={post} html={html} siteInfo={siteInfo} labels={articleLabels} isDraft={isDraft} />
         {!isDraft && neighbors && <PostContinuation neighbors={neighbors} />}
         {/* 评论区接近视口时才加载（见 DeferredCommentSection）；id 供顶栏迷你目录「去评论区」跳转 */}
         {commentEnabled && (

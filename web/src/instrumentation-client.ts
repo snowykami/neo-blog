@@ -1,3 +1,4 @@
+import { notifyNavigationStart } from '@/lib/navigation-transition'
 import { recordNavigationLazy, scheduleTelemetry } from '@/lib/telemetry/loader'
 
 // 页面脚本执行前同步执行（由 Next 挂载）：严禁在此处静态导入 `@/lib/telemetry/client` 或 `@sentry/browser`，
@@ -5,5 +6,6 @@ import { recordNavigationLazy, scheduleTelemetry } from '@/lib/telemetry/loader'
 scheduleTelemetry()
 
 export function onRouterTransitionStart(url: string, navigationType: 'push' | 'replace' | 'traverse') {
+  notifyNavigationStart(url, navigationType, { fromRouterTransition: true })
   recordNavigationLazy(url, navigationType)
 }

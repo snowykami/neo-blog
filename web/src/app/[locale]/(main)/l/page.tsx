@@ -71,6 +71,8 @@ export default async function LabelPage() {
                   <Link
                     key={label.id}
                     href={getLabelUrl(label)}
+                    prefetch={false}
+                    unstable_dynamicOnHover={false}
                     className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-secondary px-3 py-1.5 text-sm text-secondary-foreground transition-[color,background-color,transform] duration-150 hover:bg-primary/15 hover:text-primary active:scale-[.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     {label.name}

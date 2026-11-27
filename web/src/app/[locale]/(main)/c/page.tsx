@@ -5,8 +5,8 @@ import { locale as rootLocale } from 'next/root-params'
 import { getCachedSiteInfo } from '@/api/misc.server'
 import BlogSidebar from '@/components/blog-sidebar'
 import { getCachedSidebarData } from '@/components/blog-sidebar/sidebar-data'
+import { HoverPrefetchLink } from '@/components/common/hover-prefetch-link'
 import { SectionTitle, SiteShell } from '@/components/layout/site-shell'
-import { Link } from '@/i18n/navigation'
 import { resolveRouteLocale } from '@/i18n/routing'
 import { buildPublicPageMetadata } from '@/lib/seo'
 import { getCategoryUrl, mainPath } from '@/utils/common/route'
@@ -57,7 +57,7 @@ export default async function CategoryPage() {
                 {categories.map(category => (
                   <li key={category.id}>
                     {/* 行悬停时浅主色底、标题右移 */}
-                    <Link
+                    <HoverPrefetchLink
                       href={getCategoryUrl(category)}
                       className="group flex items-start gap-3 rounded-xl p-3 transition-colors duration-150 hover:bg-primary/10"
                     >
@@ -72,7 +72,7 @@ export default async function CategoryPage() {
                           {category.description || category.slug}
                         </span>
                       </span>
-                    </Link>
+                    </HoverPrefetchLink>
                   </li>
                 ))}
               </ul>

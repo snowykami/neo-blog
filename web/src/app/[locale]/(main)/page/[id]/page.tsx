@@ -44,8 +44,8 @@ async function getExistingPage(id: string): Promise<PageModel> {
   return page
 }
 
-// 页面按地址缓存：构建时只预渲染占位参数（见 lib/cache-tags.ts 的 BUILD_PLACEHOLDER_PARAM），每个页面在第一次被访问时直出生成进 <main>，
-// 后台修改页面后 pages 标签失效、下次访问重新生成；显式关闭 instant 段校验避免开发态警告
+// 页面按地址缓存：构建时只预渲染占位参数（见 lib/cache-tags.ts 的 BUILD_PLACEHOLDER_PARAM），首次访问时整页直出生成进 <main>，
+// 后台修改页面后 pages 标签失效；人类浏览器点击未预取页面时由 MainRouteTransition 即时展示客户端骨架，避免段级 loading.tsx 污染爬虫首包
 export const ensureStatic = 'navigation'
 export const instant = false
 

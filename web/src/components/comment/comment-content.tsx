@@ -22,6 +22,7 @@ export function CommentContent({ content, mentions }: { content: string, mention
             <Link
               key={`mention-${segment.id}-${index}`}
               href={getUserUrl(segment, 'comments')}
+              prefetch={false}
               className="text-primary hover:underline"
               title={t('mention_profile', { username: segment.username })}
             >

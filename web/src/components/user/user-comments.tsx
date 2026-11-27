@@ -77,6 +77,7 @@ function UserCommentItem({ comment }: { comment: UserComment }) {
       {/* 整行都是链接：点标题或右侧提示都能跳到目标页面并定位到这条评论 */}
       <Link
         href={getTargetUrl(comment)}
+        prefetch={false}
         className="group -mx-2 flex min-w-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-foreground/[.05] hover:text-foreground"
       >
         <FileTextIcon aria-hidden className="size-3.5 shrink-0" />

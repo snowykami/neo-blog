@@ -10,6 +10,7 @@ import { Suspense, useEffect, useState } from 'react'
 import { getLabels } from '@/api/label'
 import { listPosts } from '@/api/post'
 import { ImageAvatar } from '@/components/common/avatar'
+import { HoverPrefetchLink } from '@/components/common/hover-prefetch-link'
 import { LinkPreviewScopeProvider } from '@/components/common/link-preview-context'
 import { SafeImage } from '@/components/common/safe-image'
 import { Button } from '@/components/ui/button'
@@ -57,7 +58,7 @@ function OwnerSocialLinks({ links, compact = false }: { links?: OwnerLink[], com
         const label = link.name?.trim() || link.resolvedLabel || fallbackLabelFromIconName(link.icon || DEFAULT_OWNER_LINK_ICON)
         const iconNode = <OwnerLinkIcon icon={link.icon} resolved={link.resolvedIcon} className={iconClass} />
         const isHttp = /^https?:\/\//i.test(href)
-        const isRawRootAsset = /^\/(?:api\/|(?:rss|feed|atom)\.xml(?:$|\?))/i.test(href)
+        const isRawRootAsset = /^\/(?:api\/|(?:rss|feed|atom)(?:\.xml)?(?:$|[/?#]))/i.test(href)
         const isInternalPage = href.startsWith('/') && !isRawRootAsset
 
         const trigger = isInternalPage
@@ -210,7 +211,7 @@ export function BlogSidebarHotPosts({ posts: initialPosts, orderType = OrderBy.H
       <ol className="-mx-2 grid gap-0.5">
         {posts.slice(0, 5).map((post, index) => (
           <li key={post.id}>
-            <Link
+            <HoverPrefetchLink
               href={getPostUrl({ post })}
               className="group flex items-start gap-3 rounded-lg p-2 transition-colors duration-150 hover:bg-primary/10"
             >
@@ -234,7 +235,7 @@ export function BlogSidebarHotPosts({ posts: initialPosts, orderType = OrderBy.H
                   )}
                 </div>
               </div>
-            </Link>
+            </HoverPrefetchLink>
           </li>
         ))}
       </ol>

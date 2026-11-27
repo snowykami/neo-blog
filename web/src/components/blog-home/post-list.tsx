@@ -5,13 +5,13 @@ import { ChevronRightIcon, FileSearchIcon, RotateCwIcon, XIcon } from 'lucide-re
 import { useTranslations } from 'next-intl'
 import { memo } from 'react'
 import { PostMeta } from '@/components/blog-post/post-meta'
+import { HoverPrefetchLink } from '@/components/common/hover-prefetch-link'
 import { SafeImage } from '@/components/common/safe-image'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { CommentIcon, LikeIcon, PinnedIcon, ViewIcon } from '@/contexts/theme-context'
-import { Link } from '@/i18n/navigation'
 import { cn } from '@/lib/utils'
 import { splitHighlight } from '@/utils/common/highlight'
 import { stripInlineMarkdown } from '@/utils/common/inline-markdown'
@@ -92,7 +92,7 @@ const MemoPostListItem = memo(({
 
       {/* 标题：桌面端左侧主色竖条采用脱离文档流的 static-position 绝对定位（h2 保持 static 定位），避免长连续词在行内块后断行孤立竖条，且仅用 opacity 过渡箭头 */}
       <h2 className="post-title-peer mb-3 text-xl leading-snug font-bold tracking-tight wrap-break-word text-card-foreground before:pointer-events-none before:absolute before:mt-1.5 before:-ml-4.5 before:hidden before:h-5 before:w-1 before:rounded-md before:bg-primary md:text-2xl md:leading-8 md:before:block">
-        <Link
+        <HoverPrefetchLink
           href={url}
           className="group/link rounded-sm transition-colors duration-150 outline-none after:absolute after:inset-0 after:z-0 after:rounded-2xl hover:text-primary focus-visible:text-primary focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset active:text-(--primary-active)"
         >
@@ -101,7 +101,7 @@ const MemoPostListItem = memo(({
             aria-hidden
             className="ml-0.5 inline-block size-5 align-[-0.18em] text-primary md:ml-1 md:size-6 md:opacity-0 md:transition-opacity md:duration-150 md:group-hover/link:opacity-100 md:group-focus-visible/link:opacity-100"
           />
-        </Link>
+        </HoverPrefetchLink>
       </h2>
 
       {/* 元信息：柔和底色图标块 + 分类/标签药丸热区 */}
