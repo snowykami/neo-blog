@@ -1,9 +1,11 @@
 import type { SidebarCard } from './sidebar-cards'
 import type { Label } from '@/models/label'
+import type { MisskeyFeed } from '@/models/misskey'
 import type { Post } from '@/models/post'
 import { cacheLife, cacheTag } from 'next/cache'
 import { getLabels } from '@/api/label'
 import { getCachedSiteInfo } from '@/api/misc.server'
+import { getMisskeyFeed } from '@/api/misskey'
 import { listPosts } from '@/api/post'
 import { CacheTag, skipBackendAtBuild } from '@/lib/cache-tags'
 import { OrderBy } from '@/models/common'
@@ -13,6 +15,7 @@ export interface SidebarInitialData {
   hotPosts?: Post[]
   latestPosts?: Post[]
   labels?: Label[]
+  misskeyFeed?: MisskeyFeed
 }
 
 async function loadSidebarPosts(orderBy: OrderBy.Heat | OrderBy.CreatedAt): Promise<Post[]> {
@@ -31,8 +34,19 @@ async function loadSidebarLabels(): Promise<Label[]> {
   return (res.data.labels ?? []).filter(l => (l.postCount ?? 0) > 0)
 }
 
+async function loadSidebarMisskey(): Promise<MisskeyFeed | undefined> {
+  'use cache'
+  cacheLife('site')
+  cacheTag(CacheTag.Site)
+  const res = await getMisskeyFeed()
+  // 后端冷启动或刚开启配置、异步抓取仍在飞行中时返回 undefined 交由客户端单次补拉，稳态（!enabled 或已有 fetchedAt）直接复用缓存零客户端请求
+  if (res.data.enabled && !res.data.fetchedAt && res.data.notes.length === 0)
+    return undefined
+  return res.data
+}
+
 /**
- * 服务端预取侧边栏卡片数据（热门文章、最新文章、标签云）：
+ * 服务端预取侧边栏卡片数据（热门文章、最新文章、标签云、Misskey 动态）：
  * 按后台配置的侧边栏卡片按需加载并跨请求缓存，避免每次客户端路由挂载重复请求接口；
  * 预取失败时返回 undefined，交由客户端兜底拉取。
  */
@@ -45,11 +59,12 @@ export async function getCachedSidebarData(exclude?: SidebarCard['type'][]): Pro
       .map(card => card.type),
   )
 
-  const [hotPosts, latestPosts, labels] = await Promise.all([
+  const [hotPosts, latestPosts, labels, misskeyFeed] = await Promise.all([
     types.has('hot_posts') ? loadSidebarPosts(OrderBy.Heat).catch(() => undefined) : Promise.resolve(undefined),
     types.has('latest_posts') ? loadSidebarPosts(OrderBy.CreatedAt).catch(() => undefined) : Promise.resolve(undefined),
     types.has('labels') ? loadSidebarLabels().catch(() => undefined) : Promise.resolve(undefined),
+    types.has('misskey') ? loadSidebarMisskey().catch(() => undefined) : Promise.resolve(undefined),
   ])
 
-  return { hotPosts, latestPosts, labels }
+  return { hotPosts, latestPosts, labels, misskeyFeed }
 }

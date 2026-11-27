@@ -2,12 +2,14 @@
 import type { ComponentType } from 'react'
 import type { ContentViewProps } from '@/components/content-components/content-component-view'
 import type { Label } from '@/models/label'
+import type { MisskeyFeed, MisskeyNote } from '@/models/misskey'
 import type { Post } from '@/models/post'
 import type { OwnerLink, SiteInfo } from '@/utils/common/siteinfo'
-import { ChevronDownIcon, ChevronUpIcon, Eye } from 'lucide-react'
-import { useTranslations } from 'next-intl'
+import { ChevronDownIcon, ChevronUpIcon, ExternalLinkIcon, Eye, MessageCircleIcon, Repeat2Icon } from 'lucide-react'
+import { useFormatter, useTranslations } from 'next-intl'
 import { Suspense, useEffect, useState } from 'react'
 import { getLabels } from '@/api/label'
+import { getMisskeyFeed } from '@/api/misskey'
 import { listPosts } from '@/api/post'
 import { ImageAvatar } from '@/components/common/avatar'
 import { HoverPrefetchLink } from '@/components/common/hover-prefetch-link'
@@ -414,4 +416,242 @@ export function SidebarComponentCard({ title, name, props, version }: { title: s
   // 组件本体通过 React.lazy 按需加载、不带 Suspense 边界：在这里接住挂起（整张卡片等组件代码到了再出现），
   // 免得冒泡到路由的 loading 边界把整页换回骨架
   return <Suspense fallback={null}>{title ? <SidebarCard title={title}>{view}</SidebarCard> : view}</Suspense>
+}
+
+function normalizeExternalHttpUrl(url?: string | null): string | undefined {
+  if (!url)
+    return undefined
+  const trimmed = url.trim()
+  if (!trimmed)
+    return undefined
+  try {
+    const parsed = new URL(trimmed)
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:')
+      return undefined
+    return trimmed
+  }
+  catch {
+    return undefined
+  }
+}
+
+export function isColdUnpopulatedMisskeyFeed(feed?: MisskeyFeed): boolean {
+  return Boolean(feed && feed.enabled && !feed.fetchedAt && (!feed.notes || feed.notes.length === 0))
+}
+
+const MISSKEY_COLD_RETRY_DELAY_MS = 1500
+
+function MisskeyNoteItem({ note }: { note: MisskeyNote }) {
+  const t = useTranslations('Components.misskey')
+  const format = useFormatter()
+  const [cwExpanded, setCwExpanded] = useState(false)
+  const hasCW = Boolean(note.cw && note.cw.trim() !== '')
+  const showBody = !hasCW || cwExpanded
+  const safeImages = (note.images ?? [])
+    .map(img => ({ thumbnailUrl: normalizeExternalHttpUrl(img.thumbnailUrl), alt: img.alt }))
+    .filter((img): img is { thumbnailUrl: string, alt: string } => Boolean(img.thumbnailUrl))
+    .slice(0, 4)
+  const safeNoteUrl = normalizeExternalHttpUrl(note.url)
+  const hasLeadBlock = Boolean(note.isRenote || hasCW || (showBody && note.text))
+
+  let formattedTime = ''
+  if (note.createdAt) {
+    const parsed = new Date(note.createdAt)
+    if (!Number.isNaN(parsed.getTime())) {
+      formattedTime = format.dateTime(parsed, {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    }
+  }
+
+  return (
+    <li className="py-3 first:pt-0 last:pb-0">
+      {note.isRenote && (
+        <div className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">
+          <Repeat2Icon aria-hidden className="size-3.5 shrink-0" />
+          <span className="truncate">
+            {note.renoteUser ? t('renoted', { user: note.renoteUser }) : t('renoted_plain')}
+          </span>
+        </div>
+      )}
+
+      {hasCW && (
+        <div className="mb-1.5 flex flex-wrap items-center gap-1.5 text-sm">
+          <span className="font-medium text-foreground/85 break-words">{note.cw}</span>
+          {(note.text || safeImages.length > 0) && (
+            <button
+              type="button"
+              aria-expanded={cwExpanded}
+              onClick={() => setCwExpanded(v => !v)}
+              className="inline-flex h-6 cursor-pointer items-center rounded-md bg-secondary px-2 text-xs font-medium text-secondary-foreground transition-colors hover:bg-primary/15 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {cwExpanded ? t('hide_cw') : t('show_cw')}
+            </button>
+          )}
+        </div>
+      )}
+
+      {showBody && note.text && (
+        <p className="line-clamp-4 text-sm leading-relaxed break-words whitespace-pre-line text-foreground/85">
+          {note.text}
+        </p>
+      )}
+
+      {showBody && safeImages.length > 0 && (
+        <div className={cn('grid gap-1.5', hasLeadBlock && 'mt-2', safeImages.length === 1 ? 'grid-cols-1' : 'grid-cols-2')}>
+          {safeImages.map((img, idx) => (
+            <div
+              key={`${note.id}-img-${idx}`}
+              className={cn(
+                'relative overflow-hidden rounded-lg bg-muted',
+                safeImages.length === 1 ? 'aspect-video' : 'aspect-[4/3]',
+              )}
+            >
+              <SafeImage
+                src={img.thumbnailUrl}
+                alt={img.alt || ''}
+                fill
+                sizes="(min-width: 1024px) 240px, 45vw"
+                quality={60}
+                loading="lazy"
+                className="object-cover"
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+        {formattedTime
+          ? (
+              <time dateTime={note.createdAt} suppressHydrationWarning className="tabular-nums">
+                {formattedTime}
+              </time>
+            )
+          : <span />}
+        {safeNoteUrl && (
+          <a
+            href={safeNoteUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 rounded-sm text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <span>{t('view_note')}</span>
+            <ExternalLinkIcon aria-hidden className="size-3 shrink-0" />
+          </a>
+        )}
+      </div>
+    </li>
+  )
+}
+
+/**
+ * 侧边栏原生 Misskey 动态卡片：
+ * - 只渲染后端清洗缓存后的公开动态纯文本与受限尺寸缩略图，无 iframe、无 dangerouslySetInnerHTML、无常驻轮询
+ * - 服务端已预取稳态 initialFeed 时零客户端重复请求；仅未预取或后端冷启动尚未完成首次抓取时客户端单次补拉（最多延迟重试 1 次）
+ */
+export function BlogSidebarMisskey({ initialFeed }: { initialFeed?: MisskeyFeed }) {
+  const t = useTranslations('Components.misskey')
+  const [feed, setFeed] = useState<MisskeyFeed | undefined>(initialFeed)
+
+  useEffect(() => {
+    if (initialFeed !== undefined && !isColdUnpopulatedMisskeyFeed(initialFeed)) {
+      setFeed(initialFeed)
+      return
+    }
+    let cancelled = false
+    let retryTimer: ReturnType<typeof setTimeout> | null = null
+
+    const pullOnce = (allowSingleRetry: boolean) => {
+      getMisskeyFeed()
+        .then((res) => {
+          if (cancelled)
+            return
+          setFeed(res.data)
+          if (allowSingleRetry && isColdUnpopulatedMisskeyFeed(res.data)) {
+            retryTimer = setTimeout(() => {
+              retryTimer = null
+              if (!cancelled)
+                pullOnce(false)
+            }, MISSKEY_COLD_RETRY_DELAY_MS)
+          }
+        })
+        .catch(() => {})
+    }
+
+    pullOnce(true)
+    return () => {
+      cancelled = true
+      if (retryTimer !== null)
+        clearTimeout(retryTimer)
+    }
+  }, [initialFeed])
+
+  if (!feed || !feed.enabled || !feed.notes || feed.notes.length === 0)
+    return null
+
+  const user = feed.user
+  const safeProfileUrl = normalizeExternalHttpUrl(user?.profileUrl)
+  const safeAvatarUrl = normalizeExternalHttpUrl(user?.avatarUrl)
+
+  return (
+    <SidebarCard
+      title={t('title')}
+      action={safeProfileUrl && (
+        <a
+          href={safeProfileUrl}
+          target="_blank"
+          rel="noopener noreferrer me"
+          aria-label={t('view_profile')}
+          title={t('view_profile')}
+          className="inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <ExternalLinkIcon aria-hidden className="size-4" />
+        </a>
+      )}
+    >
+      {user && (
+        <div className="mb-3 flex items-center gap-2.5 border-b border-dashed border-foreground/10 pb-3">
+          <ImageAvatar
+            src={safeAvatarUrl}
+            alt={user.name || user.username}
+            sizes="32px"
+            className="size-8 shrink-0"
+            fallback={<MessageCircleIcon aria-hidden className="size-4 text-muted-foreground" />}
+          />
+          <div className="min-w-0 flex-1">
+            {safeProfileUrl
+              ? (
+                  <a
+                    href={safeProfileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer me"
+                    className="block truncate text-sm font-semibold text-foreground/90 transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {user.name || user.username}
+                  </a>
+                )
+              : (
+                  <div className="truncate text-sm font-semibold text-foreground/90">
+                    {user.name || user.username}
+                  </div>
+                )}
+            <div className="truncate text-xs text-muted-foreground">
+              @
+              {user.username}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ol className="divide-y divide-border/60">
+        {feed.notes.map(note => (
+          <MisskeyNoteItem key={note.id} note={note} />
+        ))}
+      </ol>
+    </SidebarCard>
+  )
 }

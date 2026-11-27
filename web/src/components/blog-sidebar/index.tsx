@@ -6,7 +6,7 @@ import { parseAsInteger, parseAsString, useQueryState } from 'nuqs'
 import { Suspense, useCallback, useMemo } from 'react'
 import { useSiteInfo } from '@/contexts/site-info-context'
 import { OrderBy } from '@/models/common'
-import { BlogSidebarAbout, BlogSidebarHotPosts, BlogSidebarLabels, SidebarComponentCard, SidebarIframeCard } from './blog-sidebar-card'
+import { BlogSidebarAbout, BlogSidebarHotPosts, BlogSidebarLabels, BlogSidebarMisskey, SidebarComponentCard, SidebarIframeCard } from './blog-sidebar-card'
 import { getSidebarCards } from './sidebar-cards'
 
 interface LabelFilter {
@@ -51,6 +51,8 @@ function SidebarCardView({ card, label, setLabel, labelFromQuery, initialData }:
       return <BlogSidebarHotPosts posts={initialData?.hotPosts} orderType={OrderBy.Heat} />
     case 'latest_posts':
       return <BlogSidebarHotPosts posts={initialData?.latestPosts} orderType={OrderBy.CreatedAt} />
+    case 'misskey':
+      return <BlogSidebarMisskey initialFeed={initialData?.misskeyFeed} />
     case 'iframe':
       return <SidebarIframeCard title={card.title} url={card.url} height={card.height} />
     case 'component':

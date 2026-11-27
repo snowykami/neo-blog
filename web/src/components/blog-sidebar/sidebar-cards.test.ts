@@ -19,6 +19,8 @@ describe('侧边栏卡片（运行时整理，不引入文案校验）', () => {
     const cards = getSidebarCards(site({
       sidebarCards: [
         { type: 'latest_posts' },
+        { type: 'misskey' },
+        { type: 'misskey' },
         { type: 'about' },
         { type: 'about' },
         { type: 'iframe', title: 'x', url: 'javascript:alert(1)', height: 300 },
@@ -30,6 +32,7 @@ describe('侧边栏卡片（运行时整理，不引入文案校验）', () => {
     }))
     expect(cards).toEqual([
       { type: 'latest_posts' },
+      { type: 'misskey' },
       { type: 'about' },
       // 高度越界按上下限截断，而不是整张卡片丢掉
       { type: 'iframe', title: '', url: 'https://example.com', height: 1200 },
@@ -64,6 +67,7 @@ describe('侧边栏卡片（运行时整理，不引入文案校验）', () => {
   })
 
   it('保存时的校验补默认值', () => {
+    expect(parseSidebarCard({ type: 'misskey' })).toEqual({ type: 'misskey' })
     expect(parseSidebarCard({ type: 'iframe', url: 'https://example.com' }))
       .toEqual({ type: 'iframe', title: '', url: 'https://example.com', height: 300 })
     expect(parseSidebarCard({ type: 'component', title: '', name: 'weatherCard', props: {} })).not.toBeNull()

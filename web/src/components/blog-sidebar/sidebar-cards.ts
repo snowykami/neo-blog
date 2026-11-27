@@ -11,7 +11,7 @@ import type { SiteInfo } from '@/utils/common/siteinfo'
  * 否则整个组件注册表（连带 zod）都会进访客的首屏包（见 docs/perf-log.md）。
  */
 
-export const SIDEBAR_PRESET_CARDS = ['about', 'labels', 'hot_posts', 'latest_posts'] as const
+export const SIDEBAR_PRESET_CARDS = ['about', 'labels', 'hot_posts', 'latest_posts', 'misskey'] as const
 export type SidebarPresetCard = typeof SIDEBAR_PRESET_CARDS[number]
 
 export const SIDEBAR_IFRAME_HEIGHT = { min: 100, max: 1200, default: 300 }
