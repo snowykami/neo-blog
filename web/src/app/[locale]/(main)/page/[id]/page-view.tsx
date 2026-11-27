@@ -44,7 +44,7 @@ export async function PageView({ page, isDraft = false, locale }: { page: PageMo
     return (
       <>
         <HtmlPageView page={page} />
-        {!isDraft && <VisitReporter targetType="page" targetId={page.id} />}
+        {!isDraft && <VisitReporter key={page.id} targetType="page" targetId={page.id} />}
       </>
     )
   }
@@ -65,7 +65,7 @@ export async function PageView({ page, isDraft = false, locale }: { page: PageMo
       <ContentImageFallback containerId="page-content" />
       <ContentHdrText containerId="page-content" />
       <ContentImageViewer containerId="page-content" />
-      {!isDraft && <VisitReporter targetType="page" targetId={page.id} />}
+      {!isDraft && <VisitReporter key={page.id} targetType="page" targetId={page.id} />}
     </>
   )
 

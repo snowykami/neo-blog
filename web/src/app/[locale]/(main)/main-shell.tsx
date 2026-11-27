@@ -32,10 +32,10 @@ export function MainShell({
       <PageBackgroundProvider>
         <PageBackground />
         <div className="relative z-10 flex min-h-screen flex-col">
-          {/* 访问上报；文章 / 自定义页面详情页带 ID 自行上报 */}
+          {/* 访问上报；文章 / 自定义页面详情页与独立播放器页各自上报，随机中转页仅记录来源不单独发包 */}
           {reportVisits && (
             <>
-              <VisitReporter skipPrefixes={['/p/', '/page/']} />
+              <VisitReporter skipPrefixes={['/p/', '/page/', '/music']} transitPrefixes={['/random']} />
               <WebVitalsReporter />
             </>
           )}

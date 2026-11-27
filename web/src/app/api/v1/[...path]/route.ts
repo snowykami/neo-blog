@@ -9,6 +9,8 @@ import { backendRequestHeaders, backendResponse, REQUEST_ID_HEADER } from '@/lib
 
 // AI 用户 Runner 的接口与 AI 用户专用 MCP 只供 Runner 直连后端，不经前端转发
 const DIRECT_ONLY = /^\/api\/v1\/(?:agent-runner|agent-mcp)(?:\/|$)/
+// 访客埋点与错误遥测纯写日志接口不会修改页面缓存标签，跳过写后标签版本号同步轮询以减少双倍转发开销
+const NO_CACHE_TAG_SYNC = /^\/api\/v1\/(?:events?|visit|telemetry)(?:\/|$)/
 
 // 页面缓存的标签版本号状态（cache-tag-versions.mjs 的 tagState，按 Symbol.for 的键放在 globalThis 上）
 const TAG_STATE_KEY = Symbol.for('neo-blog.cache-tag-versions')
@@ -54,7 +56,7 @@ async function forward(request: NextRequest) {
     return new Response('Bad Gateway', { status: 502, headers: { [REQUEST_ID_HEADER]: requestId } })
   }
 
-  if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && upstream.ok)
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && upstream.ok && !NO_CACHE_TAG_SYNC.test(pathname))
     await syncCacheTagsNow()
   return backendResponse(upstream, requestId)
 }

@@ -131,7 +131,7 @@ async function PostArticle({ post, html, isDraft }: { post: Post, html: string, 
       {/* 文章内容 - 网页字体提升至 head 保活；正文多媒体、代码高亮与组件岛受客户端文章 LRU 托管，滑出最近窗口且隐藏时主动卸载释放内存 */}
       <ContentFontLinks fonts={contentWebFonts(theme, html)} />
       {/* 草稿预览不计入访客记录 */}
-      {!isDraft && <VisitReporter targetType="post" targetId={post.id} />}
+      {!isDraft && <VisitReporter key={post.id} targetType="post" targetId={post.id} />}
       <PostHeavySubtree postId={post.id} bypass={isDraft} preserveHeight>
         <article
           id="blog-content"

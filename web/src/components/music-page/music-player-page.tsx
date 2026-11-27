@@ -238,7 +238,7 @@ export function MusicPlayerPage({ seoHeading, seoDescription }: { seoHeading?: s
 
   return (
     <div className="dark fixed inset-0 flex flex-col overflow-hidden text-white" style={accent ? { ...PAGE_STYLE, '--lyric-accent': accent } as React.CSSProperties : PAGE_STYLE}>
-      <VisitReporter />
+      <VisitReporter allowPrefixes={['/music']} ignoreSearch />
       <MusicBackground cover={placeholder ? undefined : currentTrack?.albumPic} />
       {!placeholder && <MusicStageEffects />}
 
