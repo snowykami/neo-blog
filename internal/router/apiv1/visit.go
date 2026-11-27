@@ -12,6 +12,7 @@ func registerVisitRoutes(group *route.RouterGroup) {
 	{
 		visitGroup.POST("", controller.Visit.Report)
 	}
-	// 兼容 Plausible 事件接口：访问、阅读参与度、外链点击、下载与 Web Vitals
+	// 兼容 Plausible 单条与批量事件接口：访问、阅读参与度、外链点击、下载与 Web Vitals
 	group.POST("/event", middleware.UseAuth(false), controller.Visit.Event)
+	group.POST("/events", middleware.UseAuth(false), controller.Visit.Event)
 }

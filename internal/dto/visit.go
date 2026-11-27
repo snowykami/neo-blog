@@ -276,6 +276,11 @@ type PlausibleEvent struct {
 	EngagedMs   *int64         `json:"e"`  // engagement：自上次上报以来的有效停留时长（毫秒）
 }
 
+// PlausibleEventBatchReq 批量事件上报请求体（兼容 {"events": [...]} 形态）
+type PlausibleEventBatchReq struct {
+	Events []PlausibleEvent `json:"events"`
+}
+
 type NamedCount struct {
 	Name  string `json:"name"`
 	Count int64  `json:"count"`

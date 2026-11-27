@@ -352,6 +352,14 @@ func (v *visitRepo) CreateVisitEvent(event *model.VisitEvent) error {
 	return GetDB().Create(event).Error
 }
 
+// CreateVisitEvents 批量写入页面事件
+func (v *visitRepo) CreateVisitEvents(events []*model.VisitEvent) error {
+	if len(events) == 0 {
+		return nil
+	}
+	return GetDB().CreateInBatches(events, 50).Error
+}
+
 // ListVisitEvents 指定时间之后的某类事件
 func (v *visitRepo) ListVisitEvents(name string, since time.Time) ([]model.VisitEvent, error) {
 	var events []model.VisitEvent

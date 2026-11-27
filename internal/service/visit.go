@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/sirupsen/logrus"
 	"github.com/snowykami/neo-blog/internal/ctxutils"
@@ -30,7 +31,7 @@ const (
 	VisitorCookieMaxAge    = 365 * 24 * 60 * 60 // 访客 Cookie 有效期（秒）
 	visitDedupWindow       = 10 * time.Minute   // 同一访客同一路径在该时间内只记一次
 	fingerprintMatchWindow = 7 * 24 * time.Hour // Cookie 丢失时按指纹找回的有效期
-	visitRateLimit         = 60                 // 每个 IP 每分钟最多上报次数
+	visitRateLimit         = 120                // 每个 IP 每分钟最多上报请求数（批量事件整批计 1 次）
 	visitRateWindow        = time.Minute
 	maxVisitTextLength     = 512
 	randomPath             = "/random" // 随机文章中转页，只负责跳转，不单独记录
@@ -47,7 +48,26 @@ func NewVisitService() *VisitService {
 
 // allowVisitReport 按 IP 固定窗口限流，防止上报接口被刷；计数在共享状态中，多副本时各实例共用同一个窗口
 func allowVisitReport(ip string) bool {
-	return utils.AllowRequest("visit_report:"+ip, visitRateLimit, visitRateWindow)
+	normalized := strings.TrimSpace(ip)
+	if normalized == "" {
+		normalized = "unknown"
+	}
+	return utils.AllowRequest("visit_report:"+normalized, visitRateLimit, visitRateWindow)
+}
+
+// normalizeVisitPath 规范化访问与事件路径：拒绝非站内相对路径、协议相对路径（// 或 /\）、非法 UTF-8 及控制字符，并统一截断与去空白
+func normalizeVisitPath(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if !utf8.ValidString(trimmed) {
+		return ""
+	}
+	if !strings.HasPrefix(trimmed, "/") || strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, `/\`) {
+		return ""
+	}
+	if strings.ContainsAny(trimmed, "\r\n\x00") {
+		return ""
+	}
+	return strings.TrimSpace(utils.Truncate(trimmed, maxVisitTextLength))
 }
 
 // siteHosts 本站域名：请求方传入的域名（如 X-Forwarded-Host）加上配置的站点地址，用于识别站内跳转
@@ -75,12 +95,16 @@ type VisitClient struct {
 // 开启请勿追踪时只做匿名计数：不识别访客，不保存 IP、UA 与浏览器信号
 // 每次访问都会做一致性检测，疑似自动化的访问照常记录，但不计入浏览量
 func (s *VisitService) Report(ctx context.Context, req *dto.ReportVisitReq, visitorKey string, client VisitClient) (string, *errs.ServiceError) {
-	ip, userAgent, doNotTrack := client.IP, client.UserAgent, client.DoNotTrack
-	if !allowVisitReport(ip) {
+	if !allowVisitReport(client.IP) {
 		return "", errs.New(http.StatusTooManyRequests, "too_many_requests", nil)
 	}
-	path := utils.Truncate(strings.TrimSpace(req.Path), maxVisitTextLength)
-	if !strings.HasPrefix(path, "/") {
+	return s.reportWithoutRateLimit(ctx, req, visitorKey, client)
+}
+
+func (s *VisitService) reportWithoutRateLimit(ctx context.Context, req *dto.ReportVisitReq, visitorKey string, client VisitClient) (string, *errs.ServiceError) {
+	ip, userAgent, doNotTrack := client.IP, client.UserAgent, client.DoNotTrack
+	path := normalizeVisitPath(req.Path)
+	if path == "" {
 		return "", errs.NewBadRequest("invalid_request_parameters")
 	}
 	// 随机文章中转页不记录，随后跳转到的文章会以“随机”作为来源
