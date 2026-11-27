@@ -28,6 +28,8 @@ func registerMiscRoutes(group *route.RouterGroup) {
 		miscGroup.GET("/weather/geo", controller.Weather.Geo)
 		miscGroup.GET("/weather/reverse", controller.Weather.Reverse)
 		miscGroup.GET("/weather/locate", controller.Weather.Locate)
+		// 侧边栏 Misskey 动态小组件：只读后端定时刷新写入 sharedstate 的公开帖子缓存
+		miscGroup.GET("/misskey/feed", miscController.GetMisskeyFeed)
 
 		miscGroupWithAdmin.GET("/metrics", miscController.GetMetrics) // 仅管理员可见
 	}

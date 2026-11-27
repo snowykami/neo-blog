@@ -137,6 +137,8 @@ func main() {
 	tasks.StartSearchSync()
 	// 定期拨测已公开友链的可达性与延迟
 	tasks.StartFriendLinksProbe()
+	// 定期异步拉取侧边栏 Misskey 公开动态并写入共享缓存（未启用时为空操作）
+	tasks.StartMisskeyFeedRefresh()
 
 	err = router.Run(ctx)
 	service.FlushPostViewCounts()

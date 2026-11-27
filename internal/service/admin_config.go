@@ -53,6 +53,7 @@ func (s *AdminService) GetConfigSchema() config.Schema {
 func (s *AdminService) SaveConfig(req *dto.SaveConfigReq) *errs.ServiceError {
 	changes := make([]config.Change, 0, len(req.Items))
 	touchedSearch := false
+	touchedMisskey := false
 	for _, item := range req.Items {
 		if it := config.Lookup(item.Key); it != nil {
 			if _, fromEnv := it.EnvValue(); fromEnv {
@@ -66,6 +67,9 @@ func (s *AdminService) SaveConfig(req *dto.SaveConfigReq) *errs.ServiceError {
 		if strings.HasPrefix(item.Key, "meilisearch_") {
 			touchedSearch = true
 		}
+		if strings.HasPrefix(item.Key, "misskey_") {
+			touchedMisskey = true
+		}
 	}
 	if len(changes) == 0 {
 		return nil
@@ -76,6 +80,9 @@ func (s *AdminService) SaveConfig(req *dto.SaveConfigReq) *errs.ServiceError {
 	if touchedSearch {
 		repo.InvalidatePostCache()
 		onSearchConfigSaved()
+	}
+	if touchedMisskey {
+		OnMisskeyConfigSaved()
 	}
 	return nil
 }
@@ -196,6 +203,9 @@ func (s *AdminService) DeleteKV(key string) *errs.ServiceError {
 		if strings.HasPrefix(key, "meilisearch_") {
 			repo.InvalidatePostCache()
 			onSearchConfigSaved()
+		}
+		if strings.HasPrefix(key, "misskey_") {
+			OnMisskeyConfigSaved()
 		}
 		return nil
 	}

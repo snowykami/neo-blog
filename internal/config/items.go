@@ -171,6 +171,15 @@ var sections = []*Section{
 		// 自定义 TTML 歌词源，按顺序探测（见 ttml_sources.go）
 		{Key: "music_ttml_sources", Type: TypeJSON, Widget: "ttml_sources", Label: "music_ttml_sources", Description: "music_ttml_sources_desc", Placeholder: "https://cdn.example.com/lyrics/{song_id}.ttml", Default: []MusicTTMLSource{}, Env: constant.EnvKeyMusicTTMLURL, decode: decodeMusicTTMLSources},
 	}},
+	// 侧边栏 Misskey 动态：由后端定时拉取公开帖子写入共享状态，前台只读缓存、不暴露令牌
+	{Tab: "appearance", Key: "misskey", Title: "section_misskey", Description: "section_misskey_desc", Items: []*Item{
+		{Key: "misskey_enabled", Type: TypeBool, Label: "misskey_enabled", Description: "misskey_enabled_desc", Default: false},
+		{Key: "misskey_instance_url", Type: TypeURL, Label: "misskey_instance_url", Description: "misskey_instance_url_desc", Placeholder: "https://misskey.io", Default: "", ShowWhen: when("misskey_enabled", "true")},
+		{Key: "misskey_username", Type: TypeString, Label: "misskey_username", Description: "misskey_username_desc", Placeholder: "@username", Default: "", ShowWhen: when("misskey_enabled", "true")},
+		{Key: "misskey_api_token", Type: TypeSecret, Label: "misskey_api_token", Description: "misskey_api_token_desc", Wide: true, Default: "", ShowWhen: when("misskey_enabled", "true")},
+		{Key: "misskey_fetch_interval_minutes", Type: TypeInt, Label: "misskey_fetch_interval_minutes", Description: "misskey_fetch_interval_minutes_desc", Min: num(1), Max: num(60), Default: 3, ShowWhen: when("misskey_enabled", "true")},
+		{Key: "misskey_display_count", Type: TypeInt, Label: "misskey_display_count", Description: "misskey_display_count_desc", Min: num(1), Max: num(10), Default: 5, ShowWhen: when("misskey_enabled", "true")},
+	}},
 
 	// ---- 内容与互动 ----
 	{Tab: "content", Key: "content", Title: "section_content", Items: []*Item{
@@ -340,6 +349,25 @@ var crossChecks = []struct {
 			}
 			if trimmed != "" && NormalizeIndexNowKey(trimmed) == "" {
 				return "indexnow_key_invalid"
+			}
+			return ""
+		},
+	},
+	{
+		// 开启 Misskey 动态同步时必须填写合法公网实例根地址与本地用户名
+		keys: []string{"misskey_enabled", "misskey_instance_url", "misskey_username"},
+		check: func(get func(string) any) string {
+			enabled, _ := get("misskey_enabled").(bool)
+			if !enabled {
+				return ""
+			}
+			rawURL, _ := get("misskey_instance_url").(string)
+			rawUser, _ := get("misskey_username").(string)
+			if _, err := NormalizeMisskeyInstanceURL(strings.TrimSpace(rawURL)); err != nil {
+				return "invalid_config_value"
+			}
+			if _, ok := NormalizeMisskeyUsername(strings.TrimSpace(rawUser)); !ok {
+				return "invalid_config_value"
 			}
 			return ""
 		},
