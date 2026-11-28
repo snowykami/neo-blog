@@ -29,6 +29,7 @@ import {
   latestExpiration,
   logError,
   NO_STORE_TAG,
+  recordRenderer,
   rememberRead,
   startTagSync,
   tagState,
@@ -70,6 +71,12 @@ startTagSync()
 // 正在写入的键：同一个键的读取先等写入完成（与 Next 默认处理器相同），避免同一进程里重复取数
 /** @type {Map<string, Promise<void>>} */
 const pendingSets = new Map()
+
+/** 清空本进程 Redis 模式的 L1 取数缓存（供跨实例 Redis 命中测试与诊断使用） */
+export function clearUseCacheL1() {
+  redisL1.clear()
+  redisL1Bytes = 0
+}
 
 /** @param {string} rKey */
 function l1Delete(rKey) {
@@ -153,23 +160,30 @@ async function getFromRedis(cacheKey) {
     return undefined
   const rKey = redisKey(cacheKey)
   const hit = l1Get(rKey)
-  if (hit)
+  if (hit) {
+    recordRenderer('M')
     return hit
+  }
   let record
   try {
     const raw = await redis.getBuffer(rKey)
-    if (!raw)
+    if (!raw) {
+      recordRenderer('C')
       return undefined
+    }
     const unzipped = await gunzip(raw)
     record = JSON.parse(unzipped.toString('utf8'))
   }
   catch (err) {
     logError(err)
+    recordRenderer('C')
     return undefined
   }
   const versions = record.versions ?? {}
-  if (isVersionStale(record.tags, versions) || isTagExpiredSince(record.tags, record.timestamp))
+  if (isVersionStale(record.tags, versions) || isTagExpiredSince(record.tags, record.timestamp)) {
+    recordRenderer('C')
     return undefined
+  }
   const buf = Buffer.from(record.value, 'base64')
   const ttl = ttlSeconds(record)
   l1Set(rKey, {
@@ -182,6 +196,7 @@ async function getFromRedis(cacheKey) {
     revalidate: record.revalidate,
     expiresAt: Math.min(record.timestamp + ttl * 1000, Date.now() + ttl * 1000),
   })
+  recordRenderer('R')
   return {
     value: streamFromBuffer(buf),
     tags: record.tags,
@@ -201,8 +216,10 @@ async function getFromRedis(cacheKey) {
 async function getFromMemory(cacheKey, softTags) {
   /** @type {CacheEntry | undefined} */
   const entry = await memory.get(cacheKey, softTags)
-  if (!entry)
+  if (!entry) {
+    recordRenderer('C')
     return undefined
+  }
   /** @type {Record<string, string>} */
   const recorded = {}
   const tags = []
@@ -219,8 +236,10 @@ async function getFromMemory(cacheKey, softTags) {
   if (isVersionStale(tags, recorded) || isTagExpiredSince(tags, entry.timestamp)) {
     // 流已经交给我们了，丢弃前读掉，免得它挂着
     void entry.value.cancel()
+    recordRenderer('C')
     return undefined
   }
+  recordRenderer('M')
   return { ...entry, tags }
 }
 

@@ -17,6 +17,7 @@
  * 构建（next build）时也会加载：构建期不轮询、不连 Redis（镜像构建时连不上后端），与 Next 自带的缓存相同。
  * 这个文件不经过打包，由两个缓存处理器在运行时直接 import，standalone 输出会自动带上它和 ioredis。
  */
+import { AsyncLocalStorage } from 'node:async_hooks'
 import http from 'node:http'
 import https from 'node:https'
 import process from 'node:process'
@@ -84,6 +85,49 @@ export function tagState() {
     syncNow: () => syncOnce(),
   }
   return holder[STATE_KEY]
+}
+
+/**
+ * 请求级缓存命中层级（M = 本进程内存，R = Redis，C = 冷渲染），通过 globalThis Symbol 与 instrumentation 响应头钩子共享同一个 AsyncLocalStorage
+ * @typedef {'M' | 'R' | 'C'} RendererLevel
+ * @typedef {{ renderer: RendererLevel | null }} RendererStore
+ */
+const RENDERER_ALS_KEY = Symbol.for('neo-blog.cache-renderer')
+/** @type {Record<RendererLevel, number>} */
+const RENDERER_PRIORITY = { M: 1, R: 2, C: 3 }
+
+/** @returns {AsyncLocalStorage<RendererStore>} 请求级存储实例 */
+export function rendererStorage() {
+  const holder = /** @type {Record<symbol, AsyncLocalStorage<RendererStore> | undefined>} */ (/** @type {unknown} */ (globalThis))
+  holder[RENDERER_ALS_KEY] ??= new AsyncLocalStorage()
+  return holder[RENDERER_ALS_KEY]
+}
+
+/**
+ * 记录当前请求在页面缓存中的命中层级：同一请求内多次触发读取时按 C > R > M 收敛，避免子片段缓存掩盖冷渲染或跨实例 Redis 命中
+ * @param {RendererLevel} level
+ */
+export function recordRenderer(level) {
+  const store = rendererStorage().getStore()
+  if (!store)
+    return
+  if (!store.renderer || RENDERER_PRIORITY[level] > RENDERER_PRIORITY[store.renderer])
+    store.renderer = level
+}
+
+/** @returns {RendererLevel | null} 当前请求已记录的缓存命中层级 */
+export function getRecordedRenderer() {
+  return rendererStorage().getStore()?.renderer ?? null
+}
+
+/**
+ * 在独立的请求级状态槽中运行回调（供 HTTP 请求入口与单元测试使用）
+ * @template T
+ * @param {() => T} fn
+ * @returns {T} 回调返回值
+ */
+export function runWithRendererStore(fn) {
+  return rendererStorage().run({ renderer: null }, fn)
 }
 
 /** @param {unknown} err */

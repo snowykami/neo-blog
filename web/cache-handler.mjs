@@ -32,6 +32,7 @@ import {
   isVersionStale,
   logError,
   NO_STORE_TAG,
+  recordRenderer,
   rememberRead,
   startTagSync,
   tagState,
@@ -62,6 +63,12 @@ let redisL1Bytes = 0
 
 // 构建号：Redis 里的页面键带上它，滚动更新期间新旧版本共用一个 Redis，旧版本生成的页面引用的是旧的 JS 文件，不能给新版本用
 let buildId = ''
+
+/** 清空本进程 Redis 模式的 L1 页面缓存（供跨实例 Redis 命中测试与诊断使用） */
+export function clearPageCacheL1() {
+  redisL1.clear()
+  redisL1Bytes = 0
+}
 
 /** @param {string} rKey */
 function l1Delete(rKey) {
@@ -293,8 +300,10 @@ export default class NeoCacheHandler extends FileSystemCache {
     if (s.redis) {
       const rKey = entryKey(key)
       const cached = l1Get(rKey, ctx)
-      if (cached)
+      if (cached) {
+        recordRenderer('M')
         return cached
+      }
       try {
         const raw = await s.redis.getBuffer(rKey)
         if (raw) {
@@ -302,6 +311,7 @@ export default class NeoCacheHandler extends FileSystemCache {
           const parsed = JSON.parse(unzipped.toString('utf8'), reviver)
           if (parsed && !isExpired(parsed, ctx)) {
             l1Set(rKey, parsed, unzipped.byteLength, entryTTL(parsed.value, ctx))
+            recordRenderer('R')
             return parsed
           }
         }
@@ -316,8 +326,11 @@ export default class NeoCacheHandler extends FileSystemCache {
     else {
       data = await super.get(key, ctx)
     }
-    if (data && isExpired(data, ctx))
+    if (!data || isExpired(data, ctx)) {
+      recordRenderer('C')
       return null
+    }
+    recordRenderer('M')
     return data
   }
 

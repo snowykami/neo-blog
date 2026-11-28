@@ -10,8 +10,12 @@ export async function register() {
       const { registerOTel } = await import('@/lib/telemetry/otel.node')
       registerOTel()
     }
-    const { startServerMetrics } = await import('@/lib/server-metrics')
+    const [{ startServerMetrics }, { startRendererHeader }] = await Promise.all([
+      import('@/lib/server-metrics'),
+      import('@/lib/renderer-header'),
+    ])
     startServerMetrics()
+    startRendererHeader()
   }
 }
 
