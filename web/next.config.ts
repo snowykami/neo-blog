@@ -178,6 +178,23 @@ export default (phase: string): NextConfig => {
           source: '/:key([a-zA-Z0-9-]{8,128}).txt',
           destination: '/api/indexnow?key=:key',
         },
+        // MCP OAuth 2.1 自动发现元数据（App Router 忽略以点号开头的 .well-known 目录，内部改写至运行时 Route Handler 再转发后端）
+        {
+          source: '/.well-known/oauth-protected-resource',
+          destination: '/api/well-known/oauth-protected-resource',
+        },
+        {
+          source: '/.well-known/oauth-protected-resource/:path*',
+          destination: '/api/well-known/oauth-protected-resource/:path*',
+        },
+        {
+          source: '/.well-known/oauth-authorization-server',
+          destination: '/api/well-known/oauth-authorization-server',
+        },
+        {
+          source: '/.well-known/oauth-authorization-server/:path*',
+          destination: '/api/well-known/oauth-authorization-server/:path*',
+        },
       ]
     },
     async redirects() {

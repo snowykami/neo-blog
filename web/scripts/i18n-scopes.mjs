@@ -84,6 +84,7 @@ export const SCOPE_DIRS = [
   'console/visit-insights',
   'console/visits',
   'console/visits/[id]',
+  'oauth',
 ]
 
 const SCOPES_FILE = join(SRC_ROOT, 'locales', 'scopes.generated.ts')
@@ -112,7 +113,7 @@ export const CONFIG_KEYS_FILE = join(SRC_ROOT, 'locales', 'config-keys.generated
  * 文章、用户、分类页的 404 / 跳转改在页面里判定（迁到 Cache Components 后 layout 不能读地址参数，否则 App Shell 里没有骨架），
  * 它们的 layout 回到生成的写法
  */
-export const MANUAL_SCOPE_DIRS = new Set(['', '(main)', '(player)', 'console', 'auth'])
+export const MANUAL_SCOPE_DIRS = new Set(['', '(main)', '(player)', 'console', 'auth', 'oauth'])
 
 /**
  * 键表：只放文案键的数据文件，导入它的组件用 `t(变量)` 取其中的键。

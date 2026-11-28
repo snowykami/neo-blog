@@ -575,6 +575,9 @@ func (s *AIAgentService) ConvertUser(ctx context.Context, req *dto.ConvertUserTo
 	if err := repo.APIToken.RevokeAllByUser(target.ID, time.Now()); err != nil {
 		logrus.Errorln("Failed to revoke api tokens:", err)
 	}
+	if err := repo.OAuth.RevokeAllByUser(target.ID, time.Now().UTC()); err != nil {
+		logrus.Errorln("Failed to revoke oauth tokens:", err)
+	}
 	target.IsAI = true
 	agent.User = *target
 	return s.agentDto(agent), nil

@@ -80,6 +80,10 @@ function redirectTo(request: NextRequest, pathname: string, permanent = false) {
   return response
 }
 
+function isOAuthPath(pathname: string) {
+  return pathname === '/oauth' || pathname.startsWith('/oauth/')
+}
+
 export function proxy(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl
   const [, firstSeg = '', ...restSegs] = pathname.split('/')
@@ -110,6 +114,14 @@ export function proxy(request: NextRequest) {
   }
 
   const response = handleI18nRouting(request)
+  if (isOAuthPath(prefixed.pathname)) {
+    // OAuth 2.1 §7.9：授权确认页严禁被嵌入 iframe（防御点击劫持），且禁止搜索引擎收录与外层 CDN 缓存
+    response.headers.set('X-Frame-Options', 'DENY')
+    response.headers.set('Content-Security-Policy', 'frame-ancestors \'none\'')
+    response.headers.set('X-Robots-Tag', 'noindex, nofollow')
+    response.headers.set('CDN-Cache-Control', 'no-store')
+    return response
+  }
   if (isRscRequest(request)) {
     // 客户端路由取数与预取含当前构建的代码块文件名，禁止外层共享缓存跨版本留存；整页文档照常按 Cache-Control 缓存
     response.headers.set('CDN-Cache-Control', 'no-store')
@@ -123,7 +135,7 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // 接口、Next 内部资源、健康检查、public 目录里的静态文件，以及 rss.xml / sitemap.xml / robots.txt 这类带扩展名的文件不经过这里。
+  // 接口、.well-known 协议发现、Next 内部资源、健康检查、public 目录里的静态文件，以及 rss.xml / sitemap.xml / robots.txt 这类带扩展名的文件不经过这里。
   // 只排除常见静态文件扩展名，而不是所有带点的路径：文章 slug 里可能有点（/p/v1.0）
-  matcher: ['/((?!api/|_next/|_vercel/|healthz|fonts/|image/|.*\\.(?:ico|png|jpe?g|gif|webp|avif|svg|txt|xml|json|js|mjs|css|map|woff2?|ttf|otf|webmanifest)$).*)'],
+  matcher: ['/((?!api/|\\.well-known/|_next/|_vercel/|healthz|fonts/|image/|.*\\.(?:ico|png|jpe?g|gif|webp|avif|svg|txt|xml|json|js|mjs|css|map|woff2?|ttf|otf|webmanifest)$).*)'],
 }

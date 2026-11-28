@@ -357,6 +357,10 @@ export const SCOPES = {
   ],
   'console/visits/[id]': [
   ],
+  'oauth': [
+    'OAuth',
+    'Role',
+  ],
 } as const
 
 export const SCOPE_PARENT: Record<keyof typeof SCOPES, keyof typeof SCOPES | null> = {
@@ -411,6 +415,7 @@ export const SCOPE_PARENT: Record<keyof typeof SCOPES, keyof typeof SCOPES | nul
   'console/visit-insights': 'console',
   'console/visits': 'console',
   'console/visits/[id]': 'console/visits',
+  'oauth': 'root',
 }
 
 export type I18nScope = keyof typeof SCOPES

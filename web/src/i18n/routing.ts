@@ -32,7 +32,7 @@ export const routing = defineRouting({
 })
 
 /** 不带语言前缀的站内路径：后台、接口、订阅与搜索引擎文件、健康检查，以及 next.config.ts 里的 RSS 旧地址 */
-const UNLOCALIZED_SEGMENTS = new Set(['console', 'api', '_next', 'healthz', 'rss.xml', 'sitemap.xml', 'robots.txt', 'feed', 'feed.xml', 'rss', 'fonts', 'image', 'favicon.ico'])
+const UNLOCALIZED_SEGMENTS = new Set(['console', 'api', '.well-known', '_next', 'healthz', 'rss.xml', 'sitemap.xml', 'robots.txt', 'feed', 'feed.xml', 'rss', 'fonts', 'image', 'favicon.ico'])
 
 /** 站内地址是否属于前台页面（要带上当前语言前缀）；站外地址、锚点、相对路径与后台 / 接口地址原样使用 */
 export function isLocalizedHref(href: string): boolean {

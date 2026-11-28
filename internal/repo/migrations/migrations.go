@@ -32,5 +32,6 @@ func List() []*gormigrate.Migration {
 		consoleQueryIndexes(),
 		friendLinksNullableUser(),
 		pageOpenInNewTab(),
+		mcpOAuth(),
 	}
 }

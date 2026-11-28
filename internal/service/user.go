@@ -485,10 +485,13 @@ func (s *UserService) UpdatePassword(ctx context.Context, req *dto.UpdatePasswor
 	if err := repo.User.UpdateUserColumns(currentUser.ID, map[string]any{"password": hashedPassword}); err != nil {
 		return false, errs.Internal("failed_to_update_target", err).WithResource("user")
 	}
-	// 改密后其他设备上的登录全部失效，只保留当前会话
+	// 改密后其他设备上的登录与 OAuth 授权全部失效，只保留当前会话
 	currentSessionID, _ := ctx.Value("session_id").(string)
 	if err := repo.Session.RevokeUserSessions(currentUser.ID, currentSessionID); err != nil {
 		logrus.Errorln("Failed to revoke sessions:", err)
+	}
+	if err := repo.OAuth.RevokeAllByUser(currentUser.ID, time.Now().UTC()); err != nil {
+		logrus.Errorln("Failed to revoke oauth tokens:", err)
 	}
 	return true, nil
 }
@@ -523,9 +526,12 @@ func (s *UserService) ResetPassword(req *dto.ResetPasswordReq, verifyCode string
 	if err := repo.User.UpdateUserColumns(user.ID, map[string]any{"password": hashedPassword}); err != nil {
 		return false, errs.Internal("failed_to_update_target", err).WithResource("user")
 	}
-	// 重置密码后吊销该用户的全部会话
+	// 重置密码后吊销该用户的全部会话与 OAuth 授权
 	if err := repo.Session.RevokeUserSessions(user.ID, ""); err != nil {
 		logrus.Errorln("Failed to revoke sessions:", err)
+	}
+	if err := repo.OAuth.RevokeAllByUser(user.ID, time.Now().UTC()); err != nil {
+		logrus.Errorln("Failed to revoke oauth tokens:", err)
 	}
 	return true, nil
 }

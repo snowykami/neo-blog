@@ -6,8 +6,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/snowykami/neo-blog/internal/config"
+	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/utils"
 )
 
@@ -80,6 +82,92 @@ func GetIndexNowConfig() IndexNowConfig {
 // GetBaseUrl 站点地址：环境变量 BASE_URL 优先，其次后台配置
 func GetBaseUrl() string {
 	return strings.TrimSuffix(config.String("base_url"), "/")
+}
+
+// ResolveExternalBaseURL 解析对外基准地址（供 OAuth 元数据发现与 401 WWW-Authenticate 使用）：
+//  1. 若环境变量 BASE_URL 已显式设置且合法，直接锁定使用（防御伪造 Host / X-Forwarded-Host 投毒）
+//  2. 若后台已配置非默认占位值（非 http://localhost:3000）的合法站点地址，直接锁定使用
+//  3. 未配置站点地址（如本地开发、随机端口集成测试或零配置初期）时，严格校验并采用 X-Forwarded-Proto + X-Forwarded-Host / Host
+func ResolveExternalBaseURL(forwardedProto, forwardedHost, reqHost string, isTLS bool) string {
+	if it := config.Lookup("base_url"); it != nil {
+		if env, ok := it.EnvValue(); ok {
+			if normalized, valid := normalizeExternalOrigin(env); valid {
+				return normalized
+			}
+		}
+	}
+	if configured := GetBaseUrl(); configured != "" && !strings.EqualFold(configured, constant.DefaultBaseUrl) {
+		if normalized, valid := normalizeExternalOrigin(configured); valid {
+			return normalized
+		}
+	}
+
+	scheme := "http"
+	if isTLS {
+		scheme = "https"
+	}
+	if proto, _, _ := strings.Cut(forwardedProto, ","); strings.TrimSpace(proto) != "" {
+		switch strings.ToLower(strings.TrimSpace(proto)) {
+		case "https":
+			scheme = "https"
+		case "http":
+			scheme = "http"
+		}
+	}
+
+	host := parseSafeHeaderHost(forwardedHost)
+	if host == "" {
+		host = parseSafeHeaderHost(reqHost)
+	}
+	if host != "" {
+		return scheme + "://" + host
+	}
+	return GetBaseUrl()
+}
+
+func normalizeExternalOrigin(raw string) (string, bool) {
+	trimmed := strings.TrimSpace(strings.TrimRight(strings.TrimSpace(raw), "/"))
+	if trimmed == "" || strings.ContainsAny(trimmed, " \t\r\n#?") {
+		return "", false
+	}
+	u, err := url.Parse(trimmed)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
+		return "", false
+	}
+	if portText := u.Port(); portText != "" {
+		port, err := strconv.Atoi(portText)
+		if err != nil || port < 1 || port > 65535 {
+			return "", false
+		}
+	}
+	u.Scheme = strings.ToLower(u.Scheme)
+	u.Host = strings.ToLower(u.Host)
+	u.Path = strings.TrimRight(u.Path, "/")
+	return strings.TrimRight(u.String(), "/"), true
+}
+
+func parseSafeHeaderHost(raw string) string {
+	first, _, _ := strings.Cut(raw, ",")
+	candidate := strings.TrimSpace(first)
+	if candidate == "" || len(candidate) > 255 || strings.ContainsAny(candidate, "/\\?# \t\r\n@") {
+		return ""
+	}
+	for _, r := range candidate {
+		if unicode.IsControl(r) || unicode.IsSpace(r) {
+			return ""
+		}
+	}
+	u, err := url.Parse("http://" + candidate)
+	if err != nil || u.Host == "" || u.Hostname() == "" || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
+		return ""
+	}
+	if portText := u.Port(); portText != "" {
+		port, err := strconv.Atoi(portText)
+		if err != nil || port < 1 || port > 65535 {
+			return ""
+		}
+	}
+	return strings.ToLower(u.Host)
 }
 
 func GetAllowRegister() bool         { return config.Bool("enable_register") }

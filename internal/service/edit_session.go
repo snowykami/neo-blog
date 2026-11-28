@@ -124,7 +124,7 @@ func (s *EditSessionService) CheckContentWrite(targetType string, targetID uint,
 //   - 传了基线版本号时必须是当前的草稿版本，否则说明读取之后有其他写入，拒绝保存（draft_conflict），
 //     由调用方取最新草稿合并后重试；保存时还会在库中原子地再比较一次，见 repo.SavePostWithDraftVersion
 func checkContentWrite(ctx context.Context, targetType string, targetID uint, sessionID string, base *uint64, current uint64) *errs.ServiceError {
-	if ctxutils.GetAPITokenID(ctx) == 0 {
+	if _, viaToken := ctxutils.GetAPIToken(ctx); !viaToken {
 		if svcerr := NewEditSessionService().CheckContentWrite(targetType, targetID, sessionID); svcerr != nil {
 			return svcerr
 		}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/mail"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -321,10 +322,13 @@ func (s *AdminUserService) UpdateUserStatus(ctx context.Context, req *dto.AdminU
 	if err := repo.User.UpdateUserColumns(target.ID, map[string]any{"disabled": req.Disabled}); err != nil {
 		return errs.Internal("failed_to_update_target", err).WithResource("user")
 	}
-	// 禁用后吊销全部会话，refresh token 立即失效
+	// 禁用后吊销全部会话与 OAuth 令牌，refresh token 立即失效
 	if req.Disabled {
 		if err := repo.Session.RevokeUserSessions(target.ID, ""); err != nil {
 			logrus.Errorln("Failed to revoke sessions:", err)
+		}
+		if err := repo.OAuth.RevokeAllByUser(target.ID, time.Now().UTC()); err != nil {
+			logrus.Errorln("Failed to revoke oauth tokens:", err)
 		}
 	}
 	SyncSearchUser(target.ID, false)
@@ -353,6 +357,9 @@ func (s *AdminUserService) ResetUserPassword(ctx context.Context, req *dto.Admin
 	}
 	if err := repo.Session.RevokeUserSessions(target.ID, currentSessionID); err != nil {
 		logrus.Errorln("Failed to revoke sessions:", err)
+	}
+	if err := repo.OAuth.RevokeAllByUser(target.ID, time.Now().UTC()); err != nil {
+		logrus.Errorln("Failed to revoke oauth tokens:", err)
 	}
 	return nil
 }

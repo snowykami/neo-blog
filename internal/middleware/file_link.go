@@ -17,8 +17,10 @@ const maxFileLinkJSONBytes = 8 << 20
 // UseFileLinks 站内文件链接：写入的 JSON 中存储直链还原为稳定链接，返回的 JSON 中稳定链接改写为可直连存储的直链
 func UseFileLinks() app.HandlerFunc {
 	apiPrefix := []byte(constant.ApiPrefix + "/")
+	oauthPrefix := []byte(constant.ApiPrefix + "/oauth/")
 	return func(ctx context.Context, c *app.RequestContext) {
-		if !bytes.HasPrefix(c.Request.URI().Path(), apiPrefix) {
+		path := c.Request.URI().Path()
+		if !bytes.HasPrefix(path, apiPrefix) || bytes.HasPrefix(path, oauthPrefix) {
 			c.Next(ctx)
 			return
 		}

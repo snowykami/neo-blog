@@ -1,7 +1,9 @@
 package middleware
 
 import (
+	"cmp"
 	"context"
+	"fmt"
 	"net/http"
 	"slices"
 	"strings"
@@ -12,6 +14,7 @@ import (
 	"github.com/snowykami/neo-blog/internal/ctxutils"
 	"github.com/snowykami/neo-blog/internal/repo"
 	"github.com/snowykami/neo-blog/internal/service"
+	"github.com/snowykami/neo-blog/internal/tools"
 	"github.com/snowykami/neo-blog/pkg/constant"
 	"github.com/snowykami/neo-blog/pkg/errs"
 	"github.com/snowykami/neo-blog/pkg/resps"
@@ -43,7 +46,7 @@ func UseAuth(block bool, tokenScopes ...string) app.HandlerFunc {
 
 		token := string(c.Cookie("token"))
 		if token == "" {
-			token = strings.TrimPrefix(string(c.GetHeader("Authorization")), "Bearer ")
+			token = extractBearerValue(c)
 		}
 
 		// 解析 无状态token
@@ -112,36 +115,56 @@ func UseAuth(block bool, tokenScopes ...string) app.HandlerFunc {
 	}
 }
 
-// UseAPIToken 只接受个人 API Token 的鉴权，用于 MCP 等面向外部工具的接口
-// 不接受浏览器 Cookie，避免登录态被跨站请求借用；具体操作所需的权限范围由调用方检查
+// UseAPIToken 接受个人 API Token（nbp_...）与 OAuth 2.1 Access Token（nbo_...）鉴权，用于 MCP 等面向外部工具的接口。
+// 不接受浏览器 Cookie，避免登录态被跨站请求借用；鉴权失败返回 401 时附带 RFC 9728 resource_metadata 引导客户端自动发起 OAuth 2.1 授权
 func UseAPIToken() app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
+		c.Header("Cache-Control", "no-store")
+		hasAuthHeader := strings.TrimSpace(string(c.GetHeader("Authorization"))) != ""
 		raw := bearerAPIToken(c)
 		if raw == "" {
-			abortAPITokenError(c, errs.NewUnauthorized("invalid_api_token"))
+			abortMCPTokenError(c, errs.NewUnauthorized("invalid_api_token"), hasAuthHeader)
 			return
 		}
 		apiCtx, svcerr := authenticateAPIToken(ctx, raw, nil)
 		if svcerr != nil {
-			abortAPITokenError(c, svcerr)
+			abortMCPTokenError(c, svcerr, true)
 			return
 		}
 		c.Next(apiCtx)
 	}
 }
 
-// bearerAPIToken 取出 Authorization 头中的个人 API Token，不是 API Token 时返回空
+// extractBearerValue 大小写不敏感地提取 Authorization: Bearer <token> 中的令牌值
+func extractBearerValue(c *app.RequestContext) string {
+	auth := strings.TrimSpace(string(c.GetHeader("Authorization")))
+	if len(auth) <= 7 || !strings.EqualFold(auth[:7], "Bearer ") {
+		return ""
+	}
+	return strings.TrimSpace(auth[7:])
+}
+
+// bearerAPIToken 取出 Authorization 头中的个人 API Token（nbp_）或 OAuth Access Token（nbo_），其余返回空
 func bearerAPIToken(c *app.RequestContext) string {
-	raw := strings.TrimSpace(strings.TrimPrefix(string(c.GetHeader("Authorization")), "Bearer "))
-	if !strings.HasPrefix(raw, constant.APITokenPrefix) {
+	raw := extractBearerValue(c)
+	if !strings.HasPrefix(raw, constant.APITokenPrefix) && !strings.HasPrefix(raw, constant.OAuthAccessTokenPrefix) {
 		return ""
 	}
 	return raw
 }
 
-// authenticateAPIToken 校验 API Token 并要求具有全部 requiredScopes，通过后在上下文中写入用户与 Token 信息
+// authenticateAPIToken 校验个人 API Token 或 OAuth Access Token 并要求具有全部 requiredScopes，通过后写入用户与权限上下文
 func authenticateAPIToken(ctx context.Context, raw string, requiredScopes []string) (context.Context, *errs.ServiceError) {
-	userID, info, svcerr := service.NewAPITokenService().Authenticate(raw)
+	var (
+		userID uint
+		info   *ctxutils.APITokenInfo
+		svcerr *errs.ServiceError
+	)
+	if strings.HasPrefix(raw, constant.OAuthAccessTokenPrefix) {
+		userID, info, svcerr = service.NewOAuthService().AuthenticateAccessToken(raw)
+	} else {
+		userID, info, svcerr = service.NewAPITokenService().Authenticate(raw)
+	}
 	if svcerr != nil {
 		return ctx, svcerr
 	}
@@ -156,13 +179,34 @@ func authenticateAPIToken(ctx context.Context, raw string, requiredScopes []stri
 	ctx = context.WithValue(ctx, "user_id", userID)
 	ctx = ctxutils.WithUserCache(ctx)
 	ctx = ctxutils.WithAPIToken(ctx, info)
-	logrus.Debugf("user_id: %d, api_token_id: %d pass", userID, info.ID)
+	logrus.Debugf("user_id: %d, api_token_id: %d, oauth_token_id: %d pass", userID, info.ID, info.OAuthTokenID)
 	return ctx, nil
 }
 
+func externalBaseURLFromContext(c *app.RequestContext) string {
+	return tools.ResolveExternalBaseURL(
+		string(c.GetHeader("X-Forwarded-Proto")),
+		string(c.GetHeader("X-Forwarded-Host")),
+		cmp.Or(string(c.Host()), string(c.GetHeader("Host"))),
+		strings.EqualFold(string(c.URI().Scheme()), "https"),
+	)
+}
+
 func abortAPITokenError(c *app.RequestContext, svcerr *errs.ServiceError) {
-	if svcerr.Code == http.StatusUnauthorized {
-		c.Header("WWW-Authenticate", `Bearer realm="neo-blog", error="invalid_token"`)
+	abortMCPTokenError(c, svcerr, true)
+}
+
+func abortMCPTokenError(c *app.RequestContext, svcerr *errs.ServiceError, includeInvalidTokenErr bool) {
+	metaURL := externalBaseURLFromContext(c) + "/.well-known/oauth-protected-resource"
+	switch svcerr.Code {
+	case http.StatusUnauthorized:
+		if includeInvalidTokenErr {
+			c.Header("WWW-Authenticate", fmt.Sprintf(`Bearer realm="neo-blog", error="invalid_token", resource_metadata=%q`, metaURL))
+		} else {
+			c.Header("WWW-Authenticate", fmt.Sprintf(`Bearer realm="neo-blog", resource_metadata=%q`, metaURL))
+		}
+	case http.StatusForbidden:
+		c.Header("WWW-Authenticate", fmt.Sprintf(`Bearer realm="neo-blog", error="insufficient_scope", resource_metadata=%q`, metaURL))
 	}
 	resps.Error(c, svcerr)
 }

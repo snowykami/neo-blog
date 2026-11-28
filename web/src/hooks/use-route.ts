@@ -17,8 +17,10 @@ export const resetPasswordPath = `${authPath}/reset-password`
  * 万一带了前缀（/en/p/x）先去掉，避免跳到 /en/en/p/x
  */
 export function readRedirectBack(searchParams: Pick<URLSearchParams, 'get'>): string {
-  const value = searchParams.get('redirect_back') || '/'
-  return value.startsWith('/') && !value.startsWith('//') ? splitLocalePrefix(value).pathname : value
+  const value = (searchParams.get('redirect_back') || '/').trim()
+  if (!value.startsWith('/') || value.startsWith('//') || value.startsWith('/\\') || /[\r\n]/.test(value))
+    return '/'
+  return splitLocalePrefix(value).pathname
 }
 
 export function useToLogin() {

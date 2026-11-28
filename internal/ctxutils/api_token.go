@@ -7,11 +7,13 @@ import (
 
 const apiTokenKey = "api_token"
 
-// APITokenInfo 本次请求使用的个人 API Token；Scopes 已与用户角色取交集
+// APITokenInfo 本次请求使用的个人 API Token 或 OAuth Access Token；Scopes 已与用户角色取交集。
+// ID 仅在个人 API Token（api_tokens 表）认证时非 0，OAuth 令牌使用 OAuthTokenID，避免污染 content_revisions.api_token_id 外键
 type APITokenInfo struct {
-	ID     uint
-	Name   string
-	Scopes []string
+	ID           uint
+	OAuthTokenID uint
+	Name         string
+	Scopes       []string
 }
 
 // WithAPIToken 鉴权中间件通过 API Token 认证后挂载 Token 信息

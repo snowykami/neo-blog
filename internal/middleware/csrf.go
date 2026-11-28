@@ -22,6 +22,12 @@ func UseCookieCSRF() app.HandlerFunc {
 			c.Next(ctx)
 			return
 		}
+		// OAuth 公开协议端点（动态注册、换取令牌、吊销令牌）完全不读取浏览器会话 Cookie，豁免 Origin 检查以兼容跨源浏览器 MCP 客户端
+		switch string(c.Request.URI().Path()) {
+		case "/api/v1/oauth/register", "/api/v1/oauth/token", "/api/v1/oauth/revoke":
+			c.Next(ctx)
+			return
+		}
 		if len(c.Cookie("token")) == 0 && len(c.Cookie("refresh_token")) == 0 {
 			c.Next(ctx)
 			return

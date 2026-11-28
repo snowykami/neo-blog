@@ -2,7 +2,7 @@
 // 浏览器环境（happy-dom）的 Headers 会丢掉 Cookie 等受限请求头，这里用 Node 环境
 import { NextRequest } from 'next/server'
 import { describe, expect, it } from 'vitest'
-import { proxy } from './proxy'
+import { config, proxy } from './proxy'
 
 function request(path: string, headers: Record<string, string> = {}) {
   return new NextRequest(new URL(path, 'https://blog.example.com'), { headers })
@@ -90,5 +90,22 @@ describe('proxy 语言路由', () => {
     const tripPath = proxy(request('/zh-tw-trip'))
     expect(location(tripPath)).toBeNull()
     expect(rewrite(tripPath)).toBe('https://blog.example.com/zh-CN/zh-tw-trip')
+  })
+
+  it('oauth 发现路径排除在 matcher 之外，授权确认页注入防点击劫持与禁止缓存响应头', () => {
+    const matcherRegex = new RegExp(`^${config.matcher[0]}$`)
+    expect(matcherRegex.test('/.well-known/oauth-protected-resource')).toBe(false)
+    expect(matcherRegex.test('/.well-known/oauth-protected-resource/api/v1/mcp')).toBe(false)
+    expect(matcherRegex.test('/.well-known/oauth-authorization-server')).toBe(false)
+    expect(matcherRegex.test('/p/v1.0')).toBe(true)
+    expect(matcherRegex.test('/oauth/authorize')).toBe(true)
+
+    for (const path of ['/oauth/authorize?client_id=abc', '/en/oauth/authorize?client_id=abc']) {
+      const res = proxy(request(path))
+      expect(res.headers.get('x-frame-options'), path).toBe('DENY')
+      expect(res.headers.get('content-security-policy'), path).toBe('frame-ancestors \'none\'')
+      expect(res.headers.get('x-robots-tag'), path).toBe('noindex, nofollow')
+      expect(res.headers.get('cdn-cache-control'), path).toBe('no-store')
+    }
   })
 })

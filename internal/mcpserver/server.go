@@ -62,13 +62,13 @@ func newServer() *mcp.Server {
 	return server
 }
 
-// requireScope 检查本次请求的 API Token 是否具有指定权限范围（已与用户角色取交集）
+// requireScope 检查本次请求的令牌是否具有指定权限范围（已与用户角色取交集）
 func requireScope(ctx context.Context, scope string) error {
 	if _, ok := ctxutils.GetAPIToken(ctx); !ok {
-		return errors.New("this endpoint only accepts personal API tokens (Authorization: Bearer nbp_...)")
+		return errors.New("this endpoint only accepts OAuth Bearer tokens or personal API tokens (Authorization: Bearer ...)")
 	}
 	if !ctxutils.HasAPITokenScope(ctx, scope) {
-		return fmt.Errorf("this API token does not have the %q scope (or the user's role does not allow it); create a token with that scope in the console", scope)
+		return fmt.Errorf("this token does not have the %q scope (or the user's role does not allow it); re-authorize with that scope or create a token in the console", scope)
 	}
 	return nil
 }

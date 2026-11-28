@@ -338,6 +338,8 @@ var models = []any{
 	&model.MusicSongRhythm{},
 	&model.MusicSongTranslation{},
 	&model.Notification{},
+	&model.OAuthClient{},
+	&model.OAuthToken{},
 	&model.File{},
 	&model.StorageProviderModelAndDto{},
 	&model.KV{},

@@ -677,6 +677,8 @@ export function buildRobotsTxtContent(input: RobotsTxtConfigInput): string {
     '/console/',
     '/auth/',
     ...routing.locales.filter(locale => locale !== routing.defaultLocale).map(locale => `${LOCALE_PREFIXES[locale]}/auth/`),
+    '/oauth/',
+    ...routing.locales.filter(locale => locale !== routing.defaultLocale).map(locale => `${LOCALE_PREFIXES[locale]}/oauth/`),
     // 屏蔽无独立内容的遗留/搜索/追踪动态参数，避免消耗搜索引擎抓取配额（保留 /?label= 等供链接跟踪并由 X-Robots-Tag 收敛）
     '/*?p=',
     '/*&p=',

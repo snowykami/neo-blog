@@ -12,7 +12,7 @@ import (
 // getWritingGuide 写作指南：站点写作风格、Token 持有人的语言习惯、编辑器支持的格式与可用组件，以纯文本返回便于模型阅读
 func getWritingGuide(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
 	if _, ok := ctxutils.GetAPIToken(ctx); !ok {
-		return nil, nil, errors.New("this endpoint only accepts personal API tokens (Authorization: Bearer nbp_...)")
+		return nil, nil, errors.New("this endpoint only accepts OAuth Bearer tokens or personal API tokens (Authorization: Bearer ...)")
 	}
 	guide, svcerr := service.BuildAgentWritingGuide(ctx, components.guide())
 	if svcerr != nil {

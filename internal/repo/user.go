@@ -330,7 +330,7 @@ func (user *userRepo) DeleteUser(userID, transferTo uint) error {
 		}
 
 		// 编辑会话引用 Token，需先于 Token 删除
-		for _, m := range []any{&model.Session{}, &model.UserOpenID{}, &model.EditSession{}, &model.APIToken{}} {
+		for _, m := range []any{&model.Session{}, &model.UserOpenID{}, &model.EditSession{}, &model.APIToken{}, &model.OAuthToken{}} {
 			if err := tx.Unscoped().Where("user_id = ?", userID).Delete(m).Error; err != nil {
 				return err
 			}

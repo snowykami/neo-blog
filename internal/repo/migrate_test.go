@@ -1027,3 +1027,42 @@ func TestMigratePageOpenInNewTab(t *testing.T) {
 		}
 	})
 }
+
+// MCP OAuth 2.1 迁移：旧库升级后建好 oauth_clients 与 oauth_tokens 表，且 refresh_token_hash 为 NULL 的多条仅授权码令牌互不冲突
+func TestMigrateMCPOAuth(t *testing.T) {
+	forEachDialect(t, func(t *testing.T) {
+		seedLegacyDatabase(t)
+		if err := migrate(); err != nil {
+			t.Fatalf("migrate: %v", err)
+		}
+		user := &model.User{Username: "oauth_owner", Email: "oauth@test.local"}
+		if err := db.Create(user).Error; err != nil {
+			t.Fatalf("create user: %v", err)
+		}
+		client := &model.OAuthClient{
+			ClientID:                "nbclient_test123",
+			ClientName:              "Test MCP Client",
+			RedirectURIs:            []string{"http://127.0.0.1:8787/callback"},
+			GrantTypes:              []string{"authorization_code"},
+			TokenEndpointAuthMethod: model.OAuthAuthMethodNone,
+			Scope:                   "posts:read",
+		}
+		if err := db.Create(client).Error; err != nil {
+			t.Fatalf("create oauth client: %v", err)
+		}
+		now := time.Now().UTC()
+		for i, hash := range []string{"acc_hash_1", "acc_hash_2"} {
+			tok := &model.OAuthToken{
+				UserID:          user.ID,
+				ClientID:        client.ClientID,
+				FamilyID:        fmt.Sprintf("fam_%d", i),
+				Scopes:          []string{"posts:read"},
+				AccessTokenHash: hash,
+				AccessExpiresAt: now.Add(time.Hour),
+			}
+			if err := db.Create(tok).Error; err != nil {
+				t.Fatalf("create oauth token %d with NULL refresh_token_hash: %v", i, err)
+			}
+		}
+	})
+}

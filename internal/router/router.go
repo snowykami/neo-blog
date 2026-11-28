@@ -85,6 +85,7 @@ func init() {
 		middleware.UseFileLinks(),
 	)
 	apiv1.RegisterRoutes(h)
+	RegisterWellKnownRoutes(h)
 	// Prometheus 指标：只在设置了 METRICS_TOKEN 时可用（Bearer 鉴权），否则 404；不经前端转发，由 Prometheus 直接按实例抓取
 	h.GET("/metrics", controller.Metrics.Prometheus)
 	// 存活检查：进程能响应即可，不依赖数据库，避免数据库抖动时实例被反复重启
@@ -92,6 +93,28 @@ func init() {
 		resps.Ok(c, "ok", nil)
 	})
 	h.GET("/readyz", readyz)
+}
+
+// RegisterWellKnownRoutes 注册 OAuth 2.1 受保护资源与授权服务器元数据发现端点（RFC 9728 & RFC 8414）
+func RegisterWellKnownRoutes(srv *server.Hertz) {
+	corsGet := middleware.UsePublicCORS("GET", "HEAD", "OPTIONS")
+	wk := srv.Group("/.well-known")
+	wk.Use(corsGet)
+	{
+		wk.GET("/oauth-protected-resource", controller.OAuth.ProtectedResourceMetadata)
+		wk.HEAD("/oauth-protected-resource", controller.OAuth.ProtectedResourceMetadata)
+		wk.OPTIONS("/oauth-protected-resource", corsGet)
+		wk.GET("/oauth-protected-resource/*filepath", controller.OAuth.ProtectedResourceMetadata)
+		wk.HEAD("/oauth-protected-resource/*filepath", controller.OAuth.ProtectedResourceMetadata)
+		wk.OPTIONS("/oauth-protected-resource/*filepath", corsGet)
+
+		wk.GET("/oauth-authorization-server", controller.OAuth.AuthorizationServerMetadata)
+		wk.HEAD("/oauth-authorization-server", controller.OAuth.AuthorizationServerMetadata)
+		wk.OPTIONS("/oauth-authorization-server", corsGet)
+		wk.GET("/oauth-authorization-server/*filepath", controller.OAuth.AuthorizationServerMetadata)
+		wk.HEAD("/oauth-authorization-server/*filepath", controller.OAuth.AuthorizationServerMetadata)
+		wk.OPTIONS("/oauth-authorization-server/*filepath", corsGet)
+	}
 }
 
 // readyz 就绪检查：正在关停或连不上数据库时返回 503，负载均衡据此不再把请求转给本实例；

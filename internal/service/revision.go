@@ -134,6 +134,7 @@ func countWords(content string) int {
 func (s *RevisionService) record(ctx context.Context, targetType string, targetID uint, kind, sessionID string) (*model.ContentRevision, error) {
 	userID, _ := ctxutils.GetCurrentUserID(ctx)
 	tokenID := ctxutils.GetAPITokenID(ctx)
+	_, viaToken := ctxutils.GetAPIToken(ctx)
 	snap, err := s.snapshot(targetType, targetID)
 	if err != nil {
 		return nil, err
@@ -149,8 +150,8 @@ func (s *RevisionService) record(ctx context.Context, targetType string, targetI
 	if latest != nil && latest.Hash == hash && !(kind == RevisionKindPublish && latest.Kind != RevisionKindPublish) {
 		return latest, nil
 	}
-	// 外部 AI 工具的每次写入都单独记录，便于逐次回溯；编辑页的自动保存按间隔记录
-	if kind == RevisionKindAutosave && tokenID == 0 && latest != nil && time.Since(latest.CreatedAt) < revisionAutosaveInterval {
+	// 外部 AI 工具（个人 API Token 或 OAuth 令牌）的每次写入都单独记录，便于逐次回溯；编辑页的自动保存按间隔记录
+	if kind == RevisionKindAutosave && !viaToken && latest != nil && time.Since(latest.CreatedAt) < revisionAutosaveInterval {
 		return nil, nil
 	}
 	revision := &model.ContentRevision{

@@ -113,8 +113,9 @@ func main() {
 	tasks.StartLLMUsageCleanup()
 	// 定期重算文章热度（随时间衰减）
 	tasks.StartPostHeatRefresh()
-	// 定期清理过期会话
+	// 定期清理过期会话与过期 OAuth 令牌 / 孤儿客户端
 	tasks.StartSessionCleanup()
+	tasks.StartOAuthCleanup()
 	// 定期清理超出保留上限的文章 / 页面历史版本
 	tasks.StartRevisionPrune()
 	// AI 用户：时间引擎唤醒、记忆整理与过期清理，并启动本实例执行任务的 worker

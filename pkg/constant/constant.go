@@ -145,9 +145,14 @@ const (
 	UserStatusDisabled = "disabled"
 )
 
-// 个人 API Token：供外部 AI 工具（MCP）等以用户身份调用，权限为 Token 权限范围与用户角色的交集
+// 个人 API Token 与 OAuth 2.1 令牌：供外部 AI 工具（MCP）等以用户身份调用，权限为令牌权限范围与用户角色的交集
 const (
-	APITokenPrefix = "nbp_" // Token 明文前缀，便于识别与密钥扫描
+	APITokenPrefix          = "nbp_"      // 个人 API Token 明文前缀，便于识别与密钥扫描
+	OAuthAccessTokenPrefix  = "nbo_"      // OAuth Access Token 明文前缀
+	OAuthRefreshTokenPrefix = "nbr_"      // OAuth Refresh Token 明文前缀
+	OAuthAuthCodePrefix     = "nbc_"      // OAuth 一次性授权码前缀
+	OAuthClientIDPrefix     = "nbclient_" // OAuth 动态注册客户端 ID 前缀
+	OAuthClientSecretPrefix = "nbsecret_" // OAuth 动态注册客户端密钥前缀
 
 	ScopePostsRead    = "posts:read"    // 读取文章（含本人 / 管理员可见的草稿）
 	ScopePostsWrite   = "posts:write"   // 创建文章、写入草稿；不会改动任何公开可见的内容

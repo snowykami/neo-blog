@@ -15,6 +15,7 @@ const HOOK_STATE_KEY = Symbol.for('neo-blog.renderer-header-hook')
 
 const EXCLUDED_FIRST_SEGMENTS = new Set([
   'api',
+  '.well-known',
   '_next',
   '_vercel',
   'healthz',
