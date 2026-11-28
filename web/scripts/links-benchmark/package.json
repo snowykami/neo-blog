@@ -1,0 +1,17 @@
+{
+  "name": "neo-blog-links-benchmark",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "extract": "node extract_links.mjs",
+    "bench": "node run_bench.mjs",
+    "report": "node build_report.mjs",
+    "all": "node extract_links.mjs && node run_bench.mjs && node build_report.mjs"
+  },
+  "dependencies": {
+    "chrome-launcher": "^1.1.2",
+    "lighthouse": "^12.4.0",
+    "playwright-core": "^1.51.1"
+  }
+}
