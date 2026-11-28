@@ -47,9 +47,10 @@ export function ThemeModeSegmented(
   props: React.HTMLAttributes<HTMLDivElement> & {
     mode: ThemeMode
     setMode: (m: ThemeMode) => void
+    compact?: boolean
   },
 ) {
-  const { mode, setMode, className, style, ...rest } = props
+  const { mode, setMode, compact = false, className, style, ...rest } = props
   const t = useTranslations('ThemeMode')
   const modes: { value: ThemeMode, icon: React.ReactNode, label: string }[] = [
     { value: 'light', icon: <Sun className="w-4 h-4" />, label: t('light_mode') },
@@ -62,15 +63,20 @@ export function ThemeModeSegmented(
   ]
   const activeIndex = modes.findIndex(m => m.value === mode)
   const baseCls = 'relative inline-flex gap-1 overflow-hidden rounded-lg bg-muted p-1'
+  const segmentWidthCls = compact ? 'w-9' : 'w-12'
+  const stepRem = compact ? '2.25rem' : '3rem'
 
   return (
     <div className={cn('theme-mode-segmented-wrapper', className)} style={style} {...rest}>
       <div className={baseCls}>
         {/* 滑动高亮块：纯 CSS 位移过渡，减少动态效果时直接跳到目标位置 */}
         <div
-          className="absolute top-1 left-1 z-1 h-9 w-12 rounded-md bg-card shadow-sm transition-transform duration-[386ms] motion-reduce:transition-none"
+          className={cn(
+            'absolute top-1 left-1 z-1 h-9 rounded-md bg-card shadow-sm transition-transform duration-[386ms] motion-reduce:transition-none',
+            segmentWidthCls,
+          )}
           style={{
-            transform: `translateX(calc(${activeIndex} * (3rem + 0.25rem)))`,
+            transform: `translateX(calc(${activeIndex} * (${stepRem} + 0.25rem)))`,
             transitionTimingFunction: SEGMENT_SPRING_EASING,
           }}
         />
@@ -78,7 +84,8 @@ export function ThemeModeSegmented(
           <button
             key={m.value}
             className={cn(
-              'relative z-10 flex h-9 w-12 items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              'relative z-10 flex h-9 items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              segmentWidthCls,
               mode === m.value ? 'text-primary' : 'text-muted-foreground',
             )}
             onClick={() => setMode(m.value)}
@@ -97,10 +104,11 @@ export function ThemeModeSegmented(
 
 // 总组件：根据设备类型渲染
 export function ThemeModeToggle(
-  props: React.HTMLAttributes<HTMLElement> & { showSegmented?: boolean },
+  props: React.HTMLAttributes<HTMLElement> & { showSegmented?: boolean, compact?: boolean },
 ) {
   const { mode, setMode } = useDevice()
-  const Comp: React.ElementType = props.showSegmented ? ThemeModeSegmented : ThemeModeCycleButton
-  const { className, style } = props
-  return <Comp mode={mode} setMode={setMode} className={className} style={style} />
+  const { className, style, showSegmented, compact } = props
+  if (showSegmented)
+    return <ThemeModeSegmented mode={mode} setMode={setMode} compact={compact} className={className} style={style} />
+  return <ThemeModeCycleButton mode={mode} setMode={setMode} className={className} />
 }
