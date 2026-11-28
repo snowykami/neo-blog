@@ -196,7 +196,7 @@ export function ProgressControl({
         // 位置换算只用横坐标（clientXToPercent），不受影响。不再扩大：再大会盖住紧挨着的时间与按钮
         className={`relative touch-none select-none before:absolute before:inset-x-0 before:-inset-y-2 ${disabled ? 'opacity-60 pointer-events-none' : 'cursor-pointer'}`}
       >
-        <Progress value={percent} />
+        <Progress value={percent} aria-hidden="true" />
         {marks?.map(mark => (
           <span
             key={`${mark.start}-${mark.end}`}

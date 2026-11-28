@@ -126,7 +126,7 @@ export function AIUsageCard() {
                         : <span className="text-2xl font-semibold">{t('unlimited')}</span>}
                     </div>
                     {budgetRatio !== null
-                      ? <Progress value={budgetRatio} className={cn('h-1.5', budgetRatio >= 90 && '[&>[data-slot=progress-indicator]]:bg-destructive')} />
+                      ? <Progress value={budgetRatio} aria-label={t('site_budget')} className={cn('h-1.5', budgetRatio >= 90 && '[&>[data-slot=progress-indicator]]:bg-destructive')} />
                       : <span className="text-xs text-muted-foreground tabular-nums">{compact(stats.monthTokens)}</span>}
                   </div>
                   <div className="grid content-between gap-1.5 rounded-xl border bg-muted/20 p-3.5">
@@ -149,7 +149,7 @@ export function AIUsageCard() {
                         : <span className="text-2xl font-semibold">{t('unlimited')}</span>}
                     </div>
                     {agentRatio !== null
-                      ? <Progress value={agentRatio} className={cn('h-1.5', agentRatio >= 90 && '[&>[data-slot=progress-indicator]]:bg-destructive')} />
+                      ? <Progress value={agentRatio} aria-label={t('agent_budget')} className={cn('h-1.5', agentRatio >= 90 && '[&>[data-slot=progress-indicator]]:bg-destructive')} />
                       : <span className="text-xs text-muted-foreground tabular-nums">{compact(stats.agentMonthTokens)}</span>}
                   </div>
                 </div>

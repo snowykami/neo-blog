@@ -165,7 +165,7 @@ export function AIAgentGroupsPanel({ refreshKey, onViewMembers, onChanged }: {
                       </Badge>
                       <span className="text-muted-foreground tabular-nums">{`${group.created} / ${group.total}`}</span>
                     </div>
-                    {group.status === 'generating' && <Progress value={percent} className="h-1.5" />}
+                    {group.status === 'generating' && <Progress value={percent} aria-label={t('groups.progress')} className="h-1.5" />}
                     {group.status === 'generating' && group.interrupted && <span className="text-xs text-muted-foreground">{t('groups.interrupted_hint')}</span>}
                     {group.error && <span className="text-xs text-destructive">{group.error}</span>}
                   </div>

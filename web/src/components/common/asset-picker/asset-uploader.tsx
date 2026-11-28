@@ -211,7 +211,7 @@ export function AssetUploader({
                   <XIcon />
                 </Button>
               </div>
-              {item.status === 'uploading' && <Progress value={item.progress} className="h-1" />}
+              {item.status === 'uploading' && <Progress value={item.progress} className="h-1" aria-label={item.file.name} />}
             </li>
           ))}
         </ul>

@@ -24,7 +24,7 @@ export default function ProgressContent({ items = [] }: ProgressContentProps) {
               %
             </span>
           </div>
-          <Progress value={item.value} aria-label={item.label} />
+          <Progress value={item.value} aria-label={item.label || `${item.value}%`} />
         </div>
       ))}
     </div>

@@ -31,7 +31,7 @@ function StatCard({ icon: Icon, label, value, limit, hint, tone }: {
         {label}
       </div>
       <div className={cn('text-2xl font-semibold tabular-nums', tone === 'warn' && 'text-destructive', tone === 'muted' && 'text-muted-foreground')}>{value}</div>
-      {ratio !== null && <Progress value={ratio} className={cn('h-1.5', ratio >= 90 && '[&>[data-slot=progress-indicator]]:bg-destructive')} />}
+      {ratio !== null && <Progress value={ratio} aria-label={label} className={cn('h-1.5', ratio >= 90 && '[&>[data-slot=progress-indicator]]:bg-destructive')} />}
       {hint && <div className="text-xs text-muted-foreground">{hint}</div>}
     </Card>
   )

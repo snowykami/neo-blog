@@ -341,7 +341,7 @@ function EditMemoryFormBody({ memory, onCancel, onSaved }: { memory: AgentMemory
                 <span className="text-sm text-muted-foreground tabular-nums">{field.value.toFixed(2)}</span>
               </div>
               <FormControl>
-                <Slider min={0} max={1} step={0.05} value={[field.value]} onValueChange={([v]) => field.onChange(v)} />
+                <Slider min={0} max={1} step={0.05} value={[field.value]} onValueChange={([v]) => field.onChange(v)} aria-label={t('memories.col_importance')} />
               </FormControl>
             </FormItem>
           )}

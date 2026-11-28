@@ -384,7 +384,7 @@ function UploadCard({ pageId, onUploaded }: { pageId: number, onUploaded: (versi
         />
         {progress !== null && (
           <div className="grid gap-2">
-            <Progress value={progress} />
+            <Progress value={progress} aria-label={progress < 100 ? t('uploading', { progress }) : t('processing')} />
             <span className="text-xs text-muted-foreground">{progress < 100 ? t('uploading', { progress }) : t('processing')}</span>
           </div>
         )}

@@ -128,7 +128,7 @@ export function AgentRelationsPanel({ agentId, onViewMemories }: {
                           </Badge>
                         )}
                       </div>
-                      <Progress value={Math.min(100, Math.max(0, relation.familiarity * 100))} className="h-1.5" />
+                      <Progress value={Math.min(100, Math.max(0, relation.familiarity * 100))} className="h-1.5" aria-hidden="true" />
                     </div>
                   </TableCell>
                   <TableCell className="max-w-md align-top whitespace-normal">

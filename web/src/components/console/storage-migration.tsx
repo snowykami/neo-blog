@@ -270,7 +270,7 @@ export function StorageMigrationProgress({ status, providers, onChange }: {
         )}
       </CardHeader>
       <CardContent className="grid gap-2 px-4">
-        <Progress value={percent} />
+        <Progress value={percent} aria-label={t('progress_title')} />
         <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
           {status.state === 'running' && <span>{t(`phase.${status.phase}`)}</span>}
           <span>{t('objects', { done: status.done, total: status.objects })}</span>
