@@ -26,6 +26,7 @@ import { EditorBubbleMenu } from './editor-bubble-menu'
 import { EditorCanvas } from './editor-canvas'
 import { EditorContextMenu } from './editor-context-menu'
 import { EditorStatusBar } from './editor-status-bar'
+import { EditorTocFloating, EditorTocRail, useEditorToc } from './editor-toc'
 import { EditorToolbar } from './editor-toolbar'
 import { useAIWriter } from './use-ai-writer'
 import { EditorToolbarStateProvider } from './use-editor-toolbar-state'
@@ -151,6 +152,9 @@ function LoadedShell({
   const [settingsOpen, setSettingsOpen] = React.useState(false)
   const [previewOpen, setPreviewOpen] = React.useState(false)
   const [focusMode, setFocusMode] = React.useState(false)
+  const shellRef = React.useRef<HTMLDivElement>(null)
+  const containerRef = React.useRef<HTMLDivElement>(null)
+  const toc = useEditorToc(editor, shellRef, focusMode)
   const [linkOpen, setLinkOpen] = React.useState(false)
   const [annotationOpen, setAnnotationOpen] = React.useState(false)
   // 正在编辑的公式节点位置
@@ -336,6 +340,7 @@ function LoadedShell({
     <AIPromptsProvider>
       <EditorToolbarStateProvider editor={editor}>
         <div
+          ref={shellRef}
           className={cn(
             'neo-editor-shell relative flex flex-1 flex-col',
             // 抵消后台内容区内边距，让编辑器铺满内容区
@@ -444,44 +449,60 @@ function LoadedShell({
           )}
 
           {!readOnly && (
-            <div className={cn('sticky top-13 z-20 bg-linear-to-b from-background from-70% to-transparent px-2 pb-1.5 md:top-14 md:px-4 md:pb-2', chromeClass)}>
+            <div
+              data-editor-sticky-header
+              className={cn('sticky top-13 z-20 bg-linear-to-b from-background from-70% to-transparent px-2 pb-1.5 md:top-14 md:px-4 md:pb-2', chromeClass)}
+            >
               <EditorToolbar editor={editor} actions={actions} />
             </div>
           )}
 
-          <main className={cn('flex-1 px-2 pt-1 pb-12 md:px-4 md:pb-16', focusMode && 'pt-12')}>
-            <EditorContextMenu editor={editor} actions={actions}>
-              <EditorCanvas
-                editor={editor}
-                className={cn(focusMode && 'bg-transparent')}
-                title={meta.title}
-                description={meta.description}
-                onTitleChange={title => updateMeta({ title })}
-                onDescriptionChange={description => updateMeta({ description })}
-                titlePlaceholder={untitled}
-                descriptionPlaceholder={t('description_placeholder')}
-                titleLabel={titleLabel}
-                descriptionLabel={descriptionLabel}
-                readOnly={readOnly || controller.aiBusy}
-                titleAction={controller.doc && (
-                  <AITitleSuggester
-                    target={controller.kind}
-                    targetId={controller.doc.id}
-                    currentTitle={meta.title}
-                    disabled={readOnly || controller.aiBusy}
-                    getPayload={() => ({
-                      title: metaRef.current.title,
-                      description: metaRef.current.description,
-                      document: editor.getHTML(),
-                    })}
-                    onSelectTitle={title => updateMeta({ title })}
-                    className="mt-1 shrink-0"
+          <div ref={containerRef} className="@container/editor flex flex-1 flex-col">
+            <main
+              className={cn(
+                'flex-1 px-2 pt-1 pb-12 md:px-4 md:pb-16 @[84rem]/editor:grid @[84rem]/editor:grid-cols-[1fr_minmax(0,54rem)_1fr] @[84rem]/editor:items-start @[84rem]/editor:gap-5',
+                focusMode && 'pt-12',
+              )}
+            >
+              <div aria-hidden="true" className="hidden @[84rem]/editor:block" />
+              <div className="min-w-0">
+                <EditorContextMenu editor={editor} actions={actions}>
+                  <EditorCanvas
+                    editor={editor}
+                    className={cn(focusMode && 'bg-transparent')}
+                    title={meta.title}
+                    description={meta.description}
+                    onTitleChange={title => updateMeta({ title })}
+                    onDescriptionChange={description => updateMeta({ description })}
+                    titlePlaceholder={untitled}
+                    descriptionPlaceholder={t('description_placeholder')}
+                    titleLabel={titleLabel}
+                    descriptionLabel={descriptionLabel}
+                    readOnly={readOnly || controller.aiBusy}
+                    titleAction={controller.doc && (
+                      <AITitleSuggester
+                        target={controller.kind}
+                        targetId={controller.doc.id}
+                        currentTitle={meta.title}
+                        disabled={readOnly || controller.aiBusy}
+                        getPayload={() => ({
+                          title: metaRef.current.title,
+                          description: metaRef.current.description,
+                          document: editor.getHTML(),
+                        })}
+                        onSelectTitle={title => updateMeta({ title })}
+                        className="mt-1 shrink-0"
+                      />
+                    )}
+                    metaLine={metaLine}
                   />
-                )}
-                metaLine={metaLine}
-              />
-            </EditorContextMenu>
-          </main>
+                </EditorContextMenu>
+              </div>
+              <EditorTocRail toc={toc} focusMode={focusMode} readOnly={readOnly} />
+            </main>
+          </div>
+
+          <EditorTocFloating toc={toc} containerRef={containerRef} focusMode={focusMode} />
 
           <EditorStatusBar editor={editor} sessionStatus={editSession.status} className={chromeClass} />
 

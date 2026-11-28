@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
  * 白卡无阴影，标题左侧 4×16px 主色短色条，内容区 mt-3
  */
 export function SidebarCard({
+  ref,
   title,
   icon: Icon,
   action,
@@ -13,6 +14,7 @@ export function SidebarCard({
   contentClassName,
   children,
 }: {
+  ref?: React.Ref<HTMLElement>
   title?: React.ReactNode
   icon?: LucideIcon
   /** 标题右侧的操作区（可选） */
@@ -22,7 +24,7 @@ export function SidebarCard({
   children: React.ReactNode
 }) {
   return (
-    <section className={cn('surface-card w-full min-w-0 max-w-full overflow-clip rounded-2xl bg-card p-4', className)}>
+    <section ref={ref} className={cn('surface-card w-full min-w-0 max-w-full overflow-clip rounded-2xl bg-card p-4', className)}>
       {title && (
         <div className="flex min-w-0 items-center justify-between gap-2">
           <h2 className="relative flex min-w-0 items-center gap-2 pl-4 text-lg font-bold text-foreground/90 before:absolute before:top-1/2 before:left-0 before:h-4 before:w-1 before:-translate-y-1/2 before:rounded-md before:bg-primary">
