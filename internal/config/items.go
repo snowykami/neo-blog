@@ -178,7 +178,7 @@ var sections = []*Section{
 		{Key: "misskey_username", Type: TypeString, Label: "misskey_username", Description: "misskey_username_desc", Placeholder: "@username", Default: "", ShowWhen: when("misskey_enabled", "true")},
 		{Key: "misskey_api_token", Type: TypeSecret, Label: "misskey_api_token", Description: "misskey_api_token_desc", Wide: true, Default: "", ShowWhen: when("misskey_enabled", "true")},
 		{Key: "misskey_fetch_interval_minutes", Type: TypeInt, Label: "misskey_fetch_interval_minutes", Description: "misskey_fetch_interval_minutes_desc", Min: num(1), Max: num(60), Default: 3, ShowWhen: when("misskey_enabled", "true")},
-		{Key: "misskey_display_count", Type: TypeInt, Label: "misskey_display_count", Description: "misskey_display_count_desc", Min: num(1), Max: num(10), Default: 5, ShowWhen: when("misskey_enabled", "true")},
+		{Key: "misskey_cache_count", Type: TypeInt, Label: "misskey_cache_count", Description: "misskey_cache_count_desc", Min: num(10), Max: num(100), Default: 100, ShowWhen: when("misskey_enabled", "true")},
 	}},
 
 	// ---- 内容与互动 ----

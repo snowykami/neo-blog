@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/snowykami/neo-blog/internal/config"
+	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/pkg/sharedstate"
 	"github.com/snowykami/neo-blog/pkg/utils"
 )
@@ -185,9 +187,9 @@ func TestMisskeyMFMAndVisibilityFilter(t *testing.T) {
 	if len(got[0].Images) != 1 || got[0].Images[0].ThumbnailURL != "https://lab.liteyuki.org/thumb1.webp" {
 		t.Fatalf("expected only 1 safe non-sensitive image, got %+v", got[0].Images)
 	}
-	// 引用转帖遇到原帖 CW 时仅展示预警标题，严禁拼出被折叠的原帖正文
-	if got[1].ID != "quotecw1" || strings.Contains(got[1].Text, "隐藏的凶手名字") || !strings.Contains(got[1].Text, "[CW] 结局剧透预警") {
-		t.Fatalf("quote renote leaked CW body: %+v", got[1])
+	// 引用转帖遇到原帖 CW 时仅在 Quote.CW 中暴露预警标题，严禁拼出或下发被折叠的原帖正文
+	if got[1].ID != "quotecw1" || got[1].Quote == nil || got[1].Quote.CW != "结局剧透预警" || got[1].Quote.Text != "" || strings.Contains(got[1].Text, "隐藏的凶手名字") {
+		t.Fatalf("quote renote leaked CW body or missing structured quote: %+v (quote=%+v)", got[1], got[1].Quote)
 	}
 	if got[2].ID != "goodrenote1" || !got[2].IsRenote || got[2].RenoteUser != "Alice" || got[2].URL != "https://lab.liteyuki.org/notes/orig_pub_99" {
 		t.Fatalf("unexpected pure renote result: %+v", got[2])
@@ -239,20 +241,34 @@ func TestMisskeyCacheConfigHashAndNoTokenLeak(t *testing.T) {
 				"avatarUrl": "https://lab.liteyuki.org/avatar.webp",
 			})
 		case "/api/users/notes":
-			_ = json.NewEncoder(w).Encode([]map[string]any{
-				{
-					"id":         "noteabc",
+			if untilID, _ := body["untilId"].(string); untilID == "notefollowers" {
+				_ = json.NewEncoder(w).Encode([]map[string]any{
+					{
+						"id":         "notepage2",
+						"createdAt":  "2026-11-28T01:58:00Z",
+						"visibility": "public",
+						"text":       "Second page note via untilId!",
+					},
+				})
+				return
+			}
+			notesResp := make([]map[string]any, 0, 30)
+			for idx := 1; idx <= 29; idx++ {
+				notesResp = append(notesResp, map[string]any{
+					"id":         "note_p1_" + strconv.Itoa(idx),
 					"createdAt":  "2026-11-28T02:00:00Z",
 					"visibility": "public",
 					"text":       "Hello from cached Misskey!",
-				},
-				{
-					"id":         "notefollowers",
-					"createdAt":  "2026-11-28T02:01:00Z",
-					"visibility": "followers",
-					"text":       "Secret followers note",
-				},
+				})
+			}
+			notesResp[0]["id"] = "noteabc"
+			notesResp = append(notesResp, map[string]any{
+				"id":         "notefollowers",
+				"createdAt":  "2026-11-28T01:59:00Z",
+				"visibility": "followers",
+				"text":       "Secret followers note",
 			})
+			_ = json.NewEncoder(w).Encode(notesResp)
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -260,7 +276,7 @@ func TestMisskeyCacheConfigHashAndNoTokenLeak(t *testing.T) {
 	defer srv.Close()
 
 	// 1. 未启用时返回 enabled=false, notes=[]；且 crossChecks 拦截启用但未填完整参数的非法保存
-	feedDisabled, svcerr := GetMisskeyFeed(context.Background())
+	feedDisabled, svcerr := GetMisskeyFeed(context.Background(), nil)
 	if svcerr != nil || feedDisabled.Enabled || feedDisabled.Notes == nil || len(feedDisabled.Notes) != 0 {
 		t.Fatalf("expected disabled empty feed, got %+v, err=%v", feedDisabled, svcerr)
 	}
@@ -280,7 +296,7 @@ func TestMisskeyCacheConfigHashAndNoTokenLeak(t *testing.T) {
 		{Key: "misskey_instance_url", Value: srv.URL},
 		{Key: "misskey_username", Value: "@snowykami"},
 		{Key: "misskey_api_token", Value: secretToken},
-		{Key: "misskey_display_count", Value: 5},
+		{Key: "misskey_cache_count", Value: 30},
 	}); err != nil {
 		t.Fatalf("save config failed: %v", err)
 	}
@@ -289,7 +305,7 @@ func TestMisskeyCacheConfigHashAndNoTokenLeak(t *testing.T) {
 	if !locked {
 		t.Fatal("expected lock acquired")
 	}
-	coldFeed, svcerr := GetMisskeyFeed(context.Background())
+	coldFeed, svcerr := GetMisskeyFeed(context.Background(), nil)
 	holdRelease()
 	if svcerr != nil || !coldFeed.Enabled || len(coldFeed.Notes) != 0 {
 		t.Fatalf("expected non-blocking cold miss {enabled:true, notes:[]}, got %+v, err=%v", coldFeed, svcerr)
@@ -298,19 +314,35 @@ func TestMisskeyCacheConfigHashAndNoTokenLeak(t *testing.T) {
 		t.Fatalf("GetMisskeyFeed must not synchronously hit upstream, hits=%d", upstreamHits.Load())
 	}
 
-	// 3. 执行后台刷新后读取缓存，验证公开帖子存在、私密帖被剔除、Token 绝不出现在序列化 JSON 中
+	// 3. 执行后台刷新（含 untilId 翻页补齐到 30 条）后分页读取缓存，验证公开帖子存在、私密帖剔除、Token 零泄露
 	if err := RefreshMisskeyFeed(context.Background()); err != nil {
 		t.Fatalf("RefreshMisskeyFeed failed: %v", err)
 	}
-	if receivedTokens.Load() < 2 {
-		t.Fatalf("expected token sent to users/show and users/notes, got %d", receivedTokens.Load())
+	if receivedTokens.Load() < 3 {
+		t.Fatalf("expected token sent to users/show and 2 pages of users/notes, got %d", receivedTokens.Load())
 	}
 
-	warmFeed, svcerr := GetMisskeyFeed(context.Background())
-	if svcerr != nil || !warmFeed.Enabled || len(warmFeed.Notes) != 1 || warmFeed.Notes[0].ID != "noteabc" {
-		t.Fatalf("unexpected warm feed: %+v, err=%v", warmFeed, svcerr)
+	page1, svcerr := GetMisskeyFeed(context.Background(), &dto.MisskeyFeedQueryReq{Limit: 12})
+	if svcerr != nil || !page1.Enabled || page1.Total != 30 || len(page1.Notes) != 12 || !page1.HasMore || page1.NextCursor == "" || page1.Notes[0].ID != "noteabc" {
+		t.Fatalf("unexpected page1 feed: %+v, err=%v", page1, svcerr)
 	}
-	encoded, _ := json.Marshal(warmFeed)
+	hitsBeforePage2 := upstreamHits.Load()
+	page2, svcerr := GetMisskeyFeed(context.Background(), &dto.MisskeyFeedQueryReq{Limit: 20, Cursor: page1.NextCursor, Offset: 12})
+	if svcerr != nil || len(page2.Notes) != 18 || page2.HasMore || page2.Notes[len(page2.Notes)-1].ID != "notepage2" {
+		t.Fatalf("unexpected page2 cursor slice: len=%d hasMore=%v err=%v", len(page2.Notes), page2.HasMore, svcerr)
+	}
+	if upstreamHits.Load() != hitsBeforePage2 {
+		t.Fatalf("cursor pagination must read sharedstate only without upstream requests")
+	}
+	// 纯游标未命中（offset=0）时返回空切片而非回绕到第 1 页；非法游标字符返回 400
+	staleCursorPage, svcerr := GetMisskeyFeed(context.Background(), &dto.MisskeyFeedQueryReq{Limit: 10, Cursor: "deleted_note_id"})
+	if svcerr != nil || len(staleCursorPage.Notes) != 0 || staleCursorPage.HasMore {
+		t.Fatalf("expected empty page on stale pure cursor, got %+v, err=%v", staleCursorPage, svcerr)
+	}
+	if _, badErr := GetMisskeyFeed(context.Background(), &dto.MisskeyFeedQueryReq{Cursor: "../bad"}); badErr == nil || badErr.Message != "invalid_request_parameters" {
+		t.Fatalf("expected invalid_request_parameters on bad cursor, got %v", badErr)
+	}
+	encoded, _ := json.Marshal(page1)
 	if strings.Contains(string(encoded), secretToken) || strings.Contains(string(encoded), "config_hash") {
 		t.Fatalf("sensitive token or internal hash leaked in public DTO: %s", string(encoded))
 	}
@@ -318,7 +350,7 @@ func TestMisskeyCacheConfigHashAndNoTokenLeak(t *testing.T) {
 	// 4. 修改用户名后 ConfigHash 立即失配，旧账号缓存不会串号返回
 	holdRelease2, _, _ := sharedstate.TryLock(misskeyRefreshLockKey, 5*time.Second)
 	_ = config.Save([]config.Change{{Key: "misskey_username", Value: "@otheruser"}})
-	mismatchFeed, _ := GetMisskeyFeed(context.Background())
+	mismatchFeed, _ := GetMisskeyFeed(context.Background(), nil)
 	holdRelease2()
 	if !mismatchFeed.Enabled || len(mismatchFeed.Notes) != 0 {
 		t.Fatalf("expected ConfigHash mismatch to hide stale user notes immediately, got %+v", mismatchFeed)

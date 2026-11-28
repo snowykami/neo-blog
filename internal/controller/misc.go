@@ -6,6 +6,7 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/utils"
+	"github.com/snowykami/neo-blog/internal/dto"
 	"github.com/snowykami/neo-blog/internal/service"
 	"github.com/snowykami/neo-blog/pkg/resps"
 )
@@ -86,9 +87,14 @@ func (mc *MiscController) GetIndexNowKey(ctx context.Context, c *app.RequestCont
 	c.Data(http.StatusOK, "text/plain; charset=utf-8", []byte(matchedKey))
 }
 
-// GetMisskeyFeed 读取共享缓存中的侧边栏 Misskey 公开动态（纯只读缓存，不阻塞请求上游）
+// GetMisskeyFeed 读取共享缓存中的侧边栏 Misskey 公开动态（纯只读缓存切片，不阻塞请求上游）
 func (mc *MiscController) GetMisskeyFeed(ctx context.Context, c *app.RequestContext) {
-	feed, svcerr := service.GetMisskeyFeed(ctx)
+	var req dto.MisskeyFeedQueryReq
+	if err := c.BindAndValidate(&req); err != nil {
+		resps.BadRequest(c, resps.ErrParamInvalid)
+		return
+	}
+	feed, svcerr := service.GetMisskeyFeed(ctx, &req)
 	if svcerr != nil {
 		resps.Error(c, svcerr)
 		return

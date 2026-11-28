@@ -33,16 +33,23 @@ const (
 	misskeyRefreshLockKey     = "misskey:refresh"
 	misskeyRefreshCooldownKey = "misskey:refresh_cooldown"
 
-	misskeyCacheTTL        = 24 * time.Hour
-	misskeyRefreshLockTTL  = 30 * time.Second
-	misskeyFailureCooldown = 30 * time.Second
-	misskeyRequestTimeout  = 10 * time.Second
-	misskeyMaxResponseSize = 2 << 20  // 2 MiB 响应体硬上限
-	misskeyMaxRawMFMBytes  = 32 << 10 // 单帖 MFM 清洗输入字节上限（32 KiB），防御超大文本正则开销
-	misskeyMaxMFMTagLen    = 64
-	misskeyMaxTextRunes    = 280
-	misskeyMaxCWRunes      = 120
-	misskeyMaxImagesPerRow = 4
+	misskeyCacheTTL             = 24 * time.Hour
+	misskeyRefreshLockTTL       = 60 * time.Second
+	misskeyFailureCooldown      = 30 * time.Second
+	misskeyRequestTimeout       = 10 * time.Second
+	misskeyUpstreamTotalTimeout = 20 * time.Second
+	misskeyMaxResponseSize      = 4 << 20  // 4 MiB 响应体硬上限（兼容 100 条含自定义表情元数据的时间线 JSON）
+	misskeyMaxRawMFMBytes   = 32 << 10 // 单帖 MFM 清洗输入字节上限（32 KiB），防御超大文本正则开销
+	misskeyMaxMFMTagLen     = 64
+	misskeyMaxTextRunes     = 1000
+	misskeyMaxQuoteRunes    = 240
+	misskeyMaxCWRunes       = 120
+	misskeyMaxImagesPerRow  = 4
+	misskeyMaxFetchPages    = 2
+	misskeyMinCachedNotes   = 10
+	misskeyMaxCachedNotes   = 100
+	misskeyDefaultPageLimit = 20
+	misskeyMaxPageLimit     = 100
 )
 
 // misskeyCacheEntry 存储在 sharedstate / Redis 中的内部缓存结构（含 ConfigHash，对外返回时剥离）
@@ -60,7 +67,7 @@ type misskeyRuntimeConfig struct {
 	Username        string
 	APIToken        string
 	IntervalMinutes int
-	DisplayCount    int
+	CacheCount      int
 	ConfigHash      string
 }
 
@@ -135,7 +142,7 @@ func sanitizeDisplayHandle(raw string) string {
 	return b.String()
 }
 
-func computeMisskeyConfigHash(instanceURL, username, apiToken string, displayCount int) string {
+func computeMisskeyConfigHash(instanceURL, username, apiToken string, cacheCount int) string {
 	tokenDigest := ""
 	if apiToken != "" {
 		sum := sha256.Sum256([]byte(apiToken))
@@ -145,7 +152,7 @@ func computeMisskeyConfigHash(instanceURL, username, apiToken string, displayCou
 		instanceURL,
 		strings.ToLower(username),
 		tokenDigest,
-		strconv.Itoa(displayCount),
+		strconv.Itoa(cacheCount),
 	}, "\n")
 	sum := sha256.Sum256([]byte(raw))
 	return hex.EncodeToString(sum[:])
@@ -174,11 +181,11 @@ func loadMisskeyRuntimeConfig() (misskeyRuntimeConfig, bool) {
 	} else if interval > 60 {
 		interval = 60
 	}
-	count := config.Int("misskey_display_count")
-	if count < 1 {
-		count = 1
-	} else if count > 10 {
-		count = 10
+	count := config.Int("misskey_cache_count")
+	if count < misskeyMinCachedNotes {
+		count = misskeyMinCachedNotes
+	} else if count > misskeyMaxCachedNotes {
+		count = misskeyMaxCachedNotes
 	}
 	return misskeyRuntimeConfig{
 		Enabled:         true,
@@ -186,7 +193,7 @@ func loadMisskeyRuntimeConfig() (misskeyRuntimeConfig, bool) {
 		Username:        username,
 		APIToken:        apiToken,
 		IntervalMinutes: interval,
-		DisplayCount:    count,
+		CacheCount:      count,
 		ConfigHash:      computeMisskeyConfigHash(instanceURL, username, apiToken, count),
 	}, true
 }
@@ -552,6 +559,35 @@ func isPublicFederatedNote(n *misskeyAPINote) bool {
 	return n != nil && n.Visibility == "public" && !n.LocalOnly && n.ChannelID == nil && isSafeNoteID(n.ID)
 }
 
+func buildMisskeyQuote(instanceURL string, quoted *misskeyAPINote) *dto.MisskeyQuoteDto {
+	if quoted == nil {
+		return nil
+	}
+	renoteCW := sanitizeMisskeyCW(quoted.CW)
+	renoteText := ""
+	// 被引用原帖含有 CW 时只传递预警标题，绝不拼出隐藏正文造成剧透泄露
+	if renoteCW == "" && quoted.Text != nil {
+		renoteText = stripMisskeyMFMWithLimit(*quoted.Text, misskeyMaxQuoteRunes)
+	}
+	renoteHasMedia := len(extractSafeNoteImages(quoted.Files)) > 0
+	if renoteCW == "" && renoteText == "" && !renoteHasMedia {
+		return nil
+	}
+	quoteUser := sanitizeDisplayHandle(quoted.User.Username)
+	quoteName := ""
+	if quoted.User.Name != nil && strings.TrimSpace(*quoted.User.Name) != "" {
+		quoteName = stripMisskeyMFMWithLimit(*quoted.User.Name, 64)
+	}
+	return &dto.MisskeyQuoteDto{
+		Username: quoteUser,
+		Name:     quoteName,
+		Text:     renoteText,
+		CW:       renoteCW,
+		HasMedia: renoteHasMedia,
+		URL:      SanitizeMisskeyHTTPURL(instanceURL + "/notes/" + quoted.ID),
+	}
+}
+
 // FilterAndSanitizeMisskeyNotes 严格筛选公开帖子并清洗 MFM 与媒体链接：
 //   - 仅保留 visibility == "public" && !localOnly && channelId == nil 的帖子；
 //   - 若包含 renote 链，每一跳 renote 也必须满足公开联合条件，否则整条跳过；
@@ -604,36 +640,19 @@ func FilterAndSanitizeMisskeyNotes(instanceURL string, rawNotes []misskeyAPINote
 		text := ownText
 		cw := ownCW
 		images := ownImages
+		var quote *dto.MisskeyQuoteDto
 		if isPureRenote {
 			if target.Text != nil {
 				text = StripMisskeyMFM(*target.Text)
 			}
 			cw = sanitizeMisskeyCW(target.CW)
 			images = extractSafeNoteImages(target.Files)
+			quote = buildMisskeyQuote(instanceURL, target.Renote)
 		} else if note.Renote != nil {
-			renoteCW := sanitizeMisskeyCW(note.Renote.CW)
-			var quoted string
-			if renoteCW != "" {
-				// 被引用原帖含有 CW 时只显示预警标题，绝不拼出隐藏正文造成剧透泄露
-				quoted = "[CW] " + renoteCW
-			} else if note.Renote.Text != nil {
-				quoted = stripMisskeyMFMWithLimit(*note.Renote.Text, 100)
-			}
-			if quoted != "" {
-				author := sanitizeDisplayHandle(note.Renote.User.Username)
-				prefix := "RN: "
-				if author != "" {
-					prefix = "RN @" + author + ": "
-				}
-				if text != "" {
-					text = truncateMisskeyRunes(text+"\n"+prefix+quoted, misskeyMaxTextRunes)
-				} else {
-					text = truncateMisskeyRunes(prefix+quoted, misskeyMaxTextRunes)
-				}
-			}
+			quote = buildMisskeyQuote(instanceURL, note.Renote)
 		}
 
-		if text == "" && cw == "" && len(images) == 0 {
+		if text == "" && cw == "" && len(images) == 0 && quote == nil {
 			continue
 		}
 
@@ -654,6 +673,7 @@ func FilterAndSanitizeMisskeyNotes(instanceURL string, rawNotes []misskeyAPINote
 			CreatedAt:      createdAt,
 			IsRenote:       isPureRenote,
 			RenoteUser:     renoteUser,
+			Quote:          quote,
 			Images:         images,
 			ReactionsCount: countNoteReactions(target),
 			RepliesCount:   max(0, target.RepliesCount),
@@ -664,6 +684,9 @@ func FilterAndSanitizeMisskeyNotes(instanceURL string, rawNotes []misskeyAPINote
 }
 
 func fetchMisskeyFeedUpstream(ctx context.Context, client *http.Client, cfg misskeyRuntimeConfig) (*misskeyCacheEntry, error) {
+	fetchCtx, cancel := context.WithTimeout(ctx, misskeyUpstreamTotalTimeout)
+	defer cancel()
+
 	showPayload := map[string]any{
 		"username": cfg.Username,
 		"host":     nil,
@@ -673,28 +696,66 @@ func fetchMisskeyFeedUpstream(ctx context.Context, client *http.Client, cfg miss
 	}
 
 	var apiUser misskeyAPIUser
-	if err := postMisskeyJSON(ctx, client, cfg.InstanceURL+"/api/users/show", showPayload, &apiUser); err != nil {
+	if err := postMisskeyJSON(fetchCtx, client, cfg.InstanceURL+"/api/users/show", showPayload, &apiUser); err != nil {
 		return nil, fmt.Errorf("users/show: %w", err)
 	}
 	if !isSafeNoteID(apiUser.ID) {
 		return nil, errors.New("users/show returned invalid user id")
 	}
 
-	fetchLimit := min(max(cfg.DisplayCount*3, 15), 30)
-	notesPayload := map[string]any{
-		"userId":           apiUser.ID,
-		"limit":            fetchLimit,
-		"includeReplies":   false,
-		"includeMyRenotes": true,
-		"withChannelNotes": false,
-	}
-	if cfg.APIToken != "" {
-		notesPayload["i"] = cfg.APIToken
-	}
+	pageLimit := min(max(cfg.CacheCount, 30), misskeyMaxCachedNotes)
+	notes := make([]dto.MisskeyNoteDto, 0, cfg.CacheCount)
+	seenIDs := make(map[string]struct{}, cfg.CacheCount)
+	untilID := ""
 
-	var rawNotes []misskeyAPINote
-	if err := postMisskeyJSON(ctx, client, cfg.InstanceURL+"/api/users/notes", notesPayload, &rawNotes); err != nil {
-		return nil, fmt.Errorf("users/notes: %w", err)
+	for page := 0; page < misskeyMaxFetchPages && len(notes) < cfg.CacheCount; page++ {
+		notesPayload := map[string]any{
+			"userId":           apiUser.ID,
+			"limit":            pageLimit,
+			"includeReplies":   false,
+			"includeMyRenotes": true,
+			"withChannelNotes": false,
+		}
+		if untilID != "" {
+			notesPayload["untilId"] = untilID
+		}
+		if cfg.APIToken != "" {
+			notesPayload["i"] = cfg.APIToken
+		}
+
+		var rawNotes []misskeyAPINote
+		if err := postMisskeyJSON(fetchCtx, client, cfg.InstanceURL+"/api/users/notes", notesPayload, &rawNotes); err != nil {
+			if page == 0 {
+				return nil, fmt.Errorf("users/notes: %w", err)
+			}
+			// 第 2 页补齐失败时保留第 1 页已成功获取的数据，避免整轮丢弃
+			logrus.Warnf("misskey users/notes page %d failed, keeping %d notes: %v", page+1, len(notes), err)
+			break
+		}
+		if len(rawNotes) == 0 {
+			break
+		}
+
+		batch := FilterAndSanitizeMisskeyNotes(cfg.InstanceURL, rawNotes, len(rawNotes))
+		for _, item := range batch {
+			if _, dup := seenIDs[item.ID]; dup {
+				continue
+			}
+			seenIDs[item.ID] = struct{}{}
+			notes = append(notes, item)
+			if len(notes) >= cfg.CacheCount {
+				break
+			}
+		}
+
+		if len(rawNotes) < pageLimit {
+			break
+		}
+		lastID := rawNotes[len(rawNotes)-1].ID
+		if !isSafeNoteID(lastID) || lastID == untilID {
+			break
+		}
+		untilID = lastID
 	}
 
 	cleanUsername := cfg.Username
@@ -709,7 +770,6 @@ func fetchMisskeyFeedUpstream(ctx context.Context, client *http.Client, cfg miss
 	}
 	profileURL := SanitizeMisskeyHTTPURL(cfg.InstanceURL + "/@" + cleanUsername)
 
-	notes := FilterAndSanitizeMisskeyNotes(cfg.InstanceURL, rawNotes, cfg.DisplayCount)
 	return &misskeyCacheEntry{
 		ConfigHash:  cfg.ConfigHash,
 		FetchedAt:   time.Now().UTC(),
@@ -868,9 +928,29 @@ func TriggerMisskeyRefreshAsync() {
 
 // GetMisskeyFeed 公开只读接口读取方法：
 //   - 绝不在请求链路内同步请求 Misskey 实例；
-//   - 未开启或配置不完整返回 { enabled: false, notes: [] }；
-//   - 仅读 sharedstate.GetJSON，冷启动未命中或 ConfigHash 变更时立即返回 { enabled: true, notes: [] } 并异步唤醒一次后台刷新。
-func GetMisskeyFeed(_ context.Context) (*dto.MisskeyFeedDto, *errs.ServiceError) {
+//   - 未开启或配置不完整返回 { enabled: false, notes: [], total: 0 }；
+//   - 仅读 sharedstate.GetJSON，支持 cursor / offset + limit 内存切片分页，降低首屏 SSR HTML 体积并支撑前端滚动加载。
+func GetMisskeyFeed(_ context.Context, req *dto.MisskeyFeedQueryReq) (*dto.MisskeyFeedDto, *errs.ServiceError) {
+	offset := 0
+	limit := misskeyDefaultPageLimit
+	cursor := ""
+	if req != nil {
+		if req.Offset < 0 {
+			return nil, errs.NewBadRequest("invalid_request_parameters")
+		}
+		offset = req.Offset
+		if req.Limit < 0 {
+			return nil, errs.NewBadRequest("invalid_request_parameters")
+		}
+		if req.Limit > 0 {
+			limit = min(req.Limit, misskeyMaxPageLimit)
+		}
+		cursor = strings.TrimSpace(req.Cursor)
+		if cursor != "" && !isSafeNoteID(cursor) {
+			return nil, errs.NewBadRequest("invalid_request_parameters")
+		}
+	}
+
 	cfg, ok := loadMisskeyRuntimeConfig()
 	if !ok {
 		return &dto.MisskeyFeedDto{
@@ -897,10 +977,34 @@ func GetMisskeyFeed(_ context.Context) (*dto.MisskeyFeedDto, *errs.ServiceError)
 		TriggerMisskeyRefreshAsync()
 	}
 
-	notes := cached.Notes
-	if notes == nil {
-		notes = []dto.MisskeyNoteDto{}
+	allNotes := cached.Notes
+	total := len(allNotes)
+	start := min(offset, total)
+	if cursor != "" {
+		cursorFound := false
+		for idx := range allNotes {
+			if allNotes[idx].ID == cursor {
+				start = idx + 1
+				cursorFound = true
+				break
+			}
+		}
+		// 纯游标调用（offset == 0）且游标已滑出缓存窗口时返回空页，防止客户端从头重复拉取第 1 页死循环
+		if !cursorFound && offset == 0 {
+			start = total
+		}
 	}
+	end := min(start+limit, total)
+	pageNotes := []dto.MisskeyNoteDto{}
+	if start < end {
+		pageNotes = allNotes[start:end]
+	}
+	hasMore := end < total
+	nextCursor := ""
+	if hasMore && len(pageNotes) > 0 {
+		nextCursor = pageNotes[len(pageNotes)-1].ID
+	}
+
 	fetchedAt := ""
 	if !cached.FetchedAt.IsZero() {
 		fetchedAt = cached.FetchedAt.UTC().Format(time.RFC3339)
@@ -910,6 +1014,9 @@ func GetMisskeyFeed(_ context.Context) (*dto.MisskeyFeedDto, *errs.ServiceError)
 		FetchedAt:   fetchedAt,
 		InstanceURL: cached.InstanceURL,
 		User:        cached.User,
-		Notes:       notes,
+		Notes:       pageNotes,
+		Total:       total,
+		HasMore:     hasMore,
+		NextCursor:  nextCursor,
 	}, nil
 }
