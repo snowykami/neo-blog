@@ -158,7 +158,7 @@ export function ScrollAffordance({
     : 'from-card via-card/85 to-transparent'
 
   return (
-    <div className={cn('relative', className)}>
+    <div className={cn('relative w-full min-w-0 max-w-full', className)}>
       <div
         aria-hidden
         className={cn(
@@ -172,12 +172,12 @@ export function ScrollAffordance({
         ref={setViewportNode}
         onScroll={syncMetrics}
         className={cn(
-          'overflow-x-hidden overflow-y-auto hide-scrollbar',
+          'w-full min-w-0 max-w-full overflow-x-hidden overflow-y-auto hide-scrollbar',
           overscrollContain && 'overscroll-contain',
           viewportClassName,
         )}
       >
-        <div ref={innerContentRef} className="min-w-0">
+        <div ref={innerContentRef} className="w-full min-w-0 max-w-full">
           {children}
         </div>
       </div>

@@ -71,10 +71,10 @@ export default function BlogSidebar({ label, setLabel, labelFromQuery, exclude, 
     [siteInfo, exclude],
   )
   return (
-    <div className="grid gap-4">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
       {/* 卡片可能因未配置 / 无内容而不渲染，空容器隐藏以免留下多余间距；配置项没有稳定 ID，以类型与位置作为 key */}
       {cards.map((card, idx) => (
-        <div key={`${card.type}-${idx}`} className="empty:hidden">
+        <div key={`${card.type}-${idx}`} className="min-w-0 empty:hidden">
           <SidebarCardView card={card} label={label} setLabel={setLabel} labelFromQuery={labelFromQuery} initialData={initialData} />
         </div>
       ))}

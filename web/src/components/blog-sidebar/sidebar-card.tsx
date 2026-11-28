@@ -22,9 +22,9 @@ export function SidebarCard({
   children: React.ReactNode
 }) {
   return (
-    <section className={cn('surface-card rounded-2xl bg-card p-4', className)}>
+    <section className={cn('surface-card w-full min-w-0 max-w-full overflow-clip rounded-2xl bg-card p-4', className)}>
       {title && (
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center justify-between gap-2">
           <h2 className="relative flex min-w-0 items-center gap-2 pl-4 text-lg font-bold text-foreground/90 before:absolute before:top-1/2 before:left-0 before:h-4 before:w-1 before:-translate-y-1/2 before:rounded-md before:bg-primary">
             {Icon && <Icon aria-hidden className="size-4.5 shrink-0 text-foreground/50" />}
             <span className="truncate">{title}</span>
@@ -32,7 +32,7 @@ export function SidebarCard({
           {action}
         </div>
       )}
-      <div className={cn(title && 'mt-3', contentClassName)}>{children}</div>
+      <div className={cn('min-w-0', title && 'mt-3', contentClassName)}>{children}</div>
     </section>
   )
 }

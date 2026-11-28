@@ -539,7 +539,7 @@ function MisskeyNoteItem({
       )}
       {quote.cw
         ? (
-            <p className="text-muted-foreground italic">
+            <p className="wrap-anywhere text-muted-foreground italic">
               [CW]
               {' '}
               {quote.cw}
@@ -547,7 +547,7 @@ function MisskeyNoteItem({
           )
         : quote.text
           ? (
-              <p className="line-clamp-3 leading-snug break-words whitespace-pre-line text-foreground/75">
+              <p className="line-clamp-3 leading-snug wrap-anywhere whitespace-pre-line text-foreground/75">
                 {quote.text}
               </p>
             )
@@ -562,7 +562,7 @@ function MisskeyNoteItem({
   )
 
   return (
-    <li className="group/note relative pb-4 pl-3.5 last:pb-1">
+    <li className="group/note relative min-w-0 max-w-full pb-4 pl-3.5 last:pb-1">
       {/* 时间轴左轨节点：最新一条使用主色呼吸环锚定视觉焦点，其余条目悬停时点亮 */}
       <span
         aria-hidden
@@ -621,14 +621,14 @@ function MisskeyNoteItem({
       </div>
 
       {hasCW && (
-        <div className="mb-1.5 flex flex-wrap items-center justify-between gap-1.5 rounded-lg bg-secondary/65 px-2.5 py-1.5 text-xs">
-          <span className="font-medium text-foreground/85 break-words">{note.cw}</span>
+        <div className="mb-1.5 flex min-w-0 flex-wrap items-center justify-between gap-1.5 rounded-lg bg-secondary/65 px-2.5 py-1.5 text-xs">
+          <span className="min-w-0 font-medium wrap-anywhere text-foreground/85">{note.cw}</span>
           {(note.text || safeImages.length > 0 || hasQuoteContent) && (
             <button
               type="button"
               aria-expanded={cwExpanded}
               onClick={() => setCwExpanded(v => !v)}
-              className="inline-flex h-5 cursor-pointer items-center rounded-md bg-card px-2 text-[11px] font-medium text-secondary-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="inline-flex h-5 shrink-0 cursor-pointer items-center rounded-md bg-card px-2 text-[11px] font-medium text-secondary-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {cwExpanded ? t('hide_cw') : t('show_cw')}
             </button>
@@ -637,10 +637,10 @@ function MisskeyNoteItem({
       )}
 
       {showBody && note.text && (
-        <div>
+        <div className="min-w-0">
           <p
             className={cn(
-              'text-[13.5px] leading-relaxed break-words whitespace-pre-line text-foreground/88',
+              'text-[13.5px] leading-relaxed wrap-anywhere whitespace-pre-line text-foreground/88',
               longText && !textExpanded && 'line-clamp-4',
             )}
           >
@@ -667,20 +667,25 @@ function MisskeyNoteItem({
                 href={safeQuoteUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-2 block rounded-lg border-l-2 border-primary/45 bg-muted/55 px-2.5 py-1.5 text-xs transition-colors hover:bg-muted/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="mt-2 block min-w-0 max-w-full overflow-hidden rounded-lg border-l-2 border-primary/45 bg-muted/55 px-2.5 py-1.5 text-xs transition-colors hover:bg-muted/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {quoteInner}
               </a>
             )
           : (
-              <div className="mt-2 rounded-lg border-l-2 border-primary/45 bg-muted/55 px-2.5 py-1.5 text-xs">
+              <div className="mt-2 min-w-0 max-w-full overflow-hidden rounded-lg border-l-2 border-primary/45 bg-muted/55 px-2.5 py-1.5 text-xs">
                 {quoteInner}
               </div>
             )
       )}
 
       {showBody && safeImages.length > 0 && (
-        <div className={cn('mt-2 grid gap-1.5', safeImages.length === 1 ? 'grid-cols-1' : 'grid-cols-2')}>
+        <div
+          className={cn(
+            'mt-2 grid w-full min-w-0 max-w-full gap-1.5',
+            safeImages.length === 1 ? 'grid-cols-[minmax(0,1fr)]' : 'grid-cols-[repeat(2,minmax(0,1fr))]',
+          )}
+        >
           {safeImages.map((img, idx) => {
             const thumbNode = (
               <SafeImage
@@ -690,11 +695,11 @@ function MisskeyNoteItem({
                 sizes="(min-width: 1024px) 220px, 45vw"
                 quality={60}
                 loading="lazy"
-                className="object-cover transition-transform duration-200 group-hover/img:scale-[1.02]"
+                className="size-full max-w-full object-cover transition-transform duration-200 group-hover/img:scale-[1.02]"
               />
             )
             const boxClass = cn(
-              'group/img relative block overflow-hidden rounded-lg bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              'group/img relative block w-full min-w-0 max-w-full overflow-hidden rounded-lg bg-muted [contain:layout_paint] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               safeImages.length === 1 ? 'aspect-[16/10]' : 'aspect-[4/3]',
             )
             return safeNoteUrl
@@ -892,6 +897,7 @@ export function BlogSidebarMisskey({ initialFeed }: { initialFeed?: MisskeyFeed 
   return (
     <SidebarCard
       title={t('title')}
+      className="[contain:inline-size]"
       action={(
         <div className="flex items-center gap-1.5">
           {totalCount > 0 && (
@@ -955,9 +961,10 @@ export function BlogSidebarMisskey({ initialFeed }: { initialFeed?: MisskeyFeed 
         surface="card"
         viewportRef={scrollRef}
         showHintPill={false}
+        className="[contain:inline-size]"
         viewportClassName="max-h-[25rem] pr-2.5 pb-1"
       >
-        <ol className="relative ml-1.5 before:absolute before:top-2 before:bottom-2 before:left-0 before:w-px before:bg-border/75">
+        <ol className="relative ml-1.5 min-w-0 max-w-full before:absolute before:top-2 before:bottom-2 before:left-0 before:w-px before:bg-border/75">
           {feed.notes.map((note, idx) => (
             <MisskeyNoteItem
               key={note.id}

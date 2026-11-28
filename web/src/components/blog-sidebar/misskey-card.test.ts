@@ -120,6 +120,13 @@ describe('blogSidebarMisskey 侧边栏个人动态流卡片', () => {
       expect(container.textContent).toContain('纯文本防注入 <img src=x onerror=alert(1)>')
       expect(container.querySelector('img[onerror]')).toBeNull()
       expect(container.querySelector('img[data-quality="60"]')).not.toBeNull()
+      // 校验卡片与图片容器具备行内尺寸隔离与 w-full min-w-0 约束，防止超宽图或长链接撑宽侧栏
+      const cardSection = container.querySelector('section')!
+      expect(cardSection.className).toContain('[contain:inline-size]')
+      const imgWrapper = container.querySelector('a[href="https://lab.liteyuki.org/notes/n1"].aspect-\\[16\\/10\\]')!
+      expect(imgWrapper).not.toBeNull()
+      expect(imgWrapper.className).toContain('w-full')
+      expect(imgWrapper.className).toContain('min-w-0')
       expect(container.querySelector('a[href="https://lab.liteyuki.org/@snowykami"]')?.getAttribute('rel')).toContain('me')
 
       // 2. 长文展开与收起
