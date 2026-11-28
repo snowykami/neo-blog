@@ -1,3 +1,5 @@
+@use "sass:list";
+
 /* =========================================================================
  * 编辑器正文样式
  * 正文本身使用与前台文章页相同的 `content-body prose dark:prose-invert pangu-autospace`，
@@ -475,7 +477,7 @@
 
   $dots: #fde68a, #facc15, #f59e0b, #f97316, #ef4444;
   @each $color in $dots {
-    &[data-hdr="#{index($dots, $color)}"] {
+    &[data-hdr="#{list.index($dots, $color)}"] {
       --hdr-dot: #{$color};
     }
   }

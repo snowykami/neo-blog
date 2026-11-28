@@ -252,12 +252,16 @@ describe('rich-text-content', () => {
     try {
       flushSync(() => {
         root.render(
-          React.createElement(
-            NextIntlClientProvider,
-            { locale: 'zh-CN', messages: { ContentComponents: { callout: { options: { type: { info: '信息' } } } } } },
-            React.createElement(Callout, { type: 'info', title: '标题', content: '通栏正文' }),
-            React.createElement(AlertContent, { variant: 'default', title: '提醒', description: '通栏提醒正文' }),
-          ),
+          React.createElement(NextIntlClientProvider, {
+            locale: 'zh-CN',
+            messages: { ContentComponents: { callout: { options: { type: { info: '信息' } } } } },
+            children: React.createElement(
+              React.Fragment,
+              null,
+              React.createElement(Callout, { type: 'info', title: '标题', content: '通栏正文' }),
+              React.createElement(AlertContent, { variant: 'default', title: '提醒', description: '通栏提醒正文' }),
+            ),
+          }),
         )
       })
       const descriptions = container.querySelectorAll('[data-slot="alert-description"]')
