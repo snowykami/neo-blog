@@ -10,6 +10,15 @@ export interface MisskeyNoteImage {
   alt: string
 }
 
+export interface MisskeyQuote {
+  username?: string
+  name?: string
+  text?: string
+  cw?: string
+  hasMedia?: boolean
+  url?: string
+}
+
 export interface MisskeyNote {
   id: string
   url: string
@@ -18,6 +27,7 @@ export interface MisskeyNote {
   createdAt: string
   isRenote?: boolean
   renoteUser?: string
+  quote?: MisskeyQuote | null
   images?: MisskeyNoteImage[]
   reactionsCount?: number
   repliesCount?: number
@@ -30,4 +40,13 @@ export interface MisskeyFeed {
   instanceUrl?: string
   user?: MisskeyUser | null
   notes: MisskeyNote[]
+  total?: number
+  hasMore?: boolean
+  nextCursor?: string
+}
+
+export interface MisskeyFeedQuery {
+  offset?: number
+  limit?: number
+  cursor?: string
 }

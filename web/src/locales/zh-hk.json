@@ -266,13 +266,19 @@
       "page_size": "每頁筆數"
     },
     "misskey": {
-      "title": "Misskey 動態",
+      "title": "個人動態",
       "view_profile": "前往 Misskey 主頁",
       "view_note": "查看原貼文",
       "renoted": "轉貼自 {user}",
       "renoted_plain": "轉貼",
       "show_cw": "展開內容",
-      "hide_cw": "收起內容"
+      "hide_cw": "收起內容",
+      "expand_text": "展開全文",
+      "collapse_text": "收起",
+      "quoted_media": "含圖片",
+      "load_more": "載入更多動態",
+      "loading_more": "載入中…",
+      "view_all_on_misskey": "前往主頁查看更多動態"
     }
   },
   "Console": {
@@ -1452,8 +1458,8 @@
       "misskey_api_token_desc": "僅儲存於伺服器端用於請求受限實例介面，絕不會暴露給前台訪客；即使設定了 Token 亦嚴格只保留公開貼文",
       "misskey_fetch_interval_minutes": "重新整理間隔（分鐘）",
       "misskey_fetch_interval_minutes_desc": "後端背景定時擷取的間隔時間（1～60 分鐘）",
-      "misskey_display_count": "顯示筆數",
-      "misskey_display_count_desc": "側邊欄最多顯示的公開動態筆數（1～10 筆）",
+      "misskey_cache_count": "快取動態筆數",
+      "misskey_cache_count_desc": "伺服器端快取的公開動態上限（10～100 筆），前台固定高度視窗內按需分批捲動載入",
       "ai_writing_style": "AI 寫作風格",
       "ai_writing_style_desc": "編輯器 AI 幫寫與透過 MCP 連線的外部 AI 寫作時都會遵循，例如語氣、人稱、排版習慣與常用術語。作者每次的具體要求、文章既有的口吻與作者自己設定的語言習慣優先。最多 4000 字。",
       "ai_writing_style_placeholder": "例如：用第一人稱、口語化但不賣萌；中英文之間加空格；程式碼範例優先用 Go；每篇結尾用兩三句話總結。",

@@ -34,11 +34,14 @@ async function loadSidebarLabels(): Promise<Label[]> {
   return (res.data.labels ?? []).filter(l => (l.postCount ?? 0) > 0)
 }
 
+// 首屏 SSR 仅预取前 12 条动态（约 3～4 屏可视高度），控制 RSC HTML 体积与首屏 DOM 规模；用户下滑时按需从后端内存缓存加载后续批次
+export const SIDEBAR_MISSKEY_SSR_LIMIT = 12
+
 async function loadSidebarMisskey(): Promise<MisskeyFeed | undefined> {
   'use cache'
   cacheLife('site')
   cacheTag(CacheTag.Site)
-  const res = await getMisskeyFeed()
+  const res = await getMisskeyFeed({ limit: SIDEBAR_MISSKEY_SSR_LIMIT })
   // 后端冷启动或刚开启配置、异步抓取仍在飞行中时返回 undefined 交由客户端单次补拉，稳态（!enabled 或已有 fetchedAt）直接复用缓存零客户端请求
   if (res.data.enabled && !res.data.fetchedAt && res.data.notes.length === 0)
     return undefined

@@ -266,13 +266,19 @@
       "page_size": "Items per page"
     },
     "misskey": {
-      "title": "Misskey Notes",
+      "title": "Recent updates",
       "view_profile": "View Misskey profile",
       "view_note": "View note",
       "renoted": "Renoted {user}",
       "renoted_plain": "Renoted",
       "show_cw": "Show content",
-      "hide_cw": "Hide content"
+      "hide_cw": "Hide content",
+      "expand_text": "Read more",
+      "collapse_text": "Show less",
+      "quoted_media": "Media",
+      "load_more": "Load more updates",
+      "loading_more": "Loading…",
+      "view_all_on_misskey": "More on Misskey"
     }
   },
   "Console": {
@@ -1452,8 +1458,8 @@
       "misskey_api_token_desc": "Stored on the server only for restricted instances and never exposed to visitors; non-public notes are always filtered out",
       "misskey_fetch_interval_minutes": "Refresh interval (minutes)",
       "misskey_fetch_interval_minutes_desc": "Background fetch interval on the server (1–60 minutes)",
-      "misskey_display_count": "Display count",
-      "misskey_display_count_desc": "Maximum number of public notes shown in the sidebar (1–10)",
+      "misskey_cache_count": "Cached notes limit",
+      "misskey_cache_count_desc": "Maximum public notes cached on the server (10–100), loaded progressively as visitors scroll",
       "ai_writing_style": "AI writing style",
       "ai_writing_style_desc": "Followed by the editor’s AI assistant and by external AI tools connected over MCP: tone, voice, formatting habits, preferred terms and so on. An author’s request for a specific edit, the voice already in the post and the author’s own writing voice take priority. Up to 4000 characters.",
       "ai_writing_style_placeholder": "e.g. First person, conversational but not cutesy; put spaces between Chinese and English; prefer Go for code samples; end each post with a two- or three-sentence summary.",

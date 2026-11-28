@@ -266,13 +266,19 @@
       "page_size": "每页条数"
     },
     "misskey": {
-      "title": "Misskey 动态",
+      "title": "个人动态",
       "view_profile": "前往 Misskey 主页",
       "view_note": "查看原帖",
       "renoted": "转帖自 {user}",
       "renoted_plain": "转帖",
       "show_cw": "展开内容",
-      "hide_cw": "收起内容"
+      "hide_cw": "收起内容",
+      "expand_text": "展开全文",
+      "collapse_text": "收起",
+      "quoted_media": "含图片",
+      "load_more": "加载更多动态",
+      "loading_more": "加载中…",
+      "view_all_on_misskey": "前往主页查看更多动态"
     }
   },
   "Console": {
@@ -1452,8 +1458,8 @@
       "misskey_api_token_desc": "仅保存在服务端用于请求受限实例接口，绝不会暴露给前台访客；即使配置了令牌也严格只保留公开帖子",
       "misskey_fetch_interval_minutes": "刷新间隔（分钟）",
       "misskey_fetch_interval_minutes_desc": "后端后台定时拉取的间隔时间（1～60 分钟）",
-      "misskey_display_count": "展示条数",
-      "misskey_display_count_desc": "侧边栏最多展示的公开动态条数（1～10 条）",
+      "misskey_cache_count": "缓存动态条数",
+      "misskey_cache_count_desc": "服务端缓存的公开动态上限（10～100 条），前台固定高度视口内按需分批滚动加载",
       "ai_writing_style": "AI 写作风格",
       "ai_writing_style_desc": "编辑器 AI 帮写和通过 MCP 连接的外部 AI 写作时都会遵循，例如语气、人称、排版习惯和常用术语。作者每次的具体要求、文章已有的口吻和作者自己设置的语言习惯优先。最多 4000 字。",
       "ai_writing_style_placeholder": "例如：用第一人称、口语化但不卖萌；中英文之间加空格；代码示例优先用 Go；每篇结尾用两三句话总结。",

@@ -266,13 +266,19 @@
       "page_size": "1ページあたりの件数"
     },
     "misskey": {
-      "title": "Misskey ノート",
+      "title": "近況ノート",
       "view_profile": "Misskey プロフィールを見る",
       "view_note": "ノートを見る",
       "renoted": "{user} をリノート",
       "renoted_plain": "リノート",
       "show_cw": "内容を表示",
-      "hide_cw": "内容を隠す"
+      "hide_cw": "内容を隠す",
+      "expand_text": "続きを読む",
+      "collapse_text": "折りたたむ",
+      "quoted_media": "画像あり",
+      "load_more": "さらに読み込む",
+      "loading_more": "読み込み中…",
+      "view_all_on_misskey": "Misskey でさらに見る"
     }
   },
   "Console": {
@@ -1452,8 +1458,8 @@
       "misskey_api_token_desc": "サーバーにのみ保存され、訪問者には一切公開されません。トークンを設定しても非公開ノートは除外されます",
       "misskey_fetch_interval_minutes": "更新間隔（分）",
       "misskey_fetch_interval_minutes_desc": "サーバーがバックグラウンドで取得する間隔（1〜60 分）",
-      "misskey_display_count": "表示件数",
-      "misskey_display_count_desc": "サイドバーに表示する公開ノートの最大件数（1〜10 件）",
+      "misskey_cache_count": "キャッシュ件数",
+      "misskey_cache_count_desc": "サーバーにキャッシュする公開ノートの上限（10〜100 件）。サイドバーのスクロールに応じて段階的に読み込みます",
       "ai_writing_style": "AI の文体",
       "ai_writing_style_desc": "エディターの AI アシスタントと、MCP で接続した外部 AI が執筆時に従います。口調、人称、表記の習慣、よく使う用語などを書きます。作者の個別の指示、記事内のこれまでの口調、作者自身が設定した書き癖が優先されます。最大 4000 文字。",
       "ai_writing_style_placeholder": "例：一人称で、くだけすぎない話し言葉。和文と英数字の間にスペースを入れる。コード例は Go を優先。記事の最後は 2〜3 文でまとめる。",
