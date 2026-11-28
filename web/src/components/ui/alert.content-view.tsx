@@ -1,6 +1,7 @@
 'use client'
 
 import { CircleAlertIcon, InfoIcon } from 'lucide-react'
+import { RichTextContent } from '@/components/content-components/rich-text-content'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 
 export interface AlertContentProps {
@@ -16,7 +17,11 @@ export default function AlertContent({ variant = 'default', title = '', descript
     <Alert role="note" variant={variant} className="rounded-xl">
       <Icon />
       <AlertTitle className="line-clamp-none">{title}</AlertTitle>
-      {description && <AlertDescription className="block whitespace-pre-line">{description}</AlertDescription>}
+      {description && (
+        <AlertDescription className="col-span-full col-start-1 mt-1.5 block leading-relaxed">
+          <RichTextContent content={description} />
+        </AlertDescription>
+      )}
     </Alert>
   )
 }

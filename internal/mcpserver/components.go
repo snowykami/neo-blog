@@ -133,44 +133,245 @@ func normalizeValue(value any, schema *jsonschema.Schema) {
 	}
 }
 
-// fallbackHTML 组件块的降级内容：props 中的正文文字按段落输出，供 RSS、无 JS 环境展示；编辑器保存时会重新生成
-func fallbackHTML(props map[string]any) string {
-	var texts []string
-	var collect func(value any)
-	collect = func(value any) {
-		switch v := value.(type) {
-		case string:
-			for _, part := range reParagraphBreak.Split(v, -1) {
-				if part = strings.TrimSpace(part); part != "" {
-					texts = append(texts, part)
+var fallbackFormattingTags = map[string]struct{}{
+	"a": {}, "b": {}, "blockquote": {}, "br": {}, "code": {}, "del": {}, "div": {}, "em": {},
+	"h1": {}, "h2": {}, "h3": {}, "h4": {}, "h5": {}, "h6": {}, "hr": {}, "i": {}, "input": {},
+	"kbd": {}, "li": {}, "mark": {}, "ol": {}, "p": {}, "pre": {}, "s": {}, "span": {},
+	"strong": {}, "sub": {}, "sup": {}, "table": {}, "tbody": {}, "td": {}, "th": {},
+	"thead": {}, "tr": {}, "u": {}, "ul": {},
+}
+
+func isASCIIAlphaNum(b byte) bool {
+	return (b >= '0' && b <= '9') || (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z')
+}
+
+// stripFormattingTags 线性剥离平台行内 HTML 排版标签（兼容属性值内含 >，保留普通 a < b 表达式）
+func stripFormattingTags(input string) string {
+	var sb strings.Builder
+	i := 0
+	for i < len(input) {
+		if input[i] != '<' {
+			sb.WriteByte(input[i])
+			i++
+			continue
+		}
+		cursor := i + 1
+		isClosing := false
+		if cursor < len(input) && input[cursor] == '/' {
+			isClosing = true
+			cursor++
+		}
+		nameStart := cursor
+		for cursor < len(input) && isASCIIAlphaNum(input[cursor]) {
+			cursor++
+		}
+		tagName := strings.ToLower(input[nameStart:cursor])
+		validBoundary := cursor < len(input) && (input[cursor] == '>' || input[cursor] == '/' || input[cursor] == ' ' || input[cursor] == '\t' || input[cursor] == '\n' || input[cursor] == '\r')
+		if _, ok := fallbackFormattingTags[tagName]; !ok || !validBoundary {
+			sb.WriteByte(input[i])
+			i++
+			continue
+		}
+		var quote byte
+		end := -1
+		for j := cursor; j < len(input); j++ {
+			ch := input[j]
+			if quote != 0 {
+				if ch == quote {
+					quote = 0
 				}
-			}
-		case []any:
-			for _, item := range v {
-				collect(item)
-			}
-		case map[string]any:
-			keys := make([]string, 0, len(v))
-			for key := range v {
-				if !slices.Contains(components.FallbackSkipKeys, key) {
-					keys = append(keys, key)
-				}
-			}
-			slices.Sort(keys)
-			for _, key := range keys {
-				collect(v[key])
+			} else if ch == '"' || ch == '\'' {
+				quote = ch
+			} else if ch == '>' {
+				end = j
+				break
 			}
 		}
-	}
-	collect(props)
-	var sb strings.Builder
-	for _, text := range texts {
-		sb.WriteString("<p>" + html.EscapeString(text) + "</p>")
+		if end == -1 {
+			sb.WriteByte(input[i])
+			i++
+			continue
+		}
+		if tagName == "br" && !isClosing {
+			sb.WriteByte('\n')
+		}
+		i = end + 1
 	}
 	return sb.String()
 }
 
-var reParagraphBreak = regexp.MustCompile(`\n\s*\n`)
+func stripMarkdownBlockPrefix(rawLine string) string {
+	line := strings.TrimLeft(rawLine, " \t")
+	for strings.HasPrefix(line, ">") {
+		line = strings.TrimLeft(line[1:], " \t")
+	}
+	hashes := 0
+	for hashes < 6 && hashes < len(line) && line[hashes] == '#' {
+		hashes++
+	}
+	if hashes > 0 && hashes < len(line) && (line[hashes] == ' ' || line[hashes] == '\t') {
+		return strings.TrimLeft(line[hashes+1:], " \t")
+	}
+	if len(line) >= 2 && (line[0] == '-' || line[0] == '*' || line[0] == '+') && (line[1] == ' ' || line[1] == '\t') {
+		rest := strings.TrimLeft(line[2:], " \t")
+		if len(rest) >= 4 && rest[0] == '[' && (rest[1] == ' ' || rest[1] == 'x' || rest[1] == 'X') && rest[2] == ']' && (rest[3] == ' ' || rest[3] == '\t') {
+			rest = strings.TrimLeft(rest[4:], " \t")
+		}
+		return rest
+	}
+	digits := 0
+	for digits < len(line) && line[digits] >= '0' && line[digits] <= '9' {
+		digits++
+	}
+	if digits > 0 && digits+1 < len(line) && line[digits] == '.' && (line[digits+1] == ' ' || line[digits+1] == '\t') {
+		return strings.TrimLeft(line[digits+2:], " \t")
+	}
+	return line
+}
+
+var (
+	reFallbackLink   = regexp.MustCompile(`\[([^\]\n]+)\]\([^)\n]+\)`)
+	reFallbackStrong = regexp.MustCompile(`\*\*([^*\n]+)\*\*`)
+	reFallbackEm     = regexp.MustCompile(`\*([^*\s][^*\n]*?)\*`)
+	reFallbackStrike = regexp.MustCompile(`~~([^~\n]+)~~`)
+	reCodeSlot       = regexp.MustCompile("\uE000(\\d+)\uE001")
+)
+
+func renderFallbackProse(chunk string, sb *strings.Builder) {
+	var codeSlots []string
+	var masked strings.Builder
+	for i := 0; i < len(chunk); {
+		if chunk[i] == '`' {
+			closeIdx := strings.IndexByte(chunk[i+1:], '`')
+			if closeIdx > 0 {
+				inner := chunk[i+1 : i+1+closeIdx]
+				if strings.IndexByte(inner, '\n') < 0 {
+					idx := len(codeSlots)
+					codeSlots = append(codeSlots, inner)
+					masked.WriteString("\uE000" + strconv.Itoa(idx) + "\uE001")
+					i += closeIdx + 2
+					continue
+				}
+			}
+		}
+		masked.WriteByte(chunk[i])
+		i++
+	}
+
+	withoutTags := stripFormattingTags(masked.String())
+	for _, rawLine := range strings.Split(withoutTags, "\n") {
+		line := stripMarkdownBlockPrefix(rawLine)
+		line = reFallbackLink.ReplaceAllString(line, "$1")
+		line = reFallbackStrong.ReplaceAllString(line, "$1")
+		line = reFallbackEm.ReplaceAllString(line, "$1")
+		line = reFallbackStrike.ReplaceAllString(line, "$1")
+		line = reCodeSlot.ReplaceAllStringFunc(line, func(m string) string {
+			sub := reCodeSlot.FindStringSubmatch(m)
+			if len(sub) == 2 {
+				if idx, err := strconv.Atoi(sub[1]); err == nil && idx >= 0 && idx < len(codeSlots) {
+					return codeSlots[idx]
+				}
+			}
+			return m
+		})
+		if line = strings.TrimSpace(line); line != "" {
+			sb.WriteString("<p>" + html.EscapeString(line) + "</p>")
+		}
+	}
+}
+
+func renderFallbackRichText(text string, sb *strings.Builder) {
+	lines := strings.Split(strings.ReplaceAll(strings.ReplaceAll(text, "\r\n", "\n"), "\r", "\n"), "\n")
+	var proseBuf, codeBuf []string
+	inFence := false
+	flushProse := func() {
+		if len(proseBuf) == 0 {
+			return
+		}
+		renderFallbackProse(strings.Join(proseBuf, "\n"), sb)
+		proseBuf = nil
+	}
+	for _, line := range lines {
+		if strings.HasPrefix(strings.TrimLeft(line, " \t"), "```") {
+			if !inFence {
+				flushProse()
+				inFence = true
+				codeBuf = nil
+			} else {
+				if code := strings.TrimSpace(strings.Join(codeBuf, "\n")); code != "" {
+					sb.WriteString("<pre><code>" + html.EscapeString(code) + "</code></pre>")
+				}
+				inFence = false
+				codeBuf = nil
+			}
+			continue
+		}
+		if inFence {
+			codeBuf = append(codeBuf, line)
+		} else {
+			proseBuf = append(proseBuf, line)
+		}
+	}
+	if inFence && len(codeBuf) > 0 {
+		if code := strings.TrimSpace(strings.Join(codeBuf, "\n")); code != "" {
+			sb.WriteString("<pre><code>" + html.EscapeString(code) + "</code></pre>")
+		}
+	}
+	flushProse()
+}
+
+func fallbackKeyPriority(key string) int {
+	switch key {
+	case "title":
+		return 0
+	case "label":
+		return 1
+	case "description":
+		return 2
+	default:
+		return 10
+	}
+}
+
+// fallbackHTML 组件块的降级内容：供 RSS、无 JS 环境展示；对富文本字段剥离标签与 Markdown 噪音，对代码字段原样保留
+func fallbackHTML(props map[string]any) string {
+	var sb strings.Builder
+	var collect func(key string, value any)
+	collect = func(key string, value any) {
+		switch v := value.(type) {
+		case string:
+			if key == "code" {
+				if code := strings.Trim(v, "\r\n"); strings.TrimSpace(code) != "" {
+					sb.WriteString("<pre><code>" + html.EscapeString(code) + "</code></pre>")
+				}
+				return
+			}
+			renderFallbackRichText(v, &sb)
+		case []any:
+			for _, item := range v {
+				collect(key, item)
+			}
+		case map[string]any:
+			keys := make([]string, 0, len(v))
+			for k := range v {
+				if !slices.Contains(components.FallbackSkipKeys, k) {
+					keys = append(keys, k)
+				}
+			}
+			slices.SortFunc(keys, func(a, b string) int {
+				if pa, pb := fallbackKeyPriority(a), fallbackKeyPriority(b); pa != pb {
+					return pa - pb
+				}
+				return strings.Compare(a, b)
+			})
+			for _, k := range keys {
+				collect(k, v[k])
+			}
+		}
+	}
+	collect("", props)
+	return sb.String()
+}
 
 // goldmark 把 ```component:名称 渲染为带语言类名的代码块，内容已做 HTML 转义
 var reComponentFence = regexp.MustCompile(`<pre><code class="language-` + regexp.QuoteMeta(componentFencePrefix) + `([^"]*)">([\s\S]*?)</code></pre>`)

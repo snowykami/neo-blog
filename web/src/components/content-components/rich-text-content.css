@@ -1,0 +1,255 @@
+/* 平台行内文字颜色与高亮所需的 10 组调色板变量兜底（与 app/styles/tailwindcolor.css 对齐），
+ * 确保组件在编辑器弹窗或侧边栏等未加载 content-themes 的上下文中也能正确显示颜色 */
+:where(:root) {
+  --color-red-200: oklch(0.885 0.062 18.334);
+  --color-red-500: oklch(0.637 0.237 25.331);
+  --color-orange-200: oklch(0.901 0.076 70.697);
+  --color-orange-500: oklch(0.705 0.213 47.604);
+  --color-amber-200: oklch(0.924 0.12 95.746);
+  --color-amber-500: oklch(0.769 0.188 70.08);
+  --color-yellow-200: oklch(0.945 0.129 101.54);
+  --color-yellow-500: oklch(0.795 0.184 86.047);
+  --color-green-200: oklch(0.925 0.084 155.995);
+  --color-green-500: oklch(0.723 0.219 149.579);
+  --color-teal-200: oklch(0.91 0.096 180.426);
+  --color-teal-500: oklch(0.704 0.14 182.503);
+  --color-blue-200: oklch(0.882 0.059 254.128);
+  --color-blue-500: oklch(0.623 0.214 259.815);
+  --color-indigo-200: oklch(0.87 0.065 274.039);
+  --color-indigo-500: oklch(0.585 0.233 277.117);
+  --color-purple-200: oklch(0.902 0.063 306.703);
+  --color-purple-500: oklch(0.627 0.265 303.9);
+  --color-pink-200: oklch(0.899 0.061 343.231);
+  --color-pink-500: oklch(0.656 0.241 354.308);
+}
+
+/* 组件块内部紧凑富文本排版：外层带 not-prose，此处独立维护紧凑段落间距并与 content-body 保持视觉一致 */
+.neo-rich-text {
+  overflow-wrap: anywhere;
+  word-wrap: break-word;
+  max-width: 100%;
+
+  > :first-child {
+    margin-top: 0;
+  }
+
+  > :last-child {
+    margin-bottom: 0;
+  }
+
+  p {
+    margin: 0.5em 0;
+  }
+
+  :is(h1, h2, h3, h4, h5, h6) {
+    margin: 0.75em 0 0.35em;
+    font-weight: 600;
+    line-height: 1.4;
+    color: color-mix(in oklab, currentColor 88%, var(--foreground));
+  }
+
+  h1 { font-size: 1.15em; }
+  h2 { font-size: 1.08em; }
+  h3, h4, h5, h6 { font-size: 1em; }
+
+  strong, b {
+    font-weight: 600;
+    color: color-mix(in oklab, currentColor 88%, var(--foreground));
+  }
+
+  ul, ol {
+    margin: 0.5em 0;
+    padding-left: 1.35em;
+  }
+
+  ul {
+    list-style-type: disc;
+  }
+
+  ol {
+    list-style-type: decimal;
+  }
+
+  li {
+    margin: 0.2em 0;
+  }
+
+  li::marker {
+    color: color-mix(in oklab, currentColor 65%, transparent);
+  }
+
+  li > p {
+    margin: 0.2em 0;
+  }
+
+  ul.contains-task-list,
+  ul:has(> li.task-list-item) {
+    list-style: none;
+    padding-left: 0.15em;
+  }
+
+  li.task-list-item {
+    list-style: none;
+  }
+
+  li.task-list-item input[type="checkbox"] {
+    margin-right: 0.45em;
+    vertical-align: -0.1em;
+    accent-color: var(--primary);
+  }
+
+  /* 链接：与正文 content-body 一致，主色 + 虚线下划线，悬停变实线 */
+  a[href] {
+    color: var(--primary);
+    font-weight: 500;
+    text-decoration-line: underline;
+    text-decoration-style: dashed;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 4px;
+    text-decoration-color: color-mix(in oklab, var(--primary) 60%, transparent);
+    cursor: pointer;
+
+    &:hover {
+      text-decoration-style: solid;
+      text-decoration-color: var(--primary);
+    }
+  }
+
+  /* 注释词语：与正文 ContentHoverCard 保持一致视觉 */
+  [data-annotation] {
+    color: var(--primary);
+    font-weight: 500;
+    cursor: help;
+
+    &:hover {
+      text-decoration: underline dashed;
+      text-underline-offset: 0.2em;
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--ring);
+      outline-offset: 2px;
+      border-radius: 2px;
+      text-decoration: underline dashed;
+      text-underline-offset: 0.2em;
+    }
+  }
+
+  @media (hover: none) {
+    [data-annotation] {
+      cursor: pointer;
+    }
+  }
+
+  /* 行内代码：与正文一致的浅底圆角样式，基于 currentColor 自适应各种色调的提示框 / 告警框 */
+  :not(pre) > code {
+    font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+    font-size: 0.875em;
+    padding: 0.15em 0.35em;
+    border-radius: 0.375rem;
+    background: color-mix(in oklab, currentColor 9%, transparent);
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+  }
+
+  /* 代码块：固定深色容器并横向滚动 */
+  pre {
+    margin: 0.65em 0;
+    padding: 0.75rem 1rem;
+    border-radius: 0.625rem;
+    border: 1px solid rgb(255 255 255 / 0.1);
+    background: var(--code-bg, #161b22);
+    color: #e6edf3;
+    font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+    font-size: 0.8125rem;
+    line-height: 1.65;
+    white-space: pre;
+    overflow-x: auto;
+    overflow-wrap: normal;
+
+    code {
+      background: transparent;
+      padding: 0;
+      color: inherit;
+      font-size: inherit;
+      white-space: inherit;
+    }
+  }
+
+  /* 引用：左侧主色圆角竖条 */
+  blockquote {
+    position: relative;
+    margin: 0.6em 0;
+    padding: 0.15rem 0 0.15rem 1rem;
+    color: color-mix(in oklab, currentColor 85%, transparent);
+
+    &::before {
+      content: "";
+      position: absolute;
+      inset-block: 0.2rem;
+      left: 0;
+      width: 3px;
+      border-radius: 999px;
+      background: var(--primary);
+    }
+
+    > :first-child {
+      margin-top: 0;
+    }
+
+    > :last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  /* 高亮标记：默认柔和黄底，浅色高亮在深色模式下压深文字以保证对比度 */
+  mark {
+    padding: 0.05em 0.25em;
+    border-radius: 0.25rem;
+    background-color: var(--color-yellow-200);
+    color: #1c1917;
+  }
+
+  hr {
+    margin: 0.75em 0;
+    border: 0;
+    border-top: 1px solid color-mix(in oklab, currentColor 14%, transparent);
+  }
+
+  table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    margin: 0.6em 0;
+    border-collapse: collapse;
+    font-size: 0.92em;
+  }
+
+  th, td {
+    border: 1px solid color-mix(in oklab, currentColor 15%, transparent);
+    padding: 0.35em 0.65em;
+  }
+
+  th {
+    font-weight: 600;
+    background: color-mix(in oklab, currentColor 5%, transparent);
+  }
+
+  /* 行内图标：尺寸与颜色跟随所在文字；未知图标未填入 SVG 时不占留白 */
+  span[data-icon] {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    vertical-align: -0.125em;
+
+    &:empty {
+      display: none;
+    }
+
+    > svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+  }
+}

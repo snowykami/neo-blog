@@ -217,6 +217,21 @@ pnpm dlx shadcn@latest add <comp>
 
 - **同心圆角法则（Concentric Border Radius）**：当内外两层紧凑贴边圆角容器嵌套（尤其是内距较小 `d <= 8px` 且拐角处两条圆弧共用圆心的控件槽、内嵌面板等）时，在观感自然的前提下参考 `R_outer = R_inner + d`（如外框 `rounded-2xl` = `16px`、内距 `8px` 时内层取 `rounded-md` = `8px`）；但对于留有充足呼吸边距（`d >= 12px`）的独立视觉媒体块（如文章列表卡片封面缩略图、右侧进入色块），优先保证视觉柔和度（如使用 `rounded-xl`），不必机械压小图片圆角。
 
+### 文章自定义组件（`web/src/components/content-components/`）
+
+新增或修改正文/侧栏自定义组件时，统一遵循以下准则：
+
+- **写路径与访客读路径彻底解耦（首屏零冗余 & 零 Zod）**：
+  - 组件定义（`*.content.ts`，含 `zod` schema、默认值、`fallback`、`ai` 说明）只供后台编辑器与写路径使用
+  - 纯展示视图（`*.content-view.tsx` 或组件目录主视图）必须通过 `dynamic(() => import(...))` 按需拆包，严禁反向导入（含 `import type`）`*.content.ts`、`schema.ts` 或 `zod`，严禁被根布局、首页列表或侧边栏主入口静态导入
+- **按字段语义决定是否接入富文本渲染**：
+  - 凡承载多句自然语言说明、补充解释或正文段落的内容字段（如 `callout`、`alert`、`card`、`collapsible`、`textTabs` 的内容区），应使用共享的 `<RichTextContent content={...} />`（`web/src/components/content-components/rich-text-content.tsx`）支持常见 Markdown 与平台行内格式（链接、粗体、行内代码、列表、`<span data-annotation>`、`<mark>`、`<span data-icon>` 等），不要裸写 `{content}` + `whitespace-pre-line`
+  - 凡承载纯源码、命令、外部资源 ID、数值枚举或简短单行标题/标签的字段（如 `codeTabs` 的代码、徽章、快捷键、仓库名、歌曲 ID），保持纯文本渲染，避免误解析代码符号
+- **安全净化、降级可读性与清单同步**：
+  - 富文本渲染必须复用仓库已有的 `marked` + `isomorphic-dompurify` 白名单净化（拦截 `<script>`、`<iframe>`、`on*` 事件、`javascript:` / `data:` 协议及任意类名/内联样式注入），不额外引入新富文本依赖
+  - 组件的 `fallback` 静态降级输出统一使用 `textParagraphs`（自动剥离 Markdown 与行内标签噪音，保证无 JS 环境与 RSS 摘要干净可读）
+  - 新增组件或调整 schema / `ai` 配置后，在 `web/` 运行 `pnpm run gen:content`（涉及对 AI 开放的组件时同步运行 `pnpm test -u` 更新 `internal/mcpserver/ai-components.json`）
+
 ### macOS 原生灵动岛（`macos-island/`）
 
 改动 `macos-island/` 或网页音乐灵动岛时，优先激活 `swiftui-expert-skill` 与 `macos-patterns` 技能，并严格遵守以下实战铁律：

@@ -1,6 +1,7 @@
 'use client'
 
 import { ChevronDownIcon } from 'lucide-react'
+import { RichTextContent } from '@/components/content-components/rich-text-content'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 
 export interface CollapsibleContentProps {
@@ -17,8 +18,8 @@ export default function CollapsibleContentView({ title = '', content = '', defau
         {title}
         <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/collapsible:rotate-180" />
       </CollapsibleTrigger>
-      <CollapsibleContent className="border-t px-4 py-3 text-sm leading-relaxed whitespace-pre-line text-foreground/80">
-        {content}
+      <CollapsibleContent className="border-t px-4 py-3 text-sm leading-relaxed text-foreground/80">
+        <RichTextContent content={content} />
       </CollapsibleContent>
     </Collapsible>
   )

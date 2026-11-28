@@ -65,6 +65,8 @@ export function ComponentBlockView({ editor, node, selected, updateAttributes, d
 
   const label = def ? t(`${def.name}.name`) : (name || t('unknown_name'))
   const Icon = def?.icon ?? PuzzleIcon
+  const findAnchor = (target: EventTarget | null) =>
+    (target instanceof Element ? target : (target as Node | null)?.parentElement)?.closest('a')
 
   return (
     <NodeViewWrapper
@@ -75,9 +77,17 @@ export function ComponentBlockView({ editor, node, selected, updateAttributes, d
         'neo-component-block group/component relative my-6 rounded-xl outline-offset-4 transition-[outline-color]',
         selected ? 'outline-2 outline-primary' : 'outline-2 outline-transparent hover:outline-foreground/10',
       )}
-      // 编辑器中点击预览里的链接只选中节点，不跳转
+      // 编辑器中点击预览里的链接只选中节点，不抢走 ProseMirror 焦点也不触发左/中键跳转
+      onMouseDownCapture={(event: React.MouseEvent) => {
+        if (editable && findAnchor(event.target))
+          event.preventDefault()
+      }}
       onClickCapture={(event: React.MouseEvent) => {
-        if ((event.target as Element).closest('a'))
+        if (findAnchor(event.target))
+          event.preventDefault()
+      }}
+      onAuxClickCapture={(event: React.MouseEvent) => {
+        if (findAnchor(event.target))
           event.preventDefault()
       }}
       onDoubleClick={() => def && editable && setEditing(true)}

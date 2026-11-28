@@ -118,9 +118,9 @@ const aiWriteComponentGuide = "需要时可以在段落之间插入下列组件�
 	"组件列表（组件名：用途；props 的 JSON Schema）：\n"
 
 // aiComponentSyntaxRules 组件的写法，帮写提示词与 MCP 写作指南共用
-const aiComponentSyntaxRules = "写法：每个组件单独写成一个代码块，代码块语言写成 component:组件名，内容是一行 props 的 JSON（字段与取值以下方 JSON Schema 为准，字符串中的换行写成 \\n），例如：\n" +
-	"```component:callout\n{\"type\":\"tip\",\"title\":\"小提示\",\"content\":\"先备份数据再升级。\"}\n```\n" +
-	"组件内的文字是纯文本，Markdown、HTML 和上方的平台格式在组件里都会显示成原始符号；组件名取自下方列表，编辑器只认识这些组件。\n"
+const aiComponentSyntaxRules = "写法：每个组件单独写成一个代码块，代码块语言写成 component:组件名，内容是一行 props 的 JSON（字段与取值以下方 JSON Schema 为准，字符串中的换行写成 \\n，JSON 字符串内的双引号转义为 \\\"），例如：\n" +
+	"```component:callout\n{\"type\":\"tip\",\"title\":\"小提示\",\"content\":\"升级前先阅读 [迁移说明](/docs) 并备份 `data.db`。\"}\n```\n" +
+	"组件内格式支持：callout、collapsible、textTabs 的 content 字段支持常见 Markdown（链接、粗体、斜体、删除线、行内代码、列表、引用）与上方的平台行内格式（如 <span data-annotation>、<mark>、<span data-icon> 等）；codeTabs 的 code 仍为纯代码文本，title、label 等单行字段保持纯文本。组件名取自下方列表，编辑器只认识这些组件。\n"
 
 // aiBlockFormatRule 正文的块结构写法，帮写提示词与 MCP 写作指南共用
 const aiBlockFormatRule = "块结构用 Markdown（标题、列表、任务列表、引用、代码块、表格、分隔线），标题从二级（##）起、与上下文的层级衔接（一级标题就是文章标题），代码块注明语言以便高亮；行内可以使用下方「平台格式」中的富文本格式。"

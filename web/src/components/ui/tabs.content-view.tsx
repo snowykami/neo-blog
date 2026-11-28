@@ -1,5 +1,6 @@
 'use client'
 
+import { RichTextContent } from '@/components/content-components/rich-text-content'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 export interface TextTabItemProps {
@@ -22,8 +23,8 @@ export default function TextTabsContent({ tabs = [] }: TextTabsContentProps) {
         ))}
       </TabsList>
       {tabs.map((tab, index) => (
-        <TabsContent key={index} value={String(index)} className="rounded-xl border bg-card px-4 py-3 text-sm leading-relaxed whitespace-pre-line text-foreground/80">
-          {tab.content}
+        <TabsContent key={index} value={String(index)} className="rounded-xl border bg-card px-4 py-3 text-sm leading-relaxed text-foreground/80">
+          <RichTextContent content={tab.content} />
         </TabsContent>
       ))}
     </Tabs>

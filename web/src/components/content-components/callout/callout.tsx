@@ -3,6 +3,7 @@
 import type { LucideIcon } from 'lucide-react'
 import { InfoIcon, LightbulbIcon, TriangleAlertIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import { RichTextContent } from '@/components/content-components/rich-text-content'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { cn } from '@/lib/utils'
 
@@ -32,7 +33,9 @@ export default function Callout({ type = 'info', title = '', content = '' }: Cal
     <Alert role="note" className={cn('rounded-xl px-4 py-3.5', className)}>
       <Icon />
       <AlertTitle className="line-clamp-none text-foreground">{title || t(type)}</AlertTitle>
-      <AlertDescription className="block leading-relaxed whitespace-pre-line text-foreground/80">{content}</AlertDescription>
+      <AlertDescription className="col-span-full col-start-1 mt-1.5 block leading-relaxed text-foreground/80">
+        <RichTextContent content={content} />
+      </AlertDescription>
     </Alert>
   )
 }

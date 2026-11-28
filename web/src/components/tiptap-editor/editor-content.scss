@@ -25,7 +25,7 @@
     cursor: text;
   }
 
-  [data-annotation] {
+  [data-annotation]:not(.neo-component-block [data-annotation]) {
     color: var(--primary);
     text-decoration: underline dotted;
     text-decoration-thickness: 1.5px;

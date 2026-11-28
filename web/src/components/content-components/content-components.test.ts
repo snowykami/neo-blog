@@ -212,6 +212,29 @@ describe('编辑器节点', () => {
     expect(roundTrip(html)).toBe(html)
   })
 
+  it('富文本组件的静态与 RSS 降级内容自动剥离 Markdown 与平台行内标签噪音，同时保留代码原貌', () => {
+    const html = roundTrip(componentHtml('callout', {
+      type: 'tip',
+      title: '升级提示',
+      content: [
+        '- 请先阅读 **[迁移说明](/docs)**',
+        '- 备份 <span data-annotation="当 a > b 时触发">PG</span> 与 `<span data-icon="rocket"></span>`（满足 a < b）',
+        '```html',
+        '<div><span>示例</span></div>',
+        '# keep comment',
+        '```',
+      ].join('\n'),
+    }))
+    const el = firstComponent(html)
+    const paragraphs = Array.from(el.querySelectorAll('blockquote > p')).map(p => p.textContent)
+    expect(paragraphs).toEqual([
+      '升级提示',
+      '请先阅读 迁移说明',
+      '备份 PG 与 <span data-icon="rocket"></span>（满足 a < b）',
+    ])
+    expect(el.querySelector('blockquote > pre > code')?.textContent).toBe('<div><span>示例</span></div>\n# keep comment')
+  })
+
   it('布局属性：只保留预设宽度与合法对齐，满宽时不输出', () => {
     const props = { repo: 'snowykami/neo-blog' }
     const withLayout = (attrs: string) => componentHtml('githubRepo', props).replace('<div ', `<div ${attrs} `)

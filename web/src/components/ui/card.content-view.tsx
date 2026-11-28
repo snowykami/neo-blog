@@ -1,5 +1,6 @@
 'use client'
 
+import { RichTextContent } from '@/components/content-components/rich-text-content'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 export interface CardContentProps {
@@ -16,7 +17,11 @@ export default function CardContentView({ title = '', description = '', content 
         <CardTitle>{title}</CardTitle>
         {description && <CardDescription>{description}</CardDescription>}
       </CardHeader>
-      {content && <CardContent className="px-5 text-sm leading-relaxed whitespace-pre-line text-foreground/80">{content}</CardContent>}
+      {content && (
+        <CardContent className="px-5 text-sm leading-relaxed text-foreground/80">
+          <RichTextContent content={content} />
+        </CardContent>
+      )}
     </Card>
   )
 }

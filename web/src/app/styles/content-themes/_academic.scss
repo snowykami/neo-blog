@@ -76,7 +76,7 @@
     }
   }
 
-  :not(pre) > code {
+  :not(pre) > code#{$plain} {
     font-size: 0.9em;
     font-weight: 400;
 

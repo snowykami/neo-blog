@@ -105,7 +105,26 @@ func TestContentConversion(t *testing.T) {
 		}
 	}
 
-	// 站内组件块在 Markdown 往返后保持不变
+	// 站内组件块在 Markdown 往返后保持不变，且降级 HTML 自动清理富文本标记噪音并保留代码原貌
+	calloutFence := "```component:callout\n{\"type\":\"tip\",\"title\":\"升级提示\",\"content\":\"请阅读 **[文档](/docs)** 并检查 <span data-annotation=\\\"当 a > b 时触发\\\">WAL</span> 与 `<span data-icon=\\\"rocket\\\"></span>`\"}\n```"
+	calloutHTML, err := parseContent(calloutFence, formatMarkdown)
+	if err != nil {
+		t.Fatalf("parse callout fence: %v", err)
+	}
+	wantFallback := `<p>升级提示</p><p>请阅读 文档 并检查 WAL 与 &lt;span data-icon=&#34;rocket&#34;&gt;&lt;/span&gt;</p>`
+	if !strings.Contains(calloutHTML, wantFallback) {
+		t.Fatalf("callout fallback not sanitized properly:\ngot:  %s\nwant: %s", calloutHTML, wantFallback)
+	}
+
+	codeTabsFence := "```component:codeTabs\n{\"tabs\":[{\"label\":\"HTML\",\"language\":\"html\",\"code\":\"<div><span>keep</span></div>\\n# comment\"}]}\n```"
+	codeTabsHTML, err := parseContent(codeTabsFence, formatMarkdown)
+	if err != nil {
+		t.Fatalf("parse codeTabs fence: %v", err)
+	}
+	if !strings.Contains(codeTabsHTML, `<p>HTML</p><pre><code>&lt;div&gt;&lt;span&gt;keep&lt;/span&gt;&lt;/div&gt;`) {
+		t.Fatalf("codeTabs fallback should preserve raw code:\n%s", codeTabsHTML)
+	}
+
 	component := `<div data-component="callout" data-props="{&#34;type&#34;:&#34;info&#34;}" data-version="1"><p>fallback</p><p>second</p></div>`
 	md, err = renderContent("<p>before</p>"+component+"<p>after</p>", formatMarkdown)
 	if err != nil {
@@ -293,7 +312,7 @@ func TestRequireScopeWithoutToken(t *testing.T) {
 	wantErr(t, err, "personal API tokens")
 }
 
-const calloutFence = "```component:callout\n{\"type\":\"tip\",\"title\":\"注意\",\"content\":\"**不是** Markdown & <b>纯文本</b>\\n\\n第二段\",\"extra\":1}\n```"
+const calloutFence = "```component:callout\n{\"type\":\"tip\",\"title\":\"注意\",\"content\":\"**支持** Markdown & <b>富文本</b>\\n\\n第二段\",\"extra\":1}\n```"
 
 // 组件代码块与组件块双向转换：写入时校验并补默认值，读取时还原为同样的写法
 func TestComponentFences(t *testing.T) {
@@ -303,15 +322,16 @@ func TestComponentFences(t *testing.T) {
 	}
 	for _, want := range []string{
 		`data-component="callout"`, `data-version="1"`,
-		`<p>**不是** Markdown &amp; &lt;b&gt;纯文本&lt;/b&gt;</p><p>第二段</p>`, // 降级内容为纯文本段落
+		`<p>注意</p><p>支持 Markdown &amp; 富文本</p><p>第二段</p>`, // 降级内容剥离富文本标记为干净纯文本段落
 		`data-component="codeTabs"`, `&#34;language&#34;:&#34;&#34;`, // 补全默认值
+		`<p>Go</p><pre><code>fmt.Println(1)</code></pre>`, // 代码降级保留原始代码
 		`\u003cb\u003e`, // props 中的 < > 转义，与前端 serializePropsAttr 一致
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("html missing %q:\n%s", want, html)
 		}
 	}
-	if strings.Contains(html, "extra") || strings.Contains(html, "<pre>") {
+	if strings.Contains(html, "extra") || strings.Contains(html, "language-component:") {
 		t.Fatalf("unknown props must be dropped and fences replaced:\n%s", html)
 	}
 
